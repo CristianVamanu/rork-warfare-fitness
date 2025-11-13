@@ -1,7 +1,9 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert, Linking } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
+import { useStripe, PaymentSheetError } from '@stripe/stripe-react-native';
+import { trpcClient } from '@/lib/trpc';
 
 import { MISSIONS, Mission } from '@/constants/missions';
 import { ADMIN_AVATAR, DEFAULT_AVATAR } from '@/constants/avatars';
@@ -133,6 +135,7 @@ const STORAGE_KEYS = {
 };
 
 export const [AppProvider, useApp] = createContextHook(() => {
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [streak, setStreak] = useState<number>(0);
   const [powerLevel, setPowerLevel] = useState<number>(0);
@@ -448,44 +451,72 @@ export const [AppProvider, useApp] = createContextHook(() => {
     }
     
     if (provider === 'stripe') {
-      console.log('[Payment] Starting Stripe checkout for premium tier');
-      console.log('[Payment] Creating checkout session with Stripe...');
+      console.log('[Payment] Starting Stripe payment for premium tier');
+      console.log('[Payment] Amount:', tierPrice);
       
       try {
-        const checkoutUrl = `https://checkout.stripe.com/c/pay/${keys.stripePublicKey}`;
+        console.log('[Payment] Creating payment intent...');
+        const response = await trpcClient.payments.createPaymentIntent.mutate({
+          amount: tierPrice,
+          currency: 'usd',
+          stripeSecretKey: keys.stripeSecretKey!,
+          customerEmail: user?.email,
+        });
+
+        if (!response.paymentIntent) {
+          throw new Error('Failed to create payment intent');
+        }
+
+        console.log('[Payment] Initializing payment sheet...');
+        const { error: initError } = await initPaymentSheet({
+          paymentIntentClientSecret: response.paymentIntent,
+          merchantDisplayName: adminSettings.appName,
+          applePay: {
+            merchantCountryCode: 'US',
+          },
+          googlePay: {
+            merchantCountryCode: 'US',
+            testEnv: false,
+          },
+          allowsDelayedPaymentMethods: true,
+          returnURL: Platform.select({
+            ios: 'warfarefitness://stripe-redirect',
+            android: 'warfarefitness://stripe-redirect',
+            default: undefined,
+          }),
+        });
+
+        if (initError) {
+          console.error('[Payment] Payment sheet initialization error:', initError);
+          Alert.alert('Payment Error', 'Failed to initialize payment. Please try again.');
+          return;
+        }
+
+        console.log('[Payment] Presenting payment sheet...');
+        const { error: presentError } = await presentPaymentSheet();
+
+        if (presentError) {
+          const paymentError = presentError as PaymentSheetError;
+          if (paymentError.code === 'Canceled') {
+            console.log('[Payment] Payment cancelled by user');
+          } else {
+            console.error('[Payment] Payment error:', paymentError);
+            Alert.alert('Payment Failed', paymentError.message || 'Payment was not completed. Please try again.');
+          }
+          return;
+        }
+
+        console.log('[Payment] Payment successful!');
+        await processPaymentSuccess('premium', tierPrice);
         
         Alert.alert(
-          'Proceed to Stripe Checkout',
-          `Complete your payment of ${tierPrice}/month through Stripe secure checkout. Your subscription will activate automatically after successful payment.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Open Stripe Checkout', 
-              onPress: async () => {
-                try {
-                  const stripeUrl = 'https://stripe.com/checkout';
-                  const canOpen = await Linking.canOpenURL(stripeUrl);
-                  if (canOpen) {
-                    await Linking.openURL(stripeUrl);
-                    Alert.alert(
-                      'Payment Processing',
-                      'Complete your payment on Stripe. Your subscription will activate automatically upon successful payment. This may take a few moments.',
-                      [{ text: 'OK' }]
-                    );
-                  } else {
-                    Alert.alert('Error', 'Unable to open Stripe checkout. Please try again or contact support.');
-                  }
-                } catch (error) {
-                  console.error('[Payment] Error opening Stripe:', error);
-                  Alert.alert('Payment Error', 'Failed to open payment page. Please try again later.');
-                }
-              } 
-            },
-          ]
+          '🎉 Payment Successful!',
+          'Your premium subscription has been activated. Enjoy unlimited access!',
+          [{ text: 'Awesome!', style: 'default' }]
         );
       } catch (error) {
-        console.error('[Payment] Stripe checkout error:', error);
-        Alert.alert('Payment Error', 'Failed to initialize payment. Please try again later.');
+        console.error('[Payment] Stripe payment error:', error);
+        Alert.alert('Payment Error', 'Failed to process payment. Please try again later.');
       }
     } else {
       const url = 'https://www.paypal.com/webapps/billing/plans/subscribe';
@@ -507,7 +538,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
         Alert.alert('Payment Error', 'Failed to open payment page. Please try again later.');
       }
     }
-  }, [adminSettings.payments, adminSettings.subscriptionPrices, setTier]);
+  }, [adminSettings.payments, adminSettings.subscriptionPrices, adminSettings.appName, setTier, initPaymentSheet, presentPaymentSheet, processPaymentSuccess, user]);
 
   const getTodayMeals = useCallback(() => {
     const todayStr = new Date().toDateString();

@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { View, ActivityIndicator, Text, Alert } from "react-native";
+import { StripeProvider } from '@stripe/stripe-react-native';
 
 import { AppProvider, useApp } from '@/contexts/AppContext';
 import { TrainingProvider } from '@/contexts/TrainingContext';
@@ -136,13 +137,21 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 function RootLayoutNav() {
+  const { adminSettings } = useApp();
+  
   return (
     <AuthGuard>
-      <Stack screenOptions={{ headerBackTitle: "Back" }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="register" options={{ headerShown: false }} />
-      </Stack>
+      <StripeProvider
+        publishableKey={adminSettings.payments.stripePublicKey || 'pk_test_placeholder'}
+        merchantIdentifier="merchant.com.warfarefitness"
+        urlScheme="warfarefitness"
+      >
+        <Stack screenOptions={{ headerBackTitle: "Back" }}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="register" options={{ headerShown: false }} />
+        </Stack>
+      </StripeProvider>
     </AuthGuard>
   );
 }
