@@ -296,14 +296,17 @@ export default function BarcodeScannerScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.scanAnotherButton} onPress={resetScanner}>
-            <Scan size={20} color={Colors.text} />
-            <Text style={styles.scanAnotherButtonText}>Scan Another Product</Text>
-          </TouchableOpacity>
+          <View style={styles.buttonsContainer}>
+            <TouchableOpacity style={styles.scanAnotherButton} onPress={resetScanner}>
+              <Scan size={20} color={Colors.text} />
+              <Text style={styles.scanAnotherButtonText}>Scan Another Product</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.doneButton} onPress={() => router.back()}>
-            <Text style={styles.doneButtonText}>Done</Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.doneButton} onPress={() => router.back()}>
+              <X size={20} color={Colors.textSecondary} />
+              <Text style={styles.doneButtonText}>Close Scanner</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       )}
     </View>
@@ -533,16 +536,18 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: Colors.accent,
   },
+  buttonsContainer: {
+    marginHorizontal: 16,
+    gap: 12,
+  },
   scanAnotherButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.accent,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 12,
-    marginHorizontal: 16,
-    marginBottom: 12,
   },
   scanAnotherButtonText: {
     fontSize: 16,
@@ -550,9 +555,15 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   doneButton: {
-    paddingVertical: 12,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   doneButtonText: {
     fontSize: 14,
