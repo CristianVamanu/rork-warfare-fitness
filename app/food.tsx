@@ -44,7 +44,10 @@ export default function FoodScannerScreen() {
       await pickImage();
       return;
     }
-    if (!permission) return;
+    if (!permission) {
+      await requestPermission();
+      return;
+    }
     if (!permission.granted) {
       const res = await requestPermission();
       if (!res.granted) return;
@@ -53,17 +56,20 @@ export default function FoodScannerScreen() {
   };
 
   const scan = async () => {
-    if (!picked?.uri || !picked?.base64) { setError('Select a food photo first'); return; }
+    if (!picked?.uri) { setError('Select a food photo first'); return; }
+    if (!picked?.base64) { setError('Image data not available. Please try taking/selecting the photo again.'); return; }
     setLoading(true);
     setError(undefined);
+    setNutrition(undefined);
     
-    Animated.loop(
+    const radarLoop = Animated.loop(
       Animated.timing(radarAnim, {
         toValue: 1,
         duration: 2000,
         useNativeDriver: true,
       })
-    ).start();
+    );
+    radarLoop.start();
 
     try {
       const schema = z.object({
@@ -85,9 +91,9 @@ export default function FoodScannerScreen() {
       setNutrition(result as { name: string; calories: number; protein: number; carbs: number; fat: number });
     } catch (e) {
       console.log('scan error', e);
-      setError('Failed to analyze image');
+      setError('Failed to analyze image. Please try again.');
     } finally {
-      radarAnim.stopAnimation();
+      radarLoop.stop();
       radarAnim.setValue(0);
       setLoading(false);
     }
@@ -96,7 +102,6 @@ export default function FoodScannerScreen() {
   const addToLog = () => {
     if (!nutrition) return;
     addMeal({ name: nutrition.name, calories: nutrition.calories, protein: nutrition.protein, carbs: nutrition.carbs, fat: nutrition.fat, mealType, imageUri: picked?.uri });
-    setPicked(undefined);
     setNutrition(undefined);
     setMealType('lunch');
   };
