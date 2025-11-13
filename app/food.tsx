@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Image as RNImage, TextInput, ActivityIndicator, Animated, Platform } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { Camera, Image as ImageIcon, Plus, Check, Flame } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -12,7 +12,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { z } from 'zod';
 
 export default function FoodScannerScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { addMeal, calorieTarget, setDailyCalorieTarget, getTodayMeals } = useApp();
 
@@ -97,7 +96,9 @@ export default function FoodScannerScreen() {
   const addToLog = () => {
     if (!nutrition) return;
     addMeal({ name: nutrition.name, calories: nutrition.calories, protein: nutrition.protein, carbs: nutrition.carbs, fat: nutrition.fat, mealType, imageUri: picked?.uri });
-    router.back();
+    setPicked(undefined);
+    setNutrition(undefined);
+    setMealType('lunch');
   };
 
   if (cameraOpen && Platform.OS !== 'web') {
