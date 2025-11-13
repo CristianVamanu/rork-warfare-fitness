@@ -170,16 +170,17 @@ export default function BarcodeScannerScreen() {
       )}
 
       {nutritionalInfo && !loading && (
-        <ScrollView 
-          style={styles.resultsContainer} 
-          contentContainerStyle={{ paddingTop: insets.top + 60, paddingBottom: 40 }}
-        >
+        <View style={styles.resultsWrapper}>
           <TouchableOpacity
             style={[styles.closeIconButton, { top: insets.top + 60 }]}
             onPress={() => router.back()}
           >
             <X size={28} color={Colors.text} />
           </TouchableOpacity>
+          <ScrollView 
+            style={styles.resultsContainer} 
+            contentContainerStyle={{ paddingTop: insets.top + 60, paddingBottom: 40 }}
+          >
 
           <View style={styles.productHeader}>
             <Package size={48} color={Colors.accent} />
@@ -304,7 +305,8 @@ export default function BarcodeScannerScreen() {
           <TouchableOpacity style={styles.doneButton} onPress={() => router.back()}>
             <Text style={styles.doneButtonText}>Done</Text>
           </TouchableOpacity>
-        </ScrollView>
+          </ScrollView>
+        </View>
       )}
     </View>
   );
@@ -455,9 +457,12 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
-  resultsContainer: {
+  resultsWrapper: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  resultsContainer: {
+    flex: 1,
   },
   productHeader: {
     alignItems: 'center',
