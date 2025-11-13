@@ -22,10 +22,6 @@
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
         "UIBackgroundModes": [
           "audio"
-        ],
-        "CFBundleAllowMixedLocalizations": true,
-        "CFBundleLocalizations": [
-          "fr"
         ]
       }
     },
@@ -86,13 +82,6 @@
             "./local/assets/notification_sound.wav"
           ],
           "enableBackgroundRemoteNotifications": false
-        }
-      ],
-      [
-        "@stripe/stripe-react-native",
-        {
-          "merchantIdentifier": "string | string[]",
-          "enableGooglePay": "boolean"
         }
       ]
     ],

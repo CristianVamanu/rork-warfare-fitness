@@ -1,4 +1,4 @@
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, ScrollView, Platform, Alert } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
@@ -116,7 +116,7 @@ export default function BarcodeScannerScreen() {
             facing="back"
             onBarcodeScanned={handleBarCodeScanned}
             barcodeScannerSettings={{
-              barcodeTypes: ['ean13', 'ean8', 'upc_e', 'code128', 'code39', 'qr'],
+              barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr'],
             }}
           >
             <View style={styles.overlay}>
@@ -170,17 +170,16 @@ export default function BarcodeScannerScreen() {
       )}
 
       {nutritionalInfo && !loading && (
-        <View style={styles.resultsWrapper}>
+        <ScrollView 
+          style={styles.resultsContainer} 
+          contentContainerStyle={{ paddingTop: insets.top + 60, paddingBottom: 40 }}
+        >
           <TouchableOpacity
             style={[styles.closeIconButton, { top: insets.top + 60 }]}
             onPress={() => router.back()}
           >
             <X size={28} color={Colors.text} />
           </TouchableOpacity>
-          <ScrollView 
-            style={styles.resultsContainer} 
-            contentContainerStyle={{ paddingTop: insets.top + 60, paddingBottom: 40 }}
-          >
 
           <View style={styles.productHeader}>
             <Package size={48} color={Colors.accent} />
@@ -305,8 +304,7 @@ export default function BarcodeScannerScreen() {
           <TouchableOpacity style={styles.doneButton} onPress={() => router.back()}>
             <Text style={styles.doneButtonText}>Done</Text>
           </TouchableOpacity>
-          </ScrollView>
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -457,12 +455,9 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
-  resultsWrapper: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
   resultsContainer: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
   productHeader: {
     alignItems: 'center',

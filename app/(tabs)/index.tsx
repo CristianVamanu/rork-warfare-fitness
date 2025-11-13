@@ -611,6 +611,57 @@ export default function HomeScreen() {
                   <Text style={styles.legendText}>Missed</Text>
                 </View>
               </View>
+              <TouchableOpacity 
+                style={styles.resetWeekButton}
+                onPress={() => {
+                    Alert.alert(
+                      'Reset Week Progress',
+                      'This will clear this week\'s workout progress. Are you sure?',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Reset',
+                          style: 'destructive',
+                          onPress: () => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const todayDayOfWeek = today.getDay();
+                            const daysFromMonday = todayDayOfWeek === 0 ? 6 : todayDayOfWeek - 1;
+                            
+                            const startDate = new Date(activeProgram.startDate!);
+                            startDate.setHours(0, 0, 0, 0);
+                            
+                            const updatedCompletedDays = { ...activeProgram.completedDays };
+                            
+                            for (let i = 0; i < 7; i++) {
+                              const date = new Date(today);
+                              date.setDate(date.getDate() - daysFromMonday + i);
+                              date.setHours(0, 0, 0, 0);
+                              const daysSinceStart = Math.floor((date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                              
+                              if (daysSinceStart >= 1 && daysSinceStart <= activeProgram.days) {
+                                delete updatedCompletedDays[daysSinceStart];
+                              }
+                            }
+                            
+                            const updated = programs.map(p => 
+                              p.id === activeProgram.id 
+                                ? { ...p, completedDays: updatedCompletedDays }
+                                : p
+                            );
+                            
+                            AsyncStorage.setItem('wf_programs', JSON.stringify(updated)).then(() => {
+                              Alert.alert('Success', 'Week progress has been reset');
+                              router.replace('/(tabs)');
+                            });
+                          },
+                        },
+                      ]
+                    );
+                }}
+              >
+                <Text style={styles.resetWeekButtonText}>Reset Week</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -1982,6 +2033,21 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: '600' as const,
   },
-
+  resetWeekButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  resetWeekButtonText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.textSecondary,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase' as const,
+  },
 });
 
