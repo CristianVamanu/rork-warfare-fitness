@@ -140,7 +140,7 @@ const DEFAULT_PROGRAMS: Program[] = [
   { id: 'calisthenics-warfare-90', title: 'Calisthenics Warfare 90', days: 90, schedule: build90DaySchedule('calisthenics-warfare-90', 'calisthenics'), completedDays: {}, accessLevel: 'free', isPaid: false, requiresSubscription: false },
 ];
 
-export type SubscriptionTier = 'free' | 'premium';
+
 
 export const [TrainingProvider, useTraining] = createContextHook(() => {
   const [programs, setPrograms] = useState<Program[]>(DEFAULT_PROGRAMS);
@@ -149,7 +149,7 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
   const [exercisePerformances, setExercisePerformances] = useState<ExercisePerformance[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
-  const { user, subscriptionTier, isLoading: appIsLoading, adminSettings: appSettings, hasFullAccess } = useApp();
+  const { user, isLoading: appIsLoading, hasFullAccess } = useApp();
 
   useEffect(() => {
     if (appIsLoading) return;
@@ -268,44 +268,16 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
   const activeProgram = useMemo(() => programs.find(p => p.id === activeProgramId), [programs, activeProgramId]);
 
   const isTrialExpired = useCallback((program: Program) => {
-    return !hasFullAccess();
-  }, [hasFullAccess]);
+    return false;
+  }, []);
 
   const hasAccessToDay = useCallback((program: Program, day: number) => {
-    console.log('[Training] ===== ACCESS CHECK START =====');
-    console.log('[Training] Day:', day);
-    console.log('[Training] subscriptionTier:', subscriptionTier);
-    
-    if (subscriptionTier === 'premium') {
-      console.log('[Training] Premium user - full access');
-      console.log('[Training] ===== ACCESS CHECK END =====');
-      return true;
-    }
-    
-    const inFreeTrial = hasFullAccess();
-    if (inFreeTrial) {
-      const freeTrialDays = appSettings.subscriptionPrices?.freeTrialDays ?? 7;
-      console.log('[Training] User in free trial - access to first', freeTrialDays, 'days');
-      const hasAccess = day <= freeTrialDays;
-      console.log('[Training] Day', day, 'access:', hasAccess);
-      console.log('[Training] ===== ACCESS CHECK END =====');
-      return hasAccess;
-    }
-    
-    console.log('[Training] Free trial expired - no access');
-    console.log('[Training] ===== ACCESS CHECK END =====');
-    return false;
-  }, [subscriptionTier, appSettings, hasFullAccess]);
+    return true;
+  }, []);
 
   const hasAccessToProgram = useCallback((program: Program) => {
-    console.log('[Training] ===== PROGRAM ACCESS CHECK START =====');
-    console.log('[Training] subscriptionTier:', subscriptionTier);
-    
-    const fullAccess = hasFullAccess();
-    console.log('[Training] hasFullAccess:', fullAccess);
-    console.log('[Training] ===== PROGRAM ACCESS CHECK END =====');
-    return fullAccess;
-  }, [subscriptionTier, hasFullAccess]);
+    return true;
+  }, []);
 
   const getOverallProgress = useCallback(() => {
     const p = activeProgram;

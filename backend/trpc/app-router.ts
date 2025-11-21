@@ -1,8 +1,7 @@
 import { createTRPCRouter } from "./create-context";
 import hiRoute from "./routes/example/hi/route";
 import generateProgramWithAiRoute from "./routes/programs/generate-with-ai/route";
-import createSubscriptionRoute from "./routes/payments/create-subscription/route";
-import stripeWebhookRoute from "./routes/webhooks/stripe/route";
+
 import { createChallengeRoute } from "./routes/challenges/create/route";
 import { listChallengesRoute } from "./routes/challenges/list/route";
 import { getChallengeRoute } from "./routes/challenges/get/route";
@@ -18,12 +17,7 @@ export const appRouter = createTRPCRouter({
   programs: createTRPCRouter({
     generateWithAi: generateProgramWithAiRoute,
   }),
-  payments: createTRPCRouter({
-    createSubscription: createSubscriptionRoute,
-  }),
-  webhooks: createTRPCRouter({
-    stripe: stripeWebhookRoute,
-  }),
+
   challenges: createTRPCRouter({
     create: createChallengeRoute,
     list: listChallengesRoute,

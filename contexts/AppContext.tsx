@@ -1,12 +1,12 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert, Linking } from 'react-native';
+
 
 import { MISSIONS, Mission } from '@/constants/missions';
 import { ADMIN_AVATAR, DEFAULT_AVATAR } from '@/constants/avatars';
 
-type SubscriptionTier = 'free' | 'premium';
+
 
 interface PowerLevelMetrics {
   loginStreak: number;
@@ -67,7 +67,7 @@ interface FreePackageFeatures {
 interface AdminAppSettings {
   enableNotifications: boolean;
   requireVerification: boolean;
-  subscriptionPrices: { premium: string; freeTrialDays: number };
+
   freePackage: FreePackageFeatures;
   appName: string;
   tagline: string;
@@ -98,8 +98,7 @@ interface User {
   referralCode?: string;
   referredBy?: string;
   totalReferrals?: number;
-  subscriptionTier?: SubscriptionTier;
-  premiumExpiresAt?: string;
+
   powerLevelSnapshot?: number;
 }
 
@@ -144,13 +143,13 @@ export const [AppProvider, useApp] = createContextHook(() => {
   const [calorieTarget, setCalorieTarget] = useState<number>(2400);
   const [meals, setMeals] = useState<MealEntry[]>([]);
 
-  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
-  const [registrationDate, setRegistrationDate] = useState<string | undefined>(undefined);
+
+  const [, setRegistrationDate] = useState<string | undefined>(undefined);
 
   const [adminSettings, setAdminSettings] = useState<AdminAppSettings>({
     enableNotifications: true,
     requireVerification: false,
-    subscriptionPrices: { premium: '49', freeTrialDays: 7 },
+
     freePackage: {
       trainingPrograms: true,
       freeTrialDays: 7,
@@ -184,7 +183,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
   });
 
   const [user, setUser] = useState<User | undefined>(undefined);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
+
   const [powerMetrics, setPowerMetrics] = useState<PowerLevelMetrics>({
     loginStreak: 0,
     lastLoginDate: '',
@@ -254,16 +253,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
           } catch {}
         }
 
-        const storedTier = await AsyncStorage.getItem(STORAGE_KEYS.TIER);
-        console.log('[AppContext] ===== LOADING SUBSCRIPTION TIER =====');
-        console.log('[AppContext] Stored tier from AsyncStorage:', storedTier);
-        if (storedTier) {
-          setSubscriptionTier(storedTier as SubscriptionTier);
-          console.log('[AppContext] ✅ Subscription tier set to:', storedTier);
-        } else {
-          console.log('[AppContext] ⚠️ No tier found in storage, using default: free');
-        }
-        console.log('[AppContext] ===== TIER LOADING COMPLETE =====');
+
 
         const storedRegDate = await AsyncStorage.getItem('warfare_registration_date');
         if (storedRegDate) {
@@ -375,42 +365,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
     void AsyncStorage.setItem(STORAGE_KEYS.MEALS, JSON.stringify(next));
   }, [meals]);
 
-  const setTier = useCallback(async (tier: SubscriptionTier) => {
-    console.log('[Subscription] ===== SETTING TIER =====');
-    console.log('[Subscription] New tier:', tier);
-    console.log('[Subscription] Current user:', user?.email);
-    console.log('[Subscription] Current subscriptionTier state:', subscriptionTier);
-    
-    setSubscriptionTier(tier);
-    await AsyncStorage.setItem(STORAGE_KEYS.TIER, tier);
-    console.log('[Subscription] ✅ Saved tier to AsyncStorage:', tier);
-    
-    if (user) {
-      const updatedUser = { ...user, subscriptionTier: tier };
-      setUser(updatedUser);
-      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
-      console.log('[Subscription] ✅ Updated user object with tier');
-      
-      const allUsersData = await AsyncStorage.getItem(STORAGE_KEYS.ALL_USERS);
-      const allUsers = allUsersData ? JSON.parse(allUsersData) : [];
-      const userIndex = allUsers.findIndex((u: User & { subscriptionTier?: SubscriptionTier }) => u.email === user.email);
-      
-      if (userIndex >= 0) {
-        allUsers[userIndex] = { ...allUsers[userIndex], subscriptionTier: tier };
-        console.log('[Subscription] ✅ Updated existing user in all users list');
-      } else {
-        allUsers.push({ ...updatedUser, subscriptionTier: tier });
-        console.log('[Subscription] ✅ Added new user to all users list');
-      }
-      
-      await AsyncStorage.setItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(allUsers));
-      console.log('[Subscription] ✅ TIER UPDATE COMPLETE - User:', user.email, 'Tier:', tier);
-    } else {
-      console.log('[Subscription] ⚠️ No user logged in, tier saved globally only');
-    }
-    
-    console.log('[Subscription] ===== TIER SETTING COMPLETE =====');
-  }, [user, subscriptionTier]);
+
 
   const updateAdminSettings = useCallback((updates: Partial<AdminAppSettings>) => {
     const next = { ...adminSettings, ...updates };
@@ -420,94 +375,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
 
 
-  const beginCheckout = useCallback(async (targetTier: SubscriptionTier) => {
-    if (targetTier === 'free') {
-      setTier('free');
-      return;
-    }
-    
-    const keys = adminSettings.payments;
-    const provider = keys.activeProvider ?? 'stripe';
-    const hasStripe = !!keys.stripePublicKey && !!keys.stripeSecretKey;
-    const hasPaypal = !!keys.paypalClientId;
-    
-    if (provider === 'stripe' && !hasStripe) {
-      Alert.alert('Payments not configured', 'Stripe payment keys are not configured. Please configure them in Admin Settings.');
-      return;
-    }
-    
-    if (provider === 'paypal' && !hasPaypal) {
-      Alert.alert('Payments not configured', 'PayPal payment keys are not configured.');
-      return;
-    }
 
-    const tierPrice = parseFloat(adminSettings.subscriptionPrices.premium);
-    if (isNaN(tierPrice) || tierPrice <= 0) {
-      Alert.alert('Configuration Error', 'Invalid subscription price. Please check admin settings.');
-      return;
-    }
-    
-    if (provider === 'stripe') {
-      console.log('[Payment] Starting Stripe checkout for premium tier');
-      console.log('[Payment] Creating checkout session with Stripe...');
-      
-      try {
-        const checkoutUrl = `https://checkout.stripe.com/c/pay/${keys.stripePublicKey}`;
-        
-        Alert.alert(
-          'Proceed to Stripe Checkout',
-          `Complete your payment of ${tierPrice}/month through Stripe secure checkout. Your subscription will activate automatically after successful payment.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Open Stripe Checkout', 
-              onPress: async () => {
-                try {
-                  const stripeUrl = 'https://stripe.com/checkout';
-                  const canOpen = await Linking.canOpenURL(stripeUrl);
-                  if (canOpen) {
-                    await Linking.openURL(stripeUrl);
-                    Alert.alert(
-                      'Payment Processing',
-                      'Complete your payment on Stripe. Your subscription will activate automatically upon successful payment. This may take a few moments.',
-                      [{ text: 'OK' }]
-                    );
-                  } else {
-                    Alert.alert('Error', 'Unable to open Stripe checkout. Please try again or contact support.');
-                  }
-                } catch (error) {
-                  console.error('[Payment] Error opening Stripe:', error);
-                  Alert.alert('Payment Error', 'Failed to open payment page. Please try again later.');
-                }
-              } 
-            },
-          ]
-        );
-      } catch (error) {
-        console.error('[Payment] Stripe checkout error:', error);
-        Alert.alert('Payment Error', 'Failed to initialize payment. Please try again later.');
-      }
-    } else {
-      const url = 'https://www.paypal.com/webapps/billing/plans/subscribe';
-      console.log('[Payment] Opening PayPal checkout for premium tier');
-      try {
-        const canOpen = await Linking.canOpenURL(url);
-        if (!canOpen) {
-          Alert.alert('Error', 'Cannot open payment link. Please check your internet connection.');
-          return;
-        }
-        await Linking.openURL(url);
-        Alert.alert(
-          'Payment Processing',
-          'Complete your payment on PayPal. Your subscription will activate automatically upon successful payment.',
-          [{ text: 'OK' }]
-        );
-      } catch (e) {
-        console.error('Payment error:', e);
-        Alert.alert('Payment Error', 'Failed to open payment page. Please try again later.');
-      }
-    }
-  }, [adminSettings.payments, adminSettings.subscriptionPrices, setTier]);
 
   const getTodayMeals = useCallback(() => {
     const todayStr = new Date().toDateString();
@@ -532,26 +400,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
     
     const allUsersData = await AsyncStorage.getItem(STORAGE_KEYS.ALL_USERS);
     const allUsers = allUsersData ? JSON.parse(allUsersData) : [];
-    const existingUser = allUsers.find((u: User & { subscriptionTier?: SubscriptionTier }) => u.email === normalizedEmail);
-    
-    let currentTier: SubscriptionTier = 'free';
-    if (isNewUser) {
-      currentTier = 'free';
-      console.log('[Auth] ===== NEW USER REGISTRATION =====');
-      console.log('[Auth] New user - assigning FREE tier (not premium)');
-      console.log('[Auth] User will have 7-day free trial starting from registration');
-    } else if (existingUser && existingUser.subscriptionTier) {
-      currentTier = existingUser.subscriptionTier;
-      console.log('[Auth] Found existing user tier:', currentTier);
-    } else {
-      const storedTier = await AsyncStorage.getItem(STORAGE_KEYS.TIER);
-      currentTier = (storedTier as SubscriptionTier) || 'free';
-      console.log('[Auth] Using stored tier:', currentTier);
-    }
-    
-    setSubscriptionTier(currentTier);
-    await AsyncStorage.setItem(STORAGE_KEYS.TIER, currentTier);
-    console.log('[Auth] ✅ Set subscription tier to:', currentTier);
+    const existingUser = allUsers.find((u: User) => u.email === normalizedEmail);
     
     const userRegistrationDate = existingUser?.registrationDate ?? (isNewUser ? new Date().toISOString() : undefined) ?? new Date().toISOString();
     
@@ -567,13 +416,12 @@ export const [AppProvider, useApp] = createContextHook(() => {
     const userId = existingUser?.id ?? 'u-' + Date.now().toString();
     const referralCode = existingUser?.referralCode ?? generateReferralCode(userId);
     
-    const newUser: User & { subscriptionTier: SubscriptionTier; registrationDate: string } = {
+    const newUser: User & { registrationDate: string } = {
       id: userId,
       name: name ?? existingUser?.name ?? username ?? email.split('@')[0],
       email: normalizedEmail,
       isAdmin: isAdminEmail,
       avatar: userAvatar,
-      subscriptionTier: currentTier,
       weightUnit: weightUnit ?? existingUser?.weightUnit ?? 'lbs',
       registrationDate: userRegistrationDate,
       height: height ?? existingUser?.height,
@@ -587,7 +435,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
     
     setRegistrationDate(userRegistrationDate);
     await AsyncStorage.setItem('warfare_registration_date', userRegistrationDate);
-    console.log('[Auth] User login:', normalizedEmail, 'isAdmin:', newUser.isAdmin, 'isNewUser:', isNewUser, 'tier:', currentTier);
+    console.log('[Auth] User login:', normalizedEmail, 'isAdmin:', newUser.isAdmin, 'isNewUser:', isNewUser);
     setUser(newUser);
     await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
     
@@ -653,7 +501,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
       const today = new Date().toDateString();
       
       await Promise.all([
-        AsyncStorage.setItem(STORAGE_KEYS.TIER, 'free'),
         AsyncStorage.setItem(STORAGE_KEYS.LAST_LOGIN_DATE, today),
         AsyncStorage.setItem(STORAGE_KEYS.LAST_DATE, today),
         AsyncStorage.setItem(STORAGE_KEYS.STREAK, '0'),
@@ -666,11 +513,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
       ]);
       
       console.log('[Auth] ✅ New user initialized:');
-      console.log('[Auth]    - Tier: FREE');
       console.log('[Auth]    - Streak: 0');
       console.log('[Auth]    - Power Level: 0');
       console.log('[Auth]    - Missions: Reset');
-      console.log('[Auth]    - Free trial: 7 days from today');
       console.log('[Auth] ===== NEW USER INITIALIZATION COMPLETE =====');
       return;
     }
@@ -878,75 +723,24 @@ export const [AppProvider, useApp] = createContextHook(() => {
     const bonusPower = 10;
     addPower(bonusPower);
     
-    const updatedMetrics = {
-      ...powerMetrics,
-      totalWorkoutsCompleted: totalWorkouts,
-    };
-    setPowerMetrics(updatedMetrics);
-    await AsyncStorage.setItem(STORAGE_KEYS.POWER_METRICS, JSON.stringify(updatedMetrics));
+    setPowerMetrics(prev => {
+      const updatedMetrics = {
+        ...prev,
+        totalWorkoutsCompleted: totalWorkouts,
+      };
+      void AsyncStorage.setItem(STORAGE_KEYS.POWER_METRICS, JSON.stringify(updatedMetrics));
+      return updatedMetrics;
+    });
     
     console.log('[Workout] Workout completed. Bonus: +' + bonusPower + ' power. Total workouts:', totalWorkouts);
     return bonusPower;
-  }, [addPower, powerMetrics]);
+  }, [addPower]);
 
-  const processPaymentSuccess = useCallback(async (tier: SubscriptionTier, amountPaid: number) => {
-    console.log('[Payment] Processing successful payment:', { tier, amountPaid });
-    
-    setTier(tier);
-    
-    if (tier === 'premium' && amountPaid > 0) {
-      const spendingBonus = Math.floor(amountPaid * 2);
-      if (!isNaN(spendingBonus) && isFinite(spendingBonus)) {
-        addPower(spendingBonus);
-        
-        const updatedMetrics = {
-          ...powerMetrics,
-          totalSpent: (powerMetrics.totalSpent || 0) + amountPaid,
-        };
-        setPowerMetrics(updatedMetrics);
-        await AsyncStorage.setItem(STORAGE_KEYS.POWER_METRICS, JSON.stringify(updatedMetrics));
-        
-        console.log(`[Payment] Payment processed! ${amountPaid} paid. Bonus: +${spendingBonus} power. Total spent: ${updatedMetrics.totalSpent}`);
-        
-        Alert.alert(
-          '🎉 Subscription Activated!',
-          `Welcome to Premium! You earned +${spendingBonus} power for your purchase. Enjoy unlimited access!`,
-          [{ text: 'Awesome!', style: 'default' }]
-        );
-      }
-    }
-  }, [setTier, addPower, powerMetrics]);
 
-  const isInFreeTrial = useCallback(() => {
-    if (!user || !user.registrationDate) return true;
-    const regDate = new Date(user.registrationDate);
-    regDate.setHours(0, 0, 0, 0);
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const daysSinceReg = Math.floor((now.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24));
-    const trialDays = adminSettings.subscriptionPrices?.freeTrialDays ?? 7;
-    console.log('[FreeTrial] Registration:', user.registrationDate, 'Days since reg:', daysSinceReg, 'Trial days:', trialDays, 'In trial:', daysSinceReg < trialDays);
-    return daysSinceReg < trialDays;
-  }, [user, adminSettings]);
-
-  const getDaysRemainingInTrial = useCallback(() => {
-    if (!user || !user.registrationDate) {
-      const trialDays = adminSettings.subscriptionPrices?.freeTrialDays ?? 7;
-      return trialDays;
-    }
-    const regDate = new Date(user.registrationDate);
-    regDate.setHours(0, 0, 0, 0);
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const daysSinceReg = Math.floor((now.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24));
-    const trialDays = adminSettings.subscriptionPrices?.freeTrialDays ?? 7;
-    return Math.max(0, trialDays - daysSinceReg);
-  }, [user, adminSettings]);
 
   const hasFullAccess = useCallback(() => {
-    if (subscriptionTier === 'premium') return true;
-    return isInFreeTrial();
-  }, [subscriptionTier, isInFreeTrial]);
+    return true;
+  }, []);
 
   return useMemo(
     () => ({
@@ -965,11 +759,10 @@ export const [AppProvider, useApp] = createContextHook(() => {
       setDailyCalorieTarget,
       meals,
       addMeal,
-      subscriptionTier,
-      setTier,
+
       adminSettings,
       updateAdminSettings,
-      beginCheckout,
+
       getTodayMeals,
 
       user,
@@ -983,15 +776,13 @@ export const [AppProvider, useApp] = createContextHook(() => {
       logIceBath,
       completeWorkout,
       powerMetrics,
-      processPaymentSuccess,
+
       fastingState,
       startFasting,
       endFasting,
       iceBaths,
       logIceBathEntry,
-      isInFreeTrial,
       hasFullAccess,
-      getDaysRemainingInTrial,
     }),
     [
       isLoading,
@@ -1009,11 +800,10 @@ export const [AppProvider, useApp] = createContextHook(() => {
       setDailyCalorieTarget,
       meals,
       addMeal,
-      subscriptionTier,
-      setTier,
+
       adminSettings,
       updateAdminSettings,
-      beginCheckout,
+
       getTodayMeals,
 
       user,
@@ -1027,15 +817,13 @@ export const [AppProvider, useApp] = createContextHook(() => {
       logIceBath,
       completeWorkout,
       powerMetrics,
-      processPaymentSuccess,
+
       fastingState,
       startFasting,
       endFasting,
       iceBaths,
       logIceBathEntry,
-      isInFreeTrial,
       hasFullAccess,
-      getDaysRemainingInTrial,
     ]
   );
 });

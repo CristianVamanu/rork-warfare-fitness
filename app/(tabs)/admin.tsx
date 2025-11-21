@@ -12,7 +12,7 @@ import React from "react";
 export default function AdminScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { missions, powerLevel, user, subscriptionTier, setTier } = useApp();
+  const { missions, powerLevel, user } = useApp();
   const { workoutLogs, exercisePerformances, achievements } = useTraining();
   const { getGlobalLeaderboard } = useLeaderboard();
 
@@ -120,14 +120,7 @@ export default function AdminScreen() {
       color: Colors.textSecondary,
       route: '/admin-settings',
     },
-    {
-      id: '8',
-      title: 'Subscriptions',
-      description: 'Manage pricing & user tiers',
-      icon: Crown,
-      color: Colors.accent,
-      route: '/admin-subscriptions',
-    },
+
 
   ];
 
@@ -139,36 +132,6 @@ export default function AdminScreen() {
           <Text style={styles.headerTitle}>Admin Dashboard</Text>
         </View>
         <Text style={styles.headerSubtitle}>Full control over Warfare Fitness</Text>
-        
-        <View style={styles.devSection}>
-          <View style={styles.devRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.devTitle}>Quick Test Actions</Text>
-              <Text style={styles.devSubtitle}>Current tier: <Text style={{ fontWeight: '700' as const }}>{subscriptionTier}</Text></Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.devBtn, subscriptionTier === 'premium' && styles.devBtnActive]}
-              onPress={() => {
-                if (subscriptionTier === 'premium') {
-                  Alert.alert('Downgrade', 'Downgrade to free tier?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Downgrade', onPress: () => setTier('free') },
-                  ]);
-                } else {
-                  Alert.alert('Upgrade', 'Upgrade to premium tier?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Upgrade', onPress: () => setTier('premium') },
-                  ]);
-                }
-              }}
-            >
-              <Crown size={16} color={subscriptionTier === 'premium' ? Colors.background : Colors.accent} />
-              <Text style={[styles.devBtnText, subscriptionTier === 'premium' && styles.devBtnTextActive]}>
-                {subscriptionTier === 'premium' ? 'Downgrade to Free' : 'Upgrade to Premium'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       </View>
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>

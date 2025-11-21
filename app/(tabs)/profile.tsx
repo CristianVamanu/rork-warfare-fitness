@@ -253,10 +253,7 @@ export default function ProfileScreen() {
           <Text style={styles.manageText}>Notifications {unreadNotificationsCount > 0 && `(${unreadNotificationsCount})`}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.manageBtn} onPress={() => router.push('/manage-subscription' as any)}>
-          <CreditCard size={18} color={Colors.background} />
-          <Text style={styles.manageText}>Manage Subscription</Text>
-        </TouchableOpacity>
+
 
         {adminSettings.welcomeVideoUrl && (
           <TouchableOpacity style={[styles.manageBtn, { backgroundColor: Colors.accent }]} onPress={() => router.push('/welcome-video' as any)}>
