@@ -102,8 +102,10 @@ export default function FoodScannerScreen() {
   const addToLog = () => {
     if (!nutrition) return;
     addMeal({ name: nutrition.name, calories: nutrition.calories, protein: nutrition.protein, carbs: nutrition.carbs, fat: nutrition.fat, mealType, imageUri: picked?.uri });
+    setPicked(undefined);
     setNutrition(undefined);
     setMealType('lunch');
+    setError(undefined);
   };
 
   if (cameraOpen && Platform.OS !== 'web') {

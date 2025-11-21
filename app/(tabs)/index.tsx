@@ -465,9 +465,7 @@ export default function HomeScreen() {
               <TouchableOpacity style={styles.topIconBtn} onPress={() => router.push('/(tabs)/training' as any)} activeOpacity={0.7}>
                 <Dumbbell size={22} color={Colors.accent} strokeWidth={2.5} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.topIconBtn} onPress={() => router.push('/purchase' as any)} activeOpacity={0.7}>
-                <Zap size={22} color={Colors.accent} strokeWidth={2.5} />
-              </TouchableOpacity>
+
             </View>
             <Text style={styles.heroTitle}>{adminSettings.heroTitle ?? 'Your Mission Awaits, Soldier'}</Text>
             <Text style={styles.heroSubtitle}>{adminSettings.heroSubtitle ?? 'Forge Strength. Crush Anxiety. Dominate Your Life.'}</Text>
