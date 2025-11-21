@@ -10,6 +10,12 @@ import { deleteChallengeRoute } from "./routes/challenges/delete/route";
 import { submitChallengeRoute } from "./routes/challenges/submit/route";
 import { getUserSubmissionsRoute } from "./routes/challenges/submissions/route";
 
+import { createShopProductProcedure } from "./routes/shop/create/route";
+import { listShopProductsProcedure } from "./routes/shop/list/route";
+import { getShopProductProcedure } from "./routes/shop/get/route";
+import { updateShopProductProcedure } from "./routes/shop/update/route";
+import { deleteShopProductProcedure } from "./routes/shop/delete/route";
+
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
     hi: hiRoute,
@@ -26,6 +32,14 @@ export const appRouter = createTRPCRouter({
     delete: deleteChallengeRoute,
     submit: submitChallengeRoute,
     submissions: getUserSubmissionsRoute,
+  }),
+
+  shop: createTRPCRouter({
+    create: createShopProductProcedure,
+    list: listShopProductsProcedure,
+    get: getShopProductProcedure,
+    update: updateShopProductProcedure,
+    delete: deleteShopProductProcedure,
   }),
 });
 

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Settings, DollarSign, Palette, Bell, Shield, Brain, Plus, Trash2, FileText, PlayCircle, Cloud, Server, Upload, Image as ImageIcon } from 'lucide-react-native';
+import { Settings, DollarSign, Palette, Bell, Shield, Brain, Plus, Trash2, FileText, PlayCircle, Cloud, Server, Upload, Image as ImageIcon, Coffee } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
 import { useApp, DailyBriefing, FreePackageFeatures } from '@/contexts/AppContext';
@@ -50,6 +50,7 @@ export default function AdminSettingsScreen() {
     heroTitle: adminSettings.heroTitle ?? 'Your Mission Awaits, Soldier',
     heroSubtitle: adminSettings.heroSubtitle ?? 'Forge Strength. Crush Anxiety. Dominate Your Life.',
     appLogo: adminSettings.appLogo ?? '',
+    coffeeLink: adminSettings.coffeeLink ?? '',
   });
 
   const [dailyBriefings, setDailyBriefings] = useState<DailyBriefing[]>(adminSettings.dailyBriefings ?? [
@@ -193,6 +194,7 @@ export default function AdminSettingsScreen() {
       heroTitle: appSettings.heroTitle,
       heroSubtitle: appSettings.heroSubtitle,
       appLogo: appSettings.appLogo,
+      coffeeLink: appSettings.coffeeLink,
       dailyBriefings,
       payments: {
         stripePublicKey: payments.stripePublicKey || undefined,
@@ -373,6 +375,19 @@ export default function AdminSettingsScreen() {
             </TouchableOpacity>
           )}
           <Text style={styles.helpText}>This logo will be displayed on the login and registration screens.</Text>
+
+          <Text style={styles.label}>Buy Me a Coffee Link (Optional)</Text>
+          <TextInput
+            style={styles.input}
+            value={appSettings.coffeeLink}
+            onChangeText={(text) =>
+              setAppSettings({ ...appSettings, coffeeLink: text })
+            }
+            placeholder="https://www.buymeacoffee.com/yourusername"
+            placeholderTextColor={Colors.textTertiary}
+            autoCapitalize="none"
+          />
+          <Text style={styles.helpText}>Add your Buy Me a Coffee link. A floating button will appear on the home screen for users to support you.</Text>
         </View>
 
         <View style={styles.section}>

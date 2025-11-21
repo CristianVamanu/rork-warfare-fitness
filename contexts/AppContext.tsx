@@ -81,6 +81,7 @@ interface AdminAppSettings {
   heroSubtitle?: string;
   dailyBriefings?: DailyBriefing[];
   appLogo?: string;
+  coffeeLink?: string;
 }
 
 interface User {

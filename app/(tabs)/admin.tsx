@@ -1,4 +1,4 @@
-import { Shield, Users, Target, TrendingUp, Bell, Settings, MessageCircle, Award, Dumbbell, Camera, Trophy, Crown } from 'lucide-react-native';
+import { Shield, Users, Target, TrendingUp, Bell, Settings, MessageCircle, Award, Dumbbell, Camera, Trophy, Crown, ShoppingBag } from 'lucide-react-native';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -120,8 +120,14 @@ export default function AdminScreen() {
       color: Colors.textSecondary,
       route: '/admin-settings',
     },
-
-
+    {
+      id: '8',
+      title: 'Shop & Affiliates',
+      description: 'Manage products and earn',
+      icon: ShoppingBag,
+      color: Colors.success,
+      route: '/admin-shop',
+    },
   ];
 
   return (

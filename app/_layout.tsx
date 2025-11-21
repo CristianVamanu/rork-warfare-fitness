@@ -14,6 +14,7 @@ import { ChallengesProvider } from '@/contexts/ChallengesContext';
 import { RankingProvider } from '@/contexts/RankingContext';
 import { LeaderboardProvider } from '@/contexts/LeaderboardContext';
 import { NotificationsProvider } from '@/contexts/NotificationsContext';
+import { ShopProvider } from '@/contexts/ShopContext';
 
 import { runMigrations, verifyDataIntegrity } from '@/lib/data-migration';
 
@@ -159,10 +160,12 @@ export default function RootLayout() {
                   <LeaderboardProvider>
                     <ChallengesProvider>
                       <NotificationsProvider>
-                        <GestureHandlerRootView style={{ flex: 1 }}>
-                          <StatusBar style="light" />
-                          <RootLayoutNav />
-                        </GestureHandlerRootView>
+                        <ShopProvider>
+                          <GestureHandlerRootView style={{ flex: 1 }}>
+                            <StatusBar style="light" />
+                            <RootLayoutNav />
+                          </GestureHandlerRootView>
+                        </ShopProvider>
                       </NotificationsProvider>
                     </ChallengesProvider>
                   </LeaderboardProvider>

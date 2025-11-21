@@ -1,8 +1,8 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Users, Activity, Zap, Check, Dumbbell, Droplets, UtensilsCrossed, Settings, User, Clock, Snowflake, Medal, TrendingUp, Trophy, Bell, Calendar, ScanBarcode } from 'lucide-react-native';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Animated, Alert, Modal, TextInput, Dimensions, KeyboardAvoidingView, Platform } from 'react-native';
+import { Users, Activity, Zap, Check, Dumbbell, Droplets, UtensilsCrossed, Settings, User, Clock, Snowflake, Medal, TrendingUp, Trophy, Bell, Calendar, ScanBarcode, ShoppingBag, Coffee } from 'lucide-react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Animated, Alert, Modal, TextInput, Dimensions, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRef, useEffect, useState } from 'react';
@@ -358,6 +358,37 @@ export default function HomeScreen() {
     return briefings[0]?.text ?? '"Discipline is forged in fire. Today, you enter the warzone of self-mastery. Every rep is a battle. Every decision is a mission. Your enemy is weakness. Your weapon is action."';
   };
 
+  const handleCoffeePress = async () => {
+    const coffeeLink = adminSettings.coffeeLink;
+    if (!coffeeLink || coffeeLink.trim() === '') {
+      return;
+    }
+
+    Alert.alert(
+      'Support the App',
+      'If you enjoy this app and want to support future updates, you can buy me a coffee ☕ — it really helps!',
+      [
+        { text: 'Maybe Later', style: 'cancel' },
+        {
+          text: 'Buy Me a Coffee',
+          onPress: async () => {
+            try {
+              const supported = await Linking.canOpenURL(coffeeLink);
+              if (supported) {
+                await Linking.openURL(coffeeLink);
+              } else {
+                Alert.alert('Error', `Cannot open this link: ${coffeeLink}`);
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to open link');
+              console.error('[Coffee] Failed to open link:', error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const getTodaysBriefingAuthor = () => {
     const briefings = adminSettings.dailyBriefings ?? [];
     if (briefings.length === 0) {
@@ -464,6 +495,9 @@ export default function HomeScreen() {
               </TouchableOpacity>
               <TouchableOpacity style={styles.topIconBtn} onPress={() => router.push('/(tabs)/training' as any)} activeOpacity={0.7}>
                 <Dumbbell size={22} color={Colors.accent} strokeWidth={2.5} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.topIconBtn} onPress={() => router.push('/shop' as any)} activeOpacity={0.7}>
+                <ShoppingBag size={22} color={Colors.accent} strokeWidth={2.5} />
               </TouchableOpacity>
 
             </View>
@@ -1055,6 +1089,18 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </LinearGradient>
         </View>
+      )}
+
+      {adminSettings.coffeeLink && adminSettings.coffeeLink.trim() !== '' && (
+        <TouchableOpacity
+          style={styles.coffeeButton}
+          onPress={handleCoffeePress}
+          activeOpacity={0.9}
+        >
+          <View style={styles.coffeeButtonInner}>
+            <Coffee size={24} color="#fff" strokeWidth={2.5} />
+          </View>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -1996,6 +2042,27 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     letterSpacing: 0.5,
     textTransform: 'uppercase' as const,
+  },
+  coffeeButton: {
+    position: 'absolute' as const,
+    right: 20,
+    bottom: 100,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  coffeeButtonInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FF813F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
   },
 });
 
