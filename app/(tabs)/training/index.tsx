@@ -12,7 +12,7 @@ export default function ProgramDashboardScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { activeProgram, programs, enroll, getOverallProgress, unenroll, isTrialExpired, hasAccessToProgram, hasAccessToDay } = useTraining();
-  const { subscriptionTier, adminSettings, isInFreeTrial } = useApp();
+  const { adminSettings } = useApp();
 
 
 
@@ -51,9 +51,7 @@ export default function ProgramDashboardScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Available Programs</Text>
             <View style={{ gap: 16 }}>
-              {programs.map(p => {
-                const isPaidProgram = false;
-                return (
+              {programs.map(p => (
                   <TouchableOpacity 
                     key={p.id} 
                     style={styles.programCard} 
@@ -83,9 +81,7 @@ export default function ProgramDashboardScreen() {
                           </View>
                           <View style={styles.metaBadge}>
                             <Crown size={12} color={Colors.textSecondary} />
-                            <Text style={styles.metaBadgeText}>
-                              {subscriptionTier === 'premium' ? 'Subscribed' : isInFreeTrial() ? 'Free Trial' : 'Free'}
-                            </Text>
+                            <Text style={styles.metaBadgeText}>Free</Text>
                           </View>
                         </View>
                       </View>
@@ -97,8 +93,7 @@ export default function ProgramDashboardScreen() {
                       <Text style={styles.programEnrollBtnText}>Start Program</Text>
                     </TouchableOpacity>
                   </TouchableOpacity>
-                );
-              })}
+              ))}
             </View>
           </View>
         )}
@@ -112,7 +107,7 @@ export default function ProgramDashboardScreen() {
                 </View>
                 <Text style={styles.paywallTitle}>Free Trial Ended</Text>
                 <Text style={styles.paywallText}>
-                  Your {adminSettings.subscriptionPrices?.freeTrialDays ?? 7}-day free trial has ended. Subscribe to continue accessing all programs and features.
+                  Your {adminSettings.freePackage?.freeTrialDays ?? 7}-day free trial has ended. Subscribe to continue accessing all programs and features.
                 </Text>
                 <TouchableOpacity style={styles.upgradeBtn} onPress={() => router.push('/purchase' as any)}>
                   <Crown size={18} color={Colors.background} />
@@ -127,7 +122,6 @@ export default function ProgramDashboardScreen() {
               <Text style={styles.sectionTitle}>All Program Days</Text>
               <View style={{ gap: 12 }}>
                 {(() => {
-                  const { day } = progress;
                   const items: { day: number; workout: typeof activeProgram.schedule[0]['workout']; date: string; isCompleted: boolean }[] = [];
                   const totalDays = activeProgram?.days ?? 90;
                   for (let i = 0; i < totalDays; i++) {

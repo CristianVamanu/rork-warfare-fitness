@@ -3,7 +3,6 @@ import { Lock, Check, ArrowLeft, Crown } from 'lucide-react-native';
 import { useMemo } from 'react';
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp } from '@/contexts/AppContext';
 
 import { useTraining } from '@/contexts/TrainingContext';
 
@@ -27,7 +26,6 @@ export default function ProgramProgressScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { activeProgram, getOverallProgress, hasAccessToDay } = useTraining();
-  const { subscriptionTier, adminSettings } = useApp();
 
   const progress = getOverallProgress();
   const totalDays = activeProgram?.days ?? 90;
@@ -42,8 +40,7 @@ export default function ProgramProgressScreen() {
     );
   }
 
-  const freeTrialDays = adminSettings.subscriptionPrices?.freeTrialDays ?? 7;
-  const maxUnlockedDay = subscriptionTier === 'premium' ? totalDays : freeTrialDays;
+  const maxUnlockedDay = totalDays;
 
   const canOpen = (day: number) => {
     const hasAccess = hasAccessToDay(activeProgram, day);
@@ -70,8 +67,7 @@ export default function ProgramProgressScreen() {
             const isRestDay = !scheduleEntry?.workout;
             const completed = !!activeProgram.completedDays[d];
             const hasAccess = hasAccessToDay(activeProgram, d);
-            const freeTrialDays = adminSettings.subscriptionPrices?.freeTrialDays ?? 7;
-            const maxUnlockedDay = subscriptionTier === 'premium' ? totalDays : freeTrialDays;
+            const maxUnlockedDay = totalDays;
             const locked = d > maxUnlockedDay || !hasAccess;
             const upcoming = d > progress.day && d <= maxUnlockedDay && hasAccess && !completed;
             const premiumLocked = !hasAccess;
@@ -108,21 +104,10 @@ export default function ProgramProgressScreen() {
           })}
         </View>
 
-        {subscriptionTier === 'free' && (
-          <View style={styles.upgradeBox}>
-            <Crown size={20} color='#F59E0B' />
-            <Text style={styles.upgradeText}>Subscribe to unlock all {totalDays} days. Currently showing first {adminSettings.subscriptionPrices?.freeTrialDays ?? 7} days only.</Text>
-            <TouchableOpacity style={styles.upgradeBtn} onPress={() => router.push('/purchase' as any)}>
-              <Text style={styles.upgradeBtnText}>Upgrade Now</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        {subscriptionTier === 'premium' && (
-          <View style={[styles.upgradeBox, { backgroundColor: '#D1FAE5', borderColor: '#10B981' }]}>
-            <Check size={20} color='#10B981' />
-            <Text style={[styles.upgradeText, { color: '#065F46' }]}>Premium Active - All days unlocked!</Text>
-          </View>
-        )}
+        <View style={[styles.upgradeBox, { backgroundColor: '#D1FAE5', borderColor: '#10B981' }]}>
+          <Check size={20} color='#10B981' />
+          <Text style={[styles.upgradeText, { color: '#065F46' }]}>All {totalDays} days unlocked!</Text>
+        </View>
       </ScrollView>
     </View>
   );
