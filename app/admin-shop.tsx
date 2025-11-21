@@ -279,7 +279,13 @@ export default function AdminShopScreen() {
             <View style={styles.productsList}>
               {products.map((product) => (
                 <View key={product.id} style={styles.productCard}>
-                  <Image source={{ uri: product.photoUrl }} style={styles.productImage} />
+                  {product.photoUrl && product.photoUrl.trim() !== '' ? (
+                    <Image source={{ uri: product.photoUrl }} style={styles.productImage} />
+                  ) : (
+                    <View style={[styles.productImage, styles.productImagePlaceholder]}>
+                      <ShoppingBag size={48} color={Colors.textTertiary} />
+                    </View>
+                  )}
                   <View style={styles.productContent}>
                     <View style={styles.productHeader}>
                       <Text style={styles.productTitle}>{product.title}</Text>
@@ -533,6 +539,11 @@ const styles = StyleSheet.create({
   productImage: {
     width: '100%',
     height: 180,
+  },
+  productImagePlaceholder: {
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   productContent: {
     padding: 16,
