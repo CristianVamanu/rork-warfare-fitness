@@ -20,8 +20,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user, streak, powerLevel, hydrationMl, hydrationTargetMl, addWater, updateHydrationTarget, resetHydration, powerMetrics, fastingState, startFasting, endFasting, logIceBathEntry, adminSettings } = useApp();
   const { workoutLogs, activeProgram, getOverallProgress, programs } = useTraining();
-  const notificationsContext = useNotifications();
-  const getUnreadCount = notificationsContext?.getUnreadCount ?? (() => 0);
+  const { getUnreadCount } = useNotifications();
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [targetInput, setTargetInput] = useState(String(hydrationTargetMl));
   const [showFastingModal, setShowFastingModal] = useState(false);
