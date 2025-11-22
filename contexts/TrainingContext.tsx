@@ -83,7 +83,6 @@ export type Program = {
   accessLevel?: 'free' | 'premium';
   isPaid?: boolean;
   requiresSubscription?: boolean;
-  isAiGenerated?: boolean;
 };
 
 const STORAGE_KEYS = {
