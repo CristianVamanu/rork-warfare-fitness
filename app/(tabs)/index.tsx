@@ -1076,8 +1076,9 @@ export default function HomeScreen() {
           onPress={handleCoffeePress}
           activeOpacity={0.9}
         >
+          <View style={styles.coffeeButtonGlow} />
           <View style={styles.coffeeButtonInner}>
-            <Coffee size={24} color="#fff" strokeWidth={2.5} />
+            <Coffee size={26} color={Colors.accent} strokeWidth={2.5} />
           </View>
         </TouchableOpacity>
       )}
@@ -2035,21 +2036,31 @@ const styles = StyleSheet.create({
     right: 20,
     bottom: 100,
     zIndex: 1000,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   coffeeButtonInner: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#FF813F',
+    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: '#fff',
+    borderColor: Colors.accent,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  coffeeButtonGlow: {
+    position: 'absolute' as const,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: Colors.accent,
+    opacity: 0.2,
+    top: -5,
+    left: -5,
   },
 });
 
