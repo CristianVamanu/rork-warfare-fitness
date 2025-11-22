@@ -2034,7 +2034,7 @@ const styles = StyleSheet.create({
   coffeeButton: {
     position: 'absolute' as const,
     right: 20,
-    bottom: 100,
+    bottom: 85,
     zIndex: 1000,
   },
   coffeeButtonInner: {
