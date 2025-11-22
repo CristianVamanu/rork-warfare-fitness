@@ -62,6 +62,7 @@ export default function AiWorkoutBuilderScreen() {
 
   const parseWorkoutFromText = (text: string, days: number) => {
     console.log('[AI Workout Builder] Parsing text response:', text.substring(0, 200));
+    console.log('[AI Workout Builder] Full text length:', text.length);
     
     const lines = text.split('\n').filter(line => line.trim());
     let title = 'AI-Generated Workout Program';
@@ -217,6 +218,8 @@ Day X: Rest
 
 Base the program on the person's current physique visible in the image and their stated goals. Be detailed and specific!`;
 
+        console.log('[AI Workout Builder] Generating with image...');
+        
         responseText = await generateText({
           messages: [
             {
@@ -228,6 +231,8 @@ Base the program on the person's current physique visible in the image and their
             },
           ],
         });
+        
+        console.log('[AI Workout Builder] Image generation complete');
       } else {
         const prompt = `You are a professional fitness expert. Create a comprehensive ${days}-day workout program for someone with these characteristics:
 
@@ -253,23 +258,36 @@ Day X: Rest
 
 Be specific with exercise names and details. Include 4-6 exercises per training day. Ensure proper progression and variety!`;
 
+        console.log('[AI Workout Builder] Generating with stats...');
+        
         responseText = await generateText({ 
           messages: [{ role: 'user', content: prompt }],
         });
+        
+        console.log('[AI Workout Builder] Stats generation complete');
       }
 
       console.log('[AI Workout Builder] Received response:', responseText.substring(0, 300));
+      
+      if (!responseText || responseText.trim().length === 0) {
+        throw new Error('AI returned an empty response. Please try again.');
+      }
       
       const parsedProgram = parseWorkoutFromText(responseText, days);
       await saveProgram(parsedProgram, days, useImageInput && !!selectedImage);
       
     } catch (error) {
       console.error('[AI Workout Builder] Error:', error);
+      console.error('[AI Workout Builder] Error details:', JSON.stringify(error, null, 2));
       
       let errorMessage = 'Failed to generate workout program. Please try again.';
       
       if (error instanceof Error) {
-        errorMessage = error.message;
+        if (error.message.includes('JSON')) {
+          errorMessage = 'AI response format error. Please try again with different inputs.';
+        } else {
+          errorMessage = error.message;
+        }
       }
       
       Alert.alert('Generation Failed', errorMessage);
