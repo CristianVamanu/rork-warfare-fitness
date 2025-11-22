@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,8 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Linking,
-  Alert,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { ShoppingBag, ExternalLink } from 'lucide-react-native';
@@ -15,25 +13,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/colors';
 import { useShop } from '@/contexts/ShopContext';
+import ExternalLinkDisclosure from '@/components/ExternalLinkDisclosure';
 
 export default function ShopScreen() {
   const insets = useSafeAreaInsets();
   const { getActiveProducts } = useShop();
+  const [showDisclosure, setShowDisclosure] = useState<boolean>(false);
+  const [selectedProduct, setSelectedProduct] = useState<{ url: string; title: string } | null>(null);
   
   const products = getActiveProducts();
 
-  const handleOpenLink = async (url: string, title: string) => {
-    try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert('Error', `Cannot open this link: ${url}`);
-      }
-    } catch (error) {
-      Alert.alert('Error', `Failed to open link for ${title}`);
-      console.error('[Shop] Failed to open link:', error);
-    }
+  const handleOpenLink = (url: string, title: string) => {
+    setSelectedProduct({ url, title });
+    setShowDisclosure(true);
   };
 
   return (
@@ -96,6 +88,17 @@ export default function ShopScreen() {
 
         <View style={{ height: insets.bottom + 20 }} />
       </ScrollView>
+
+      <ExternalLinkDisclosure
+        visible={showDisclosure}
+        onClose={() => {
+          setShowDisclosure(false);
+          setSelectedProduct(null);
+        }}
+        url={selectedProduct?.url ?? ''}
+        title={selectedProduct?.title}
+        description="This is an affiliate link to an external product. The app may earn a commission if you make a purchase."
+      />
     </>
   );
 }

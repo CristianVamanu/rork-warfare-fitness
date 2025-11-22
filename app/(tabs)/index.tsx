@@ -12,6 +12,7 @@ import { useApp } from '@/contexts/AppContext';
 import { useTraining } from '@/contexts/TrainingContext';
 import { useRanking } from '@/contexts/RankingContext';
 import { useNotifications } from '@/contexts/NotificationsContext';
+import ExternalLinkDisclosure from '@/components/ExternalLinkDisclosure';
 
 
 
@@ -36,6 +37,7 @@ export default function HomeScreen() {
   const [countdownRemainingSeconds, setCountdownRemainingSeconds] = useState(0);
   const [isCountdownActive, setIsCountdownActive] = useState(false);
   const [alarmTriggered, setAlarmTriggered] = useState(false);
+  const [showCoffeeDisclosure, setShowCoffeeDisclosure] = useState(false);
 
   const handleEditTarget = () => {
     setTargetInput(String(hydrationTargetMl));
@@ -358,35 +360,12 @@ export default function HomeScreen() {
     return briefings[0]?.text ?? '"Discipline is forged in fire. Today, you enter the warzone of self-mastery. Every rep is a battle. Every decision is a mission. Your enemy is weakness. Your weapon is action."';
   };
 
-  const handleCoffeePress = async () => {
+  const handleCoffeePress = () => {
     const coffeeLink = adminSettings.coffeeLink;
     if (!coffeeLink || coffeeLink.trim() === '') {
       return;
     }
-
-    Alert.alert(
-      'Support the App',
-      'If you enjoy this app and want to support future updates, you can buy me a coffee ☕ — it really helps!',
-      [
-        { text: 'Maybe Later', style: 'cancel' },
-        {
-          text: 'Buy Me a Coffee',
-          onPress: async () => {
-            try {
-              const supported = await Linking.canOpenURL(coffeeLink);
-              if (supported) {
-                await Linking.openURL(coffeeLink);
-              } else {
-                Alert.alert('Error', `Cannot open this link: ${coffeeLink}`);
-              }
-            } catch (error) {
-              Alert.alert('Error', 'Failed to open link');
-              console.error('[Coffee] Failed to open link:', error);
-            }
-          },
-        },
-      ]
-    );
+    setShowCoffeeDisclosure(true);
   };
 
   const getTodaysBriefingAuthor = () => {
@@ -1102,6 +1081,14 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
       )}
+
+      <ExternalLinkDisclosure
+        visible={showCoffeeDisclosure}
+        onClose={() => setShowCoffeeDisclosure(false)}
+        url={adminSettings.coffeeLink ?? ''}
+        title="Support the App"
+        description="If you enjoy this app and want to support future updates, you can buy me a coffee ☕ — it really helps! This will take you to an external website for donations."
+      />
     </View>
   );
 }
