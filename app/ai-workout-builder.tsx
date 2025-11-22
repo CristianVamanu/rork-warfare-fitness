@@ -64,6 +64,11 @@ export default function AiWorkoutBuilderScreen() {
     console.log('[AI Workout Builder] Parsing text response:', text.substring(0, 200));
     console.log('[AI Workout Builder] Full text length:', text.length);
     
+    if (typeof text !== 'string') {
+      console.error('[AI Workout Builder] Invalid text type:', typeof text);
+      throw new Error('Invalid response format from AI');
+    }
+    
     const lines = text.split('\n').filter(line => line.trim());
     let title = 'AI-Generated Workout Program';
     let description = 'Personalized workout program';
@@ -233,6 +238,8 @@ Base the program on the person's current physique visible in the image and their
         });
         
         console.log('[AI Workout Builder] Image generation complete');
+        console.log('[AI Workout Builder] Response type:', typeof responseText);
+        console.log('[AI Workout Builder] Response value:', String(responseText).substring(0, 100));
       } else {
         const prompt = `You are a professional fitness expert. Create a comprehensive ${days}-day workout program for someone with these characteristics:
 
@@ -265,16 +272,26 @@ Be specific with exercise names and details. Include 4-6 exercises per training 
         });
         
         console.log('[AI Workout Builder] Stats generation complete');
+        console.log('[AI Workout Builder] Response type:', typeof responseText);
+        console.log('[AI Workout Builder] Response value:', String(responseText).substring(0, 100));
+      }
+      
+      if (typeof responseText !== 'string') {
+        console.error('[AI Workout Builder] Response is not a string, attempting to convert');
+        responseText = String(responseText);
       }
 
-      console.log('[AI Workout Builder] Received response:', responseText.substring(0, 300));
-      console.log('[AI Workout Builder] Full response length:', responseText.length);
+      console.log('[AI Workout Builder] Final response type:', typeof responseText);
+      console.log('[AI Workout Builder] Final response sample:', String(responseText).substring(0, 300));
+      console.log('[AI Workout Builder] Full response length:', String(responseText).length);
       
-      if (!responseText || responseText.trim().length === 0) {
+      const finalText = String(responseText).trim();
+      
+      if (!finalText || finalText.length === 0) {
         throw new Error('AI returned an empty response. Please try again.');
       }
       
-      const parsedProgram = parseWorkoutFromText(responseText, days);
+      const parsedProgram = parseWorkoutFromText(finalText, days);
       await saveProgram(parsedProgram, days, useImageInput && !!selectedImage);
       
     } catch (error) {
