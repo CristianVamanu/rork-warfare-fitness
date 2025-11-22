@@ -209,6 +209,8 @@ Create ${days} days total. Include rest days (workout: null) strategically. Retu
 
   const saveProgram = async (responseText: string, days: number, isImageBased: boolean) => {
     try {
+      console.log('[AI Workout Builder] Raw response:', responseText.substring(0, 300));
+      
       let cleanedResponse = responseText.trim();
       
       if (cleanedResponse.startsWith('```json')) {
@@ -220,8 +222,12 @@ Create ${days} days total. Include rest days (workout: null) strategically. Retu
       const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         cleanedResponse = jsonMatch[0];
+      } else {
+        console.log('[AI Workout Builder] No JSON object found in response');
+        throw new Error('AI did not return a valid JSON object. Please try again.');
       }
       
+      console.log('[AI Workout Builder] Attempting to parse:', cleanedResponse.substring(0, 200));
       const result = JSON.parse(cleanedResponse);
       
       if (!result.title || !result.schedule || !Array.isArray(result.schedule)) {
