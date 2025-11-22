@@ -110,9 +110,24 @@ export default function AiWorkoutBuilderScreen() {
             ? selectedImage.split('base64,')[1] 
             : selectedImage;
             
-        const prompt = `You are a fitness expert. Based on this person's physique in the image and their goals: "${goals}", create a comprehensive ${days}-day workout program.
+        const prompt = `You are a professional fitness expert. Analyze this person's physique in the image and create a comprehensive ${days}-day workout program based on their goals.
 
-Create ${days} days total. Include rest days (workout: null) strategically. Each workout should have a name, duration in minutes, target muscle group, and exercises with sets, reps, rest seconds, and RPE (rate of perceived exertion like "7-9").`;
+Goals: ${goals}
+
+IMPORTANT: You must respond with ONLY a structured workout program. Create a program with:
+- A descriptive title
+- A brief description
+- A ${days}-day schedule with strategic rest days
+
+For each training day include:
+- Workout name
+- Duration in minutes (30-90)
+- Target muscle group
+- 4-6 exercises with sets (3-5), reps (e.g., "8-12"), rest seconds (60-180), and RPE ("6-8" or "7-9")
+
+For rest days, mark workout as null.
+
+Base the program on the person's current physique visible in the image and their stated goals.`;
 
         const result = await generateObject({
           messages: [
@@ -129,14 +144,33 @@ Create ${days} days total. Include rest days (workout: null) strategically. Each
 
         await saveProgram(result, days, true);
       } else {
-        const prompt = `You are a fitness expert. Create a comprehensive ${days}-day workout program for someone with these stats:
+        const prompt = `You are a professional fitness expert. Create a comprehensive ${days}-day workout program for someone with these characteristics:
+
 - Height: ${height}
 - Weight: ${weight}
 ${age ? `- Age: ${age}` : ''}
-${experience ? `- Experience level: ${experience}` : ''}
+${experience ? `- Experience Level: ${experience}` : ''}
 - Goals: ${goals}
 
-Create ${days} days total. Include rest days (workout: null) strategically. Each workout should have a name, duration in minutes, target muscle group, and exercises with sets, reps, rest seconds, and RPE (rate of perceived exertion like "7-9").`;
+IMPORTANT: You must respond with ONLY a structured workout program. Create a program with:
+- A descriptive title
+- A brief description
+- A ${days}-day schedule with strategic rest days (typically 1-2 rest days per week)
+
+For each training day include:
+- Workout name (e.g., "Upper Body Strength", "Lower Body Hypertrophy")
+- Duration in minutes (30-90)
+- Target muscle group (e.g., "Chest & Triceps", "Legs", "Back & Biceps")
+- 4-6 exercises with:
+  * Exercise name
+  * Sets (3-5)
+  * Reps (e.g., "8-12", "15-20", "AMRAP")
+  * Rest seconds (60-180)
+  * RPE (e.g., "7-9", "6-8")
+
+For rest days, set workout to null.
+
+Ensure proper progression, exercise variety, and follow evidence-based training principles.`;
 
         const result = await generateObject({ 
           messages: [{ role: 'user', content: prompt }],
@@ -147,10 +181,18 @@ Create ${days} days total. Include rest days (workout: null) strategically. Each
       }
     } catch (error) {
       console.error('[AI Workout Builder] Error:', error);
-      Alert.alert(
-        'Generation Failed',
-        error instanceof Error ? error.message : 'Failed to generate workout program. Please try again.'
-      );
+      
+      let errorMessage = 'Failed to generate workout program. Please try again.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('JSON')) {
+          errorMessage = 'The AI returned an invalid response. This is a temporary issue - please try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      Alert.alert('Generation Failed', errorMessage);
     } finally {
       setIsGenerating(false);
     }
