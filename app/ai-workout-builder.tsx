@@ -141,6 +141,7 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
               ],
             },
           ],
+          responseFormat: 'json',
         });
 
         await saveProgram(response, days, true);
@@ -183,7 +184,10 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
 
 Create ${days} days total. Include rest days (workout: null) strategically.`;
 
-        const response = await generateText({ messages: [{ role: 'user', content: prompt }] });
+        const response = await generateText({ 
+          messages: [{ role: 'user', content: prompt }],
+          responseFormat: 'json',
+        });
         await saveProgram(response, days, false);
       }
     } catch (error) {
