@@ -19,8 +19,7 @@ import Colors from '@/constants/colors';
 
 import { useTraining } from '@/contexts/TrainingContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { generateObject } from '@rork-ai/toolkit-sdk';
-import { z } from 'zod';
+import { generateText } from '@rork-ai/toolkit-sdk';
 
 export default function AiWorkoutBuilderScreen() {
   const insets = useSafeAreaInsets();
@@ -61,6 +60,119 @@ export default function AiWorkoutBuilderScreen() {
     setSelectedImage(null);
   };
 
+  const parseWorkoutFromText = (text: string, days: number) => {
+    console.log('[AI Workout Builder] Parsing text response:', text.substring(0, 200));
+    
+    const lines = text.split('\n').filter(line => line.trim());
+    let title = 'AI-Generated Workout Program';
+    let description = 'Personalized workout program';
+    const schedule: any[] = [];
+
+    for (let i = 0; i < days; i++) {
+      schedule.push({ day: i + 1, workout: null });
+    }
+
+    let currentDay = -1;
+    let currentWorkout: any = null;
+    let currentExercises: any[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      if (line.match(/^#+ /) || line.match(/^Title:/i)) {
+        const titleMatch = line.replace(/^#+ /, '').replace(/^Title:/i, '').trim();
+        if (titleMatch && !titleMatch.match(/Day \d+/i)) {
+          title = titleMatch;
+        }
+      }
+      
+      if (line.match(/^Description:/i)) {
+        description = line.replace(/^Description:/i, '').trim();
+      }
+
+      const dayMatch = line.match(/Day (\d+):/i);
+      if (dayMatch) {
+        if (currentWorkout && currentExercises.length > 0) {
+          currentWorkout.exercises = currentExercises;
+          schedule[currentDay - 1].workout = currentWorkout;
+        }
+        
+        currentDay = parseInt(dayMatch[1], 10);
+        currentWorkout = {
+          name: 'Training Session',
+          durationMin: 60,
+          muscleGroup: 'Full Body',
+          exercises: [],
+        };
+        currentExercises = [];
+        
+        const workoutNameMatch = line.match(/Day \d+:\s*(.+?)(?:\s*\(|\s*-|$)/i);
+        if (workoutNameMatch && workoutNameMatch[1]) {
+          currentWorkout.name = workoutNameMatch[1].trim();
+        }
+        continue;
+      }
+
+      if (line.match(/rest|off/i) && currentDay > 0) {
+        schedule[currentDay - 1].workout = null;
+        currentWorkout = null;
+        currentExercises = [];
+        continue;
+      }
+
+      if (currentWorkout && line.match(/^\d+\.|^-|^\*|^[A-Z]/)) {
+        const exerciseLine = line.replace(/^\d+\.\s*|^-\s*|^\*\s*/, '');
+        const nameMatch = exerciseLine.match(/^([^:]+?)(?:\s*[-:]\s*|\s+\d+)/i);
+        
+        if (nameMatch) {
+          const exerciseName = nameMatch[1].trim();
+          const setsMatch = exerciseLine.match(/(\d+)\s*(?:sets?|x)/i);
+          const repsMatch = exerciseLine.match(/x?\s*(\d+(?:-\d+)?|AMRAP)\s*(?:reps?|$)/i);
+          const restMatch = exerciseLine.match(/(\d+)\s*(?:sec|s|seconds?)/i);
+          
+          currentExercises.push({
+            id: `ex-${Date.now()}-${currentExercises.length}`,
+            name: exerciseName,
+            sets: setsMatch ? parseInt(setsMatch[1], 10) : 3,
+            reps: repsMatch ? repsMatch[1] : '8-12',
+            restSec: restMatch ? parseInt(restMatch[1], 10) : 90,
+            rpe: '7-9',
+            isCardio: false,
+          });
+        }
+      }
+    }
+
+    if (currentWorkout && currentExercises.length > 0) {
+      currentWorkout.exercises = currentExercises;
+      if (currentDay > 0 && currentDay <= schedule.length) {
+        schedule[currentDay - 1].workout = currentWorkout;
+      }
+    }
+
+    if (schedule.every(s => s.workout === null)) {
+      const defaultWorkout = {
+        name: 'Full Body Workout',
+        durationMin: 60,
+        muscleGroup: 'Full Body',
+        exercises: [
+          { id: 'ex-1', name: 'Squats', sets: 3, reps: '10-12', restSec: 90, rpe: '7-9', isCardio: false },
+          { id: 'ex-2', name: 'Push-ups', sets: 3, reps: '10-15', restSec: 60, rpe: '7-9', isCardio: false },
+          { id: 'ex-3', name: 'Rows', sets: 3, reps: '10-12', restSec: 90, rpe: '7-9', isCardio: false },
+          { id: 'ex-4', name: 'Plank', sets: 3, reps: '30-60s', restSec: 60, rpe: '7-9', isCardio: false },
+        ],
+      };
+      
+      for (let i = 0; i < schedule.length; i++) {
+        if ((i + 1) % 4 !== 0) {
+          schedule[i].workout = { ...defaultWorkout };
+        }
+      }
+    }
+
+    return { title, description, schedule };
+  };
+
   const handleGenerate = async () => {
     if (useImageInput && !selectedImage && !goals.trim()) {
       Alert.alert('Error', 'Please upload an image and describe your goals.');
@@ -76,32 +188,8 @@ export default function AiWorkoutBuilderScreen() {
 
     try {
       const days = parseInt(programDays, 10) || 90;
-      
-      const exerciseSchema = z.object({
-        name: z.string(),
-        sets: z.number(),
-        reps: z.string(),
-        restSec: z.number(),
-        rpe: z.string().optional(),
-      });
 
-      const workoutSchema = z.object({
-        name: z.string(),
-        durationMin: z.number(),
-        muscleGroup: z.string(),
-        exercises: z.array(exerciseSchema),
-      });
-
-      const programSchema = z.object({
-        title: z.string(),
-        description: z.string(),
-        schedule: z.array(
-          z.object({
-            day: z.number(),
-            workout: workoutSchema.nullable(),
-          })
-        ),
-      });
+      let responseText: string;
 
       if (useImageInput && selectedImage) {
         const base64Image = selectedImage.startsWith('data:') 
@@ -114,22 +202,22 @@ export default function AiWorkoutBuilderScreen() {
 
 Goals: ${goals}
 
-IMPORTANT: You must respond with ONLY a structured workout program. Create a program with:
+Please create a detailed program with:
 - A descriptive title
 - A brief description
 - A ${days}-day schedule with strategic rest days
 
-For each training day include:
-- Workout name
-- Duration in minutes (30-90)
-- Target muscle group
-- 4-6 exercises with sets (3-5), reps (e.g., "8-12"), rest seconds (60-180), and RPE ("6-8" or "7-9")
+Format each day like this:
+Day 1: [Workout Name]
+- Exercise 1: 3 sets x 10-12 reps, 90 sec rest
+- Exercise 2: 3 sets x 8-10 reps, 90 sec rest
+...
 
-For rest days, mark workout as null.
+Day X: Rest
 
-Base the program on the person's current physique visible in the image and their stated goals.`;
+Base the program on the person's current physique visible in the image and their stated goals. Be detailed and specific!`;
 
-        const result = await generateObject({
+        responseText = await generateText({
           messages: [
             {
               role: 'user',
@@ -139,10 +227,7 @@ Base the program on the person's current physique visible in the image and their
               ],
             },
           ],
-          schema: programSchema,
         });
-
-        await saveProgram(result, days, true);
       } else {
         const prompt = `You are a professional fitness expert. Create a comprehensive ${days}-day workout program for someone with these characteristics:
 
@@ -152,44 +237,39 @@ ${age ? `- Age: ${age}` : ''}
 ${experience ? `- Experience Level: ${experience}` : ''}
 - Goals: ${goals}
 
-IMPORTANT: You must respond with ONLY a structured workout program. Create a program with:
+Please create a detailed program with:
 - A descriptive title
-- A brief description
+- A brief description  
 - A ${days}-day schedule with strategic rest days (typically 1-2 rest days per week)
 
-For each training day include:
-- Workout name (e.g., "Upper Body Strength", "Lower Body Hypertrophy")
-- Duration in minutes (30-90)
-- Target muscle group (e.g., "Chest & Triceps", "Legs", "Back & Biceps")
-- 4-6 exercises with:
-  * Exercise name
-  * Sets (3-5)
-  * Reps (e.g., "8-12", "15-20", "AMRAP")
-  * Rest seconds (60-180)
-  * RPE (e.g., "7-9", "6-8")
+Format each day like this:
+Day 1: [Workout Name - e.g., Upper Body Strength]
+- Exercise 1 name: 3 sets x 10-12 reps, 90 sec rest
+- Exercise 2 name: 3 sets x 8-10 reps, 90 sec rest
+- Exercise 3 name: 4 sets x 12-15 reps, 60 sec rest
+...
 
-For rest days, set workout to null.
+Day X: Rest
 
-Ensure proper progression, exercise variety, and follow evidence-based training principles.`;
+Be specific with exercise names and details. Include 4-6 exercises per training day. Ensure proper progression and variety!`;
 
-        const result = await generateObject({ 
+        responseText = await generateText({ 
           messages: [{ role: 'user', content: prompt }],
-          schema: programSchema,
         });
-        
-        await saveProgram(result, days, false);
       }
+
+      console.log('[AI Workout Builder] Received response:', responseText.substring(0, 300));
+      
+      const parsedProgram = parseWorkoutFromText(responseText, days);
+      await saveProgram(parsedProgram, days, useImageInput && !!selectedImage);
+      
     } catch (error) {
       console.error('[AI Workout Builder] Error:', error);
       
       let errorMessage = 'Failed to generate workout program. Please try again.';
       
       if (error instanceof Error) {
-        if (error.message.includes('JSON')) {
-          errorMessage = 'The AI returned an invalid response. This is a temporary issue - please try again.';
-        } else {
-          errorMessage = error.message;
-        }
+        errorMessage = error.message;
       }
       
       Alert.alert('Generation Failed', errorMessage);
