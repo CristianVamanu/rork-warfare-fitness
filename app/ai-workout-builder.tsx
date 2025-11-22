@@ -16,15 +16,15 @@ import { Sparkles, Upload, X, Dumbbell, Image as ImageIcon, Target, Ruler, Weigh
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/colors';
-import { useApp } from '@/contexts/AppContext';
+
 import { useTraining } from '@/contexts/TrainingContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { generateText } from '@rork-ai/toolkit-sdk';
+import { generateObject } from '@rork-ai/toolkit-sdk';
+import { z } from 'zod';
 
 export default function AiWorkoutBuilderScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { adminSettings } = useApp();
   const { programs } = useTraining();
 
   const [height, setHeight] = useState('');
@@ -62,17 +62,6 @@ export default function AiWorkoutBuilderScreen() {
   };
 
   const handleGenerate = async () => {
-    const apiKey = adminSettings.aiApiKey?.trim();
-    
-    if (!apiKey) {
-      Alert.alert(
-        'API Key Required',
-        'OpenAI API key is not configured. Please ask an admin to set it in Admin Settings.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
     if (useImageInput && !selectedImage && !goals.trim()) {
       Alert.alert('Error', 'Please upload an image and describe your goals.');
       return;
@@ -88,8 +77,32 @@ export default function AiWorkoutBuilderScreen() {
     try {
       const days = parseInt(programDays, 10) || 90;
       
-      let prompt = '';
-      
+      const exerciseSchema = z.object({
+        name: z.string(),
+        sets: z.number(),
+        reps: z.string(),
+        restSec: z.number(),
+        rpe: z.string().optional(),
+      });
+
+      const workoutSchema = z.object({
+        name: z.string(),
+        durationMin: z.number(),
+        muscleGroup: z.string(),
+        exercises: z.array(exerciseSchema),
+      });
+
+      const programSchema = z.object({
+        title: z.string(),
+        description: z.string(),
+        schedule: z.array(
+          z.object({
+            day: z.number(),
+            workout: workoutSchema.nullable(),
+          })
+        ),
+      });
+
       if (useImageInput && selectedImage) {
         const base64Image = selectedImage.startsWith('data:') 
           ? selectedImage.split(',')[1] 
@@ -97,104 +110,40 @@ export default function AiWorkoutBuilderScreen() {
             ? selectedImage.split('base64,')[1] 
             : selectedImage;
             
-        const imageContent: any = {
-          type: 'image',
-          image: `data:image/jpeg;base64,${base64Image}`,
-        };
+        const prompt = `You are a fitness expert. Based on this person's physique in the image and their goals: "${goals}", create a comprehensive ${days}-day workout program.
 
-        prompt = `You are a fitness expert. Based on this person's physique in the image and their goals: "${goals}", create a comprehensive ${days}-day workout program.
+Create ${days} days total. Include rest days (workout: null) strategically. Each workout should have a name, duration in minutes, target muscle group, and exercises with sets, reps, rest seconds, and RPE (rate of perceived exertion like "7-9").`;
 
-CRITICAL: Your response must be ONLY a valid JSON object. No explanations, no markdown code blocks, no text before or after. Start with { and end with }.
-
-JSON structure:
-{
-  "title": "Program Name (AI)",
-  "description": "Program description",
-  "schedule": [
-    {
-      "day": 1,
-      "workout": {
-        "name": "Day 1 Workout",
-        "durationMin": 45,
-        "muscleGroup": "Chest/Triceps",
-        "exercises": [
-          {
-            "name": "Bench Press",
-            "sets": 4,
-            "reps": "8-10",
-            "restSec": 90,
-            "rpe": "7-9"
-          }
-        ]
-      }
-    },
-    {
-      "day": 2,
-      "workout": null
-    }
-  ]
-}
-
-Create ${days} days total. Include rest days (workout: null) strategically. Return ONLY the JSON object.`;
-
-        const response = await generateText({
+        const result = await generateObject({
           messages: [
             {
               role: 'user',
               content: [
                 { type: 'text', text: prompt },
-                imageContent,
+                { type: 'image', image: `data:image/jpeg;base64,${base64Image}` },
               ],
             },
           ],
+          schema: programSchema,
         });
 
-        await saveProgram(response, days, true);
+        await saveProgram(result, days, true);
       } else {
-        prompt = `You are a fitness expert. Create a comprehensive ${days}-day workout program for someone with these stats:
+        const prompt = `You are a fitness expert. Create a comprehensive ${days}-day workout program for someone with these stats:
 - Height: ${height}
 - Weight: ${weight}
 ${age ? `- Age: ${age}` : ''}
 ${experience ? `- Experience level: ${experience}` : ''}
 - Goals: ${goals}
 
-CRITICAL: Your response must be ONLY a valid JSON object. No explanations, no markdown code blocks, no text before or after. Start with { and end with }.
+Create ${days} days total. Include rest days (workout: null) strategically. Each workout should have a name, duration in minutes, target muscle group, and exercises with sets, reps, rest seconds, and RPE (rate of perceived exertion like "7-9").`;
 
-JSON structure:
-{
-  "title": "Program Name (AI)",
-  "description": "Detailed program description",
-  "schedule": [
-    {
-      "day": 1,
-      "workout": {
-        "name": "Day 1 Workout",
-        "durationMin": 45,
-        "muscleGroup": "Chest/Triceps",
-        "exercises": [
-          {
-            "name": "Bench Press",
-            "sets": 4,
-            "reps": "8-10",
-            "restSec": 90,
-            "rpe": "7-9"
-          }
-        ]
-      }
-    },
-    {
-      "day": 2,
-      "workout": null
-    }
-  ]
-}
-
-Create ${days} days total. Include rest days (workout: null) strategically. Return ONLY the JSON object.`;
-
-        const response = await generateText({ 
+        const result = await generateObject({ 
           messages: [{ role: 'user', content: prompt }],
+          schema: programSchema,
         });
-        await saveProgram(response, days, false);
+        
+        await saveProgram(result, days, false);
       }
     } catch (error) {
       console.error('[AI Workout Builder] Error:', error);
@@ -207,28 +156,9 @@ Create ${days} days total. Include rest days (workout: null) strategically. Retu
     }
   };
 
-  const saveProgram = async (responseText: string, days: number, isImageBased: boolean) => {
+  const saveProgram = async (result: any, days: number, isImageBased: boolean) => {
     try {
-      console.log('[AI Workout Builder] Raw response:', responseText.substring(0, 300));
-      
-      let cleanedResponse = responseText.trim();
-      
-      if (cleanedResponse.startsWith('```json')) {
-        cleanedResponse = cleanedResponse.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-      } else if (cleanedResponse.startsWith('```')) {
-        cleanedResponse = cleanedResponse.replace(/^```\n?/, '').replace(/\n?```$/, '');
-      }
-      
-      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        cleanedResponse = jsonMatch[0];
-      } else {
-        console.log('[AI Workout Builder] No JSON object found in response');
-        throw new Error('AI did not return a valid JSON object. Please try again.');
-      }
-      
-      console.log('[AI Workout Builder] Attempting to parse:', cleanedResponse.substring(0, 200));
-      const result = JSON.parse(cleanedResponse);
+      console.log('[AI Workout Builder] Processing AI result:', result.title);
       
       if (!result.title || !result.schedule || !Array.isArray(result.schedule)) {
         throw new Error('Invalid program structure received from AI');
@@ -290,9 +220,8 @@ Create ${days} days total. Include rest days (workout: null) strategically. Retu
       setProgramDays('90');
       setSelectedImage(null);
     } catch (error) {
-      console.error('[AI Workout Builder] Parse error:', error);
-      console.error('[AI Workout Builder] Response was:', responseText);
-      throw new Error(`Failed to parse AI response. The AI returned invalid JSON. Please try again.`);
+      console.error('[AI Workout Builder] Save error:', error);
+      throw new Error(`Failed to save workout program. Please try again.`);
     }
   };
 
@@ -481,13 +410,7 @@ Create ${days} days total. Include rest days (workout: null) strategically. Retu
             <Text style={styles.helpText}>Recommended: 30, 60, or 90 days</Text>
           </View>
 
-          {!adminSettings.aiApiKey && (
-            <View style={styles.warningCard}>
-              <Text style={styles.warningText}>
-                ⚠️ OpenAI API key is not configured. Please contact an admin to set it up.
-              </Text>
-            </View>
-          )}
+
 
           <TouchableOpacity
             style={[styles.generateBtn, isGenerating && styles.generateBtnDisabled]}
