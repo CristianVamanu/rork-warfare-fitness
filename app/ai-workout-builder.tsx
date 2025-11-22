@@ -274,18 +274,7 @@ Be specific with exercise names and details. Include 4-6 exercises per training 
         throw new Error('AI returned an empty response. Please try again.');
       }
       
-      let cleanedText = responseText;
-      
-      try {
-        const parsed = JSON.parse(responseText);
-        if (typeof parsed === 'string') {
-          cleanedText = parsed;
-        }
-      } catch {
-        console.log('[AI Workout Builder] Response is not JSON (this is expected), proceeding with text parsing');
-      }
-      
-      const parsedProgram = parseWorkoutFromText(cleanedText, days);
+      const parsedProgram = parseWorkoutFromText(responseText, days);
       await saveProgram(parsedProgram, days, useImageInput && !!selectedImage);
       
     } catch (error) {
@@ -297,9 +286,7 @@ Be specific with exercise names and details. Include 4-6 exercises per training 
         console.error('[AI Workout Builder] Error message:', error.message);
         console.error('[AI Workout Builder] Error stack:', error.stack);
         
-        if (error.message.includes('JSON Parse')) {
-          errorMessage = 'There was an issue processing the AI response. The workout builder is still generating your program. This is a temporary issue and your program should appear in the Training tab soon. If not, please try again.';
-        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        if (error.message.includes('network') || error.message.includes('fetch')) {
           errorMessage = 'Network error. Please check your internet connection and try again.';
         } else {
           errorMessage = error.message;
