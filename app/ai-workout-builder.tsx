@@ -102,13 +102,13 @@ export default function AiWorkoutBuilderScreen() {
           image: `data:image/jpeg;base64,${base64Image}`,
         };
 
-        prompt = `Based on this person's physique in the image and their goals: "${goals}", create a comprehensive ${days}-day workout program. 
-        
-Analyze their current fitness level from the image and design a program that will help them achieve their goals.
+        prompt = `You are a fitness expert. Based on this person's physique in the image and their goals: "${goals}", create a comprehensive ${days}-day workout program.
 
-Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
+CRITICAL: Your response must be ONLY a valid JSON object. No explanations, no markdown code blocks, no text before or after. Start with { and end with }.
+
+JSON structure:
 {
-  "title": "Program Name",
+  "title": "Program Name (AI)",
   "description": "Program description",
   "schedule": [
     {
@@ -127,9 +127,15 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
           }
         ]
       }
+    },
+    {
+      "day": 2,
+      "workout": null
     }
   ]
-}`;
+}
+
+Create ${days} days total. Include rest days (workout: null) strategically. Return ONLY the JSON object.`;
 
         const response = await generateText({
           messages: [
@@ -141,21 +147,22 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
               ],
             },
           ],
-          responseFormat: 'json',
         });
 
         await saveProgram(response, days, true);
       } else {
-        prompt = `Create a comprehensive ${days}-day workout program for someone with these stats:
+        prompt = `You are a fitness expert. Create a comprehensive ${days}-day workout program for someone with these stats:
 - Height: ${height}
 - Weight: ${weight}
 ${age ? `- Age: ${age}` : ''}
 ${experience ? `- Experience level: ${experience}` : ''}
 - Goals: ${goals}
 
-Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
+CRITICAL: Your response must be ONLY a valid JSON object. No explanations, no markdown code blocks, no text before or after. Start with { and end with }.
+
+JSON structure:
 {
-  "title": "Program Name (must include 'AI' somewhere in the title)",
+  "title": "Program Name (AI)",
   "description": "Detailed program description",
   "schedule": [
     {
@@ -182,11 +189,10 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
   ]
 }
 
-Create ${days} days total. Include rest days (workout: null) strategically.`;
+Create ${days} days total. Include rest days (workout: null) strategically. Return ONLY the JSON object.`;
 
         const response = await generateText({ 
           messages: [{ role: 'user', content: prompt }],
-          responseFormat: 'json',
         });
         await saveProgram(response, days, false);
       }
@@ -209,6 +215,11 @@ Create ${days} days total. Include rest days (workout: null) strategically.`;
         cleanedResponse = cleanedResponse.replace(/^```json\n?/, '').replace(/\n?```$/, '');
       } else if (cleanedResponse.startsWith('```')) {
         cleanedResponse = cleanedResponse.replace(/^```\n?/, '').replace(/\n?```$/, '');
+      }
+      
+      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanedResponse = jsonMatch[0];
       }
       
       const result = JSON.parse(cleanedResponse);
@@ -274,7 +285,8 @@ Create ${days} days total. Include rest days (workout: null) strategically.`;
       setSelectedImage(null);
     } catch (error) {
       console.error('[AI Workout Builder] Parse error:', error);
-      throw new Error('Failed to parse AI response. Please try again.');
+      console.error('[AI Workout Builder] Response was:', responseText);
+      throw new Error(`Failed to parse AI response. The AI returned invalid JSON. Please try again.`);
     }
   };
 
