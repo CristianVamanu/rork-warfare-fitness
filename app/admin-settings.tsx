@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Settings, DollarSign, Palette, Bell, Shield, Brain, Plus, Trash2, FileText, PlayCircle, Cloud, Server, Upload, Image as ImageIcon, Coffee } from 'lucide-react-native';
+import { Settings, DollarSign, Palette, Bell, Shield, Brain, Plus, Trash2, FileText, PlayCircle, Cloud, Server, Upload, Image as ImageIcon } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
 import { useApp, DailyBriefing, FreePackageFeatures } from '@/contexts/AppContext';
@@ -26,7 +26,6 @@ export default function AdminSettingsScreen() {
   const [requireVerification, setRequireVerification] = useState<boolean>(adminSettings.requireVerification);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
 
-  const [subscriptionPrices, setSubscriptionPrices] = useState(adminSettings.subscriptionPrices);
   const [freePackage, setFreePackage] = useState<FreePackageFeatures>(adminSettings.freePackage ?? {
     trainingPrograms: true,
     freeTrialDays: 7,
@@ -182,7 +181,6 @@ export default function AdminSettingsScreen() {
     updateAdminSettings({
       enableNotifications,
       requireVerification,
-      subscriptionPrices,
       freePackage,
       appName: appSettings.appName,
       tagline: appSettings.tagline,
@@ -714,41 +712,8 @@ export default function AdminSettingsScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <DollarSign size={20} color={Colors.success} />
-            <Text style={styles.sectionTitle}>Subscriptions & Payments</Text>
+            <Text style={styles.sectionTitle}>Support Payments</Text>
           </View>
-
-          <Text style={styles.label}>Premium Price (Monthly)</Text>
-          <TextInput
-            style={styles.input}
-            value={subscriptionPrices.premium}
-            onChangeText={(text) =>
-              setSubscriptionPrices({ ...subscriptionPrices, premium: text })
-            }
-            placeholder="49"
-            placeholderTextColor={Colors.textTertiary}
-            keyboardType="numeric"
-          />
-          <Text style={styles.helpText}>Monthly price for premium subscription in USD.</Text>
-
-          <Text style={styles.label}>Free Trial Duration (Days)</Text>
-          <TextInput
-            style={styles.input}
-            value={String(subscriptionPrices.freeTrialDays ?? 7)}
-            onChangeText={(text) => {
-              if (text === '') {
-                setSubscriptionPrices({ ...subscriptionPrices, freeTrialDays: 7 });
-                return;
-              }
-              const days = parseInt(text, 10);
-              if (!isNaN(days)) {
-                setSubscriptionPrices({ ...subscriptionPrices, freeTrialDays: Math.max(1, days) });
-              }
-            }}
-            placeholder="7"
-            placeholderTextColor={Colors.textTertiary}
-            keyboardType="numeric"
-          />
-          <Text style={styles.helpText}>Number of days for the free trial. Users can access all programs during this period.</Text>
 
           <Text style={styles.label}>Stripe Publishable Key</Text>
           <TextInput

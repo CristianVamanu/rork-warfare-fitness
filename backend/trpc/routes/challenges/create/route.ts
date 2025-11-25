@@ -25,7 +25,7 @@ export const createChallengeRoute = protectedProcedure
     const challenge = {
       id: 'c-' + Date.now().toString(),
       ...input,
-      createdBy: ctx.userId,
+      createdBy: ctx.user?.id ?? 'admin',
       createdAt: new Date().toISOString(),
     };
 

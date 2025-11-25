@@ -19,7 +19,7 @@ import ExternalLinkDisclosure from '@/components/ExternalLinkDisclosure';
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, streak, powerLevel, hydrationMl, hydrationTargetMl, addWater, updateHydrationTarget, resetHydration, powerMetrics, fastingState, startFasting, endFasting, logIceBathEntry, adminSettings } = useApp();
+  const { user, streak, powerLevel, hydrationMl, hydrationTargetMl, addWater, updateHydrationTarget, resetHydration, powerMetrics, fastingState, startFasting, endFasting, logIceBathEntry, adminSettings, daysWithoutData, updateDaysWithout, clearDaysWithout } = useApp();
   const { workoutLogs, activeProgram, getOverallProgress, programs } = useTraining();
   const { getUnreadCount } = useNotifications();
   const [showTargetModal, setShowTargetModal] = useState(false);
@@ -38,6 +38,9 @@ export default function HomeScreen() {
   const [isCountdownActive, setIsCountdownActive] = useState(false);
   const [alarmTriggered, setAlarmTriggered] = useState(false);
   const [showCoffeeDisclosure, setShowCoffeeDisclosure] = useState(false);
+  const [showDaysWithoutModal, setShowDaysWithoutModal] = useState(false);
+  const [daysWithoutHabit, setDaysWithoutHabit] = useState('');
+  const [daysWithoutStartDate, setDaysWithoutStartDate] = useState<string | null>(null);
 
   const handleEditTarget = () => {
     setTargetInput(String(hydrationTargetMl));
@@ -290,9 +293,9 @@ export default function HomeScreen() {
       const dayOfWeek = date.getDay();
       const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dayOfWeek] as string;
       
-      const startDate = new Date(activeProgram.startDate);
-      startDate.setHours(0, 0, 0, 0);
-      const daysSinceStart = Math.floor((date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const programStartDate: Date = new Date(activeProgram.startDate);
+      programStartDate.setHours(0, 0, 0, 0);
+      const daysSinceStart = Math.floor((date.getTime() - programStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       
       if (daysSinceStart < 1 || daysSinceStart > activeProgram.days) {
         result.push({ day: dayName, status: 'empty' });
@@ -366,6 +369,64 @@ export default function HomeScreen() {
       return;
     }
     setShowCoffeeDisclosure(true);
+  };
+
+  const handleStartDaysWithout = () => {
+    if (daysWithoutHabit.trim() === '') {
+      Alert.alert('Invalid Input', 'Please enter a habit name.');
+      return;
+    }
+    updateDaysWithout(daysWithoutHabit.trim());
+    setShowDaysWithoutModal(false);
+    setDaysWithoutHabit('');
+    Alert.alert('Tracker Started!', `Your "Days Without ${daysWithoutHabit}" journey begins now. Stay strong!`);
+  };
+
+  const handleResetDaysWithout = () => {
+    Alert.alert(
+      'Reset Tracker',
+      'Are you sure you want to reset your progress? This will restart your counter.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: () => {
+            if (daysWithoutData) {
+              updateDaysWithout(daysWithoutData.habit);
+              Alert.alert('Reset', 'Your counter has been reset to Day 0.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleClearDaysWithout = () => {
+    Alert.alert(
+      'Clear Tracker',
+      'Are you sure you want to remove this habit tracker completely?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: () => {
+            clearDaysWithout();
+            Alert.alert('Cleared', 'Habit tracker has been removed.');
+          },
+        },
+      ]
+    );
+  };
+
+  const getDaysWithoutCount = () => {
+    if (!daysWithoutData) return 0;
+    const start = new Date(daysWithoutData.startDate);
+    const now = new Date();
+    start.setHours(0, 0, 0, 0);
+    now.setHours(0, 0, 0, 0);
+    return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   };
 
   const getTodaysBriefingAuthor = () => {
@@ -671,8 +732,74 @@ export default function HomeScreen() {
               <View style={[styles.actionIconContainer, { backgroundColor: '#3B82F620' }]}>
                 <Snowflake size={28} color="#3B82F6" />
               </View>
-              <Text style={styles.actionTitle}>Log Ice Bath</Text>
+              <Text style={styles.actionTitle}>Ice Bath</Text>
               <Text style={styles.actionSubtitle}>Track cold exposure</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Health & Habits</Text>
+          <View style={styles.actionsGrid}>
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => setShowFastingModal(true)}
+            >
+              <View style={[styles.actionIconContainer, { backgroundColor: '#F59E0B20' }]}>
+                <Clock size={28} color="#F59E0B" />
+              </View>
+              <Text style={styles.actionTitle}>Fasting</Text>
+              {fastingState?.isActive ? (
+                <Text style={styles.actionSubtitleActive}>In progress</Text>
+              ) : (
+                <Text style={styles.actionSubtitle}>Start a fast</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={handleEditTarget}
+            >
+              <View style={[styles.actionIconContainer, { backgroundColor: '#3B82F620' }]}>
+                <Droplets size={28} color="#3B82F6" />
+              </View>
+              <Text style={styles.actionTitle}>Hydration</Text>
+              <Text style={styles.actionSubtitle}>{hydrationMl} / {hydrationTargetMl} ml</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={[styles.actionsGrid, { marginTop: 12 }]}>
+            <TouchableOpacity
+              style={daysWithoutData ? styles.actionCardWide : styles.actionCardWide}
+              onPress={() => {
+                if (daysWithoutData) {
+                  Alert.alert(
+                    `Days Without ${daysWithoutData.habit}`,
+                    `You're on Day ${getDaysWithoutCount()}!\n\nWhat would you like to do?`,
+                    [
+                      { text: 'Close', style: 'cancel' },
+                      { text: 'Reset Counter', onPress: handleResetDaysWithout },
+                      { text: 'Clear Tracker', style: 'destructive', onPress: handleClearDaysWithout },
+                    ]
+                  );
+                } else {
+                  setShowDaysWithoutModal(true);
+                }
+              }}
+            >
+              <View style={[styles.actionIconContainer, { backgroundColor: '#10B98120' }]}>
+                <Medal size={28} color="#10B981" />
+              </View>
+              {daysWithoutData ? (
+                <>
+                  <Text style={styles.actionTitle}>Days Without {daysWithoutData.habit}</Text>
+                  <Text style={styles.actionSubtitleHighlight}>{getDaysWithoutCount()} Days Strong! 💪</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.actionTitle}>Days Without Tracker</Text>
+                  <Text style={styles.actionSubtitle}>Track habits you want to quit</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -701,7 +828,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Fasting Tracker</Text>
+          <Text style={styles.sectionTitle}>Fasting Details</Text>
           {!fastingState?.isActive ? (
             <View style={styles.fastingCard}>
               <View style={styles.fastingHeader}>
@@ -1090,6 +1217,49 @@ export default function HomeScreen() {
         title="Support the App"
         description="If you enjoy this app and want to support future updates, you can buy me a coffee ☕ — it really helps! This will take you to an external website for donations."
       />
+
+      <Modal
+        visible={showDaysWithoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDaysWithoutModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Days Without Tracker</Text>
+            <Text style={styles.modalSubtitle}>What habit do you want to quit?</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={daysWithoutHabit}
+              onChangeText={setDaysWithoutHabit}
+              placeholder="e.g., Smoking, Drinking, Junk Food"
+              placeholderTextColor={Colors.textTertiary}
+              autoCapitalize="words"
+            />
+            <View style={styles.daysWithoutInfo}>
+              <Text style={styles.daysWithoutInfoTitle}>💪 Build Discipline</Text>
+              <Text style={styles.daysWithoutInfoText}>Track your progress as you overcome bad habits and build a stronger version of yourself.</Text>
+            </View>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowDaysWithoutModal(false);
+                  setDaysWithoutHabit('');
+                }}
+              >
+                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSave]}
+                onPress={handleStartDaysWithout}
+              >
+                <Text style={styles.modalButtonTextSave}>Start</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1335,6 +1505,15 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     alignItems: 'center',
   },
+  actionCardWide: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
   actionIconContainer: {
     width: 56,
     height: 56,
@@ -1355,6 +1534,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textTertiary,
     textAlign: 'center',
+  },
+  actionSubtitleActive: {
+    fontSize: 11,
+    color: Colors.success,
+    textAlign: 'center',
+    fontWeight: '700' as const,
+  },
+  actionSubtitleHighlight: {
+    fontSize: 12,
+    color: Colors.success,
+    textAlign: 'center',
+    fontWeight: '700' as const,
   },
   objectivesList: {
     gap: 12,
@@ -2061,6 +2252,23 @@ const styles = StyleSheet.create({
     opacity: 0.2,
     top: -5,
     left: -5,
+  },
+  daysWithoutInfo: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 12,
+  },
+  daysWithoutInfoTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  daysWithoutInfoText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 20,
   },
 });
 

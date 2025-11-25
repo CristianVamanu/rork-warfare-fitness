@@ -43,6 +43,11 @@ interface IceBathLog {
   loggedAt: string;
 }
 
+interface DaysWithoutData {
+  habit: string;
+  startDate: string;
+}
+
 interface DailyBriefing {
   id: string;
   text: string;
@@ -130,6 +135,7 @@ const STORAGE_KEYS = {
   ICE_BATHS: 'warfare_ice_baths',
   ALL_USERS: 'warfare_all_users',
   REFERRALS: 'warfare_referrals',
+  DAYS_WITHOUT: 'warfare_days_without',
 };
 
 export const [AppProvider, useApp] = createContextHook(() => {
@@ -194,6 +200,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
   });
   const [fastingState, setFastingState] = useState<FastingState | undefined>(undefined);
   const [iceBaths, setIceBaths] = useState<IceBathLog[]>([]);
+  const [daysWithoutData, setDaysWithoutData] = useState<DaysWithoutData | undefined>(undefined);
 
   useEffect(() => {
     const loadData = async () => {
@@ -301,6 +308,13 @@ export const [AppProvider, useApp] = createContextHook(() => {
         if (storedIceBaths) {
           try {
             setIceBaths(JSON.parse(storedIceBaths));
+          } catch {}
+        }
+
+        const storedDaysWithout = await AsyncStorage.getItem(STORAGE_KEYS.DAYS_WITHOUT);
+        if (storedDaysWithout) {
+          try {
+            setDaysWithoutData(JSON.parse(storedDaysWithout));
           } catch {}
         }
 
@@ -739,6 +753,22 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
 
 
+  const updateDaysWithout = useCallback(async (habit: string) => {
+    const newData: DaysWithoutData = {
+      habit,
+      startDate: new Date().toISOString(),
+    };
+    setDaysWithoutData(newData);
+    await AsyncStorage.setItem(STORAGE_KEYS.DAYS_WITHOUT, JSON.stringify(newData));
+    console.log('[DaysWithout] Tracker started for:', habit);
+  }, []);
+
+  const clearDaysWithout = useCallback(async () => {
+    setDaysWithoutData(undefined);
+    await AsyncStorage.removeItem(STORAGE_KEYS.DAYS_WITHOUT);
+    console.log('[DaysWithout] Tracker cleared');
+  }, []);
+
   const hasFullAccess = useCallback(() => {
     return true;
   }, []);
@@ -783,6 +813,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
       endFasting,
       iceBaths,
       logIceBathEntry,
+      daysWithoutData,
+      updateDaysWithout,
+      clearDaysWithout,
       hasFullAccess,
     }),
     [
@@ -824,6 +857,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
       endFasting,
       iceBaths,
       logIceBathEntry,
+      daysWithoutData,
+      updateDaysWithout,
+      clearDaysWithout,
       hasFullAccess,
     ]
   );
@@ -851,4 +887,4 @@ export function getUserRank(totalWorkouts: number): string {
 }
 
 export type AppContextType = ReturnType<typeof useApp>;
-export type { DailyBriefing, FreePackageFeatures };
+export type { DailyBriefing, FreePackageFeatures, DaysWithoutData };

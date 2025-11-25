@@ -85,8 +85,7 @@ export default function LeaderboardScreen() {
                   source={{ uri: getValidImageUri(entry.avatar) }}
                   style={[
                     styles.leaderboardAvatar,
-                    entry.rank === 1 && !entry.isAdmin && styles.leaderboardAvatarFirst,
-                    entry.isAdmin && styles.leaderboardAvatarAdmin,
+                    entry.rank === 1 && styles.leaderboardAvatarFirst,
                   ]}
                   contentFit="cover"
                 />
@@ -184,8 +183,7 @@ export default function LeaderboardScreen() {
                     source={{ uri: getValidImageUri(entry.avatar) }}
                     style={[
                       styles.leaderboardAvatar,
-                      entry.rank === 1 && !entry.isAdmin && styles.leaderboardAvatarFirst,
-                      entry.isAdmin && styles.leaderboardAvatarAdmin,
+                      entry.rank === 1 && styles.leaderboardAvatarFirst,
                     ]}
                     contentFit="cover"
                   />

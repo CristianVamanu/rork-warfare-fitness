@@ -120,8 +120,8 @@ export default function ProgressScreen() {
 
 
   const achievements = useMemo(() => {
-    const eliteMissionsTotal = missions.filter(m => m.difficulty === 'elite').length;
-    const eliteMissionsCompleted = missions.filter(m => m.difficulty === 'elite' && m.completed).length;
+    const eliteMissionsTotal = missions.filter(m => m.difficulty === 'Elite').length;
+    const eliteMissionsCompleted = missions.filter(m => m.difficulty === 'Elite' && m.completed).length;
     
     return [
       {

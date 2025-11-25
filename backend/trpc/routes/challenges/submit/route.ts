@@ -13,7 +13,7 @@ export const submitChallengeRoute = protectedProcedure
   .mutation(async ({ input, ctx }) => {
     const submission = {
       id: 's-' + Date.now().toString(),
-      userId: ctx.userId,
+      userId: ctx.user?.id ?? 'admin',
       challengeId: input.challengeId,
       weightClass: input.weightClass,
       resultValue: input.resultValue,

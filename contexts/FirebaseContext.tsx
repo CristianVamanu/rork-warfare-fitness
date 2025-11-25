@@ -5,6 +5,7 @@ import { initializeApp, FirebaseApp, getApps, getApp } from 'firebase/app';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, FirebaseStorage } from 'firebase/storage';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import * as Crypto from 'expo-crypto';
 
 const STORAGE_KEYS = {
@@ -38,10 +39,12 @@ interface NotificationData {
 }
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
+  handleNotification: async (): Promise<Notifications.NotificationBehavior> => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -85,6 +88,9 @@ async function decryptConfig(encrypted: string): Promise<FirebaseConfig | null> 
     return null;
   }
 }
+
+const appOwnership = Constants.appOwnership ?? 'standalone';
+const isExpoGo = appOwnership === 'expo';
 
 export const [FirebaseProvider, useFirebase] = createContextHook(() => {
   const [firebaseApp, setFirebaseApp] = useState<FirebaseApp | null>(null);
@@ -176,8 +182,8 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
 
   const registerForPushNotifications = useCallback(async (): Promise<string | null> => {
     try {
-      if (Platform.OS === 'web') {
-        console.log('[Notifications] Push notifications not supported on web');
+      if (Platform.OS === 'web' || isExpoGo) {
+        console.log('[Notifications] Push notifications not supported in this environment. Use a development build instead of Expo Go.');
         return null;
       }
 
@@ -194,8 +200,14 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
         return null;
       }
 
+      const expoProjectId = Constants.expoConfig?.extra?.eas?.projectId;
+      if (!expoProjectId) {
+        console.log('[Notifications] Missing Expo project ID. Configure EAS projectId to request push tokens.');
+        return null;
+      }
+
       const token = (await Notifications.getExpoPushTokenAsync({
-        projectId: config?.projectId,
+        projectId: expoProjectId,
       })).data;
 
       await AsyncStorage.setItem(STORAGE_KEYS.PUSH_TOKEN, token);
@@ -207,7 +219,7 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
       console.error('[Notifications] Registration failed:', error);
       return null;
     }
-  }, [config]);
+  }, []);
 
   const sendLocalNotification = useCallback(async (notification: NotificationData) => {
     try {
@@ -242,9 +254,9 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
         return null;
       }
 
-      const triggerDate = typeof trigger === 'number' 
-        ? { seconds: trigger }
-        : { date: trigger };
+      const triggerDate = (typeof trigger === 'number'
+        ? { seconds: trigger, repeats: false }
+        : { date: trigger }) as Notifications.NotificationTriggerInput;
 
       const id = await Notifications.scheduleNotificationAsync({
         content: {
