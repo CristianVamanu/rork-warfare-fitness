@@ -40,7 +40,7 @@ export default function HomeScreen() {
   const [showCoffeeDisclosure, setShowCoffeeDisclosure] = useState(false);
   const [showDaysWithoutModal, setShowDaysWithoutModal] = useState(false);
   const [daysWithoutHabit, setDaysWithoutHabit] = useState('');
-  const [daysWithoutStartDate, setDaysWithoutStartDate] = useState<string | null>(null);
+  const [daysWithoutGoalDays, setDaysWithoutGoalDays] = useState('10');
 
   const handleEditTarget = () => {
     setTargetInput(String(hydrationTargetMl));
@@ -376,10 +376,16 @@ export default function HomeScreen() {
       Alert.alert('Invalid Input', 'Please enter a habit name.');
       return;
     }
-    updateDaysWithout(daysWithoutHabit.trim());
+    const goalDays = parseInt(daysWithoutGoalDays, 10);
+    if (isNaN(goalDays) || goalDays < 1 || goalDays > 365) {
+      Alert.alert('Invalid Goal', 'Please enter a goal between 1 and 365 days.');
+      return;
+    }
+    updateDaysWithout(daysWithoutHabit.trim(), goalDays);
     setShowDaysWithoutModal(false);
     setDaysWithoutHabit('');
-    Alert.alert('Tracker Started!', `Your "Days Without ${daysWithoutHabit}" journey begins now. Stay strong!`);
+    setDaysWithoutGoalDays('10');
+    Alert.alert('Tracker Started!', `Your goal: ${goalDays} days without ${daysWithoutHabit}. Stay strong!`);
   };
 
   const handleResetDaysWithout = () => {
@@ -428,6 +434,36 @@ export default function HomeScreen() {
     now.setHours(0, 0, 0, 0);
     return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   };
+
+  const getDaysWithoutTimeRemaining = () => {
+    if (!daysWithoutData || !daysWithoutData.goalDays) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    const start = new Date(daysWithoutData.startDate);
+    const goalEndDate = new Date(start);
+    goalEndDate.setDate(goalEndDate.getDate() + daysWithoutData.goalDays);
+    const now = new Date();
+    const diff = goalEndDate.getTime() - now.getTime();
+    
+    if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    
+    return { days, hours, minutes, seconds };
+  };
+
+  const [timeRemaining, setTimeRemaining] = useState(getDaysWithoutTimeRemaining());
+
+  useEffect(() => {
+    if (!daysWithoutData || !daysWithoutData.goalDays) return;
+    
+    const interval = setInterval(() => {
+      setTimeRemaining(getDaysWithoutTimeRemaining());
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [daysWithoutData]);
 
   const getTodaysBriefingAuthor = () => {
     const briefings = adminSettings.dailyBriefings ?? [];
@@ -688,55 +724,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionsGrid}>
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push('/(tabs)/training')}
-            >
-              <View style={styles.actionIconContainer}>
-                <Dumbbell size={28} color={Colors.accent} />
-              </View>
-              <Text style={styles.actionTitle}>Missions</Text>
-              <Text style={styles.actionSubtitle}>Your next workouts</Text>
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push('/(tabs)/challenges')}
-            >
-              <View style={[styles.actionIconContainer, { backgroundColor: '#F59E0B20' }]}>
-                <Trophy size={28} color="#F59E0B" />
-              </View>
-              <Text style={styles.actionTitle}>Challenges</Text>
-              <Text style={styles.actionSubtitle}>Join competitions</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={[styles.actionsGrid, { marginTop: 12 }]}>
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push('/food' as any)}
-            >
-              <View style={[styles.actionIconContainer, { backgroundColor: '#10B98120' }]}>
-                <UtensilsCrossed size={28} color="#10B981" />
-              </View>
-              <Text style={styles.actionTitle}>Food Scanner</Text>
-              <Text style={styles.actionSubtitle}>Track your nutrition</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => setShowIceBathModal(true)}
-            >
-              <View style={[styles.actionIconContainer, { backgroundColor: '#3B82F620' }]}>
-                <Snowflake size={28} color="#3B82F6" />
-              </View>
-              <Text style={styles.actionTitle}>Ice Bath</Text>
-              <Text style={styles.actionSubtitle}>Track cold exposure</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Health & Habits</Text>
@@ -774,7 +762,9 @@ export default function HomeScreen() {
                 if (daysWithoutData) {
                   Alert.alert(
                     `Days Without ${daysWithoutData.habit}`,
-                    `You're on Day ${getDaysWithoutCount()}!\n\nWhat would you like to do?`,
+                    daysWithoutData.goalDays 
+                      ? `Current Progress: Day ${getDaysWithoutCount()}/${daysWithoutData.goalDays}\n\nWhat would you like to do?`
+                      : `You're on Day ${getDaysWithoutCount()}!\n\nWhat would you like to do?`,
                     [
                       { text: 'Close', style: 'cancel' },
                       { text: 'Reset Counter', onPress: handleResetDaysWithout },
@@ -792,7 +782,18 @@ export default function HomeScreen() {
               {daysWithoutData ? (
                 <>
                   <Text style={styles.actionTitle}>Days Without {daysWithoutData.habit}</Text>
-                  <Text style={styles.actionSubtitleHighlight}>{getDaysWithoutCount()} Days Strong! 💪</Text>
+                  {daysWithoutData.goalDays && timeRemaining.days + timeRemaining.hours + timeRemaining.minutes + timeRemaining.seconds > 0 ? (
+                    <View style={styles.timerContainer}>
+                      <Text style={styles.timerText}>
+                        {timeRemaining.days}d {timeRemaining.hours}h {timeRemaining.minutes}m {timeRemaining.seconds}s
+                      </Text>
+                      <Text style={styles.daysWithoutTimerLabel}>Time remaining to goal</Text>
+                    </View>
+                  ) : daysWithoutData.goalDays && getDaysWithoutCount() >= daysWithoutData.goalDays ? (
+                    <Text style={styles.actionSubtitleSuccess}>🎉 Goal Achieved! {getDaysWithoutCount()} Days!</Text>
+                  ) : (
+                    <Text style={styles.actionSubtitleHighlight}>{getDaysWithoutCount()} Days Strong! 💪</Text>
+                  )}
                 </>
               ) : (
                 <>
@@ -1224,41 +1225,85 @@ export default function HomeScreen() {
         animationType="fade"
         onRequestClose={() => setShowDaysWithoutModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Days Without Tracker</Text>
-            <Text style={styles.modalSubtitle}>What habit do you want to quit?</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={daysWithoutHabit}
-              onChangeText={setDaysWithoutHabit}
-              placeholder="e.g., Smoking, Drinking, Junk Food"
-              placeholderTextColor={Colors.textTertiary}
-              autoCapitalize="words"
-            />
-            <View style={styles.daysWithoutInfo}>
-              <Text style={styles.daysWithoutInfoTitle}>💪 Build Discipline</Text>
-              <Text style={styles.daysWithoutInfoText}>Track your progress as you overcome bad habits and build a stronger version of yourself.</Text>
-            </View>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => {
-                  setShowDaysWithoutModal(false);
-                  setDaysWithoutHabit('');
-                }}
-              >
-                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSave]}
-                onPress={handleStartDaysWithout}
-              >
-                <Text style={styles.modalButtonTextSave}>Start</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay} 
+            activeOpacity={1}
+            onPress={() => setShowDaysWithoutModal(false)}
+          >
+            <TouchableOpacity 
+              style={styles.modalContent}
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text style={styles.modalTitle}>Days Without Tracker</Text>
+              <Text style={styles.modalSubtitle}>What habit do you want to quit?</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={daysWithoutHabit}
+                onChangeText={setDaysWithoutHabit}
+                placeholder="e.g., Smoking, Drinking, Junk Food"
+                placeholderTextColor={Colors.textTertiary}
+                autoCapitalize="words"
+              />
+              <Text style={styles.modalSubtitle}>Set your goal (days):</Text>
+              <View style={styles.fastingPresets}>
+                {['7', '10', '14', '30'].map(days => (
+                  <TouchableOpacity
+                    key={days}
+                    style={[
+                      styles.fastingPreset,
+                      daysWithoutGoalDays === days && styles.fastingPresetActive,
+                    ]}
+                    onPress={() => setDaysWithoutGoalDays(days)}
+                  >
+                    <Text
+                      style={[
+                        styles.fastingPresetText,
+                        daysWithoutGoalDays === days && styles.fastingPresetTextActive,
+                      ]}
+                    >
+                      {days}d
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={styles.modalInput}
+                value={daysWithoutGoalDays}
+                onChangeText={setDaysWithoutGoalDays}
+                keyboardType="number-pad"
+                placeholder="Custom goal (days)"
+                placeholderTextColor={Colors.textTertiary}
+              />
+              <View style={styles.daysWithoutInfo}>
+                <Text style={styles.daysWithoutInfoTitle}>💪 Build Discipline</Text>
+                <Text style={styles.daysWithoutInfoText}>Set a goal and track your progress with a real-time countdown timer as you overcome bad habits.</Text>
+              </View>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => {
+                    setShowDaysWithoutModal(false);
+                    setDaysWithoutHabit('');
+                    setDaysWithoutGoalDays('10');
+                  }}
+                >
+                  <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonSave]}
+                  onPress={handleStartDaysWithout}
+                >
+                  <Text style={styles.modalButtonTextSave}>Start</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -1546,6 +1591,27 @@ const styles = StyleSheet.create({
     color: Colors.success,
     textAlign: 'center',
     fontWeight: '700' as const,
+  },
+  actionSubtitleSuccess: {
+    fontSize: 12,
+    color: '#10B981',
+    textAlign: 'center',
+    fontWeight: '700' as const,
+  },
+  timerContainer: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  timerText: {
+    fontSize: 14,
+    color: Colors.accent,
+    fontWeight: '700' as const,
+    letterSpacing: 0.5,
+  },
+  daysWithoutTimerLabel: {
+    fontSize: 10,
+    color: Colors.textTertiary,
+    marginTop: 2,
   },
   objectivesList: {
     gap: 12,

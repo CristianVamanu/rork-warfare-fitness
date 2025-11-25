@@ -46,6 +46,7 @@ interface IceBathLog {
 interface DaysWithoutData {
   habit: string;
   startDate: string;
+  goalDays?: number;
 }
 
 interface DailyBriefing {
@@ -753,14 +754,15 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
 
 
-  const updateDaysWithout = useCallback(async (habit: string) => {
+  const updateDaysWithout = useCallback(async (habit: string, goalDays?: number) => {
     const newData: DaysWithoutData = {
       habit,
       startDate: new Date().toISOString(),
+      goalDays,
     };
     setDaysWithoutData(newData);
     await AsyncStorage.setItem(STORAGE_KEYS.DAYS_WITHOUT, JSON.stringify(newData));
-    console.log('[DaysWithout] Tracker started for:', habit);
+    console.log('[DaysWithout] Tracker started for:', habit, 'with goal:', goalDays, 'days');
   }, []);
 
   const clearDaysWithout = useCallback(async () => {
