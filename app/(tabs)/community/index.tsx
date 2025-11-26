@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { MessageSquare, Plus, Hash, Lock, Clock, Users } from 'lucide-react-native';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
 
@@ -20,8 +20,10 @@ export default function CommunityScreen() {
   const [newChannelDescription, setNewChannelDescription] = useState('');
   const [newChannelIcon, setNewChannelIcon] = useState('💬');
   const [newChannelIsPrivate, setNewChannelIsPrivate] = useState(false);
+  const [newChannelSlowMode, setNewChannelSlowMode] = useState(false);
+  const [slowModeDuration, setSlowModeDuration] = useState('10');
 
-  const { createChannel } = useCommunity();
+  const { createChannel, updateChannel } = useCommunity();
 
   const handleCreateChannel = async () => {
     if (!newChannelName.trim()) {
@@ -34,20 +36,28 @@ export default function CommunityScreen() {
       return;
     }
 
+    const slowModeSeconds = newChannelSlowMode ? parseInt(slowModeDuration) || 0 : 0;
+
     try {
-      await createChannel(
+      const channel = await createChannel(
         newChannelName.trim(),
         newChannelDescription.trim() || 'No description',
         newChannelIcon,
         newChannelIsPrivate,
         user.id
       );
+
+      if (slowModeSeconds > 0 && channel) {
+        await updateChannel(channel.id, { slowMode: slowModeSeconds });
+      }
       
       setShowCreateModal(false);
       setNewChannelName('');
       setNewChannelDescription('');
       setNewChannelIcon('💬');
       setNewChannelIsPrivate(false);
+      setNewChannelSlowMode(false);
+      setSlowModeDuration('10');
       
       Alert.alert('Success', 'Channel created successfully!');
     } catch (error) {
@@ -143,8 +153,23 @@ export default function CommunityScreen() {
         animationType="fade"
         onRequestClose={() => setShowCreateModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlayTouchable}
+            activeOpacity={1}
+            onPress={() => setShowCreateModal(false)}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+              <ScrollView
+                style={styles.modalScrollView}
+                contentContainerStyle={styles.modalScrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Create New Channel</Text>
 
             <Text style={styles.label}>Channel Icon</Text>
@@ -190,6 +215,46 @@ export default function CommunityScreen() {
               <Text style={styles.checkboxLabel}>Private Channel</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => setNewChannelSlowMode(!newChannelSlowMode)}
+            >
+              <View style={[styles.checkbox, newChannelSlowMode && styles.checkboxActive]}>
+                {newChannelSlowMode && <View style={styles.checkboxCheck} />}
+              </View>
+              <Text style={styles.checkboxLabel}>Enable Slow Mode</Text>
+            </TouchableOpacity>
+
+            {newChannelSlowMode && (
+              <>
+                <Text style={styles.label}>Slow Mode Duration (seconds)</Text>
+                <View style={styles.slowModeSelector}>
+                  {['5', '10', '15', '30', '60', '120'].map((duration) => (
+                    <TouchableOpacity
+                      key={duration}
+                      style={[
+                        styles.durationOption,
+                        slowModeDuration === duration && styles.durationOptionActive,
+                      ]}
+                      onPress={() => setSlowModeDuration(duration)}
+                    >
+                      <Text
+                        style={[
+                          styles.durationText,
+                          slowModeDuration === duration && styles.durationTextActive,
+                        ]}
+                      >
+                        {duration}s
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={styles.slowModeHint}>
+                  Users can post once every {slowModeDuration} seconds
+                </Text>
+              </>
+            )}
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonCancel]}
@@ -199,6 +264,8 @@ export default function CommunityScreen() {
                   setNewChannelDescription('');
                   setNewChannelIcon('💬');
                   setNewChannelIsPrivate(false);
+                  setNewChannelSlowMode(false);
+                  setSlowModeDuration('10');
                 }}
               >
                 <Text style={styles.modalButtonTextCancel}>Cancel</Text>
@@ -210,8 +277,11 @@ export default function CommunityScreen() {
                 <Text style={styles.modalButtonTextSave}>Create</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+                </View>
+              </ScrollView>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -356,10 +426,19 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
+  },
+  modalOverlayTouchable: {
+    flex: 1,
     backgroundColor: 'rgba(0,0,0,0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
+  },
+  modalScrollView: {
+    maxHeight: '80%',
+  },
+  modalScrollContent: {
+    justifyContent: 'center',
   },
   modalContent: {
     backgroundColor: Colors.surface,
@@ -478,5 +557,38 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontWeight: '800' as const,
     fontSize: 16,
+  },
+  slowModeSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  durationOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: Colors.surfaceLight,
+    borderWidth: 2,
+    borderColor: Colors.border,
+  },
+  durationOptionActive: {
+    borderColor: Colors.accent,
+    backgroundColor: `${Colors.accent}20`,
+  },
+  durationText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  durationTextActive: {
+    color: Colors.accent,
+    fontWeight: '700' as const,
+  },
+  slowModeHint: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    marginBottom: 16,
+    fontStyle: 'italic' as const,
   },
 });

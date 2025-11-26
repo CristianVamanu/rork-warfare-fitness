@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Switch, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Switch, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { Plus, Trash2, X, Copy, Edit2, Calendar, Sparkles } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -266,7 +266,8 @@ export default function AdminProgramsScreen() {
       </View>
 
       <Modal visible={showCreate} animationType="slide" onRequestClose={() => setShowCreate(false)}>
-        <View style={styles.modalRoot}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalRoot}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Create Program</Text>
             <TouchableOpacity onPress={() => setShowCreate(false)}><X size={22} color={Colors.text} /></TouchableOpacity>
@@ -307,10 +308,12 @@ export default function AdminProgramsScreen() {
             </TouchableOpacity>
           </ScrollView>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={!!editingProgram} animationType="slide" onRequestClose={() => setEditingProgram(null)}>
-        <View style={styles.modalRoot}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalRoot}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Edit Program Settings</Text>
             <TouchableOpacity onPress={() => setEditingProgram(null)}><X size={22} color={Colors.text} /></TouchableOpacity>
@@ -363,10 +366,12 @@ export default function AdminProgramsScreen() {
             </ScrollView>
           )}
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={!!editing} animationType="slide" onRequestClose={() => setEditing(null)}>
-        <View style={styles.modalRoot}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalRoot}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Edit Day {editing?.day}</Text>
             <TouchableOpacity onPress={() => setEditing(null)}><X size={22} color={Colors.text} /></TouchableOpacity>
@@ -486,10 +491,12 @@ export default function AdminProgramsScreen() {
             </ScrollView>
           )}
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={showAiGenerate} animationType="slide" onRequestClose={() => setShowAiGenerate(false)}>
-        <View style={styles.modalRoot}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalRoot}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>AI Program Generator</Text>
             <TouchableOpacity onPress={() => setShowAiGenerate(false)}><X size={22} color={Colors.text} /></TouchableOpacity>
@@ -553,10 +560,12 @@ export default function AdminProgramsScreen() {
             </TouchableOpacity>
           </ScrollView>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={!!cloneWeekModal} animationType="fade" transparent onRequestClose={() => setCloneWeekModal(null)}>
-        <View style={styles.overlayModal}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.overlayModal}>
           <View style={styles.smallModalCard}>
             <Text style={styles.smallModalTitle}>Clone Week</Text>
             <Text style={styles.smallModalSub}>Enter week number to clone (e.g., 1 for days 1-7)</Text>
@@ -578,6 +587,7 @@ export default function AdminProgramsScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
