@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Users, Activity, Zap, Check, Dumbbell, Droplets, UtensilsCrossed, Settings, User, Clock, Snowflake, Medal, TrendingUp, Trophy, Bell, Calendar, ScanBarcode, ShoppingBag, Coffee, Ban } from 'lucide-react-native';
+import { Users, Activity, Zap, Check, Dumbbell, Droplets, UtensilsCrossed, Settings, User, Clock, Snowflake, Medal, TrendingUp, Trophy, Bell, Calendar, ScanBarcode, ShoppingBag, Coffee, Ban, Timer } from 'lucide-react-native';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Animated, Alert, Modal, TextInput, Dimensions, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,6 +12,7 @@ import { useApp } from '@/contexts/AppContext';
 import { useTraining } from '@/contexts/TrainingContext';
 import { useRanking } from '@/contexts/RankingContext';
 import { useNotifications } from '@/contexts/NotificationsContext';
+import { useDaysWithout } from '@/contexts/DaysWithoutContext';
 import ExternalLinkDisclosure from '@/components/ExternalLinkDisclosure';
 
 
@@ -22,6 +23,7 @@ export default function HomeScreen() {
   const { user, streak, powerLevel, hydrationMl, hydrationTargetMl, addWater, updateHydrationTarget, resetHydration, powerMetrics, fastingState, startFasting, endFasting, logIceBathEntry, adminSettings } = useApp();
   const { workoutLogs, activeProgram, getOverallProgress, programs } = useTraining();
   const { getUnreadCount } = useNotifications();
+  const { challenges, getTimeElapsed } = useDaysWithout();
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [targetInput, setTargetInput] = useState(String(hydrationTargetMl));
   const [showFastingModal, setShowFastingModal] = useState(false);
@@ -38,6 +40,7 @@ export default function HomeScreen() {
   const [isCountdownActive, setIsCountdownActive] = useState(false);
   const [alarmTriggered, setAlarmTriggered] = useState(false);
   const [showCoffeeDisclosure, setShowCoffeeDisclosure] = useState(false);
+  const [daysWithoutTime, setDaysWithoutTime] = useState<{ days: number; hours: number; minutes: number; seconds: number } | null>(null);
 
   const handleEditTarget = () => {
     setTargetInput(String(hydrationTargetMl));
@@ -178,6 +181,19 @@ export default function HomeScreen() {
 
     return () => clearInterval(interval);
   }, [showIceBathTimer, isCountdownActive, alarmTriggered]);
+
+  useEffect(() => {
+    const activeChallenges = challenges.filter(c => c.isActive);
+    if (activeChallenges.length > 0) {
+      const interval = setInterval(() => {
+        const elapsed = getTimeElapsed(activeChallenges[0].startDate);
+        setDaysWithoutTime(elapsed);
+      }, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setDaysWithoutTime(null);
+    }
+  }, [challenges, getTimeElapsed]);
 
   useEffect(() => {
     if (isCountdownActive && countdownRemainingSeconds === 0 && !alarmTriggered && showIceBathTimer) {
@@ -527,12 +543,40 @@ export default function HomeScreen() {
               <Ban size={18} color={Colors.danger} />
               <Text style={styles.metricLabel}>Days Without</Text>
             </View>
-            <Text style={styles.metricValue}>Track</Text>
-            <View style={styles.daysWithoutIndicator}>
-              <View style={styles.daysWithoutDot} />
-              <Text style={styles.daysWithoutText}>Quit Bad Habits</Text>
-            </View>
-            <Text style={styles.metricSubtext}>Tap to start</Text>
+            {daysWithoutTime ? (
+              <>
+                <View style={styles.daysWithoutTimerRow}>
+                  <View style={styles.daysWithoutTimeBox}>
+                    <Text style={styles.daysWithoutTimeValue}>{daysWithoutTime.days}</Text>
+                    <Text style={styles.daysWithoutTimeLabel}>D</Text>
+                  </View>
+                  <Text style={styles.daysWithoutTimeSeparator}>:</Text>
+                  <View style={styles.daysWithoutTimeBox}>
+                    <Text style={styles.daysWithoutTimeValue}>{daysWithoutTime.hours.toString().padStart(2, '0')}</Text>
+                    <Text style={styles.daysWithoutTimeLabel}>H</Text>
+                  </View>
+                  <Text style={styles.daysWithoutTimeSeparator}>:</Text>
+                  <View style={styles.daysWithoutTimeBox}>
+                    <Text style={styles.daysWithoutTimeValue}>{daysWithoutTime.minutes.toString().padStart(2, '0')}</Text>
+                    <Text style={styles.daysWithoutTimeLabel}>M</Text>
+                  </View>
+                </View>
+                <View style={styles.daysWithoutIndicator}>
+                  <View style={[styles.daysWithoutDot, { backgroundColor: Colors.success }]} />
+                  <Text style={styles.daysWithoutText}>{challenges.filter(c => c.isActive)[0]?.name}</Text>
+                </View>
+                <Text style={styles.metricSubtext}>Active challenge</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.metricValue}>Track</Text>
+                <View style={styles.daysWithoutIndicator}>
+                  <View style={styles.daysWithoutDot} />
+                  <Text style={styles.daysWithoutText}>Quit Bad Habits</Text>
+                </View>
+                <Text style={styles.metricSubtext}>Tap to start</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -1323,6 +1367,33 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textSecondary,
     fontWeight: '600' as const,
+  },
+  daysWithoutTimerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  daysWithoutTimeBox: {
+    alignItems: 'center',
+  },
+  daysWithoutTimeValue: {
+    fontSize: 20,
+    fontWeight: '800' as const,
+    color: Colors.danger,
+    fontVariant: ['tabular-nums' as any],
+  },
+  daysWithoutTimeLabel: {
+    fontSize: 8,
+    color: Colors.textTertiary,
+    fontWeight: '600' as const,
+    marginTop: -2,
+  },
+  daysWithoutTimeSeparator: {
+    fontSize: 20,
+    fontWeight: '800' as const,
+    color: Colors.textTertiary,
+    marginHorizontal: 2,
   },
   section: {
     paddingHorizontal: 16,
