@@ -13,6 +13,20 @@ import { getValidImageUri } from '@/lib/image-utils';
 
 const EMOJI_REACTIONS = ['👍', '❤️', '😂', '🔥', '💪', '🎯', '⚡'];
 
+const EMOJI_PICKER_LIST = [
+  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣',
+  '😊', '😇', '😍', '🥰', '😘', '😗', '😙', '😚',
+  '😎', '🤩', '🥳', '😌', '😏', '😋', '😛', '😜',
+  '🤪', '🤨', '🧐', '🤓', '😒', '😞', '😔', '😟',
+  '😕', '🙁', '😮', '😲', '😳', '🥺', '😦', '😧',
+  '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣',
+  '😝', '😶', '🙄', '😬', '😪', '🥵', '😴', '😵',
+  '🤒', '🤢', '🤧', '😷', '🤑', '🤕', '🤮', '🤯',
+  '👍', '👎', '👊', '✊', '🤛', '🤜', '🤞', '✌️',
+  '❤️', '🧡', '💛', '💚', '💙', '💜', '💔', '♥️',
+  '🔥', '⚡', '💪', '🎯', '🏆', '🥇', '🥈', '🥉',
+];
+
 export default function ChannelChatScreen() {
   const { channelId } = useLocalSearchParams<{ channelId: string }>();
   const router = useRouter();
@@ -41,7 +55,7 @@ export default function ChannelChatScreen() {
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const scrollViewRef = useRef<ScrollView>(null);
   const textInputRef = useRef<TextInput>(null);
-  const [allUsers, setAllUsers] = useState<Array<{ id: string; name: string; avatar?: string }>>([]);
+  const [allUsers, setAllUsers] = useState<{ id: string; name: string; avatar?: string }[]>([]);
 
   const channel = channels.find(ch => ch.id === channelId);
   const messages = getChannelMessages(channelId || '');
@@ -389,6 +403,36 @@ export default function ChannelChatScreen() {
         })}
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      {showEmojiPicker && (
+        <View style={styles.emojiPickerContainer}>
+          <View style={styles.emojiPickerHeader}>
+            <Smile size={16} color={Colors.accent} />
+            <Text style={styles.emojiPickerTitle}>Pick an Emoji</Text>
+            <TouchableOpacity onPress={() => setShowEmojiPicker(false)}>
+              <X size={16} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.emojiPickerList}
+          >
+            {EMOJI_PICKER_LIST.map((emoji, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.emojiPickerOption}
+                onPress={() => {
+                  setMessageText(messageText + emoji);
+                  setShowEmojiPicker(false);
+                }}
+              >
+                <Text style={styles.emojiPickerEmoji}>{emoji}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {showMentionSuggestions && filteredUsers.length > 0 && (
         <View style={styles.mentionSuggestionsContainer}>
@@ -772,6 +816,41 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600' as const,
     color: Colors.text,
+  },
+  emojiPickerContainer: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.surface,
+    paddingVertical: 12,
+  },
+  emojiPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  emojiPickerTitle: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase' as const,
+    marginLeft: 8,
+  },
+  emojiPickerList: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  emojiPickerOption: {
+    padding: 8,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  emojiPickerEmoji: {
+    fontSize: 24,
   },
   mentionSuggestionsContainer: {
     borderTopWidth: 1,

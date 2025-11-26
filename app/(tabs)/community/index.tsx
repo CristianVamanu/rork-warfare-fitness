@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { MessageSquare, Plus, Hash, Lock, Clock, Users } from 'lucide-react-native';
+import { MessageSquare, Plus, Hash, Lock, Clock, Users, UserPlus, UserMinus } from 'lucide-react-native';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
@@ -22,8 +22,14 @@ export default function CommunityScreen() {
   const [newChannelIsPrivate, setNewChannelIsPrivate] = useState(false);
   const [newChannelSlowMode, setNewChannelSlowMode] = useState(false);
   const [slowModeDuration, setSlowModeDuration] = useState('10');
+  const [slowModeUnit, setSlowModeUnit] = useState<'seconds' | 'minutes' | 'hours' | 'days'>('seconds');
+  const [allowImages, setAllowImages] = useState(true);
+  const [allowVideos, setAllowVideos] = useState(true);
+  const [maxImageSize, setMaxImageSize] = useState('10');
+  const [maxVideoSize, setMaxVideoSize] = useState('50');
+  const [maxVideoDuration, setMaxVideoDuration] = useState('60');
 
-  const { createChannel, updateChannel } = useCommunity();
+  const { createChannel, joinChannel, leaveChannel } = useCommunity();
 
   const handleCreateChannel = async () => {
     if (!newChannelName.trim()) {
@@ -36,20 +42,23 @@ export default function CommunityScreen() {
       return;
     }
 
-    const slowModeSeconds = newChannelSlowMode ? parseInt(slowModeDuration) || 0 : 0;
-
     try {
-      const channel = await createChannel(
+      await createChannel(
         newChannelName.trim(),
         newChannelDescription.trim() || 'No description',
         newChannelIcon,
         newChannelIsPrivate,
-        user.id
+        user.id,
+        {
+          slowMode: newChannelSlowMode ? parseInt(slowModeDuration) || 0 : 0,
+          slowModeUnit,
+          allowImages,
+          allowVideos,
+          maxImageSizeMB: parseInt(maxImageSize) || 10,
+          maxVideoSizeMB: parseInt(maxVideoSize) || 50,
+          maxVideoDurationSeconds: parseInt(maxVideoDuration) || 60,
+        }
       );
-
-      if (slowModeSeconds > 0 && channel) {
-        await updateChannel(channel.id, { slowMode: slowModeSeconds });
-      }
       
       setShowCreateModal(false);
       setNewChannelName('');
@@ -58,6 +67,12 @@ export default function CommunityScreen() {
       setNewChannelIsPrivate(false);
       setNewChannelSlowMode(false);
       setSlowModeDuration('10');
+      setSlowModeUnit('seconds');
+      setAllowImages(true);
+      setAllowVideos(true);
+      setMaxImageSize('10');
+      setMaxVideoSize('50');
+      setMaxVideoDuration('60');
       
       Alert.alert('Success', 'Channel created successfully!');
     } catch (error) {
@@ -69,6 +84,41 @@ export default function CommunityScreen() {
   const handleChannelPress = (channelId: string) => {
     setSelectedChannel(channelId);
     router.push(`/(tabs)/community/${channelId}` as any);
+  };
+
+  const handleJoinChannel = async (channelId: string) => {
+    if (!user?.id) return;
+    try {
+      await joinChannel(channelId, user.id);
+      Alert.alert('Success', 'You have joined the channel!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to join channel');
+      console.error('[Community] Failed to join channel:', error);
+    }
+  };
+
+  const handleLeaveChannel = async (channelId: string) => {
+    if (!user?.id) return;
+    Alert.alert(
+      'Leave Channel',
+      'Are you sure you want to leave this channel?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await leaveChannel(channelId, user.id);
+              Alert.alert('Success', 'You have left the channel');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to leave channel');
+              console.error('[Community] Failed to leave channel:', error);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -96,50 +146,71 @@ export default function CommunityScreen() {
           {channels.map((channel) => {
             const messageCount = 0;
             const isActive = channel.id === selectedChannel;
+            const isMember = user?.id ? channel.members.includes(user.id) : false;
 
             return (
-              <TouchableOpacity
-                key={channel.id}
-                style={[styles.channelCard, isActive && styles.channelCardActive]}
-                onPress={() => handleChannelPress(channel.id)}
-              >
-                <View style={styles.channelIcon}>
-                  <Text style={styles.channelIconText}>{channel.icon}</Text>
-                </View>
+              <View key={channel.id} style={styles.channelCardWrapper}>
+                <TouchableOpacity
+                  style={[styles.channelCard, isActive && styles.channelCardActive]}
+                  onPress={() => handleChannelPress(channel.id)}
+                >
+                  <View style={styles.channelIcon}>
+                    <Text style={styles.channelIconText}>{channel.icon}</Text>
+                  </View>
 
-                <View style={styles.channelContent}>
-                  <View style={styles.channelHeader}>
-                    <View style={styles.channelNameRow}>
-                      {channel.isPrivate ? (
-                        <Lock size={14} color={Colors.textSecondary} />
-                      ) : (
-                        <Hash size={14} color={Colors.textSecondary} />
-                      )}
-                      <Text style={styles.channelName}>{channel.name}</Text>
-                      {channel.slowMode > 0 && (
-                        <View style={styles.slowModeBadge}>
-                          <Clock size={10} color={Colors.warning} />
-                          <Text style={styles.slowModeText}>{channel.slowMode}s</Text>
+                  <View style={styles.channelContent}>
+                    <View style={styles.channelHeader}>
+                      <View style={styles.channelNameRow}>
+                        {channel.isPrivate ? (
+                          <Lock size={14} color={Colors.textSecondary} />
+                        ) : (
+                          <Hash size={14} color={Colors.textSecondary} />
+                        )}
+                        <Text style={styles.channelName}>{channel.name}</Text>
+                        {channel.slowMode > 0 && (
+                          <View style={styles.slowModeBadge}>
+                            <Clock size={10} color={Colors.warning} />
+                            <Text style={styles.slowModeText}>
+                              {channel.slowMode}{channel.slowModeUnit[0]}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      {messageCount > 0 && (
+                        <View style={styles.unreadBadge}>
+                          <Text style={styles.unreadText}>{messageCount}</Text>
                         </View>
                       )}
                     </View>
-                    {messageCount > 0 && (
-                      <View style={styles.unreadBadge}>
-                        <Text style={styles.unreadText}>{messageCount}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.channelDescription} numberOfLines={1}>
-                    {channel.description}
-                  </Text>
-                  <View style={styles.channelMeta}>
-                    <Users size={12} color={Colors.textTertiary} />
-                    <Text style={styles.channelMetaText}>
-                      {channel.members.length} members
+                    <Text style={styles.channelDescription} numberOfLines={1}>
+                      {channel.description}
                     </Text>
+                    <View style={styles.channelMeta}>
+                      <Users size={12} color={Colors.textTertiary} />
+                      <Text style={styles.channelMetaText}>
+                        {channel.members.length} members
+                      </Text>
+                      {isMember && (
+                        <View style={styles.memberBadge}>
+                          <Text style={styles.memberBadgeText}>JOINED</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+                {user && !user.isAdmin && (
+                  <TouchableOpacity
+                    style={[styles.joinButton, isMember && styles.leaveButton]}
+                    onPress={() => isMember ? handleLeaveChannel(channel.id) : handleJoinChannel(channel.id)}
+                  >
+                    {isMember ? (
+                      <UserMinus size={16} color={Colors.danger} />
+                    ) : (
+                      <UserPlus size={16} color={Colors.accent} />
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
             );
           })}
         </View>
@@ -227,31 +298,98 @@ export default function CommunityScreen() {
 
             {newChannelSlowMode && (
               <>
-                <Text style={styles.label}>Slow Mode Duration (seconds)</Text>
+                <Text style={styles.label}>Slow Mode Unit</Text>
                 <View style={styles.slowModeSelector}>
-                  {['5', '10', '15', '30', '60', '120'].map((duration) => (
+                  {(['seconds', 'minutes', 'hours', 'days'] as const).map((unit) => (
                     <TouchableOpacity
-                      key={duration}
+                      key={unit}
                       style={[
                         styles.durationOption,
-                        slowModeDuration === duration && styles.durationOptionActive,
+                        slowModeUnit === unit && styles.durationOptionActive,
                       ]}
-                      onPress={() => setSlowModeDuration(duration)}
+                      onPress={() => setSlowModeUnit(unit)}
                     >
                       <Text
                         style={[
                           styles.durationText,
-                          slowModeDuration === duration && styles.durationTextActive,
+                          slowModeUnit === unit && styles.durationTextActive,
                         ]}
                       >
-                        {duration}s
+                        {unit}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
+
+                <Text style={styles.label}>Slow Mode Duration</Text>
+                <TextInput
+                  style={styles.input}
+                  value={slowModeDuration}
+                  onChangeText={setSlowModeDuration}
+                  placeholder={`Duration in ${slowModeUnit}`}
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
                 <Text style={styles.slowModeHint}>
-                  Users can post once every {slowModeDuration} seconds
+                  Users can post once every {slowModeDuration} {slowModeUnit}
                 </Text>
+              </>
+            )}
+
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => setAllowImages(!allowImages)}
+            >
+              <View style={[styles.checkbox, allowImages && styles.checkboxActive]}>
+                {allowImages && <View style={styles.checkboxCheck} />}
+              </View>
+              <Text style={styles.checkboxLabel}>Allow Image Uploads</Text>
+            </TouchableOpacity>
+
+            {allowImages && (
+              <>
+                <Text style={styles.label}>Max Image Size (MB)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={maxImageSize}
+                  onChangeText={setMaxImageSize}
+                  placeholder="Max size in MB"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
+              </>
+            )}
+
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => setAllowVideos(!allowVideos)}
+            >
+              <View style={[styles.checkbox, allowVideos && styles.checkboxActive]}>
+                {allowVideos && <View style={styles.checkboxCheck} />}
+              </View>
+              <Text style={styles.checkboxLabel}>Allow Video Uploads</Text>
+            </TouchableOpacity>
+
+            {allowVideos && (
+              <>
+                <Text style={styles.label}>Max Video Size (MB)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={maxVideoSize}
+                  onChangeText={setMaxVideoSize}
+                  placeholder="Max size in MB"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
+                <Text style={styles.label}>Max Video Duration (seconds)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={maxVideoDuration}
+                  onChangeText={setMaxVideoDuration}
+                  placeholder="Max duration in seconds"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
               </>
             )}
 
@@ -266,6 +404,12 @@ export default function CommunityScreen() {
                   setNewChannelIsPrivate(false);
                   setNewChannelSlowMode(false);
                   setSlowModeDuration('10');
+                  setSlowModeUnit('seconds');
+                  setAllowImages(true);
+                  setAllowVideos(true);
+                  setMaxImageSize('10');
+                  setMaxVideoSize('50');
+                  setMaxVideoDuration('60');
                 }}
               >
                 <Text style={styles.modalButtonTextCancel}>Cancel</Text>
@@ -329,6 +473,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
   },
+  channelCardWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
   sectionLabel: {
     fontSize: 12,
     fontWeight: '700' as const,
@@ -338,12 +488,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   channelCard: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: Colors.border,
   },
@@ -423,6 +573,31 @@ const styles = StyleSheet.create({
   channelMetaText: {
     fontSize: 11,
     color: Colors.textTertiary,
+  },
+  memberBadge: {
+    backgroundColor: `${Colors.accent}20`,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  memberBadgeText: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: Colors.accent,
+  },
+  joinButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.surface,
+    borderWidth: 2,
+    borderColor: Colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  leaveButton: {
+    borderColor: Colors.danger,
   },
   modalOverlay: {
     flex: 1,
@@ -519,17 +694,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.accent,
     backgroundColor: Colors.accent,
   },
-  checkboxCheck: {
-    width: 12,
-    height: 12,
-    borderRadius: 3,
-    backgroundColor: Colors.text,
-  },
-  checkboxLabel: {
-    fontSize: 15,
-    color: Colors.text,
-    fontWeight: '600' as const,
-  },
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
@@ -590,5 +754,16 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     marginBottom: 16,
     fontStyle: 'italic' as const,
+  },
+  checkboxCheck: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+    backgroundColor: Colors.text,
+  },
+  checkboxLabel: {
+    fontSize: 15,
+    color: Colors.text,
+    fontWeight: '600' as const,
   },
 });

@@ -1,6 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNotifications } from './NotificationsContext';
 
 export interface Message {
   id: string;
@@ -26,11 +27,17 @@ export interface Channel {
   icon: string;
   isPrivate: boolean;
   slowMode: number;
+  slowModeUnit: 'seconds' | 'minutes' | 'hours' | 'days';
   members: string[];
   bannedUsers: string[];
   mutedUsers: Record<string, number>;
   createdAt: string;
   createdBy: string;
+  allowImages: boolean;
+  allowVideos: boolean;
+  maxImageSizeMB: number;
+  maxVideoSizeMB: number;
+  maxVideoDurationSeconds: number;
 }
 
 export interface UserStatus {
@@ -48,6 +55,7 @@ const STORAGE_KEYS = {
 };
 
 export const [CommunityProvider, useCommunity] = createContextHook(() => {
+  const { createNotification } = useNotifications();
   const [channels, setChannels] = useState<Channel[]>([
     {
       id: 'general',
@@ -56,11 +64,17 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       icon: '💬',
       isPrivate: false,
       slowMode: 0,
+      slowModeUnit: 'seconds',
       members: [],
       bannedUsers: [],
       mutedUsers: {},
       createdAt: new Date().toISOString(),
       createdBy: 'admin',
+      allowImages: true,
+      allowVideos: true,
+      maxImageSizeMB: 10,
+      maxVideoSizeMB: 50,
+      maxVideoDurationSeconds: 60,
     },
   ]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -103,7 +117,16 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     description: string,
     icon: string,
     isPrivate: boolean,
-    createdBy: string
+    createdBy: string,
+    options?: {
+      slowMode?: number;
+      slowModeUnit?: 'seconds' | 'minutes' | 'hours' | 'days';
+      allowImages?: boolean;
+      allowVideos?: boolean;
+      maxImageSizeMB?: number;
+      maxVideoSizeMB?: number;
+      maxVideoDurationSeconds?: number;
+    }
   ) => {
     const newChannel: Channel = {
       id: `ch-${Date.now()}`,
@@ -111,12 +134,18 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       description,
       icon,
       isPrivate,
-      slowMode: 0,
+      slowMode: options?.slowMode || 0,
+      slowModeUnit: options?.slowModeUnit || 'seconds',
       members: [],
       bannedUsers: [],
       mutedUsers: {},
       createdAt: new Date().toISOString(),
       createdBy,
+      allowImages: options?.allowImages ?? true,
+      allowVideos: options?.allowVideos ?? true,
+      maxImageSizeMB: options?.maxImageSizeMB || 10,
+      maxVideoSizeMB: options?.maxVideoSizeMB || 50,
+      maxVideoDurationSeconds: options?.maxVideoDurationSeconds || 60,
     };
 
     const updated = [...channels, newChannel];
@@ -212,8 +241,55 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     setMessages(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(updated));
     console.log('[Community] Message sent:', newMessage.id);
+
+    const channelMembers = channel.members.filter(memberId => memberId !== userId);
+    for (const memberId of channelMembers) {
+      try {
+        await createNotification(
+          memberId,
+          'general',
+          `New message in #${channel.name}`,
+          `${userName}: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`,
+          {
+            channelId,
+            messageId: newMessage.id,
+            type: 'channel_message',
+          }
+        );
+      } catch (error) {
+        console.error('[Community] Failed to send notification:', error);
+      }
+    }
+
+    if (mentions && mentions.length > 0) {
+      for (const mentionName of mentions) {
+        const mentionedUserData = await AsyncStorage.getItem('all_users');
+        if (mentionedUserData) {
+          const allUsers = JSON.parse(mentionedUserData);
+          const mentionedUser = allUsers.find((u: any) => u.name === mentionName);
+          if (mentionedUser && mentionedUser.id !== userId) {
+            try {
+              await createNotification(
+                mentionedUser.id,
+                'general',
+                `You were mentioned in #${channel.name}`,
+                `${userName} mentioned you: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`,
+                {
+                  channelId,
+                  messageId: newMessage.id,
+                  type: 'mention',
+                }
+              );
+            } catch (error) {
+              console.error('[Community] Failed to send mention notification:', error);
+            }
+          }
+        }
+      }
+    }
+
     return newMessage;
-  }, [channels, messages, userStatuses]);
+  }, [channels, messages, userStatuses, createNotification]);
 
   const editMessage = useCallback(async (messageId: string, newContent: string, userId: string) => {
     const updated = messages.map(m => {
@@ -398,10 +474,41 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     console.log('[Community] User unmuted:', userId);
   }, [channels, userStatuses]);
 
-  const setSlowMode = useCallback(async (channelId: string, seconds: number) => {
-    await updateChannel(channelId, { slowMode: seconds });
-    console.log('[Community] Slow mode set:', channelId, seconds);
+  const setSlowMode = useCallback(async (
+    channelId: string,
+    value: number,
+    unit: 'seconds' | 'minutes' | 'hours' | 'days'
+  ) => {
+    await updateChannel(channelId, { slowMode: value, slowModeUnit: unit });
+    console.log('[Community] Slow mode set:', channelId, value, unit);
   }, [updateChannel]);
+
+  const joinChannel = useCallback(async (channelId: string, userId: string) => {
+    const channel = channels.find(ch => ch.id === channelId);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    if (channel.members.includes(userId)) {
+      console.log('[Community] User already in channel');
+      return;
+    }
+
+    const updatedMembers = [...channel.members, userId];
+    await updateChannel(channelId, { members: updatedMembers });
+    console.log('[Community] User joined channel:', userId, channelId);
+  }, [channels, updateChannel]);
+
+  const leaveChannel = useCallback(async (channelId: string, userId: string) => {
+    const channel = channels.find(ch => ch.id === channelId);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    const updatedMembers = channel.members.filter(id => id !== userId);
+    await updateChannel(channelId, { members: updatedMembers });
+    console.log('[Community] User left channel:', userId, channelId);
+  }, [channels, updateChannel]);
 
   const getChannelMessages = useCallback((channelId: string) => {
     return messages
@@ -432,6 +539,8 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       muteUser,
       unmuteUser,
       setSlowMode,
+      joinChannel,
+      leaveChannel,
       getChannelMessages,
       getUserStatus,
     }),
@@ -453,6 +562,8 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       muteUser,
       unmuteUser,
       setSlowMode,
+      joinChannel,
+      leaveChannel,
       getChannelMessages,
       getUserStatus,
     ]
