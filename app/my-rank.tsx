@@ -110,7 +110,7 @@ export default function MyRankScreen() {
           </View>
 
           <View style={styles.statCard}>
-            <Award size={24} color={Colors.primary} />
+            <Award size={24} color={Colors.accent} />
             <Text style={styles.statValue}>{userRankData.consistencyFactor.toFixed(1)}x</Text>
             <Text style={styles.statLabel}>Consistency</Text>
           </View>

@@ -255,8 +255,8 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
       }
 
       const triggerDate = (typeof trigger === 'number'
-        ? { seconds: trigger, repeats: false }
-        : { date: trigger }) as Notifications.NotificationTriggerInput;
+        ? { type: 'timeInterval' as const, seconds: trigger, repeats: false }
+        : { type: 'date' as const, date: trigger }) as Notifications.NotificationTriggerInput;
 
       const id = await Notifications.scheduleNotificationAsync({
         content: {

@@ -16,6 +16,7 @@ import { LeaderboardProvider } from '@/contexts/LeaderboardContext';
 import { NotificationsProvider } from '@/contexts/NotificationsContext';
 import { ShopProvider } from '@/contexts/ShopContext';
 import { DaysWithoutProvider } from '@/contexts/DaysWithoutContext';
+import { CommunityProvider } from '@/contexts/CommunityContext';
 
 import { runMigrations, verifyDataIntegrity } from '@/lib/data-migration';
 
@@ -163,10 +164,12 @@ export default function RootLayout() {
                       <NotificationsProvider>
                         <ShopProvider>
                           <DaysWithoutProvider>
-                            <GestureHandlerRootView style={{ flex: 1 }}>
-                              <StatusBar style="light" />
-                              <RootLayoutNav />
-                            </GestureHandlerRootView>
+                            <CommunityProvider>
+                              <GestureHandlerRootView style={{ flex: 1 }}>
+                                <StatusBar style="light" />
+                                <RootLayoutNav />
+                              </GestureHandlerRootView>
+                            </CommunityProvider>
                           </DaysWithoutProvider>
                         </ShopProvider>
                       </NotificationsProvider>

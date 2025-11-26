@@ -8,6 +8,6 @@ export const getUserSubmissionsRoute = protectedProcedure
     }).optional()
   )
   .query(async ({ input, ctx }) => {
-    console.log('[Challenge] Getting user submissions for:', ctx.user?.id ?? 'unknown');
+    console.log('[Challenge] Getting user submissions for:', ctx.user.id);
     return [];
   });
