@@ -646,13 +646,13 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionsGrid}>
+          <View style={styles.quickActionsContainer}>
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => router.push('/(tabs)/training')}
             >
               <View style={styles.actionIconContainer}>
-                <Dumbbell size={28} color={Colors.accent} />
+                <Dumbbell size={24} color={Colors.accent} />
               </View>
               <Text style={styles.actionTitle}>Missions</Text>
               <Text style={styles.actionSubtitle}>Your next workouts</Text>
@@ -663,19 +663,18 @@ export default function HomeScreen() {
               onPress={() => router.push('/(tabs)/challenges')}
             >
               <View style={[styles.actionIconContainer, { backgroundColor: '#F59E0B20' }]}>
-                <Trophy size={28} color="#F59E0B" />
+                <Trophy size={24} color="#F59E0B" />
               </View>
               <Text style={styles.actionTitle}>Challenges</Text>
               <Text style={styles.actionSubtitle}>Join competitions</Text>
             </TouchableOpacity>
-          </View>
-          <View style={[styles.actionsGrid, { marginTop: 12 }]}>
+
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => router.push('/food' as any)}
             >
               <View style={[styles.actionIconContainer, { backgroundColor: '#10B98120' }]}>
-                <UtensilsCrossed size={28} color="#10B981" />
+                <UtensilsCrossed size={24} color="#10B981" />
               </View>
               <Text style={styles.actionTitle}>Food Scanner</Text>
               <Text style={styles.actionSubtitle}>Track your nutrition</Text>
@@ -686,7 +685,7 @@ export default function HomeScreen() {
               onPress={() => setShowIceBathModal(true)}
             >
               <View style={[styles.actionIconContainer, { backgroundColor: '#3B82F620' }]}>
-                <Snowflake size={28} color="#3B82F6" />
+                <Snowflake size={24} color="#3B82F6" />
               </View>
               <Text style={styles.actionTitle}>Log Ice Bath</Text>
               <Text style={styles.actionSubtitle}>Track cold exposure</Text>
@@ -1359,37 +1358,38 @@ const styles = StyleSheet.create({
     color: Colors.accent,
     fontWeight: '600' as const,
   },
-  actionsGrid: {
+  quickActionsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap' as const,
     gap: 12,
   },
   actionCard: {
-    flex: 1,
+    width: '47%',
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: 'center',
   },
   actionIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: Colors.surfaceLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   actionTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700' as const,
     color: Colors.text,
-    marginBottom: 4,
+    marginBottom: 3,
     textAlign: 'center',
   },
   actionSubtitle: {
-    fontSize: 11,
+    fontSize: 10,
     color: Colors.textTertiary,
     textAlign: 'center',
   },
