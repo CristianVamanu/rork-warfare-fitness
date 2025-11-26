@@ -61,12 +61,7 @@ export default function AdminSettingsScreen() {
     },
   ]);
 
-  const [payments, setPayments] = useState({
-    stripePublicKey: adminSettings.payments.stripePublicKey ?? '',
-    stripeSecretKey: adminSettings.payments.stripeSecretKey ?? '',
-    paypalClientId: adminSettings.payments.paypalClientId ?? '',
-    activeProvider: adminSettings.payments.activeProvider ?? 'stripe',
-  });
+
 
   const [firebaseConfig, setFirebaseConfig] = useState<FirebaseConfig>({
     apiKey: config?.apiKey ?? '',
@@ -194,12 +189,6 @@ export default function AdminSettingsScreen() {
       appLogo: appSettings.appLogo,
       coffeeLink: appSettings.coffeeLink,
       dailyBriefings,
-      payments: {
-        stripePublicKey: payments.stripePublicKey || undefined,
-        stripeSecretKey: payments.stripeSecretKey || undefined,
-        paypalClientId: payments.paypalClientId || undefined,
-        activeProvider: payments.activeProvider,
-      },
     });
     Alert.alert('Success', 'Settings saved successfully');
     console.log('[Admin] Settings updated:', appSettings);
@@ -571,7 +560,7 @@ export default function AdminSettingsScreen() {
             <DollarSign size={20} color={Colors.success} />
             <Text style={styles.sectionTitle}>Free Package Configuration</Text>
           </View>
-          <Text style={styles.helpText}>Configure what features are available in the free tier. Unchecked features will show "Subscribe to Unlock" message.</Text>
+          <Text style={styles.helpText}>Configure what features are available in the free tier. Unchecked features will show &quot;Subscribe to Unlock&quot; message.</Text>
 
           <Text style={styles.label}>Free Trial Duration (Days)</Text>
           <TextInput
@@ -709,85 +698,7 @@ export default function AdminSettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <DollarSign size={20} color={Colors.success} />
-            <Text style={styles.sectionTitle}>Support Payments</Text>
-          </View>
 
-          <Text style={styles.label}>Stripe Publishable Key</Text>
-          <TextInput
-            style={styles.input}
-            value={payments.stripePublicKey}
-            onChangeText={(text) => setPayments({ ...payments, stripePublicKey: text })}
-            placeholder="pk_live_..."
-            placeholderTextColor={Colors.textTertiary}
-            autoCapitalize="none"
-          />
-
-          <Text style={styles.label}>Stripe Secret Key</Text>
-          <TextInput
-            style={styles.input}
-            value={payments.stripeSecretKey}
-            onChangeText={(text) => setPayments({ ...payments, stripeSecretKey: text })}
-            placeholder="sk_live_..."
-            placeholderTextColor={Colors.textTertiary}
-            autoCapitalize="none"
-            secureTextEntry
-          />
-          <Text style={styles.helpText}>⚠️ Keep this secret! Never share or expose in client code.</Text>
-
-          <Text style={styles.label}>PayPal Client ID</Text>
-          <TextInput
-            style={styles.input}
-            value={payments.paypalClientId}
-            onChangeText={(text) => setPayments({ ...payments, paypalClientId: text })}
-            placeholder="A...B"
-            placeholderTextColor={Colors.textTertiary}
-            autoCapitalize="none"
-          />
-
-          <Text style={styles.label}>Active Payment Provider</Text>
-          <View style={styles.providerSelection}>
-            <TouchableOpacity
-              style={[
-                styles.providerOption,
-                payments.activeProvider === 'stripe' && styles.providerOptionActive,
-              ]}
-              onPress={() => setPayments({ ...payments, activeProvider: 'stripe' })}
-            >
-              <View
-                style={[
-                  styles.providerRadio,
-                  payments.activeProvider === 'stripe' && styles.providerRadioActive,
-                ]}
-              />
-              <View style={styles.providerInfo}>
-                <Text style={styles.providerTitle}>Stripe</Text>
-                <Text style={styles.providerDesc}>Credit card payments</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.providerOption,
-                payments.activeProvider === 'paypal' && styles.providerOptionActive,
-              ]}
-              onPress={() => setPayments({ ...payments, activeProvider: 'paypal' })}
-            >
-              <View
-                style={[
-                  styles.providerRadio,
-                  payments.activeProvider === 'paypal' && styles.providerRadioActive,
-                ]}
-              />
-              <View style={styles.providerInfo}>
-                <Text style={styles.providerTitle}>PayPal</Text>
-                <Text style={styles.providerDesc}>PayPal & credit cards</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -970,49 +881,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700' as const,
   },
-  providerSelection: {
-    gap: 12,
-    marginBottom: 16,
-  },
-  providerOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: Colors.surface,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    padding: 16,
-  },
-  providerOptionActive: {
-    borderColor: Colors.accent,
-    backgroundColor: '#EFF6FF',
-  },
-  providerRadio: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-  },
-  providerRadioActive: {
-    borderColor: Colors.accent,
-    backgroundColor: Colors.accent,
-  },
-  providerInfo: {
-    flex: 1,
-  },
-  providerTitle: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: Colors.text,
-    marginBottom: 2,
-  },
-  providerDesc: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
+
   helpText: {
     fontSize: 12,
     color: Colors.textTertiary,

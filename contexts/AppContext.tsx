@@ -72,7 +72,7 @@ interface AdminAppSettings {
   appName: string;
   tagline: string;
   supportEmail: string;
-  payments: { stripePublicKey?: string; stripeSecretKey?: string; paypalClientId?: string; activeProvider?: 'stripe' | 'paypal' };
+
   welcomeMessage?: string;
   welcomeVideoUrl?: string;
   dailyMessage?: string;
@@ -165,7 +165,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
     appName: 'Warfare Fitness',
     tagline: 'Forge Strength. Crush Anxiety. Dominate Your Life.',
     supportEmail: 'support@warfarefitness.com',
-    payments: { stripePublicKey: 'pk_live_51RSjA2AMFV2705RIx5mDNtwcI2nYm9Bo1AlXtzY4M3GEcUTxuMPrxMs2BVuQuA1hyVJk5m7ZDYjNJW9t6ObimI0g00K9RIHQEb', stripeSecretKey: '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', activeProvider: 'stripe' },
     welcomeMessage: 'Welcome to Warfare Fitness, Soldier!',
     welcomeVideoUrl: '',
     dailyMessage: 'Today is your day to dominate. No excuses.',
