@@ -124,11 +124,9 @@ export default function DaysWithoutScreen() {
 
   return (
     <View style={styles.outerContainer}>
-      <View style={[styles.safeAreaTop, { height: insets.top, backgroundColor: Colors.background }]} />
-      <View style={styles.container}>
       <LinearGradient
         colors={['rgba(239, 68, 68, 0.15)', 'rgba(239, 68, 68, 0)']}
-        style={styles.header}
+        style={[styles.header, { paddingTop: insets.top }]}
       >
         <View style={styles.headerContent}>
           <View style={styles.headerTop}>
@@ -144,7 +142,7 @@ export default function DaysWithoutScreen() {
         </View>
       </LinearGradient>
 
-      <View style={styles.motivationalContainer}>
+      <View style={[styles.motivationalContainer, { marginTop: 0 }]}>
         <Shield size={24} color={Colors.accent} />
         <Text style={styles.motivationalText}>{motivationalText}</Text>
       </View>
@@ -249,7 +247,6 @@ export default function DaysWithoutScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-      </View>
 
       <Modal
         visible={showAddModal}
@@ -352,15 +349,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  safeAreaTop: {
-    width: '100%',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
   header: {
     paddingBottom: 24,
+    backgroundColor: Colors.background,
   },
   headerContent: {
     paddingHorizontal: 16,

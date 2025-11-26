@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, TrendingUp, Shield, Dumbbell, Trophy, Medal, MessageSquare } from "lucide-react-native";
+import { Home, TrendingUp, Shield, Dumbbell, Trophy, Medal } from "lucide-react-native";
 import React from "react";
 
 import Colors from "@/constants/colors";
@@ -59,13 +59,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TrendingUp size={24} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="community"
-        options={{
-          title: "Community",
-          tabBarIcon: ({ color }) => <MessageSquare size={24} color={color} />,
-        }}
-      />
+
       <Tabs.Screen
         name="admin"
         options={{

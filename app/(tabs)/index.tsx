@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Users, Activity, Zap, Check, Dumbbell, Droplets, UtensilsCrossed, Settings, User, Clock, Snowflake, Medal, TrendingUp, Trophy, Bell, Calendar, ScanBarcode, ShoppingBag, Coffee, Ban, Timer } from 'lucide-react-native';
+import { Users, Activity, Zap, Check, Dumbbell, Droplets, UtensilsCrossed, Settings, User, Clock, Snowflake, Medal, TrendingUp, Trophy, Bell, Calendar, ScanBarcode, ShoppingBag, Coffee, Ban, Timer, MessageSquare } from 'lucide-react-native';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Animated, Alert, Modal, TextInput, Dimensions, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -577,6 +577,23 @@ export default function HomeScreen() {
                 <Text style={styles.metricSubtext}>Tap to start</Text>
               </>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.metricCard} 
+            activeOpacity={0.7}
+            onPress={() => router.push('/(tabs)/community' as any)}
+          >
+            <View style={styles.metricHeader}>
+              <MessageSquare size={18} color={Colors.accent} />
+              <Text style={styles.metricLabel}>Community</Text>
+            </View>
+            <Text style={styles.metricValue}>Chat</Text>
+            <View style={styles.daysWithoutIndicator}>
+              <View style={[styles.daysWithoutDot, { backgroundColor: Colors.accent }]} />
+              <Text style={styles.daysWithoutText}>Join Channels</Text>
+            </View>
+            <Text style={styles.metricSubtext}>Connect with others</Text>
           </TouchableOpacity>
         </View>
 
