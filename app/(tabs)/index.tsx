@@ -588,7 +588,7 @@ export default function HomeScreen() {
               <MessageSquare size={18} color={Colors.accent} />
               <Text style={styles.metricLabel}>Community</Text>
             </View>
-            <Text style={styles.metricValue}>Chat</Text>
+            <Text style={[styles.metricValue, { fontSize: 28 }]}>Chat</Text>
             <View style={styles.daysWithoutIndicator}>
               <View style={[styles.daysWithoutDot, { backgroundColor: Colors.accent }]} />
               <Text style={styles.daysWithoutText}>Join Channels</Text>

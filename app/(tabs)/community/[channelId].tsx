@@ -1,9 +1,10 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { Send, Smile, MoreVertical, Hash, Clock, ChevronLeft, Shield, Ban, VolumeX } from 'lucide-react-native';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, Modal } from 'react-native';
+import { Send, Smile, ChevronLeft, Hash, Clock, Reply, X, AtSign } from 'lucide-react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, Modal, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useState, useRef, useEffect } from 'react';
 import { Image } from 'expo-image';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
@@ -33,11 +34,31 @@ export default function ChannelChatScreen() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [showUserActions, setShowUserActions] = useState<string | null>(null);
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
+  const [mentionSearch, setMentionSearch] = useState('');
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const scrollViewRef = useRef<ScrollView>(null);
+  const textInputRef = useRef<TextInput>(null);
+  const [allUsers, setAllUsers] = useState<Array<{ id: string; name: string; avatar?: string }>>([]);
 
   const channel = channels.find(ch => ch.id === channelId);
   const messages = getChannelMessages(channelId || '');
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const usersData = await AsyncStorage.getItem('all_users');
+        if (usersData) {
+          setAllUsers(JSON.parse(usersData));
+        }
+      } catch (error) {
+        console.error('[ChannelChat] Failed to load users:', error);
+      }
+    };
+    void loadUsers();
+  }, []);
 
   useEffect(() => {
     if (scrollViewRef.current) {
@@ -47,21 +68,72 @@ export default function ChannelChatScreen() {
     }
   }, [messages.length]);
 
+  const extractMentions = (text: string): string[] => {
+    const mentionRegex = /@(\w+)/g;
+    const matches = text.match(mentionRegex);
+    return matches ? matches.map(m => m.substring(1)) : [];
+  };
+
+  const handleTextChange = (text: string) => {
+    setMessageText(text);
+
+    const lastAtIndex = text.lastIndexOf('@');
+    if (lastAtIndex !== -1) {
+      const textAfterAt = text.substring(lastAtIndex + 1);
+      if (!textAfterAt.includes(' ') && textAfterAt.length <= 20) {
+        setMentionStartIndex(lastAtIndex);
+        setMentionSearch(textAfterAt.toLowerCase());
+        setShowMentionSuggestions(true);
+        return;
+      }
+    }
+    
+    setShowMentionSuggestions(false);
+    setMentionStartIndex(-1);
+    setMentionSearch('');
+  };
+
+  const handleSelectMention = (userName: string) => {
+    if (mentionStartIndex === -1) return;
+
+    const beforeMention = messageText.substring(0, mentionStartIndex);
+    const afterMention = messageText.substring(mentionStartIndex + mentionSearch.length + 1);
+    const newText = `${beforeMention}@${userName} ${afterMention}`;
+    
+    setMessageText(newText);
+    setShowMentionSuggestions(false);
+    setMentionStartIndex(-1);
+    setMentionSearch('');
+    textInputRef.current?.focus();
+  };
+
+  const filteredUsers = showMentionSuggestions
+    ? allUsers
+        .filter(u => u.name.toLowerCase().includes(mentionSearch))
+        .slice(0, 5)
+    : [];
+
   const handleSendMessage = async () => {
     if (!messageText.trim() || !user || !channelId) return;
 
     try {
+      const mentions = extractMentions(messageText);
+      
       if (editingMessageId) {
         await editMessage(editingMessageId, messageText, user.id);
         setEditingMessageId(null);
+        setReplyingTo(null);
       } else {
         await sendMessage(
           channelId,
           user.id,
           user.name,
           user.avatar || '',
-          messageText
+          messageText,
+          replyingTo?.id,
+          mentions.length > 0 ? mentions : undefined
         );
+        setReplyingTo(null);
       }
       setMessageText('');
     } catch (error) {
@@ -69,10 +141,18 @@ export default function ChannelChatScreen() {
     }
   };
 
+  const handleReplyToMessage = (message: Message) => {
+    setReplyingTo(message);
+    setSelectedMessage(null);
+    textInputRef.current?.focus();
+  };
+
   const handleEditMessage = (message: Message) => {
     setMessageText(message.content);
     setEditingMessageId(message.id);
+    setReplyingTo(null);
     setSelectedMessage(null);
+    textInputRef.current?.focus();
   };
 
   const handleDeleteMessage = async (messageId: string) => {
@@ -166,6 +246,24 @@ export default function ChannelChatScreen() {
     );
   };
 
+  const renderMessageContent = (content: string) => {
+    const parts = content.split(/(@\w+)/g);
+    return (
+      <Text style={styles.messageText}>
+        {parts.map((part, index) => {
+          if (part.startsWith('@')) {
+            return (
+              <Text key={index} style={styles.mention}>
+                {part}
+              </Text>
+            );
+          }
+          return <Text key={index}>{part}</Text>;
+        })}
+      </Text>
+    );
+  };
+
   if (!channel) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -242,10 +340,24 @@ export default function ChannelChatScreen() {
                       })}
                     </Text>
                   </View>
+                  
+                  {message.replyToId && message.replyToUserName && (
+                    <View style={styles.replyPreview}>
+                      <Reply size={12} color={Colors.textTertiary} />
+                      <Text style={styles.replyPreviewText} numberOfLines={1}>
+                        <Text style={styles.replyPreviewUser}>@{message.replyToUserName}</Text>
+                        {': '}
+                        {message.replyToContent}
+                      </Text>
+                    </View>
+                  )}
+
                   <View style={[styles.messageBubble, isOwnMessage && styles.ownMessageBubble]}>
-                    <Text style={[styles.messageText, message.isDeleted && styles.deletedText]}>
-                      {message.content}
-                    </Text>
+                    {message.isDeleted ? (
+                      <Text style={styles.deletedText}>{message.content}</Text>
+                    ) : (
+                      renderMessageContent(message.content)
+                    )}
                     {message.isEdited && !message.isDeleted && (
                       <Text style={styles.editedLabel}>(edited)</Text>
                     )}
@@ -278,7 +390,50 @@ export default function ChannelChatScreen() {
         <View style={{ height: 20 }} />
       </ScrollView>
 
+      {showMentionSuggestions && filteredUsers.length > 0 && (
+        <View style={styles.mentionSuggestionsContainer}>
+          <View style={styles.mentionSuggestionsHeader}>
+            <AtSign size={16} color={Colors.accent} />
+            <Text style={styles.mentionSuggestionsTitle}>Mention User</Text>
+          </View>
+          <FlatList
+            data={filteredUsers}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.mentionSuggestionsList}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.mentionSuggestionItem}
+                onPress={() => handleSelectMention(item.name)}
+              >
+                <Image
+                  source={{ uri: getValidImageUri(item.avatar || '') }}
+                  style={styles.mentionSuggestionAvatar}
+                  contentFit="cover"
+                />
+                <Text style={styles.mentionSuggestionName}>{item.name}</Text>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      )}
+
       <View style={styles.inputContainer}>
+        {replyingTo && (
+          <View style={styles.replyBanner}>
+            <Reply size={16} color={Colors.accent} />
+            <View style={styles.replyBannerContent}>
+              <Text style={styles.replyBannerUser}>Replying to @{replyingTo.userName}</Text>
+              <Text style={styles.replyBannerText} numberOfLines={1}>
+                {replyingTo.content}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setReplyingTo(null)} style={styles.replyBannerClose}>
+              <X size={16} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
         {editingMessageId && (
           <View style={styles.editingBanner}>
             <Text style={styles.editingText}>Editing message</Text>
@@ -298,10 +453,11 @@ export default function ChannelChatScreen() {
             <Smile size={24} color={Colors.textSecondary} />
           </TouchableOpacity>
           <TextInput
+            ref={textInputRef}
             style={styles.input}
             value={messageText}
-            onChangeText={setMessageText}
-            placeholder={`Message #${channel.name}`}
+            onChangeText={handleTextChange}
+            placeholder={replyingTo ? `Reply to ${replyingTo.userName}...` : `Message #${channel.name}`}
             placeholderTextColor={Colors.textTertiary}
             multiline
             maxLength={500}
@@ -335,37 +491,50 @@ export default function ChannelChatScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            {selectedMessage &&
-              messages.find(m => m.id === selectedMessage)?.userId === user?.id && (
-                <>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => {
-                      const msg = messages.find(m => m.id === selectedMessage);
-                      if (msg) handleEditMessage(msg);
-                    }}
-                  >
-                    <Text style={styles.actionButtonText}>Edit Message</Text>
-                  </TouchableOpacity>
+            {selectedMessage && (
+              <>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => {
+                    const msg = messages.find(m => m.id === selectedMessage);
+                    if (msg) handleReplyToMessage(msg);
+                  }}
+                >
+                  <Reply size={18} color={Colors.accent} />
+                  <Text style={styles.actionButtonText}>Reply</Text>
+                </TouchableOpacity>
+                {messages.find(m => m.id === selectedMessage)?.userId === user?.id && (
+                  <>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => {
+                        const msg = messages.find(m => m.id === selectedMessage);
+                        if (msg) handleEditMessage(msg);
+                      }}
+                    >
+                      <Text style={styles.actionButtonText}>Edit Message</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.actionButtonDanger]}
+                      onPress={() => selectedMessage && handleDeleteMessage(selectedMessage)}
+                    >
+                      <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
+                        Delete Message
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+                {user?.isAdmin && messages.find(m => m.id === selectedMessage)?.userId !== user.id && (
                   <TouchableOpacity
                     style={[styles.actionButton, styles.actionButtonDanger]}
                     onPress={() => selectedMessage && handleDeleteMessage(selectedMessage)}
                   >
                     <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
-                      Delete Message
+                      Delete Message (Admin)
                     </Text>
                   </TouchableOpacity>
-                </>
-              )}
-            {user?.isAdmin && selectedMessage && messages.find(m => m.id === selectedMessage)?.userId !== user.id && (
-              <TouchableOpacity
-                style={[styles.actionButton, styles.actionButtonDanger]}
-                onPress={() => selectedMessage && handleDeleteMessage(selectedMessage)}
-              >
-                <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
-                  Delete Message (Admin)
-                </Text>
-              </TouchableOpacity>
+                )}
+              </>
             )}
             <TouchableOpacity
               style={styles.actionButton}
@@ -394,7 +563,6 @@ export default function ChannelChatScreen() {
                     if (msg) handleMuteUser(showUserActions, msg.userName);
                   }}
                 >
-                  <VolumeX size={18} color={Colors.warning} />
                   <Text style={styles.actionButtonText}>Mute User</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -404,7 +572,6 @@ export default function ChannelChatScreen() {
                     if (msg) handleBanUser(showUserActions, msg.userName);
                   }}
                 >
-                  <Ban size={18} color={Colors.danger} />
                   <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
                     Ban User
                   </Text>
@@ -525,6 +692,27 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textTertiary,
   },
+  replyPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: Colors.surfaceLight,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.accent,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  replyPreviewText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    flex: 1,
+  },
+  replyPreviewUser: {
+    fontWeight: '700' as const,
+    color: Colors.accent,
+  },
   messageBubble: {
     backgroundColor: Colors.surface,
     borderRadius: 12,
@@ -541,9 +729,14 @@ const styles = StyleSheet.create({
     color: Colors.text,
     lineHeight: 20,
   },
+  mention: {
+    color: Colors.accent,
+    fontWeight: '700' as const,
+  },
   deletedText: {
     fontStyle: 'italic' as const,
     color: Colors.textTertiary,
+    fontSize: 15,
   },
   editedLabel: {
     fontSize: 11,
@@ -580,10 +773,79 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: Colors.text,
   },
+  mentionSuggestionsContainer: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.surface,
+    paddingVertical: 12,
+  },
+  mentionSuggestionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  mentionSuggestionsTitle: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase' as const,
+  },
+  mentionSuggestionsList: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  mentionSuggestionItem: {
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  mentionSuggestionAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.surfaceLight,
+  },
+  mentionSuggestionName: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
   inputContainer: {
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     backgroundColor: Colors.surface,
+  },
+  replyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: `${Colors.accent}10`,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.accent,
+  },
+  replyBannerContent: {
+    flex: 1,
+  },
+  replyBannerUser: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.accent,
+  },
+  replyBannerText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  replyBannerClose: {
+    padding: 4,
   },
   editingBanner: {
     flexDirection: 'row',

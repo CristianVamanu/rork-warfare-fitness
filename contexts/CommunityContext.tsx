@@ -13,6 +13,10 @@ export interface Message {
   reactions: Record<string, string[]>;
   isEdited: boolean;
   isDeleted: boolean;
+  replyToId?: string;
+  replyToUserName?: string;
+  replyToContent?: string;
+  mentions?: string[];
 }
 
 export interface Channel {
@@ -146,7 +150,9 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     userId: string,
     userName: string,
     userAvatar: string,
-    content: string
+    content: string,
+    replyToId?: string,
+    mentions?: string[]
   ) => {
     const channel = channels.find(ch => ch.id === channelId);
     if (!channel) {
@@ -183,6 +189,8 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       }
     }
 
+    const replyToMessage = replyToId ? messages.find(m => m.id === replyToId) : undefined;
+
     const newMessage: Message = {
       id: `msg-${Date.now()}`,
       channelId,
@@ -194,6 +202,10 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       reactions: {},
       isEdited: false,
       isDeleted: false,
+      replyToId,
+      replyToUserName: replyToMessage?.userName,
+      replyToContent: replyToMessage?.content,
+      mentions,
     };
 
     const updated = [...messages, newMessage];
