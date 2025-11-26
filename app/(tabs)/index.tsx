@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Users, Activity, Zap, Check, Dumbbell, Droplets, UtensilsCrossed, Settings, User, Clock, Snowflake, Medal, TrendingUp, Trophy, Bell, Calendar, ScanBarcode, ShoppingBag, Coffee } from 'lucide-react-native';
+import { Users, Activity, Zap, Check, Dumbbell, Droplets, UtensilsCrossed, Settings, User, Clock, Snowflake, Medal, TrendingUp, Trophy, Bell, Calendar, ScanBarcode, ShoppingBag, Coffee, Ban } from 'lucide-react-native';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Animated, Alert, Modal, TextInput, Dimensions, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -485,10 +485,10 @@ export default function HomeScreen() {
           </View>
         </LinearGradient>
 
-        <View style={styles.metricsContainer}>
-          <View style={styles.metricCard}>
+        <View style={styles.metricsGrid}>
+          <TouchableOpacity style={styles.metricCard} activeOpacity={0.7}>
             <View style={styles.metricHeader}>
-              <Zap size={20} color={Colors.accent} />
+              <Zap size={18} color={Colors.accent} />
               <Text style={styles.metricLabel}>Power Level</Text>
             </View>
             <Text style={styles.metricValue}>{powerLevel}</Text>
@@ -496,11 +496,11 @@ export default function HomeScreen() {
               <View style={[styles.powerBarFill, { width: `${(powerLevel % 100)}%` }]} />
             </View>
             <Text style={styles.metricSubtext}>Level {Math.floor(powerLevel / 100) + 1}</Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.metricCard}>
+          <TouchableOpacity style={styles.metricCard} activeOpacity={0.7}>
             <View style={styles.metricHeader}>
-              <Activity size={20} color={Colors.success} />
+              <Activity size={18} color={Colors.success} />
               <Text style={styles.metricLabel}>Workout Streak</Text>
             </View>
             <Text style={styles.metricValue}>{workoutStreak}</Text>
@@ -515,8 +515,25 @@ export default function HomeScreen() {
                 />
               ))}
             </View>
-            <Text style={styles.metricSubtext}>{workoutStreak === 0 ? 'Start your first workout!' : `${workoutStreak} day${workoutStreak === 1 ? '' : 's'} in a row`}</Text>
-          </View>
+            <Text style={styles.metricSubtext}>{workoutStreak === 0 ? 'Start!' : `${workoutStreak} days`}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.metricCard} 
+            activeOpacity={0.7}
+            onPress={() => router.push('/days-without' as any)}
+          >
+            <View style={styles.metricHeader}>
+              <Ban size={18} color={Colors.danger} />
+              <Text style={styles.metricLabel}>Days Without</Text>
+            </View>
+            <Text style={styles.metricValue}>Track</Text>
+            <View style={styles.daysWithoutIndicator}>
+              <View style={styles.daysWithoutDot} />
+              <Text style={styles.daysWithoutText}>Quit Bad Habits</Text>
+            </View>
+            <Text style={styles.metricSubtext}>Tap to start</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -1225,19 +1242,22 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
   },
-  metricsContainer: {
+  metricsGrid: {
     flexDirection: 'row',
     paddingHorizontal: 16,
     marginTop: -40,
     gap: 12,
+    flexWrap: 'wrap' as const,
   },
   metricCard: {
     flex: 1,
+    minWidth: '47%',
     backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: Colors.border,
+    minHeight: 130,
   },
   metricHeader: {
     flexDirection: 'row',
@@ -1287,6 +1307,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textTertiary,
     fontWeight: '500' as const,
+  },
+  daysWithoutIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  daysWithoutDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.danger,
+  },
+  daysWithoutText: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    fontWeight: '600' as const,
   },
   section: {
     paddingHorizontal: 16,
