@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { MessageSquare, Plus, Hash, Lock, Clock, Users } from 'lucide-react-native';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
 
@@ -15,6 +15,46 @@ export default function CommunityScreen() {
   const { channels } = useCommunity();
 
   const [selectedChannel, setSelectedChannel] = useState<string>('general');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelDescription, setNewChannelDescription] = useState('');
+  const [newChannelIcon, setNewChannelIcon] = useState('💬');
+  const [newChannelIsPrivate, setNewChannelIsPrivate] = useState(false);
+
+  const { createChannel } = useCommunity();
+
+  const handleCreateChannel = async () => {
+    if (!newChannelName.trim()) {
+      Alert.alert('Error', 'Please enter a channel name');
+      return;
+    }
+
+    if (!user?.id) {
+      Alert.alert('Error', 'You must be logged in to create a channel');
+      return;
+    }
+
+    try {
+      await createChannel(
+        newChannelName.trim(),
+        newChannelDescription.trim() || 'No description',
+        newChannelIcon,
+        newChannelIsPrivate,
+        user.id
+      );
+      
+      setShowCreateModal(false);
+      setNewChannelName('');
+      setNewChannelDescription('');
+      setNewChannelIcon('💬');
+      setNewChannelIsPrivate(false);
+      
+      Alert.alert('Success', 'Channel created successfully!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create channel');
+      console.error('[Community] Failed to create channel:', error);
+    }
+  };
 
   const handleChannelPress = (channelId: string) => {
     setSelectedChannel(channelId);
@@ -33,7 +73,7 @@ export default function CommunityScreen() {
         {user?.isAdmin && (
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => router.push('/admin-community' as any)}
+            onPress={() => setShowCreateModal(true)}
           >
             <Plus size={20} color={Colors.accent} />
           </TouchableOpacity>
@@ -96,6 +136,83 @@ export default function CommunityScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <Modal
+        visible={showCreateModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCreateModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Create New Channel</Text>
+
+            <Text style={styles.label}>Channel Icon</Text>
+            <View style={styles.iconSelector}>
+              {['💬', '🎮', '💪', '🔥', '⚡', '🎯', '🏆', '📢'].map((icon) => (
+                <TouchableOpacity
+                  key={icon}
+                  style={[styles.iconOption, newChannelIcon === icon && styles.iconOptionActive]}
+                  onPress={() => setNewChannelIcon(icon)}
+                >
+                  <Text style={styles.iconText}>{icon}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.label}>Channel Name</Text>
+            <TextInput
+              style={styles.input}
+              value={newChannelName}
+              onChangeText={setNewChannelName}
+              placeholder="e.g., announcements, off-topic..."
+              placeholderTextColor={Colors.textTertiary}
+            />
+
+            <Text style={styles.label}>Description</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={newChannelDescription}
+              onChangeText={setNewChannelDescription}
+              placeholder="What is this channel about?"
+              placeholderTextColor={Colors.textTertiary}
+              multiline
+              numberOfLines={3}
+            />
+
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => setNewChannelIsPrivate(!newChannelIsPrivate)}
+            >
+              <View style={[styles.checkbox, newChannelIsPrivate && styles.checkboxActive]}>
+                {newChannelIsPrivate && <View style={styles.checkboxCheck} />}
+              </View>
+              <Text style={styles.checkboxLabel}>Private Channel</Text>
+            </TouchableOpacity>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowCreateModal(false);
+                  setNewChannelName('');
+                  setNewChannelDescription('');
+                  setNewChannelIcon('💬');
+                  setNewChannelIsPrivate(false);
+                }}
+              >
+                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSave]}
+                onPress={handleCreateChannel}
+              >
+                <Text style={styles.modalButtonTextSave}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -236,5 +353,130 @@ const styles = StyleSheet.create({
   channelMetaText: {
     fontSize: 11,
     color: Colors.textTertiary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800' as const,
+    color: Colors.text,
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+    textTransform: 'uppercase' as const,
+  },
+  iconSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  iconOption: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.border,
+  },
+  iconOptionActive: {
+    borderColor: Colors.accent,
+    backgroundColor: `${Colors.accent}20`,
+  },
+  iconText: {
+    fontSize: 20,
+  },
+  input: {
+    backgroundColor: Colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: Colors.text,
+    marginBottom: 16,
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 24,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxActive: {
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accent,
+  },
+  checkboxCheck: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+    backgroundColor: Colors.text,
+  },
+  checkboxLabel: {
+    fontSize: 15,
+    color: Colors.text,
+    fontWeight: '600' as const,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: Colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modalButtonSave: {
+    backgroundColor: Colors.accent,
+  },
+  modalButtonTextCancel: {
+    color: Colors.text,
+    fontWeight: '600' as const,
+    fontSize: 16,
+  },
+  modalButtonTextSave: {
+    color: Colors.text,
+    fontWeight: '800' as const,
+    fontSize: 16,
   },
 });

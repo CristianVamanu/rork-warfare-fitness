@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { X, Plus, Clock, Target, TrendingUp, RotateCcw, Trash2, Shield } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import { 
@@ -124,6 +124,7 @@ export default function DaysWithoutScreen() {
 
   return (
     <View style={styles.outerContainer}>
+      <Stack.Screen options={{ headerShown: false }} />
       <LinearGradient
         colors={['rgba(239, 68, 68, 0.15)', 'rgba(239, 68, 68, 0)']}
         style={[styles.header, { paddingTop: insets.top }]}
