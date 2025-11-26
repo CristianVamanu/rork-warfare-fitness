@@ -1293,8 +1293,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap' as const,
   },
   metricCard: {
-    flex: 1,
-    minWidth: '47%',
+    width: '47%',
     backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: 16,
