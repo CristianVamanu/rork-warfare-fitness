@@ -14,7 +14,7 @@ export interface DaysWithoutChallenge {
   bestStreak: number;
 }
 
-const STORAGE_KEY = 'warfare_days_without';
+const STORAGE_KEY_PREFIX = 'warfare_days_without_';
 
 const SUGGESTED_CHALLENGES = [
   'Quit Smoking',
@@ -29,13 +29,24 @@ const SUGGESTED_CHALLENGES = [
 export const [DaysWithoutProvider, useDaysWithout] = createContextHook(() => {
   const [challenges, setChallenges] = useState<DaysWithoutChallenge[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadChallenges = async () => {
+    const loadUserData = async () => {
       try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          setChallenges(JSON.parse(stored));
+        const userData = await AsyncStorage.getItem('warfare_user');
+        if (userData) {
+          const user = JSON.parse(userData);
+          setCurrentUserId(user.id);
+          
+          const userStorageKey = `${STORAGE_KEY_PREFIX}${user.id}`;
+          const stored = await AsyncStorage.getItem(userStorageKey);
+          if (stored) {
+            setChallenges(JSON.parse(stored));
+            console.log('[DaysWithout] Loaded challenges for user:', user.id);
+          } else {
+            console.log('[DaysWithout] No challenges found for user:', user.id);
+          }
         }
       } catch (error) {
         console.error('[DaysWithout] Error loading challenges:', error);
@@ -43,16 +54,29 @@ export const [DaysWithoutProvider, useDaysWithout] = createContextHook(() => {
         setIsLoading(false);
       }
     };
-    void loadChallenges();
+    void loadUserData();
   }, []);
 
   const saveChallenges = useCallback(async (newChallenges: DaysWithoutChallenge[]) => {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newChallenges));
+      if (!currentUserId) {
+        console.error('[DaysWithout] Cannot save - no user logged in');
+        return;
+      }
+      const userStorageKey = `${STORAGE_KEY_PREFIX}${currentUserId}`;
+      await AsyncStorage.setItem(userStorageKey, JSON.stringify(newChallenges));
       setChallenges(newChallenges);
+      console.log('[DaysWithout] Saved challenges for user:', currentUserId);
     } catch (error) {
       console.error('[DaysWithout] Error saving challenges:', error);
     }
+  }, [currentUserId]);
+
+  const getDaysCount = useCallback((startDate: string): number => {
+    const start = new Date(startDate);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - start.getTime());
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
   }, []);
 
   const addChallenge = useCallback(async (name: string, targetDays?: number, targetUnit?: 'days' | 'weeks' | 'months') => {
@@ -87,7 +111,7 @@ export const [DaysWithoutProvider, useDaysWithout] = createContextHook(() => {
     });
     await saveChallenges(updated);
     console.log('[DaysWithout] Challenge reset:', challengeId);
-  }, [challenges, saveChallenges]);
+  }, [challenges, saveChallenges, getDaysCount]);
 
   const deleteChallenge = useCallback(async (challengeId: string) => {
     const updated = challenges.filter(c => c.id !== challengeId);
@@ -101,13 +125,6 @@ export const [DaysWithoutProvider, useDaysWithout] = createContextHook(() => {
     );
     await saveChallenges(updated);
   }, [challenges, saveChallenges]);
-
-  const getDaysCount = useCallback((startDate: string): number => {
-    const start = new Date(startDate);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - start.getTime());
-    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  }, []);
 
   const getTimeElapsed = useCallback((startDate: string): { days: number; hours: number; minutes: number; seconds: number } => {
     const start = new Date(startDate);

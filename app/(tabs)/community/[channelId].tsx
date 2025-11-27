@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { Send, Smile, ChevronLeft, Hash, Clock, Reply, X, AtSign, Plus, Video } from 'lucide-react-native';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, Modal, FlatList } from 'react-native';
+import { Send, Smile, ChevronLeft, Hash, Clock, Reply, X, AtSign, Plus, Video, ArrowDown } from 'lucide-react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, Modal, FlatList, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useState, useRef, useEffect } from 'react';
 import { Image } from 'expo-image';
@@ -57,6 +57,9 @@ export default function ChannelChatScreen() {
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const scrollViewRef = useRef<ScrollView>(null);
   const textInputRef = useRef<TextInput>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showJumpToPresent, setShowJumpToPresent] = useState(false);
+  const jumpButtonOpacity = useRef(new Animated.Value(0)).current;
   const [allUsers, setAllUsers] = useState<{ id: string; name: string; avatar?: string }[]>([]);
   const [selectedMedia, setSelectedMedia] = useState<{ type: 'image' | 'video'; uri: string; width?: number; height?: number } | null>(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
@@ -79,12 +82,20 @@ export default function ChannelChatScreen() {
   }, []);
 
   useEffect(() => {
-    if (scrollViewRef.current) {
+    if (isAtBottom && scrollViewRef.current) {
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [messages.length]);
+  }, [messages.length, isAtBottom]);
+
+  useEffect(() => {
+    Animated.timing(jumpButtonOpacity, {
+      toValue: showJumpToPresent ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [showJumpToPresent, jumpButtonOpacity]);
 
   const extractMentions = (text: string): string[] => {
     const mentionRegex = /@(\w+)/g;
@@ -165,6 +176,21 @@ export default function ChannelChatScreen() {
     setReplyingTo(message);
     setSelectedMessage(null);
     textInputRef.current?.focus();
+  };
+
+  const handleScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const paddingToBottom = 100;
+    const isNearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+    
+    setIsAtBottom(isNearBottom);
+    setShowJumpToPresent(!isNearBottom);
+  };
+
+  const scrollToBottom = () => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+    setIsAtBottom(true);
+    setShowJumpToPresent(false);
   };
 
   const handleEditMessage = (message: Message) => {
@@ -410,10 +436,13 @@ export default function ChannelChatScreen() {
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
         {messages.map((message) => {
           const isOwnMessage = message.userId === user?.id;
           const reactionKeys = Object.keys(message.reactions);
+          const repliedToMessage = message.replyToId ? messages.find(m => m.id === message.replyToId) : null;
 
           return (
             <View key={message.id} style={styles.messageWrapper}>
@@ -442,14 +471,18 @@ export default function ChannelChatScreen() {
                     </Text>
                   </View>
                   
-                  {message.replyToId && message.replyToUserName && (
-                    <View style={styles.replyPreview}>
-                      <Reply size={12} color={Colors.textTertiary} />
-                      <Text style={styles.replyPreviewText} numberOfLines={1}>
-                        <Text style={styles.replyPreviewUser}>@{message.replyToUserName}</Text>
-                        {': '}
-                        {message.replyToContent}
-                      </Text>
+                  {repliedToMessage && (
+                    <View style={styles.replyPreviewBanner}>
+                      <View style={styles.replyIndicatorLine} />
+                      <View style={styles.replyPreviewContent}>
+                        <View style={styles.replyPreviewHeader}>
+                          <Reply size={14} color={Colors.accent} />
+                          <Text style={styles.replyPreviewUserName}>Replying to {repliedToMessage.userName}</Text>
+                        </View>
+                        <Text style={styles.replyPreviewMessage} numberOfLines={2}>
+                          {repliedToMessage.content}
+                        </Text>
+                      </View>
                     </View>
                   )}
 
@@ -518,6 +551,21 @@ export default function ChannelChatScreen() {
         })}
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      {showJumpToPresent && (
+        <Animated.View 
+          style={[styles.jumpToPresent, { opacity: jumpButtonOpacity }]}
+          pointerEvents={showJumpToPresent ? 'auto' : 'none'}
+        >
+          <TouchableOpacity
+            style={styles.jumpToButton}
+            onPress={scrollToBottom}
+          >
+            <ArrowDown size={20} color={Colors.text} />
+            <Text style={styles.jumpToText}>Jump to present</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
       {showEmojiPicker && (
         <View style={styles.emojiPickerContainer}>
@@ -943,6 +991,67 @@ const styles = StyleSheet.create({
   replyPreviewUser: {
     fontWeight: '700' as const,
     color: Colors.accent,
+  },
+  replyPreviewBanner: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    paddingLeft: 8,
+  },
+  replyIndicatorLine: {
+    width: 3,
+    backgroundColor: Colors.accent,
+    borderRadius: 2,
+    marginRight: 8,
+  },
+  replyPreviewContent: {
+    flex: 1,
+    backgroundColor: `${Colors.accent}10`,
+    borderRadius: 8,
+    padding: 8,
+  },
+  replyPreviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  replyPreviewUserName: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.accent,
+  },
+  replyPreviewMessage: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    lineHeight: 16,
+  },
+  jumpToPresent: {
+    position: 'absolute',
+    bottom: 80,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'box-none',
+  },
+  jumpToButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.accent,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  jumpToText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
   },
   messageBubble: {
     backgroundColor: Colors.surface,
