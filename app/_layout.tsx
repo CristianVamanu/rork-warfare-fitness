@@ -145,6 +145,7 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="register" options={{ headerShown: false }} />
+        <Stack.Screen name="ice-bath-tracker" options={{ headerShown: false }} />
       </Stack>
     </AuthGuard>
   );

@@ -1,9 +1,28 @@
 import { Tabs } from "expo-router";
 import { Home, TrendingUp, Shield, Dumbbell, Trophy, Medal } from "lucide-react-native";
 import React from "react";
+import { Text } from "react-native";
 
 import Colors from "@/constants/colors";
 import { useApp } from "@/contexts/AppContext";
+
+const baseLabelStyle = {
+  fontSize: 12,
+  fontWeight: '600' as const,
+};
+
+const renderTabLabel = (title: string) => {
+  const Label = ({ color }: { color: string }) => (
+    <Text
+      testID={`tab-label-${title.toLowerCase().replace(/\s+/g, '-')}`}
+      style={[baseLabelStyle, { color }]}
+    >
+      {title}
+    </Text>
+  );
+  Label.displayName = `${title}TabLabel`;
+  return Label;
+};
 
 export default function TabLayout() {
   const { user } = useApp();
@@ -17,10 +36,8 @@ export default function TabLayout() {
           backgroundColor: Colors.surface,
           borderTopColor: Colors.border,
           borderTopWidth: 1,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600' as const,
+          paddingTop: 6,
+          paddingBottom: 12,
         },
       }}
     >
@@ -29,6 +46,7 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }) => <Home size={24} color={color} />,
+          tabBarLabel: renderTabLabel("Home"),
         }}
       />
       <Tabs.Screen
@@ -36,6 +54,7 @@ export default function TabLayout() {
         options={{
           title: "Missions",
           tabBarIcon: ({ color }) => <Dumbbell size={24} color={color} />,
+          tabBarLabel: renderTabLabel("Missions"),
         }}
       />
       <Tabs.Screen
@@ -43,6 +62,7 @@ export default function TabLayout() {
         options={{
           title: "Challenges",
           tabBarIcon: ({ color }) => <Trophy size={24} color={color} />,
+          tabBarLabel: renderTabLabel("Challenges"),
         }}
       />
       <Tabs.Screen
@@ -50,6 +70,7 @@ export default function TabLayout() {
         options={{
           title: "Ranks",
           tabBarIcon: ({ color }) => <Medal size={24} color={color} />,
+          tabBarLabel: renderTabLabel("Ranks"),
         }}
       />
       <Tabs.Screen
@@ -57,6 +78,7 @@ export default function TabLayout() {
         options={{
           title: "Progress",
           tabBarIcon: ({ color }) => <TrendingUp size={24} color={color} />,
+          tabBarLabel: renderTabLabel("Progress"),
         }}
       />
 
@@ -65,6 +87,7 @@ export default function TabLayout() {
         options={{
           title: "Admin",
           tabBarIcon: ({ color }) => <Shield size={24} color={color} />,
+          tabBarLabel: renderTabLabel("Admin"),
           href: user?.isAdmin ? undefined : null,
         }}
       />
