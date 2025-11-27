@@ -87,7 +87,7 @@ export default function SubmitChallengeScreen() {
 
       Alert.alert(
         '✅ Submission Received!',
-        'Your submission has been received and is pending admin review. You\'ll be notified once it\'s reviewed.',
+        'Your submission has been received and is pending admin review. You&apos;ll be notified once it&apos;s reviewed.',
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error) {
@@ -182,7 +182,7 @@ export default function SubmitChallengeScreen() {
             {resultValue && selectedWeightClass && (
               <View style={styles.targetHint}>
                 {parseFloat(resultValue) >= getTargetForWeightClass(selectedWeightClass) ? (
-                  <Text style={styles.targetHintSuccess}>✅ Target reached! You'll unlock the reward!</Text>
+                  <Text style={styles.targetHintSuccess}>✅ Target reached! You&apos;ll unlock the reward!</Text>
                 ) : (
                   <Text style={styles.targetHintText}>
                     ⚠️ You need {getTargetForWeightClass(selectedWeightClass) - parseFloat(resultValue)} more {challenge.unit} to reach the target

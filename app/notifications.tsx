@@ -129,7 +129,7 @@ export default function NotificationsScreen() {
           <View style={styles.emptyState}>
             <Bell size={64} color={Colors.textTertiary} />
             <Text style={styles.emptyText}>No notifications yet</Text>
-            <Text style={styles.emptySubtext}>You'll receive updates about challenges and more</Text>
+            <Text style={styles.emptySubtext}>You&apos;ll receive updates about challenges and more</Text>
           </View>
         ) : (
           <View style={styles.notificationsList}>
