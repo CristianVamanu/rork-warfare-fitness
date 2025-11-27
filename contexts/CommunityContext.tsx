@@ -236,9 +236,49 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       
       if (userLastMessage) {
         const timeSinceLastMessage = Date.now() - new Date(userLastMessage.timestamp).getTime();
-        if (timeSinceLastMessage < channel.slowMode * 1000) {
-          const remaining = Math.ceil((channel.slowMode * 1000 - timeSinceLastMessage) / 1000);
-          throw new Error(`Slow mode: Wait ${remaining}s before posting again`);
+        
+        let slowModeMs = channel.slowMode * 1000;
+        switch (channel.slowModeUnit) {
+          case 'minutes':
+            slowModeMs = channel.slowMode * 60 * 1000;
+            break;
+          case 'hours':
+            slowModeMs = channel.slowMode * 60 * 60 * 1000;
+            break;
+          case 'days':
+            slowModeMs = channel.slowMode * 24 * 60 * 60 * 1000;
+            break;
+          case 'seconds':
+          default:
+            slowModeMs = channel.slowMode * 1000;
+            break;
+        }
+        
+        if (timeSinceLastMessage < slowModeMs) {
+          const remainingMs = slowModeMs - timeSinceLastMessage;
+          const remainingSeconds = Math.ceil(remainingMs / 1000);
+          const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
+          const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
+          const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+          
+          let errorMessage = '';
+          switch (channel.slowModeUnit) {
+            case 'days':
+              errorMessage = `Slow mode: Wait ${remainingDays} day${remainingDays > 1 ? 's' : ''} before posting again`;
+              break;
+            case 'hours':
+              errorMessage = `Slow mode: Wait ${remainingHours} hour${remainingHours > 1 ? 's' : ''} before posting again`;
+              break;
+            case 'minutes':
+              errorMessage = `Slow mode: Wait ${remainingMinutes} minute${remainingMinutes > 1 ? 's' : ''} before posting again`;
+              break;
+            case 'seconds':
+            default:
+              errorMessage = `Slow mode: Wait ${remainingSeconds}s before posting again`;
+              break;
+          }
+          
+          throw new Error(errorMessage);
         }
       }
     }
