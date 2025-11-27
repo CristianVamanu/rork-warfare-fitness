@@ -1,15 +1,8 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist",
-        "buildCommand": "bunx expo export --platform web"
-      }
-    }
-  ],
+  "framework": null,
+  "buildCommand": "bunx expo export --platform web",
+  "outputDirectory": "dist",
   "routes": [
     { "src": "/(.*)", "dest": "/index.html" }
   ]
