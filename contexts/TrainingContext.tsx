@@ -83,6 +83,9 @@ export type Program = {
   accessLevel?: 'free' | 'premium';
   isPaid?: boolean;
   requiresSubscription?: boolean;
+  isAiGenerated?: boolean;
+  createdBy?: string;
+  createdAt?: string;
 };
 
 const STORAGE_KEYS = {
@@ -150,6 +153,15 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
   const { user, isLoading: appIsLoading, hasFullAccess } = useApp();
+
+  const visiblePrograms = useMemo(() => {
+    return programs.filter(p => {
+      if (!p.isAiGenerated) return true;
+      if (!user) return false;
+      if (user.isAdmin) return true;
+      return p.createdBy === user.id;
+    });
+  }, [programs, user]);
 
   useEffect(() => {
     if (appIsLoading) return;
@@ -612,7 +624,7 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
   }, []);
 
   return useMemo(() => ({
-    programs,
+    programs: visiblePrograms,
     activeProgram,
     activeProgramId,
     enroll,
@@ -640,5 +652,6 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
     hasAccessToProgram,
     hasAccessToDay,
     resetTrainingData,
-  }), [programs, activeProgram, activeProgramId, enroll, unenroll, markDayComplete, getOverallProgress, getUpcomingWorkouts, getDayWorkout, createProgram, deleteProgram, updateProgramMeta, setWorkoutForDay, updateProgramAccess, workoutLogs, exercisePerformances, achievements, logWorkout, getExerciseRankings, getAllUniqueExercises, getRecentAchievements, addDayToProgram, removeDayFromProgram, cloneWeek, isTrialExpired, hasAccessToProgram, hasAccessToDay, resetTrainingData]);
+    allPrograms: programs,
+  }), [visiblePrograms, activeProgram, activeProgramId, enroll, unenroll, markDayComplete, getOverallProgress, getUpcomingWorkouts, getDayWorkout, createProgram, deleteProgram, updateProgramMeta, setWorkoutForDay, updateProgramAccess, workoutLogs, exercisePerformances, achievements, logWorkout, getExerciseRankings, getAllUniqueExercises, getRecentAchievements, addDayToProgram, removeDayFromProgram, cloneWeek, isTrialExpired, hasAccessToProgram, hasAccessToDay, resetTrainingData, programs]);
 });

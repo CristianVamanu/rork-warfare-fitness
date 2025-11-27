@@ -17,6 +17,7 @@ import { NotificationsProvider } from '@/contexts/NotificationsContext';
 import { ShopProvider } from '@/contexts/ShopContext';
 import { DaysWithoutProvider } from '@/contexts/DaysWithoutContext';
 import { CommunityProvider } from '@/contexts/CommunityContext';
+import { AiTrainerProvider } from '@/contexts/AiTrainerContext';
 
 import { runMigrations, verifyDataIntegrity } from '@/lib/data-migration';
 
@@ -159,24 +160,26 @@ export default function RootLayout() {
           <AppProvider>
             <FirebaseProvider>
               <TrainingProvider>
-                <RankingProvider>
-                  <LeaderboardProvider>
-                    <ChallengesProvider>
-                      <NotificationsProvider>
-                        <ShopProvider>
-                          <DaysWithoutProvider>
-                            <CommunityProvider>
-                              <GestureHandlerRootView style={{ flex: 1 }}>
-                                <StatusBar style="light" />
-                                <RootLayoutNav />
-                              </GestureHandlerRootView>
-                            </CommunityProvider>
-                          </DaysWithoutProvider>
-                        </ShopProvider>
-                      </NotificationsProvider>
-                    </ChallengesProvider>
-                  </LeaderboardProvider>
-                </RankingProvider>
+                <AiTrainerProvider>
+                  <RankingProvider>
+                    <LeaderboardProvider>
+                      <ChallengesProvider>
+                        <NotificationsProvider>
+                          <ShopProvider>
+                            <DaysWithoutProvider>
+                              <CommunityProvider>
+                                <GestureHandlerRootView style={{ flex: 1 }}>
+                                  <StatusBar style="light" />
+                                  <RootLayoutNav />
+                                </GestureHandlerRootView>
+                              </CommunityProvider>
+                            </DaysWithoutProvider>
+                          </ShopProvider>
+                        </NotificationsProvider>
+                      </ChallengesProvider>
+                    </LeaderboardProvider>
+                  </RankingProvider>
+                </AiTrainerProvider>
               </TrainingProvider>
             </FirebaseProvider>
           </AppProvider>

@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, TrendingUp, Shield, Dumbbell, Trophy, Medal } from "lucide-react-native";
+import { Home, TrendingUp, Shield, Dumbbell, Trophy, Medal, Sparkles } from "lucide-react-native";
 import React from "react";
 import { Text } from "react-native";
 
@@ -79,6 +79,14 @@ export default function TabLayout() {
           title: "Progress",
           tabBarIcon: ({ color }) => <TrendingUp size={24} color={color} />,
           tabBarLabel: renderTabLabel("Progress"),
+        }}
+      />
+      <Tabs.Screen
+        name="ai-trainer"
+        options={{
+          title: "AI Trainer",
+          tabBarIcon: ({ color }) => <Sparkles size={24} color={color} />,
+          tabBarLabel: renderTabLabel("AI"),
         }}
       />
 

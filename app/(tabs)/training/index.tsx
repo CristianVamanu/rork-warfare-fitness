@@ -1,6 +1,6 @@
 import React from 'react';
 import { useRouter } from 'expo-router';
-import { CalendarDays, Lock, Play, Timer, Dumbbell, Crown, CheckCircle2, ArrowLeft } from 'lucide-react-native';
+import { CalendarDays, Lock, Play, Timer, Dumbbell, Crown, CheckCircle2, ArrowLeft, Sparkles } from 'lucide-react-native';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -68,6 +68,12 @@ export default function ProgramDashboardScreen() {
                       <View style={styles.programContent}>
                         <View style={styles.programHeader}>
                           <Text style={styles.programCardTitle} numberOfLines={1}>{p.title}</Text>
+                          {p.isAiGenerated && (
+                            <View style={styles.aiLabel}>
+                              <Sparkles size={12} color="#8B5CF6" />
+                              <Text style={styles.aiLabelText}>AI</Text>
+                            </View>
+                          )}
                         </View>
                         {p.description && (
                           <Text style={styles.programDescription} numberOfLines={2}>
@@ -349,6 +355,22 @@ const styles = StyleSheet.create({
   },
   programEnrollBtnLocked: {
     backgroundColor: Colors.textTertiary,
+  },
+  aiLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#8B5CF620',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#8B5CF640',
+  },
+  aiLabelText: {
+    color: '#8B5CF6',
+    fontSize: 11,
+    fontWeight: '800' as const,
   },
   programEnrollBtnText: {
     color: Colors.background,

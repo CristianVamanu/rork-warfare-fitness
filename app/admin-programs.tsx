@@ -14,7 +14,8 @@ import { trpc } from '@/lib/trpc';
 export default function AdminProgramsScreen() {
   const insets = useSafeAreaInsets();
   const { user, adminSettings } = useApp();
-  const { programs, createProgram, deleteProgram, setWorkoutForDay, updateProgramAccess, updateProgramMeta, addDayToProgram, cloneWeek } = useTraining();
+  const { allPrograms, createProgram, deleteProgram, setWorkoutForDay, updateProgramAccess, updateProgramMeta, addDayToProgram, cloneWeek } = useTraining();
+  const programs = allPrograms;
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('New Program');
   const [newDays, setNewDays] = useState('90');
@@ -205,6 +206,7 @@ export default function AdminProgramsScreen() {
                   <Text style={styles.programTitle}>{p.title}</Text>
                   <Text style={styles.programSub}>
                     {p.days} days • {p.isPaid ? 'Paid' : 'Free'} • Access: {p.accessLevel ?? 'free'}
+                    {p.isAiGenerated && ' • AI Generated'}
                   </Text>
                 </View>
                 <View style={styles.actions}>
