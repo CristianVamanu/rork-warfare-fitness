@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "framework": "expo",
+  "buildCommand": "bunx expo export --platform web",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
