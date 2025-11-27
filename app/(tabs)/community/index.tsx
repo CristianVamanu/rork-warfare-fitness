@@ -28,6 +28,9 @@ export default function CommunityScreen() {
   const [maxImageSize, setMaxImageSize] = useState('10');
   const [maxVideoSize, setMaxVideoSize] = useState('50');
   const [maxVideoDuration, setMaxVideoDuration] = useState('60');
+  const [autoDeleteMedia, setAutoDeleteMedia] = useState(false);
+  const [autoDeleteDuration, setAutoDeleteDuration] = useState('24');
+  const [autoDeleteUnit, setAutoDeleteUnit] = useState<'hours' | 'days'>('hours');
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
 
@@ -59,6 +62,9 @@ export default function CommunityScreen() {
           maxImageSizeMB: parseInt(maxImageSize) || 10,
           maxVideoSizeMB: parseInt(maxVideoSize) || 50,
           maxVideoDurationSeconds: parseInt(maxVideoDuration) || 60,
+          autoDeleteMedia,
+          autoDeleteDuration: parseInt(autoDeleteDuration) || 24,
+          autoDeleteUnit,
         }
       );
       
@@ -75,6 +81,9 @@ export default function CommunityScreen() {
       setMaxImageSize('10');
       setMaxVideoSize('50');
       setMaxVideoDuration('60');
+      setAutoDeleteMedia(false);
+      setAutoDeleteDuration('24');
+      setAutoDeleteUnit('hours');
       
       Alert.alert('Success', 'Channel created successfully!');
     } catch (error) {
@@ -102,6 +111,9 @@ export default function CommunityScreen() {
     setMaxImageSize(channel.maxImageSizeMB.toString());
     setMaxVideoSize(channel.maxVideoSizeMB.toString());
     setMaxVideoDuration(channel.maxVideoDurationSeconds.toString());
+    setAutoDeleteMedia(channel.autoDeleteMedia);
+    setAutoDeleteDuration(channel.autoDeleteDuration.toString());
+    setAutoDeleteUnit(channel.autoDeleteUnit);
     setShowEditModal(true);
   };
 
@@ -124,6 +136,9 @@ export default function CommunityScreen() {
         maxImageSizeMB: parseInt(maxImageSize) || 10,
         maxVideoSizeMB: parseInt(maxVideoSize) || 50,
         maxVideoDurationSeconds: parseInt(maxVideoDuration) || 60,
+        autoDeleteMedia,
+        autoDeleteDuration: parseInt(autoDeleteDuration) || 24,
+        autoDeleteUnit,
       });
       
       setShowEditModal(false);
@@ -140,6 +155,9 @@ export default function CommunityScreen() {
       setMaxImageSize('10');
       setMaxVideoSize('50');
       setMaxVideoDuration('60');
+      setAutoDeleteMedia(false);
+      setAutoDeleteDuration('24');
+      setAutoDeleteUnit('hours');
       
       Alert.alert('Success', 'Channel updated successfully!');
     } catch (error) {
@@ -494,6 +512,56 @@ export default function CommunityScreen() {
               </>
             )}
 
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => setAutoDeleteMedia(!autoDeleteMedia)}
+            >
+              <View style={[styles.checkbox, autoDeleteMedia && styles.checkboxActive]}>
+                {autoDeleteMedia && <View style={styles.checkboxCheck} />}
+              </View>
+              <Text style={styles.checkboxLabel}>Auto-Delete Media</Text>
+            </TouchableOpacity>
+
+            {autoDeleteMedia && (
+              <>
+                <Text style={styles.label}>Auto-Delete Unit</Text>
+                <View style={styles.slowModeSelector}>
+                  {(['hours', 'days'] as const).map((unit) => (
+                    <TouchableOpacity
+                      key={unit}
+                      style={[
+                        styles.durationOption,
+                        autoDeleteUnit === unit && styles.durationOptionActive,
+                      ]}
+                      onPress={() => setAutoDeleteUnit(unit)}
+                    >
+                      <Text
+                        style={[
+                          styles.durationText,
+                          autoDeleteUnit === unit && styles.durationTextActive,
+                        ]}
+                      >
+                        {unit}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.label}>Auto-Delete Duration</Text>
+                <TextInput
+                  style={styles.input}
+                  value={autoDeleteDuration}
+                  onChangeText={setAutoDeleteDuration}
+                  placeholder={`Duration in ${autoDeleteUnit}`}
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
+                <Text style={styles.slowModeHint}>
+                  Media files will be automatically deleted after {autoDeleteDuration} {autoDeleteUnit}
+                </Text>
+              </>
+            )}
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonCancel]}
@@ -511,6 +579,9 @@ export default function CommunityScreen() {
                   setMaxImageSize('10');
                   setMaxVideoSize('50');
                   setMaxVideoDuration('60');
+                  setAutoDeleteMedia(false);
+                  setAutoDeleteDuration('24');
+                  setAutoDeleteUnit('hours');
                 }}
               >
                 <Text style={styles.modalButtonTextCancel}>Cancel</Text>
@@ -704,6 +775,56 @@ export default function CommunityScreen() {
               </>
             )}
 
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => setAutoDeleteMedia(!autoDeleteMedia)}
+            >
+              <View style={[styles.checkbox, autoDeleteMedia && styles.checkboxActive]}>
+                {autoDeleteMedia && <View style={styles.checkboxCheck} />}
+              </View>
+              <Text style={styles.checkboxLabel}>Auto-Delete Media</Text>
+            </TouchableOpacity>
+
+            {autoDeleteMedia && (
+              <>
+                <Text style={styles.label}>Auto-Delete Unit</Text>
+                <View style={styles.slowModeSelector}>
+                  {(['hours', 'days'] as const).map((unit) => (
+                    <TouchableOpacity
+                      key={unit}
+                      style={[
+                        styles.durationOption,
+                        autoDeleteUnit === unit && styles.durationOptionActive,
+                      ]}
+                      onPress={() => setAutoDeleteUnit(unit)}
+                    >
+                      <Text
+                        style={[
+                          styles.durationText,
+                          autoDeleteUnit === unit && styles.durationTextActive,
+                        ]}
+                      >
+                        {unit}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.label}>Auto-Delete Duration</Text>
+                <TextInput
+                  style={styles.input}
+                  value={autoDeleteDuration}
+                  onChangeText={setAutoDeleteDuration}
+                  placeholder={`Duration in ${autoDeleteUnit}`}
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
+                <Text style={styles.slowModeHint}>
+                  Media files will be automatically deleted after {autoDeleteDuration} {autoDeleteUnit}
+                </Text>
+              </>
+            )}
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonCancel]}
@@ -722,6 +843,9 @@ export default function CommunityScreen() {
                   setMaxImageSize('10');
                   setMaxVideoSize('50');
                   setMaxVideoDuration('60');
+                  setAutoDeleteMedia(false);
+                  setAutoDeleteDuration('24');
+                  setAutoDeleteUnit('hours');
                 }}
               >
                 <Text style={styles.modalButtonTextCancel}>Cancel</Text>

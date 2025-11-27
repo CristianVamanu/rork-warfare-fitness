@@ -44,6 +44,9 @@ export interface Channel {
   maxImageSizeMB: number;
   maxVideoSizeMB: number;
   maxVideoDurationSeconds: number;
+  autoDeleteMedia: boolean;
+  autoDeleteDuration: number;
+  autoDeleteUnit: 'hours' | 'days';
 }
 
 export interface UserStatus {
@@ -81,6 +84,9 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       maxImageSizeMB: 10,
       maxVideoSizeMB: 50,
       maxVideoDurationSeconds: 60,
+      autoDeleteMedia: false,
+      autoDeleteDuration: 24,
+      autoDeleteUnit: 'hours',
     },
   ]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -132,6 +138,9 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       maxImageSizeMB?: number;
       maxVideoSizeMB?: number;
       maxVideoDurationSeconds?: number;
+      autoDeleteMedia?: boolean;
+      autoDeleteDuration?: number;
+      autoDeleteUnit?: 'hours' | 'days';
     }
   ) => {
     const newChannel: Channel = {
@@ -152,6 +161,9 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       maxImageSizeMB: options?.maxImageSizeMB || 10,
       maxVideoSizeMB: options?.maxVideoSizeMB || 50,
       maxVideoDurationSeconds: options?.maxVideoDurationSeconds || 60,
+      autoDeleteMedia: options?.autoDeleteMedia ?? false,
+      autoDeleteDuration: options?.autoDeleteDuration || 24,
+      autoDeleteUnit: options?.autoDeleteUnit || 'hours',
     };
 
     const updated = [...channels, newChannel];
@@ -534,6 +546,53 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     return userStatuses[userId] || { userId, isBanned: false, isMuted: false };
   }, [userStatuses]);
 
+  const cleanupOldMedia = useCallback(async () => {
+    console.log('[Community] Running media cleanup...');
+    
+    const now = Date.now();
+    let deletedCount = 0;
+    
+    const updatedMessages = messages.map(message => {
+      if (!message.media) return message;
+      
+      const channel = channels.find(ch => ch.id === message.channelId);
+      if (!channel || !channel.autoDeleteMedia) return message;
+      
+      const messageTime = new Date(message.timestamp).getTime();
+      const durationMs = channel.autoDeleteUnit === 'hours'
+        ? channel.autoDeleteDuration * 60 * 60 * 1000
+        : channel.autoDeleteDuration * 24 * 60 * 60 * 1000;
+      
+      if (now - messageTime > durationMs) {
+        console.log(`[Community] Deleting media from message ${message.id} (age: ${Math.floor((now - messageTime) / 1000 / 60)} minutes)`);
+        deletedCount++;
+        return { ...message, media: undefined };
+      }
+      
+      return message;
+    });
+    
+    if (deletedCount > 0) {
+      setMessages(updatedMessages);
+      await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(updatedMessages));
+      console.log(`[Community] Deleted ${deletedCount} media files`);
+    } else {
+      console.log('[Community] No media files to delete');
+    }
+    
+    return deletedCount;
+  }, [messages, channels]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void cleanupOldMedia();
+    }, 60 * 1000);
+
+    void cleanupOldMedia();
+
+    return () => clearInterval(interval);
+  }, [cleanupOldMedia]);
+
   return useMemo(
     () => ({
       isLoading,
@@ -557,6 +616,7 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       leaveChannel,
       getChannelMessages,
       getUserStatus,
+      cleanupOldMedia,
     }),
     [
       isLoading,
@@ -580,6 +640,7 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       leaveChannel,
       getChannelMessages,
       getUserStatus,
+      cleanupOldMedia,
     ]
   );
 });
