@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { Send, Smile, ChevronLeft, Hash, Clock, Reply, X, AtSign, ImageIcon, Video } from 'lucide-react-native';
+import { Send, Smile, ChevronLeft, Hash, Clock, Reply, X, AtSign, Plus, Video } from 'lucide-react-native';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, Modal, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useState, useRef, useEffect } from 'react';
@@ -59,6 +59,7 @@ export default function ChannelChatScreen() {
   const textInputRef = useRef<TextInput>(null);
   const [allUsers, setAllUsers] = useState<{ id: string; name: string; avatar?: string }[]>([]);
   const [selectedMedia, setSelectedMedia] = useState<{ type: 'image' | 'video'; uri: string; width?: number; height?: number } | null>(null);
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
 
   const channel = channels.find(ch => ch.id === channelId);
   const messages = getChannelMessages(channelId || '');
@@ -548,6 +549,48 @@ export default function ChannelChatScreen() {
         </View>
       )}
 
+      {showMediaOptions && (channel.allowImages || channel.allowVideos) && (
+        <View style={styles.mediaOptionsContainer}>
+          <View style={styles.mediaOptionsHeader}>
+            <Plus size={16} color={Colors.accent} />
+            <Text style={styles.mediaOptionsTitle}>Add Media</Text>
+            <TouchableOpacity onPress={() => setShowMediaOptions(false)}>
+              <X size={16} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.mediaOptionsList}>
+            {channel.allowImages && (
+              <TouchableOpacity
+                style={styles.mediaOptionButton}
+                onPress={() => {
+                  setShowMediaOptions(false);
+                  handlePickImage();
+                }}
+              >
+                <View style={styles.mediaOptionIcon}>
+                  <Text style={styles.mediaOptionEmoji}>📷</Text>
+                </View>
+                <Text style={styles.mediaOptionText}>Photo</Text>
+              </TouchableOpacity>
+            )}
+            {channel.allowVideos && (
+              <TouchableOpacity
+                style={styles.mediaOptionButton}
+                onPress={() => {
+                  setShowMediaOptions(false);
+                  handlePickVideo();
+                }}
+              >
+                <View style={styles.mediaOptionIcon}>
+                  <Text style={styles.mediaOptionEmoji}>🎥</Text>
+                </View>
+                <Text style={styles.mediaOptionText}>Video</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
+
       {showMentionSuggestions && filteredUsers.length > 0 && (
         <View style={styles.mentionSuggestionsContainer}>
           <View style={styles.mentionSuggestionsHeader}>
@@ -632,20 +675,12 @@ export default function ChannelChatScreen() {
           >
             <Smile size={24} color={Colors.textSecondary} />
           </TouchableOpacity>
-          {channel.allowImages && (
+          {(channel.allowImages || channel.allowVideos) && (
             <TouchableOpacity
               style={styles.mediaButton}
-              onPress={handlePickImage}
+              onPress={() => setShowMediaOptions(!showMediaOptions)}
             >
-              <ImageIcon size={24} color={Colors.textSecondary} />
-            </TouchableOpacity>
-          )}
-          {channel.allowVideos && (
-            <TouchableOpacity
-              style={styles.mediaButton}
-              onPress={handlePickVideo}
-            >
-              <Video size={24} color={Colors.textSecondary} />
+              <Plus size={24} color={Colors.textSecondary} />
             </TouchableOpacity>
           )}
           <TextInput
@@ -1110,6 +1145,52 @@ const styles = StyleSheet.create({
   },
   mediaButton: {
     padding: 4,
+  },
+  mediaOptionsContainer: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.surface,
+    paddingVertical: 12,
+  },
+  mediaOptionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  mediaOptionsTitle: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase' as const,
+    marginLeft: 8,
+  },
+  mediaOptionsList: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  mediaOptionButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 16,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  mediaOptionIcon: {
+    marginBottom: 8,
+  },
+  mediaOptionEmoji: {
+    fontSize: 32,
+  },
+  mediaOptionText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
   },
   mediaPreview: {
     flexDirection: 'row',

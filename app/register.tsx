@@ -25,6 +25,8 @@ export default function RegisterScreen() {
   const [weightUnit, setWeightUnit] = useState<'lbs' | 'kg'>('lbs');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [resetPin, setResetPin] = useState('');
+  const [confirmResetPin, setConfirmResetPin] = useState('');
 
 
 
@@ -88,6 +90,30 @@ export default function RegisterScreen() {
               onChangeText={setConfirmPassword}
             />
 
+            <Text style={styles.sectionLabel}>Password Reset PIN (4-6 digits)</Text>
+            <View style={styles.inputRow}>
+              <TextInput
+                style={[styles.input, styles.halfInput]}
+                placeholder='PIN'
+                placeholderTextColor={Colors.textTertiary}
+                keyboardType='number-pad'
+                maxLength={6}
+                secureTextEntry
+                value={resetPin}
+                onChangeText={setResetPin}
+              />
+              <TextInput
+                style={[styles.input, styles.halfInput]}
+                placeholder='Confirm PIN'
+                placeholderTextColor={Colors.textTertiary}
+                keyboardType='number-pad'
+                maxLength={6}
+                secureTextEntry
+                value={confirmResetPin}
+                onChangeText={setConfirmResetPin}
+              />
+            </View>
+
             <View style={styles.metricSelector}>
               <Text style={styles.metricLabel}>Measurement System</Text>
               <View style={styles.metricButtons}>
@@ -118,6 +144,21 @@ export default function RegisterScreen() {
                 Alert.alert('Password Mismatch', 'Passwords do not match. Please try again.');
                 return;
               }
+
+              if (!resetPin || !confirmResetPin) {
+                Alert.alert('Missing PIN', 'Please set a reset PIN for password recovery');
+                return;
+              }
+
+              if (resetPin.length < 4 || resetPin.length > 6) {
+                Alert.alert('Invalid PIN', 'PIN must be 4-6 digits');
+                return;
+              }
+
+              if (resetPin !== confirmResetPin) {
+                Alert.alert('PIN Mismatch', 'PINs do not match. Please try again.');
+                return;
+              }
               
               if (!isValidEmail(email)) { 
                 Alert.alert('Invalid Email', 'Please enter a valid email address'); 
@@ -128,7 +169,7 @@ export default function RegisterScreen() {
                 setIsLoading(true);
                 await resetTrainingData();
                 
-                await login(email, name, password, true, username, weightUnit, '', '', '', '', undefined);
+                await login(email, name, password, true, username, weightUnit, '', '', '', '', undefined, resetPin);
                 
                 setIsLoading(false);
                 if (adminSettings.welcomeVideoUrl) {
@@ -184,7 +225,8 @@ const styles = StyleSheet.create({
   metricButtonActive: { borderColor: Colors.accent, backgroundColor: Colors.accent },
   metricButtonText: { color: Colors.textSecondary, fontWeight: '700' as const, fontSize: 14 },
   metricButtonTextActive: { color: Colors.background },
-  inputRow: { flexDirection: 'row', gap: 12, marginBottom: 0, width: '100%', maxWidth: 400 },
+  sectionLabel: { color: Colors.text, fontSize: 14, fontWeight: '600' as const, marginBottom: 8, marginTop: 12, textAlign: 'center', maxWidth: 400, width: '100%' },
+  inputRow: { flexDirection: 'row', gap: 12, marginBottom: 12, width: '100%', maxWidth: 400 },
   halfInput: { flex: 1, marginBottom: 0 },
   btn: { backgroundColor: Colors.accent, paddingVertical: 16, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8, width: '100%', maxWidth: 400 },
   btnText: { color: Colors.background, fontWeight: '900' as const, fontSize: 16 },

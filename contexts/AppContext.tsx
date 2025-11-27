@@ -99,6 +99,7 @@ interface User {
   referralCode?: string;
   referredBy?: string;
   totalReferrals?: number;
+  resetPin?: string;
 
   powerLevelSnapshot?: number;
 }
@@ -384,7 +385,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
 
 
-  const login = useCallback(async (email: string, name?: string, password?: string, isNewUser: boolean = false, username?: string, weightUnit?: 'lbs' | 'kg', height?: string, weight?: string, age?: string, goal?: string, referredBy?: string) => {
+  const login = useCallback(async (email: string, name?: string, password?: string, isNewUser: boolean = false, username?: string, weightUnit?: 'lbs' | 'kg', height?: string, weight?: string, age?: string, goal?: string, referredBy?: string, resetPin?: string) => {
     const normalizedEmail = email.toLowerCase().trim();
     const isAdminEmail = ADMIN_EMAILS.includes(normalizedEmail);
     
@@ -431,6 +432,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
       referralCode: referralCode,
       referredBy: referredBy ?? existingUser?.referredBy,
       totalReferrals: existingUser?.totalReferrals ?? 0,
+      resetPin: resetPin ?? existingUser?.resetPin,
     };
     
     setRegistrationDate(userRegistrationDate);
