@@ -465,7 +465,7 @@ export default function ChannelChatScreen() {
                                 ? { aspectRatio: message.media.width / message.media.height }
                                 : {},
                             ]}
-                            contentFit="contain"
+                            contentFit="cover"
                           />
                         ) : (
                           <ExpoVideo
@@ -477,7 +477,7 @@ export default function ChannelChatScreen() {
                                 : {},
                             ]}
                             useNativeControls
-                            resizeMode={ResizeMode.CONTAIN}
+                            resizeMode={ResizeMode.COVER}
                           />
                         )}
                       </View>
@@ -1233,16 +1233,10 @@ const styles = StyleSheet.create({
   },
   messageImage: {
     width: '100%',
-    minHeight: 150,
-    maxHeight: 400,
-    aspectRatio: 1,
     backgroundColor: Colors.surfaceLight,
   },
   messageVideo: {
     width: '100%',
-    minHeight: 150,
-    maxHeight: 400,
-    aspectRatio: 16 / 9,
     backgroundColor: Colors.surfaceLight,
   },
   input: {
