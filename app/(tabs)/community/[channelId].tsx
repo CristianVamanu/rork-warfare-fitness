@@ -1,10 +1,12 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { Send, Smile, ChevronLeft, Hash, Clock, Reply, X, AtSign } from 'lucide-react-native';
+import { Send, Smile, ChevronLeft, Hash, Clock, Reply, X, AtSign, ImageIcon, Video } from 'lucide-react-native';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, Modal, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useState, useRef, useEffect } from 'react';
 import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
+import { Video as ExpoVideo, ResizeMode } from 'expo-av';
 
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
@@ -56,6 +58,7 @@ export default function ChannelChatScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const textInputRef = useRef<TextInput>(null);
   const [allUsers, setAllUsers] = useState<{ id: string; name: string; avatar?: string }[]>([]);
+  const [selectedMedia, setSelectedMedia] = useState<{ type: 'image' | 'video'; uri: string; width?: number; height?: number } | null>(null);
 
   const channel = channels.find(ch => ch.id === channelId);
   const messages = getChannelMessages(channelId || '');
@@ -128,7 +131,7 @@ export default function ChannelChatScreen() {
     : [];
 
   const handleSendMessage = async () => {
-    if (!messageText.trim() || !user || !channelId) return;
+    if ((!messageText.trim() && !selectedMedia) || !user || !channelId) return;
 
     try {
       const mentions = extractMentions(messageText);
@@ -143,11 +146,13 @@ export default function ChannelChatScreen() {
           user.id,
           user.name,
           user.avatar || '',
-          messageText,
+          messageText || (selectedMedia ? '📎 Attachment' : ''),
           replyingTo?.id,
-          mentions.length > 0 ? mentions : undefined
+          mentions.length > 0 ? mentions : undefined,
+          selectedMedia || undefined
         );
         setReplyingTo(null);
+        setSelectedMedia(null);
       }
       setMessageText('');
     } catch (error) {
@@ -166,6 +171,7 @@ export default function ChannelChatScreen() {
     setEditingMessageId(message.id);
     setReplyingTo(null);
     setSelectedMessage(null);
+    setSelectedMedia(null);
     textInputRef.current?.focus();
   };
 
@@ -258,6 +264,86 @@ export default function ChannelChatScreen() {
         },
       ]
     );
+  };
+
+  const handlePickImage = async () => {
+    if (!channel?.allowImages) {
+      Alert.alert('Error', 'Images are not allowed in this channel');
+      return;
+    }
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'We need camera roll permissions to upload images');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      const fileSizeMB = (asset.fileSize || 0) / (1024 * 1024);
+      
+      if (fileSizeMB > channel.maxImageSizeMB) {
+        Alert.alert('Error', `Image size must be less than ${channel.maxImageSizeMB}MB`);
+        return;
+      }
+
+      setSelectedMedia({
+        type: 'image',
+        uri: asset.uri,
+        width: asset.width,
+        height: asset.height,
+      });
+      console.log('[ChannelChat] Image selected:', asset.uri);
+    }
+  };
+
+  const handlePickVideo = async () => {
+    if (!channel?.allowVideos) {
+      Alert.alert('Error', 'Videos are not allowed in this channel');
+      return;
+    }
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'We need camera roll permissions to upload videos');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      const fileSizeMB = (asset.fileSize || 0) / (1024 * 1024);
+      const durationSeconds = (asset.duration || 0) / 1000;
+      
+      if (fileSizeMB > channel.maxVideoSizeMB) {
+        Alert.alert('Error', `Video size must be less than ${channel.maxVideoSizeMB}MB`);
+        return;
+      }
+
+      if (durationSeconds > channel.maxVideoDurationSeconds) {
+        Alert.alert('Error', `Video duration must be less than ${channel.maxVideoDurationSeconds} seconds`);
+        return;
+      }
+
+      setSelectedMedia({
+        type: 'video',
+        uri: asset.uri,
+        width: asset.width,
+        height: asset.height,
+      });
+      console.log('[ChannelChat] Video selected:', asset.uri);
+    }
   };
 
   const renderMessageContent = (content: string) => {
@@ -367,6 +453,24 @@ export default function ChannelChatScreen() {
                   )}
 
                   <View style={[styles.messageBubble, isOwnMessage && styles.ownMessageBubble]}>
+                    {message.media && (
+                      <View style={styles.mediaContainer}>
+                        {message.media.type === 'image' ? (
+                          <Image
+                            source={{ uri: message.media.uri }}
+                            style={styles.messageImage}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <ExpoVideo
+                            source={{ uri: message.media.uri }}
+                            style={styles.messageVideo}
+                            useNativeControls
+                            resizeMode={ResizeMode.CONTAIN}
+                          />
+                        )}
+                      </View>
+                    )}
                     {message.isDeleted ? (
                       <Text style={styles.deletedText}>{message.content}</Text>
                     ) : (
@@ -464,6 +568,28 @@ export default function ChannelChatScreen() {
       )}
 
       <View style={styles.inputContainer}>
+        {selectedMedia && (
+          <View style={styles.mediaPreview}>
+            {selectedMedia.type === 'image' ? (
+              <Image
+                source={{ uri: selectedMedia.uri }}
+                style={styles.mediaPreviewImage}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={styles.videoPreviewContainer}>
+                <Video size={40} color={Colors.accent} />
+                <Text style={styles.videoPreviewText}>Video Selected</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.removeMediaButton}
+              onPress={() => setSelectedMedia(null)}
+            >
+              <X size={16} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+        )}
         {replyingTo && (
           <View style={styles.replyBanner}>
             <Reply size={16} color={Colors.accent} />
@@ -496,6 +622,22 @@ export default function ChannelChatScreen() {
           >
             <Smile size={24} color={Colors.textSecondary} />
           </TouchableOpacity>
+          {channel.allowImages && (
+            <TouchableOpacity
+              style={styles.mediaButton}
+              onPress={handlePickImage}
+            >
+              <ImageIcon size={24} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+          {channel.allowVideos && (
+            <TouchableOpacity
+              style={styles.mediaButton}
+              onPress={handlePickVideo}
+            >
+              <Video size={24} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          )}
           <TextInput
             ref={textInputRef}
             style={styles.input}
@@ -507,11 +649,11 @@ export default function ChannelChatScreen() {
             maxLength={500}
           />
           <TouchableOpacity
-            style={[styles.sendButton, !messageText.trim() && styles.sendButtonDisabled]}
+            style={[styles.sendButton, (!messageText.trim() && !selectedMedia) && styles.sendButtonDisabled]}
             onPress={handleSendMessage}
-            disabled={!messageText.trim()}
+            disabled={!messageText.trim() && !selectedMedia}
           >
-            <Send size={20} color={messageText.trim() ? Colors.accent : Colors.textTertiary} />
+            <Send size={20} color={(messageText.trim() || selectedMedia) ? Colors.accent : Colors.textTertiary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -955,6 +1097,58 @@ const styles = StyleSheet.create({
   },
   emojiButton: {
     padding: 4,
+  },
+  mediaButton: {
+    padding: 4,
+  },
+  mediaPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: Colors.surfaceLight,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  mediaPreviewImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+  },
+  videoPreviewContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  videoPreviewText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  removeMediaButton: {
+    marginLeft: 'auto' as const,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mediaContainer: {
+    marginBottom: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  messageImage: {
+    width: '100%',
+    height: 200,
+    backgroundColor: Colors.surfaceLight,
+  },
+  messageVideo: {
+    width: '100%',
+    height: 200,
+    backgroundColor: Colors.surfaceLight,
   },
   input: {
     flex: 1,

@@ -18,6 +18,12 @@ export interface Message {
   replyToUserName?: string;
   replyToContent?: string;
   mentions?: string[];
+  media?: {
+    type: 'image' | 'video';
+    uri: string;
+    width?: number;
+    height?: number;
+  };
 }
 
 export interface Channel {
@@ -181,7 +187,13 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     userAvatar: string,
     content: string,
     replyToId?: string,
-    mentions?: string[]
+    mentions?: string[],
+    media?: {
+      type: 'image' | 'video';
+      uri: string;
+      width?: number;
+      height?: number;
+    }
   ) => {
     const channel = channels.find(ch => ch.id === channelId);
     if (!channel) {
@@ -235,6 +247,7 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       replyToUserName: replyToMessage?.userName,
       replyToContent: replyToMessage?.content,
       mentions,
+      media,
     };
 
     const updated = [...messages, newMessage];
