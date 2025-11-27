@@ -458,13 +458,23 @@ export default function ChannelChatScreen() {
                         {message.media.type === 'image' ? (
                           <Image
                             source={{ uri: message.media.uri }}
-                            style={styles.messageImage}
-                            contentFit="cover"
+                            style={[
+                              styles.messageImage,
+                              message.media.width && message.media.height
+                                ? { aspectRatio: message.media.width / message.media.height }
+                                : {},
+                            ]}
+                            contentFit="contain"
                           />
                         ) : (
                           <ExpoVideo
                             source={{ uri: message.media.uri }}
-                            style={styles.messageVideo}
+                            style={[
+                              styles.messageVideo,
+                              message.media.width && message.media.height
+                                ? { aspectRatio: message.media.width / message.media.height }
+                                : {},
+                            ]}
                             useNativeControls
                             resizeMode={ResizeMode.CONTAIN}
                           />
@@ -1142,12 +1152,16 @@ const styles = StyleSheet.create({
   },
   messageImage: {
     width: '100%',
-    height: 200,
+    minHeight: 150,
+    maxHeight: 400,
+    aspectRatio: 1,
     backgroundColor: Colors.surfaceLight,
   },
   messageVideo: {
     width: '100%',
-    height: 200,
+    minHeight: 150,
+    maxHeight: 400,
+    aspectRatio: 16 / 9,
     backgroundColor: Colors.surfaceLight,
   },
   input: {
