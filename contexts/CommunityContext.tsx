@@ -166,6 +166,7 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     setChannels(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.CHANNELS, JSON.stringify(updated));
     console.log('[Community] Channel updated:', channelId);
+    return updated.find(ch => ch.id === channelId);
   }, [channels]);
 
   const deleteChannel = useCallback(async (channelId: string) => {

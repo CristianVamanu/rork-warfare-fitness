@@ -113,20 +113,20 @@ export default function AdminScreen() {
       route: '/admin-notifications',
     },
     {
-      id: '7',
-      title: 'Settings',
-      description: 'App configuration',
-      icon: Settings,
-      color: Colors.textSecondary,
-      route: '/admin-settings',
-    },
-    {
       id: '8',
       title: 'Shop & Affiliates',
-      description: 'Manage products and earn',
+      description: 'Manage affiliate links',
       icon: ShoppingBag,
       color: Colors.success,
       route: '/admin-shop',
+    },
+    {
+      id: '7',
+      title: 'Settings',
+      description: 'App & Coffee link config',
+      icon: Settings,
+      color: Colors.textSecondary,
+      route: '/admin-settings',
     },
   ];
 

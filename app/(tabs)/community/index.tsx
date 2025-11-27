@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { MessageSquare, Plus, Hash, Lock, Clock, Users, UserPlus, UserMinus } from 'lucide-react-native';
+import { MessageSquare, Plus, Hash, Lock, Clock, Users, UserPlus, UserMinus, Edit, Trash2 } from 'lucide-react-native';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
@@ -28,8 +28,10 @@ export default function CommunityScreen() {
   const [maxImageSize, setMaxImageSize] = useState('10');
   const [maxVideoSize, setMaxVideoSize] = useState('50');
   const [maxVideoDuration, setMaxVideoDuration] = useState('60');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
 
-  const { createChannel, joinChannel, leaveChannel } = useCommunity();
+  const { createChannel, joinChannel, leaveChannel, updateChannel, deleteChannel } = useCommunity();
 
   const handleCreateChannel = async () => {
     if (!newChannelName.trim()) {
@@ -84,6 +86,89 @@ export default function CommunityScreen() {
   const handleChannelPress = (channelId: string) => {
     setSelectedChannel(channelId);
     router.push(`/(tabs)/community/${channelId}` as any);
+  };
+
+  const handleEditChannel = (channel: any) => {
+    setEditingChannelId(channel.id);
+    setNewChannelName(channel.name);
+    setNewChannelDescription(channel.description);
+    setNewChannelIcon(channel.icon);
+    setNewChannelIsPrivate(channel.isPrivate);
+    setNewChannelSlowMode(channel.slowMode > 0);
+    setSlowModeDuration(channel.slowMode.toString());
+    setSlowModeUnit(channel.slowModeUnit);
+    setAllowImages(channel.allowImages);
+    setAllowVideos(channel.allowVideos);
+    setMaxImageSize(channel.maxImageSizeMB.toString());
+    setMaxVideoSize(channel.maxVideoSizeMB.toString());
+    setMaxVideoDuration(channel.maxVideoDurationSeconds.toString());
+    setShowEditModal(true);
+  };
+
+  const handleSaveEditChannel = async () => {
+    if (!newChannelName.trim() || !editingChannelId) {
+      Alert.alert('Error', 'Please enter a channel name');
+      return;
+    }
+
+    try {
+      await updateChannel(editingChannelId, {
+        name: newChannelName.toLowerCase().replace(/\s+/g, '-'),
+        description: newChannelDescription.trim() || 'No description',
+        icon: newChannelIcon,
+        isPrivate: newChannelIsPrivate,
+        slowMode: newChannelSlowMode ? parseInt(slowModeDuration) || 0 : 0,
+        slowModeUnit,
+        allowImages,
+        allowVideos,
+        maxImageSizeMB: parseInt(maxImageSize) || 10,
+        maxVideoSizeMB: parseInt(maxVideoSize) || 50,
+        maxVideoDurationSeconds: parseInt(maxVideoDuration) || 60,
+      });
+      
+      setShowEditModal(false);
+      setEditingChannelId(null);
+      setNewChannelName('');
+      setNewChannelDescription('');
+      setNewChannelIcon('💬');
+      setNewChannelIsPrivate(false);
+      setNewChannelSlowMode(false);
+      setSlowModeDuration('10');
+      setSlowModeUnit('seconds');
+      setAllowImages(true);
+      setAllowVideos(true);
+      setMaxImageSize('10');
+      setMaxVideoSize('50');
+      setMaxVideoDuration('60');
+      
+      Alert.alert('Success', 'Channel updated successfully!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update channel');
+      console.error('[Community] Failed to update channel:', error);
+    }
+  };
+
+  const handleDeleteChannel = (channelId: string, channelName: string) => {
+    Alert.alert(
+      'Delete Channel',
+      `Are you sure you want to delete #${channelName}? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteChannel(channelId);
+              Alert.alert('Success', 'Channel deleted successfully');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete channel');
+              console.error('[Community] Failed to delete channel:', error);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleJoinChannel = async (channelId: string) => {
@@ -198,6 +283,22 @@ export default function CommunityScreen() {
                     </View>
                   </View>
                 </TouchableOpacity>
+                {user?.isAdmin && (
+                  <View style={styles.adminButtonsRow}>
+                    <TouchableOpacity
+                      style={styles.adminButton}
+                      onPress={() => handleEditChannel(channel)}
+                    >
+                      <Edit size={16} color={Colors.accent} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.adminButton, styles.deleteButton]}
+                      onPress={() => handleDeleteChannel(channel.id, channel.name)}
+                    >
+                      <Trash2 size={16} color={Colors.danger} />
+                    </TouchableOpacity>
+                  </View>
+                )}
                 {user && !user.isAdmin && (
                   <TouchableOpacity
                     style={[styles.joinButton, isMember && styles.leaveButton]}
@@ -419,6 +520,217 @@ export default function CommunityScreen() {
                 onPress={handleCreateChannel}
               >
                 <Text style={styles.modalButtonTextSave}>Create</Text>
+              </TouchableOpacity>
+            </View>
+                </View>
+              </ScrollView>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlayTouchable}
+            activeOpacity={1}
+            onPress={() => setShowEditModal(false)}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+              <ScrollView
+                style={styles.modalScrollView}
+                contentContainerStyle={styles.modalScrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Channel</Text>
+
+            <Text style={styles.label}>Channel Icon</Text>
+            <View style={styles.iconSelector}>
+              {['💬', '🎮', '💪', '🔥', '⚡', '🎯', '🏆', '📢'].map((icon) => (
+                <TouchableOpacity
+                  key={icon}
+                  style={[styles.iconOption, newChannelIcon === icon && styles.iconOptionActive]}
+                  onPress={() => setNewChannelIcon(icon)}
+                >
+                  <Text style={styles.iconText}>{icon}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.label}>Channel Name</Text>
+            <TextInput
+              style={styles.input}
+              value={newChannelName}
+              onChangeText={setNewChannelName}
+              placeholder="e.g., announcements, off-topic..."
+              placeholderTextColor={Colors.textTertiary}
+            />
+
+            <Text style={styles.label}>Description</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={newChannelDescription}
+              onChangeText={setNewChannelDescription}
+              placeholder="What is this channel about?"
+              placeholderTextColor={Colors.textTertiary}
+              multiline
+              numberOfLines={3}
+            />
+
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => setNewChannelIsPrivate(!newChannelIsPrivate)}
+            >
+              <View style={[styles.checkbox, newChannelIsPrivate && styles.checkboxActive]}>
+                {newChannelIsPrivate && <View style={styles.checkboxCheck} />}
+              </View>
+              <Text style={styles.checkboxLabel}>Private Channel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => setNewChannelSlowMode(!newChannelSlowMode)}
+            >
+              <View style={[styles.checkbox, newChannelSlowMode && styles.checkboxActive]}>
+                {newChannelSlowMode && <View style={styles.checkboxCheck} />}
+              </View>
+              <Text style={styles.checkboxLabel}>Enable Slow Mode</Text>
+            </TouchableOpacity>
+
+            {newChannelSlowMode && (
+              <>
+                <Text style={styles.label}>Slow Mode Unit</Text>
+                <View style={styles.slowModeSelector}>
+                  {(['seconds', 'minutes', 'hours', 'days'] as const).map((unit) => (
+                    <TouchableOpacity
+                      key={unit}
+                      style={[
+                        styles.durationOption,
+                        slowModeUnit === unit && styles.durationOptionActive,
+                      ]}
+                      onPress={() => setSlowModeUnit(unit)}
+                    >
+                      <Text
+                        style={[
+                          styles.durationText,
+                          slowModeUnit === unit && styles.durationTextActive,
+                        ]}
+                      >
+                        {unit}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.label}>Slow Mode Duration</Text>
+                <TextInput
+                  style={styles.input}
+                  value={slowModeDuration}
+                  onChangeText={setSlowModeDuration}
+                  placeholder={`Duration in ${slowModeUnit}`}
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
+                <Text style={styles.slowModeHint}>
+                  Users can post once every {slowModeDuration} {slowModeUnit}
+                </Text>
+              </>
+            )}
+
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => setAllowImages(!allowImages)}
+            >
+              <View style={[styles.checkbox, allowImages && styles.checkboxActive]}>
+                {allowImages && <View style={styles.checkboxCheck} />}
+              </View>
+              <Text style={styles.checkboxLabel}>Allow Image Uploads</Text>
+            </TouchableOpacity>
+
+            {allowImages && (
+              <>
+                <Text style={styles.label}>Max Image Size (MB)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={maxImageSize}
+                  onChangeText={setMaxImageSize}
+                  placeholder="Max size in MB"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
+              </>
+            )}
+
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => setAllowVideos(!allowVideos)}
+            >
+              <View style={[styles.checkbox, allowVideos && styles.checkboxActive]}>
+                {allowVideos && <View style={styles.checkboxCheck} />}
+              </View>
+              <Text style={styles.checkboxLabel}>Allow Video Uploads</Text>
+            </TouchableOpacity>
+
+            {allowVideos && (
+              <>
+                <Text style={styles.label}>Max Video Size (MB)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={maxVideoSize}
+                  onChangeText={setMaxVideoSize}
+                  placeholder="Max size in MB"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
+                <Text style={styles.label}>Max Video Duration (seconds)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={maxVideoDuration}
+                  onChangeText={setMaxVideoDuration}
+                  placeholder="Max duration in seconds"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
+              </>
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowEditModal(false);
+                  setEditingChannelId(null);
+                  setNewChannelName('');
+                  setNewChannelDescription('');
+                  setNewChannelIcon('💬');
+                  setNewChannelIsPrivate(false);
+                  setNewChannelSlowMode(false);
+                  setSlowModeDuration('10');
+                  setSlowModeUnit('seconds');
+                  setAllowImages(true);
+                  setAllowVideos(true);
+                  setMaxImageSize('10');
+                  setMaxVideoSize('50');
+                  setMaxVideoDuration('60');
+                }}
+              >
+                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSave]}
+                onPress={handleSaveEditChannel}
+              >
+                <Text style={styles.modalButtonTextSave}>Save</Text>
               </TouchableOpacity>
             </View>
                 </View>
@@ -765,5 +1077,22 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.text,
     fontWeight: '600' as const,
+  },
+  adminButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  adminButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.surface,
+    borderWidth: 2,
+    borderColor: Colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButton: {
+    borderColor: Colors.danger,
   },
 });
