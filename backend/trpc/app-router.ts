@@ -1,7 +1,6 @@
 import { createTRPCRouter } from "./create-context";
 import hiRoute from "./routes/example/hi/route";
 import generateProgramWithAiRoute from "./routes/programs/generate-with-ai/route";
-import generatePersonalizedProgramRoute from "./routes/programs/generate-personalized/route";
 
 import { createChallengeRoute } from "./routes/challenges/create/route";
 import { listChallengesRoute } from "./routes/challenges/list/route";
@@ -23,7 +22,6 @@ export const appRouter = createTRPCRouter({
   }),
   programs: createTRPCRouter({
     generateWithAi: generateProgramWithAiRoute,
-    generatePersonalized: generatePersonalizedProgramRoute,
   }),
 
   challenges: createTRPCRouter({
