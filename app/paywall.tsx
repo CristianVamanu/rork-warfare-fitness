@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { Crown, Check, X, RefreshCcw, Zap, Lock, Flame, Trophy, Video } from 'lucide-react-native';
+import { Crown, Check, X, RefreshCcw, Zap, Lock, Flame, Trophy, Video, Calendar } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 
@@ -9,19 +9,19 @@ import Colors from '@/constants/colors';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 
 const PREMIUM_FEATURES = [
+  { icon: Trophy, text: 'Full access to all workout days (7+ days)' },
+  { icon: Flame, text: 'Complete all challenges and earn rewards' },
   { icon: Video, text: 'Full access to ice bath protocols & videos' },
-  { icon: Trophy, text: 'Exclusive training programs & PDFs' },
-  { icon: Flame, text: 'Advanced habit trackers & analytics' },
   { icon: Zap, text: 'Premium community features' },
   { icon: Lock, text: 'Early access to new features' },
 ];
 
 const FREE_FEATURES = [
-  { text: 'Basic training programs', included: true },
+  { text: 'First 7 days of any program', included: true },
   { text: 'Community forum access', included: true },
-  { text: 'Ice bath tracker (limited)', included: true },
-  { text: 'Premium content library', included: false },
-  { text: 'Advanced analytics', included: false },
+  { text: 'Basic challenges (first 7 days)', included: true },
+  { text: 'Days 8+ of programs', included: false },
+  { text: 'Advanced challenges', included: false },
 ];
 
 export default function PaywallScreen() {
@@ -31,7 +31,8 @@ export default function PaywallScreen() {
     purchasePackage, 
     restorePurchases,
     subscriptionState,
-    isLoading 
+    isLoading,
+    getDaysRemainingInTrial 
   } = useSubscription();
   
   const [isPurchasing, setIsPurchasing] = useState(false);
@@ -130,8 +131,17 @@ export default function PaywallScreen() {
               </View>
               <Text style={styles.title}>Unlock Premium</Text>
               <Text style={styles.subtitle}>
-                Get full access to exclusive ice bath protocols, training programs, and more
+                Get full access to all workout days, challenges, ice bath protocols, and exclusive content
               </Text>
+              
+              {subscriptionState.isInTrialPeriod && getDaysRemainingInTrial() !== null && (
+                <View style={styles.trialBanner}>
+                  <Calendar size={18} color={Colors.accent} />
+                  <Text style={styles.trialBannerText}>
+                    {getDaysRemainingInTrial()} {getDaysRemainingInTrial() === 1 ? 'day' : 'days'} left in your free trial
+                  </Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.tiersContainer}>
@@ -180,6 +190,7 @@ export default function PaywallScreen() {
                         £9.99
                       </Text>
                       <Text style={styles.tierPeriod}>per month</Text>
+                      <Text style={styles.trialText}>7-day free trial included</Text>
                     </View>
                   </View>
 
@@ -370,6 +381,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 4,
+  },
+  trialText: {
+    fontSize: 12,
+    color: '#FFD700',
+    marginTop: 4,
+    fontWeight: '700' as const,
+  },
+  trialBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 107, 0, 0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: Colors.accent + '40',
+  },
+  trialBannerText: {
+    fontSize: 14,
+    color: Colors.accent,
+    fontWeight: '700' as const,
+    flex: 1,
   },
   featuresList: {
     gap: 12,

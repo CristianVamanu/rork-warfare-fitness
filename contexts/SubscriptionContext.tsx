@@ -24,6 +24,8 @@ export interface SubscriptionState {
   expirationDate: string | null;
   willRenew: boolean;
   productIdentifier: string | null;
+  isInTrialPeriod: boolean;
+  trialEndDate: string | null;
 }
 
 const appOwnership = Constants.appOwnership ?? 'standalone';
@@ -39,6 +41,8 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     expirationDate: null,
     willRenew: false,
     productIdentifier: null,
+    isInTrialPeriod: false,
+    trialEndDate: null,
   });
   const [currentOffering, setCurrentOffering] = useState<PurchasesOffering | null>(null);
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
@@ -60,6 +64,11 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       const premiumEntitlement = entitlements['premium'];
       
       const isPremium = premiumEntitlement !== undefined;
+      const isInTrialPeriod = (premiumEntitlement?.periodType === 'trial') || false;
+      
+      const trialEndDate = isInTrialPeriod && premiumEntitlement?.expirationDate
+        ? premiumEntitlement.expirationDate
+        : null;
       
       const newState: SubscriptionState = {
         tier: isPremium ? 'premium' : 'free',
@@ -68,6 +77,8 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
         expirationDate: premiumEntitlement?.expirationDate ?? null,
         willRenew: premiumEntitlement?.willRenew ?? false,
         productIdentifier: premiumEntitlement?.productIdentifier ?? null,
+        isInTrialPeriod,
+        trialEndDate,
       };
 
       setSubscriptionState(newState);
@@ -206,12 +217,14 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
 
   const setUserId = useCallback(async (userId: string) => {
     if (!isInitialized || Platform.OS === 'web' || isExpoGo) {
+      console.log('[Subscription] Skipping user ID sync (web or Expo Go)');
       return;
     }
 
     try {
-      await Purchases.logIn(userId);
-      console.log('[Subscription] User ID set:', userId);
+      const { customerInfo } = await Purchases.logIn(userId);
+      console.log('[Subscription] User ID synced with RevenueCat:', userId);
+      setCustomerInfo(customerInfo);
       await refreshSubscriptionStatus();
     } catch (error) {
       console.error('[Subscription] Failed to set user ID:', error);
@@ -234,6 +247,8 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
         expirationDate: null,
         willRenew: false,
         productIdentifier: null,
+        isInTrialPeriod: false,
+        trialEndDate: null,
       });
       
       await AsyncStorage.removeItem(STORAGE_KEYS.SUBSCRIPTION_STATUS);
@@ -249,6 +264,26 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     return false;
   }, [subscriptionState.isPremium]);
 
+  const canAccessContent = useCallback((dayNumber: number): boolean => {
+    if (subscriptionState.isPremium) {
+      return true;
+    }
+    return dayNumber <= 7;
+  }, [subscriptionState.isPremium]);
+
+  const getDaysRemainingInTrial = useCallback((): number | null => {
+    if (!subscriptionState.isInTrialPeriod || !subscriptionState.trialEndDate) {
+      return null;
+    }
+    
+    const now = new Date();
+    const trialEnd = new Date(subscriptionState.trialEndDate);
+    const diffMs = trialEnd.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    
+    return Math.max(0, diffDays);
+  }, [subscriptionState.isInTrialPeriod, subscriptionState.trialEndDate]);
+
   return useMemo(
     () => ({
       isInitialized,
@@ -262,6 +297,8 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       setUserId,
       logout,
       checkEntitlement,
+      canAccessContent,
+      getDaysRemainingInTrial,
     }),
     [
       isInitialized,
@@ -275,6 +312,8 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       setUserId,
       logout,
       checkEntitlement,
+      canAccessContent,
+      getDaysRemainingInTrial,
     ]
   );
 });

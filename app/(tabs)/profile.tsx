@@ -1,8 +1,8 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Save, User, Mail, Calendar, Weight, Target as TargetIcon, Edit2, Shield, Zap, TrendingUp, DollarSign, Flame, Check, Video as VideoIcon, LogOut, CreditCard, Scale, Bell, Package } from 'lucide-react-native';
+import { Save, User, Mail, Calendar, Weight, Target as TargetIcon, Edit2, Shield, Zap, TrendingUp, DollarSign, Flame, Check, Video as VideoIcon, LogOut, CreditCard, Scale, Bell, Package, Crown, RefreshCcw } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, Modal } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, Modal, ActivityIndicator, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/colors';
@@ -11,6 +11,7 @@ import { useTraining } from '@/contexts/TrainingContext';
 import { getValidImageUri } from '@/lib/image-utils';
 import { AVATAR_OPTIONS } from '@/constants/avatars';
 import { useNotifications } from '@/contexts/NotificationsContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -18,8 +19,10 @@ export default function ProfileScreen() {
   const { powerLevel, streak, missions, logout, user, updateUserAvatar, updateUserProfile, powerMetrics, adminSettings } = useApp();
   const { workoutLogs } = useTraining();
   const { getUnreadCount } = useNotifications();
+  const { subscriptionState, restorePurchases, getDaysRemainingInTrial } = useSubscription();
 
   const unreadNotificationsCount = user ? getUnreadCount(user.id) : 0;
+  const [isRestoring, setIsRestoring] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name || user?.email?.split('@')[0] || '');
@@ -243,6 +246,68 @@ export default function ProfileScreen() {
             <SummaryItem label="Best Streak" value={`${streak} days`} />
             <SummaryItem label="Member Since" value="Jan 2024" />
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Subscription</Text>
+          <View style={styles.subscriptionCard}>
+            {subscriptionState.isPremium ? (
+              <>
+                <View style={styles.subscriptionHeader}>
+                  <Crown size={24} color="#FFD700" fill="#FFD700" />
+                  <Text style={styles.subscriptionTitle}>Premium Active</Text>
+                </View>
+                {subscriptionState.isInTrialPeriod && getDaysRemainingInTrial() !== null && (
+                  <Text style={styles.subscriptionSubtext}>
+                    {getDaysRemainingInTrial()} {getDaysRemainingInTrial() === 1 ? 'day' : 'days'} left in free trial
+                  </Text>
+                )}
+                {!subscriptionState.isInTrialPeriod && (
+                  <Text style={styles.subscriptionSubtext}>
+                    {subscriptionState.willRenew ? 'Renews automatically' : 'Expires'} on {subscriptionState.expirationDate ? new Date(subscriptionState.expirationDate).toLocaleDateString() : 'N/A'}
+                  </Text>
+                )}
+              </>
+            ) : (
+              <>
+                <View style={styles.subscriptionHeader}>
+                  <Crown size={24} color={Colors.textTertiary} />
+                  <Text style={styles.subscriptionTitle}>Free Plan</Text>
+                </View>
+                <Text style={styles.subscriptionSubtext}>
+                  Upgrade to unlock all workouts and challenges
+                </Text>
+                <TouchableOpacity 
+                  style={styles.upgradeButton}
+                  onPress={() => router.push('/paywall' as any)}
+                >
+                  <Crown size={16} color={Colors.background} fill={Colors.background} />
+                  <Text style={styles.upgradeButtonText}>Upgrade to Premium</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+          
+          {Platform.OS !== 'web' && (
+            <TouchableOpacity 
+              style={styles.restoreButton}
+              onPress={async () => {
+                setIsRestoring(true);
+                await restorePurchases();
+                setIsRestoring(false);
+              }}
+              disabled={isRestoring}
+            >
+              {isRestoring ? (
+                <ActivityIndicator color={Colors.accent} size="small" />
+              ) : (
+                <>
+                  <RefreshCcw size={16} color={Colors.accent} />
+                  <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         <TouchableOpacity 
@@ -705,5 +770,56 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700' as const,
     color: Colors.background,
+  },
+  subscriptionCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  subscriptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  subscriptionTitle: {
+    fontSize: 18,
+    fontWeight: '800' as const,
+    color: Colors.text,
+  },
+  subscriptionSubtext: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 16,
+  },
+  upgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.accent,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  upgradeButtonText: {
+    fontSize: 15,
+    fontWeight: '800' as const,
+    color: Colors.background,
+    textTransform: 'uppercase' as const,
+  },
+  restoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    marginTop: 12,
+  },
+  restoreButtonText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.accent,
   },
 });

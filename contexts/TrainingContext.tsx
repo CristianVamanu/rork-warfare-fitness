@@ -2,6 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '@/contexts/AppContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 export type Exercise = {
   id: string;
@@ -149,7 +150,8 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
   const [exercisePerformances, setExercisePerformances] = useState<ExercisePerformance[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
-  const { user, isLoading: appIsLoading, hasFullAccess } = useApp();
+  const { user, isLoading: appIsLoading } = useApp();
+  const { canAccessContent } = useSubscription();
 
   useEffect(() => {
     if (appIsLoading) return;
@@ -272,8 +274,8 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
   }, []);
 
   const hasAccessToDay = useCallback((program: Program, day: number) => {
-    return true;
-  }, []);
+    return canAccessContent(day);
+  }, [canAccessContent]);
 
   const hasAccessToProgram = useCallback((program: Program) => {
     return true;

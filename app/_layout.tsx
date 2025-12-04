@@ -17,7 +17,7 @@ import { NotificationsProvider } from '@/contexts/NotificationsContext';
 import { ShopProvider } from '@/contexts/ShopContext';
 import { DaysWithoutProvider } from '@/contexts/DaysWithoutContext';
 import { CommunityProvider } from '@/contexts/CommunityContext';
-import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
+import { SubscriptionProvider, useSubscription } from '@/contexts/SubscriptionContext';
 
 import { runMigrations, verifyDataIntegrity } from '@/lib/data-migration';
 
@@ -107,8 +107,16 @@ function DataMigrationGuard({ children }: { children: React.ReactNode }) {
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useApp();
+  const { setUserId } = useSubscription();
   const segments = useSegments();
   const router = useRouter();
+
+  useEffect(() => {
+    if (user) {
+      void setUserId(user.id);
+      console.log('[Auth] Synced user ID with RevenueCat:', user.id);
+    }
+  }, [user, setUserId]);
 
   useEffect(() => {
     if (isLoading) return;

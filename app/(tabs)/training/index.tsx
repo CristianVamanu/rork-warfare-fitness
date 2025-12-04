@@ -150,7 +150,7 @@ export default function ProgramDashboardScreen() {
                           </View>
                           <TouchableOpacity
                             style={styles.unlockDayBtn}
-                            onPress={() => router.push('/purchase' as any)}
+                            onPress={() => router.push('/paywall' as any)}
                           >
                             <Crown size={16} color={Colors.background} />
                             <Text style={styles.unlockDayBtnText}>Subscribe to Unlock</Text>
