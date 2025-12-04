@@ -17,6 +17,7 @@ import { NotificationsProvider } from '@/contexts/NotificationsContext';
 import { ShopProvider } from '@/contexts/ShopContext';
 import { DaysWithoutProvider } from '@/contexts/DaysWithoutContext';
 import { CommunityProvider } from '@/contexts/CommunityContext';
+import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
 
 import { runMigrations, verifyDataIntegrity } from '@/lib/data-migration';
 
@@ -146,6 +147,7 @@ function RootLayoutNav() {
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="register" options={{ headerShown: false }} />
         <Stack.Screen name="ice-bath-tracker" options={{ headerShown: false }} />
+        <Stack.Screen name="paywall" options={{ presentation: 'modal', headerShown: false }} />
       </Stack>
     </AuthGuard>
   );
@@ -158,26 +160,28 @@ export default function RootLayout() {
         <DataMigrationGuard>
           <AppProvider>
             <FirebaseProvider>
-              <TrainingProvider>
-                <RankingProvider>
-                  <LeaderboardProvider>
-                    <ChallengesProvider>
-                      <NotificationsProvider>
-                        <ShopProvider>
-                          <DaysWithoutProvider>
-                            <CommunityProvider>
-                              <GestureHandlerRootView style={{ flex: 1 }}>
-                                <StatusBar style="light" />
-                                <RootLayoutNav />
-                              </GestureHandlerRootView>
-                            </CommunityProvider>
-                          </DaysWithoutProvider>
-                        </ShopProvider>
-                      </NotificationsProvider>
-                    </ChallengesProvider>
-                  </LeaderboardProvider>
-                </RankingProvider>
-              </TrainingProvider>
+              <SubscriptionProvider>
+                <TrainingProvider>
+                  <RankingProvider>
+                    <LeaderboardProvider>
+                      <ChallengesProvider>
+                        <NotificationsProvider>
+                          <ShopProvider>
+                            <DaysWithoutProvider>
+                              <CommunityProvider>
+                                <GestureHandlerRootView style={{ flex: 1 }}>
+                                  <StatusBar style="light" />
+                                  <RootLayoutNav />
+                                </GestureHandlerRootView>
+                              </CommunityProvider>
+                            </DaysWithoutProvider>
+                          </ShopProvider>
+                        </NotificationsProvider>
+                      </ChallengesProvider>
+                    </LeaderboardProvider>
+                  </RankingProvider>
+                </TrainingProvider>
+              </SubscriptionProvider>
             </FirebaseProvider>
           </AppProvider>
         </DataMigrationGuard>
