@@ -48,7 +48,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
 
   const refreshSubscriptionStatus = useCallback(async (): Promise<void> => {
-    if (!isInitialized || Platform.OS === 'web' || isExpoGo) {
+    if (Platform.OS === 'web' || isExpoGo) {
       const cached = await AsyncStorage.getItem(STORAGE_KEYS.SUBSCRIPTION_STATUS);
       if (cached) {
         setSubscriptionState(JSON.parse(cached));
@@ -88,10 +88,10 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     } catch (error) {
       console.error('[Subscription] Failed to refresh status:', error);
     }
-  }, [isInitialized]);
+  }, []);
 
   const loadOfferings = useCallback(async () => {
-    if (!isInitialized || Platform.OS === 'web' || isExpoGo) {
+    if (Platform.OS === 'web' || isExpoGo) {
       return;
     }
 
@@ -107,52 +107,52 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     } catch (error) {
       console.error('[Subscription] Failed to load offerings:', error);
     }
-  }, [isInitialized]);
+  }, []);
 
-  const initializeRevenueCat = useCallback(async () => {
-    if (Platform.OS === 'web' || isExpoGo) {
-      console.log('[Subscription] RevenueCat not supported on web or Expo Go');
-      setIsInitialized(false);
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const iosKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
-      const androidKey = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
-
-      const apiKey = Platform.OS === 'ios' ? iosKey : androidKey;
-
-      if (!apiKey) {
-        console.error('[Subscription] RevenueCat API key not found');
+  useEffect(() => {
+    const initializeRevenueCat = async () => {
+      if (Platform.OS === 'web' || isExpoGo) {
+        console.log('[Subscription] RevenueCat not supported on web or Expo Go');
         setIsInitialized(false);
         setIsLoading(false);
         return;
       }
 
-      Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-      
-      await Purchases.configure({ apiKey });
-      
-      console.log('[Subscription] RevenueCat initialized');
-      setIsInitialized(true);
+      try {
+        const iosKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
+        const androidKey = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
 
-      await refreshSubscriptionStatus();
-      await loadOfferings();
-    } catch (error) {
-      console.error('[Subscription] Initialization failed:', error);
-      setIsInitialized(false);
-    } finally {
-      setIsLoading(false);
-    }
+        const apiKey = Platform.OS === 'ios' ? iosKey : androidKey;
+
+        if (!apiKey) {
+          console.error('[Subscription] RevenueCat API key not found');
+          setIsInitialized(false);
+          setIsLoading(false);
+          return;
+        }
+
+        Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+        
+        await Purchases.configure({ apiKey });
+        
+        console.log('[Subscription] RevenueCat initialized');
+        setIsInitialized(true);
+
+        await refreshSubscriptionStatus();
+        await loadOfferings();
+      } catch (error) {
+        console.error('[Subscription] Initialization failed:', error);
+        setIsInitialized(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void initializeRevenueCat();
   }, [refreshSubscriptionStatus, loadOfferings]);
 
-  useEffect(() => {
-    void initializeRevenueCat();
-  }, [initializeRevenueCat]);
-
   const purchasePackage = useCallback(async (pkg: PurchasesPackage): Promise<boolean> => {
-    if (!isInitialized || Platform.OS === 'web' || isExpoGo) {
+    if (Platform.OS === 'web' || isExpoGo) {
       Alert.alert(
         'Not Available',
         'Subscriptions are not available in this environment. Please use a production build.'
@@ -182,10 +182,10 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       }
       return false;
     }
-  }, [isInitialized, refreshSubscriptionStatus]);
+  }, [refreshSubscriptionStatus]);
 
   const restorePurchases = useCallback(async (): Promise<boolean> => {
-    if (!isInitialized || Platform.OS === 'web' || isExpoGo) {
+    if (Platform.OS === 'web' || isExpoGo) {
       Alert.alert(
         'Not Available',
         'Restore purchases is not available in this environment.'
@@ -213,10 +213,10 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       Alert.alert('Error', 'Failed to restore purchases. Please try again.');
       return false;
     }
-  }, [isInitialized, refreshSubscriptionStatus]);
+  }, [refreshSubscriptionStatus]);
 
   const setUserId = useCallback(async (userId: string) => {
-    if (!isInitialized || Platform.OS === 'web' || isExpoGo) {
+    if (Platform.OS === 'web' || isExpoGo) {
       console.log('[Subscription] Skipping user ID sync (web or Expo Go)');
       return;
     }
@@ -229,10 +229,10 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     } catch (error) {
       console.error('[Subscription] Failed to set user ID:', error);
     }
-  }, [isInitialized, refreshSubscriptionStatus]);
+  }, [refreshSubscriptionStatus]);
 
   const logout = useCallback(async () => {
-    if (!isInitialized || Platform.OS === 'web' || isExpoGo) {
+    if (Platform.OS === 'web' || isExpoGo) {
       return;
     }
 
@@ -255,7 +255,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     } catch (error) {
       console.error('[Subscription] Logout failed:', error);
     }
-  }, [isInitialized]);
+  }, []);
 
   const checkEntitlement = useCallback((entitlementId: string): boolean => {
     if (entitlementId === 'premium') {
