@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, TrendingUp, Shield, Dumbbell, Trophy, Medal } from "lucide-react-native";
+import { Home, Shield, Dumbbell, Trophy, Users } from "lucide-react-native";
 import React from "react";
 import { Text } from "react-native";
 
@@ -67,19 +67,23 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="community"
+        options={{
+          title: "Community",
+          tabBarIcon: ({ color }) => <Users size={22} color={color} />,
+          tabBarLabel: renderTabLabel("Community"),
+        }}
+      />
+      <Tabs.Screen
         name="leaderboard"
         options={{
-          title: "Ranks",
-          tabBarIcon: ({ color }) => <Medal size={20} color={color} />,
-          tabBarLabel: renderTabLabel("Ranks"),
+          href: null,
         }}
       />
       <Tabs.Screen
         name="progress"
         options={{
-          title: "Progress",
-          tabBarIcon: ({ color }) => <TrendingUp size={20} color={color} />,
-          tabBarLabel: renderTabLabel("Progress"),
+          href: null,
         }}
       />
 
@@ -94,12 +98,6 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="profile"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="community"
         options={{
           href: null,
         }}
