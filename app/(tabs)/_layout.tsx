@@ -7,8 +7,9 @@ import Colors from "@/constants/colors";
 import { useApp } from "@/contexts/AppContext";
 
 const baseLabelStyle = {
-  fontSize: 10,
-  fontWeight: '600' as const,
+  fontSize: 11,
+  fontWeight: '500' as const,
+  marginTop: 4,
 };
 
 const renderTabLabel = (title: string) => {
@@ -33,12 +34,14 @@ export default function TabLayout() {
         tabBarInactiveTintColor: Colors.textSecondary,
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
-          borderTopWidth: 1,
-          paddingTop: 4,
+          backgroundColor: Colors.background,
+          borderTopColor: 'transparent',
+          borderTopWidth: 0,
+          paddingTop: 8,
           paddingBottom: 8,
-          height: 60,
+          height: 65,
+          elevation: 0,
+          shadowOpacity: 0,
         },
       }}
     >
@@ -46,7 +49,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) => <Home size={20} color={color} />,
+          tabBarIcon: ({ color }) => <Home size={22} color={color} strokeWidth={2} />,
           tabBarLabel: renderTabLabel("Home"),
         }}
       />
@@ -54,7 +57,7 @@ export default function TabLayout() {
         name="training"
         options={{
           title: "Missions",
-          tabBarIcon: ({ color }) => <Dumbbell size={20} color={color} />,
+          tabBarIcon: ({ color }) => <Dumbbell size={22} color={color} strokeWidth={2} />,
           tabBarLabel: renderTabLabel("Missions"),
         }}
       />
@@ -62,7 +65,7 @@ export default function TabLayout() {
         name="challenges"
         options={{
           title: "Challenges",
-          tabBarIcon: ({ color }) => <Trophy size={20} color={color} />,
+          tabBarIcon: ({ color }) => <Trophy size={22} color={color} strokeWidth={2} />,
           tabBarLabel: renderTabLabel("Challenges"),
         }}
       />
@@ -70,7 +73,7 @@ export default function TabLayout() {
         name="community"
         options={{
           title: "Community",
-          tabBarIcon: ({ color }) => <Users size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Users size={22} color={color} strokeWidth={2} />,
           tabBarLabel: renderTabLabel("Community"),
         }}
       />
@@ -91,7 +94,7 @@ export default function TabLayout() {
         name="admin"
         options={{
           title: "Admin",
-          tabBarIcon: ({ color }) => <Shield size={20} color={color} />,
+          tabBarIcon: ({ color }) => <Shield size={22} color={color} strokeWidth={2} />,
           tabBarLabel: renderTabLabel("Admin"),
           href: user?.isAdmin ? undefined : null,
         }}
