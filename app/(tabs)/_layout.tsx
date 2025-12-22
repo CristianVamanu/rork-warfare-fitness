@@ -7,7 +7,7 @@ import Colors from "@/constants/colors";
 import { useApp } from "@/contexts/AppContext";
 
 const baseLabelStyle = {
-  fontSize: 12,
+  fontSize: 10,
   fontWeight: '600' as const,
 };
 
@@ -36,8 +36,9 @@ export default function TabLayout() {
           backgroundColor: Colors.surface,
           borderTopColor: Colors.border,
           borderTopWidth: 1,
-          paddingTop: 6,
-          paddingBottom: 12,
+          paddingTop: 4,
+          paddingBottom: 8,
+          height: 60,
         },
       }}
     >
@@ -45,7 +46,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) => <Home size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Home size={20} color={color} />,
           tabBarLabel: renderTabLabel("Home"),
         }}
       />
@@ -53,7 +54,7 @@ export default function TabLayout() {
         name="training"
         options={{
           title: "Missions",
-          tabBarIcon: ({ color }) => <Dumbbell size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Dumbbell size={20} color={color} />,
           tabBarLabel: renderTabLabel("Missions"),
         }}
       />
@@ -61,7 +62,7 @@ export default function TabLayout() {
         name="challenges"
         options={{
           title: "Challenges",
-          tabBarIcon: ({ color }) => <Trophy size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Trophy size={20} color={color} />,
           tabBarLabel: renderTabLabel("Challenges"),
         }}
       />
@@ -69,7 +70,7 @@ export default function TabLayout() {
         name="leaderboard"
         options={{
           title: "Ranks",
-          tabBarIcon: ({ color }) => <Medal size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Medal size={20} color={color} />,
           tabBarLabel: renderTabLabel("Ranks"),
         }}
       />
@@ -77,7 +78,7 @@ export default function TabLayout() {
         name="progress"
         options={{
           title: "Progress",
-          tabBarIcon: ({ color }) => <TrendingUp size={24} color={color} />,
+          tabBarIcon: ({ color }) => <TrendingUp size={20} color={color} />,
           tabBarLabel: renderTabLabel("Progress"),
         }}
       />
@@ -86,7 +87,7 @@ export default function TabLayout() {
         name="admin"
         options={{
           title: "Admin",
-          tabBarIcon: ({ color }) => <Shield size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Shield size={20} color={color} />,
           tabBarLabel: renderTabLabel("Admin"),
           href: user?.isAdmin ? undefined : null,
         }}
