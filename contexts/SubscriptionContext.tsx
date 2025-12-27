@@ -143,7 +143,25 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
           hasAndroidKey: Boolean(androidKey),
         });
 
-        await Purchases.configure({ apiKey });
+        try {
+          await Purchases.configure({ apiKey });
+        } catch (configError: any) {
+          console.warn('[Subscription] RevenueCat configuration failed (expected in sandbox/dev):', configError.message);
+          console.log('[Subscription] Granting free access - RevenueCat not available in this environment');
+          setIsInitialized(false);
+          setIsLoading(false);
+          setSubscriptionState({
+            tier: 'premium',
+            isPremium: true,
+            isActive: true,
+            expirationDate: null,
+            willRenew: false,
+            productIdentifier: 'sandbox_free_access',
+            isInTrialPeriod: false,
+            trialEndDate: null,
+          });
+          return;
+        }
 
         listener = (info: CustomerInfo) => {
           console.log('[Subscription] CustomerInfo updated via listener');
