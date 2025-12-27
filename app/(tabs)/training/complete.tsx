@@ -102,7 +102,7 @@ export default function WorkoutCompleteScreen() {
 
           <TouchableOpacity 
             style={styles.primaryBtn} 
-            onPress={() => router.replace('/(tabs)/training')} 
+            onPress={() => router.replace('/training')} 
             testID="back-dashboard"
           >
             <Text style={styles.primaryBtnText}>RETURN TO BASE</Text>

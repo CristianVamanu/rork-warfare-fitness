@@ -178,7 +178,7 @@ export default function ProgressScreen() {
         </View>
         <TouchableOpacity
           style={styles.profileButton}
-          onPress={() => router.push('/profile')}
+          onPress={() => router.push('/profile' as any)}
         >
           <User size={20} color={Colors.accent} />
         </TouchableOpacity>

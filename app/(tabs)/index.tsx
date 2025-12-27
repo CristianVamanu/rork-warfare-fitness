@@ -710,7 +710,7 @@ export default function HomeScreen() {
           <View style={styles.quickActionsContainer}>
             <TouchableOpacity
               style={styles.actionCard}
-              onPress={() => router.push('/(tabs)/training')}
+              onPress={() => router.push('/training')}
             >
               <View style={styles.actionIconContainer}>
                 <Dumbbell size={24} color={Colors.accent} />
@@ -721,7 +721,7 @@ export default function HomeScreen() {
 
             <TouchableOpacity
               style={styles.actionCard}
-              onPress={() => router.push('/(tabs)/challenges')}
+              onPress={() => router.push('/challenges')}
             >
               <View style={[styles.actionIconContainer, { backgroundColor: '#F59E0B20' }]}>
                 <Trophy size={24} color="#F59E0B" />

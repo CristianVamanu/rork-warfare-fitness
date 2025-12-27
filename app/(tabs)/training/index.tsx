@@ -188,7 +188,7 @@ export default function ProgramDashboardScreen() {
                             </View>
                             <TouchableOpacity
                               style={styles.startBtn}
-                              onPress={() => router.push({ pathname: '/(tabs)/training/workout-preview', params: { day: String(item.day) } })}
+                              onPress={() => router.push({ pathname: '/training/workout-preview' as any, params: { day: String(item.day) } })}
                               testID={`start-day-${item.day}`}
                               accessibilityRole="button"
                               accessibilityLabel={`View workout details day ${item.day}`}
@@ -232,7 +232,7 @@ export default function ProgramDashboardScreen() {
               </TouchableOpacity>
 
               {hasAccess && (
-                <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.push('/(tabs)/training/progress')} testID="open-progress">
+                <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.push('/training/progress' as any)} testID="open-progress">
                   <Text style={styles.secondaryBtnText}>View Program Progress</Text>
                 </TouchableOpacity>
               )}
