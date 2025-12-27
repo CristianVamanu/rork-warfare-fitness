@@ -263,8 +263,8 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   }, [refreshSubscriptionStatus]);
 
   const setUserId = useCallback(async (userId: string) => {
-    if (Platform.OS === 'web' || isExpoGo) {
-      console.log('[Subscription] Skipping user ID sync (web or Expo Go)');
+    if (Platform.OS === 'web' || isExpoGo || !isInitialized) {
+      console.log('[Subscription] Skipping user ID sync (web, Expo Go, or not initialized)');
       return;
     }
 
@@ -276,7 +276,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     } catch (error) {
       console.error('[Subscription] Failed to set user ID:', error);
     }
-  }, [refreshSubscriptionStatus]);
+  }, [refreshSubscriptionStatus, isInitialized]);
 
   const logout = useCallback(async () => {
     if (Platform.OS === 'web' || isExpoGo) {
