@@ -110,6 +110,8 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   }, []);
 
   useEffect(() => {
+    let listener: ((info: CustomerInfo) => void) | null = null;
+
     const initializeRevenueCat = async () => {
       if (Platform.OS === 'web' || isExpoGo) {
         console.log('[Subscription] RevenueCat not supported on web or Expo Go');
@@ -119,22 +121,38 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       }
 
       try {
+        const universalKey = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY;
         const iosKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
         const androidKey = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
 
-        const apiKey = Platform.OS === 'ios' ? iosKey : androidKey;
+        const apiKey = universalKey ?? (Platform.OS === 'ios' ? iosKey : androidKey);
 
         if (!apiKey) {
-          console.error('[Subscription] RevenueCat API key not found');
+          console.error('[Subscription] RevenueCat API key not found. Set EXPO_PUBLIC_REVENUECAT_API_KEY (preferred) or platform keys.');
           setIsInitialized(false);
           setIsLoading(false);
           return;
         }
 
         Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-        
+
+        console.log('[Subscription] Configuring RevenueCat...', {
+          platform: Platform.OS,
+          hasUniversalKey: Boolean(universalKey),
+          hasIosKey: Boolean(iosKey),
+          hasAndroidKey: Boolean(androidKey),
+        });
+
         await Purchases.configure({ apiKey });
-        
+
+        listener = (info: CustomerInfo) => {
+          console.log('[Subscription] CustomerInfo updated via listener');
+          setCustomerInfo(info);
+          void refreshSubscriptionStatus();
+        };
+
+        Purchases.addCustomerInfoUpdateListener(listener);
+
         console.log('[Subscription] RevenueCat initialized');
         setIsInitialized(true);
 
@@ -149,6 +167,17 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     };
 
     void initializeRevenueCat();
+
+    return () => {
+      if (Platform.OS === 'web' || isExpoGo) return;
+      try {
+        if (listener) {
+          Purchases.removeCustomerInfoUpdateListener(listener);
+        }
+      } catch (error) {
+        console.log('[Subscription] Failed to remove listener (safe to ignore):', error);
+      }
+    };
   }, [refreshSubscriptionStatus, loadOfferings]);
 
   const purchasePackage = useCallback(async (pkg: PurchasesPackage): Promise<boolean> => {
