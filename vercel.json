@@ -3,6 +3,12 @@
   "framework": null,
   "buildCommand": "bunx expo export --platform web",
   "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/backend/hono.ts"
+    }
+  ],
   "routes": [
     { "src": "/(.*)", "dest": "/index.html" }
   ]
