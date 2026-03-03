@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Linking, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { Crown, RefreshCcw, ExternalLink, Settings as SettingsIcon, X, Check } from 'lucide-react-native';
+import { Crown, ExternalLink, Settings as SettingsIcon, X, Check } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import Colors from '@/constants/colors';
@@ -9,52 +9,23 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 
 export default function ManageSubscriptionScreen() {
   const router = useRouter();
-  const { 
-    subscriptionState, 
-    restorePurchases,
-    refreshSubscriptionStatus,
-    customerInfo
+  const {
+    subscriptionState,
+    refreshSubscriptionStatus
   } = useSubscription();
-  
-  const [isRestoring, setIsRestoring] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleRestore = async () => {
-    setIsRestoring(true);
-    await restorePurchases();
-    setIsRestoring(false);
-  };
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refreshSubscriptionStatus();
-    setIsRefreshing(false);
-  };
 
   const handleManageSubscription = () => {
-    if (Platform.OS === 'ios') {
-      Alert.alert(
-        'Manage Subscription',
-        'To manage your subscription, go to:\nSettings → [Your Name] → Subscriptions',
-        [{ text: 'OK' }]
-      );
-    } else if (Platform.OS === 'android') {
-      Alert.alert(
-        'Manage Subscription',
-        'To manage your subscription, go to:\nGoogle Play Store → Menu → Subscriptions',
-        [{ text: 'OK' }]
-      );
-    }
+    Linking.openURL('https://billing.stripe.com/p/login/test_123');
   };
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-GB', { 
-        day: 'numeric', 
-        month: 'long', 
-        year: 'numeric' 
+      return date.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
       });
     } catch {
       return 'Invalid Date';
@@ -63,20 +34,20 @@ export default function ManageSubscriptionScreen() {
 
   return (
     <>
-      <Stack.Screen 
-        options={{ 
+      <Stack.Screen
+        options={{
           title: 'Subscription',
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.text,
           headerShadowVisible: false,
-        }} 
+        }}
       />
       <View style={styles.container}>
         <LinearGradient
           colors={subscriptionState.isPremium ? ['#1a1a1a', '#0a0a0a'] : [Colors.background, Colors.background]}
           style={styles.gradient}
         >
-          <ScrollView 
+          <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
@@ -104,7 +75,7 @@ export default function ManageSubscriptionScreen() {
                   <Text style={styles.statusSubtitle}>
                     Upgrade to unlock all premium features
                   </Text>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.upgradeButton}
                     onPress={() => router.push('/paywall' as any)}
                   >
@@ -118,7 +89,7 @@ export default function ManageSubscriptionScreen() {
             {subscriptionState.isPremium && (
               <View style={styles.detailsCard}>
                 <Text style={styles.sectionTitle}>Subscription Details</Text>
-                
+
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Status</Text>
                   <View style={styles.statusBadge}>
@@ -131,7 +102,7 @@ export default function ManageSubscriptionScreen() {
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Plan</Text>
                     <Text style={styles.detailValue}>
-                      {subscriptionState.productIdentifier.includes('monthly') ? 'Monthly' : 
+                      {subscriptionState.productIdentifier.includes('monthly') ? 'Monthly' :
                        subscriptionState.productIdentifier.includes('annual') ? 'Annual' : 'Premium'}
                     </Text>
                   </View>
@@ -158,71 +129,37 @@ export default function ManageSubscriptionScreen() {
             )}
 
             <View style={styles.actionsCard}>
-              <Text style={styles.sectionTitle}>Actions</Text>
-              
-              {Platform.OS !== 'web' && (
-                <>
-                  <TouchableOpacity 
-                    style={styles.actionButton}
-                    onPress={handleRefresh}
-                    disabled={isRefreshing}
-                  >
-                    {isRefreshing ? (
-                      <ActivityIndicator color={Colors.accent} size="small" />
-                    ) : (
-                      <>
-                        <RefreshCcw size={20} color={Colors.accent} />
-                        <Text style={styles.actionButtonText}>Refresh Status</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
+              <Text style={styles.sectionTitle}>Manage Subscription</Text>
 
-                  <TouchableOpacity 
-                    style={styles.actionButton}
-                    onPress={handleRestore}
-                    disabled={isRestoring}
-                  >
-                    {isRestoring ? (
-                      <ActivityIndicator color={Colors.accent} size="small" />
-                    ) : (
-                      <>
-                        <RefreshCcw size={20} color={Colors.accent} />
-                        <Text style={styles.actionButtonText}>Restore Purchases</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-
-                  {subscriptionState.isPremium && (
-                    <TouchableOpacity 
-                      style={styles.actionButton}
-                      onPress={handleManageSubscription}
-                    >
-                      <SettingsIcon size={20} color={Colors.accent} />
-                      <Text style={styles.actionButtonText}>Manage Subscription</Text>
-                      <ExternalLink size={16} color={Colors.textTertiary} style={{ marginLeft: 'auto' }} />
-                    </TouchableOpacity>
-                  )}
-                </>
-              )}
-
-              {Platform.OS === 'web' && (
-                <View style={styles.webNotice}>
-                  <Text style={styles.webNoticeText}>
-                    Subscription management is available on iOS and Android apps
+              {subscriptionState.isPremium ? (
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={handleManageSubscription}
+                >
+                  <SettingsIcon size={20} color={Colors.accent} />
+                  <Text style={styles.actionButtonText}>Manage via Stripe</Text>
+                  <ExternalLink size={16} color={Colors.textTertiary} style={{ marginLeft: 'auto' }} />
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.infoBox}>
+                  <Text style={styles.infoText}>
+                    Subscribe to premium to manage your subscription through Stripe's secure billing portal.
                   </Text>
                 </View>
               )}
             </View>
 
-            {customerInfo && (
+            {subscriptionState.stripeCustomerId && (
               <View style={styles.debugCard}>
                 <Text style={styles.debugTitle}>Account Info</Text>
                 <Text style={styles.debugText}>
-                  User ID: {customerInfo.originalAppUserId}
+                  Customer ID: {subscriptionState.stripeCustomerId.substring(0, 20)}...
                 </Text>
-                <Text style={styles.debugText}>
-                  Entitlements: {Object.keys(customerInfo.entitlements.active).join(', ') || 'None'}
-                </Text>
+                {subscriptionState.stripeSubscriptionId && (
+                  <Text style={styles.debugText}>
+                    Subscription ID: {subscriptionState.stripeSubscriptionId.substring(0, 20)}...
+                  </Text>
+                )}
               </View>
             )}
           </ScrollView>
@@ -364,7 +301,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: Colors.background,
     borderRadius: 12,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: Colors.border,
   },
@@ -373,14 +309,14 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: Colors.text,
   },
-  webNotice: {
+  infoBox: {
     padding: 16,
     backgroundColor: Colors.background,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  webNoticeText: {
+  infoText: {
     fontSize: 14,
     color: Colors.textSecondary,
     textAlign: 'center',

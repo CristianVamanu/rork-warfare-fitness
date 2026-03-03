@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform, Linking } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { Crown, Check, X, RefreshCcw, Zap, Lock, Flame, Trophy, Video, Calendar } from 'lucide-react-native';
+import { Crown, Check, X, Zap, Lock, Flame, Trophy, Video, Calendar } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-
 
 import Colors from '@/constants/colors';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -26,40 +25,17 @@ const FREE_FEATURES = [
 
 export default function PaywallScreen() {
   const router = useRouter();
-  const { 
-    currentOffering, 
-    purchasePackage, 
-    restorePurchases,
+  const {
     subscriptionState,
-    isLoading,
-    getDaysRemainingInTrial 
+    getDaysRemainingInTrial
   } = useSubscription();
-  
-  const [isPurchasing, setIsPurchasing] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
 
-  const monthlyPackage = currentOffering?.availablePackages.find(
-    pkg => pkg.packageType === 'MONTHLY'
-  );
-
-  const handlePurchase = async () => {
-    if (!monthlyPackage) {
-      return;
+  const handleUpgrade = () => {
+    if (Platform.OS === 'web') {
+      Linking.openURL('https://billing.stripe.com/p/login/test_123');
+    } else {
+      Linking.openURL('https://billing.stripe.com/p/login/test_123');
     }
-
-    setIsPurchasing(true);
-    const success = await purchasePackage(monthlyPackage);
-    setIsPurchasing(false);
-
-    if (success) {
-      router.back();
-    }
-  };
-
-  const handleRestore = async () => {
-    setIsRestoring(true);
-    await restorePurchases();
-    setIsRestoring(false);
   };
 
   const handleClose = () => {
@@ -69,11 +45,11 @@ export default function PaywallScreen() {
   if (subscriptionState.isPremium) {
     return (
       <>
-        <Stack.Screen 
-          options={{ 
+        <Stack.Screen
+          options={{
             headerShown: false,
             presentation: 'modal'
-          }} 
+          }}
         />
         <View style={styles.container}>
           <LinearGradient
@@ -92,7 +68,7 @@ export default function PaywallScreen() {
               <Text style={styles.successSubtitle}>
                 Enjoy unlimited access to all exclusive content
               </Text>
-              
+
               <TouchableOpacity style={styles.continueButton} onPress={handleClose}>
                 <Text style={styles.continueButtonText}>Continue</Text>
               </TouchableOpacity>
@@ -105,18 +81,18 @@ export default function PaywallScreen() {
 
   return (
     <>
-      <Stack.Screen 
-        options={{ 
+      <Stack.Screen
+        options={{
           headerShown: false,
           presentation: 'modal'
-        }} 
+        }}
       />
       <View style={styles.container}>
         <LinearGradient
           colors={['#1a1a1a', '#0a0a0a']}
           style={styles.gradient}
         >
-          <ScrollView 
+          <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
@@ -133,7 +109,7 @@ export default function PaywallScreen() {
               <Text style={styles.subtitle}>
                 Get full access to all workout days, challenges, ice bath protocols, and exclusive content
               </Text>
-              
+
               {subscriptionState.isInTrialPeriod && getDaysRemainingInTrial() !== null && (
                 <View style={styles.trialBanner}>
                   <Calendar size={18} color={Colors.accent} />
@@ -158,9 +134,9 @@ export default function PaywallScreen() {
                       ) : (
                         <X size={18} color={Colors.textTertiary} />
                       )}
-                      <Text 
+                      <Text
                         style={[
-                          styles.featureText, 
+                          styles.featureText,
                           !feature.included && styles.featureTextDisabled
                         ]}
                       >
@@ -182,7 +158,7 @@ export default function PaywallScreen() {
                     <Crown size={16} color="#000" fill="#FFD700" />
                     <Text style={styles.premiumBadgeText}>PREMIUM</Text>
                   </View>
-                  
+
                   <View style={styles.tierHeader}>
                     <Text style={[styles.tierName, styles.premiumTierName]}>Premium</Text>
                     <View>
@@ -205,59 +181,19 @@ export default function PaywallScreen() {
                     ))}
                   </View>
 
-                  {Platform.OS !== 'web' && currentOffering && monthlyPackage ? (
-                    <TouchableOpacity 
-                      style={styles.subscribeButton}
-                      onPress={handlePurchase}
-                      disabled={isPurchasing}
-                    >
-                      {isPurchasing ? (
-                        <ActivityIndicator color="#FF6B00" />
-                      ) : (
-                        <>
-                          <Crown size={20} color="#FF6B00" fill="#FF6B00" />
-                          <Text style={styles.subscribeButtonText}>Subscribe Now</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  ) : Platform.OS === 'web' ? (
-                    <View style={styles.webNotice}>
-                      <Text style={styles.webNoticeText}>
-                        Subscriptions available on iOS & Android
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={styles.loadingContainer}>
-                      {isLoading ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <Text style={styles.errorText}>Unable to load offerings</Text>
-                      )}
-                    </View>
-                  )}
+                  <TouchableOpacity
+                    style={styles.subscribeButton}
+                    onPress={handleUpgrade}
+                  >
+                    <Crown size={20} color="#FF6B00" fill="#FF6B00" />
+                    <Text style={styles.subscribeButtonText}>Subscribe with Stripe</Text>
+                  </TouchableOpacity>
                 </LinearGradient>
               </View>
             </View>
 
-            {Platform.OS !== 'web' && (
-              <TouchableOpacity 
-                style={styles.restoreButton}
-                onPress={handleRestore}
-                disabled={isRestoring}
-              >
-                {isRestoring ? (
-                  <ActivityIndicator color={Colors.accent} size="small" />
-                ) : (
-                  <>
-                    <RefreshCcw size={18} color={Colors.accent} />
-                    <Text style={styles.restoreButtonText}>Restore Purchases</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
-
             <Text style={styles.disclaimer}>
-              Cancel anytime. Subscription automatically renews unless cancelled 24 hours before the end of the current period.
+              Cancel anytime. Subscription automatically renews unless cancelled 24 hours before the end of the current period. Payment will be processed through Stripe.
             </Text>
           </ScrollView>
         </LinearGradient>
@@ -440,38 +376,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '900' as const,
     color: '#FF6B00',
-  },
-  webNotice: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  webNoticeText: {
-    fontSize: 14,
-    color: '#fff',
-    fontWeight: '600' as const,
-  },
-  loadingContainer: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  errorText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  restoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    marginTop: 8,
-  },
-  restoreButtonText: {
-    fontSize: 15,
-    fontWeight: '700' as const,
-    color: Colors.accent,
   },
   disclaimer: {
     fontSize: 12,

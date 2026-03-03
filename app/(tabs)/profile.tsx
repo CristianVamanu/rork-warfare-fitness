@@ -1,8 +1,8 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Save, User, Mail, Calendar, Weight, Target as TargetIcon, Edit2, Shield, Zap, TrendingUp, DollarSign, Flame, Check, Video as VideoIcon, LogOut, CreditCard, Scale, Bell, Package, Crown, RefreshCcw } from 'lucide-react-native';
+import { Save, User, Mail, Calendar, Weight, Target as TargetIcon, Edit2, Shield, Zap, TrendingUp, DollarSign, Flame, Check, Video as VideoIcon, LogOut, CreditCard, Scale, Bell, Package, Crown } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, Modal, ActivityIndicator, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, Modal, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/colors';
@@ -19,10 +19,9 @@ export default function ProfileScreen() {
   const { powerLevel, streak, missions, logout, user, updateUserAvatar, updateUserProfile, powerMetrics, adminSettings } = useApp();
   const { workoutLogs } = useTraining();
   const { getUnreadCount } = useNotifications();
-  const { subscriptionState, restorePurchases, getDaysRemainingInTrial } = useSubscription();
+  const { subscriptionState, getDaysRemainingInTrial } = useSubscription();
 
   const unreadNotificationsCount = user ? getUnreadCount(user.id) : 0;
-  const [isRestoring, setIsRestoring] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name || user?.email?.split('@')[0] || '');
@@ -287,27 +286,6 @@ export default function ProfileScreen() {
               </>
             )}
           </View>
-          
-          {Platform.OS !== 'web' && (
-            <TouchableOpacity 
-              style={styles.restoreButton}
-              onPress={async () => {
-                setIsRestoring(true);
-                await restorePurchases();
-                setIsRestoring(false);
-              }}
-              disabled={isRestoring}
-            >
-              {isRestoring ? (
-                <ActivityIndicator color={Colors.accent} size="small" />
-              ) : (
-                <>
-                  <RefreshCcw size={16} color={Colors.accent} />
-                  <Text style={styles.restoreButtonText}>Restore Purchases</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
         </View>
 
         <TouchableOpacity 
@@ -808,18 +786,5 @@ const styles = StyleSheet.create({
     fontWeight: '800' as const,
     color: Colors.background,
     textTransform: 'uppercase' as const,
-  },
-  restoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    marginTop: 12,
-  },
-  restoreButtonText: {
-    fontSize: 14,
-    fontWeight: '700' as const,
-    color: Colors.accent,
   },
 });

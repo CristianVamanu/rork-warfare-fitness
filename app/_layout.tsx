@@ -19,7 +19,8 @@ import { DaysWithoutProvider } from '@/contexts/DaysWithoutContext';
 import { CommunityProvider } from '@/contexts/CommunityContext';
 import { SubscriptionProvider, useSubscription } from '@/contexts/SubscriptionContext';
 
-import { runMigrations, verifyDataIntegrity } from '@/lib/data-migration';
+import { runMigrations, verifyDataIntegrity } from '@/lib/data-migration'
+import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -114,7 +115,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (user) {
       void setUserId(user.id);
-      console.log('[Auth] Synced user ID with RevenueCat:', user.id);
+      console.log('[Auth] Synced user ID:', user.id);
     }
   }, [user, setUserId]);
 
@@ -163,6 +164,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  useFrameworkReady();
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
