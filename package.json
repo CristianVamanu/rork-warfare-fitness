@@ -70,5 +70,11 @@
     "eslint-config-expo": "9.2.0",
     "typescript": "~5.9.2"
   },
+  "overrides": {
+    "lucide-react-native": {
+      "react": "$react",
+      "react-native-svg": "$react-native-svg"
+    }
+  },
   "private": true
 }
