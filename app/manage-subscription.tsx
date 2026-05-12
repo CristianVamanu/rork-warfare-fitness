@@ -143,7 +143,7 @@ export default function ManageSubscriptionScreen() {
               ) : (
                 <View style={styles.infoBox}>
                   <Text style={styles.infoText}>
-                    Subscribe to premium to manage your subscription through Stripe&apos;s secure billing portal.
+                    Subscribe to premium to manage your subscription through Stripe's secure billing portal.
                   </Text>
                 </View>
               )}
