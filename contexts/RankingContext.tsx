@@ -4,6 +4,71 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '@/contexts/AppContext';
 import { useTraining, ExercisePerformance } from '@/contexts/TrainingContext';
 
+export type RankTier = 'iron' | 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'warlord';
+
+export type RankInfo = {
+  tier: RankTier;
+  label: string;
+  minPoints: number;
+  maxPoints: number;
+  color: string;
+  icon: string;
+};
+
+export const RANK_TIERS: RankInfo[] = [
+  { tier: 'iron',     label: 'Iron',     minPoints: 0,     maxPoints: 499,   color: '#6B7280', icon: '⚙️' },
+  { tier: 'bronze',   label: 'Bronze',   minPoints: 500,   maxPoints: 1499,  color: '#CD7F32', icon: '🥉' },
+  { tier: 'silver',   label: 'Silver',   minPoints: 1500,  maxPoints: 3499,  color: '#C0C0C0', icon: '🥈' },
+  { tier: 'gold',     label: 'Gold',     minPoints: 3500,  maxPoints: 6999,  color: '#FFD700', icon: '🥇' },
+  { tier: 'platinum', label: 'Platinum', minPoints: 7000,  maxPoints: 12999, color: '#E5E4E2', icon: '💎' },
+  { tier: 'diamond',  label: 'Diamond',  minPoints: 13000, maxPoints: 24999, color: '#B9F2FF', icon: '💠' },
+  { tier: 'warlord',  label: 'Warlord',  minPoints: 25000, maxPoints: Infinity, color: '#F5A623', icon: '⚔️' },
+];
+
+export function getUserRankTier(points: number): RankInfo {
+  for (let i = RANK_TIERS.length - 1; i >= 0; i--) {
+    if (points >= RANK_TIERS[i].minPoints) return RANK_TIERS[i];
+  }
+  return RANK_TIERS[0];
+}
+
+export function getPointsToNextTier(points: number): number {
+  const tier = getUserRankTier(points);
+  if (tier.maxPoints === Infinity) return 0;
+  return tier.maxPoints - points + 1;
+}
+
+export function calculatePoints(workoutLogs: any[], streak: number, achievements: any[]): number {
+  let points = 0;
+  const streakMultiplier = Math.min(2.0, 1 + streak * 0.05);
+  for (const log of workoutLogs) {
+    let workoutPoints = 100;
+    let volumeBonus = 0;
+    if (log.exercises) {
+      for (const ex of log.exercises) {
+        if (ex.sets) {
+          for (const set of ex.sets) {
+            if (set.completed && set.weight && set.reps) {
+              volumeBonus += (set.weight * set.reps) / 100;
+            }
+          }
+        }
+      }
+    }
+    workoutPoints += Math.min(200, volumeBonus);
+    points += workoutPoints * streakMultiplier;
+  }
+  const prCount = achievements.filter((a: any) => a.type === 'pr').length;
+  points += prCount * 150;
+  const now = new Date();
+  const recentLogs = workoutLogs.filter(l => {
+    const d = new Date(l.completedAt);
+    return (now.getTime() - d.getTime()) < 7 * 24 * 60 * 60 * 1000;
+  });
+  if (recentLogs.length >= 5) points += 250;
+  return Math.round(points);
+}
+
 export type MilitaryRank = 
   | 'Recruit'
   | 'Cadet'
@@ -44,8 +109,8 @@ const STORAGE_KEYS = {
 };
 
 export const [RankingProvider, useRanking] = createContextHook(() => {
-  const { user } = useApp();
-  const { exercisePerformances, workoutLogs } = useTraining();
+  const { user, streak } = useApp();
+  const { exercisePerformances, workoutLogs, achievements } = useTraining();
   const [userRankData, setUserRankData] = useState<UserRankData | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -259,6 +324,17 @@ export const [RankingProvider, useRanking] = createContextHook(() => {
     }
   }, [(exercisePerformances || []).length, (workoutLogs || []).length, isLoading, user?.id]);
 
+  const totalPoints = useMemo(() =>
+    calculatePoints(workoutLogs || [], streak, achievements || []),
+    [workoutLogs, streak, achievements]
+  );
+  const currentTier = useMemo(() => getUserRankTier(totalPoints), [totalPoints]);
+  const pointsToNextTier = useMemo(() => getPointsToNextTier(totalPoints), [totalPoints]);
+  const rankProgress = useMemo(() => {
+    if (currentTier.maxPoints === Infinity) return 1;
+    return (totalPoints - currentTier.minPoints) / (currentTier.maxPoints - currentTier.minPoints);
+  }, [totalPoints, currentTier]);
+
   return useMemo(
     () => ({
       userRankData,
@@ -272,6 +348,10 @@ export const [RankingProvider, useRanking] = createContextHook(() => {
       getAllUsersRankData,
       getUserGlobalRank,
       getTopPercentile,
+      totalPoints,
+      currentTier,
+      pointsToNextTier,
+      rankProgress,
     }),
     [
       userRankData,
@@ -285,6 +365,10 @@ export const [RankingProvider, useRanking] = createContextHook(() => {
       getAllUsersRankData,
       getUserGlobalRank,
       getTopPercentile,
+      totalPoints,
+      currentTier,
+      pointsToNextTier,
+      rankProgress,
     ]
   );
 });

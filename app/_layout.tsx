@@ -18,6 +18,7 @@ import { ShopProvider } from '@/contexts/ShopContext';
 import { DaysWithoutProvider } from '@/contexts/DaysWithoutContext';
 import { CommunityProvider } from '@/contexts/CommunityContext';
 import { SubscriptionProvider, useSubscription } from '@/contexts/SubscriptionContext';
+import { TrainerProvider } from '@/contexts/TrainerContext';
 
 import { runMigrations, verifyDataIntegrity } from '@/lib/data-migration'
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
@@ -158,6 +159,10 @@ function RootLayoutNav() {
         <Stack.Screen name="register" options={{ headerShown: false }} />
         <Stack.Screen name="ice-bath-tracker" options={{ headerShown: false }} />
         <Stack.Screen name="paywall" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="marketplace" options={{ headerShown: false }} />
+        <Stack.Screen name="trainer" options={{ headerShown: false }} />
+        <Stack.Screen name="program-detail" options={{ headerShown: false }} />
+        <Stack.Screen name="admin-trainers" options={{ headerShown: false }} />
       </Stack>
     </AuthGuard>
   );
@@ -172,6 +177,7 @@ export default function RootLayout() {
           <AppProvider>
             <FirebaseProvider>
               <SubscriptionProvider>
+                <TrainerProvider>
                 <TrainingProvider>
                   <RankingProvider>
                     <LeaderboardProvider>
@@ -192,6 +198,7 @@ export default function RootLayout() {
                     </LeaderboardProvider>
                   </RankingProvider>
                 </TrainingProvider>
+              </TrainerProvider>
               </SubscriptionProvider>
             </FirebaseProvider>
           </AppProvider>
