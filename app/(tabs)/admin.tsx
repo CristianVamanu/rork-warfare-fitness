@@ -128,6 +128,13 @@ export default function AdminScreen() {
       color: Colors.textSecondary,
       route: '/admin-settings',
     },
+    {
+      title: 'Trainers',
+      description: 'Manage trainer accounts & revenue',
+      icon: Crown,
+      color: Colors.accent,
+      route: '/admin-trainers',
+    },
   ];
 
   return (

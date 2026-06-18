@@ -82,6 +82,9 @@ interface AdminAppSettings {
   dailyBriefings?: DailyBriefing[];
   appLogo?: string;
   coffeeLink?: string;
+  defaultTrialDays?: number;
+  platformRevenueSplit?: number;
+  requireTrainerApproval?: boolean;
 }
 
 interface User {
@@ -102,6 +105,13 @@ interface User {
   resetPin?: string;
 
   powerLevelSnapshot?: number;
+  isTrainer?: boolean;
+  trainerBio?: string;
+  trainerSpecialty?: string;
+  trainerPrice?: number;
+  trainerTrialDays?: number;
+  trainerRevenueSplit?: number;
+  trainerApproved?: boolean;
 }
 
 const ADMIN_EMAILS = ['admin@warfarefitness.com', 'superadmin@warfarefitness.com'];
@@ -194,6 +204,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
   });
   const [fastingState, setFastingState] = useState<FastingState | undefined>(undefined);
   const [iceBaths, setIceBaths] = useState<IceBathLog[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -301,6 +312,13 @@ export const [AppProvider, useApp] = createContextHook(() => {
         if (storedIceBaths) {
           try {
             setIceBaths(JSON.parse(storedIceBaths));
+          } catch {}
+        }
+
+        const storedAllUsers = await AsyncStorage.getItem(STORAGE_KEYS.ALL_USERS);
+        if (storedAllUsers) {
+          try {
+            setAllUsers(JSON.parse(storedAllUsers));
           } catch {}
         }
 
@@ -744,6 +762,32 @@ export const [AppProvider, useApp] = createContextHook(() => {
     return true;
   }, []);
 
+  const promoteToTrainer = useCallback(async (userId: string) => {
+    const updated = allUsers.map(u =>
+      u.id === userId ? { ...u, isTrainer: true, trainerApproved: true, trainerRevenueSplit: 70 } : u
+    );
+    setAllUsers(updated);
+    await AsyncStorage.setItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(updated));
+    if (user?.id === userId) {
+      const updatedUser = { ...user, isTrainer: true, trainerApproved: true, trainerRevenueSplit: 70 };
+      setUser(updatedUser);
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
+    }
+  }, [allUsers, user]);
+
+  const revokeTrainer = useCallback(async (userId: string) => {
+    const updated = allUsers.map(u =>
+      u.id === userId ? { ...u, isTrainer: false, trainerApproved: false } : u
+    );
+    setAllUsers(updated);
+    await AsyncStorage.setItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(updated));
+    if (user?.id === userId) {
+      const updatedUser = { ...user, isTrainer: false, trainerApproved: false };
+      setUser(updatedUser);
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
+    }
+  }, [allUsers, user]);
+
   return useMemo(
     () => ({
       isLoading,
@@ -785,6 +829,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
       iceBaths,
       logIceBathEntry,
       hasFullAccess,
+      allUsers,
+      promoteToTrainer,
+      revokeTrainer,
     }),
     [
       isLoading,
@@ -826,6 +873,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
       iceBaths,
       logIceBathEntry,
       hasFullAccess,
+      allUsers,
+      promoteToTrainer,
+      revokeTrainer,
     ]
   );
 });
