@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, ScrollView, Platform, Image, ActivityIndicator, Modal } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { LogIn, X } from 'lucide-react-native';
+import { LogIn, X, Eye, EyeOff } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Colors from '@/constants/colors';
@@ -46,14 +46,26 @@ export default function LoginScreen() {
             <Text style={styles.title}>Welcome back</Text>
             <Text style={styles.sub}>Sign in to continue your missions</Text>
             <TextInput style={styles.input} placeholder='Email' placeholderTextColor={Colors.textTertiary} autoCapitalize='none' keyboardType='email-address' value={email} onChangeText={setEmail} />
-            <TextInput
-              style={styles.input}
-              placeholder='Password'
-              placeholderTextColor={Colors.textTertiary}
-              secureTextEntry={!showPassword}
-              value={password}
-              onChangeText={setPassword}
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder='Password'
+                placeholderTextColor={Colors.textTertiary}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(v => !v)}
+              >
+                {showPassword ? (
+                  <EyeOff size={20} color={Colors.textSecondary} />
+                ) : (
+                  <Eye size={20} color={Colors.textSecondary} />
+                )}
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity style={styles.btn} onPress={async () => {
               if (!email) { Alert.alert('Missing info', 'Enter email'); return; }
               if (!isValidEmail(email)) { Alert.alert('Invalid Email', 'Please enter a valid email address'); return; }
@@ -223,6 +235,9 @@ const styles = StyleSheet.create({
   title: { color: Colors.text, fontWeight: '900' as const, fontSize: 28, textAlign: 'center', marginBottom: 8 },
   sub: { color: Colors.textSecondary, marginBottom: 32, fontWeight: '600' as const, textAlign: 'center', fontSize: 15 },
   input: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, color: Colors.text, marginBottom: 12, width: '100%', maxWidth: 400 },
+  passwordContainer: { flexDirection: 'row' as const, alignItems: 'center' as const, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 12, marginBottom: 12, width: '100%', maxWidth: 400 },
+  passwordInput: { flex: 1, paddingHorizontal: 16, paddingVertical: 14, color: Colors.text, fontSize: 16 },
+  eyeButton: { paddingHorizontal: 14, paddingVertical: 14 },
   btn: { backgroundColor: Colors.accent, paddingVertical: 16, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8, width: '100%', maxWidth: 400 },
   btnText: { color: Colors.background, fontWeight: '900' as const, fontSize: 16 },
   forgotLink: { color: Colors.textSecondary, textAlign: 'center', marginTop: 12, fontWeight: '600' as const, fontSize: 14 },
