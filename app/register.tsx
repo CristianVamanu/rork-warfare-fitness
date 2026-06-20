@@ -172,11 +172,7 @@ export default function RegisterScreen() {
                 await login(email, name, password, true, username, weightUnit, '', '', '', '', undefined, resetPin);
                 
                 setIsLoading(false);
-                if (adminSettings.welcomeVideoUrl) {
-                  router.replace('/welcome-video' as any);
-                } else {
-                  router.replace('/(tabs)' as any);
-                }
+                router.replace('/onboarding' as any);
               } catch (error) {
                 setIsLoading(false);
                 Alert.alert('Registration Failed', error instanceof Error ? error.message : 'An error occurred');
