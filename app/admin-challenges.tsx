@@ -378,28 +378,37 @@ export default function AdminChallengesScreen() {
                 </View>
               </View>
 
-              <View style={styles.formRow}>
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.label}>Start Date *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.startDate}
-                    onChangeText={(text) => setFormData({ ...formData, startDate: text })}
-                    placeholder="2025-01-01"
-                    placeholderTextColor={Colors.textTertiary}
-                  />
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Challenge Duration *</Text>
+                <View style={styles.durationChipsRow}>
+                  {[7, 14, 21, 30, 60, 90].map((days) => {
+                    const start = new Date();
+                    const end = new Date();
+                    end.setDate(end.getDate() + days);
+                    const startStr = start.toISOString().split('T')[0];
+                    const endStr = end.toISOString().split('T')[0];
+                    const isSelected = formData.startDate === startStr && formData.endDate === endStr;
+                    return (
+                      <TouchableOpacity
+                        key={days}
+                        style={[styles.durationChip, isSelected && styles.durationChipActive]}
+                        onPress={() => setFormData({ ...formData, startDate: startStr, endDate: endStr })}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.durationChipText, isSelected && styles.durationChipTextActive]}>
+                          {days}d
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
-
-                <View style={[styles.formGroup, { flex: 1 }]}>
-                  <Text style={styles.label}>End Date *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.endDate}
-                    onChangeText={(text) => setFormData({ ...formData, endDate: text })}
-                    placeholder="2025-01-31"
-                    placeholderTextColor={Colors.textTertiary}
-                  />
-                </View>
+                {formData.startDate && formData.endDate ? (
+                  <Text style={styles.dateRangeText}>
+                    {new Date(formData.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → {new Date(formData.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </Text>
+                ) : (
+                  <Text style={styles.dateRangeText}>Select a duration above</Text>
+                )}
               </View>
 
               <View style={{ height: 100 }} />
@@ -702,5 +711,37 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: Colors.danger,
     fontWeight: '600' as const,
+  },
+  durationChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  durationChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  durationChipActive: {
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accent,
+  },
+  durationChipText: {
+    color: Colors.textSecondary,
+    fontWeight: '700' as const,
+    fontSize: 14,
+  },
+  durationChipTextActive: {
+    color: Colors.background,
+  },
+  dateRangeText: {
+    color: Colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600' as const,
+    marginTop: 4,
   },
 });
