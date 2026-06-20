@@ -1,4 +1,4 @@
-import { publicProcedure } from "@/backend/trpc/create-context";
+import { publicProcedure } from "../../../create-context";
 
 export const listShopProductsProcedure = publicProcedure.query(async () => {
   console.log("[Shop] Listing all products");
