@@ -484,7 +484,7 @@ export default function AdminSettingsScreen() {
             autoCapitalize="none"
             secureTextEntry
           />
-          <Text style={styles.helpText}>Leave empty to use default AI service. Add your own key for unlimited usage.</Text>
+          <Text style={styles.helpText}>Use your standard OpenAI API key (starts with sk- or sk-proj-). Get one at platform.openai.com. Leave empty to disable AI features.</Text>
         </View>
 
         <View style={styles.section}>

@@ -340,22 +340,21 @@ export default function CommunityScreen() {
       <Modal
         visible={showCreateModal}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowCreateModal(false)}
       >
         <KeyboardAvoidingView
-          style={styles.modalOverlay}
+          style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <TouchableOpacity
             style={styles.modalOverlayTouchable}
             activeOpacity={1}
             onPress={() => setShowCreateModal(false)}
-          >
-            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+          />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
               <ScrollView
-                style={styles.modalScrollView}
-                contentContainerStyle={styles.modalScrollContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
               >
@@ -595,30 +594,28 @@ export default function CommunityScreen() {
             </View>
                 </View>
               </ScrollView>
-            </TouchableOpacity>
-          </TouchableOpacity>
+            </View>
         </KeyboardAvoidingView>
       </Modal>
 
       <Modal
         visible={showEditModal}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowEditModal(false)}
       >
         <KeyboardAvoidingView
-          style={styles.modalOverlay}
+          style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <TouchableOpacity
             style={styles.modalOverlayTouchable}
             activeOpacity={1}
             onPress={() => setShowEditModal(false)}
-          >
-            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+          />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
               <ScrollView
-                style={styles.modalScrollView}
-                contentContainerStyle={styles.modalScrollContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
               >
@@ -859,8 +856,7 @@ export default function CommunityScreen() {
             </View>
                 </View>
               </ScrollView>
-            </TouchableOpacity>
-          </TouchableOpacity>
+            </View>
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -1035,30 +1031,30 @@ const styles = StyleSheet.create({
   leaveButton: {
     borderColor: Colors.danger,
   },
-  modalOverlay: {
-    flex: 1,
-  },
   modalOverlayTouchable: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
-  modalScrollView: {
-    maxHeight: '80%',
+  modalSheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
+    borderTopWidth: 1,
+    borderColor: Colors.border,
+    paddingBottom: 32,
   },
-  modalScrollContent: {
-    justifyContent: 'center',
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: Colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 8,
   },
   modalContent: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
     padding: 24,
-    width: '100%',
-    maxWidth: 400,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   modalTitle: {
     fontSize: 22,

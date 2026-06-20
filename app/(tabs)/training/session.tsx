@@ -39,6 +39,7 @@ export default function WorkoutSessionScreen() {
   const [cardioTimers, setCardioTimers] = useState<Record<string, CardioTimerState>>({});
   const [sessionStartTime] = useState<string>(new Date().toISOString());
   const [demoExercise, setDemoExercise] = useState<{ name: string; imageUrl?: string } | null>(null);
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
 
   useEffect(() => {
     if (workout) {
@@ -183,15 +184,7 @@ export default function WorkoutSessionScreen() {
       <View style={styles.headerRow}>
         <TouchableOpacity
           accessibilityRole="button"
-          onPress={() => {
-            Alert.alert('Quit Workout', 'Winners finish what they start. Are you sure?', [
-              { text: 'Stay and Grind', style: 'cancel' },
-              { text: 'Quit', style: 'destructive', onPress: () => {
-                if (router.canGoBack()) router.back();
-                else router.replace('/(tabs)/training' as any);
-              }},
-            ]);
-          }}
+          onPress={() => setShowQuitConfirm(true)}
           style={styles.backBtn}
           testID="quit-workout"
           activeOpacity={0.7}
@@ -354,6 +347,31 @@ export default function WorkoutSessionScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
+      <Modal visible={showQuitConfirm} transparent animationType="fade" onRequestClose={() => setShowQuitConfirm(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.quitModalContent}>
+            <Text style={styles.quitModalTitle}>Quit Workout?</Text>
+            <Text style={styles.quitModalSubtitle}>Winners finish what they start. Your progress will not be saved.</Text>
+            <TouchableOpacity
+              style={styles.quitModalStay}
+              onPress={() => setShowQuitConfirm(false)}
+            >
+              <Text style={styles.quitModalStayText}>Stay and Grind</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quitModalQuit}
+              onPress={() => {
+                setShowQuitConfirm(false);
+                if (router.canGoBack()) router.back();
+                else router.replace('/(tabs)/training' as any);
+              }}
+            >
+              <Text style={styles.quitModalQuitText}>Quit</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={demoExercise !== null} transparent animationType="slide" onRequestClose={() => setDemoExercise(null)}>
         <View style={styles.modalOverlay}>
           <ScrollView style={styles.modalContainer} contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
@@ -484,6 +502,13 @@ const styles = StyleSheet.create({
   exerciseNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   infoBtn: { padding: 4 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
+  quitModalContent: { backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  quitModalTitle: { color: Colors.text, fontSize: 24, fontWeight: '900' as const, marginBottom: 12, textAlign: 'center', textTransform: 'uppercase' as const },
+  quitModalSubtitle: { color: Colors.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 28 },
+  quitModalStay: { backgroundColor: Colors.accent, borderRadius: 12, paddingVertical: 16, paddingHorizontal: 32, alignSelf: 'stretch', alignItems: 'center', marginBottom: 12 },
+  quitModalStayText: { color: Colors.background, fontSize: 16, fontWeight: '900' as const, textTransform: 'uppercase' as const },
+  quitModalQuit: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, alignSelf: 'stretch', alignItems: 'center' },
+  quitModalQuitText: { color: Colors.textSecondary, fontSize: 15, fontWeight: '700' as const },
   modalContainer: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderWidth: 1, borderColor: Colors.border, maxHeight: '85%' },
   exerciseGif: { width: '100%', height: 220, borderRadius: 12, backgroundColor: Colors.background, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },

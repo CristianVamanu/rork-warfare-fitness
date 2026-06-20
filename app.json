@@ -41,7 +41,16 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro",
+      "output": "static",
+      "name": "Warfare Fitness",
+      "shortName": "WF",
+      "description": "Military-style fitness training app",
+      "themeColor": "#F5A623",
+      "backgroundColor": "#0A0A0A",
+      "display": "standalone",
+      "orientation": "portrait"
     },
     "plugins": [
       "expo-router",
