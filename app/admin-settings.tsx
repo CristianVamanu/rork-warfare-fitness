@@ -27,7 +27,7 @@ export default function AdminSettingsScreen() {
   const { data: serverConfig } = trpc.admin.config.useQuery(undefined, { retry: false });
   const { data: serverSecrets } = trpc.admin.getSecrets.useQuery(undefined, { retry: false });
   const saveServerSettings = trpc.admin.saveSettings.useMutation();
-  const { config, isConfigured, saveFirebaseConfig, clearFirebaseConfig, registerForPushNotifications } = useFirebase();
+  const { config, isConfigured, saveFirebaseConfig, clearFirebaseConfig, registerForPushNotifications, saveGlobalSettings } = useFirebase();
   const [enableNotifications, setEnableNotifications] = useState<boolean>(adminSettings.enableNotifications);
   const [requireVerification, setRequireVerification] = useState<boolean>(adminSettings.requireVerification);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
@@ -236,24 +236,35 @@ export default function AdminSettingsScreen() {
       monthlyPrice: appSettings.monthlyPrice,
       dailyBriefings,
     });
-    // Also save cross-device settings to server
+    // Save cross-device settings to Firestore (if Firebase configured) and server
+    const syncPayload: Record<string, string> = {
+      aiApiKey: appSettings.aiApiKey ?? '',
+      stripePaymentLink: appSettings.stripePaymentLink ?? '',
+      monthlyPrice: appSettings.monthlyPrice ?? '',
+      appName: appSettings.appName ?? '',
+      tagline: appSettings.tagline ?? '',
+      supportEmail: appSettings.supportEmail ?? '',
+      welcomeMessage: appSettings.welcomeMessage ?? '',
+      dailyMessage: appSettings.dailyMessage ?? '',
+      heroTitle: appSettings.heroTitle ?? '',
+      heroSubtitle: appSettings.heroSubtitle ?? '',
+      coffeeLink: appSettings.coffeeLink ?? '',
+    };
+
+    let synced = false;
+    if (isConfigured) {
+      synced = await saveGlobalSettings(syncPayload);
+    }
+
     try {
-      await saveServerSettings.mutateAsync({
-        aiApiKey: appSettings.aiApiKey,
-        stripePaymentLink: appSettings.stripePaymentLink,
-        monthlyPrice: appSettings.monthlyPrice,
-        appName: appSettings.appName,
-        tagline: appSettings.tagline,
-        supportEmail: appSettings.supportEmail,
-        welcomeMessage: appSettings.welcomeMessage,
-        dailyMessage: appSettings.dailyMessage,
-        heroTitle: appSettings.heroTitle,
-        heroSubtitle: appSettings.heroSubtitle,
-        coffeeLink: appSettings.coffeeLink,
-      });
+      await saveServerSettings.mutateAsync(syncPayload);
+      synced = true;
+    } catch {}
+
+    if (synced) {
       Alert.alert('Saved', 'Settings saved and synced across all devices ✓');
-    } catch {
-      Alert.alert('Saved locally', 'Settings saved on this device. Server sync failed — check your connection.');
+    } else {
+      Alert.alert('Saved locally', 'Settings saved on this device. Configure Firebase to sync across devices.');
     }
   };
 
