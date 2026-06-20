@@ -174,37 +174,38 @@ export default function WorkoutSessionScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={[styles.background, { paddingTop: insets.top }]} 
+    <KeyboardAvoidingView
+      style={[styles.background, { paddingTop: insets.top }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={insets.top}
       testID="workout-session"
     >
-      <ScrollView 
-        contentContainerStyle={styles.container} 
+      <View style={styles.headerRow}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={() => {
+            Alert.alert('Quit Workout', 'Winners finish what they start. Are you sure?', [
+              { text: 'Stay and Grind', style: 'cancel' },
+              { text: 'Quit', style: 'destructive', onPress: () => {
+                if (router.canGoBack()) router.back();
+                else router.replace('/(tabs)/training' as any);
+              }},
+            ]);
+          }}
+          style={styles.backBtn}
+          testID="quit-workout"
+          activeOpacity={0.7}
+        >
+          <ArrowLeft size={18} color={Colors.text} />
+          <Text style={styles.backBtnText}>Quit</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>{workout.name}</Text>
+      </View>
+      <ScrollView
+        contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.headerRow}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            onPress={() => {
-              Alert.alert('Quit Workout', 'Winners finish what they start. Are you sure?', [
-                { text: 'Stay and Grind', style: 'cancel' },
-                { text: "Quit", style: 'destructive', onPress: () => {
-                  if (router.canGoBack()) router.back();
-                  else router.replace('/(tabs)/training' as any);
-                }},
-              ]);
-            }}
-            style={styles.backBtn}
-            testID="quit-workout"
-          >
-            <ArrowLeft size={18} color={Colors.text} />
-            <Text style={styles.backBtnText}>Quit</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>{workout.name}</Text>
-        </View>
         <Text style={styles.subtitle}>Day {day} • {workout.muscleGroup} • {workout.durationMin} min</Text>
 
         <View style={styles.progressWrap}>
@@ -438,7 +439,7 @@ const styles = StyleSheet.create({
   background: { flex: 1, backgroundColor: Colors.background },
   container: { padding: 16 },
   error: { color: Colors.text, marginTop: 60, textAlign: 'center', fontSize: 16 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   backBtnText: { color: Colors.text, fontWeight: '800' as const },
   title: { color: Colors.text, fontSize: 22, fontWeight: '900' as const },
