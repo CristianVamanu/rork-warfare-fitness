@@ -10,59 +10,85 @@ export const scanFoodRoute = publicProcedure
     })
   )
   .mutation(async ({ input }) => {
-    const apiKey = input.apiKey || process.env.OPENAI_API_KEY;
+    const apiKey = (input.apiKey ?? '').trim() || process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: "OpenAI API key is required. Set OPENAI_API_KEY or provide it in Admin Settings.",
+        message: "No OpenAI API key set. Go to Admin → Settings and paste your key in the AI API Key field, then tap Save.",
       });
     }
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: 'Identify the food in this image and estimate nutritional content per serving. Return ONLY a raw JSON object (no markdown, no code blocks) with exactly these keys and numeric values: {"name":"string","calories":0,"protein":0,"carbs":0,"fat":0}. All nutritional values must be plain integers or decimals, not strings.',
-              },
-              {
-                type: "image_url",
-                image_url: { url: `data:image/jpeg;base64,${input.base64Image}`, detail: "low" },
-              },
-            ],
-          },
-        ],
-        max_tokens: 200,
-        response_format: { type: "json_object" },
-      }),
-    });
+    let response: Response;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+      response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: 'Identify the food in this image and estimate nutritional content per serving. Return ONLY a raw JSON object (no markdown, no code blocks) with exactly these keys and numeric values: {"name":"string","calories":0,"protein":0,"carbs":0,"fat":0}. All nutritional values must be plain integers or decimals, not strings.',
+                },
+                {
+                  type: "image_url",
+                  image_url: { url: `data:image/jpeg;base64,${input.base64Image}`, detail: "low" },
+                },
+              ],
+            },
+          ],
+          max_tokens: 200,
+          response_format: { type: "json_object" },
+        }),
+      });
+      clearTimeout(timeout);
+    } catch (fetchErr: any) {
+      if (fetchErr?.name === 'AbortError') {
+        throw new TRPCError({ code: 'TIMEOUT', message: 'OpenAI took too long to respond. Try again.' });
+      }
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Network error: ${fetchErr?.message}` });
+    }
+
+    const rawText = await response.text();
 
     if (!response.ok) {
-      const err = await response.text();
+      let hint = '';
+      if (response.status === 401) hint = ' — API key is invalid or expired.';
+      else if (response.status === 429) hint = ' — Rate limit hit. Wait a moment and try again.';
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: `OpenAI error: ${response.status} - ${err.substring(0, 100)}`,
+        message: `OpenAI error ${response.status}${hint}`,
       });
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    let data: any;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'OpenAI returned an unreadable response. Try again.' });
+    }
 
+    const content = data.choices?.[0]?.message?.content;
     if (!content) {
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No response from OpenAI" });
     }
 
-    const parsed = JSON.parse(content);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Could not parse food data from AI response.' });
+    }
 
     const result = z
       .object({
@@ -75,7 +101,6 @@ export const scanFoodRoute = publicProcedure
       .safeParse(parsed);
 
     if (!result.success) {
-      // Try to salvage partial data before giving up
       return {
         name: parsed?.name ?? parsed?.food_name ?? 'Unknown food',
         calories: Number(parsed?.calories ?? parsed?.kcal ?? 0),

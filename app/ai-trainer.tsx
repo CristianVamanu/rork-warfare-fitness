@@ -107,6 +107,13 @@ export default function AITrainerScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      {/* No API key warning */}
+      {!adminSettings.aiApiKey && (
+        <View style={styles.warningBanner}>
+          <Text style={styles.warningText}>⚠️ No OpenAI API key set. Go to Admin → Settings → AI API Key and save it first.</Text>
+        </View>
+      )}
+
       {/* Messages */}
       <ScrollView
         ref={scrollRef}
@@ -281,4 +288,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendBtnDisabled: { opacity: 0.4 },
+  warningBanner: { backgroundColor: '#2a1a00', borderBottomWidth: 1, borderBottomColor: '#5a3a00', paddingHorizontal: 16, paddingVertical: 10 },
+  warningText: { color: '#F5A623', fontSize: 13, fontWeight: '600' as const },
 });

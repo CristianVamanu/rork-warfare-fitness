@@ -38,33 +38,68 @@ export const aiTrainerChatRoute = publicProcedure
     apiKey: z.string().optional(),
   }))
   .mutation(async ({ input }) => {
-    const apiKey = input.apiKey || process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new TRPCError({ code: 'BAD_REQUEST', message: 'OpenAI API key required' });
-
-    const contextNote = input.userContext ? `\n\nUser Profile: Age ${input.userContext.age || 'unknown'}, Height ${input.userContext.height || 'unknown'}, Weight ${input.userContext.weight || 'unknown'}, Goal: ${input.userContext.goal || 'general fitness'}, Experience: ${input.userContext.experience || 'unknown'}` : '';
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT + contextNote },
-          ...input.messages,
-        ],
-        max_tokens: 500,
-        temperature: 0.8,
-      }),
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `OpenAI error: ${err.substring(0, 100)}` });
+    const apiKey = (input.apiKey ?? '').trim() || process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'No OpenAI API key set. Go to Admin → Settings and paste your key in the AI API Key field, then tap Save.',
+      });
     }
 
-    const data = await response.json();
+    const contextNote = input.userContext
+      ? `\n\nUser Profile: Age ${input.userContext.age || 'unknown'}, Height ${input.userContext.height || 'unknown'}, Weight ${input.userContext.weight || 'unknown'}, Goal: ${input.userContext.goal || 'general fitness'}, Experience: ${input.userContext.experience || 'unknown'}`
+      : '';
+
+    let response: Response;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+      response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT + contextNote },
+            ...input.messages,
+          ],
+          max_tokens: 500,
+          temperature: 0.8,
+        }),
+      });
+      clearTimeout(timeout);
+    } catch (fetchErr: any) {
+      if (fetchErr?.name === 'AbortError') {
+        throw new TRPCError({ code: 'TIMEOUT', message: 'OpenAI took too long to respond. Try again.' });
+      }
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Network error reaching OpenAI: ${fetchErr?.message}` });
+    }
+
+    const rawText = await response.text();
+
+    if (!response.ok) {
+      let hint = '';
+      if (response.status === 401) hint = ' — API key is invalid or expired.';
+      else if (response.status === 429) hint = ' — Rate limit hit. Wait a moment and try again.';
+      else if (response.status === 400) hint = ' — Bad request. Check your API key.';
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `OpenAI error ${response.status}${hint} ${rawText.substring(0, 120)}`,
+      });
+    }
+
+    let data: any;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'OpenAI returned an unreadable response. Try again.' });
+    }
+
     const content = data.choices?.[0]?.message?.content;
-    if (!content) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'No response from AI' });
+    if (!content) {
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'OpenAI returned no content. Try again.' });
+    }
     return { message: content };
   });
 
