@@ -107,6 +107,32 @@ function DataMigrationGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function ServerSettingsSync() {
+  const { updateAdminSettings } = useApp();
+  const { data } = trpc.admin.config.useQuery(undefined, { retry: false, staleTime: 60_000 });
+  const { data: secrets } = trpc.admin.getSecrets.useQuery(undefined, { retry: false, staleTime: 60_000 });
+
+  useEffect(() => {
+    if (secrets) {
+      const updates: Record<string, string> = {};
+      if (secrets.aiApiKey) updates.aiApiKey = secrets.aiApiKey;
+      if (secrets.stripePaymentLink) updates.stripePaymentLink = secrets.stripePaymentLink;
+      if (secrets.monthlyPrice) updates.monthlyPrice = secrets.monthlyPrice;
+      if (secrets.appName) updates.appName = secrets.appName;
+      if (secrets.tagline) updates.tagline = secrets.tagline;
+      if (secrets.supportEmail) updates.supportEmail = secrets.supportEmail;
+      if (secrets.welcomeMessage) updates.welcomeMessage = secrets.welcomeMessage;
+      if (secrets.dailyMessage) updates.dailyMessage = secrets.dailyMessage;
+      if (secrets.heroTitle) updates.heroTitle = secrets.heroTitle;
+      if (secrets.heroSubtitle) updates.heroSubtitle = secrets.heroSubtitle;
+      if (secrets.coffeeLink) updates.coffeeLink = secrets.coffeeLink;
+      if (Object.keys(updates).length > 0) updateAdminSettings(updates as any);
+    }
+  }, [secrets]);
+
+  return null;
+}
+
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useApp();
   const { setUserId } = useSubscription();
@@ -177,6 +203,7 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <DataMigrationGuard>
           <AppProvider>
+            <ServerSettingsSync />
             <FirebaseProvider>
               <SubscriptionProvider>
                 <TrainerProvider>

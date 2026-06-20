@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { publicProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
+import { getSettings } from "../../../../settings-store";
 
 export const scanFoodRoute = publicProcedure
   .input(
@@ -10,7 +11,7 @@ export const scanFoodRoute = publicProcedure
     })
   )
   .mutation(async ({ input }) => {
-    const apiKey = (input.apiKey ?? '').trim() || process.env.OPENAI_API_KEY;
+    const apiKey = (input.apiKey ?? '').trim() || getSettings().aiApiKey || process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
       throw new TRPCError({

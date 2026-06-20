@@ -24,7 +24,9 @@ export default function AdminSettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { adminSettings, updateAdminSettings } = useApp();
-  const { data: serverConfig } = trpc.admin.config.useQuery();
+  const { data: serverConfig } = trpc.admin.config.useQuery(undefined, { retry: false });
+  const { data: serverSecrets } = trpc.admin.getSecrets.useQuery(undefined, { retry: false });
+  const saveServerSettings = trpc.admin.saveSettings.useMutation();
   const { config, isConfigured, saveFirebaseConfig, clearFirebaseConfig, registerForPushNotifications } = useFirebase();
   const [enableNotifications, setEnableNotifications] = useState<boolean>(adminSettings.enableNotifications);
   const [requireVerification, setRequireVerification] = useState<boolean>(adminSettings.requireVerification);
@@ -68,24 +70,35 @@ export default function AdminSettingsScreen() {
   ]);
 
   const initializedRef = useRef(false);
+  // Sync from server first (cross-device), then fall back to local AsyncStorage
   useEffect(() => {
-    if (!initializedRef.current && (adminSettings.aiApiKey || adminSettings.welcomeMessage)) {
+    if (serverSecrets && !initializedRef.current) {
       initializedRef.current = true;
-      setAppSettings({
-        appName: adminSettings.appName,
-        tagline: adminSettings.tagline,
-        supportEmail: adminSettings.supportEmail,
-        welcomeMessage: adminSettings.welcomeMessage ?? 'Welcome to Warfare Fitness, Soldier!',
-        welcomeVideoUrl: adminSettings.welcomeVideoUrl ?? '',
-        dailyMessage: adminSettings.dailyMessage ?? 'Today is your day to dominate. No excuses.',
-        aiApiKey: adminSettings.aiApiKey ?? '',
-        heroTitle: adminSettings.heroTitle ?? 'Your Mission Awaits, Soldier',
-        heroSubtitle: adminSettings.heroSubtitle ?? 'Forge Strength. Crush Anxiety. Dominate Your Life.',
-        appLogo: adminSettings.appLogo ?? '',
-        coffeeLink: adminSettings.coffeeLink ?? '',
-        stripePaymentLink: adminSettings.stripePaymentLink ?? '',
-        monthlyPrice: adminSettings.monthlyPrice ?? '$9.99',
-      });
+      setAppSettings(prev => ({
+        ...prev,
+        aiApiKey: serverSecrets.aiApiKey || prev.aiApiKey,
+        stripePaymentLink: serverSecrets.stripePaymentLink || prev.stripePaymentLink,
+        monthlyPrice: serverSecrets.monthlyPrice || prev.monthlyPrice,
+        appName: serverSecrets.appName || prev.appName,
+        tagline: serverSecrets.tagline || prev.tagline,
+        supportEmail: serverSecrets.supportEmail || prev.supportEmail,
+        welcomeMessage: serverSecrets.welcomeMessage || prev.welcomeMessage,
+        dailyMessage: serverSecrets.dailyMessage || prev.dailyMessage,
+        heroTitle: serverSecrets.heroTitle || prev.heroTitle,
+        heroSubtitle: serverSecrets.heroSubtitle || prev.heroSubtitle,
+        coffeeLink: serverSecrets.coffeeLink || prev.coffeeLink,
+      }));
+    }
+  }, [serverSecrets]);
+
+  // Also sync from local AsyncStorage when it loads (for device-only fields)
+  useEffect(() => {
+    if (!initializedRef.current && adminSettings.welcomeVideoUrl !== undefined) {
+      setAppSettings(prev => ({
+        ...prev,
+        welcomeVideoUrl: adminSettings.welcomeVideoUrl ?? prev.welcomeVideoUrl,
+        appLogo: adminSettings.appLogo ?? prev.appLogo,
+      }));
       if (adminSettings.dailyBriefings?.length) setDailyBriefings(adminSettings.dailyBriefings);
       if (adminSettings.freePackage) setFreePackage(adminSettings.freePackage);
     }
@@ -202,7 +215,8 @@ export default function AdminSettingsScreen() {
     );
   };
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
+    // Save to local AsyncStorage
     updateAdminSettings({
       enableNotifications,
       requireVerification,
@@ -222,8 +236,25 @@ export default function AdminSettingsScreen() {
       monthlyPrice: appSettings.monthlyPrice,
       dailyBriefings,
     });
-    Alert.alert('Success', 'Settings saved successfully');
-    console.log('[Admin] Settings updated:', appSettings);
+    // Also save cross-device settings to server
+    try {
+      await saveServerSettings.mutateAsync({
+        aiApiKey: appSettings.aiApiKey,
+        stripePaymentLink: appSettings.stripePaymentLink,
+        monthlyPrice: appSettings.monthlyPrice,
+        appName: appSettings.appName,
+        tagline: appSettings.tagline,
+        supportEmail: appSettings.supportEmail,
+        welcomeMessage: appSettings.welcomeMessage,
+        dailyMessage: appSettings.dailyMessage,
+        heroTitle: appSettings.heroTitle,
+        heroSubtitle: appSettings.heroSubtitle,
+        coffeeLink: appSettings.coffeeLink,
+      });
+      Alert.alert('Saved', 'Settings saved and synced across all devices ✓');
+    } catch {
+      Alert.alert('Saved locally', 'Settings saved on this device. Server sync failed — check your connection.');
+    }
   };
 
   return (
@@ -231,7 +262,10 @@ export default function AdminSettingsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={[styles.topBar, { paddingTop: insets.top }]}>
-        <TouchableOpacity style={styles.topBarBack} onPress={() => router.back()} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.topBarBack} onPress={() => {
+          if (router.canGoBack()) router.back();
+          else router.replace('/(tabs)/admin' as any);
+        }} activeOpacity={0.7}>
           <ArrowLeft size={22} color={Colors.text} />
           <Text style={styles.topBarBackText}>Admin</Text>
         </TouchableOpacity>

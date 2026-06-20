@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { publicProcedure } from "../../../create-context";
 import { TRPCError } from "@trpc/server";
+import { getSettings } from "../../../../settings-store";
 
 const SYSTEM_PROMPT = `You are an elite AI fitness coach for Warfare Fitness — a premium military-inspired fitness app. Your name is "Commander AI".
 
@@ -38,7 +39,7 @@ export const aiTrainerChatRoute = publicProcedure
     apiKey: z.string().optional(),
   }))
   .mutation(async ({ input }) => {
-    const apiKey = (input.apiKey ?? '').trim() || process.env.OPENAI_API_KEY;
+    const apiKey = (input.apiKey ?? '').trim() || getSettings().aiApiKey || process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
