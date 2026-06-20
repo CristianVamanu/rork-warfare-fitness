@@ -33,7 +33,7 @@ export const scanFoodRoute = publicProcedure
             content: [
               {
                 type: "text",
-                text: 'Identify the food in this image and estimate its nutritional content per serving. Return ONLY valid JSON with keys: name (string), calories (number), protein (number in grams), carbs (number in grams), fat (number in grams). No markdown, no extra text.',
+                text: 'Identify the food in this image and estimate nutritional content per serving. Return ONLY a raw JSON object (no markdown, no code blocks) with exactly these keys and numeric values: {"name":"string","calories":0,"protein":0,"carbs":0,"fat":0}. All nutritional values must be plain integers or decimals, not strings.',
               },
               {
                 type: "image_url",
@@ -67,15 +67,22 @@ export const scanFoodRoute = publicProcedure
     const result = z
       .object({
         name: z.string(),
-        calories: z.number(),
-        protein: z.number(),
-        carbs: z.number(),
-        fat: z.number(),
+        calories: z.coerce.number(),
+        protein: z.coerce.number(),
+        carbs: z.coerce.number(),
+        fat: z.coerce.number(),
       })
       .safeParse(parsed);
 
     if (!result.success) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Unexpected response format from AI" });
+      // Try to salvage partial data before giving up
+      return {
+        name: parsed?.name ?? parsed?.food_name ?? 'Unknown food',
+        calories: Number(parsed?.calories ?? parsed?.kcal ?? 0),
+        protein: Number(parsed?.protein ?? parsed?.protein_g ?? 0),
+        carbs: Number(parsed?.carbs ?? parsed?.carbohydrates ?? parsed?.carbs_g ?? 0),
+        fat: Number(parsed?.fat ?? parsed?.fat_g ?? 0),
+      };
     }
 
     return result.data;
