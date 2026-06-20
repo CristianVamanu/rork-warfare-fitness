@@ -8,7 +8,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { View, ActivityIndicator, Text, Alert } from "react-native";
 
 import { AppProvider, useApp } from '@/contexts/AppContext';
-import { useFirebase } from '@/contexts/FirebaseContext';
 import { TrainingProvider } from '@/contexts/TrainingContext';
 import { FirebaseProvider } from '@/contexts/FirebaseContext';
 import { ChallengesProvider } from '@/contexts/ChallengesContext';
@@ -134,29 +133,6 @@ function ServerSettingsSync() {
   return null;
 }
 
-function FirebaseSettingsSync() {
-  const { updateAdminSettings } = useApp();
-  const { loadGlobalSettings, isConfigured } = useFirebase();
-
-  useEffect(() => {
-    if (!isConfigured) return;
-    void loadGlobalSettings().then((settings) => {
-      if (!settings) return;
-      const updates: Record<string, string> = {};
-      const syncFields = ['aiApiKey', 'stripePaymentLink', 'monthlyPrice', 'appName', 'tagline', 'supportEmail', 'welcomeMessage', 'dailyMessage', 'heroTitle', 'heroSubtitle', 'coffeeLink'];
-      for (const field of syncFields) {
-        if (settings[field]) updates[field] = settings[field];
-      }
-      if (Object.keys(updates).length > 0) {
-        console.log('[FirebaseSettingsSync] Synced settings from Firestore:', Object.keys(updates));
-        updateAdminSettings(updates as any);
-      }
-    });
-  }, [isConfigured, loadGlobalSettings, updateAdminSettings]);
-
-  return null;
-}
-
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useApp();
   const { setUserId } = useSubscription();
@@ -229,7 +205,6 @@ export default function RootLayout() {
           <AppProvider>
             <ServerSettingsSync />
             <FirebaseProvider>
-              <FirebaseSettingsSync />
               <SubscriptionProvider>
                 <TrainerProvider>
                 <TrainingProvider>

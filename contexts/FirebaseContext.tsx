@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initializeApp, FirebaseApp, getApps, getApp } from 'firebase/app';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, FirebaseStorage } from 'firebase/storage';
-import { getFirestore, doc, setDoc, getDoc, Firestore } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
@@ -96,7 +95,6 @@ const isExpoGo = appOwnership === 'expo';
 export const [FirebaseProvider, useFirebase] = createContextHook(() => {
   const [firebaseApp, setFirebaseApp] = useState<FirebaseApp | null>(null);
   const [firebaseStorage, setFirebaseStorage] = useState<FirebaseStorage | null>(null);
-  const [firestoreDb, setFirestoreDb] = useState<Firestore | null>(null);
   const [config, setConfig] = useState<FirebaseConfig | null>(null);
   const [isConfigured, setIsConfigured] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
@@ -113,11 +111,9 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
       }
       
       const storage = getStorage(app);
-      const db = getFirestore(app);
 
       setFirebaseApp(app);
       setFirebaseStorage(storage);
-      setFirestoreDb(db);
       setIsConfigured(true);
       
       console.log('[Firebase] Initialized successfully');
@@ -332,29 +328,6 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
     }
   }, [firebaseStorage, isConfigured]);
 
-  const saveGlobalSettings = useCallback(async (settings: Record<string, string>): Promise<boolean> => {
-    if (!firestoreDb) return false;
-    try {
-      await setDoc(doc(firestoreDb, 'app_config', 'admin_settings'), { ...settings, updatedAt: Date.now() }, { merge: true });
-      return true;
-    } catch (error) {
-      console.error('[Firestore] Failed to save settings:', error);
-      return false;
-    }
-  }, [firestoreDb]);
-
-  const loadGlobalSettings = useCallback(async (): Promise<Record<string, string> | null> => {
-    if (!firestoreDb) return null;
-    try {
-      const snap = await getDoc(doc(firestoreDb, 'app_config', 'admin_settings'));
-      if (snap.exists()) return snap.data() as Record<string, string>;
-      return null;
-    } catch (error) {
-      console.error('[Firestore] Failed to load settings:', error);
-      return null;
-    }
-  }, [firestoreDb]);
-
   const getFileUrl = useCallback(async (path: string): Promise<string | null> => {
     if (!firebaseStorage || !isConfigured) {
       console.error('[Storage] Firebase not configured');
@@ -375,7 +348,6 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
     () => ({
       firebaseApp,
       firebaseStorage,
-      firestoreDb,
       config,
       isConfigured,
       isInitializing,
@@ -389,13 +361,10 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
       uploadFile,
       deleteFile,
       getFileUrl,
-      saveGlobalSettings,
-      loadGlobalSettings,
     }),
     [
       firebaseApp,
       firebaseStorage,
-      firestoreDb,
       config,
       isConfigured,
       isInitializing,
@@ -409,8 +378,6 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
       uploadFile,
       deleteFile,
       getFileUrl,
-      saveGlobalSettings,
-      loadGlobalSettings,
     ]
   );
 });
