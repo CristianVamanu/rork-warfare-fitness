@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, ScrollView, Platform, Image, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { UserPlus } from 'lucide-react-native';
+import { UserPlus, Eye, EyeOff } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
@@ -73,22 +73,32 @@ export default function RegisterScreen() {
               value={email} 
               onChangeText={setEmail} 
             />
-            <TextInput
-              style={styles.input}
-              placeholder='Password'
-              placeholderTextColor={Colors.textTertiary}
-              secureTextEntry={!showPassword}
-              value={password}
-              onChangeText={setPassword}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder='Confirm Password'
-              placeholderTextColor={Colors.textTertiary}
-              secureTextEntry={!showPassword}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder='Password'
+                placeholderTextColor={Colors.textTertiary}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(v => !v)}>
+                {showPassword ? <EyeOff size={20} color={Colors.textSecondary} /> : <Eye size={20} color={Colors.textSecondary} />}
+              </TouchableOpacity>
+            </View>
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder='Confirm Password'
+                placeholderTextColor={Colors.textTertiary}
+                secureTextEntry={!showPassword}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+              <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(v => !v)}>
+                {showPassword ? <EyeOff size={20} color={Colors.textSecondary} /> : <Eye size={20} color={Colors.textSecondary} />}
+              </TouchableOpacity>
+            </View>
 
             <Text style={styles.sectionLabel}>Password Reset PIN (4-6 digits)</Text>
             <View style={styles.inputRow}>
@@ -207,6 +217,9 @@ const styles = StyleSheet.create({
   title: { color: Colors.text, fontWeight: '900' as const, fontSize: 28, textAlign: 'center', marginBottom: 8 },
   sub: { color: Colors.textSecondary, marginBottom: 32, fontWeight: '600' as const, textAlign: 'center', fontSize: 15 },
   input: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, color: Colors.text, marginBottom: 12, width: '100%', maxWidth: 400 },
+  passwordContainer: { flexDirection: 'row' as const, alignItems: 'center' as const, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 12, marginBottom: 12, width: '100%', maxWidth: 400 },
+  passwordInput: { flex: 1, paddingHorizontal: 16, paddingVertical: 14, color: Colors.text, fontSize: 16 },
+  eyeButton: { paddingHorizontal: 14, paddingVertical: 14 },
   unitSelector: { marginBottom: 16, marginTop: 4, width: '100%', maxWidth: 400 },
   unitLabel: { color: Colors.text, fontSize: 14, fontWeight: '600' as const, marginBottom: 8, textAlign: 'center' },
   unitButtons: { flexDirection: 'row', gap: 12 },
