@@ -5,3 +5,5 @@ export const getAdminConfigRoute = publicProcedure.query(() => {
     hasServerApiKey: !!(process.env.OPENAI_API_KEY?.trim()),
   };
 });
+
+export default getAdminConfigRoute;
