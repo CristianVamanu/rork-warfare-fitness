@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CheckCircle2, Circle, ArrowLeft, Plus, Dumbbell, Timer, Info, X } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, TextInput, KeyboardAvoidingView, Platform, Modal, Linking } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, TextInput, KeyboardAvoidingView, Platform, Modal, Linking, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTraining, WorkoutLog } from '@/contexts/TrainingContext';
@@ -38,7 +38,7 @@ export default function WorkoutSessionScreen() {
   const [sets, setSets] = useState<SetState[]>([]);
   const [cardioTimers, setCardioTimers] = useState<Record<string, CardioTimerState>>({});
   const [sessionStartTime] = useState<string>(new Date().toISOString());
-  const [demoExercise, setDemoExercise] = useState<string | null>(null);
+  const [demoExercise, setDemoExercise] = useState<{ name: string; imageUrl?: string } | null>(null);
 
   useEffect(() => {
     if (workout) {
@@ -226,7 +226,7 @@ export default function WorkoutSessionScreen() {
                 <View style={styles.exerciseHeader}>
                   <View style={styles.exerciseNameRow}>
                     <Text style={styles.exerciseName}>{ex.name}</Text>
-                    <TouchableOpacity onPress={() => setDemoExercise(ex.name)} style={styles.infoBtn}>
+                    <TouchableOpacity onPress={() => setDemoExercise({ name: ex.name, imageUrl: ex.imageUrl })} style={styles.infoBtn}>
                       <Info size={16} color={Colors.accent} />
                     </TouchableOpacity>
                   </View>
@@ -355,25 +355,35 @@ export default function WorkoutSessionScreen() {
 
       <Modal visible={demoExercise !== null} transparent animationType="slide" onRequestClose={() => setDemoExercise(null)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
+          <ScrollView style={styles.modalContainer} contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{(demoExercise ?? '').toUpperCase()}</Text>
+              <Text style={styles.modalTitle}>{(demoExercise?.name ?? '').toUpperCase()}</Text>
               <TouchableOpacity onPress={() => setDemoExercise(null)} style={styles.modalCloseBtn}>
                 <X size={20} color={Colors.text} />
               </TouchableOpacity>
             </View>
+            {demoExercise?.imageUrl ? (
+              <>
+                <Text style={styles.modalSectionTitle}>EXERCISE DEMO</Text>
+                <Image
+                  source={{ uri: demoExercise.imageUrl }}
+                  style={styles.exerciseGif}
+                  resizeMode="contain"
+                />
+              </>
+            ) : null}
             <Text style={styles.modalSectionTitle}>HOW TO PERFORM</Text>
-            {getExerciseTips(demoExercise ?? '').map((tip, i) => (
+            {getExerciseTips(demoExercise?.name ?? '').map((tip, i) => (
               <Text key={i} style={styles.modalTip}>• {tip}</Text>
             ))}
             <Text style={styles.modalSectionTitle}>WATCH TUTORIAL</Text>
             <TouchableOpacity
               style={styles.modalTutorialBtn}
-              onPress={() => Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent((demoExercise ?? '') + ' proper form tutorial')}`)}
+              onPress={() => Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent((demoExercise?.name ?? '') + ' proper form tutorial')}`)}
             >
               <Text style={styles.modalTutorialBtnText}>Open YouTube Tutorial</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </KeyboardAvoidingView>
@@ -473,7 +483,8 @@ const styles = StyleSheet.create({
   exerciseNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   infoBtn: { padding: 4 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderWidth: 1, borderColor: Colors.border },
+  modalContainer: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderWidth: 1, borderColor: Colors.border, maxHeight: '85%' },
+  exerciseGif: { width: '100%', height: 220, borderRadius: 12, backgroundColor: Colors.background, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
   modalTitle: { color: Colors.accent, fontSize: 18, fontWeight: '900' as const, flex: 1 },
   modalCloseBtn: { padding: 4 },

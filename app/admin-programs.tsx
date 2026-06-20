@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Switch, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Switch, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { Stack } from 'expo-router';
 import { Plus, Trash2, X, Copy, Edit2, Calendar, Sparkles } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -407,7 +407,24 @@ export default function AdminProgramsScreen() {
                       const ex = [...workoutForm.exercises]; ex[idx] = { ...e, name: t }; setWorkoutForm({ ...workoutForm, exercises: ex });
                     }} placeholder="Exercise name" placeholderTextColor={Colors.textSecondary} />
                   </View>
-                  
+
+                  <View style={styles.gifRow}>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      value={e.imageUrl ?? ''}
+                      onChangeText={(t) => {
+                        const ex = [...workoutForm.exercises]; ex[idx] = { ...e, imageUrl: t }; setWorkoutForm({ ...workoutForm, exercises: ex });
+                      }}
+                      placeholder="GIF/image URL (optional)"
+                      placeholderTextColor={Colors.textSecondary}
+                      autoCapitalize="none"
+                      keyboardType="url"
+                    />
+                    {!!e.imageUrl && (
+                      <Image source={{ uri: e.imageUrl }} style={styles.gifPreview} resizeMode="cover" />
+                    )}
+                  </View>
+
                   <View style={styles.switchRow}>
                     <Text style={styles.label}>Cardio Exercise (time-based)</Text>
                     <Switch 
@@ -624,6 +641,8 @@ const styles = StyleSheet.create({
   label: { color: Colors.text, fontWeight: '700' as const, marginBottom: 8 },
   input: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: Colors.text, marginBottom: 12 },
   row2: { flexDirection: 'row', gap: 8 },
+  gifRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 0 },
+  gifPreview: { width: 56, height: 56, borderRadius: 8, borderWidth: 1, borderColor: Colors.border },
   exHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 8 },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.accent, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
   addText: { color: Colors.background, fontWeight: '800' as const },
