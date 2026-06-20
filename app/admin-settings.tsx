@@ -12,15 +12,19 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Settings, DollarSign, Palette, Bell, Shield, Brain, Plus, Trash2, FileText, PlayCircle, Cloud, Server, Upload, Image as ImageIcon } from 'lucide-react-native';
+import { Settings, DollarSign, Palette, Bell, Shield, Brain, Plus, Trash2, FileText, PlayCircle, Cloud, Server, Upload, Image as ImageIcon, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/colors';
 import { useApp, DailyBriefing, FreePackageFeatures } from '@/contexts/AppContext';
 import { useFirebase, FirebaseConfig } from '@/contexts/FirebaseContext';
+import { trpc } from '@/lib/trpc';
 
 export default function AdminSettingsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { adminSettings, updateAdminSettings } = useApp();
+  const { data: serverConfig } = trpc.admin.config.useQuery();
   const { config, isConfigured, saveFirebaseConfig, clearFirebaseConfig, registerForPushNotifications } = useFirebase();
   const [enableNotifications, setEnableNotifications] = useState<boolean>(adminSettings.enableNotifications);
   const [requireVerification, setRequireVerification] = useState<boolean>(adminSettings.requireVerification);
@@ -224,14 +228,18 @@ export default function AdminSettingsScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: 'Settings',
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.text,
-          headerShadowVisible: false,
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <View style={[styles.topBar, { paddingTop: insets.top }]}>
+        <TouchableOpacity style={styles.topBarBack} onPress={() => router.back()} activeOpacity={0.7}>
+          <ArrowLeft size={22} color={Colors.text} />
+          <Text style={styles.topBarBackText}>Admin</Text>
+        </TouchableOpacity>
+        <Text style={styles.topBarTitle}>Settings</Text>
+        <TouchableOpacity style={styles.topBarSave} onPress={handleSaveSettings} activeOpacity={0.7}>
+          <Text style={styles.topBarSaveText}>Save</Text>
+        </TouchableOpacity>
+      </View>
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
@@ -496,14 +504,29 @@ export default function AdminSettingsScreen() {
             <Text style={styles.sectionTitle}>AI Configuration</Text>
           </View>
 
-          <Text style={styles.label}>ChatGPT API Key (Optional)</Text>
+          {serverConfig !== undefined && (
+            <View style={[styles.serverKeyBanner, serverConfig.hasServerApiKey ? styles.serverKeyBannerOk : styles.serverKeyBannerWarn]}>
+              {serverConfig.hasServerApiKey
+                ? <CheckCircle size={16} color="#22c55e" />
+                : <AlertCircle size={16} color={Colors.warning} />
+              }
+              <Text style={[styles.serverKeyText, serverConfig.hasServerApiKey ? styles.serverKeyTextOk : styles.serverKeyTextWarn]}>
+                {serverConfig.hasServerApiKey
+                  ? 'Server key set via Vercel env var (OPENAI_API_KEY) — AI works on all devices'
+                  : 'No server key detected — set OPENAI_API_KEY in Vercel → Settings → Environment Variables for cross-device use'
+                }
+              </Text>
+            </View>
+          )}
+
+          <Text style={styles.label}>OpenAI API Key (this device only)</Text>
           <TextInput
             style={styles.input}
             value={appSettings.aiApiKey}
             onChangeText={(text) =>
               setAppSettings({ ...appSettings, aiApiKey: text.trim() })
             }
-            placeholder="sk-..."
+            placeholder="sk-proj-... or sk-..."
             placeholderTextColor={Colors.textTertiary}
             autoCapitalize="none"
             autoCorrect={false}
@@ -511,10 +534,14 @@ export default function AdminSettingsScreen() {
           />
           {appSettings.aiApiKey ? (
             <View style={styles.keySetBanner}>
-              <Text style={styles.keySetText}>✓ API key entered ({appSettings.aiApiKey.length} chars). Tap "Save All Settings" below to apply.</Text>
+              <CheckCircle size={14} color="#22c55e" />
+              <Text style={styles.keySetText}>Key entered ({appSettings.aiApiKey.length} chars) — tap Save above to apply on this device.</Text>
             </View>
           ) : null}
-          <Text style={styles.helpText}>Use your standard OpenAI API key — starts with sk- or sk-proj-. Get one at platform.openai.com. Leave empty to disable AI features.</Text>
+          <Text style={styles.helpText}>
+            Standard OpenAI API key (starts with sk- or sk-proj-). Get one at platform.openai.com.{'\n'}
+            Note: This key is saved on THIS device only. To make AI work on all devices, set OPENAI_API_KEY in your Vercel dashboard instead.
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -843,6 +870,50 @@ export default function AdminSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: Colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  topBarBack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  topBarBackText: {
+    color: Colors.text,
+    fontWeight: '700' as const,
+    fontSize: 14,
+  },
+  topBarTitle: {
+    color: Colors.text,
+    fontSize: 18,
+    fontWeight: '800' as const,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  topBarSave: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.accent,
+  },
+  topBarSaveText: {
+    color: Colors.background,
+    fontWeight: '900' as const,
+    fontSize: 14,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -942,6 +1013,9 @@ const styles = StyleSheet.create({
   },
 
   keySetBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: 'rgba(34,197,94,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.3)',
@@ -955,6 +1029,37 @@ const styles = StyleSheet.create({
     color: '#22c55e',
     fontSize: 12,
     fontWeight: '600' as const,
+    flex: 1,
+  },
+  serverKeyBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  serverKeyBannerOk: {
+    backgroundColor: 'rgba(34,197,94,0.08)',
+    borderColor: 'rgba(34,197,94,0.3)',
+  },
+  serverKeyBannerWarn: {
+    backgroundColor: 'rgba(245,166,35,0.08)',
+    borderColor: 'rgba(245,166,35,0.3)',
+  },
+  serverKeyText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    flex: 1,
+    lineHeight: 18,
+  },
+  serverKeyTextOk: {
+    color: '#22c55e',
+  },
+  serverKeyTextWarn: {
+    color: Colors.warning,
   },
   helpText: {
     fontSize: 12,
