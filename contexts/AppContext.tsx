@@ -85,6 +85,8 @@ interface AdminAppSettings {
   defaultTrialDays?: number;
   platformRevenueSplit?: number;
   requireTrainerApproval?: boolean;
+  stripePaymentLink?: string;
+  monthlyPrice?: string;
 }
 
 interface User {

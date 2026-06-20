@@ -50,6 +50,8 @@ export default function AdminSettingsScreen() {
     heroSubtitle: adminSettings.heroSubtitle ?? 'Forge Strength. Crush Anxiety. Dominate Your Life.',
     appLogo: adminSettings.appLogo ?? '',
     coffeeLink: adminSettings.coffeeLink ?? '',
+    stripePaymentLink: adminSettings.stripePaymentLink ?? '',
+    monthlyPrice: adminSettings.monthlyPrice ?? '$9.99',
   });
 
   const [dailyBriefings, setDailyBriefings] = useState<DailyBriefing[]>(adminSettings.dailyBriefings ?? [
@@ -188,6 +190,8 @@ export default function AdminSettingsScreen() {
       heroSubtitle: appSettings.heroSubtitle,
       appLogo: appSettings.appLogo,
       coffeeLink: appSettings.coffeeLink,
+      stripePaymentLink: appSettings.stripePaymentLink,
+      monthlyPrice: appSettings.monthlyPrice,
       dailyBriefings,
     });
     Alert.alert('Success', 'Settings saved successfully');
@@ -375,6 +379,31 @@ export default function AdminSettingsScreen() {
             autoCapitalize="none"
           />
           <Text style={styles.helpText}>Add your Buy Me a Coffee link. A floating button will appear on the home screen for users to support you.</Text>
+
+          <Text style={styles.label}>Stripe Payment Link (Web Upgrade)</Text>
+          <TextInput
+            style={styles.input}
+            value={appSettings.stripePaymentLink}
+            onChangeText={(text) =>
+              setAppSettings({ ...appSettings, stripePaymentLink: text })
+            }
+            placeholder="https://buy.stripe.com/your-link"
+            placeholderTextColor={Colors.textTertiary}
+            autoCapitalize="none"
+          />
+          <Text style={styles.helpText}>Paste your Stripe Payment Link here. Users upgrading on web will be sent to this link.</Text>
+
+          <Text style={styles.label}>Monthly Price Display</Text>
+          <TextInput
+            style={styles.input}
+            value={appSettings.monthlyPrice}
+            onChangeText={(text) =>
+              setAppSettings({ ...appSettings, monthlyPrice: text })
+            }
+            placeholder="$9.99"
+            placeholderTextColor={Colors.textTertiary}
+          />
+          <Text style={styles.helpText}>The price shown on the paywall (e.g. "$9.99/month"). This is display only — actual price is set in Stripe/RevenueCat.</Text>
         </View>
 
         <View style={styles.section}>
