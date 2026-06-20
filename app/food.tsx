@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function FoodScannerScreen() {
   const insets = useSafeAreaInsets();
-  const { addMeal, calorieTarget, setDailyCalorieTarget, getTodayMeals, appSettings } = useApp();
+  const { addMeal, calorieTarget, setDailyCalorieTarget, getTodayMeals, appSettings, adminSettings } = useApp();
 
   const [picked, setPicked] = useState<{ uri: string; base64?: string } | undefined>(undefined);
   const [calInput, setCalInput] = useState<string>(String(calorieTarget));
@@ -67,7 +67,7 @@ export default function FoodScannerScreen() {
 
     scanMutation.mutate({
       base64Image: picked.base64,
-      apiKey: (appSettings as any)?.openAiApiKey,
+      apiKey: adminSettings.aiApiKey || undefined,
     });
   };
 

@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CheckCircle2, Circle, ArrowLeft, Plus, Dumbbell, Timer } from 'lucide-react-native';
+import { CheckCircle2, Circle, ArrowLeft, Plus, Dumbbell, Timer, Info, X } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, TextInput, KeyboardAvoidingView, Platform, Modal, Linking, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTraining, WorkoutLog } from '@/contexts/TrainingContext';
@@ -38,6 +38,7 @@ export default function WorkoutSessionScreen() {
   const [sets, setSets] = useState<SetState[]>([]);
   const [cardioTimers, setCardioTimers] = useState<Record<string, CardioTimerState>>({});
   const [sessionStartTime] = useState<string>(new Date().toISOString());
+  const [demoExercise, setDemoExercise] = useState<{ name: string; imageUrl?: string } | null>(null);
 
   useEffect(() => {
     if (workout) {
@@ -173,34 +174,38 @@ export default function WorkoutSessionScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={[styles.background, { paddingTop: insets.top }]} 
+    <KeyboardAvoidingView
+      style={[styles.background, { paddingTop: insets.top }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={insets.top}
       testID="workout-session"
     >
-      <ScrollView 
-        contentContainerStyle={styles.container} 
+      <View style={styles.headerRow}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={() => {
+            Alert.alert('Quit Workout', 'Winners finish what they start. Are you sure?', [
+              { text: 'Stay and Grind', style: 'cancel' },
+              { text: 'Quit', style: 'destructive', onPress: () => {
+                if (router.canGoBack()) router.back();
+                else router.replace('/(tabs)/training' as any);
+              }},
+            ]);
+          }}
+          style={styles.backBtn}
+          testID="quit-workout"
+          activeOpacity={0.7}
+        >
+          <ArrowLeft size={18} color={Colors.text} />
+          <Text style={styles.backBtnText}>Quit</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>{workout.name}</Text>
+      </View>
+      <ScrollView
+        contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.headerRow}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            onPress={() => {
-              Alert.alert('Quit Workout', 'Do you really want to quit now? Winners finish what they start. Hold the line or confirm to exit.', [
-                { text: 'Stay and Grind' },
-                { text: "I'm a quitter", style: 'destructive', onPress: () => router.back() },
-              ]);
-            }}
-            style={styles.backBtn}
-            testID="quit-workout"
-          >
-            <ArrowLeft size={18} color={Colors.text} />
-            <Text style={styles.backBtnText}>Quit</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>{workout.name}</Text>
-        </View>
         <Text style={styles.subtitle}>Day {day} • {workout.muscleGroup} • {workout.durationMin} min</Text>
 
         <View style={styles.progressWrap}>
@@ -220,7 +225,12 @@ export default function WorkoutSessionScreen() {
             return (
               <View key={ex.id} style={styles.exerciseCard}>
                 <View style={styles.exerciseHeader}>
-                  <Text style={styles.exerciseName}>{ex.name}</Text>
+                  <View style={styles.exerciseNameRow}>
+                    <Text style={styles.exerciseName}>{ex.name}</Text>
+                    <TouchableOpacity onPress={() => setDemoExercise({ name: ex.name, imageUrl: ex.imageUrl })} style={styles.infoBtn}>
+                      <Info size={16} color={Colors.accent} />
+                    </TouchableOpacity>
+                  </View>
                   {ex.isCardio ? (
                     <Text style={styles.exerciseMeta}>{ex.cardioDurationMin ?? 10} min cardio • {ex.restSec}s rest</Text>
                   ) : (
@@ -343,15 +353,93 @@ export default function WorkoutSessionScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <Modal visible={demoExercise !== null} transparent animationType="slide" onRequestClose={() => setDemoExercise(null)}>
+        <View style={styles.modalOverlay}>
+          <ScrollView style={styles.modalContainer} contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{(demoExercise?.name ?? '').toUpperCase()}</Text>
+              <TouchableOpacity onPress={() => setDemoExercise(null)} style={styles.modalCloseBtn}>
+                <X size={20} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+            {demoExercise?.imageUrl ? (
+              <>
+                <Text style={styles.modalSectionTitle}>EXERCISE DEMO</Text>
+                <Image
+                  source={{ uri: demoExercise.imageUrl }}
+                  style={styles.exerciseGif}
+                  resizeMode="contain"
+                />
+              </>
+            ) : null}
+            <Text style={styles.modalSectionTitle}>HOW TO PERFORM</Text>
+            {getExerciseTips(demoExercise?.name ?? '').map((tip, i) => (
+              <Text key={i} style={styles.modalTip}>• {tip}</Text>
+            ))}
+            <Text style={styles.modalSectionTitle}>WATCH TUTORIAL</Text>
+            <TouchableOpacity
+              style={styles.modalTutorialBtn}
+              onPress={() => Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent((demoExercise?.name ?? '') + ' proper form tutorial')}`)}
+            >
+              <Text style={styles.modalTutorialBtnText}>Open YouTube Tutorial</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
+}
+
+function getExerciseTips(name: string): string[] {
+  const n = name.toLowerCase();
+  if (n.includes('squat')) return [
+    'Keep your chest up and back straight throughout the movement',
+    'Drive your knees out in line with your toes as you descend',
+    'Break parallel if mobility allows — hips below knee level',
+  ];
+  if (n.includes('deadlift')) return [
+    'Hinge at the hips, keep the bar close to your body',
+    'Engage your lats and brace your core before the pull',
+    'Lock out fully at the top — hips and shoulders rise together',
+  ];
+  if (n.includes('bench') || n.includes('press')) return [
+    'Retract your shoulder blades and keep them pinched throughout',
+    'Lower the bar under control to mid-chest, elbows at ~45°',
+    'Press explosively and squeeze your chest at the top',
+  ];
+  if (n.includes('row') || n.includes('pull')) return [
+    'Initiate the movement by retracting your shoulder blades',
+    'Pull with your elbows, not your hands — keep forearms neutral',
+    'Pause and squeeze at peak contraction before lowering',
+  ];
+  if (n.includes('curl')) return [
+    'Keep your elbows pinned at your sides throughout the rep',
+    'Supinate (rotate) your wrists as you curl for full bicep activation',
+    'Lower slowly — the eccentric phase builds more muscle',
+  ];
+  if (n.includes('plank')) return [
+    'Maintain a straight line from head to heels — no sagging hips',
+    'Squeeze your glutes, abs, and quads simultaneously',
+    'Breathe steadily — inhale through nose, exhale through mouth',
+  ];
+  if (n.includes('push')) return [
+    'Place hands slightly wider than shoulder-width apart',
+    'Keep your body in a rigid plank position throughout',
+    'Lower your chest to just above the floor, then press explosively',
+  ];
+  return [
+    'Focus on controlled movement — slow down the eccentric phase',
+    'Breathe out on exertion and in on the way back to start',
+    'Maintain proper posture and brace your core throughout',
+  ];
 }
 
 const styles = StyleSheet.create({
   background: { flex: 1, backgroundColor: Colors.background },
   container: { padding: 16 },
   error: { color: Colors.text, marginTop: 60, textAlign: 'center', fontSize: 16 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   backBtnText: { color: Colors.text, fontWeight: '800' as const },
   title: { color: Colors.text, fontSize: 22, fontWeight: '900' as const },
@@ -393,4 +481,16 @@ const styles = StyleSheet.create({
   cardioCompleteBtnDone: { backgroundColor: Colors.success, borderColor: Colors.success },
   cardioCompleteBtnText: { color: Colors.text, fontSize: 15, fontWeight: '900' as const, textTransform: 'uppercase' as const },
   cardioCompleteBtnTextDone: { color: Colors.background },
+  exerciseNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  infoBtn: { padding: 4 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
+  modalContainer: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderWidth: 1, borderColor: Colors.border, maxHeight: '85%' },
+  exerciseGif: { width: '100%', height: 220, borderRadius: 12, backgroundColor: Colors.background, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  modalTitle: { color: Colors.accent, fontSize: 18, fontWeight: '900' as const, flex: 1 },
+  modalCloseBtn: { padding: 4 },
+  modalSectionTitle: { color: Colors.textSecondary, fontSize: 11, fontWeight: '800' as const, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 10, marginTop: 8 },
+  modalTip: { color: Colors.text, fontSize: 14, fontWeight: '500' as const, marginBottom: 8, lineHeight: 20 },
+  modalTutorialBtn: { backgroundColor: Colors.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 12, marginBottom: 8 },
+  modalTutorialBtnText: { color: Colors.background, fontWeight: '900' as const, fontSize: 15 },
 });

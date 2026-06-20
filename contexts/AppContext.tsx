@@ -451,6 +451,13 @@ export const [AppProvider, useApp] = createContextHook(() => {
       referredBy: referredBy ?? existingUser?.referredBy,
       totalReferrals: existingUser?.totalReferrals ?? 0,
       resetPin: resetPin ?? existingUser?.resetPin,
+      isTrainer: existingUser?.isTrainer ?? false,
+      trainerBio: existingUser?.trainerBio,
+      trainerSpecialty: existingUser?.trainerSpecialty,
+      trainerPrice: existingUser?.trainerPrice,
+      trainerTrialDays: existingUser?.trainerTrialDays,
+      trainerRevenueSplit: existingUser?.trainerRevenueSplit,
+      trainerApproved: existingUser?.trainerApproved ?? false,
     };
     
     setRegistrationDate(userRegistrationDate);

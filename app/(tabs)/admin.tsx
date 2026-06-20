@@ -1,4 +1,4 @@
-import { Shield, Users, Target, TrendingUp, Bell, Settings, MessageCircle, Award, Dumbbell, Camera, Trophy, Crown, ShoppingBag } from 'lucide-react-native';
+import { Shield, Users, Target, TrendingUp, Bell, Settings, MessageCircle, Award, Dumbbell, Camera, Trophy, Crown, ShoppingBag, Brain } from 'lucide-react-native';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -134,6 +134,14 @@ export default function AdminScreen() {
       icon: Crown,
       color: Colors.accent,
       route: '/admin-trainers',
+    },
+    {
+      id: '9',
+      title: 'AI Trainer',
+      description: 'Chat with Commander AI',
+      icon: Brain,
+      color: Colors.accent,
+      route: '/ai-trainer',
     },
   ];
 

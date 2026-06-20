@@ -163,6 +163,8 @@ function RootLayoutNav() {
         <Stack.Screen name="trainer" options={{ headerShown: false }} />
         <Stack.Screen name="program-detail" options={{ headerShown: false }} />
         <Stack.Screen name="admin-trainers" options={{ headerShown: false }} />
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+        <Stack.Screen name="ai-trainer" options={{ headerShown: false }} />
       </Stack>
     </AuthGuard>
   );

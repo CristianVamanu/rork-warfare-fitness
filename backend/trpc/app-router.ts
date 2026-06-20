@@ -2,6 +2,7 @@ import { createTRPCRouter } from "./create-context";
 import hiRoute from "./routes/example/hi/route";
 import generateProgramWithAiRoute from "./routes/programs/generate-with-ai/route";
 import scanFoodRoute from "./routes/food/scan/route";
+import aiTrainerChatRoute from "./routes/ai-trainer/chat/route";
 
 import { createChallengeRoute } from "./routes/challenges/create/route";
 import { listChallengesRoute } from "./routes/challenges/list/route";
@@ -45,6 +46,10 @@ export const appRouter = createTRPCRouter({
     get: getShopProductProcedure,
     update: updateShopProductProcedure,
     delete: deleteShopProductProcedure,
+  }),
+
+  aiTrainer: createTRPCRouter({
+    chat: aiTrainerChatRoute,
   }),
 });
 
