@@ -4,6 +4,11 @@
   "installCommand": "npm install",
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
+  "functions": {
+    "backend/hono.ts": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/backend/hono.ts" },
     { "source": "/((?!_expo|assets).*)", "destination": "/index.html" }

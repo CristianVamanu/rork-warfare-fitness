@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -62,6 +62,30 @@ export default function AdminSettingsScreen() {
       order: 0,
     },
   ]);
+
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (!initializedRef.current && (adminSettings.aiApiKey || adminSettings.welcomeMessage)) {
+      initializedRef.current = true;
+      setAppSettings({
+        appName: adminSettings.appName,
+        tagline: adminSettings.tagline,
+        supportEmail: adminSettings.supportEmail,
+        welcomeMessage: adminSettings.welcomeMessage ?? 'Welcome to Warfare Fitness, Soldier!',
+        welcomeVideoUrl: adminSettings.welcomeVideoUrl ?? '',
+        dailyMessage: adminSettings.dailyMessage ?? 'Today is your day to dominate. No excuses.',
+        aiApiKey: adminSettings.aiApiKey ?? '',
+        heroTitle: adminSettings.heroTitle ?? 'Your Mission Awaits, Soldier',
+        heroSubtitle: adminSettings.heroSubtitle ?? 'Forge Strength. Crush Anxiety. Dominate Your Life.',
+        appLogo: adminSettings.appLogo ?? '',
+        coffeeLink: adminSettings.coffeeLink ?? '',
+        stripePaymentLink: adminSettings.stripePaymentLink ?? '',
+        monthlyPrice: adminSettings.monthlyPrice ?? '$9.99',
+      });
+      if (adminSettings.dailyBriefings?.length) setDailyBriefings(adminSettings.dailyBriefings);
+      if (adminSettings.freePackage) setFreePackage(adminSettings.freePackage);
+    }
+  }, [adminSettings]);
 
 
 
@@ -477,14 +501,20 @@ export default function AdminSettingsScreen() {
             style={styles.input}
             value={appSettings.aiApiKey}
             onChangeText={(text) =>
-              setAppSettings({ ...appSettings, aiApiKey: text })
+              setAppSettings({ ...appSettings, aiApiKey: text.trim() })
             }
             placeholder="sk-..."
             placeholderTextColor={Colors.textTertiary}
             autoCapitalize="none"
-            secureTextEntry
+            autoCorrect={false}
+            secureTextEntry={false}
           />
-          <Text style={styles.helpText}>Use your standard OpenAI API key (starts with sk- or sk-proj-). Get one at platform.openai.com. Leave empty to disable AI features.</Text>
+          {appSettings.aiApiKey ? (
+            <View style={styles.keySetBanner}>
+              <Text style={styles.keySetText}>✓ API key entered ({appSettings.aiApiKey.length} chars). Tap "Save All Settings" below to apply.</Text>
+            </View>
+          ) : null}
+          <Text style={styles.helpText}>Use your standard OpenAI API key — starts with sk- or sk-proj-. Get one at platform.openai.com. Leave empty to disable AI features.</Text>
         </View>
 
         <View style={styles.section}>
@@ -911,6 +941,21 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
   },
 
+  keySetBanner: {
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.3)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  keySetText: {
+    color: '#22c55e',
+    fontSize: 12,
+    fontWeight: '600' as const,
+  },
   helpText: {
     fontSize: 12,
     color: Colors.textTertiary,
