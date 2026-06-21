@@ -715,7 +715,7 @@ export default function HomeScreen() {
               <View style={styles.actionIconContainer}>
                 <Dumbbell size={24} color={Colors.accent} />
               </View>
-              <Text style={styles.actionTitle}>Missions</Text>
+              <Text style={styles.actionTitle}>Programs</Text>
               <Text style={styles.actionSubtitle}>Your next workouts</Text>
             </TouchableOpacity>
 

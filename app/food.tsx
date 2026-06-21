@@ -33,10 +33,48 @@ export default function FoodScannerScreen() {
 
   const pickImage = async () => {
     setError(undefined);
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, base64: true, quality: 0.7 });
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      base64: Platform.OS !== 'web',
+      quality: 0.7,
+    });
     if (res.canceled) return;
     const asset = res.assets?.[0];
-    if (asset) setPicked({ uri: asset.uri, base64: asset.base64 ?? undefined });
+    if (!asset) return;
+
+    let base64 = asset.base64 ?? undefined;
+
+    // On web, derive base64 via FileReader since expo-image-picker doesn't return it directly
+    if (Platform.OS === 'web' && asset.uri) {
+      try {
+        const resp = await fetch(asset.uri);
+        const blob = await resp.blob();
+        base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const dataUrl = reader.result as string;
+            resolve(dataUrl.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch {
+        setError('Could not read image. Please try a different photo.');
+        return;
+      }
+    }
+
+    if (!base64) {
+      setError('No image data. Please pick a clearer photo or take a new one.');
+      return;
+    }
+
+    // Strip data URL prefix if somehow included
+    if (base64.startsWith('data:')) {
+      base64 = base64.split(',')[1];
+    }
+
+    setPicked({ uri: asset.uri, base64 });
   };
 
   const takePhoto = async () => {
@@ -56,7 +94,7 @@ export default function FoodScannerScreen() {
   };
 
   const scan = async () => {
-    if (!picked?.uri) { setError('Select a food photo first'); return; }
+    if (!picked?.uri) { setError('No image data. Please pick a clearer photo or take a new one.'); return; }
     if (!picked?.base64) { setError('Image data not available. Please try taking/selecting the photo again.'); return; }
     setLoading(true);
     setError(undefined);
