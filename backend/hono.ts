@@ -1,8 +1,11 @@
 import { Hono } from "hono";
+import { handle } from "hono/vercel";
 import { trpcServer } from "@hono/trpc-server";
 import { cors } from "hono/cors";
 import { appRouter } from "./trpc/app-router";
 import { createContext } from "./trpc/create-context";
+
+export const config = { runtime: "edge" };
 
 const app = new Hono();
 
@@ -55,4 +58,4 @@ app.get("/", (c) => {
   return c.json({ status: "ok", message: "API is running" });
 });
 
-export default app;
+export default handle(app);

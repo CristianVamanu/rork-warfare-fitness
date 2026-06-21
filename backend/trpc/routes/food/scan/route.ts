@@ -12,6 +12,9 @@ export const scanFoodRoute = publicProcedure
   .mutation(async ({ input }) => {
     const apiKey = (input.apiKey ?? '').trim() || process.env.OPENAI_API_KEY;
 
+    // Strip data URL prefix if present (expo-image-picker on web may include it)
+    const base64 = input.base64Image.replace(/^data:[^;]+;base64,/, '');
+
     if (!apiKey) {
       throw new TRPCError({
         code: "BAD_REQUEST",
@@ -42,7 +45,7 @@ export const scanFoodRoute = publicProcedure
                 },
                 {
                   type: "image_url",
-                  image_url: { url: `data:image/jpeg;base64,${input.base64Image}`, detail: "low" },
+                  image_url: { url: `data:image/jpeg;base64,${base64}`, detail: "low" },
                 },
               ],
             },

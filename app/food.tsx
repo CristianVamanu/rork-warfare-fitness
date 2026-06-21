@@ -63,7 +63,14 @@ export default function FoodScannerScreen() {
   };
 
   const openCamera = async (mode: CameraMode) => {
-    if (Platform.OS === 'web') { await pickImage(); return; }
+    if (Platform.OS === 'web') {
+      if (mode === 'barcode') {
+        setError('Barcode scanning requires the mobile app. Use Camera or Gallery instead.');
+        return;
+      }
+      await pickImage();
+      return;
+    }
     if (!permission?.granted) {
       const res = await requestPermission();
       if (!res.granted) { setError('Camera permission denied'); return; }
