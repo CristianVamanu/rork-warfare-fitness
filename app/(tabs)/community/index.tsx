@@ -12,7 +12,7 @@ export default function CommunityScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useApp();
-  const { channels } = useCommunity();
+  const { channels, setActiveChannelId } = useCommunity();
 
   const [selectedChannel, setSelectedChannel] = useState<string>('general');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -94,6 +94,7 @@ export default function CommunityScreen() {
 
   const handleChannelPress = (channelId: string) => {
     setSelectedChannel(channelId);
+    setActiveChannelId(channelId);
     router.push(`/(tabs)/community/${channelId}` as any);
   };
 

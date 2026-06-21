@@ -114,6 +114,10 @@ interface User {
   trainerTrialDays?: number;
   trainerRevenueSplit?: number;
   trainerApproved?: boolean;
+  trainerInviteCode?: string;
+  trainerPlan?: 'free' | 'pro' | 'elite';
+  assignedTrainerId?: string;
+  assignedTrainerName?: string;
 }
 
 const ADMIN_EMAILS = ['admin@warfarefitness.com', 'superadmin@warfarefitness.com'];
@@ -494,6 +498,15 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
     if (isNewUser && referredBy) {
       console.log('[Auth] User referred by:', referredBy);
+      // Check if this is a trainer invite code (T- prefix or matching trainerInviteCode)
+      const trainerUser = allUsersUpdated.find((u: typeof newUser) =>
+        u.isTrainer && (u.trainerInviteCode === referredBy || ('T-' + (u.referralCode ?? '')) === referredBy)
+      );
+      if (trainerUser) {
+        newUser.assignedTrainerId = trainerUser.id;
+        newUser.assignedTrainerName = trainerUser.name;
+        console.log('[Auth] New user linked to trainer:', trainerUser.name);
+      }
       const referrerUser = allUsersUpdated.find((u: typeof newUser) => u.referralCode === referredBy);
       if (referrerUser) {
         const referralBonus = 50;
@@ -784,13 +797,15 @@ export const [AppProvider, useApp] = createContextHook(() => {
   }, []);
 
   const promoteToTrainer = useCallback(async (userId: string) => {
+    const targetUser = allUsers.find(u => u.id === userId);
+    const inviteCode = targetUser?.trainerInviteCode ?? ('T-' + (targetUser?.referralCode ?? userId.slice(-6).toUpperCase()));
     const updated = allUsers.map(u =>
-      u.id === userId ? { ...u, isTrainer: true, trainerApproved: true, trainerRevenueSplit: 70 } : u
+      u.id === userId ? { ...u, isTrainer: true, trainerApproved: true, trainerRevenueSplit: 70, trainerInviteCode: inviteCode, trainerPlan: u.trainerPlan ?? 'free' } : u
     );
     setAllUsers(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(updated));
     if (user?.id === userId) {
-      const updatedUser = { ...user, isTrainer: true, trainerApproved: true, trainerRevenueSplit: 70 };
+      const updatedUser = { ...user, isTrainer: true, trainerApproved: true, trainerRevenueSplit: 70, trainerInviteCode: inviteCode, trainerPlan: user.trainerPlan ?? 'free' as const };
       setUser(updatedUser);
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
     }

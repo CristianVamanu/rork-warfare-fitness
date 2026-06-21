@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, ScrollView, Platform, Image, ActivityIndicator } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { UserPlus, Eye, EyeOff } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
@@ -15,6 +15,8 @@ function isValidEmail(email: string): boolean {
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ trainer?: string }>();
+  const trainerCode = params.trainer?.toUpperCase();
   const { login, adminSettings } = useApp();
   const { resetTrainingData } = useTraining();
   const [name, setName] = useState('');
@@ -179,7 +181,7 @@ export default function RegisterScreen() {
                 setIsLoading(true);
                 await resetTrainingData();
                 
-                await login(email, name, password, true, username, weightUnit, '', '', '', '', undefined, resetPin);
+                await login(email, name, password, true, username, weightUnit, '', '', '', '', trainerCode ?? undefined, resetPin);
                 
                 setIsLoading(false);
                 router.replace('/onboarding' as any);

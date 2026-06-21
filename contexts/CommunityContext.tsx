@@ -1,7 +1,8 @@
 import createContextHook from '@nkzw/create-context-hook';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotifications } from './NotificationsContext';
+import { trpc } from '@/lib/trpc';
 
 export interface Message {
   id: string;
@@ -92,6 +93,26 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [userStatuses, setUserStatuses] = useState<Record<string, UserStatus>>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [activeChannelId, setActiveChannelId] = useState<string>('general');
+  const serverSendMutation = trpc.community.send.useMutation();
+  const serverReactMutation = trpc.community.react.useMutation();
+  const serverDeleteMutation = trpc.community.delete.useMutation();
+
+  // Poll server for messages every 5s; merge with local state so all users see posts
+  const { data: serverMessages } = trpc.community.list.useQuery(
+    { channelId: activeChannelId },
+    { refetchInterval: 5000 }
+  );
+
+  useEffect(() => {
+    if (!serverMessages || serverMessages.length === 0) return;
+    setMessages(prev => {
+      const existingIds = new Set(prev.map(m => m.id));
+      const newOnes = serverMessages.filter(m => !existingIds.has(m.id));
+      if (newOnes.length === 0) return prev;
+      return [...prev, ...newOnes].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    });
+  }, [serverMessages]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -307,6 +328,19 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     setMessages(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(updated));
     console.log('[Community] Message sent:', newMessage.id);
+
+    // Also send to server so other devices see it
+    serverSendMutation.mutate({
+      channelId,
+      userId,
+      userName,
+      userAvatar,
+      content,
+      replyToId,
+      replyToUserName: newMessage.replyToUserName,
+      replyToContent: newMessage.replyToContent,
+      media: media ? { type: media.type, uri: media.uri } : undefined,
+    });
 
     const channelMembers = channel.members.filter(memberId => memberId !== userId);
     for (const memberId of channelMembers) {
@@ -657,6 +691,7 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       getChannelMessages,
       getUserStatus,
       cleanupOldMedia,
+      setActiveChannelId,
     }),
     [
       isLoading,
@@ -681,6 +716,7 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
       getChannelMessages,
       getUserStatus,
       cleanupOldMedia,
+      setActiveChannelId,
     ]
   );
 });

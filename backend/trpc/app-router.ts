@@ -1,5 +1,7 @@
 import { createTRPCRouter } from "./create-context";
 import hiRoute from "./routes/example/hi/route";
+import { listPostsRoute, sendPostRoute, reactPostRoute, deletePostRoute } from "./routes/community/route";
+import { registerTrainerCodeRoute, resolveInviteCodeRoute, linkClientRoute, getClientsRoute } from "./routes/trainer/route";
 import generateProgramWithAiRoute from "./routes/programs/generate-with-ai/route";
 import scanFoodRoute from "./routes/food/scan/route";
 import aiTrainerChatRoute from "./routes/ai-trainer/chat/route";
@@ -57,6 +59,20 @@ export const appRouter = createTRPCRouter({
     config: getAdminConfigRoute,
     saveSettings: saveAdminSettingsRoute,
     getSecrets: getAdminSecretsRoute,
+  }),
+
+  community: createTRPCRouter({
+    list: listPostsRoute,
+    send: sendPostRoute,
+    react: reactPostRoute,
+    delete: deletePostRoute,
+  }),
+
+  trainer: createTRPCRouter({
+    registerCode: registerTrainerCodeRoute,
+    resolveCode: resolveInviteCodeRoute,
+    linkClient: linkClientRoute,
+    getClients: getClientsRoute,
   }),
 });
 

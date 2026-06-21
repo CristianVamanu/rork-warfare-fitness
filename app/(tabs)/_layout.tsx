@@ -59,9 +59,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="training"
         options={{
-          title: "Missions",
+          title: "Programs",
           tabBarIcon: ({ color }) => <Dumbbell size={22} color={color} strokeWidth={2} />,
-          tabBarLabel: renderTabLabel("Missions"),
+          tabBarLabel: renderTabLabel("Programs"),
         }}
       />
       <Tabs.Screen
