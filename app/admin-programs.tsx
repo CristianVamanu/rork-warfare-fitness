@@ -30,7 +30,13 @@ export default function AdminProgramsScreen() {
   const [aiDays, setAiDays] = useState('90');
   const [aiAccess, setAiAccess] = useState<Program['accessLevel']>('free');
   const [aiIsPaid, setAiIsPaid] = useState(false);
-  
+  // AI preview / confirmation state
+  const [aiPreview, setAiPreview] = useState<Program | null>(null);
+  const [aiPreviewTitle, setAiPreviewTitle] = useState('');
+  const [aiEditDay, setAiEditDay] = useState<number | null>(null);
+  const [aiAssignUserId, setAiAssignUserId] = useState('');
+  const [showAssignPicker, setShowAssignPicker] = useState(false);
+
   const generateMutation = trpc.programs.generateWithAi.useMutation();
 
   if (!user?.isAdmin) {
@@ -125,21 +131,14 @@ export default function AdminProgramsScreen() {
       Alert.alert('Error', 'Please provide a program description');
       return;
     }
-
-    const apiKey = adminSettings.aiApiKey;
-    if (!apiKey || apiKey.trim().length === 0) {
-      Alert.alert('Error', 'OpenAI API key is not configured. Please set it in Admin Settings.');
+    const apiKey = adminSettings.aiApiKey || process.env.OPENAI_API_KEY || '';
+    if (!apiKey.trim()) {
+      Alert.alert('Error', 'OpenAI API key is not configured. Please set it in Admin Settings or as a Vercel environment variable.');
       return;
     }
-
     try {
       const days = parseInt(aiDays, 10) || 90;
-      const result = await generateMutation.mutateAsync({
-        programDescription: aiDescription,
-        apiKey,
-        days,
-      });
-
+      const result = await generateMutation.mutateAsync({ programDescription: aiDescription, apiKey, days });
       const id = result.title.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now();
       const schedule = result.schedule.map(s => ({
         day: s.day,
@@ -149,10 +148,10 @@ export default function AdminProgramsScreen() {
           exercises: s.workout.exercises.map((e, idx) => ({
             ...e,
             id: `${id}-day-${s.day}-ex-${idx}`,
+            imageUrl: '',
           })),
         } : null,
       }));
-
       const program: Program = {
         id,
         title: result.title,
@@ -163,19 +162,31 @@ export default function AdminProgramsScreen() {
         isPaid: aiIsPaid,
         requiresSubscription: aiIsPaid,
       };
-
-      const existingPrograms = await AsyncStorage.getItem('wf_programs');
-      const currentPrograms = existingPrograms ? JSON.parse(existingPrograms) : programs;
-      const next = [program, ...currentPrograms];
-      await AsyncStorage.setItem('wf_programs', JSON.stringify(next));
+      setAiPreview(program);
+      setAiPreviewTitle(program.title);
       setShowAiGenerate(false);
-      setAiDescription('');
-      setAiDays('90');
-      Alert.alert('Success', `AI-generated program "${result.title}" created! Please refresh the page to see it.`);
     } catch (error) {
-      console.error('[AI Generate] Error:', error);
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to generate program');
+      Alert.alert('Generation Failed', error instanceof Error ? error.message : 'Failed to generate program. Check your API key and try again.');
     }
+  };
+
+  const saveAiProgram = async (publish: boolean, assignToUserId?: string) => {
+    if (!aiPreview) return;
+    const final: Program = { ...aiPreview, title: aiPreviewTitle };
+    const existingPrograms = await AsyncStorage.getItem('wf_programs');
+    const currentPrograms: Program[] = existingPrograms ? JSON.parse(existingPrograms) : programs;
+    const next = [final, ...currentPrograms.filter(p => p.id !== final.id)];
+    await AsyncStorage.setItem('wf_programs', JSON.stringify(next));
+    if (assignToUserId) {
+      // Store assignment: map userId → programId
+      const assignKey = `wf_user_program_${assignToUserId}`;
+      await AsyncStorage.setItem(assignKey, final.id);
+    }
+    setAiPreview(null);
+    setAiDescription('');
+    setAiDays('90');
+    setAiAssignUserId('');
+    Alert.alert('Saved!', `"${final.title}" ${publish ? 'is now live' : 'saved as draft'}${assignToUserId ? ' and assigned to user' : ''}. Restart the app to see it in the Programs list.`);
   };
 
   return (
@@ -580,6 +591,175 @@ export default function AdminProgramsScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* AI Program Preview / Confirmation Modal */}
+      <Modal visible={!!aiPreview} animationType="slide" onRequestClose={() => setAiPreview(null)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalRoot}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Review AI Program</Text>
+              <TouchableOpacity onPress={() => setAiPreview(null)}><X size={22} color={Colors.text} /></TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <View style={styles.aiPreviewBanner}>
+                <Sparkles size={20} color={Colors.accent} />
+                <Text style={styles.aiPreviewBannerText}>AI generated this program. Review, edit, then publish.</Text>
+              </View>
+
+              <Text style={styles.label}>Program Title</Text>
+              <TextInput
+                style={styles.input}
+                value={aiPreviewTitle}
+                onChangeText={setAiPreviewTitle}
+                placeholder="Program title"
+                placeholderTextColor={Colors.textSecondary}
+              />
+
+              {/* Stats */}
+              {aiPreview && (() => {
+                const workoutDays = aiPreview.schedule.filter(s => s.workout).length;
+                const restDays = aiPreview.schedule.filter(s => !s.workout).length;
+                const totalExercises = aiPreview.schedule.reduce((sum, s) => sum + (s.workout?.exercises.length ?? 0), 0);
+                return (
+                  <View style={styles.aiStatsRow}>
+                    <View style={styles.aiStat}><Text style={styles.aiStatValue}>{aiPreview.days}</Text><Text style={styles.aiStatLabel}>Days</Text></View>
+                    <View style={styles.aiStat}><Text style={styles.aiStatValue}>{workoutDays}</Text><Text style={styles.aiStatLabel}>Workouts</Text></View>
+                    <View style={styles.aiStat}><Text style={styles.aiStatValue}>{restDays}</Text><Text style={styles.aiStatLabel}>Rest Days</Text></View>
+                    <View style={styles.aiStat}><Text style={styles.aiStatValue}>{totalExercises}</Text><Text style={styles.aiStatLabel}>Exercises</Text></View>
+                  </View>
+                );
+              })()}
+
+              {/* First 5 workout previews */}
+              <Text style={styles.sectionTitle}>Workout Preview</Text>
+              {aiPreview?.schedule.filter(s => s.workout).slice(0, 5).map(s => (
+                <TouchableOpacity
+                  key={s.day}
+                  style={styles.aiWorkoutPreviewCard}
+                  onPress={() => {
+                    // Open the workout editor reusing existing editing state
+                    if (!aiPreview) return;
+                    setAiEditDay(s.day);
+                    setWorkoutForm(s.workout ? { ...s.workout, exercises: s.workout.exercises.map(e => ({ ...e })) } : null);
+                  }}
+                >
+                  <View style={styles.aiWorkoutPreviewHeader}>
+                    <Text style={styles.aiWorkoutPreviewTitle}>Day {s.day} — {s.workout?.name}</Text>
+                    <Edit2 size={14} color={Colors.accent} />
+                  </View>
+                  <Text style={styles.aiWorkoutPreviewMeta}>{s.workout?.muscleGroup} · {s.workout?.durationMin}min · {s.workout?.exercises.length} exercises</Text>
+                  {s.workout?.exercises.slice(0, 3).map((ex, i) => (
+                    <Text key={i} style={styles.aiExercisePreview}>• {ex.name} — {ex.sets}×{ex.reps} @ RPE {ex.rpe ?? '7-8'}, {ex.restSec}s rest</Text>
+                  ))}
+                  {(s.workout?.exercises.length ?? 0) > 3 && (
+                    <Text style={styles.aiExerciseMore}>+{(s.workout?.exercises.length ?? 0) - 3} more exercises (tap to see all)</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+              {(aiPreview?.schedule.filter(s => s.workout).length ?? 0) > 5 && (
+                <Text style={styles.aiMoreWorkouts}>...and {(aiPreview?.schedule.filter(s => s.workout).length ?? 0) - 5} more workout days</Text>
+              )}
+
+              {/* Assign to user */}
+              <Text style={[styles.label, { marginTop: 20 }]}>Assign to Specific User (optional)</Text>
+              <TextInput
+                style={styles.input}
+                value={aiAssignUserId}
+                onChangeText={setAiAssignUserId}
+                placeholder="Enter user email or ID to assign directly"
+                placeholderTextColor={Colors.textTertiary}
+                autoCapitalize="none"
+              />
+
+              {/* Action buttons */}
+              <TouchableOpacity style={[styles.saveBtn, styles.aiGenerateBtn]} onPress={() => saveAiProgram(true, aiAssignUserId || undefined)}>
+                <Text style={styles.saveText}>✓ Accept & Make Live</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={() => saveAiProgram(false, aiAssignUserId || undefined)}>
+                <Text style={styles.saveText}>Save as Draft</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setAiPreview(null)}>
+                <Text style={styles.cancelText}>Discard & Start Over</Text>
+              </TouchableOpacity>
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Inline workout editor for AI preview days */}
+      <Modal visible={aiEditDay !== null} animationType="slide" onRequestClose={() => setAiEditDay(null)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalRoot}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Day {aiEditDay}</Text>
+              <TouchableOpacity onPress={() => { setAiEditDay(null); setWorkoutForm(null); }}><X size={22} color={Colors.text} /></TouchableOpacity>
+            </View>
+            {workoutForm && (
+              <ScrollView style={styles.modalBody}>
+                <Text style={styles.label}>Workout Name</Text>
+                <TextInput style={styles.input} value={workoutForm.name} onChangeText={(t) => setWorkoutForm({ ...workoutForm, name: t })} />
+                <View style={styles.row2}>
+                  <View style={{ flex: 1 }}><Text style={styles.label}>Duration (min)</Text>
+                    <TextInput style={styles.input} keyboardType="numeric" value={String(workoutForm.durationMin)} onChangeText={(t) => setWorkoutForm({ ...workoutForm, durationMin: parseInt(t || '0', 10) })} />
+                  </View>
+                  <View style={{ flex: 1 }}><Text style={styles.label}>Muscle Group</Text>
+                    <TextInput style={styles.input} value={workoutForm.muscleGroup} onChangeText={(t) => setWorkoutForm({ ...workoutForm, muscleGroup: t })} />
+                  </View>
+                </View>
+                <View style={styles.exHeader}>
+                  <Text style={styles.sectionTitle}>Exercises</Text>
+                  <TouchableOpacity style={styles.addBtn} onPress={() => {
+                    const ex: Exercise = { id: `ai-ex-${Date.now()}`, name: '', sets: 3, reps: '8-12', restSec: 90, rpe: '7-8', isCardio: false };
+                    setWorkoutForm({ ...workoutForm, exercises: [...workoutForm.exercises, ex] });
+                  }}>
+                    <Plus size={16} color={Colors.background} /><Text style={styles.addText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+                {workoutForm.exercises.map((e, idx) => (
+                  <View key={e.id} style={styles.exerciseRow}>
+                    <TextInput style={styles.input} value={e.name} onChangeText={(t) => {
+                      const ex = [...workoutForm.exercises]; ex[idx] = { ...e, name: t }; setWorkoutForm({ ...workoutForm, exercises: ex });
+                    }} placeholder="Exercise name" placeholderTextColor={Colors.textSecondary} />
+                    <TextInput style={styles.input} value={e.imageUrl ?? ''} onChangeText={(t) => {
+                      const ex = [...workoutForm.exercises]; ex[idx] = { ...e, imageUrl: t }; setWorkoutForm({ ...workoutForm, exercises: ex });
+                    }} placeholder="Demo GIF/Video URL (Firebase Storage URL)" placeholderTextColor={Colors.textTertiary} autoCapitalize="none" />
+                    <View style={styles.row2}>
+                      <TextInput style={[styles.input, { flex: 1 }]} keyboardType="numeric" value={String(e.sets)} onChangeText={(t) => {
+                        const ex = [...workoutForm.exercises]; ex[idx] = { ...e, sets: parseInt(t || '3', 10) }; setWorkoutForm({ ...workoutForm, exercises: ex });
+                      }} placeholder="Sets" placeholderTextColor={Colors.textSecondary} />
+                      <TextInput style={[styles.input, { flex: 1 }]} value={e.reps} onChangeText={(t) => {
+                        const ex = [...workoutForm.exercises]; ex[idx] = { ...e, reps: t }; setWorkoutForm({ ...workoutForm, exercises: ex });
+                      }} placeholder="Reps e.g. 8-12" placeholderTextColor={Colors.textSecondary} />
+                      <TextInput style={[styles.input, { flex: 1 }]} keyboardType="numeric" value={String(e.restSec)} onChangeText={(t) => {
+                        const ex = [...workoutForm.exercises]; ex[idx] = { ...e, restSec: parseInt(t || '90', 10) }; setWorkoutForm({ ...workoutForm, exercises: ex });
+                      }} placeholder="Rest sec" placeholderTextColor={Colors.textSecondary} />
+                      <TextInput style={[styles.input, { flex: 1 }]} value={e.rpe ?? ''} onChangeText={(t) => {
+                        const ex = [...workoutForm.exercises]; ex[idx] = { ...e, rpe: t }; setWorkoutForm({ ...workoutForm, exercises: ex });
+                      }} placeholder="RPE" placeholderTextColor={Colors.textSecondary} />
+                    </View>
+                    <TouchableOpacity style={styles.removeBtn} onPress={() => setWorkoutForm({ ...workoutForm, exercises: workoutForm.exercises.filter((_, i) => i !== idx) })}>
+                      <Trash2 size={14} color={Colors.danger} /><Text style={styles.removeText}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                <TouchableOpacity style={styles.saveBtn} onPress={() => {
+                  if (!aiPreview || aiEditDay === null) return;
+                  const updatedSchedule = aiPreview.schedule.map(s => s.day === aiEditDay ? { ...s, workout: workoutForm } : s);
+                  setAiPreview({ ...aiPreview, schedule: updatedSchedule });
+                  setAiEditDay(null);
+                  setWorkoutForm(null);
+                }}>
+                  <Text style={styles.saveText}>Save Changes</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setAiEditDay(null); setWorkoutForm(null); }}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <Modal visible={!!cloneWeekModal} animationType="fade" transparent onRequestClose={() => setCloneWeekModal(null)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.overlayModal}>
@@ -682,4 +862,17 @@ const styles = StyleSheet.create({
   warningText: { color: '#92400E', fontSize: 13, fontWeight: '600' as const },
   textArea: { minHeight: 100, textAlignVertical: 'top' },
   miniLabel: { color: Colors.textSecondary, fontSize: 11, fontWeight: '700' as const, marginBottom: 4, textTransform: 'uppercase' as const },
+  aiPreviewBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(139,92,246,0.15)', borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(139,92,246,0.3)' },
+  aiPreviewBannerText: { flex: 1, color: Colors.text, fontSize: 13, lineHeight: 18 },
+  aiStatsRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  aiStat: { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  aiStatValue: { color: Colors.accent, fontSize: 22, fontWeight: '900' as const },
+  aiStatLabel: { color: Colors.textSecondary, fontSize: 11, marginTop: 2 },
+  aiWorkoutPreviewCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: Colors.border },
+  aiWorkoutPreviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  aiWorkoutPreviewTitle: { color: Colors.text, fontWeight: '700' as const, fontSize: 14, flex: 1 },
+  aiWorkoutPreviewMeta: { color: Colors.accent, fontSize: 12, marginBottom: 8 },
+  aiExercisePreview: { color: Colors.textSecondary, fontSize: 12, marginBottom: 3, lineHeight: 18 },
+  aiExerciseMore: { color: Colors.accent, fontSize: 12, marginTop: 4, fontWeight: '600' as const },
+  aiMoreWorkouts: { color: Colors.textTertiary, fontSize: 13, textAlign: 'center', marginVertical: 10 },
 });
