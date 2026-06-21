@@ -62,10 +62,56 @@ export default function FoodScannerScreen() {
     if (asset) setPicked({ uri: asset.uri, base64: asset.base64 ?? undefined });
   };
 
+  const scanBarcodeFromImageWeb = async (uri: string, base64?: string) => {
+    setError(undefined);
+    setNutrition(undefined);
+    // Try BarcodeDetector API (Chrome on Android/desktop)
+    if (typeof (window as any).BarcodeDetector !== 'undefined') {
+      try {
+        const detector = new (window as any).BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'code_128'] });
+        const img = new window.Image();
+        img.src = uri;
+        await new Promise(r => { img.onload = r; img.onerror = r; });
+        const barcodes = await detector.detect(img);
+        if (barcodes?.length > 0) {
+          const barcode = barcodes[0].rawValue as string;
+          const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+          const json = await res.json();
+          if (json.status === 1 && json.product) {
+            const p = json.product;
+            const n = p.nutriments ?? {};
+            setNutrition({
+              name: p.product_name ?? p.abbreviated_product_name ?? 'Unknown product',
+              calories: Math.round(n['energy-kcal_100g'] ?? n['energy-kcal'] ?? 0),
+              protein: Math.round((n.proteins_100g ?? n.proteins ?? 0) * 10) / 10,
+              carbs: Math.round((n.carbohydrates_100g ?? n.carbohydrates ?? 0) * 10) / 10,
+              fat: Math.round((n.fat_100g ?? n.fat ?? 0) * 10) / 10,
+            });
+            return;
+          }
+        }
+      } catch { /* fall through to AI */ }
+    }
+    // BarcodeDetector not available or barcode not found — send photo to AI
+    if (base64) {
+      barcodeMutation.mutate({ base64Image: base64, apiKey: adminSettings.aiApiKey || undefined });
+    } else {
+      setError('Could not read barcode. Try taking a clearer photo.');
+    }
+  };
+
   const openCamera = async (mode: CameraMode) => {
     if (Platform.OS === 'web') {
       if (mode === 'barcode') {
-        setError('Barcode scanning requires the mobile app. Use Camera or Gallery instead.');
+        // On web: open camera/gallery, then detect barcode from the image
+        const res = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.9 }).catch(() =>
+          ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, base64: true, quality: 0.9 })
+        );
+        if (!res.canceled && res.assets?.[0]) {
+          const asset = res.assets[0];
+          setPicked({ uri: asset.uri, base64: asset.base64 ?? undefined });
+          await scanBarcodeFromImageWeb(asset.uri, asset.base64 ?? undefined);
+        }
         return;
       }
       await pickImage();
