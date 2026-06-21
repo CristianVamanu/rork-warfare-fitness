@@ -19,6 +19,7 @@ import { DaysWithoutProvider } from '@/contexts/DaysWithoutContext';
 import { CommunityProvider } from '@/contexts/CommunityContext';
 import { SubscriptionProvider, useSubscription } from '@/contexts/SubscriptionContext';
 import { TrainerProvider } from '@/contexts/TrainerContext';
+import AdminSettingsSync from '@/components/AdminSettingsSync';
 
 import { runMigrations, verifyDataIntegrity } from '@/lib/data-migration'
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
@@ -178,6 +179,7 @@ export default function RootLayout() {
         <DataMigrationGuard>
           <AppProvider>
             <FirebaseProvider>
+              <AdminSettingsSync />
               <SubscriptionProvider>
                 <TrainerProvider>
                 <TrainingProvider>

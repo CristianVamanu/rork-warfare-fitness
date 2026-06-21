@@ -456,6 +456,7 @@ export default function AdminSettingsScreen() {
             secureTextEntry
           />
           <Text style={styles.helpText}>Leave empty to use default AI service. Add your own key for unlimited usage.</Text>
+          <Text style={styles.helpText}>Once Firebase is configured, this key syncs across all your devices automatically.</Text>
         </View>
 
         <View style={styles.section}>
