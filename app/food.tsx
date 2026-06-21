@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Image as RNImage, TextInput, ActivityIndicator, Animated, Platform } from 'react-native';
 import { Stack } from 'expo-router';
-import { Camera, Image as ImageIcon, Plus, Check, Flame } from 'lucide-react-native';
+import { Camera, Image as ImageIcon, Plus, Check, Barcode } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
@@ -9,6 +9,8 @@ import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
 import { trpc } from '@/lib/trpc';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+type CameraMode = 'photo' | 'barcode' | null;
 
 export default function FoodScannerScreen() {
   const insets = useSafeAreaInsets();
@@ -23,7 +25,8 @@ export default function FoodScannerScreen() {
     name: string; calories: number; protein: number; carbs: number; fat: number;
   } | undefined>(undefined);
   const [mealType, setMealType] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack'>('lunch');
-  const [cameraOpen, setCameraOpen] = useState<boolean>(false);
+  const [cameraMode, setCameraMode] = useState<CameraMode>(null);
+  const [barcodeScanned, setBarcodeScanned] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [radarAnim] = useState(new Animated.Value(0));
 
@@ -34,9 +37,22 @@ export default function FoodScannerScreen() {
       radarAnim.setValue(0);
     },
     onError: (err) => {
-      setError(err.message || 'Failed to analyze image. Please try again.');
+      setError(err.message || 'Failed to analyze. Please try again.');
       radarAnim.stopAnimation();
       radarAnim.setValue(0);
+    },
+  });
+
+  const barcodeMutation = trpc.food.scan.useMutation({
+    onSuccess: (data) => {
+      setNutrition(data);
+      setCameraMode(null);
+      setBarcodeScanned(false);
+    },
+    onError: (err) => {
+      setError(err.message || 'Could not look up barcode. Try scanning food instead.');
+      setCameraMode(null);
+      setBarcodeScanned(false);
     },
   });
 
@@ -48,29 +64,60 @@ export default function FoodScannerScreen() {
     if (asset) setPicked({ uri: asset.uri, base64: asset.base64 ?? undefined });
   };
 
-  const takePhoto = async () => {
+  const openCamera = async (mode: CameraMode) => {
     if (Platform.OS === 'web') { await pickImage(); return; }
     if (!permission?.granted) {
       const res = await requestPermission();
-      if (!res.granted) return;
+      if (!res.granted) { setError('Camera permission denied'); return; }
     }
-    setCameraOpen(true);
+    setBarcodeScanned(false);
+    setCameraMode(mode);
   };
 
-  const scan = async () => {
+  const scan = () => {
     if (!picked?.base64) { setError('Select a food photo first'); return; }
     setError(undefined);
     setNutrition(undefined);
-
     const radarLoop = Animated.loop(
       Animated.timing(radarAnim, { toValue: 1, duration: 2000, useNativeDriver: true })
     );
     radarLoop.start();
+    scanMutation.mutate({ base64Image: picked.base64, apiKey: adminSettings.aiApiKey || undefined });
+  };
 
-    scanMutation.mutate({
-      base64Image: picked.base64,
-      apiKey: adminSettings.aiApiKey || undefined,
-    });
+  const onBarcodeScanned = async ({ data: barcode }: { data: string }) => {
+    if (barcodeScanned) return;
+    setBarcodeScanned(true);
+    setError(undefined);
+    setNutrition(undefined);
+
+    // Look up barcode via Open Food Facts (free, no key needed)
+    try {
+      const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+      const json = await res.json();
+      if (json.status === 1 && json.product) {
+        const p = json.product;
+        const n = p.nutriments ?? {};
+        setNutrition({
+          name: p.product_name ?? p.abbreviated_product_name ?? 'Unknown product',
+          calories: Math.round(n['energy-kcal_100g'] ?? n['energy-kcal'] ?? 0),
+          protein: Math.round((n.proteins_100g ?? n.proteins ?? 0) * 10) / 10,
+          carbs: Math.round((n.carbohydrates_100g ?? n.carbohydrates ?? 0) * 10) / 10,
+          fat: Math.round((n.fat_100g ?? n.fat ?? 0) * 10) / 10,
+        });
+        setCameraMode(null);
+      } else {
+        // Barcode not in database — ask AI with the barcode number
+        barcodeMutation.mutate({
+          base64Image: btoa(`barcode:${barcode}`),
+          apiKey: adminSettings.aiApiKey || undefined,
+        });
+      }
+    } catch {
+      setError('Could not look up barcode. Check your connection.');
+      setCameraMode(null);
+      setBarcodeScanned(false);
+    }
   };
 
   const addToLog = () => {
@@ -82,37 +129,53 @@ export default function FoodScannerScreen() {
     setError(undefined);
   };
 
-  if (cameraOpen && Platform.OS !== 'web') {
+  // Camera view (photo or barcode)
+  if (cameraMode && Platform.OS !== 'web') {
     return (
       <View style={{ flex: 1 }}>
-        <Stack.Screen options={{ title: 'Take Photo', headerStyle: { backgroundColor: '#000' }, headerTintColor: '#fff' }} />
-        <CameraView style={{ flex: 1 }} facing="back">
-          <View style={{ flex: 1, justifyContent: 'flex-end', padding: 20 }}>
-            <View style={{ flexDirection: 'row', gap: 12, justifyContent: 'space-around' }}>
-              <TouchableOpacity style={styles.cameraBtn} onPress={() => setCameraOpen(false)}>
+        <Stack.Screen options={{ title: cameraMode === 'barcode' ? 'Scan Barcode' : 'Take Photo', headerStyle: { backgroundColor: '#000' }, headerTintColor: '#fff' }} />
+        <CameraView
+          style={{ flex: 1 }}
+          facing="back"
+          onBarcodeScanned={cameraMode === 'barcode' ? onBarcodeScanned : undefined}
+          barcodeScannerSettings={cameraMode === 'barcode' ? { barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'qr'] } : undefined}
+        >
+          {cameraMode === 'barcode' ? (
+            <View style={styles.barcodeOverlay}>
+              <View style={styles.barcodeFrame} />
+              <Text style={styles.barcodeHint}>Point at a food barcode</Text>
+              <TouchableOpacity style={styles.cameraBtn} onPress={() => setCameraMode(null)}>
                 <Text style={styles.cameraBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.cameraBtn, styles.cameraCaptureBtn]}
-                onPress={async () => {
-                  const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 });
-                  if (!result.canceled && result.assets?.[0]) {
-                    const asset = result.assets[0];
-                    setPicked({ uri: asset.uri, base64: asset.base64 ?? undefined });
-                  }
-                  setCameraOpen(false);
-                }}
-              >
-                <Text style={styles.cameraBtnText}>Capture</Text>
-              </TouchableOpacity>
             </View>
-          </View>
+          ) : (
+            <View style={{ flex: 1, justifyContent: 'flex-end', padding: 20 }}>
+              <View style={{ flexDirection: 'row', gap: 12, justifyContent: 'space-around' }}>
+                <TouchableOpacity style={styles.cameraBtn} onPress={() => setCameraMode(null)}>
+                  <Text style={styles.cameraBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.cameraBtn, styles.cameraCaptureBtn]}
+                  onPress={async () => {
+                    const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 });
+                    if (!result.canceled && result.assets?.[0]) {
+                      const asset = result.assets[0];
+                      setPicked({ uri: asset.uri, base64: asset.base64 ?? undefined });
+                    }
+                    setCameraMode(null);
+                  }}
+                >
+                  <Text style={styles.cameraBtnText}>Capture</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </CameraView>
       </View>
     );
   }
 
-  const loading = scanMutation.isPending;
+  const loading = scanMutation.isPending || barcodeMutation.isPending;
 
   return (
     <>
@@ -120,7 +183,7 @@ export default function FoodScannerScreen() {
       <ScrollView style={{ backgroundColor: Colors.background }} contentContainerStyle={[styles.root, { paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.card}>
           <Text style={styles.title}>Scan your meal</Text>
-          <Text style={styles.sub}>Get instant nutrition and log it to your day</Text>
+          <Text style={styles.sub}>Photo scan or barcode — get instant nutrition</Text>
 
           {picked?.uri ? (
             <View>
@@ -136,23 +199,29 @@ export default function FoodScannerScreen() {
               )}
             </View>
           ) : (
-            <View style={styles.previewPlaceholder} />
+            <View style={styles.previewPlaceholder}>
+              {loading && <ActivityIndicator color={Colors.accent} size="large" />}
+            </View>
           )}
 
           <View style={styles.row}>
-            <TouchableOpacity style={styles.btn} onPress={takePhoto}>
+            <TouchableOpacity style={styles.btn} onPress={() => openCamera('photo')}>
               <Camera size={18} color={Colors.background} />
-              <Text style={styles.btnText}>Take Photo</Text>
+              <Text style={styles.btnText}>Camera</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.btn} onPress={pickImage}>
               <ImageIcon size={18} color={Colors.background} />
               <Text style={styles.btnText}>Gallery</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.accent }]} onPress={() => openCamera('barcode')}>
+              <Barcode size={18} color={Colors.accent} />
+              <Text style={[styles.btnText, { color: Colors.accent }]}>Barcode</Text>
+            </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={[styles.analyzeBtn, !picked && styles.analyzeBtnDisabled]} onPress={scan} disabled={loading || !picked}>
+          <TouchableOpacity style={[styles.analyzeBtn, (!picked || loading) && styles.analyzeBtnDisabled]} onPress={scan} disabled={loading || !picked}>
             {loading ? <ActivityIndicator color={Colors.background} /> : <Camera size={18} color={Colors.background} />}
-            <Text style={styles.analyzeBtnText}>{loading ? 'Analyzing...' : 'Analyze Food'}</Text>
+            <Text style={styles.analyzeBtnText}>{loading ? 'Analyzing...' : 'Analyze Food Photo'}</Text>
           </TouchableOpacity>
 
           {error && <Text style={styles.error}>{error}</Text>}
@@ -160,20 +229,19 @@ export default function FoodScannerScreen() {
           {nutrition && (
             <View style={styles.nutrition}>
               <Text style={styles.nutTitle}>{nutrition.name}</Text>
-              <View style={styles.nutRow}><Text style={styles.kvLabel}>Calories</Text><Text style={styles.kvValue}>{nutrition.calories}</Text></View>
+              <View style={styles.nutRow}><Text style={styles.kvLabel}>Calories</Text><Text style={styles.kvValue}>{nutrition.calories} kcal</Text></View>
               <View style={styles.nutRow}><Text style={styles.kvLabel}>Protein</Text><Text style={styles.kvValue}>{nutrition.protein} g</Text></View>
               <View style={styles.nutRow}><Text style={styles.kvLabel}>Carbs</Text><Text style={styles.kvValue}>{nutrition.carbs} g</Text></View>
               <View style={styles.nutRow}><Text style={styles.kvLabel}>Fat</Text><Text style={styles.kvValue}>{nutrition.fat} g</Text></View>
 
               <Text style={[styles.sub, { marginTop: 12 }]}>Add as</Text>
-              <View style={[styles.row, { justifyContent: 'flex-start' }]}>
+              <View style={[styles.row, { justifyContent: 'flex-start', flexWrap: 'wrap' }]}>
                 {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map(mt => (
                   <TouchableOpacity key={mt} style={[styles.mealChip, mealType === mt && styles.mealChipActive]} onPress={() => setMealType(mt)}>
                     <Text style={[styles.mealChipText, mealType === mt && styles.mealChipTextActive]}>{mt}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-
               <TouchableOpacity style={[styles.btn, { marginTop: 12 }]} onPress={addToLog}>
                 <Plus size={18} color={Colors.background} />
                 <Text style={styles.btnText}>Add to log</Text>
@@ -208,25 +276,25 @@ export default function FoodScannerScreen() {
           <Text style={styles.title}>{"Today's Nutrition"}</Text>
           <Text style={styles.sub}>Logged meals and progress</Text>
           {(() => {
-            const meals = getTodayMeals();
-            const total = meals.reduce((sum, m) => sum + (m.calories ?? 0), 0);
+            const todayMeals = getTodayMeals();
+            const total = todayMeals.reduce((sum, m) => sum + (m.calories ?? 0), 0);
             const pct = Math.min(100, Math.round((total / (calorieTarget || 1)) * 100));
             return (
               <>
                 <View style={styles.progressWrap}>
                   <View style={styles.progressBarOuter}>
-                    <View style={[styles.progressBarInner, { width: `${pct}%` }]} />
+                    <View style={[styles.progressBarInner, { width: `${pct}%` as any }]} />
                   </View>
                   <Text style={styles.progressText}>{total} / {calorieTarget} kcal</Text>
                 </View>
                 <View style={{ gap: 8 }}>
-                  {meals.map(m => (
+                  {todayMeals.map(m => (
                     <View key={m.id} style={styles.mealRow}>
                       <Text style={styles.mealName} numberOfLines={1} ellipsizeMode="tail">{m.name}</Text>
                       <Text style={styles.mealMeta}>{m.mealType} • {m.calories} kcal</Text>
                     </View>
                   ))}
-                  {meals.length === 0 && <Text style={styles.sub}>No meals yet. Scan and add your first meal.</Text>}
+                  {todayMeals.length === 0 && <Text style={styles.sub}>No meals yet. Scan your first meal.</Text>}
                 </View>
               </>
             );
@@ -245,11 +313,11 @@ const styles = StyleSheet.create({
   title: { color: Colors.text, fontSize: 18, fontWeight: '900' as const },
   sub: { color: Colors.textSecondary, marginTop: 4, marginBottom: 8, fontWeight: '600' as const },
   preview: { width: '100%', height: 220, borderRadius: 12, marginTop: 8, marginBottom: 8 },
-  previewPlaceholder: { width: '100%', height: 220, borderRadius: 12, marginTop: 8, marginBottom: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  previewPlaceholder: { width: '100%', height: 120, borderRadius: 12, marginTop: 8, marginBottom: 8, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'space-between' },
-  btn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.accent, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
+  btn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.accent, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
   btnText: { color: Colors.background, fontWeight: '900' as const },
-  error: { color: Colors.danger, marginTop: 8 },
+  error: { color: Colors.danger, marginTop: 8, fontWeight: '600' as const },
   nutrition: { marginTop: 8 },
   progressWrap: { marginTop: 8, marginBottom: 8 },
   progressBarOuter: { height: 10, backgroundColor: Colors.surfaceLight, borderRadius: 6, overflow: 'hidden' },
@@ -262,7 +330,7 @@ const styles = StyleSheet.create({
   nutRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   kvLabel: { color: Colors.textSecondary, fontWeight: '600' as const },
   kvValue: { color: Colors.text, fontWeight: '800' as const },
-  mealChip: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, marginRight: 6 },
+  mealChip: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, marginRight: 6, marginBottom: 6 },
   mealChipActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   mealChipText: { color: Colors.text, fontWeight: '800' as const, textTransform: 'capitalize' as const },
   mealChipTextActive: { color: Colors.background },
@@ -276,4 +344,7 @@ const styles = StyleSheet.create({
   analyzeBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.accent, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 10, justifyContent: 'center', marginTop: 8 },
   analyzeBtnDisabled: { opacity: 0.5 },
   analyzeBtnText: { color: Colors.background, fontWeight: '900' as const },
+  barcodeOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 20 },
+  barcodeFrame: { width: 260, height: 160, borderWidth: 3, borderColor: Colors.accent, borderRadius: 12, backgroundColor: 'transparent' },
+  barcodeHint: { color: '#fff', fontSize: 16, fontWeight: '700' as const, textShadowColor: '#000', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } },
 });
