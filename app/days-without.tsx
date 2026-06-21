@@ -1,19 +1,22 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { X, Plus, Clock, Target, TrendingUp, RotateCcw, Trash2, Shield } from 'lucide-react-native';
+import { X, Plus, Target, TrendingUp, RotateCcw, Trash2, Shield } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  ScrollView, 
-  TouchableOpacity, 
-  TextInput, 
+import {
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
   Alert,
   Modal,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Dimensions,
 } from 'react-native';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/colors';
@@ -252,71 +255,92 @@ export default function DaysWithoutScreen() {
       <Modal
         visible={showAddModal}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowAddModal(false)}
       >
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>New Challenge</Text>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>New Challenge</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowAddModal(false);
+                    setChallengeName('');
+                    setTargetDays('');
+                    setTargetUnit('days');
+                  }}
+                  style={styles.modalCloseButton}
+                >
+                  <X size={20} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
               <Text style={styles.modalSubtitle}>What are you committing to quit?</Text>
 
-              <TextInput
-                style={styles.input}
-                value={challengeName}
-                onChangeText={setChallengeName}
-                placeholder="e.g., Smoking, Porn, Drinking..."
-                placeholderTextColor={Colors.textTertiary}
-              />
-
-              <View style={styles.suggestionsContainer}>
-                <Text style={styles.suggestionsLabel}>Quick Select:</Text>
-                <View style={styles.suggestionsGrid}>
-                  {suggestedChallenges.map((suggestion) => (
-                    <TouchableOpacity
-                      key={suggestion}
-                      style={[styles.suggestionChip, challengeName === suggestion && styles.suggestionChipActive]}
-                      onPress={() => setChallengeName(suggestion)}
-                    >
-                      <Text style={[styles.suggestionText, challengeName === suggestion && styles.suggestionTextActive]}>
-                        {suggestion}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.targetContainer}>
-                <Target size={18} color={Colors.accent} />
-                <Text style={styles.targetLabel}>Set a Target (Optional)</Text>
-              </View>
-
-              <View style={styles.targetInputRow}>
+              <ScrollView
+                style={styles.modalScroll}
+                contentContainerStyle={styles.modalScrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  value={targetDays}
-                  onChangeText={setTargetDays}
-                  placeholder="e.g., 30"
+                  style={styles.input}
+                  value={challengeName}
+                  onChangeText={setChallengeName}
+                  placeholder="e.g., Smoking, Porn, Drinking..."
                   placeholderTextColor={Colors.textTertiary}
-                  keyboardType="number-pad"
+                  autoFocus={false}
                 />
-                <View style={styles.unitSelector}>
-                  {(['days', 'weeks', 'months'] as const).map((unit) => (
-                    <TouchableOpacity
-                      key={unit}
-                      style={[styles.unitButton, targetUnit === unit && styles.unitButtonActive]}
-                      onPress={() => setTargetUnit(unit)}
-                    >
-                      <Text style={[styles.unitText, targetUnit === unit && styles.unitTextActive]}>
-                        {unit}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+
+                <View style={styles.suggestionsContainer}>
+                  <Text style={styles.suggestionsLabel}>Quick Select:</Text>
+                  <View style={styles.suggestionsGrid}>
+                    {suggestedChallenges.map((suggestion) => (
+                      <TouchableOpacity
+                        key={suggestion}
+                        style={[styles.suggestionChip, challengeName === suggestion && styles.suggestionChipActive]}
+                        onPress={() => setChallengeName(suggestion)}
+                      >
+                        <Text style={[styles.suggestionText, challengeName === suggestion && styles.suggestionTextActive]}>
+                          {suggestion}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
-              </View>
+
+                <View style={styles.targetContainer}>
+                  <Target size={18} color={Colors.accent} />
+                  <Text style={styles.targetLabel}>Set a Target (Optional)</Text>
+                </View>
+
+                <View style={styles.targetInputRow}>
+                  <TextInput
+                    style={[styles.input, styles.targetNumberInput]}
+                    value={targetDays}
+                    onChangeText={setTargetDays}
+                    placeholder="e.g., 30"
+                    placeholderTextColor={Colors.textTertiary}
+                    keyboardType="number-pad"
+                  />
+                  <View style={styles.unitSelector}>
+                    {(['days', 'weeks', 'months'] as const).map((unit) => (
+                      <TouchableOpacity
+                        key={unit}
+                        style={[styles.unitButton, targetUnit === unit && styles.unitButtonActive]}
+                        onPress={() => setTargetUnit(unit)}
+                      >
+                        <Text style={[styles.unitText, targetUnit === unit && styles.unitTextActive]}>
+                          {unit}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </ScrollView>
 
               <View style={styles.modalButtons}>
                 <TouchableOpacity
@@ -571,25 +595,49 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    paddingHorizontal: 24,
   },
   modalContent: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    paddingTop: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 0,
     width: '100%',
-    maxWidth: 400,
+    maxHeight: SCREEN_HEIGHT * 0.85,
     borderWidth: 1,
     borderColor: Colors.border,
+    borderBottomWidth: 0,
+  },
+  modalHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 8,
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  modalScroll: {
+    flexGrow: 0,
+  },
+  modalScrollContent: {
+    paddingBottom: 8,
   },
   modalTitle: {
     fontSize: 22,
     fontWeight: '800' as const,
     color: Colors.text,
-    marginBottom: 8,
   },
   modalSubtitle: {
     fontSize: 14,
@@ -653,10 +701,15 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: Colors.text,
   },
+  targetNumberInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
   targetInputRow: {
     flexDirection: 'row',
     gap: 8,
     marginBottom: 24,
+    alignItems: 'center',
   },
   unitSelector: {
     flexDirection: 'row',
@@ -686,11 +739,13 @@ const styles = StyleSheet.create({
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
+    paddingTop: 16,
+    paddingBottom: 32,
   },
   modalButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: 16,
+    borderRadius: 14,
     alignItems: 'center',
   },
   modalButtonCancel: {

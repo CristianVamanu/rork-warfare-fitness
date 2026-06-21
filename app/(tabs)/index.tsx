@@ -10,7 +10,6 @@ import { useRef, useEffect, useState } from 'react';
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
 import { useTraining } from '@/contexts/TrainingContext';
-import { useRanking } from '@/contexts/RankingContext';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { useDaysWithout } from '@/contexts/DaysWithoutContext';
 import ExternalLinkDisclosure from '@/components/ExternalLinkDisclosure';

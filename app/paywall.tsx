@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import Colors from '@/constants/colors';
 import { useSubscription, RC_MONTHLY_ID } from '@/contexts/SubscriptionContext';
+import { useApp } from '@/contexts/AppContext';
 
 const PREMIUM_FEATURES = [
   { icon: Trophy, text: 'Full access to all workout days' },
@@ -26,12 +27,17 @@ const FREE_FEATURES = [
 export default function PaywallScreen() {
   const router = useRouter();
   const { subscriptionState, getDaysRemainingInTrial, purchaseNative, restorePurchases } = useSubscription();
+  const { adminSettings } = useApp();
   const [loading, setLoading] = useState(false);
 
   const handleUpgrade = async () => {
     if (Platform.OS === 'web') {
-      // On web: redirect to Stripe checkout (set this URL in your Stripe dashboard)
-      Linking.openURL('https://buy.stripe.com/YOUR_STRIPE_PAYMENT_LINK');
+      const stripeLink = adminSettings.stripePaymentLink;
+      if (!stripeLink) {
+        Alert.alert('Coming Soon', 'Online payments are being set up. Please contact support to upgrade.');
+        return;
+      }
+      Linking.openURL(stripeLink);
       return;
     }
     setLoading(true);
@@ -131,7 +137,7 @@ export default function PaywallScreen() {
                   <View style={styles.tierHeader}>
                     <Text style={[styles.tierName, { color: '#000' }]}>Premium</Text>
                     <View>
-                      <Text style={[styles.tierPrice, { color: '#000' }]}>$9.99</Text>
+                      <Text style={[styles.tierPrice, { color: '#000' }]}>{adminSettings.monthlyPrice || '$9.99'}</Text>
                       <Text style={[styles.tierPeriod, { color: 'rgba(0,0,0,0.6)' }]}>per month</Text>
                       <Text style={[styles.trialText, { color: '#000' }]}>7-day free trial</Text>
                     </View>
@@ -148,7 +154,7 @@ export default function PaywallScreen() {
                       : <>
                           <Crown size={20} color={Colors.accent} fill={Colors.accent} />
                           <Text style={styles.subscribeButtonText}>
-                            {Platform.OS === 'web' ? 'Subscribe — $9.99/mo' : 'Start Free Trial'}
+                            {Platform.OS === 'web' ? `Subscribe — ${adminSettings.monthlyPrice || '$9.99'}/mo` : 'Start Free Trial'}
                           </Text>
                         </>
                     }
