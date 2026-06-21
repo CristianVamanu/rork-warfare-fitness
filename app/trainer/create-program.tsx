@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, Alert,
+  TextInput, Alert, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ChevronRight, Check } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Check, Zap, Edit3 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
 import { useTrainer } from '@/contexts/TrainerContext';
 import { useApp } from '@/contexts/AppContext';
 import { FontSize, FontWeight } from '@/constants/typography';
+import { trpc } from '@/lib/trpc';
 
 const CATEGORIES = [
   'strength', 'cardio', 'hiit', 'calisthenics',
@@ -22,14 +23,45 @@ const TRIAL_OPTIONS = [0, 3, 7, 14, 30];
 type Category = typeof CATEGORIES[number];
 type Difficulty = typeof DIFFICULTIES[number];
 
+type AiGeneratedSchedule = {
+  workoutDays: number;
+  restDays: number;
+  schedule: Array<{ day: number; name: string; exercises: string[] }>;
+};
+
 export default function CreateProgramScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { createProgram } = useTrainer();
-  const { user } = useApp();
+  const { user, adminSettings } = useApp();
 
   const [step, setStep] = useState(1);
   const TOTAL_STEPS = 3;
+  const [aiGenerated, setAiGenerated] = useState<AiGeneratedSchedule | null>(null);
+  const [showAiResult, setShowAiResult] = useState(false);
+
+  const generateAiMutation = trpc.programs.generateWithAi.useMutation({
+    onSuccess: (data) => {
+      if (data && typeof data === 'object') {
+        const schedule = (data as any).schedule ?? [];
+        const workoutDays = schedule.filter((s: any) => s.workout).length;
+        const restDays = schedule.filter((s: any) => s.isRest).length;
+        const workouts = schedule
+          .filter((s: any) => s.workout)
+          .slice(0, 3)
+          .map((s: any) => ({
+            day: s.day,
+            name: s.workout?.name ?? `Day ${s.day}`,
+            exercises: (s.workout?.exercises ?? []).slice(0, 4).map((e: any) => e.name ?? ''),
+          }));
+        setAiGenerated({ workoutDays, restDays, schedule: workouts });
+        setShowAiResult(true);
+      }
+    },
+    onError: (err) => {
+      Alert.alert('AI Error', err.message || 'Failed to generate workout plan. Please try again.');
+    },
+  });
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -204,9 +236,63 @@ export default function CreateProgramScreen() {
           </View>
         )}
 
-        {step === 3 && (
+        {step === 3 && showAiResult && aiGenerated && (
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>AI WORKOUT PLAN</Text>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryTitle}>Generated Schedule</Text>
+              <Text style={styles.summaryRow}>Workout Days: <Text style={styles.summaryVal}>{aiGenerated.workoutDays}</Text></Text>
+              <Text style={styles.summaryRow}>Rest Days: <Text style={styles.summaryVal}>{aiGenerated.restDays}</Text></Text>
+            </View>
+            <Text style={[styles.label, { marginTop: 8 }]}>FIRST 3 WORKOUTS</Text>
+            {aiGenerated.schedule.map((w, i) => (
+              <View key={i} style={styles.aiWorkoutCard}>
+                <Text style={styles.aiWorkoutName}>Day {w.day}: {w.name}</Text>
+                {w.exercises.map((ex, j) => (
+                  <Text key={j} style={styles.aiExercise}>• {ex}</Text>
+                ))}
+              </View>
+            ))}
+            <TouchableOpacity style={styles.editManuallyBtn} onPress={() => setShowAiResult(false)}>
+              <Edit3 size={16} color={Colors.text} />
+              <Text style={styles.editManuallyText}>Edit Manually</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.publishBtn} onPress={() => handleSave(true)} activeOpacity={0.85}>
+              <LinearGradient colors={[Colors.accent, Colors.accentDark]} style={styles.publishBtnGradient}>
+                <Check size={18} color="#000" />
+                <Text style={styles.publishBtnText}>ACCEPT & SAVE</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {step === 3 && !showAiResult && (
           <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>REVIEW & PUBLISH</Text>
+
+            {adminSettings?.aiApiKey && (
+              <TouchableOpacity
+                style={styles.aiGenerateBtn}
+                onPress={() => {
+                  generateAiMutation.mutate({
+                    programDescription: description || `${category} ${difficulty} program, ${durationWeeks} weeks, ${workoutsPerWeek} workouts per week`,
+                    apiKey: adminSettings?.aiApiKey ?? '',
+                    days: (parseInt(durationWeeks) || 8) * 7,
+                  });
+                }}
+                disabled={generateAiMutation.isPending}
+                activeOpacity={0.85}
+              >
+                {generateAiMutation.isPending ? (
+                  <ActivityIndicator size="small" color={Colors.background} />
+                ) : (
+                  <Zap size={18} color={Colors.background} />
+                )}
+                <Text style={styles.aiGenerateBtnText}>
+                  {generateAiMutation.isPending ? 'Generating...' : 'AI Generate Workout Plan'}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>{title || 'Untitled Program'}</Text>
@@ -338,4 +424,39 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   nextBtnText: { color: '#000', fontWeight: FontWeight.black, fontSize: FontSize.md, letterSpacing: 1 },
+  aiGenerateBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    backgroundColor: '#7C3AED',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginBottom: 20,
+  },
+  aiGenerateBtnText: { color: Colors.text, fontWeight: FontWeight.black, fontSize: FontSize.md },
+  aiWorkoutCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 10,
+  },
+  aiWorkoutName: { color: Colors.text, fontWeight: FontWeight.bold, fontSize: FontSize.md, marginBottom: 6 },
+  aiExercise: { color: Colors.textSecondary, fontSize: FontSize.sm, marginBottom: 2 },
+  editManuallyBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  editManuallyText: { color: Colors.text, fontWeight: FontWeight.semibold, fontSize: FontSize.md },
 });

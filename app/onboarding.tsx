@@ -21,6 +21,11 @@ import { useApp } from '@/contexts/AppContext';
 const FITNESS_GOALS = ['Lose Fat', 'Build Muscle', 'Get Stronger', 'Improve Endurance', 'General Fitness'];
 const EXPERIENCE_LEVELS = ['Complete Beginner', 'Some Experience', 'Intermediate', 'Advanced', 'Elite'];
 
+const TRAINER_SPECIALTIES = ['strength', 'cardio', 'hiit', 'nutrition', 'mobility', 'sports'] as const;
+const TRAINER_EXPERIENCE_LEVELS = ['1-2 years', '3-5 years', '5-10 years', '10+ years'] as const;
+type TrainerSpecialty = typeof TRAINER_SPECIALTIES[number];
+type TrainerExperienceLevel = typeof TRAINER_EXPERIENCE_LEVELS[number];
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -37,6 +42,12 @@ export default function OnboardingScreen() {
   const [waiverChecked, setWaiverChecked] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Trainer-specific fields
+  const [trainerSpecialty, setTrainerSpecialty] = useState<TrainerSpecialty | ''>('');
+  const [trainerExperience, setTrainerExperience] = useState<TrainerExperienceLevel | ''>('');
+  const [trainerBio, setTrainerBio] = useState('');
+  const [trainerCertifications, setTrainerCertifications] = useState('');
+
   const crownScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -52,7 +63,10 @@ export default function OnboardingScreen() {
 
   const canAdvance = () => {
     if (step === 0) return role !== null;
-    if (step === 1) return age.length > 0 && height.length > 0 && weight.length > 0 && goal.length > 0 && experience.length > 0;
+    if (step === 1) {
+      if (role === 'trainer') return trainerSpecialty.length > 0 && trainerExperience.length > 0 && trainerBio.length > 0;
+      return age.length > 0 && height.length > 0 && weight.length > 0 && goal.length > 0 && experience.length > 0;
+    }
     if (step === 2) return waiverChecked;
     return true;
   };
@@ -72,6 +86,11 @@ export default function OnboardingScreen() {
         goal,
         weightUnit,
         isTrainer: role === 'trainer',
+        ...(role === 'trainer' ? {
+          trainerSpecialty,
+          trainerBio,
+          trainerExperience,
+        } : {}),
       });
       await AsyncStorage.setItem('onboarding_complete', 'true');
       router.replace('/(tabs)' as any);
@@ -96,7 +115,7 @@ export default function OnboardingScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {step === 0 && <StepRole role={role} setRole={setRole} />}
-        {step === 1 && (
+        {step === 1 && role === 'warrior' && (
           <StepStats
             age={age} setAge={setAge}
             height={height} setHeight={setHeight}
@@ -104,6 +123,18 @@ export default function OnboardingScreen() {
             weightUnit={weightUnit} setWeightUnit={setWeightUnit}
             goal={goal} setGoal={setGoal}
             experience={experience} setExperience={setExperience}
+          />
+        )}
+        {step === 1 && role === 'trainer' && (
+          <StepTrainerProfile
+            specialty={trainerSpecialty}
+            setSpecialty={setTrainerSpecialty}
+            experienceLevel={trainerExperience}
+            setExperienceLevel={setTrainerExperience}
+            bio={trainerBio}
+            setBio={setTrainerBio}
+            certifications={trainerCertifications}
+            setCertifications={setTrainerCertifications}
           />
         )}
         {step === 2 && <StepWaiver checked={waiverChecked} setChecked={setWaiverChecked} />}
@@ -117,6 +148,9 @@ export default function OnboardingScreen() {
             weightUnit={weightUnit}
             goal={goal}
             experience={experience}
+            trainerSpecialty={trainerSpecialty}
+            trainerBio={trainerBio}
+            trainerExperience={trainerExperience}
             onFinish={handleFinish}
             isSaving={isSaving}
           />
@@ -255,6 +289,67 @@ function StepStats({
   );
 }
 
+function StepTrainerProfile({
+  specialty, setSpecialty, experienceLevel, setExperienceLevel, bio, setBio, certifications, setCertifications,
+}: {
+  specialty: string; setSpecialty: (v: TrainerSpecialty) => void;
+  experienceLevel: string; setExperienceLevel: (v: TrainerExperienceLevel) => void;
+  bio: string; setBio: (v: string) => void;
+  certifications: string; setCertifications: (v: string) => void;
+}) {
+  return (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>YOUR TRAINER PROFILE</Text>
+
+      <Text style={styles.sectionLabel}>SPECIALTY</Text>
+      <View style={styles.chipsRow}>
+        {TRAINER_SPECIALTIES.map(s => (
+          <TouchableOpacity
+            key={s}
+            style={[styles.chip, specialty === s && styles.chipActive]}
+            onPress={() => setSpecialty(s)}
+          >
+            <Text style={[styles.chipText, specialty === s && styles.chipTextActive]}>{s}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={styles.sectionLabel}>YEARS OF EXPERIENCE</Text>
+      <View style={styles.chipsRow}>
+        {TRAINER_EXPERIENCE_LEVELS.map(e => (
+          <TouchableOpacity
+            key={e}
+            style={[styles.chip, experienceLevel === e && styles.chipActive]}
+            onPress={() => setExperienceLevel(e)}
+          >
+            <Text style={[styles.chipText, experienceLevel === e && styles.chipTextActive]}>{e}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={styles.sectionLabel}>BIO</Text>
+      <TextInput
+        style={[styles.input, { height: 90, textAlignVertical: 'top' }]}
+        placeholder="Tell potential clients about yourself (2-3 sentences)"
+        placeholderTextColor={Colors.textTertiary}
+        value={bio}
+        onChangeText={setBio}
+        multiline
+        numberOfLines={3}
+      />
+
+      <Text style={styles.sectionLabel}>CERTIFICATIONS (optional)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. NASM-CPT, CSCS, ACE"
+        placeholderTextColor={Colors.textTertiary}
+        value={certifications}
+        onChangeText={setCertifications}
+      />
+    </View>
+  );
+}
+
 function StepWaiver({ checked, setChecked }: { checked: boolean; setChecked: (v: boolean) => void }) {
   return (
     <View style={styles.stepContainer}>
@@ -274,12 +369,15 @@ function StepWaiver({ checked, setChecked }: { checked: boolean; setChecked: (v:
 }
 
 function StepReady({
-  crownScale, role, age, height, weight, weightUnit, goal, experience, onFinish, isSaving,
+  crownScale, role, age, height, weight, weightUnit, goal, experience,
+  trainerSpecialty, trainerBio, trainerExperience,
+  onFinish, isSaving,
 }: {
   crownScale: Animated.Value;
   role: 'warrior' | 'trainer' | null;
   age: string; height: string; weight: string; weightUnit: string;
   goal: string; experience: string;
+  trainerSpecialty?: string; trainerBio?: string; trainerExperience?: string;
   onFinish: () => void;
   isSaving: boolean;
 }) {
@@ -290,11 +388,21 @@ function StepReady({
       <Animated.Text style={[styles.crownIcon, { transform: [{ scale: crownScale }] }]}>👑</Animated.Text>
       <View style={styles.summaryCard}>
         <SummaryRow label="ROLE" value={role === 'trainer' ? '⚔️ Trainer' : '💪 Warrior'} />
-        <SummaryRow label="AGE" value={age} />
-        <SummaryRow label="HEIGHT" value={height} />
-        <SummaryRow label="WEIGHT" value={`${weight} ${weightUnit}`} />
-        <SummaryRow label="GOAL" value={goal} />
-        <SummaryRow label="EXPERIENCE" value={experience} />
+        {role === 'trainer' ? (
+          <>
+            <SummaryRow label="SPECIALTY" value={trainerSpecialty ?? ''} />
+            <SummaryRow label="EXPERIENCE" value={trainerExperience ?? ''} />
+            <SummaryRow label="BIO" value={(trainerBio ?? '').slice(0, 60) + ((trainerBio?.length ?? 0) > 60 ? '…' : '')} />
+          </>
+        ) : (
+          <>
+            <SummaryRow label="AGE" value={age} />
+            <SummaryRow label="HEIGHT" value={height} />
+            <SummaryRow label="WEIGHT" value={`${weight} ${weightUnit}`} />
+            <SummaryRow label="GOAL" value={goal} />
+            <SummaryRow label="EXPERIENCE" value={experience} />
+          </>
+        )}
       </View>
       <TouchableOpacity style={styles.startBtn} onPress={onFinish} disabled={isSaving} activeOpacity={0.85}>
         <Text style={styles.startBtnText}>{isSaving ? 'DEPLOYING...' : 'START MY MISSION'}</Text>

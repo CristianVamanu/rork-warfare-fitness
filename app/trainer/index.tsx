@@ -105,6 +105,14 @@ export default function TrainerDashboard() {
             </View>
           ))
         )}
+        <View style={styles.clientsSection}>
+          <Text style={styles.clientsSectionTitle}>MY CLIENTS</Text>
+          <View style={styles.clientsPlaceholder}>
+            <Users size={32} color={Colors.textTertiary} />
+            <Text style={styles.clientsPlaceholderTitle}>Client management coming soon</Text>
+            <Text style={styles.clientsPlaceholderSub}>Users who purchase your programs will appear here.</Text>
+          </View>
+        </View>
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
@@ -161,6 +169,20 @@ const styles = StyleSheet.create({
   programPrice: { color: Colors.accent, fontSize: FontSize.xs, marginTop: 4, fontWeight: FontWeight.semibold },
   programActions: { flexDirection: 'row', gap: 8 },
   iconBtn: { padding: 6 },
+  clientsSection: { paddingHorizontal: 16, paddingTop: 8 },
+  clientsSectionTitle: { color: Colors.textSecondary, fontSize: FontSize.xs, fontWeight: FontWeight.black, textTransform: 'uppercase' as const, letterSpacing: 1.5, marginBottom: 10 },
+  clientsPlaceholder: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 8,
+  },
+  clientsPlaceholderTitle: { color: Colors.text, fontWeight: FontWeight.semibold, fontSize: FontSize.md, textAlign: 'center' as const },
+  clientsPlaceholderSub: { color: Colors.textSecondary, fontSize: FontSize.sm, textAlign: 'center' as const },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 10 },
   emptyTitle: { color: Colors.text, fontSize: FontSize.xl, fontWeight: FontWeight.bold },
   emptySub: { color: Colors.textSecondary, fontSize: FontSize.sm, textAlign: 'center' },
