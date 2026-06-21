@@ -40,33 +40,40 @@ export default function FoodScannerScreen() {
 
   const pickImage = async () => {
     setError(undefined);
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'] as any, base64: true, quality: 0.7 });
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      base64: Platform.OS !== 'web', // native gets base64 directly; web uses FileReader
+      quality: 0.7,
+    });
     if (res.canceled) return;
     const asset = res.assets?.[0];
     if (!asset) return;
 
     let base64 = asset.base64 ?? undefined;
 
-    // On web, base64 may be a full data URL — strip the prefix
-    if (base64 && base64.startsWith('data:')) {
-      base64 = base64.split(',')[1];
-    }
-
-    // On web, expo-image-picker sometimes returns no base64 — read it manually
-    if (!base64 && asset.uri) {
+    // On web, always derive base64 from the URI using FileReader (most reliable)
+    if (Platform.OS === 'web' && asset.uri) {
       try {
         const resp = await fetch(asset.uri);
         const blob = await resp.blob();
         base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => {
-            const result = reader.result as string;
-            resolve(result.split(',')[1]);
+            const dataUrl = reader.result as string;
+            resolve(dataUrl.split(',')[1]);
           };
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-      } catch {}
+      } catch (e) {
+        setError('Could not read image. Please try a different photo.');
+        return;
+      }
+    }
+
+    // Strip data URL prefix if somehow included
+    if (base64?.startsWith('data:')) {
+      base64 = base64.split(',')[1];
     }
 
     setPicked({ uri: asset.uri, base64 });

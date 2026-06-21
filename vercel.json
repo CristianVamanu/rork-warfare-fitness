@@ -2,7 +2,7 @@
   "version": 2,
   "framework": null,
   "installCommand": "npm install",
-  "buildCommand": "npx expo export --platform web",
+  "buildCommand": "npx expo@54 export --platform web",
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index" },

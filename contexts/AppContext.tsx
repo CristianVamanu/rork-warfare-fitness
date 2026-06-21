@@ -420,9 +420,19 @@ export const [AppProvider, useApp] = createContextHook(() => {
     }
     
     const allUsersData = await AsyncStorage.getItem(STORAGE_KEYS.ALL_USERS);
-    const allUsers = allUsersData ? JSON.parse(allUsersData) : [];
+    const allUsers: User[] = allUsersData ? JSON.parse(allUsersData) : [];
     const existingUser = allUsers.find((u: User) => u.email === normalizedEmail);
-    
+
+    // Prevent registering with an email that already has an account
+    if (isNewUser && existingUser && !isAdminEmail) {
+      throw new Error('An account with this email already exists. Please log in instead.');
+    }
+
+    // Validate password on login for existing non-admin users who set a password
+    if (!isNewUser && !isAdminEmail && existingUser?.password && password !== existingUser.password) {
+      throw new Error('Incorrect password. Please try again.');
+    }
+
     const userRegistrationDate = existingUser?.registrationDate ?? (isNewUser ? new Date().toISOString() : undefined) ?? new Date().toISOString();
     
     let userAvatar = existingUser?.avatar ?? DEFAULT_AVATAR.url;
@@ -437,7 +447,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
     const userId = existingUser?.id ?? 'u-' + Date.now().toString();
     const referralCode = existingUser?.referralCode ?? generateReferralCode(userId);
     
-    const newUser: User & { registrationDate: string } = {
+    const newUser: User & { registrationDate: string; password?: string } = {
       id: userId,
       name: name ?? existingUser?.name ?? username ?? email.split('@')[0],
       email: normalizedEmail,
@@ -460,6 +470,8 @@ export const [AppProvider, useApp] = createContextHook(() => {
       trainerTrialDays: existingUser?.trainerTrialDays,
       trainerRevenueSplit: existingUser?.trainerRevenueSplit,
       trainerApproved: existingUser?.trainerApproved ?? false,
+      // Store password for local login validation (not hashed — local only, no server)
+      password: password ?? existingUser?.password,
     };
     
     setRegistrationDate(userRegistrationDate);

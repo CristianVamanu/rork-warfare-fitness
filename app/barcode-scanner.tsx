@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, ScrollView, Platform, TextInput } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, ScrollView, Platform, TextInput, KeyboardAvoidingView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { X, Scan, Package, Flame, Apple, Droplet, Hash } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -64,34 +64,37 @@ export default function BarcodeScannerScreen() {
     setLoading(false);
   };
 
-  if (!permission) {
-    return (
-      <View style={styles.container}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="large" color={Colors.accent} />
-      </View>
-    );
-  }
-
-  if (!permission.granted) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.permissionContainer}>
-          <Package size={64} color={Colors.accent} />
-          <Text style={styles.permissionTitle}>Camera Permission Required</Text>
-          <Text style={styles.permissionMessage}>
-            We need camera access to scan barcodes and provide nutritional information.
-          </Text>
-          <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
-            <Text style={styles.permissionButtonText}>Grant Permission</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
-            <Text style={styles.closeButtonText}>Go Back</Text>
-          </TouchableOpacity>
+  // On web, skip permission entirely — we use manual barcode entry instead of camera
+  if (Platform.OS !== 'web') {
+    if (!permission) {
+      return (
+        <View style={styles.container}>
+          <Stack.Screen options={{ headerShown: false }} />
+          <ActivityIndicator size="large" color={Colors.accent} />
         </View>
-      </View>
-    );
+      );
+    }
+
+    if (!permission.granted) {
+      return (
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+          <Stack.Screen options={{ headerShown: false }} />
+          <View style={styles.permissionContainer}>
+            <Package size={64} color={Colors.accent} />
+            <Text style={styles.permissionTitle}>Camera Permission Required</Text>
+            <Text style={styles.permissionMessage}>
+              We need camera access to scan barcodes and provide nutritional information.
+            </Text>
+            <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+              <Text style={styles.permissionButtonText}>Grant Permission</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
+              <Text style={styles.closeButtonText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
   }
 
   return (
