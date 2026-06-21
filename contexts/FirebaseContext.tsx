@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initializeApp, FirebaseApp, getApps, getApp } from 'firebase/app';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, FirebaseStorage } from 'firebase/storage';
+import { getFirestore, Firestore } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
@@ -95,6 +96,7 @@ const isExpoGo = appOwnership === 'expo';
 export const [FirebaseProvider, useFirebase] = createContextHook(() => {
   const [firebaseApp, setFirebaseApp] = useState<FirebaseApp | null>(null);
   const [firebaseStorage, setFirebaseStorage] = useState<FirebaseStorage | null>(null);
+  const [firestore, setFirestore] = useState<Firestore | null>(null);
   const [config, setConfig] = useState<FirebaseConfig | null>(null);
   const [isConfigured, setIsConfigured] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
@@ -111,9 +113,11 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
       }
       
       const storage = getStorage(app);
-      
+      const db = getFirestore(app);
+
       setFirebaseApp(app);
       setFirebaseStorage(storage);
+      setFirestore(db);
       setIsConfigured(true);
       
       console.log('[Firebase] Initialized successfully');
@@ -368,6 +372,7 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
     () => ({
       firebaseApp,
       firebaseStorage,
+      firestore,
       config,
       isConfigured,
       isInitializing,
@@ -385,6 +390,7 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
     [
       firebaseApp,
       firebaseStorage,
+      firestore,
       config,
       isConfigured,
       isInitializing,
