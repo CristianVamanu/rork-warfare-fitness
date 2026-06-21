@@ -5,7 +5,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { View, ActivityIndicator, Text, Alert } from "react-native";
+import { View, ActivityIndicator, Text, Alert, Platform } from "react-native";
 
 import { AppProvider, useApp } from '@/contexts/AppContext';
 import { TrainingProvider } from '@/contexts/TrainingContext';
@@ -24,6 +24,13 @@ import { runMigrations, verifyDataIntegrity } from '@/lib/data-migration'
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Remove blue focus ring on all inputs globally on web
+if (Platform.OS === 'web') {
+  const style = document.createElement('style');
+  style.textContent = 'input, textarea, select { outline: none !important; }';
+  document.head.appendChild(style);
+}
 
 const queryClient = new QueryClient();
 

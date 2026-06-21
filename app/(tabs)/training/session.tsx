@@ -475,7 +475,7 @@ const styles = StyleSheet.create({
   setCheck: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surfaceLight, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
   setCheckDone: { backgroundColor: Colors.success, borderColor: Colors.success },
   setNumber: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary, minWidth: 45 },
-  inputBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surfaceLight, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 8, height: 36, flex: 1 },
+  inputBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surfaceLight, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 8, height: 36, flex: 1, overflow: 'hidden' },
   input: { flex: 1, color: Colors.text, fontWeight: '700' as const, fontSize: 14 },
   inputUnit: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600' as const },
   xText: { fontSize: 16, fontWeight: '800' as const, color: Colors.textSecondary },
