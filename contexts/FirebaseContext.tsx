@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initializeApp, FirebaseApp, getApps, getApp } from 'firebase/app';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, FirebaseStorage } from 'firebase/storage';
+import { getFirestore, Firestore } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
@@ -95,6 +96,7 @@ const isExpoGo = appOwnership === 'expo';
 export const [FirebaseProvider, useFirebase] = createContextHook(() => {
   const [firebaseApp, setFirebaseApp] = useState<FirebaseApp | null>(null);
   const [firebaseStorage, setFirebaseStorage] = useState<FirebaseStorage | null>(null);
+  const [firestore, setFirestore] = useState<Firestore | null>(null);
   const [config, setConfig] = useState<FirebaseConfig | null>(null);
   const [isConfigured, setIsConfigured] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
@@ -111,9 +113,11 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
       }
       
       const storage = getStorage(app);
-      
+      const db = getFirestore(app);
+
       setFirebaseApp(app);
       setFirebaseStorage(storage);
+      setFirestore(db);
       setIsConfigured(true);
       
       console.log('[Firebase] Initialized successfully');
@@ -128,6 +132,26 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
   useEffect(() => {
     const loadConfig = async () => {
       try {
+        const envConfig: FirebaseConfig | null =
+          process.env.EXPO_PUBLIC_FIREBASE_API_KEY && process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID
+            ? {
+                apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+                authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ?? '',
+                projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+                storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ?? '',
+                messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? '',
+                appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? '',
+                measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
+              }
+            : null;
+
+        if (envConfig) {
+          console.log('[Firebase] Using config from environment variables');
+          setConfig(envConfig);
+          await initializeFirebaseRef(envConfig);
+          return;
+        }
+
         const encrypted = await AsyncStorage.getItem(STORAGE_KEYS.FIREBASE_CONFIG);
         if (encrypted) {
           const decrypted = await decryptConfig(encrypted);
@@ -348,6 +372,7 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
     () => ({
       firebaseApp,
       firebaseStorage,
+      firestore,
       config,
       isConfigured,
       isInitializing,
@@ -365,6 +390,7 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
     [
       firebaseApp,
       firebaseStorage,
+      firestore,
       config,
       isConfigured,
       isInitializing,
