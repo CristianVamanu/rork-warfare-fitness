@@ -40,10 +40,36 @@ export default function FoodScannerScreen() {
 
   const pickImage = async () => {
     setError(undefined);
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, base64: true, quality: 0.7 });
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'] as any, base64: true, quality: 0.7 });
     if (res.canceled) return;
     const asset = res.assets?.[0];
-    if (asset) setPicked({ uri: asset.uri, base64: asset.base64 ?? undefined });
+    if (!asset) return;
+
+    let base64 = asset.base64 ?? undefined;
+
+    // On web, base64 may be a full data URL — strip the prefix
+    if (base64 && base64.startsWith('data:')) {
+      base64 = base64.split(',')[1];
+    }
+
+    // On web, expo-image-picker sometimes returns no base64 — read it manually
+    if (!base64 && asset.uri) {
+      try {
+        const resp = await fetch(asset.uri);
+        const blob = await resp.blob();
+        base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch {}
+    }
+
+    setPicked({ uri: asset.uri, base64 });
   };
 
   const takePhoto = async () => {

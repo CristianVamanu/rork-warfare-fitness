@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
   Image,
+  Platform,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -236,7 +237,12 @@ export default function AdminSettingsScreen() {
       monthlyPrice: appSettings.monthlyPrice,
       dailyBriefings,
     });
-    Alert.alert('Saved', 'Settings saved ✓');
+    if (Platform.OS === 'web') {
+      // Reload the page so all contexts pick up the new settings
+      window.location.reload();
+    } else {
+      Alert.alert('Saved', 'Settings saved ✓');
+    }
   };
 
   return (

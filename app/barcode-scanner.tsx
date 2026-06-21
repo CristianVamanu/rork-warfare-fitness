@@ -1,8 +1,8 @@
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, ScrollView, Platform, Alert } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, ScrollView, Platform, TextInput } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { X, Scan, Package, Flame, Apple, Droplet } from 'lucide-react-native';
+import { X, Scan, Package, Flame, Apple, Droplet, Hash } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/colors';
 
@@ -28,44 +28,33 @@ export default function BarcodeScannerScreen() {
   const [loading, setLoading] = useState(false);
   const [nutritionalInfo, setNutritionalInfo] = useState<NutritionalInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [manualBarcode, setManualBarcode] = useState('');
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      Alert.alert(
-        'Limited Web Support',
-        'Barcode scanning on web has limited browser support. For best results, use a mobile device.',
-        [{ text: 'OK' }]
-      );
-    }
-  }, []);
-
-  const handleBarCodeScanned = async ({ type, data }: { type: string; data: string }) => {
-    if (scanned) return;
-    
-    console.log('Barcode scanned:', { type, data });
+  const lookupBarcode = async (code: string) => {
+    if (!code.trim()) return;
     setScanned(true);
     setLoading(true);
     setError(null);
-
     try {
-      const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${data}.json`);
+      const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code.trim()}.json`);
       const result = await response.json();
-
-      console.log('API Response:', result);
-
       if (result.status === 1 && result.product) {
         setNutritionalInfo(result.product);
       } else {
         setError('Product not found in database. Try another barcode.');
       }
-    } catch (err) {
-      console.error('Error fetching product info:', err);
+    } catch {
       setError('Failed to fetch product information. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBarCodeScanned = ({ data }: { type: string; data: string }) => {
+    if (scanned) return;
+    void lookupBarcode(data);
   };
 
   const resetScanner = () => {
@@ -110,41 +99,66 @@ export default function BarcodeScannerScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       
       {!scanned && !nutritionalInfo && (
-        <View style={styles.cameraContainer}>
-          <CameraView
-            style={styles.camera}
-            facing="back"
-            onBarcodeScanned={handleBarCodeScanned}
-            barcodeScannerSettings={{
-              barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr'],
-            }}
-          >
-            <View style={styles.overlay}>
-              <TouchableOpacity
-                style={[styles.closeIconButton, { top: insets.top + 60 }]}
-                onPress={() => router.back()}
-              >
-                <X size={28} color="#fff" />
-              </TouchableOpacity>
-
-              <View style={styles.scannerGuide}>
-                <View style={styles.scannerFrame}>
-                  <View style={[styles.corner, styles.cornerTopLeft]} />
-                  <View style={[styles.corner, styles.cornerTopRight]} />
-                  <View style={[styles.corner, styles.cornerBottomLeft]} />
-                  <View style={[styles.corner, styles.cornerBottomRight]} />
-                </View>
-                <View style={styles.instructionsContainer}>
-                  <Scan size={32} color="#fff" />
-                  <Text style={styles.instructionsTitle}>Scan Product Barcode</Text>
-                  <Text style={styles.instructionsText}>
-                    Position the barcode within the frame
-                  </Text>
+        Platform.OS === 'web' ? (
+          <View style={[styles.webContainer, { paddingTop: insets.top + 60 }]}>
+            <TouchableOpacity style={[styles.closeIconButton, { top: insets.top + 16, right: 20 }]} onPress={() => router.back()}>
+              <X size={28} color={Colors.text} />
+            </TouchableOpacity>
+            <Hash size={56} color={Colors.accent} />
+            <Text style={styles.instructionsTitle}>Enter Barcode</Text>
+            <Text style={styles.instructionsText}>Type the barcode number from the product packaging</Text>
+            <TextInput
+              style={styles.barcodeInput}
+              value={manualBarcode}
+              onChangeText={setManualBarcode}
+              placeholder="e.g. 3017620422003"
+              placeholderTextColor={Colors.textTertiary}
+              keyboardType="numeric"
+              autoFocus
+              onSubmitEditing={() => void lookupBarcode(manualBarcode)}
+            />
+            <TouchableOpacity
+              style={[styles.lookupBtn, !manualBarcode.trim() && styles.lookupBtnDisabled]}
+              onPress={() => void lookupBarcode(manualBarcode)}
+              disabled={!manualBarcode.trim()}
+            >
+              <Scan size={20} color={Colors.background} />
+              <Text style={styles.lookupBtnText}>Look Up Product</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.cameraContainer}>
+            <CameraView
+              style={styles.camera}
+              onBarcodeScanned={handleBarCodeScanned}
+              barcodeScannerSettings={{
+                barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr'],
+              }}
+            >
+              <View style={styles.overlay}>
+                <TouchableOpacity
+                  style={[styles.closeIconButton, { top: insets.top + 60 }]}
+                  onPress={() => router.back()}
+                >
+                  <X size={28} color="#fff" />
+                </TouchableOpacity>
+                <View style={styles.scannerGuide}>
+                  <View style={styles.scannerFrame}>
+                    <View style={[styles.corner, styles.cornerTopLeft]} />
+                    <View style={[styles.corner, styles.cornerTopRight]} />
+                    <View style={[styles.corner, styles.cornerBottomLeft]} />
+                    <View style={[styles.corner, styles.cornerBottomRight]} />
+                  </View>
+                  <View style={styles.instructionsContainer}>
+                    <Scan size={32} color="#fff" />
+                    <Text style={styles.instructionsTitle}>Scan Product Barcode</Text>
+                    <Text style={styles.instructionsText}>Position the barcode within the frame</Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          </CameraView>
-        </View>
+            </CameraView>
+          </View>
+        )
       )}
 
       {loading && (
@@ -601,5 +615,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700' as const,
     color: Colors.text,
+  },
+  webContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: Colors.background,
+  },
+  barcodeInput: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 18,
+    color: Colors.text,
+    textAlign: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+    letterSpacing: 2,
+  },
+  lookupBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    backgroundColor: Colors.accent,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 360,
+  },
+  lookupBtnDisabled: {
+    opacity: 0.4,
+  },
+  lookupBtnText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.background,
   },
 });
