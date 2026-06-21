@@ -7,29 +7,36 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
-import { generateObject } from '@rork-ai/toolkit-sdk';
+import { trpc } from '@/lib/trpc';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { z } from 'zod';
 
 export default function FoodScannerScreen() {
   const insets = useSafeAreaInsets();
-  const { addMeal, calorieTarget, setDailyCalorieTarget, getTodayMeals } = useApp();
+  const { addMeal, calorieTarget, setDailyCalorieTarget, getTodayMeals, adminSettings } = useApp();
 
   const [picked, setPicked] = useState<{ uri: string; base64?: string } | undefined>(undefined);
-  const [loading, setLoading] = useState<boolean>(false);
   const [calInput, setCalInput] = useState<string>(String(calorieTarget));
   const [error, setError] = useState<string | undefined>(undefined);
   const [nutrition, setNutrition] = useState<{
-    name: string;
-    calories: number;
-    protein: number;
-    carbs: number;
-    fat: number;
+    name: string; calories: number; protein: number; carbs: number; fat: number;
   } | undefined>(undefined);
-  const [mealType, setMealType] = useState<'breakfast'|'lunch'|'dinner'|'snack'>('lunch');
+  const [mealType, setMealType] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack'>('lunch');
   const [cameraOpen, setCameraOpen] = useState<boolean>(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [radarAnim] = useState(new Animated.Value(0));
+
+  const scanMutation = trpc.food.scan.useMutation({
+    onSuccess: (data) => {
+      setNutrition(data);
+      radarAnim.stopAnimation();
+      radarAnim.setValue(0);
+    },
+    onError: (err) => {
+      setError(err.message || 'Failed to analyze image. Please try again.');
+      radarAnim.stopAnimation();
+      radarAnim.setValue(0);
+    },
+  });
 
   const pickImage = async () => {
     setError(undefined);
@@ -44,7 +51,7 @@ export default function FoodScannerScreen() {
 
     let base64 = asset.base64 ?? undefined;
 
-    // On web, derive base64 via FileReader since expo-image-picker doesn't return it directly
+    // On web, always derive base64 from the URI using FileReader (most reliable)
     if (Platform.OS === 'web' && asset.uri) {
       try {
         const resp = await fetch(asset.uri);
@@ -58,7 +65,7 @@ export default function FoodScannerScreen() {
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-      } catch {
+      } catch (e) {
         setError('Could not read image. Please try a different photo.');
         return;
       }
@@ -78,15 +85,8 @@ export default function FoodScannerScreen() {
   };
 
   const takePhoto = async () => {
-    if (Platform.OS === 'web') {
-      await pickImage();
-      return;
-    }
-    if (!permission) {
-      await requestPermission();
-      return;
-    }
-    if (!permission.granted) {
+    if (Platform.OS === 'web') { await pickImage(); return; }
+    if (!permission?.granted) {
       const res = await requestPermission();
       if (!res.granted) return;
     }
@@ -94,47 +94,19 @@ export default function FoodScannerScreen() {
   };
 
   const scan = async () => {
-    if (!picked?.uri) { setError('No image data. Please pick a clearer photo or take a new one.'); return; }
-    if (!picked?.base64) { setError('Image data not available. Please try taking/selecting the photo again.'); return; }
-    setLoading(true);
+    if (!picked?.base64) { setError('Select a food photo first'); return; }
     setError(undefined);
     setNutrition(undefined);
-    
+
     const radarLoop = Animated.loop(
-      Animated.timing(radarAnim, {
-        toValue: 1,
-        duration: 2000,
-        useNativeDriver: true,
-      })
+      Animated.timing(radarAnim, { toValue: 1, duration: 2000, useNativeDriver: true })
     );
     radarLoop.start();
 
-    try {
-      const schema = z.object({
-        name: z.string(),
-        calories: z.number(),
-        protein: z.number(),
-        carbs: z.number(),
-        fat: z.number(),
-      });
-      const result = await generateObject({
-        messages: [
-          { role: 'user', content: [
-            { type: 'text', text: 'Identify food and return estimated nutrition per serving as JSON with keys: name, calories, protein, carbs, fat.' },
-            { type: 'image', image: `data:image/jpeg;base64,${picked.base64}` },
-          ] }
-        ],
-        schema,
-      });
-      setNutrition(result as { name: string; calories: number; protein: number; carbs: number; fat: number });
-    } catch (e) {
-      console.log('scan error', e);
-      setError('Failed to analyze image. Please try again.');
-    } finally {
-      radarLoop.stop();
-      radarAnim.setValue(0);
-      setLoading(false);
-    }
+    scanMutation.mutate({
+      base64Image: picked.base64,
+      apiKey: adminSettings.aiApiKey || undefined,
+    });
   };
 
   const addToLog = () => {
@@ -162,11 +134,7 @@ export default function FoodScannerScreen() {
                   const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 });
                   if (!result.canceled && result.assets?.[0]) {
                     const asset = result.assets[0];
-                    if (asset.uri && asset.base64) {
-                      setPicked({ uri: asset.uri, base64: asset.base64 });
-                    } else if (asset.uri) {
-                      setError('Failed to capture image data. Please try again.');
-                    }
+                    setPicked({ uri: asset.uri, base64: asset.base64 ?? undefined });
                   }
                   setCameraOpen(false);
                 }}
@@ -180,6 +148,8 @@ export default function FoodScannerScreen() {
     );
   }
 
+  const loading = scanMutation.isPending;
+
   return (
     <>
       <Stack.Screen options={{ title: 'AI Food Scanner', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.text, headerShadowVisible: false }} />
@@ -188,30 +158,15 @@ export default function FoodScannerScreen() {
           <Text style={styles.title}>Scan your meal</Text>
           <Text style={styles.sub}>Get instant nutrition and log it to your day</Text>
 
-          {picked && picked.uri ? (
+          {picked?.uri ? (
             <View>
               <RNImage source={{ uri: picked.uri }} style={styles.preview} />
               {loading && (
                 <View style={styles.radarContainer}>
-                  <Animated.View
-                    style={[
-                      styles.radarRing,
-                      {
-                        opacity: radarAnim.interpolate({
-                          inputRange: [0, 0.5, 1],
-                          outputRange: [0.8, 0.3, 0],
-                        }),
-                        transform: [
-                          {
-                            scale: radarAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.5, 2],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  />
+                  <Animated.View style={[styles.radarRing, {
+                    opacity: radarAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.8, 0.3, 0] }),
+                    transform: [{ scale: radarAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 2] }) }],
+                  }]} />
                   <View style={styles.radarCenter} />
                 </View>
               )}
@@ -230,10 +185,12 @@ export default function FoodScannerScreen() {
               <Text style={styles.btnText}>Gallery</Text>
             </TouchableOpacity>
           </View>
+
           <TouchableOpacity style={[styles.analyzeBtn, !picked && styles.analyzeBtnDisabled]} onPress={scan} disabled={loading || !picked}>
             {loading ? <ActivityIndicator color={Colors.background} /> : <Camera size={18} color={Colors.background} />}
             <Text style={styles.analyzeBtnText}>{loading ? 'Analyzing...' : 'Analyze Food'}</Text>
           </TouchableOpacity>
+
           {error && <Text style={styles.error}>{error}</Text>}
 
           {nutrition && (
@@ -245,8 +202,8 @@ export default function FoodScannerScreen() {
               <View style={styles.nutRow}><Text style={styles.kvLabel}>Fat</Text><Text style={styles.kvValue}>{nutrition.fat} g</Text></View>
 
               <Text style={[styles.sub, { marginTop: 12 }]}>Add as</Text>
-              <View style={[styles.row, { justifyContent: 'flex-start' }] }>
-                {(['breakfast','lunch','dinner','snack'] as const).map(mt => (
+              <View style={[styles.row, { justifyContent: 'flex-start' }]}>
+                {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map(mt => (
                   <TouchableOpacity key={mt} style={[styles.mealChip, mealType === mt && styles.mealChipActive]} onPress={() => setMealType(mt)}>
                     <Text style={[styles.mealChipText, mealType === mt && styles.mealChipTextActive]}>{mt}</Text>
                   </TouchableOpacity>
@@ -267,19 +224,16 @@ export default function FoodScannerScreen() {
           <View style={styles.row}>
             <TextInput
               style={[styles.input, { flex: 1 }]}
-              keyboardType='numeric'
-              placeholder='e.g. 2400'
+              keyboardType="numeric"
+              placeholder="e.g. 2400"
               placeholderTextColor={Colors.textSecondary}
               value={calInput}
               onChangeText={setCalInput}
             />
-            <TouchableOpacity
-              style={styles.btn}
-              onPress={() => {
-                const v = parseInt(calInput || '0', 10);
-                if (Number.isFinite(v) && v > 0) setDailyCalorieTarget(v);
-              }}
-            >
+            <TouchableOpacity style={styles.btn} onPress={() => {
+              const v = parseInt(calInput || '0', 10);
+              if (Number.isFinite(v) && v > 0) setDailyCalorieTarget(v);
+            }}>
               <Check size={18} color={Colors.background} />
               <Text style={styles.btnText}>Save</Text>
             </TouchableOpacity>
@@ -287,7 +241,7 @@ export default function FoodScannerScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.title}>Today&apos;s Nutrition</Text>
+          <Text style={styles.title}>{"Today's Nutrition"}</Text>
           <Text style={styles.sub}>Logged meals and progress</Text>
           {(() => {
             const meals = getTodayMeals();
@@ -299,7 +253,7 @@ export default function FoodScannerScreen() {
                   <View style={styles.progressBarOuter}>
                     <View style={[styles.progressBarInner, { width: `${pct}%` }]} />
                   </View>
-                  <Text style={styles.progressText}><Flame size={14} color={Colors.accent} /> {total} / {calorieTarget} kcal</Text>
+                  <Text style={styles.progressText}>{total} / {calorieTarget} kcal</Text>
                 </View>
                 <View style={{ gap: 8 }}>
                   {meals.map(m => (
@@ -308,9 +262,7 @@ export default function FoodScannerScreen() {
                       <Text style={styles.mealMeta}>{m.mealType} • {m.calories} kcal</Text>
                     </View>
                   ))}
-                  {meals.length === 0 && (
-                    <Text style={styles.sub}>No meals yet. Scan and add your first meal.</Text>
-                  )}
+                  {meals.length === 0 && <Text style={styles.sub}>No meals yet. Scan and add your first meal.</Text>}
                 </View>
               </>
             );
@@ -333,8 +285,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'space-between' },
   btn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.accent, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   btnText: { color: Colors.background, fontWeight: '900' as const },
-  btnGhost: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
-  btnGhostText: { color: Colors.text, fontWeight: '800' as const },
   error: { color: Colors.danger, marginTop: 8 },
   nutrition: { marginTop: 8 },
   progressWrap: { marginTop: 8, marginBottom: 8 },
