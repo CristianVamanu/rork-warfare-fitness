@@ -25,14 +25,18 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-// Remove blue focus ring on all inputs globally on web
-if (Platform.OS === 'web') {
-  const style = document.createElement('style');
-  style.textContent = 'input, textarea, select { outline: none !important; }';
-  document.head.appendChild(style);
-}
-
 const queryClient = new QueryClient();
+
+function WebStyleInjector() {
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const style = document.createElement('style');
+    style.textContent = 'input, textarea, select { outline: none !important; }';
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+  return null;
+}
 
 function DataMigrationGuard({ children }: { children: React.ReactNode }) {
   const [migrationStatus, setMigrationStatus] = useState<'pending' | 'success' | 'error'>('pending');
@@ -208,6 +212,7 @@ export default function RootLayout() {
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
+        <WebStyleInjector />
         <DataMigrationGuard>
           <AppProvider>
             <ServerSettingsSync />
