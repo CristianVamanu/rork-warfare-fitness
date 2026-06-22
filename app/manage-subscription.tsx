@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Linking, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Linking, Platform, Alert } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Crown, ExternalLink, Settings as SettingsIcon, X, Check } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import Colors from '@/constants/colors';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useApp } from '@/contexts/AppContext';
 
 export default function ManageSubscriptionScreen() {
   const router = useRouter();
@@ -13,9 +14,15 @@ export default function ManageSubscriptionScreen() {
     subscriptionState,
     refreshSubscriptionStatus
   } = useSubscription();
+  const { adminSettings } = useApp();
 
   const handleManageSubscription = () => {
-    Linking.openURL('https://billing.stripe.com/p/login/test_123');
+    const portalUrl = adminSettings.stripePortalLink || adminSettings.stripePaymentLink;
+    if (!portalUrl) {
+      Alert.alert('Not configured', 'Billing portal URL has not been set. Please contact support.');
+      return;
+    }
+    Linking.openURL(portalUrl);
   };
 
   const formatDate = (dateString: string | null) => {

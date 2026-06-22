@@ -86,6 +86,7 @@ interface AdminAppSettings {
   platformRevenueSplit?: number;
   requireTrainerApproval?: boolean;
   stripePaymentLink?: string;
+  stripePortalLink?: string;
   monthlyPrice?: string;
 }
 

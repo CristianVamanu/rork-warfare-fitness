@@ -2,6 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { trpcClient } from '@/lib/trpc';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RevenueCat product IDs — set these once you create products in App Store
@@ -202,6 +203,31 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     await AsyncStorage.removeItem(STORAGE_KEY);
   }, []);
 
+  // Web: fetch subscription status from Supabase via tRPC backend
+  const syncFromSupabase = useCallback(async (userId: string) => {
+    if (Platform.OS !== 'web') return;
+    try {
+      const data = await trpcClient.subscription.getStatus.query({ userId });
+      if (!data) return;
+      const newState: SubscriptionState = {
+        tier: data.isPremium ? 'premium' : 'free',
+        isPremium: data.isPremium,
+        isActive: data.isActive,
+        expirationDate: data.expirationDate ?? null,
+        willRenew: data.willRenew,
+        productIdentifier: data.productIdentifier ?? null,
+        isInTrialPeriod: data.isInTrialPeriod,
+        trialEndDate: data.trialEndDate ?? null,
+        stripeCustomerId: data.stripeCustomerId ?? null,
+        stripeSubscriptionId: data.stripeSubscriptionId ?? null,
+      };
+      setSubscriptionState(newState);
+      await persist(newState);
+    } catch (e) {
+      console.error('[Subscription] syncFromSupabase error:', e);
+    }
+  }, [persist]);
+
   const checkEntitlement = useCallback((id: string) =>
     id === 'premium' ? subscriptionState.isPremium : false
   , [subscriptionState.isPremium]);
@@ -225,6 +251,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     purchaseNative,
     restorePurchases,
     setUserId,
+    syncFromSupabase,
     logout,
     checkEntitlement,
     canAccessContent,
@@ -232,7 +259,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   }), [
     isInitialized, isLoading, subscriptionState, refreshSubscriptionStatus,
     updateSubscriptionFromStripe, purchaseNative, restorePurchases,
-    setUserId, logout, checkEntitlement, canAccessContent, getDaysRemainingInTrial,
+    setUserId, syncFromSupabase, logout, checkEntitlement, canAccessContent, getDaysRemainingInTrial,
   ]);
 });
 

@@ -15,7 +15,6 @@ type CameraMode = 'photo' | 'barcode' | null;
 export default function FoodScannerScreen() {
   const insets = useSafeAreaInsets();
 
-  const { addMeal, calorieTarget, setDailyCalorieTarget, getTodayMeals, appSettings, adminSettings } = useApp();
   const { addMeal, calorieTarget, setDailyCalorieTarget, getTodayMeals, adminSettings } = useApp();
 
   const [picked, setPicked] = useState<{ uri: string; base64?: string } | undefined>(undefined);
@@ -23,6 +22,7 @@ export default function FoodScannerScreen() {
   const [error, setError] = useState<string | undefined>(undefined);
   const [nutrition, setNutrition] = useState<{
     name: string; calories: number; protein: number; carbs: number; fat: number;
+    fiber?: number; portionSize?: string; confidenceScore?: number;
   } | undefined>(undefined);
   const [mealType, setMealType] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack'>('lunch');
   const [cameraMode, setCameraMode] = useState<CameraMode>(null);
@@ -82,7 +82,7 @@ export default function FoodScannerScreen() {
       Animated.timing(radarAnim, { toValue: 1, duration: 2000, useNativeDriver: true })
     );
     radarLoop.start();
-    scanMutation.mutate({ base64Image: picked.base64, apiKey: adminSettings.aiApiKey || undefined });
+    scanMutation.mutate({ base64Image: picked.base64, apiKey: adminSettings.aiApiKey || undefined } as any);
   };
 
   const onBarcodeScanned = async ({ data: barcode }: { data: string }) => {
@@ -109,7 +109,7 @@ export default function FoodScannerScreen() {
       } else {
         // Barcode not in database — ask AI with the barcode number
         barcodeMutation.mutate({
-          base64Image: btoa(`barcode:${barcode}`),
+          barcodeId: barcode,
           apiKey: adminSettings.aiApiKey || undefined,
         });
       }
@@ -229,10 +229,19 @@ export default function FoodScannerScreen() {
           {nutrition && (
             <View style={styles.nutrition}>
               <Text style={styles.nutTitle}>{nutrition.name}</Text>
+              {nutrition.portionSize && (
+                <Text style={styles.sub}>Serving: {nutrition.portionSize}</Text>
+              )}
               <View style={styles.nutRow}><Text style={styles.kvLabel}>Calories</Text><Text style={styles.kvValue}>{nutrition.calories} kcal</Text></View>
               <View style={styles.nutRow}><Text style={styles.kvLabel}>Protein</Text><Text style={styles.kvValue}>{nutrition.protein} g</Text></View>
               <View style={styles.nutRow}><Text style={styles.kvLabel}>Carbs</Text><Text style={styles.kvValue}>{nutrition.carbs} g</Text></View>
               <View style={styles.nutRow}><Text style={styles.kvLabel}>Fat</Text><Text style={styles.kvValue}>{nutrition.fat} g</Text></View>
+              {nutrition.fiber != null && (
+                <View style={styles.nutRow}><Text style={styles.kvLabel}>Fiber</Text><Text style={styles.kvValue}>{nutrition.fiber} g</Text></View>
+              )}
+              {nutrition.confidenceScore != null && (
+                <View style={styles.nutRow}><Text style={styles.kvLabel}>Confidence</Text><Text style={styles.kvValue}>{Math.round(nutrition.confidenceScore * 100)}%</Text></View>
+              )}
 
               <Text style={[styles.sub, { marginTop: 12 }]}>Add as</Text>
               <View style={[styles.row, { justifyContent: 'flex-start', flexWrap: 'wrap' }]}>
