@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { trpc, trpcClient } from "@/lib/trpc";
-import { Platform } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from "react";
@@ -111,18 +110,18 @@ function DataMigrationGuard({ children }: { children: React.ReactNode }) {
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useApp();
-  const { setUserId, syncFromSupabase } = useSubscription();
+  const { setUserId, syncFromFirestore } = useSubscription();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (user) {
+      // RevenueCat: link the user ID so purchases are associated correctly
       void setUserId(user.id);
-      if (Platform.OS === 'web') {
-        void syncFromSupabase(user.id);
-      }
+      // Web/Stripe: pull live subscription status from Firestore
+      void syncFromFirestore(user.id);
     }
-  }, [user, setUserId, syncFromSupabase]);
+  }, [user, setUserId, syncFromFirestore]);
 
   useEffect(() => {
     if (isLoading) return;

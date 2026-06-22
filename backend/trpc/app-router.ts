@@ -1,6 +1,5 @@
 import { createTRPCRouter } from "./create-context";
 import hiRoute from "./routes/example/hi/route";
-import { getSubscriptionStatusRoute } from "./routes/subscription/get-status/route";
 import generateProgramWithAiRoute from "./routes/programs/generate-with-ai/route";
 import scanFoodRoute from "./routes/food/scan/route";
 import aiTrainerChatRoute from "./routes/ai-trainer/chat/route";
@@ -51,10 +50,6 @@ export const appRouter = createTRPCRouter({
 
   aiTrainer: createTRPCRouter({
     chat: aiTrainerChatRoute,
-  }),
-
-  subscription: createTRPCRouter({
-    getStatus: getSubscriptionStatusRoute,
   }),
 });
 

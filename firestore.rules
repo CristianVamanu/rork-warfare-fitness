@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Admin settings — any client can read (needed by AdminSettingsSync),
+    // writes come from the Admin SDK only (bypasses rules).
+    match /warfare_admin/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Subscriptions — readable by any client (subscription tier is non-sensitive),
+    // writes only via firebase-admin (Stripe webhook — bypasses rules).
+    // TODO: when Firebase Auth is added, restrict reads to: request.auth.uid == userId
+    match /subscriptions/{userId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

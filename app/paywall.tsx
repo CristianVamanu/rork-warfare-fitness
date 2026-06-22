@@ -27,7 +27,7 @@ const FREE_FEATURES = [
 export default function PaywallScreen() {
   const router = useRouter();
   const { subscriptionState, getDaysRemainingInTrial, purchaseNative, restorePurchases } = useSubscription();
-  const { adminSettings } = useApp();
+  const { adminSettings, user } = useApp();
   const [loading, setLoading] = useState(false);
 
   const handleUpgrade = async () => {
@@ -37,7 +37,12 @@ export default function PaywallScreen() {
         Alert.alert('Coming Soon', 'Online payments are being set up. Please contact support to upgrade.');
         return;
       }
-      Linking.openURL(stripeLink);
+      // Append client_reference_id so the Stripe webhook can link the payment to this user.
+      // Stripe Payment Links support ?client_reference_id= as a query param.
+      const url = user?.id
+        ? `${stripeLink}?client_reference_id=${encodeURIComponent(user.id)}`
+        : stripeLink;
+      Linking.openURL(url);
       return;
     }
     setLoading(true);

@@ -2,7 +2,8 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { trpcClient } from '@/lib/trpc';
+import { doc, getDoc } from 'firebase/firestore';
+import { useFirebase } from '@/contexts/FirebaseContext';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RevenueCat product IDs — set these once you create products in App Store
@@ -48,6 +49,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [subscriptionState, setSubscriptionState] = useState<SubscriptionState>(DEFAULT_STATE);
+  const { firestore, isConfigured } = useFirebase();
 
   const persist = useCallback(async (state: SubscriptionState) => {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -57,7 +59,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     try {
       // On native: use RevenueCat SDK (react-native-purchases)
       // Import is dynamic to avoid web build errors since the native module
-      // isn't available on web. On web, fall back to Stripe-stored state.
+      // isn't available on web. On web, fall back to Firebase-stored state.
       if (Platform.OS !== 'web') {
         try {
           const Purchases = require('react-native-purchases').default;
@@ -122,6 +124,48 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     };
     void init();
   }, []);
+
+  // Web: pull live subscription status from Firestore after login or Stripe payment.
+  // Firestore document: subscriptions/{userId} (written by the Stripe webhook handler).
+  const syncFromFirestore = useCallback(async (userId: string) => {
+    if (!firestore || !isConfigured) return;
+    try {
+      const snap = await getDoc(doc(firestore, 'subscriptions', userId));
+      if (!snap.exists()) return;
+
+      const data = snap.data();
+      const isActive = data.isPremium === true ||
+        data.status === 'active' || data.status === 'trialing';
+      const isInTrial = data.status === 'trialing';
+      const expirationDate: string | null = data.currentPeriodEnd ?? null;
+
+      // Treat as expired if period end has passed
+      if (expirationDate && Date.now() > new Date(expirationDate).getTime()) {
+        const expired = { ...DEFAULT_STATE, stripeCustomerId: data.stripeCustomerId ?? null };
+        setSubscriptionState(expired);
+        await persist(expired);
+        return;
+      }
+
+      const newState: SubscriptionState = {
+        tier: isActive ? 'premium' : 'free',
+        isPremium: isActive,
+        isActive,
+        expirationDate,
+        willRenew: !(data.cancelAtPeriodEnd ?? false),
+        productIdentifier: data.stripePriceId ?? null,
+        isInTrialPeriod: isInTrial,
+        trialEndDate: isInTrial ? (data.trialEnd ?? null) : null,
+        stripeCustomerId: data.stripeCustomerId ?? null,
+        stripeSubscriptionId: data.stripeSubscriptionId ?? null,
+      };
+      setSubscriptionState(newState);
+      await persist(newState);
+      console.log('[Subscription] Synced from Firestore:', newState.tier);
+    } catch (e) {
+      console.error('[Subscription] syncFromFirestore error:', e);
+    }
+  }, [firestore, isConfigured, persist]);
 
   // Called after Stripe webhook confirms payment on web
   const updateSubscriptionFromStripe = useCallback(async (data: {
@@ -203,31 +247,6 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     await AsyncStorage.removeItem(STORAGE_KEY);
   }, []);
 
-  // Web: fetch subscription status from Supabase via tRPC backend
-  const syncFromSupabase = useCallback(async (userId: string) => {
-    if (Platform.OS !== 'web') return;
-    try {
-      const data = await trpcClient.subscription.getStatus.query({ userId });
-      if (!data) return;
-      const newState: SubscriptionState = {
-        tier: data.isPremium ? 'premium' : 'free',
-        isPremium: data.isPremium,
-        isActive: data.isActive,
-        expirationDate: data.expirationDate ?? null,
-        willRenew: data.willRenew,
-        productIdentifier: data.productIdentifier ?? null,
-        isInTrialPeriod: data.isInTrialPeriod,
-        trialEndDate: data.trialEndDate ?? null,
-        stripeCustomerId: data.stripeCustomerId ?? null,
-        stripeSubscriptionId: data.stripeSubscriptionId ?? null,
-      };
-      setSubscriptionState(newState);
-      await persist(newState);
-    } catch (e) {
-      console.error('[Subscription] syncFromSupabase error:', e);
-    }
-  }, [persist]);
-
   const checkEntitlement = useCallback((id: string) =>
     id === 'premium' ? subscriptionState.isPremium : false
   , [subscriptionState.isPremium]);
@@ -251,7 +270,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     purchaseNative,
     restorePurchases,
     setUserId,
-    syncFromSupabase,
+    syncFromFirestore,
     logout,
     checkEntitlement,
     canAccessContent,
@@ -259,7 +278,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   }), [
     isInitialized, isLoading, subscriptionState, refreshSubscriptionStatus,
     updateSubscriptionFromStripe, purchaseNative, restorePurchases,
-    setUserId, syncFromSupabase, logout, checkEntitlement, canAccessContent, getDaysRemainingInTrial,
+    setUserId, syncFromFirestore, logout, checkEntitlement, canAccessContent, getDaysRemainingInTrial,
   ]);
 });
 
