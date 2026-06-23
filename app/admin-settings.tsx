@@ -12,16 +12,16 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Settings, DollarSign, Palette, Bell, Shield, Brain, Plus, Trash2, FileText, PlayCircle, Cloud, Server, Upload, Image as ImageIcon } from 'lucide-react-native';
+import { Settings, DollarSign, Palette, Bell, Shield, Brain, Plus, Trash2, FileText, PlayCircle, Upload, Image as ImageIcon } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
 import { useApp, DailyBriefing, FreePackageFeatures } from '@/contexts/AppContext';
-import { useFirebase, FirebaseConfig } from '@/contexts/FirebaseContext';
+import { useFirebase } from '@/contexts/FirebaseContext';
 
 export default function AdminSettingsScreen() {
   const router = useRouter();
   const { adminSettings, updateAdminSettings } = useApp();
-  const { config, isConfigured, saveFirebaseConfig, clearFirebaseConfig, registerForPushNotifications } = useFirebase();
+  const { isConfigured, registerForPushNotifications } = useFirebase();
   const [enableNotifications, setEnableNotifications] = useState<boolean>(adminSettings.enableNotifications);
   const [requireVerification, setRequireVerification] = useState<boolean>(adminSettings.requireVerification);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
@@ -65,16 +65,6 @@ export default function AdminSettingsScreen() {
 
 
 
-  const [firebaseConfig, setFirebaseConfig] = useState<FirebaseConfig>({
-    apiKey: config?.apiKey ?? '',
-    authDomain: config?.authDomain ?? '',
-    projectId: config?.projectId ?? '',
-    storageBucket: config?.storageBucket ?? '',
-    messagingSenderId: config?.messagingSenderId ?? '',
-    appId: config?.appId ?? '',
-    measurementId: config?.measurementId ?? '',
-  });
-
   const handleAddBriefing = () => {
     const newBriefing: DailyBriefing = {
       id: Date.now().toString(),
@@ -91,48 +81,6 @@ export default function AdminSettingsScreen() {
 
   const handleUpdateBriefing = (id: string, updates: Partial<DailyBriefing>) => {
     setDailyBriefings(dailyBriefings.map(b => b.id === id ? { ...b, ...updates } : b));
-  };
-
-  const handleSaveFirebaseConfig = async () => {
-    if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.appId) {
-      Alert.alert('Validation Error', 'Please fill in all required Firebase fields (API Key, Project ID, App ID)');
-      return;
-    }
-
-    const success = await saveFirebaseConfig(firebaseConfig);
-    if (success) {
-      Alert.alert('Success', 'Firebase configuration saved and initialized successfully');
-      await registerForPushNotifications();
-    } else {
-      Alert.alert('Error', 'Failed to save Firebase configuration. Please check your credentials.');
-    }
-  };
-
-  const handleClearFirebaseConfig = () => {
-    Alert.alert(
-      'Clear Firebase Config',
-      'Are you sure you want to clear Firebase configuration? This will disable push notifications and file uploads.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            await clearFirebaseConfig();
-            setFirebaseConfig({
-              apiKey: '',
-              authDomain: '',
-              projectId: '',
-              storageBucket: '',
-              messagingSenderId: '',
-              appId: '',
-              measurementId: '',
-            });
-            Alert.alert('Success', 'Firebase configuration cleared');
-          },
-        },
-      ]
-    );
   };
 
   const handleUploadLogo = async () => {
@@ -487,103 +435,6 @@ export default function AdminSettingsScreen() {
           <Text style={styles.helpText}>Leave empty to use default AI service. Add your own key for unlimited usage.</Text>
           <Text style={styles.helpText}>Once Firebase is configured, this key syncs across all your devices automatically.</Text>
           <Text style={styles.helpText}>Tip: set OPENAI_API_KEY in Vercel env vars to avoid entering it here.</Text>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Cloud size={20} color={Colors.accent} />
-            <Text style={styles.sectionTitle}>Firebase Configuration</Text>
-          </View>
-          <Text style={styles.helpText}>Configure Firebase for push notifications and file uploads. Your credentials are encrypted and stored securely.</Text>
-          
-          {isConfigured && (
-            <View style={styles.statusBanner}>
-              <Server size={16} color={Colors.success} />
-              <Text style={styles.statusBannerText}>Firebase is configured and active</Text>
-            </View>
-          )}
-
-          <Text style={styles.label}>API Key *</Text>
-          <TextInput
-            style={styles.input}
-            value={firebaseConfig.apiKey}
-            onChangeText={(text) => setFirebaseConfig({ ...firebaseConfig, apiKey: text })}
-            placeholder="AIza...."
-            placeholderTextColor={Colors.textTertiary}
-            autoCapitalize="none"
-            secureTextEntry
-          />
-
-          <Text style={styles.label}>Auth Domain</Text>
-          <TextInput
-            style={styles.input}
-            value={firebaseConfig.authDomain}
-            onChangeText={(text) => setFirebaseConfig({ ...firebaseConfig, authDomain: text })}
-            placeholder="your-project.firebaseapp.com"
-            placeholderTextColor={Colors.textTertiary}
-            autoCapitalize="none"
-          />
-
-          <Text style={styles.label}>Project ID *</Text>
-          <TextInput
-            style={styles.input}
-            value={firebaseConfig.projectId}
-            onChangeText={(text) => setFirebaseConfig({ ...firebaseConfig, projectId: text })}
-            placeholder="your-project-id"
-            placeholderTextColor={Colors.textTertiary}
-            autoCapitalize="none"
-          />
-
-          <Text style={styles.label}>Storage Bucket</Text>
-          <TextInput
-            style={styles.input}
-            value={firebaseConfig.storageBucket}
-            onChangeText={(text) => setFirebaseConfig({ ...firebaseConfig, storageBucket: text })}
-            placeholder="your-project.appspot.com"
-            placeholderTextColor={Colors.textTertiary}
-            autoCapitalize="none"
-          />
-
-          <Text style={styles.label}>Messaging Sender ID</Text>
-          <TextInput
-            style={styles.input}
-            value={firebaseConfig.messagingSenderId}
-            onChangeText={(text) => setFirebaseConfig({ ...firebaseConfig, messagingSenderId: text })}
-            placeholder="123456789"
-            placeholderTextColor={Colors.textTertiary}
-            keyboardType="numeric"
-          />
-
-          <Text style={styles.label}>App ID *</Text>
-          <TextInput
-            style={styles.input}
-            value={firebaseConfig.appId}
-            onChangeText={(text) => setFirebaseConfig({ ...firebaseConfig, appId: text })}
-            placeholder="1:123456789:web:abc123"
-            placeholderTextColor={Colors.textTertiary}
-            autoCapitalize="none"
-          />
-
-          <Text style={styles.label}>Measurement ID (Optional)</Text>
-          <TextInput
-            style={styles.input}
-            value={firebaseConfig.measurementId}
-            onChangeText={(text) => setFirebaseConfig({ ...firebaseConfig, measurementId: text })}
-            placeholder="G-XXXXXXXXXX"
-            placeholderTextColor={Colors.textTertiary}
-            autoCapitalize="none"
-          />
-
-          <View style={styles.firebaseActions}>
-            <TouchableOpacity style={styles.firebaseSaveBtn} onPress={handleSaveFirebaseConfig}>
-              <Text style={styles.firebaseSaveBtnText}>Save Firebase Config</Text>
-            </TouchableOpacity>
-            {isConfigured && (
-              <TouchableOpacity style={styles.firebaseClearBtn} onPress={handleClearFirebaseConfig}>
-                <Text style={styles.firebaseClearBtnText}>Clear Config</Text>
-              </TouchableOpacity>
-            )}
-          </View>
         </View>
 
         <View style={styles.section}>

@@ -1,20 +1,22 @@
+/**
+ * FirebaseContext — Storage operations and push notifications only.
+ * Firebase is initialized exclusively from environment variables via
+ * lib/firebase-client.ts. There is no runtime config, no admin override,
+ * no AsyncStorage-based Firebase initialization.
+ */
 import createContextHook from '@nkzw/create-context-hook';
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { initializeApp, FirebaseApp, getApps, getApp } from 'firebase/app';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, FirebaseStorage } from 'firebase/storage';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { useState, useCallback, useMemo } from 'react';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import * as Crypto from 'expo-crypto';
 
-const STORAGE_KEYS = {
-  FIREBASE_CONFIG: 'wf_firebase_config_encrypted',
-  ENCRYPTION_KEY: 'wf_firebase_encryption_key',
-  PUSH_TOKEN: 'wf_push_token',
-};
+import { isFirebaseConfigured, getFirebaseApp, getFirebaseStorage } from '@/lib/firebase-client';
 
+// Re-export for consumers that check isConfigured without importing firebase-client directly
+export { isFirebaseConfigured };
+
+// Kept for backward-compat with admin-settings imports; no longer stores any data.
 export interface FirebaseConfig {
   apiKey: string;
   authDomain: string;
@@ -49,176 +51,28 @@ Notifications.setNotificationHandler({
   }),
 });
 
-async function generateEncryptionKey(): Promise<string> {
-  const stored = await AsyncStorage.getItem(STORAGE_KEYS.ENCRYPTION_KEY);
-  if (stored) return stored;
-  
-  const key = await Crypto.getRandomBytesAsync(32);
-  const keyStr = Array.from(key).map(b => b.toString(16).padStart(2, '0')).join('');
-  await AsyncStorage.setItem(STORAGE_KEYS.ENCRYPTION_KEY, keyStr);
-  return keyStr;
-}
-
-async function encryptConfig(config: FirebaseConfig): Promise<string> {
-  const key = await generateEncryptionKey();
-  const configStr = JSON.stringify(config);
-  const digest = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    configStr + key
-  );
-  return JSON.stringify({ data: configStr, hash: digest });
-}
-
-async function decryptConfig(encrypted: string): Promise<FirebaseConfig | null> {
-  try {
-    const key = await generateEncryptionKey();
-    const { data, hash } = JSON.parse(encrypted);
-    const verifyHash = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      data + key
-    );
-    
-    if (hash !== verifyHash) {
-      console.error('[Firebase] Config integrity check failed');
-      return null;
-    }
-    
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('[Firebase] Decryption failed:', error);
-    return null;
-  }
-}
-
 const appOwnership = Constants.appOwnership ?? 'standalone';
 const isExpoGo = appOwnership === 'expo';
 
 export const [FirebaseProvider, useFirebase] = createContextHook(() => {
-  const [firebaseApp, setFirebaseApp] = useState<FirebaseApp | null>(null);
-  const [firebaseStorage, setFirebaseStorage] = useState<FirebaseStorage | null>(null);
-  const [firestore, setFirestore] = useState<Firestore | null>(null);
-  const [config, setConfig] = useState<FirebaseConfig | null>(null);
-  const [isConfigured, setIsConfigured] = useState<boolean>(false);
-  const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const [pushToken, setPushToken] = useState<string | null>(null);
 
-  const initializeFirebaseRef = useCallback(async (fbConfig: FirebaseConfig) => {
-    try {
-      let app: FirebaseApp;
-      
-      if (getApps().length === 0) {
-        app = initializeApp(fbConfig);
-      } else {
-        app = getApp();
-      }
-      
-      const storage = getStorage(app);
-      const db = getFirestore(app);
-
-      setFirebaseApp(app);
-      setFirebaseStorage(storage);
-      setFirestore(db);
-      setIsConfigured(true);
-      
-      console.log('[Firebase] Initialized successfully');
-      return true;
-    } catch (error) {
-      console.error('[Firebase] Initialization failed:', error);
-      setIsConfigured(false);
-      return false;
-    }
-  }, []);
-
-  useEffect(() => {
-    const loadConfig = async () => {
-      try {
-        const envConfig: FirebaseConfig | null =
-          process.env.EXPO_PUBLIC_FIREBASE_API_KEY && process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID
-            ? {
-                apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-                authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ?? '',
-                projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-                storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ?? '',
-                messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? '',
-                appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? '',
-                measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
-              }
-            : null;
-
-        if (envConfig) {
-          console.log('[Firebase] Using config from environment variables');
-          setConfig(envConfig);
-          await initializeFirebaseRef(envConfig);
-          return;
-        }
-
-        const encrypted = await AsyncStorage.getItem(STORAGE_KEYS.FIREBASE_CONFIG);
-        if (encrypted) {
-          const decrypted = await decryptConfig(encrypted);
-          if (decrypted) {
-            setConfig(decrypted);
-            await initializeFirebaseRef(decrypted);
-          }
-        }
-      } catch (error) {
-        console.error('[Firebase] Failed to load config:', error);
-      } finally {
-        setIsInitializing(false);
-      }
-    };
-
-    void loadConfig();
-  }, [initializeFirebaseRef]);
-
-
-
-  const saveFirebaseConfig = useCallback(async (fbConfig: FirebaseConfig) => {
-    try {
-      const encrypted = await encryptConfig(fbConfig);
-      await AsyncStorage.setItem(STORAGE_KEYS.FIREBASE_CONFIG, encrypted);
-      
-      setConfig(fbConfig);
-      const success = await initializeFirebaseRef(fbConfig);
-      
-      if (success) {
-        console.log('[Firebase] Config saved and initialized');
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('[Firebase] Failed to save config:', error);
-      return false;
-    }
-  }, [initializeFirebaseRef]);
-
-  const clearFirebaseConfig = useCallback(async () => {
-    try {
-      await AsyncStorage.removeItem(STORAGE_KEYS.FIREBASE_CONFIG);
-      setConfig(null);
-      setFirebaseApp(null);
-      setFirebaseStorage(null);
-      setIsConfigured(false);
-      console.log('[Firebase] Config cleared');
-    } catch (error) {
-      console.error('[Firebase] Failed to clear config:', error);
-    }
-  }, []);
+  const isConfigured = isFirebaseConfigured();
+  const firebaseApp = getFirebaseApp();
 
   const registerForPushNotifications = useCallback(async (): Promise<string | null> => {
     try {
       if (Platform.OS === 'web' || isExpoGo) {
-        console.log('[Notifications] Push notifications not supported in this environment. Use a development build instead of Expo Go.');
+        console.log('[Notifications] Push notifications require a native development build.');
         return null;
       }
 
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
-
       if (existingStatus !== 'granted') {
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
       }
-
       if (finalStatus !== 'granted') {
         console.log('[Notifications] Permission denied');
         return null;
@@ -226,17 +80,12 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
 
       const expoProjectId = Constants.expoConfig?.extra?.eas?.projectId;
       if (!expoProjectId) {
-        console.log('[Notifications] Missing Expo project ID. Configure EAS projectId to request push tokens.');
+        console.log('[Notifications] Missing EAS projectId in app.json extra.eas.projectId');
         return null;
       }
 
-      const token = (await Notifications.getExpoPushTokenAsync({
-        projectId: expoProjectId,
-      })).data;
-
-      await AsyncStorage.setItem(STORAGE_KEYS.PUSH_TOKEN, token);
+      const token = (await Notifications.getExpoPushTokenAsync({ projectId: expoProjectId })).data;
       setPushToken(token);
-      
       console.log('[Notifications] Push token:', token);
       return token;
     } catch (error) {
@@ -247,22 +96,11 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
 
   const sendLocalNotification = useCallback(async (notification: NotificationData) => {
     try {
-      if (Platform.OS === 'web') {
-        console.log('[Notifications] Local notifications not supported on web');
-        return;
-      }
-
+      if (Platform.OS === 'web') return;
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title: notification.title,
-          body: notification.body,
-          data: notification.data ?? {},
-          sound: notification.sound ?? true,
-        },
+        content: { title: notification.title, body: notification.body, data: notification.data ?? {}, sound: notification.sound ?? true },
         trigger: null,
       });
-
-      console.log('[Notifications] Local notification sent:', notification.title);
     } catch (error) {
       console.error('[Notifications] Failed to send local notification:', error);
     }
@@ -273,26 +111,14 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
     trigger: Date | number
   ) => {
     try {
-      if (Platform.OS === 'web') {
-        console.log('[Notifications] Scheduled notifications not supported on web');
-        return null;
-      }
-
+      if (Platform.OS === 'web') return null;
       const triggerDate = (typeof trigger === 'number'
         ? { type: 'timeInterval' as const, seconds: trigger, repeats: false }
         : { type: 'date' as const, date: trigger }) as Notifications.NotificationTriggerInput;
-
       const id = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: notification.title,
-          body: notification.body,
-          data: notification.data ?? {},
-          sound: notification.sound ?? true,
-        },
+        content: { title: notification.title, body: notification.body, data: notification.data ?? {}, sound: notification.sound ?? true },
         trigger: triggerDate,
       });
-
-      console.log('[Notifications] Scheduled notification:', id);
       return id;
     } catch (error) {
       console.error('[Notifications] Failed to schedule notification:', error);
@@ -303,82 +129,61 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
   const cancelScheduledNotification = useCallback(async (notificationId: string) => {
     try {
       await Notifications.cancelScheduledNotificationAsync(notificationId);
-      console.log('[Notifications] Cancelled notification:', notificationId);
     } catch (error) {
       console.error('[Notifications] Failed to cancel notification:', error);
     }
   }, []);
 
-  const uploadFile = useCallback(async (
-    file: FileUpload,
-    path: string
-  ): Promise<string | null> => {
-    if (!firebaseStorage || !isConfigured) {
-      console.error('[Storage] Firebase not configured');
+  const uploadFile = useCallback(async (file: FileUpload, path: string): Promise<string | null> => {
+    const storage = getFirebaseStorage();
+    if (!storage) {
+      console.error('[Storage] Firebase not configured — cannot upload file');
       return null;
     }
-
     try {
       const response = await fetch(file.uri);
       const blob = await response.blob();
-      
-      const storageRef = ref(firebaseStorage, path);
+      const storageRef = ref(storage, path);
       await uploadBytes(storageRef, blob);
-      
       const downloadURL = await getDownloadURL(storageRef);
-      console.log('[Storage] File uploaded:', downloadURL);
-      
       return downloadURL;
     } catch (error) {
       console.error('[Storage] Upload failed:', error);
       return null;
     }
-  }, [firebaseStorage, isConfigured]);
+  }, []);
 
   const deleteFile = useCallback(async (path: string): Promise<boolean> => {
-    if (!firebaseStorage || !isConfigured) {
-      console.error('[Storage] Firebase not configured');
+    const storage = getFirebaseStorage();
+    if (!storage) {
+      console.error('[Storage] Firebase not configured — cannot delete file');
       return false;
     }
-
     try {
-      const storageRef = ref(firebaseStorage, path);
-      await deleteObject(storageRef);
-      console.log('[Storage] File deleted:', path);
+      await deleteObject(ref(storage, path));
       return true;
     } catch (error) {
       console.error('[Storage] Delete failed:', error);
       return false;
     }
-  }, [firebaseStorage, isConfigured]);
+  }, []);
 
   const getFileUrl = useCallback(async (path: string): Promise<string | null> => {
-    if (!firebaseStorage || !isConfigured) {
-      console.error('[Storage] Firebase not configured');
-      return null;
-    }
-
+    const storage = getFirebaseStorage();
+    if (!storage) return null;
     try {
-      const storageRef = ref(firebaseStorage, path);
-      const url = await getDownloadURL(storageRef);
-      return url;
+      return await getDownloadURL(ref(storage, path));
     } catch (error) {
       console.error('[Storage] Failed to get URL:', error);
       return null;
     }
-  }, [firebaseStorage, isConfigured]);
+  }, []);
 
   return useMemo(
     () => ({
       firebaseApp,
-      firebaseStorage,
-      firestore,
-      config,
       isConfigured,
-      isInitializing,
       pushToken,
-      saveFirebaseConfig,
-      clearFirebaseConfig,
       registerForPushNotifications,
       sendLocalNotification,
       schedulePushNotification,
@@ -389,14 +194,8 @@ export const [FirebaseProvider, useFirebase] = createContextHook(() => {
     }),
     [
       firebaseApp,
-      firebaseStorage,
-      firestore,
-      config,
       isConfigured,
-      isInitializing,
       pushToken,
-      saveFirebaseConfig,
-      clearFirebaseConfig,
       registerForPushNotifications,
       sendLocalNotification,
       schedulePushNotification,

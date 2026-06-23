@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc } from 'firebase/firestore';
-import { useFirebase } from '@/contexts/FirebaseContext';
+import { getFirebaseDb } from '@/lib/firebase-client';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RevenueCat product IDs — set these once you create products in App Store
@@ -49,7 +49,6 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [subscriptionState, setSubscriptionState] = useState<SubscriptionState>(DEFAULT_STATE);
-  const { firestore, isConfigured } = useFirebase();
 
   const persist = useCallback(async (state: SubscriptionState) => {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -128,9 +127,10 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   // Web: pull live subscription status from Firestore after login or Stripe payment.
   // Firestore document: subscriptions/{userId} (written by the Stripe webhook handler).
   const syncFromFirestore = useCallback(async (userId: string) => {
-    if (!firestore || !isConfigured) return;
+    const db = getFirebaseDb();
+    if (!db) return;
     try {
-      const snap = await getDoc(doc(firestore, 'subscriptions', userId));
+      const snap = await getDoc(doc(db, 'subscriptions', userId));
       if (!snap.exists()) return;
 
       const data = snap.data();
@@ -165,7 +165,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     } catch (e) {
       console.error('[Subscription] syncFromFirestore error:', e);
     }
-  }, [firestore, isConfigured, persist]);
+  }, [persist]);
 
   // Called after Stripe webhook confirms payment on web
   const updateSubscriptionFromStripe = useCallback(async (data: {

@@ -455,8 +455,8 @@ export const [AppProvider, useApp] = createContextHook(() => {
     if (!password) throw new Error('Password required');
 
     const auth = getFirebaseAuth();
-    console.log('[AppContext.login] getFirebaseAuth() result:', auth ? 'OK' : 'NULL — Firebase not configured');
-    if (!auth) throw new Error('Firebase not configured. Go to Admin → Settings and enter your Firebase credentials, or set EXPO_PUBLIC_FIREBASE_* env vars.');
+    console.log('[AppContext.login] getFirebaseAuth() result:', auth ? 'OK' : 'NULL — env vars missing');
+    if (!auth) throw new Error('Firebase misconfigured. Check EXPO_PUBLIC_FIREBASE_* environment variables.');
 
     // Authenticate via Firebase Auth
     let firebaseUid: string;

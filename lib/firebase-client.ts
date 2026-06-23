@@ -1,12 +1,23 @@
 /**
- * Firebase client-side singleton.
- * Initialized once from EXPO_PUBLIC_FIREBASE_* env vars.
- * Both FirebaseContext and AppContext import from here to share one app instance.
+ * Firebase client singleton — single source of truth.
+ * Initialized ONLY from EXPO_PUBLIC_FIREBASE_* environment variables.
+ * No runtime config, no AsyncStorage fallback, no admin override.
+ *
+ * If any required env var is missing, all getters return null and
+ * log a clear error. There is no silent fallback.
  */
 import { FirebaseApp, getApps, initializeApp } from 'firebase/app';
 import { Auth, getAuth, initializeAuth } from 'firebase/auth';
 import { Firestore, getFirestore } from 'firebase/firestore';
+import { FirebaseStorage, getStorage } from 'firebase/storage';
 import { Platform } from 'react-native';
+
+const REQUIRED_VARS = [
+  'EXPO_PUBLIC_FIREBASE_API_KEY',
+  'EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN',
+  'EXPO_PUBLIC_FIREBASE_PROJECT_ID',
+  'EXPO_PUBLIC_FIREBASE_APP_ID',
+] as const;
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -17,28 +28,31 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-export function isFirebaseConfigured(): boolean {
-  return !!(
-    firebaseConfig.apiKey &&
-    firebaseConfig.projectId &&
-    firebaseConfig.appId
+// Check on module load — surfaces misconfiguration at startup, not at login time.
+const missingVars = REQUIRED_VARS.filter(v => !process.env[v]);
+if (missingVars.length > 0) {
+  console.error(
+    '[Firebase] MISCONFIGURED — missing environment variables:',
+    missingVars.join(', '),
+    '\nSet these in your .env file (local) or Vercel/hosting dashboard (production).',
+    '\nApp will not be able to authenticate until they are set.'
   );
+}
+
+export function isFirebaseConfigured(): boolean {
+  return missingVars.length === 0;
 }
 
 let _app: FirebaseApp | null = null;
 let _auth: Auth | null = null;
 let _db: Firestore | null = null;
+let _storage: FirebaseStorage | null = null;
 
 export function getFirebaseApp(): FirebaseApp | null {
-  if (_app) return _app;
-  // Reuse any app already initialized (e.g., by FirebaseContext from AsyncStorage config)
-  const existingApps = getApps();
-  if (existingApps.length > 0) {
-    _app = existingApps[0];
-    return _app;
-  }
   if (!isFirebaseConfigured()) return null;
-  _app = initializeApp(firebaseConfig);
+  if (_app) return _app;
+  // Use existing app if already initialized (guards against double-init in dev HMR)
+  _app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
   return _app;
 }
 
@@ -48,15 +62,12 @@ export function getFirebaseAuth(): Auth | null {
   if (_auth) return _auth;
 
   if (Platform.OS !== 'web') {
-    // React Native persistence via AsyncStorage
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { getReactNativePersistence } = require('firebase/auth');
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      _auth = initializeAuth(app, {
-        persistence: getReactNativePersistence(AsyncStorage),
-      });
+      _auth = initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
     } catch {
       _auth = getAuth(app);
     }
@@ -72,4 +83,11 @@ export function getFirebaseDb(): Firestore | null {
   if (!app) return null;
   if (!_db) _db = getFirestore(app);
   return _db;
+}
+
+export function getFirebaseStorage(): FirebaseStorage | null {
+  const app = getFirebaseApp();
+  if (!app) return null;
+  if (!_storage) _storage = getStorage(app);
+  return _storage;
 }
