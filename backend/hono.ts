@@ -36,15 +36,31 @@ app.get("/api/health", async (c) => {
     }
   }
 
+  // ── Server-side Firebase env diagnostic ──────────────────────────────────
+  const fbServerDiag = {
+    NEXT_PUBLIC_FIREBASE_API_KEY:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY            ? '✓ set' : '✗ MISSING',
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:        process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN        ? '✓ set' : '✗ MISSING',
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID:         process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID         ? '✓ set' : '✗ MISSING',
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:     process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET     ? '✓ set' : '✗ MISSING (optional)',
+    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ? '✓ set' : '✗ MISSING (optional)',
+    NEXT_PUBLIC_FIREBASE_APP_ID:             process.env.NEXT_PUBLIC_FIREBASE_APP_ID             ? '✓ set' : '✗ MISSING',
+  };
+  // Log all env var keys that contain FIREBASE so we can see if they exist under a different name
+  const allFirebaseKeys = Object.keys(process.env).filter(k => k.includes('FIREBASE'));
+  console.log('[Health] Server-side FIREBASE env keys found:', allFirebaseKeys);
+  console.log('[Health] Server-side Firebase diagnostic:', fbServerDiag);
+  // ─────────────────────────────────────────────────────────────────────────
+
   return c.json({
     status: "ok",
     timestamp: new Date().toISOString(),
+    nodeEnv: process.env.NODE_ENV ?? 'unknown',
     env: {
       OPENAI_API_KEY: openAiKey ? `set (sk-...${openAiKey.slice(-4)})` : "MISSING",
-      NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "MISSING",
-      NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? "set" : "MISSING",
       EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL || "not set (using relative)",
     },
+    firebase: fbServerDiag,
+    firebaseKeysFoundInProcessEnv: allFirebaseKeys,
     checks: {
       openAi: openAiStatus,
       ...(openAiError ? { openAiError } : {}),
