@@ -41,8 +41,8 @@ app.get("/api/health", async (c) => {
     timestamp: new Date().toISOString(),
     env: {
       OPENAI_API_KEY: openAiKey ? `set (sk-...${openAiKey.slice(-4)})` : "MISSING",
-      EXPO_PUBLIC_FIREBASE_PROJECT_ID: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "MISSING",
-      EXPO_PUBLIC_FIREBASE_API_KEY: process.env.EXPO_PUBLIC_FIREBASE_API_KEY ? "set" : "MISSING",
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "MISSING",
+      NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? "set" : "MISSING",
       EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL || "not set (using relative)",
     },
     checks: {

@@ -456,7 +456,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
     const auth = getFirebaseAuth();
     console.log('[AppContext.login] getFirebaseAuth() result:', auth ? 'OK' : 'NULL — env vars missing');
-    if (!auth) throw new Error('Firebase misconfigured. Check EXPO_PUBLIC_FIREBASE_* environment variables.');
+    if (!auth) throw new Error('Firebase misconfigured. Check NEXT_PUBLIC_FIREBASE_* environment variables.');
 
     // Authenticate via Firebase Auth
     let firebaseUid: string;

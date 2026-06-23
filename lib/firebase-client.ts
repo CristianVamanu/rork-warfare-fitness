@@ -1,6 +1,6 @@
 /**
  * Firebase client singleton — single source of truth.
- * Initialized ONLY from EXPO_PUBLIC_FIREBASE_* environment variables.
+ * Initialized ONLY from NEXT_PUBLIC_FIREBASE_* environment variables.
  * No runtime config, no AsyncStorage fallback, no admin override.
  */
 import { FirebaseApp, getApps, initializeApp } from 'firebase/app';
@@ -10,29 +10,29 @@ import { FirebaseStorage, getStorage } from 'firebase/storage';
 import { Platform } from 'react-native';
 
 const ENV = {
-  EXPO_PUBLIC_FIREBASE_API_KEY:            process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN:        process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  EXPO_PUBLIC_FIREBASE_PROJECT_ID:         process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET:     process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  EXPO_PUBLIC_FIREBASE_APP_ID:             process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  NEXT_PUBLIC_FIREBASE_API_KEY:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:        process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID:         process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:     process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  NEXT_PUBLIC_FIREBASE_APP_ID:             process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 const REQUIRED = [
-  'EXPO_PUBLIC_FIREBASE_API_KEY',
-  'EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN',
-  'EXPO_PUBLIC_FIREBASE_PROJECT_ID',
-  'EXPO_PUBLIC_FIREBASE_APP_ID',
+  'NEXT_PUBLIC_FIREBASE_API_KEY',
+  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+  'NEXT_PUBLIC_FIREBASE_APP_ID',
 ] as const;
 
 // ─── Startup diagnostic — runs once when the module is first imported ─────────
 console.log('[Firebase] ENV var diagnostic:');
-console.log('  EXPO_PUBLIC_FIREBASE_API_KEY            =', ENV.EXPO_PUBLIC_FIREBASE_API_KEY            ? '✓ set' : '✗ MISSING');
-console.log('  EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN        =', ENV.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN        ? '✓ set' : '✗ MISSING');
-console.log('  EXPO_PUBLIC_FIREBASE_PROJECT_ID         =', ENV.EXPO_PUBLIC_FIREBASE_PROJECT_ID         ? '✓ set' : '✗ MISSING');
-console.log('  EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET     =', ENV.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET     ? '✓ set' : '✗ MISSING (optional)');
-console.log('  EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=', ENV.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ? '✓ set' : '✗ MISSING (optional)');
-console.log('  EXPO_PUBLIC_FIREBASE_APP_ID             =', ENV.EXPO_PUBLIC_FIREBASE_APP_ID             ? '✓ set' : '✗ MISSING');
+console.log('  NEXT_PUBLIC_FIREBASE_API_KEY            =', ENV.NEXT_PUBLIC_FIREBASE_API_KEY            ? '✓ set' : '✗ MISSING');
+console.log('  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN        =', ENV.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN        ? '✓ set' : '✗ MISSING');
+console.log('  NEXT_PUBLIC_FIREBASE_PROJECT_ID         =', ENV.NEXT_PUBLIC_FIREBASE_PROJECT_ID         ? '✓ set' : '✗ MISSING');
+console.log('  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET     =', ENV.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET     ? '✓ set' : '✗ MISSING (optional)');
+console.log('  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=', ENV.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ? '✓ set' : '✗ MISSING (optional)');
+console.log('  NEXT_PUBLIC_FIREBASE_APP_ID             =', ENV.NEXT_PUBLIC_FIREBASE_APP_ID             ? '✓ set' : '✗ MISSING');
 
 const missingVars = REQUIRED.filter(k => !ENV[k]);
 
@@ -48,12 +48,12 @@ if (missingVars.length > 0) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const firebaseConfig = {
-  apiKey:            ENV.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain:        ENV.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId:         ENV.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket:     ENV.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: ENV.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             ENV.EXPO_PUBLIC_FIREBASE_APP_ID,
+  apiKey:            ENV.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain:        ENV.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId:         ENV.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket:     ENV.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: ENV.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             ENV.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 export function isFirebaseConfigured(): boolean {
