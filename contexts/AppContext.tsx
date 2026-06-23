@@ -451,22 +451,28 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
   const login = useCallback(async (email: string, name?: string, password?: string, isNewUser: boolean = false, username?: string, weightUnit?: 'lbs' | 'kg', height?: string, weight?: string, age?: string, goal?: string, referredBy?: string, _resetPin?: string) => {
     const normalizedEmail = email.toLowerCase().trim();
+    console.log('[AppContext.login] called — email:', normalizedEmail, 'isNewUser:', isNewUser);
     if (!password) throw new Error('Password required');
 
     const auth = getFirebaseAuth();
-    if (!auth) throw new Error('Firebase Auth is not configured. Check EXPO_PUBLIC_FIREBASE_* env vars.');
+    console.log('[AppContext.login] getFirebaseAuth() result:', auth ? 'OK' : 'NULL — Firebase not configured');
+    if (!auth) throw new Error('Firebase not configured. Go to Admin → Settings and enter your Firebase credentials, or set EXPO_PUBLIC_FIREBASE_* env vars.');
 
     // Authenticate via Firebase Auth
     let firebaseUid: string;
     let displayName: string;
 
     if (isNewUser) {
+      console.log('[AppContext.login] calling createUserWithEmailAndPassword...');
       const cred = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+      console.log('[AppContext.login] createUserWithEmailAndPassword succeeded, uid:', cred.user.uid);
       firebaseUid = cred.user.uid;
       displayName = name ?? username ?? normalizedEmail.split('@')[0];
       await updateProfile(cred.user, { displayName });
     } else {
+      console.log('[AppContext.login] calling signInWithEmailAndPassword...');
       const cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      console.log('[AppContext.login] signInWithEmailAndPassword succeeded, uid:', cred.user.uid);
       firebaseUid = cred.user.uid;
       displayName = cred.user.displayName ?? name ?? normalizedEmail.split('@')[0];
     }

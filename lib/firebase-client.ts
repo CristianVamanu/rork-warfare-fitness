@@ -30,9 +30,15 @@ let _auth: Auth | null = null;
 let _db: Firestore | null = null;
 
 export function getFirebaseApp(): FirebaseApp | null {
-  if (!isFirebaseConfigured()) return null;
   if (_app) return _app;
-  _app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
+  // Reuse any app already initialized (e.g., by FirebaseContext from AsyncStorage config)
+  const existingApps = getApps();
+  if (existingApps.length > 0) {
+    _app = existingApps[0];
+    return _app;
+  }
+  if (!isFirebaseConfigured()) return null;
+  _app = initializeApp(firebaseConfig);
   return _app;
 }
 

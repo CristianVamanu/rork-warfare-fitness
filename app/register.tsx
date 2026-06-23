@@ -25,6 +25,7 @@ export default function RegisterScreen() {
   const [weightUnit, setWeightUnit] = useState<'lbs' | 'kg'>('lbs');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
 
 
@@ -120,37 +121,39 @@ export default function RegisterScreen() {
             </View>
 
             <TouchableOpacity style={styles.btn} onPress={async () => {
+              console.log('[Register] Button pressed — email:', email, 'name:', name, 'username:', username);
+              setErrorMessage('');
               if (!name || !username || !email || !password || !confirmPassword) {
-                Alert.alert('Missing info', 'Please fill in all fields');
+                setErrorMessage('Please fill in all fields');
                 return;
               }
-
               if (password !== confirmPassword) {
-                Alert.alert('Password Mismatch', 'Passwords do not match. Please try again.');
+                setErrorMessage('Passwords do not match. Please try again.');
                 return;
               }
-
               if (password.length < 6) {
-                Alert.alert('Weak Password', 'Password must be at least 6 characters.');
+                setErrorMessage('Password must be at least 6 characters.');
                 return;
               }
-
               if (!isValidEmail(email)) {
-                Alert.alert('Invalid Email', 'Please enter a valid email address');
+                setErrorMessage('Please enter a valid email address');
                 return;
               }
-
               try {
                 setIsLoading(true);
+                console.log('[Register] Calling resetTrainingData()...');
                 await resetTrainingData();
-
+                console.log('[Register] Calling login() for new user...');
                 await login(email, name, password, true, username, weightUnit);
-                
+                console.log('[Register] login() succeeded — navigating');
                 setIsLoading(false);
                 router.replace('/onboarding' as any);
               } catch (error) {
+                console.error('[Register] login() threw:', error);
                 setIsLoading(false);
-                Alert.alert('Registration Failed', error instanceof Error ? error.message : 'An error occurred');
+                const msg = error instanceof Error ? error.message : 'An error occurred';
+                setErrorMessage(msg);
+                Alert.alert('Registration Failed', msg);
               }
             }}>
               <UserPlus size={18} color={Colors.background} />
@@ -161,6 +164,12 @@ export default function RegisterScreen() {
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={Colors.accent} />
                 <Text style={styles.loadingText}>Creating account...</Text>
+              </View>
+            )}
+
+            {!!errorMessage && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{errorMessage}</Text>
               </View>
             )}
 
@@ -207,4 +216,6 @@ const styles = StyleSheet.create({
   link: { color: Colors.accent, textAlign: 'center', marginTop: 20, fontWeight: '800' as const, fontSize: 15 },
   loadingContainer: { marginTop: 16, alignItems: 'center', width: '100%' },
   loadingText: { color: Colors.text, marginTop: 8, fontSize: 14 },
+  errorBox: { marginTop: 12, backgroundColor: '#3a1a1a', borderWidth: 1, borderColor: '#ff4444', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10, width: '100%', maxWidth: 400 },
+  errorText: { color: '#ff6666', fontSize: 14, textAlign: 'center', fontWeight: '600' as const },
 });

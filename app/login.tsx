@@ -20,6 +20,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
 
@@ -65,17 +66,24 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
             <TouchableOpacity style={styles.btn} onPress={async () => {
-              if (!email) { Alert.alert('Missing info', 'Enter email'); return; }
-              if (!isValidEmail(email)) { Alert.alert('Invalid Email', 'Please enter a valid email address'); return; }
-              if (!password) { Alert.alert('Missing info', 'Enter password'); return; }
+              console.log('[Login] Button pressed — email:', email, 'password length:', password.length);
+              setErrorMessage('');
+              if (!email) { setErrorMessage('Please enter your email'); return; }
+              if (!isValidEmail(email)) { setErrorMessage('Please enter a valid email address'); return; }
+              if (!password) { setErrorMessage('Please enter your password'); return; }
               try {
                 setIsLoading(true);
+                console.log('[Login] Calling login()...');
                 await login(email, '', password);
+                console.log('[Login] login() succeeded — navigating');
                 setIsLoading(false);
                 router.replace('/(tabs)' as any);
               } catch (error) {
+                console.error('[Login] login() threw:', error);
                 setIsLoading(false);
-                Alert.alert('Login Failed', error instanceof Error ? error.message : 'Invalid credentials');
+                const msg = error instanceof Error ? error.message : 'Invalid credentials';
+                setErrorMessage(msg);
+                Alert.alert('Login Failed', msg);
               }
             }}>
               <LogIn size={18} color={Colors.background} />
@@ -86,6 +94,12 @@ export default function LoginScreen() {
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={Colors.accent} />
                 <Text style={styles.loadingText}>Logging in...</Text>
+              </View>
+            )}
+
+            {!!errorMessage && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{errorMessage}</Text>
               </View>
             )}
 
@@ -169,6 +183,8 @@ const styles = StyleSheet.create({
   link: { color: Colors.accent, textAlign: 'center', marginTop: 8, fontWeight: '800' as const, fontSize: 15 },
   loadingContainer: { marginTop: 16, alignItems: 'center', width: '100%' },
   loadingText: { color: Colors.text, marginTop: 8, fontSize: 14 },
+  errorBox: { marginTop: 12, backgroundColor: '#3a1a1a', borderWidth: 1, borderColor: '#ff4444', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10, width: '100%', maxWidth: 400 },
+  errorText: { color: '#ff6666', fontSize: 14, textAlign: 'center', fontWeight: '600' as const },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.7)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
   modalContent: { backgroundColor: Colors.background, borderRadius: 16, padding: 24, width: '100%', maxWidth: 400, maxHeight: '80%' },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
