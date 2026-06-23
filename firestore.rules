@@ -2,18 +2,25 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Admin settings — any client can read (needed by AdminSettingsSync),
-    // writes come from the Admin SDK only (bypasses rules).
+    // Admin settings — authenticated users can read; writes via Admin SDK only.
     match /warfare_admin/{docId} {
-      allow read: if true;
+      allow read: if request.auth != null;
       allow write: if false;
     }
 
-    // Subscriptions — readable by any client (subscription tier is non-sensitive),
-    // writes only via firebase-admin (Stripe webhook — bypasses rules).
-    // TODO: when Firebase Auth is added, restrict reads to: request.auth.uid == userId
+    // User profiles — each user reads/writes only their own document.
+    // isAdmin is set by the Admin SDK only (client cannot escalate privileges).
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId
+        && !('isAdmin' in request.resource.data);
+      allow update: if request.auth != null && request.auth.uid == userId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'trainerApproved', 'trainerRevenueSplit']);
+    }
+
+    // Subscriptions — each user reads only their own; writes via Admin SDK (Stripe webhook).
     match /subscriptions/{userId} {
-      allow read: if true;
+      allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if false;
     }
   }

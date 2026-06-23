@@ -1,10 +1,19 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  updateProfile,
+  sendPasswordResetEmail,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
 import { MISSIONS, Mission } from '@/constants/missions';
 import { ADMIN_AVATAR, DEFAULT_AVATAR } from '@/constants/avatars';
+import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase-client';
 
 
 
@@ -117,12 +126,9 @@ interface User {
   trainerApproved?: boolean;
 }
 
-const ADMIN_EMAILS = ['admin@warfarefitness.com', 'superadmin@warfarefitness.com'];
-
-const ADMIN_CREDENTIALS: Record<string, string> = {
-  'admin@warfarefitness.com': 'M@ngalia88',
-  'superadmin@warfarefitness.com': 'M@ngalia88',
-};
+// Admin emails are configured server-side via ADMIN_EMAILS env var.
+// Client-side admin detection reads from the user's Firestore profile.
+// No hardcoded credentials.
 
 const STORAGE_KEYS = {
   STREAK: 'warfare_streak',
@@ -210,19 +216,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadPersistedData = async () => {
       try {
         console.log('[AppContext] Loading persisted data...');
-        
-        const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
-        if (storedUser) {
-          try {
-            setUser(JSON.parse(storedUser) as User);
-            console.log('[AppContext] User loaded from storage');
-          } catch (err) {
-            console.error('[AppContext] Failed to parse user data:', err);
-          }
-        }
 
         const storedStreak = await AsyncStorage.getItem(STORAGE_KEYS.STREAK);
         if (storedStreak) {
@@ -292,18 +288,17 @@ export const [AppProvider, useApp] = createContextHook(() => {
           } catch {}
         }
 
-        if (storedUser) {
+        const cachedUserRaw = await AsyncStorage.getItem(STORAGE_KEYS.USER);
+        if (cachedUserRaw) {
           try {
-            const currentUser = JSON.parse(storedUser) as User;
+            const currentUser = JSON.parse(cachedUserRaw) as User;
             const storedFasting = await AsyncStorage.getItem(STORAGE_KEYS.FASTING_STATE);
             if (storedFasting) {
               try {
                 const fastingData = JSON.parse(storedFasting) as FastingState;
                 if (fastingData.userId === currentUser.id) {
                   setFastingState(fastingData);
-                  console.log('[AppContext] Fasting state loaded for user:', currentUser.id);
                 } else {
-                  console.log('[AppContext] Fasting state belongs to different user, clearing it');
                   await AsyncStorage.removeItem(STORAGE_KEYS.FASTING_STATE);
                 }
               } catch {}
@@ -325,14 +320,53 @@ export const [AppProvider, useApp] = createContextHook(() => {
           } catch {}
         }
 
-        console.log('[AppContext] All data loaded successfully');
+        console.log('[AppContext] Persisted data loaded');
       } catch (error) {
         console.error('[AppContext] Error loading data:', error);
-      } finally {
-        setIsLoading(false);
       }
     };
-    void loadData();
+
+    void loadPersistedData();
+
+    // Firebase Auth manages session — fires once on mount with current user (or null)
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      // Firebase not configured yet — mark loading done
+      setIsLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const db = getFirebaseDb();
+        let profile: User | null = null;
+        if (db) {
+          try {
+            const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
+            if (snap.exists()) {
+              profile = snap.data() as User;
+            }
+          } catch (e) {
+            console.error('[AppContext] Failed to load Firestore profile:', e);
+          }
+        }
+        if (!profile) {
+          // Fall back to AsyncStorage profile (pre-migration users)
+          const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
+          if (storedUser) {
+            try { profile = JSON.parse(storedUser) as User; } catch {}
+          }
+        }
+        if (profile) {
+          setUser(profile);
+        }
+      } else {
+        setUser(undefined);
+      }
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const addPower = useCallback((amount: number) => {
@@ -406,114 +440,86 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
 
 
-  const login = useCallback(async (email: string, name?: string, password?: string, isNewUser: boolean = false, username?: string, weightUnit?: 'lbs' | 'kg', height?: string, weight?: string, age?: string, goal?: string, referredBy?: string, resetPin?: string) => {
+  const login = useCallback(async (email: string, name?: string, password?: string, isNewUser: boolean = false, username?: string, weightUnit?: 'lbs' | 'kg', height?: string, weight?: string, age?: string, goal?: string, referredBy?: string, _resetPin?: string) => {
     const normalizedEmail = email.toLowerCase().trim();
-    const isAdminEmail = ADMIN_EMAILS.includes(normalizedEmail);
-    
-    if (isAdminEmail) {
-      const correctPassword = ADMIN_CREDENTIALS[normalizedEmail];
-      if (!password) {
-        throw new Error('Password required for admin login');
-      }
-      if (password !== correctPassword) {
-        throw new Error('Invalid password');
+    if (!password) throw new Error('Password required');
+
+    const auth = getFirebaseAuth();
+    if (!auth) throw new Error('Firebase Auth is not configured. Check EXPO_PUBLIC_FIREBASE_* env vars.');
+
+    // Authenticate via Firebase Auth
+    let firebaseUid: string;
+    let displayName: string;
+
+    if (isNewUser) {
+      const cred = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+      firebaseUid = cred.user.uid;
+      displayName = name ?? username ?? normalizedEmail.split('@')[0];
+      await updateProfile(cred.user, { displayName });
+    } else {
+      const cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      firebaseUid = cred.user.uid;
+      displayName = cred.user.displayName ?? name ?? normalizedEmail.split('@')[0];
+    }
+
+    // Load existing Firestore profile to preserve fields like avatar, referralCode, etc.
+    const db = getFirebaseDb();
+    let existingProfile: Partial<User> = {};
+    if (db) {
+      try {
+        const snap = await getDoc(doc(db, 'users', firebaseUid));
+        if (snap.exists()) existingProfile = snap.data() as User;
+      } catch (e) {
+        console.error('[Auth] Failed to load Firestore profile:', e);
       }
     }
-    
-    const allUsersData = await AsyncStorage.getItem(STORAGE_KEYS.ALL_USERS);
-    const allUsers = allUsersData ? JSON.parse(allUsersData) : [];
-    const existingUser = allUsers.find((u: User) => u.email === normalizedEmail);
-    
-    const userRegistrationDate = existingUser?.registrationDate ?? (isNewUser ? new Date().toISOString() : undefined) ?? new Date().toISOString();
-    
-    let userAvatar = existingUser?.avatar ?? DEFAULT_AVATAR.url;
-    if (isAdminEmail) {
-      userAvatar = ADMIN_AVATAR.url;
-    }
-    
-    const generateReferralCode = (userId: string) => {
-      return 'WF' + userId.slice(-6).toUpperCase();
-    };
-    
-    const userId = existingUser?.id ?? 'u-' + Date.now().toString();
-    const referralCode = existingUser?.referralCode ?? generateReferralCode(userId);
-    
+
+    // Admin flag comes from Firestore profile (set by admin SDK)
+    const isAdmin = existingProfile.isAdmin === true;
+
+    const referralCode = existingProfile.referralCode ?? ('WF' + firebaseUid.slice(-6).toUpperCase());
+    const userRegistrationDate = existingProfile.registrationDate ?? new Date().toISOString();
+
     const newUser: User & { registrationDate: string } = {
-      id: userId,
-      name: name ?? existingUser?.name ?? username ?? email.split('@')[0],
+      id: firebaseUid,
+      name: displayName,
       email: normalizedEmail,
-      isAdmin: isAdminEmail,
-      avatar: userAvatar,
-      weightUnit: weightUnit ?? existingUser?.weightUnit ?? 'lbs',
+      isAdmin,
+      avatar: existingProfile.avatar ?? (isAdmin ? ADMIN_AVATAR.url : DEFAULT_AVATAR.url),
+      weightUnit: weightUnit ?? existingProfile.weightUnit ?? 'lbs',
       registrationDate: userRegistrationDate,
-      height: height ?? existingUser?.height,
-      weight: weight ?? existingUser?.weight,
-      age: age ?? existingUser?.age,
-      goal: goal ?? existingUser?.goal,
-      referralCode: referralCode,
-      referredBy: referredBy ?? existingUser?.referredBy,
-      totalReferrals: existingUser?.totalReferrals ?? 0,
-      resetPin: resetPin ?? existingUser?.resetPin,
-      isTrainer: existingUser?.isTrainer ?? false,
-      trainerBio: existingUser?.trainerBio,
-      trainerSpecialty: existingUser?.trainerSpecialty,
-      trainerPrice: existingUser?.trainerPrice,
-      trainerTrialDays: existingUser?.trainerTrialDays,
-      trainerRevenueSplit: existingUser?.trainerRevenueSplit,
-      trainerApproved: existingUser?.trainerApproved ?? false,
+      height: height ?? existingProfile.height,
+      weight: weight ?? existingProfile.weight,
+      age: age ?? existingProfile.age,
+      goal: goal ?? existingProfile.goal,
+      referralCode,
+      referredBy: referredBy ?? existingProfile.referredBy,
+      totalReferrals: existingProfile.totalReferrals ?? 0,
+      isTrainer: existingProfile.isTrainer ?? false,
+      trainerBio: existingProfile.trainerBio,
+      trainerSpecialty: existingProfile.trainerSpecialty,
+      trainerPrice: existingProfile.trainerPrice,
+      trainerTrialDays: existingProfile.trainerTrialDays,
+      trainerRevenueSplit: existingProfile.trainerRevenueSplit,
+      trainerApproved: existingProfile.trainerApproved ?? false,
     };
-    
+
     setRegistrationDate(userRegistrationDate);
     await AsyncStorage.setItem('warfare_registration_date', userRegistrationDate);
-    console.log('[Auth] User login:', normalizedEmail, 'isAdmin:', newUser.isAdmin, 'isNewUser:', isNewUser);
+    console.log('[Auth] Firebase login:', normalizedEmail, 'isAdmin:', isAdmin, 'isNewUser:', isNewUser);
     setUser(newUser);
     await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
-    
-    const allUsersDataUpdated = await AsyncStorage.getItem(STORAGE_KEYS.ALL_USERS);
-    const allUsersUpdated = allUsersDataUpdated ? JSON.parse(allUsersDataUpdated) : [];
-    const userIndex = allUsersUpdated.findIndex((u: typeof newUser) => u.email === normalizedEmail);
-    
-    if (userIndex >= 0) {
-      allUsersUpdated[userIndex] = newUser;
-    } else {
-      allUsersUpdated.push(newUser);
-    }
-    
-    await AsyncStorage.setItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(allUsersUpdated));
 
-    if (isNewUser && referredBy) {
-      console.log('[Auth] User referred by:', referredBy);
-      const referrerUser = allUsersUpdated.find((u: typeof newUser) => u.referralCode === referredBy);
-      if (referrerUser) {
-        const referralBonus = 50;
-        referrerUser.totalReferrals = (referrerUser.totalReferrals || 0) + 1;
-        
-        const referrerIndex = allUsersUpdated.findIndex((u: typeof newUser) => u.referralCode === referredBy);
-        if (referrerIndex >= 0) {
-          allUsersUpdated[referrerIndex] = referrerUser;
-          await AsyncStorage.setItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(allUsersUpdated));
-        }
-        
-        const referrals = await AsyncStorage.getItem(STORAGE_KEYS.REFERRALS);
-        const referralsList = referrals ? JSON.parse(referrals) : [];
-        referralsList.push({
-          referrerId: referrerUser.id,
-          refereeId: newUser.id,
-          refereeEmail: newUser.email,
-          refereeName: newUser.name,
-          date: new Date().toISOString(),
-          powerBonus: referralBonus,
-        });
-        await AsyncStorage.setItem(STORAGE_KEYS.REFERRALS, JSON.stringify(referralsList));
-        
-        console.log('[Auth] Referral bonus:', referralBonus, 'power for user:', referrerUser.email);
+    // Persist profile to Firestore
+    if (db) {
+      try {
+        await setDoc(doc(db, 'users', firebaseUid), { ...newUser, updatedAt: new Date().toISOString() }, { merge: true });
+      } catch (e) {
+        console.error('[Auth] Firestore profile write failed:', e);
       }
     }
 
     if (isNewUser) {
-      console.log('[Auth] ===== INITIALIZING NEW USER =====');
-      console.log('[Auth] Resetting all data for new user...');
-      
       const freshMissions = MISSIONS.map(m => ({ ...m, completed: false, progress: 0 }));
       setStreak(0);
       setPowerLevel(0);
@@ -529,7 +535,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
       };
       setPowerMetrics(freshMetrics);
       const today = new Date().toDateString();
-      
       await Promise.all([
         AsyncStorage.setItem(STORAGE_KEYS.LAST_LOGIN_DATE, today),
         AsyncStorage.setItem(STORAGE_KEYS.LAST_DATE, today),
@@ -541,36 +546,27 @@ export const [AppProvider, useApp] = createContextHook(() => {
         AsyncStorage.setItem(STORAGE_KEYS.POWER_METRICS, JSON.stringify(freshMetrics)),
         AsyncStorage.removeItem(STORAGE_KEYS.LAST_POST_DATE),
       ]);
-      
-      console.log('[Auth] ✅ New user initialized:');
-      console.log('[Auth]    - Streak: 0');
-      console.log('[Auth]    - Power Level: 0');
-      console.log('[Auth]    - Missions: Reset');
-      console.log('[Auth] ===== NEW USER INITIALIZATION COMPLETE =====');
       return;
     }
 
+    // Returning user — handle daily streak & power bonus
     const today = new Date().toDateString();
     const lastLoginDate = await AsyncStorage.getItem(STORAGE_KEYS.LAST_LOGIN_DATE);
-    
+
     if (lastLoginDate !== today) {
       const currentStreak = await AsyncStorage.getItem(STORAGE_KEYS.STREAK);
       const currentPowerLevel = await AsyncStorage.getItem(STORAGE_KEYS.POWER_LEVEL);
       const storedMetrics = await AsyncStorage.getItem(STORAGE_KEYS.POWER_METRICS);
-      
       let metrics: PowerLevelMetrics = storedMetrics ? JSON.parse(storedMetrics) : powerMetrics;
-      
+
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toDateString();
-      const isConsecutive = lastLoginDate === yesterdayStr;
-      
+      const isConsecutive = lastLoginDate === yesterday.toDateString();
       const newStreak = isConsecutive ? (currentStreak ? parseInt(currentStreak, 10) : 0) + 1 : 1;
       let powerBonus = 10;
-      
+
       const streakMilestones = [10, 20, 30, 50, 75, 100];
       let milestoneBonus = 0;
-      
       for (const milestone of streakMilestones) {
         if (newStreak >= milestone && metrics.lastStreakMilestone < milestone) {
           if (milestone === 10) milestoneBonus = 50;
@@ -579,42 +575,39 @@ export const [AppProvider, useApp] = createContextHook(() => {
           else if (milestone === 50) milestoneBonus = 350;
           else if (milestone === 75) milestoneBonus = 500;
           else if (milestone === 100) milestoneBonus = 1000;
-          
           metrics.lastStreakMilestone = milestone;
-          console.log(`[Auth] 🎉 Streak milestone reached! ${milestone} days → +${milestoneBonus} power`);
           break;
         }
       }
-      
+
       const newPowerLevel = (currentPowerLevel ? parseInt(currentPowerLevel, 10) : 0) + powerBonus + milestoneBonus;
-      
       metrics.loginStreak = newStreak;
       metrics.lastLoginDate = today;
-      
       setStreak(newStreak);
       setPowerLevel(newPowerLevel);
       setPowerMetrics(metrics);
-      
       await Promise.all([
         AsyncStorage.setItem(STORAGE_KEYS.LAST_LOGIN_DATE, today),
         AsyncStorage.setItem(STORAGE_KEYS.STREAK, String(newStreak)),
         AsyncStorage.setItem(STORAGE_KEYS.POWER_LEVEL, String(newPowerLevel)),
         AsyncStorage.setItem(STORAGE_KEYS.POWER_METRICS, JSON.stringify(metrics)),
       ]);
-      
-      if (milestoneBonus > 0) {
-        console.log(`[Auth] Daily login: +${powerBonus} power. Milestone bonus: +${milestoneBonus}. Total: +${powerBonus + milestoneBonus} power. New streak: ${newStreak}, New power level: ${newPowerLevel}`);
-      } else {
-        console.log('[Auth] Daily login bonus: +' + powerBonus + ' power. New streak:', newStreak, 'New power level:', newPowerLevel);
-      }
-    } else {
-      console.log('[Auth] Already logged in today. Streak and power level unchanged.');
+      console.log('[Auth] Daily login: +' + (powerBonus + milestoneBonus) + ' power. Streak:', newStreak);
     }
-  }, []);
+  }, [powerMetrics]);
 
   const logout = useCallback(async () => {
     setUser(undefined);
-    await AsyncStorage.removeItem(STORAGE_KEYS.USER);
+    // Clear user identity and session data; preserve device-level preferences
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.USER,
+      STORAGE_KEYS.ALL_USERS,
+      STORAGE_KEYS.FASTING_STATE,
+    ]);
+    const auth = getFirebaseAuth();
+    if (auth) {
+      try { await signOut(auth); } catch {}
+    }
   }, []);
 
   const updateUserAvatar = useCallback(async (avatarUri: string) => {
@@ -622,18 +615,10 @@ export const [AppProvider, useApp] = createContextHook(() => {
     const updatedUser = { ...user, avatar: avatarUri };
     setUser(updatedUser);
     await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
-    
-    const allUsersData = await AsyncStorage.getItem(STORAGE_KEYS.ALL_USERS);
-    const allUsers = allUsersData ? JSON.parse(allUsersData) : [];
-    const userIndex = allUsers.findIndex((u: User) => u.email === user.email);
-    
-    if (userIndex >= 0) {
-      allUsers[userIndex] = updatedUser;
-      await AsyncStorage.setItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(allUsers));
-      console.log('[Auth] Avatar updated in all users list:', avatarUri);
+    const db = getFirebaseDb();
+    if (db) {
+      try { await updateDoc(doc(db, 'users', user.id), { avatar: avatarUri, updatedAt: new Date().toISOString() }); } catch {}
     }
-    
-    console.log('[Auth] Avatar updated:', avatarUri);
   }, [user]);
 
   const updateUserProfile = useCallback(async (updates: Partial<Omit<User, 'id' | 'isAdmin'>>) => {
@@ -641,18 +626,10 @@ export const [AppProvider, useApp] = createContextHook(() => {
     const updatedUser = { ...user, ...updates };
     setUser(updatedUser);
     await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
-    
-    const allUsersData = await AsyncStorage.getItem(STORAGE_KEYS.ALL_USERS);
-    const allUsers = allUsersData ? JSON.parse(allUsersData) : [];
-    const userIndex = allUsers.findIndex((u: User) => u.email === user.email);
-    
-    if (userIndex >= 0) {
-      allUsers[userIndex] = updatedUser;
-      await AsyncStorage.setItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(allUsers));
-      console.log('[Auth] Profile updated in all users list');
+    const db = getFirebaseDb();
+    if (db) {
+      try { await updateDoc(doc(db, 'users', user.id), { ...updates, updatedAt: new Date().toISOString() }); } catch {}
     }
-    
-    console.log('[Auth] Profile updated:', updates);
   }, [user]);
 
 
@@ -778,6 +755,10 @@ export const [AppProvider, useApp] = createContextHook(() => {
     );
     setAllUsers(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(updated));
+    const db = getFirebaseDb();
+    if (db) {
+      try { await updateDoc(doc(db, 'users', userId), { isTrainer: true, trainerApproved: true, trainerRevenueSplit: 70, updatedAt: new Date().toISOString() }); } catch {}
+    }
     if (user?.id === userId) {
       const updatedUser = { ...user, isTrainer: true, trainerApproved: true, trainerRevenueSplit: 70 };
       setUser(updatedUser);
@@ -791,6 +772,10 @@ export const [AppProvider, useApp] = createContextHook(() => {
     );
     setAllUsers(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(updated));
+    const db = getFirebaseDb();
+    if (db) {
+      try { await updateDoc(doc(db, 'users', userId), { isTrainer: false, trainerApproved: false, updatedAt: new Date().toISOString() }); } catch {}
+    }
     if (user?.id === userId) {
       const updatedUser = { ...user, isTrainer: false, trainerApproved: false };
       setUser(updatedUser);

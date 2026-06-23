@@ -25,8 +25,7 @@ export default function RegisterScreen() {
   const [weightUnit, setWeightUnit] = useState<'lbs' | 'kg'>('lbs');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [resetPin, setResetPin] = useState('');
-  const [confirmResetPin, setConfirmResetPin] = useState('');
+
 
 
 
@@ -100,30 +99,6 @@ export default function RegisterScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.sectionLabel}>Password Reset PIN (4-6 digits)</Text>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={[styles.input, styles.halfInput]}
-                placeholder='PIN'
-                placeholderTextColor={Colors.textTertiary}
-                keyboardType='number-pad'
-                maxLength={6}
-                secureTextEntry
-                value={resetPin}
-                onChangeText={setResetPin}
-              />
-              <TextInput
-                style={[styles.input, styles.halfInput]}
-                placeholder='Confirm PIN'
-                placeholderTextColor={Colors.textTertiary}
-                keyboardType='number-pad'
-                maxLength={6}
-                secureTextEntry
-                value={confirmResetPin}
-                onChangeText={setConfirmResetPin}
-              />
-            </View>
-
             <View style={styles.metricSelector}>
               <Text style={styles.metricLabel}>Measurement System</Text>
               <View style={styles.metricButtons}>
@@ -145,41 +120,31 @@ export default function RegisterScreen() {
             </View>
 
             <TouchableOpacity style={styles.btn} onPress={async () => {
-              if (!name || !username || !email || !password || !confirmPassword) { 
-                Alert.alert('Missing info', 'Please fill in all fields'); 
-                return; 
+              if (!name || !username || !email || !password || !confirmPassword) {
+                Alert.alert('Missing info', 'Please fill in all fields');
+                return;
               }
-              
+
               if (password !== confirmPassword) {
                 Alert.alert('Password Mismatch', 'Passwords do not match. Please try again.');
                 return;
               }
 
-              if (!resetPin || !confirmResetPin) {
-                Alert.alert('Missing PIN', 'Please set a reset PIN for password recovery');
+              if (password.length < 6) {
+                Alert.alert('Weak Password', 'Password must be at least 6 characters.');
                 return;
               }
 
-              if (resetPin.length < 4 || resetPin.length > 6) {
-                Alert.alert('Invalid PIN', 'PIN must be 4-6 digits');
+              if (!isValidEmail(email)) {
+                Alert.alert('Invalid Email', 'Please enter a valid email address');
                 return;
               }
 
-              if (resetPin !== confirmResetPin) {
-                Alert.alert('PIN Mismatch', 'PINs do not match. Please try again.');
-                return;
-              }
-              
-              if (!isValidEmail(email)) { 
-                Alert.alert('Invalid Email', 'Please enter a valid email address'); 
-                return; 
-              }
-              
               try {
                 setIsLoading(true);
                 await resetTrainingData();
-                
-                await login(email, name, password, true, username, weightUnit, '', '', '', '', undefined, resetPin);
+
+                await login(email, name, password, true, username, weightUnit);
                 
                 setIsLoading(false);
                 router.replace('/onboarding' as any);

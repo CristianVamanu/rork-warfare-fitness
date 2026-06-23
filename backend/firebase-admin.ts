@@ -1,22 +1,36 @@
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
 
-let initialized = false;
+let _app: App | null = null;
 
-export function getAdminApp(): admin.app.App {
-  if (!initialized && !admin.apps.length) {
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY env var is not set');
-
-    const serviceAccount = JSON.parse(
-      Buffer.from(raw, 'base64').toString('utf8')
-    ) as admin.ServiceAccount;
-
-    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-    initialized = true;
+function getAdminApp(): App {
+  if (_app) return _app;
+  if (getApps().length > 0) {
+    _app = getApps()[0];
+    return _app;
   }
-  return admin.app();
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY env var is not set');
+
+  const serviceAccount = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+  _app = initializeApp({ credential: cert(serviceAccount) });
+  return _app;
 }
 
 export function getAdminFirestore() {
-  return admin.firestore(getAdminApp());
+  return getFirestore(getAdminApp());
+}
+
+export async function verifyIdToken(token: string): Promise<DecodedIdToken> {
+  return getAuth(getAdminApp()).verifyIdToken(token);
+}
+
+/** Emails that have platform-admin privileges. Configured via ADMIN_EMAILS env var. */
+export function getAdminEmails(): string[] {
+  const raw = process.env.ADMIN_EMAILS ?? '';
+  return raw
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
 }

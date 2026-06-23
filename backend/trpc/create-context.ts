@@ -1,14 +1,44 @@
 import { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
+import { verifyIdToken, getAdminEmails } from "../firebase-admin";
 
-export const createContext = async (opts: FetchCreateContextFnOptions) => {
-  return {
-    req: opts.req,
-  };
+export interface AuthUser {
+  uid: string;
+  id: string; // alias for uid — used by existing route handlers
+  email: string;
+  isAdmin: boolean;
+}
+
+interface Context {
+  req: Request;
+  user: AuthUser | null;
+  [key: string]: unknown; // index signature required by tRPC hono adapter
+}
+
+async function resolveUser(req: Request): Promise<AuthUser | null> {
+  const authHeader = req.headers.get('Authorization') ?? '';
+  if (!authHeader.startsWith('Bearer ')) return null;
+
+  const token = authHeader.slice(7).trim();
+  if (!token) return null;
+
+  try {
+    const decoded = await verifyIdToken(token);
+    const email = (decoded.email ?? '').toLowerCase();
+    const isAdmin = getAdminEmails().includes(email);
+    return { uid: decoded.uid, id: decoded.uid, email, isAdmin };
+  } catch {
+    return null;
+  }
+}
+
+export const createContext = async (opts: FetchCreateContextFnOptions): Promise<Context> => {
+  const user = await resolveUser(opts.req);
+  return { req: opts.req, user };
 };
 
-export type Context = Awaited<ReturnType<typeof createContext>>;
+export type { Context };
 
 const t = initTRPC.context<Context>().create({
   transformer: superjson,
@@ -17,24 +47,19 @@ const t = initTRPC.context<Context>().create({
 export const createTRPCRouter = t.router;
 export const publicProcedure = t.procedure;
 
+export const authedProcedure = t.procedure.use(async ({ ctx, next }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+  }
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
-  const authHeader = ctx.req.headers.get('x-user-data');
-  if (!authHeader) {
-    throw new Error('Unauthorized: No user data provided');
+  if (!ctx.user) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
   }
-  
-  try {
-    const userData = JSON.parse(authHeader);
-    if (!userData.isAdmin) {
-      throw new Error('Forbidden: Admin access required');
-    }
-    return next({
-      ctx: {
-        ...ctx,
-        user: userData,
-      },
-    });
-  } catch (e) {
-    throw new Error('Unauthorized: Invalid user data');
+  if (!ctx.user.isAdmin) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
   }
+  return next({ ctx: { ...ctx, user: ctx.user } });
 });

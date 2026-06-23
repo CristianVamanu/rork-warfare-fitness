@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, ScrollView, Platform, Image, ActivityIndicator, Modal } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LogIn, X, Eye, EyeOff } from 'lucide-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sendPasswordResetEmail } from 'firebase/auth';
 
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
+import { getFirebaseAuth } from '@/lib/firebase-client';
 
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -21,9 +22,6 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  const [resetPin, setResetPin] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
 
 
@@ -110,116 +108,43 @@ export default function LoginScreen() {
           >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Reset Password</Text>
-              <TouchableOpacity onPress={() => {
-                setShowForgotPassword(false);
-                setResetEmail('');
-                setResetPin('');
-                setNewPassword('');
-                setConfirmNewPassword('');
-              }}>
+              <TouchableOpacity onPress={() => { setShowForgotPassword(false); setResetEmail(''); }}>
                 <X size={24} color={Colors.text} />
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalDescription}>
-                Enter your email and the PIN you set during registration
-              </Text>
-              <TextInput
-                style={styles.input}
-                placeholder='Email'
-                placeholderTextColor={Colors.textTertiary}
-                autoCapitalize='none'
-                keyboardType='email-address'
-                value={resetEmail}
-                onChangeText={setResetEmail}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder='Reset PIN'
-                placeholderTextColor={Colors.textTertiary}
-                keyboardType='number-pad'
-                maxLength={6}
-                secureTextEntry
-                value={resetPin}
-                onChangeText={setResetPin}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder='New Password'
-                placeholderTextColor={Colors.textTertiary}
-                secureTextEntry
-                value={newPassword}
-                onChangeText={setNewPassword}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder='Confirm New Password'
-                placeholderTextColor={Colors.textTertiary}
-                secureTextEntry
-                value={confirmNewPassword}
-                onChangeText={setConfirmNewPassword}
-              />
-              <TouchableOpacity
-                style={styles.btn}
-                onPress={async () => {
-                  if (!resetEmail || !resetPin || !newPassword || !confirmNewPassword) {
-                    Alert.alert('Missing info', 'Please fill in all fields');
-                    return;
-                  }
-                  if (!isValidEmail(resetEmail)) {
-                    Alert.alert('Invalid Email', 'Please enter a valid email address');
-                    return;
-                  }
-                  if (newPassword !== confirmNewPassword) {
-                    Alert.alert('Password Mismatch', 'Passwords do not match');
-                    return;
-                  }
-                  if (resetPin.length < 4 || resetPin.length > 6) {
-                    Alert.alert('Invalid PIN', 'PIN must be 4-6 digits');
-                    return;
-                  }
-
-                  try {
-                    const allUsersData = await AsyncStorage.getItem('warfare_all_users');
-                    if (!allUsersData) {
-                      Alert.alert('Error', 'No users found');
-                      return;
-                    }
-                    const allUsers = JSON.parse(allUsersData);
-                    const userIndex = allUsers.findIndex(
-                      (u: any) => u.email === resetEmail.toLowerCase().trim() && u.resetPin === resetPin
-                    );
-
-                    if (userIndex === -1) {
-                      Alert.alert('Error', 'Invalid email or PIN');
-                      return;
-                    }
-
-                    allUsers[userIndex] = { ...allUsers[userIndex] };
-                    await AsyncStorage.setItem('warfare_all_users', JSON.stringify(allUsers));
-
-                    Alert.alert('Success', 'Password reset successfully! Please login with your new password.', [
-                      {
-                        text: 'OK',
-                        onPress: () => {
-                          setShowForgotPassword(false);
-                          setResetEmail('');
-                          setResetPin('');
-                          setNewPassword('');
-                          setConfirmNewPassword('');
-                          setEmail(resetEmail);
-                        },
-                      },
-                    ]);
-                  } catch (error) {
-                    Alert.alert('Error', 'Failed to reset password');
-                    console.error('[Login] Password reset error:', error);
-                  }
-                }}
-              >
-                <Text style={styles.btnText}>Reset Password</Text>
-              </TouchableOpacity>
-            </ScrollView>
+            <Text style={styles.modalDescription}>
+              Enter your email address and we&apos;ll send you a password reset link.
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder='Email'
+              placeholderTextColor={Colors.textTertiary}
+              autoCapitalize='none'
+              keyboardType='email-address'
+              value={resetEmail}
+              onChangeText={setResetEmail}
+            />
+            <TouchableOpacity
+              style={styles.btn}
+              onPress={async () => {
+                if (!resetEmail || !isValidEmail(resetEmail)) {
+                  Alert.alert('Invalid Email', 'Please enter a valid email address');
+                  return;
+                }
+                try {
+                  const auth = getFirebaseAuth();
+                  if (!auth) throw new Error('Auth not configured');
+                  await sendPasswordResetEmail(auth, resetEmail.toLowerCase().trim());
+                  Alert.alert('Email sent', 'Check your inbox for a password reset link.', [
+                    { text: 'OK', onPress: () => { setShowForgotPassword(false); setResetEmail(''); } },
+                  ]);
+                } catch (error) {
+                  Alert.alert('Error', error instanceof Error ? error.message : 'Failed to send reset email');
+                }
+              }}
+            >
+              <Text style={styles.btnText}>Send Reset Email</Text>
+            </TouchableOpacity>
           </KeyboardAvoidingView>
         </View>
       </Modal>

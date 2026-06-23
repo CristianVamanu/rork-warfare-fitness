@@ -7,7 +7,7 @@ export default function AdminSettingsSync() {
   const { adminSettings, updateAdminSettings } = useApp();
   const { firebaseApp, isConfigured } = useFirebase();
   const initialLoadDone = useRef(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     if (!isConfigured || !firebaseApp || initialLoadDone.current) return;
