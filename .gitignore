@@ -37,4 +37,4 @@ yarn-error.*
 .vercel
 
 android/
-.env
+.env.env.local
