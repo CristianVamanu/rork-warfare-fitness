@@ -13,7 +13,7 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
 import { MISSIONS, Mission } from '@/constants/missions';
 import { ADMIN_AVATAR, DEFAULT_AVATAR } from '@/constants/avatars';
-import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase-client';
+import { getFirebaseAuth, getFirebaseDb, logFirebaseDiagnostic } from '@/lib/firebase-client';
 import { syncDocToFirestore, loadCollectionFromFirestore } from '@/lib/firestore-sync';
 
 
@@ -455,8 +455,11 @@ export const [AppProvider, useApp] = createContextHook(() => {
     if (!password) throw new Error('Password required');
 
     const auth = getFirebaseAuth();
-    console.log('[AppContext.login] getFirebaseAuth() result:', auth ? 'OK' : 'NULL — env vars missing');
-    if (!auth) throw new Error('Firebase misconfigured. Check NEXT_PUBLIC_FIREBASE_* environment variables.');
+    console.log('[AppContext.login] getFirebaseAuth() result:', auth ? 'OK' : 'NULL — check NEXT_PUBLIC_FIREBASE_* env vars in Vercel');
+    if (!auth) {
+      logFirebaseDiagnostic();
+      throw new Error('Firebase is not configured. Check that NEXT_PUBLIC_FIREBASE_* variables are set in Vercel and redeploy.');
+    }
 
     // Authenticate via Firebase Auth
     let firebaseUid: string;

@@ -4,6 +4,7 @@ import { trpc, trpcClient } from "@/lib/trpc";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from "react";
+import { logFirebaseDiagnostic } from '@/lib/firebase-client';
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { View, ActivityIndicator, Text, Alert } from "react-native";
 
@@ -175,6 +176,7 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   useFrameworkReady();
+  useEffect(() => { logFirebaseDiagnostic(); }, []);
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
