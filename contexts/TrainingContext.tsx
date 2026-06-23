@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '@/contexts/AppContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { getFirebaseDb } from '@/lib/firebase-client';
+import { syncDocToFirestore, loadCollectionFromFirestore, loadDocFromFirestore } from '@/lib/firestore-sync';
 
 export type Exercise = {
   id: string;
@@ -159,54 +161,56 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
     async function loadPersistedData() {
       try {
         console.log('[TrainingContext] Loading persisted data...');
-        
+        const db = getFirebaseDb();
+        const uid = user?.id;
+
+        // ── Programs & active program (Firestore preferred) ───────────────────
         const storedPrograms = await AsyncStorage.getItem(STORAGE_KEYS.PROGRAMS);
         if (storedPrograms) {
-          try {
-            setPrograms(JSON.parse(storedPrograms));
-            console.log('[TrainingContext] Programs loaded from storage');
-          } catch (err) {
-            console.error('[TrainingContext] Failed to parse programs:', err);
+          try { setPrograms(JSON.parse(storedPrograms)); } catch {}
+        }
+
+        if (uid) {
+          const fsState = await loadDocFromFirestore<{ activeProgramId?: string }>(
+            db, ['users', uid, 'trainingState', 'current']
+          );
+          if (fsState?.activeProgramId) {
+            setActiveProgramId(fsState.activeProgramId);
+          } else {
+            const storedActiveId = await AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_ID);
+            if (storedActiveId) setActiveProgramId(storedActiveId);
           }
+        } else {
+          const storedActiveId = await AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_ID);
+          if (storedActiveId) setActiveProgramId(storedActiveId);
         }
-        
-        const storedActiveId = await AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_ID);
-        if (storedActiveId) {
-          setActiveProgramId(storedActiveId);
-          console.log('[TrainingContext] Active program loaded:', storedActiveId);
-        }
-        
-        const storedLogs = await AsyncStorage.getItem(STORAGE_KEYS.WORKOUT_LOGS);
-        if (storedLogs) {
-          try {
-            setWorkoutLogs(JSON.parse(storedLogs));
-            console.log('[TrainingContext] Workout logs loaded');
-          } catch (err) {
-            console.error('[TrainingContext] Failed to parse workout logs:', err);
+
+        // ── Workout logs (Firestore preferred) ────────────────────────────────
+        if (uid) {
+          const fsLogs = await loadCollectionFromFirestore<WorkoutLog>(
+            db, ['users', uid, 'workoutLogs'], 'completedAt', 'desc', 300
+          );
+          if (fsLogs && fsLogs.length > 0) {
+            setWorkoutLogs(fsLogs);
+            await AsyncStorage.setItem(STORAGE_KEYS.WORKOUT_LOGS, JSON.stringify(fsLogs));
+          } else {
+            const storedLogs = await AsyncStorage.getItem(STORAGE_KEYS.WORKOUT_LOGS);
+            if (storedLogs) { try { setWorkoutLogs(JSON.parse(storedLogs)); } catch {} }
           }
+        } else {
+          const storedLogs = await AsyncStorage.getItem(STORAGE_KEYS.WORKOUT_LOGS);
+          if (storedLogs) { try { setWorkoutLogs(JSON.parse(storedLogs)); } catch {} }
         }
-        
+
+        // ── Exercise performances (AsyncStorage for now, Firestore in Phase 3) ─
         const storedPerformances = await AsyncStorage.getItem(STORAGE_KEYS.EXERCISE_PERFORMANCES);
-        if (storedPerformances) {
-          try {
-            setExercisePerformances(JSON.parse(storedPerformances));
-            console.log('[TrainingContext] Exercise performances loaded');
-          } catch (err) {
-            console.error('[TrainingContext] Failed to parse exercise performances:', err);
-          }
-        }
-        
+        if (storedPerformances) { try { setExercisePerformances(JSON.parse(storedPerformances)); } catch {} }
+
+        // ── Achievements (AsyncStorage for now, Firestore in Phase 3) ─────────
         const storedAchievements = await AsyncStorage.getItem(STORAGE_KEYS.ACHIEVEMENTS);
-        if (storedAchievements) {
-          try {
-            setAchievements(JSON.parse(storedAchievements));
-            console.log('[TrainingContext] Achievements loaded');
-          } catch (err) {
-            console.error('[TrainingContext] Failed to parse achievements:', err);
-          }
-        }
-        
-        console.log('[TrainingContext] All training data loaded successfully');
+        if (storedAchievements) { try { setAchievements(JSON.parse(storedAchievements)); } catch {} }
+
+        console.log('[TrainingContext] Data loaded');
       } catch (error) {
         console.error('[TrainingContext] Error loading persisted data:', error);
       } finally {
@@ -219,16 +223,22 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
 
   const persist = useCallback(async (nextPrograms: Program[], nextActive?: string) => {
     try {
-      console.log('[Training] Persisting programs to AsyncStorage...');
       await AsyncStorage.setItem(STORAGE_KEYS.PROGRAMS, JSON.stringify(nextPrograms));
       if (nextActive !== undefined) {
         await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_ID, nextActive);
+        // Sync active program choice to Firestore
+        if (user?.id) {
+          const db = getFirebaseDb();
+          void syncDocToFirestore(db, ['users', user.id, 'trainingState', 'current'], {
+            activeProgramId: nextActive,
+            updatedAt: new Date().toISOString(),
+          });
+        }
       }
-      console.log('[Training] ✅ Programs persisted successfully');
     } catch (e) {
       console.error('[Training] ❌ Error persisting programs:', e);
     }
-  }, []);
+  }, [user?.id]);
 
   const enroll = useCallback((programId: string) => {
     console.log('[Training] enroll', programId);
@@ -454,6 +464,12 @@ export const [TrainingProvider, useTraining] = createContextHook(() => {
     const next = [newLog, ...workoutLogs];
     setWorkoutLogs(next);
     await AsyncStorage.setItem(STORAGE_KEYS.WORKOUT_LOGS, JSON.stringify(next));
+
+    // Dual-write to Firestore for cross-device persistence
+    if (user?.id) {
+      const db = getFirebaseDb();
+      void syncDocToFirestore(db, ['users', user.id, 'workoutLogs', newLog.id], newLog);
+    }
 
     const newPerformances: ExercisePerformance[] = [];
     const flaggedPerformances: { exerciseName: string; weight: number; reps: number; reason: string }[] = [];

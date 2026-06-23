@@ -14,6 +14,7 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { MISSIONS, Mission } from '@/constants/missions';
 import { ADMIN_AVATAR, DEFAULT_AVATAR } from '@/constants/avatars';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase-client';
+import { syncDocToFirestore, loadCollectionFromFirestore } from '@/lib/firestore-sync';
 
 
 
@@ -257,6 +258,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
           if (!isNaN(parsed)) setCalorieTarget(parsed);
         }
 
+        // Load meals: prefer Firestore (cross-device), fall back to AsyncStorage
+        // Note: user is not yet available in this loadPersistedData closure;
+        // Firestore meal load is handled via onAuthStateChanged side-effect below.
         const storedMeals = await AsyncStorage.getItem(STORAGE_KEYS.MEALS);
         if (storedMeals) {
           try {
@@ -414,11 +418,16 @@ export const [AppProvider, useApp] = createContextHook(() => {
     void AsyncStorage.setItem(STORAGE_KEYS.CALORIE_TARGET, String(cal));
   }, []);
 
-  const addMeal = useCallback((entry: Omit<MealEntry, 'id' | 'loggedAt'>) => {
+  const addMeal = useCallback((entry: Omit<MealEntry, 'id' | 'loggedAt'>, uid?: string) => {
     const newEntry: MealEntry = { id: Date.now().toString(), loggedAt: new Date().toISOString(), ...entry };
     const next = [newEntry, ...meals];
     setMeals(next);
     void AsyncStorage.setItem(STORAGE_KEYS.MEALS, JSON.stringify(next));
+    // Dual-write to Firestore
+    if (uid) {
+      const db = getFirebaseDb();
+      void syncDocToFirestore(db, ['users', uid, 'meals', newEntry.id], newEntry);
+    }
   }, [meals]);
 
 
@@ -598,11 +607,15 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
   const logout = useCallback(async () => {
     setUser(undefined);
-    // Clear user identity and session data; preserve device-level preferences
+    // Clear all user session data; preserve device-level preferences (theme, units, etc.)
     await AsyncStorage.multiRemove([
       STORAGE_KEYS.USER,
       STORAGE_KEYS.ALL_USERS,
       STORAGE_KEYS.FASTING_STATE,
+      'community_messages',
+      'active_program_id',
+      'workout_logs',
+      'training_state',
     ]);
     const auth = getFirebaseAuth();
     if (auth) {

@@ -2,6 +2,18 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotifications } from './NotificationsContext';
+import { getFirebaseDb } from '@/lib/firebase-client';
+import {
+  collection,
+  doc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  getDocs,
+  query,
+  orderBy,
+  limit,
+} from 'firebase/firestore';
 
 export interface Message {
   id: string;
@@ -63,6 +75,9 @@ const STORAGE_KEYS = {
   USER_STATUSES: 'community_user_statuses',
 };
 
+const FS_CHANNELS = 'channels';
+const fsMessagesPath = (channelId: string) => `${FS_CHANNELS}/${channelId}/messages`;
+
 export const [CommunityProvider, useCommunity] = createContextHook(() => {
   const { createNotification } = useNotifications();
   const [channels, setChannels] = useState<Channel[]>([
@@ -97,21 +112,58 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     const loadData = async () => {
       try {
         console.log('[Community] Loading data...');
-        
-        const storedChannels = await AsyncStorage.getItem(STORAGE_KEYS.CHANNELS);
-        if (storedChannels) {
-          setChannels(JSON.parse(storedChannels));
+        const db = getFirebaseDb();
+
+        // Load channels — prefer Firestore, fall back to AsyncStorage
+        let channelsLoaded = false;
+        if (db) {
+          try {
+            const snap = await getDocs(collection(db, FS_CHANNELS));
+            if (!snap.empty) {
+              const fsChannels = snap.docs.map(d => d.data() as Channel);
+              setChannels(fsChannels);
+              await AsyncStorage.setItem(STORAGE_KEYS.CHANNELS, JSON.stringify(fsChannels));
+              channelsLoaded = true;
+            }
+          } catch (e) {
+            console.error('[Community] Firestore channels load failed:', e);
+          }
+        }
+        if (!channelsLoaded) {
+          const stored = await AsyncStorage.getItem(STORAGE_KEYS.CHANNELS);
+          if (stored) setChannels(JSON.parse(stored));
         }
 
-        const storedMessages = await AsyncStorage.getItem(STORAGE_KEYS.MESSAGES);
-        if (storedMessages) {
-          setMessages(JSON.parse(storedMessages));
+        // Load messages — prefer Firestore (last 500 across all channels), fall back to AsyncStorage
+        let messagesLoaded = false;
+        if (db) {
+          try {
+            // Load messages from each channel
+            const channelSnap = await getDocs(collection(db, FS_CHANNELS));
+            const allMessages: Message[] = [];
+            for (const channelDoc of channelSnap.docs) {
+              const msgSnap = await getDocs(
+                query(collection(db, fsMessagesPath(channelDoc.id)), orderBy('timestamp', 'asc'), limit(200))
+              );
+              msgSnap.docs.forEach(d => allMessages.push(d.data() as Message));
+            }
+            if (allMessages.length > 0) {
+              setMessages(allMessages);
+              await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(allMessages));
+              messagesLoaded = true;
+            }
+          } catch (e) {
+            console.error('[Community] Firestore messages load failed:', e);
+          }
+        }
+        if (!messagesLoaded) {
+          const stored = await AsyncStorage.getItem(STORAGE_KEYS.MESSAGES);
+          if (stored) setMessages(JSON.parse(stored));
         }
 
+        // User statuses — AsyncStorage only (admin-managed)
         const storedStatuses = await AsyncStorage.getItem(STORAGE_KEYS.USER_STATUSES);
-        if (storedStatuses) {
-          setUserStatuses(JSON.parse(storedStatuses));
-        }
+        if (storedStatuses) setUserStatuses(JSON.parse(storedStatuses));
 
         console.log('[Community] Data loaded');
       } catch (error) {
@@ -169,6 +221,14 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     const updated = [...channels, newChannel];
     setChannels(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.CHANNELS, JSON.stringify(updated));
+    const db = getFirebaseDb();
+    if (db) {
+      try {
+        await setDoc(doc(db, FS_CHANNELS, newChannel.id), { ...newChannel, _syncedAt: new Date().toISOString() });
+      } catch (e) {
+        console.error('[Community] Firestore channel create failed:', e);
+      }
+    }
     console.log('[Community] Channel created:', newChannel.id);
     return newChannel;
   }, [channels]);
@@ -177,6 +237,14 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     const updated = channels.map(ch => ch.id === channelId ? { ...ch, ...updates } : ch);
     setChannels(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.CHANNELS, JSON.stringify(updated));
+    const db = getFirebaseDb();
+    if (db) {
+      try {
+        await setDoc(doc(db, FS_CHANNELS, channelId), { ...updates, _syncedAt: new Date().toISOString() }, { merge: true });
+      } catch (e) {
+        console.error('[Community] Firestore channel update failed:', e);
+      }
+    }
     console.log('[Community] Channel updated:', channelId);
     return updated.find(ch => ch.id === channelId);
   }, [channels]);
@@ -185,11 +253,20 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     const updated = channels.filter(ch => ch.id !== channelId);
     setChannels(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.CHANNELS, JSON.stringify(updated));
-    
+
     const updatedMessages = messages.filter(m => m.channelId !== channelId);
     setMessages(updatedMessages);
     await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(updatedMessages));
-    
+
+    const db = getFirebaseDb();
+    if (db) {
+      try {
+        await deleteDoc(doc(db, FS_CHANNELS, channelId));
+      } catch (e) {
+        console.error('[Community] Firestore channel delete failed:', e);
+      }
+    }
+
     console.log('[Community] Channel deleted:', channelId);
   }, [channels, messages]);
 
@@ -306,6 +383,17 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     const updated = [...messages, newMessage];
     setMessages(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(updated));
+    const db = getFirebaseDb();
+    if (db) {
+      try {
+        await setDoc(
+          doc(db, fsMessagesPath(channelId), newMessage.id),
+          { ...newMessage, _syncedAt: new Date().toISOString() }
+        );
+      } catch (e) {
+        console.error('[Community] Firestore message send failed:', e);
+      }
+    }
     console.log('[Community] Message sent:', newMessage.id);
 
     const channelMembers = channel.members.filter(memberId => memberId !== userId);
@@ -358,6 +446,7 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
   }, [channels, messages, userStatuses, createNotification]);
 
   const editMessage = useCallback(async (messageId: string, newContent: string, userId: string) => {
+    const target = messages.find(m => m.id === messageId);
     const updated = messages.map(m => {
       if (m.id === messageId && m.userId === userId) {
         return { ...m, content: newContent, isEdited: true };
@@ -366,6 +455,16 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     });
     setMessages(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(updated));
+    if (target) {
+      const db = getFirebaseDb();
+      if (db) {
+        try {
+          await updateDoc(doc(db, fsMessagesPath(target.channelId), messageId), { content: newContent, isEdited: true, _syncedAt: new Date().toISOString() });
+        } catch (e) {
+          console.error('[Community] Firestore message edit failed:', e);
+        }
+      }
+    }
     console.log('[Community] Message edited:', messageId);
   }, [messages]);
 
@@ -385,43 +484,69 @@ export const [CommunityProvider, useCommunity] = createContextHook(() => {
     });
     setMessages(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(updated));
+    const db = getFirebaseDb();
+    if (db) {
+      try {
+        await updateDoc(doc(db, fsMessagesPath(message.channelId), messageId), { content: '[Deleted]', isDeleted: true, _syncedAt: new Date().toISOString() });
+      } catch (e) {
+        console.error('[Community] Firestore message delete failed:', e);
+      }
+    }
     console.log('[Community] Message deleted:', messageId);
   }, [messages]);
 
   const addReaction = useCallback(async (messageId: string, emoji: string, userId: string) => {
+    let target: Message | undefined;
     const updated = messages.map(m => {
       if (m.id === messageId) {
         const reactions = { ...m.reactions };
-        if (!reactions[emoji]) {
-          reactions[emoji] = [];
-        }
-        if (!reactions[emoji].includes(userId)) {
-          reactions[emoji] = [...reactions[emoji], userId];
-        }
-        return { ...m, reactions };
+        if (!reactions[emoji]) reactions[emoji] = [];
+        if (!reactions[emoji].includes(userId)) reactions[emoji] = [...reactions[emoji], userId];
+        target = { ...m, reactions };
+        return target;
       }
       return m;
     });
     setMessages(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(updated));
+    if (target) {
+      const db = getFirebaseDb();
+      if (db) {
+        try {
+          await updateDoc(doc(db, fsMessagesPath(target.channelId), messageId), { reactions: target.reactions, _syncedAt: new Date().toISOString() });
+        } catch (e) {
+          console.error('[Community] Firestore reaction add failed:', e);
+        }
+      }
+    }
   }, [messages]);
 
   const removeReaction = useCallback(async (messageId: string, emoji: string, userId: string) => {
+    let target: Message | undefined;
     const updated = messages.map(m => {
       if (m.id === messageId) {
         const reactions = { ...m.reactions };
         if (reactions[emoji]) {
           reactions[emoji] = reactions[emoji].filter(id => id !== userId);
-          if (reactions[emoji].length === 0) {
-            delete reactions[emoji];
-          }
+          if (reactions[emoji].length === 0) delete reactions[emoji];
         }
-        return { ...m, reactions };
+        target = { ...m, reactions };
+        return target;
       }
       return m;
     });
     setMessages(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(updated));
+    if (target) {
+      const db = getFirebaseDb();
+      if (db) {
+        try {
+          await updateDoc(doc(db, fsMessagesPath(target.channelId), messageId), { reactions: target.reactions, _syncedAt: new Date().toISOString() });
+        } catch (e) {
+          console.error('[Community] Firestore reaction remove failed:', e);
+        }
+      }
+    }
   }, [messages]);
 
   const banUser = useCallback(async (userId: string, channelId: string, reason?: string) => {
