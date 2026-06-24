@@ -26,7 +26,18 @@ export async function verifyIdToken(token: string): Promise<DecodedIdToken> {
   return getAuth(getAdminApp()).verifyIdToken(token);
 }
 
-/** Admin status is determined solely by Firebase custom claims — set via scripts/set-admin.ts */
-export function isAdminFromClaims(decoded: DecodedIdToken): boolean {
-  return decoded.admin === true;
+/**
+ * Admin check for server-side routes.
+ * Admin = the uid stored in system/config.adminUid (set on first registration).
+ * No custom claims, no ADMIN_EMAILS env var.
+ */
+export async function isAdminUid(uid: string): Promise<boolean> {
+  try {
+    const db = getFirestore(getAdminApp());
+    const snap = await db.doc('system/config').get();
+    if (!snap.exists) return false;
+    return snap.data()?.adminUid === uid;
+  } catch {
+    return false;
+  }
 }

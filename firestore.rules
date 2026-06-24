@@ -2,57 +2,99 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Admin settings — authenticated users can read; writes via Admin SDK only.
+    // ─── Helper: is the caller the installed admin? ──────────────────────────
+    // Admin = the uid stored in system/config.adminUid (set on first registration).
+    // No ADMIN_EMAILS env var. No isAdmin Firestore field. Single source of truth.
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/system/config)
+        && get(/databases/$(database)/documents/system/config).data.adminUid == request.auth.uid;
+    }
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // ─── System config ───────────────────────────────────────────────────────
+    // Anyone authenticated can read (needed to derive isAdmin client-side).
+    // Write only allowed when doc doesn't exist yet (bootstrap), OR by admin.
+    match /system/config {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && !exists(/databases/$(database)/documents/system/config);
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // ─── App-level settings (trainer branding, feature flags) ────────────────
     match /warfare_admin/{docId} {
       allow read: if request.auth != null;
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
-    // User profiles — each user reads/writes only their own document.
-    // isAdmin is NOT stored in Firestore — admin status lives in Firebase custom claims only.
-    // The create/update rules still block any accidental isAdmin writes as a safety net.
+    // ─── User profiles ───────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null && request.auth.uid == userId
+      allow read:   if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId)
         && !('isAdmin' in request.resource.data);
-      allow update: if request.auth != null && request.auth.uid == userId
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'trainerApproved', 'trainerRevenueSplit']);
+      allow update: if (isOwner(userId)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'trainerApproved', 'trainerRevenueSplit']))
+        || isAdmin();
+      allow delete: if isAdmin();
 
-      // Workout logs subcollection
       match /workoutLogs/{logId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId) || isAdmin();
       }
 
-      // Meals subcollection
       match /meals/{mealId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId) || isAdmin();
       }
 
-      // Training state subcollection
       match /trainingState/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId) || isAdmin();
       }
     }
 
-    // Subscriptions — each user reads only their own; writes via Admin SDK (Stripe webhook).
-    match /subscriptions/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if false;
+    // ─── Workouts (trainer-created templates) ────────────────────────────────
+    match /workouts/{workoutId} {
+      allow read:   if request.auth != null;
+      allow write:  if isAdmin();
     }
 
-    // Community channels — any authenticated user can read; authenticated users can write.
-    // Message ownership enforcement is done in app code; stricter rules in Phase 3.
+    // ─── Meals / nutrition ───────────────────────────────────────────────────
+    match /meals/{mealId} {
+      allow read:   if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId) || isAdmin();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+
+    // ─── Community ───────────────────────────────────────────────────────────
     match /channels/{channelId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read:   if request.auth != null;
+      allow write:  if isAdmin();
 
       match /messages/{messageId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-        allow update: if request.auth != null
-          && (request.auth.uid == resource.data.userId || request.auth.uid == request.resource.data.userId);
-        allow delete: if false;
+        allow read:   if request.auth != null;
+        allow create: if request.auth != null
+          && request.auth.uid == request.resource.data.userId;
+        allow update: if isOwner(resource.data.userId) || isAdmin();
+        allow delete: if isOwner(resource.data.userId) || isAdmin();
       }
+    }
+
+    // ─── Subscriptions (written by Stripe webhook via Admin SDK) ─────────────
+    match /subscriptions/{userId} {
+      allow read:  if isOwner(userId) || isAdmin();
+      allow write: if false; // Admin SDK only
+    }
+
+    // ─── Community posts (flat collection alternative) ────────────────────────
+    match /community/{postId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.userId;
+      allow update: if isOwner(resource.data.userId) || isAdmin();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
   }
 }

@@ -1,11 +1,11 @@
 import { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
-import { verifyIdToken, isAdminFromClaims } from "../firebase-admin";
+import { verifyIdToken, isAdminUid } from "../firebase-admin";
 
 export interface AuthUser {
   uid: string;
-  id: string; // alias for uid — used by existing route handlers
+  id: string;
   email: string;
   isAdmin: boolean;
 }
@@ -13,20 +13,19 @@ export interface AuthUser {
 interface Context {
   req: Request;
   user: AuthUser | null;
-  [key: string]: unknown; // index signature required by tRPC hono adapter
+  [key: string]: unknown;
 }
 
 async function resolveUser(req: Request): Promise<AuthUser | null> {
   const authHeader = req.headers.get('Authorization') ?? '';
   if (!authHeader.startsWith('Bearer ')) return null;
-
   const token = authHeader.slice(7).trim();
   if (!token) return null;
-
   try {
     const decoded = await verifyIdToken(token);
     const email = (decoded.email ?? '').toLowerCase();
-    const isAdmin = isAdminFromClaims(decoded);
+    // Admin = uid matches system/config.adminUid — single source of truth.
+    const isAdmin = await isAdminUid(decoded.uid);
     return { uid: decoded.uid, id: decoded.uid, email, isAdmin };
   } catch {
     return null;
@@ -40,26 +39,18 @@ export const createContext = async (opts: FetchCreateContextFnOptions): Promise<
 
 export type { Context };
 
-const t = initTRPC.context<Context>().create({
-  transformer: superjson,
-});
+const t = initTRPC.context<Context>().create({ transformer: superjson });
 
 export const createTRPCRouter = t.router;
 export const publicProcedure = t.procedure;
 
 export const authedProcedure = t.procedure.use(async ({ ctx, next }) => {
-  if (!ctx.user) {
-    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
-  }
+  if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
-  if (!ctx.user) {
-    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
-  }
-  if (!ctx.user.isAdmin) {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
-  }
+  if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+  if (!ctx.user.isAdmin) throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
   return next({ ctx: { ...ctx, user: ctx.user } });
 });

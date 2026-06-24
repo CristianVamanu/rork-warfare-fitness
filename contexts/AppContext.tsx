@@ -8,13 +8,13 @@ import {
   onAuthStateChanged,
   updateProfile,
   sendPasswordResetEmail,
-  getIdTokenResult,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
 import { MISSIONS, Mission } from '@/constants/missions';
 import { ADMIN_AVATAR, DEFAULT_AVATAR } from '@/constants/avatars';
 import { getFirebaseAuth, getFirebaseDb, logFirebaseDiagnostic } from '@/lib/firebase-client';
+import { bootstrapAdminIfNeeded, checkIsAdmin } from '@/lib/system-config';
 import { syncDocToFirestore, loadCollectionFromFirestore } from '@/lib/firestore-sync';
 
 
@@ -128,9 +128,8 @@ interface User {
   trainerApproved?: boolean;
 }
 
-// Admin status is determined solely by Firebase custom claims ({ admin: true }).
-// Set claims via: npx ts-node scripts/set-admin.ts <email>
-// Claims are read from the ID token — no Firestore or env var required.
+// Admin status is determined by system/config.adminUid (self-hosted SaaS model).
+// First registered user becomes admin automatically (bootstrapped on registration).
 
 const STORAGE_KEYS = {
   STREAK: 'warfare_streak',
@@ -343,13 +342,12 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Read admin status from custom claims (force-refresh to pick up any recent changes).
+        // Admin = system/config.adminUid matches this uid (self-hosted SaaS model).
         let isAdmin = false;
         try {
-          const tokenResult = await getIdTokenResult(firebaseUser, /* forceRefresh */ true);
-          isAdmin = tokenResult.claims['admin'] === true;
+          isAdmin = await checkIsAdmin(firebaseUser.uid);
         } catch (e) {
-          console.error('[AppContext] Failed to read ID token claims:', e);
+          console.error('[AppContext] Failed to check admin status:', e);
         }
 
         const db = getFirebaseDb();
@@ -508,16 +506,18 @@ export const [AppProvider, useApp] = createContextHook(() => {
       }
     }
 
-    // Admin status comes from Firebase custom claims — force-refresh so newly granted
-    // claims are reflected immediately without requiring a full sign-out/sign-in cycle.
+    // Bootstrap: first registered user becomes admin (self-hosted SaaS model).
+    // For existing users, check if their uid matches system/config.adminUid.
     let isAdmin = false;
-    if (auth.currentUser) {
-      try {
-        const tokenResult = await getIdTokenResult(auth.currentUser, /* forceRefresh */ true);
-        isAdmin = tokenResult.claims['admin'] === true;
-      } catch (e) {
-        console.error('[Auth] Failed to read ID token claims:', e);
+    try {
+      if (isNewUser) {
+        isAdmin = await bootstrapAdminIfNeeded(firebaseUid);
       }
+      if (!isAdmin) {
+        isAdmin = await checkIsAdmin(firebaseUid);
+      }
+    } catch (e) {
+      console.error('[Auth] Failed to determine admin status:', e);
     }
 
     const referralCode = existingProfile.referralCode ?? ('WF' + firebaseUid.slice(-6).toUpperCase());
