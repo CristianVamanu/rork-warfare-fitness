@@ -1,6 +1,6 @@
 /**
  * Firebase client singleton — single source of truth.
- * Initialized ONLY from NEXT_PUBLIC_FIREBASE_* environment variables.
+ * Initialized ONLY from EXPO_PUBLIC_FIREBASE_* environment variables.
  * All initialization is lazy — nothing runs at module import time.
  */
 import { FirebaseApp, getApps, initializeApp } from 'firebase/app';
@@ -10,30 +10,30 @@ import { FirebaseStorage, getStorage } from 'firebase/storage';
 import { Platform } from 'react-native';
 
 const REQUIRED_KEYS = [
-  'NEXT_PUBLIC_FIREBASE_API_KEY',
-  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-  'NEXT_PUBLIC_FIREBASE_APP_ID',
+  'EXPO_PUBLIC_FIREBASE_API_KEY',
+  'EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN',
+  'EXPO_PUBLIC_FIREBASE_PROJECT_ID',
+  'EXPO_PUBLIC_FIREBASE_APP_ID',
 ] as const;
 
 function readEnv() {
   return {
-    apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain:        process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId:         process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket:     process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId:             process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    apiKey:            process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+    authDomain:        process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId:         process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket:     process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId:             process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
   };
 }
 
 function getMissingVars(): string[] {
   const env = readEnv();
   const keyMap: Record<string, string | undefined> = {
-    NEXT_PUBLIC_FIREBASE_API_KEY:   env.apiKey,
-    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: env.authDomain,
-    NEXT_PUBLIC_FIREBASE_PROJECT_ID: env.projectId,
-    NEXT_PUBLIC_FIREBASE_APP_ID:    env.appId,
+    EXPO_PUBLIC_FIREBASE_API_KEY:   env.apiKey,
+    EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: env.authDomain,
+    EXPO_PUBLIC_FIREBASE_PROJECT_ID: env.projectId,
+    EXPO_PUBLIC_FIREBASE_APP_ID:    env.appId,
   };
   return REQUIRED_KEYS.filter(k => !keyMap[k]);
 }
@@ -46,12 +46,12 @@ export function isFirebaseConfigured(): boolean {
 export function logFirebaseDiagnostic(): void {
   const env = readEnv();
   console.log('[Firebase] Runtime ENV diagnostic:');
-  console.log('  NEXT_PUBLIC_FIREBASE_API_KEY            =', env.apiKey            ? '✓ set' : '✗ MISSING');
-  console.log('  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN        =', env.authDomain        ? '✓ set' : '✗ MISSING');
-  console.log('  NEXT_PUBLIC_FIREBASE_PROJECT_ID         =', env.projectId         ? '✓ set' : '✗ MISSING');
-  console.log('  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET     =', env.storageBucket     ? '✓ set' : '✗ MISSING (optional)');
-  console.log('  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=', env.messagingSenderId ? '✓ set' : '✗ MISSING (optional)');
-  console.log('  NEXT_PUBLIC_FIREBASE_APP_ID             =', env.appId             ? '✓ set' : '✗ MISSING');
+  console.log('  EXPO_PUBLIC_FIREBASE_API_KEY            =', env.apiKey            ? '✓ set' : '✗ MISSING');
+  console.log('  EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN        =', env.authDomain        ? '✓ set' : '✗ MISSING');
+  console.log('  EXPO_PUBLIC_FIREBASE_PROJECT_ID         =', env.projectId         ? '✓ set' : '✗ MISSING');
+  console.log('  EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET     =', env.storageBucket     ? '✓ set' : '✗ MISSING (optional)');
+  console.log('  EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=', env.messagingSenderId ? '✓ set' : '✗ MISSING (optional)');
+  console.log('  EXPO_PUBLIC_FIREBASE_APP_ID             =', env.appId             ? '✓ set' : '✗ MISSING');
   const missing = getMissingVars();
   if (missing.length > 0) {
     console.error('[Firebase] MISSING required vars:', missing.join(', '));

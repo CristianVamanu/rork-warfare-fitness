@@ -455,10 +455,10 @@ export const [AppProvider, useApp] = createContextHook(() => {
     if (!password) throw new Error('Password required');
 
     const auth = getFirebaseAuth();
-    console.log('[AppContext.login] getFirebaseAuth() result:', auth ? 'OK' : 'NULL — check NEXT_PUBLIC_FIREBASE_* env vars in Vercel');
+    console.log('[AppContext.login] getFirebaseAuth() result:', auth ? 'OK' : 'NULL — check EXPO_PUBLIC_FIREBASE_* env vars in Vercel');
     if (!auth) {
       logFirebaseDiagnostic();
-      throw new Error('Firebase is not configured. Check that NEXT_PUBLIC_FIREBASE_* variables are set in Vercel and redeploy.');
+      throw new Error('Firebase is not configured. Check that EXPO_PUBLIC_FIREBASE_* variables are set in Vercel and redeploy.');
     }
 
     // Authenticate via Firebase Auth
