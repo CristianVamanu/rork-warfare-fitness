@@ -348,14 +348,18 @@ export const [AppProvider, useApp] = createContextHook(() => {
           try {
             const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
             if (snap.exists()) {
-              profile = snap.data() as User;
+              // Always inject id from the Firebase Auth UID — Firestore doc may omit it
+              // if created manually in Firebase console.
+              profile = { id: firebaseUser.uid, ...snap.data() } as User;
+              // Keep AsyncStorage in sync so the fallback never serves a stale isAdmin.
+              await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile));
             }
           } catch (e) {
             console.error('[AppContext] Failed to load Firestore profile:', e);
           }
         }
         if (!profile) {
-          // Fall back to AsyncStorage profile (pre-migration users)
+          // Fall back to AsyncStorage profile (offline / Firestore unreachable).
           const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
           if (storedUser) {
             try { profile = JSON.parse(storedUser) as User; } catch {}
@@ -528,10 +532,12 @@ export const [AppProvider, useApp] = createContextHook(() => {
     setUser(newUser);
     await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
 
-    // Persist profile to Firestore
+    // Persist profile to Firestore — exclude isAdmin, trainerApproved, trainerRevenueSplit
+    // because Firestore rules block clients from writing those fields (set by Admin SDK only).
     if (db) {
       try {
-        await setDoc(doc(db, 'users', firebaseUid), { ...newUser, updatedAt: new Date().toISOString() }, { merge: true });
+        const { isAdmin: _a, trainerApproved: _ta, trainerRevenueSplit: _tr, ...profileToWrite } = newUser;
+        await setDoc(doc(db, 'users', firebaseUid), { ...profileToWrite, updatedAt: new Date().toISOString() }, { merge: true });
       } catch (e) {
         console.error('[Auth] Firestore profile write failed:', e);
       }
