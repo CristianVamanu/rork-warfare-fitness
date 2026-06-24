@@ -26,11 +26,7 @@ export async function verifyIdToken(token: string): Promise<DecodedIdToken> {
   return getAuth(getAdminApp()).verifyIdToken(token);
 }
 
-/** Emails that have platform-admin privileges. Configured via ADMIN_EMAILS env var. */
-export function getAdminEmails(): string[] {
-  const raw = process.env.ADMIN_EMAILS ?? '';
-  return raw
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
+/** Admin status is determined solely by Firebase custom claims — set via scripts/set-admin.ts */
+export function isAdminFromClaims(decoded: DecodedIdToken): boolean {
+  return decoded.admin === true;
 }

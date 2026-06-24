@@ -9,7 +9,8 @@ service cloud.firestore {
     }
 
     // User profiles — each user reads/writes only their own document.
-    // isAdmin is set by the Admin SDK only (client cannot escalate privileges).
+    // isAdmin is NOT stored in Firestore — admin status lives in Firebase custom claims only.
+    // The create/update rules still block any accidental isAdmin writes as a safety net.
     match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null && request.auth.uid == userId

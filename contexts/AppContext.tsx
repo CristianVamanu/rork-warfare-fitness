@@ -8,6 +8,7 @@ import {
   onAuthStateChanged,
   updateProfile,
   sendPasswordResetEmail,
+  getIdTokenResult,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
@@ -127,9 +128,9 @@ interface User {
   trainerApproved?: boolean;
 }
 
-// Admin emails are configured server-side via ADMIN_EMAILS env var.
-// Client-side admin detection reads from the user's Firestore profile.
-// No hardcoded credentials.
+// Admin status is determined solely by Firebase custom claims ({ admin: true }).
+// Set claims via: npx ts-node scripts/set-admin.ts <email>
+// Claims are read from the ID token — no Firestore or env var required.
 
 const STORAGE_KEYS = {
   STREAK: 'warfare_streak',
@@ -342,16 +343,24 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        // Read admin status from custom claims (force-refresh to pick up any recent changes).
+        let isAdmin = false;
+        try {
+          const tokenResult = await getIdTokenResult(firebaseUser, /* forceRefresh */ true);
+          isAdmin = tokenResult.claims['admin'] === true;
+        } catch (e) {
+          console.error('[AppContext] Failed to read ID token claims:', e);
+        }
+
         const db = getFirebaseDb();
         let profile: User | null = null;
         if (db) {
           try {
             const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
             if (snap.exists()) {
-              // Always inject id from the Firebase Auth UID — Firestore doc may omit it
-              // if created manually in Firebase console.
-              profile = { id: firebaseUser.uid, ...snap.data() } as User;
-              // Keep AsyncStorage in sync so the fallback never serves a stale isAdmin.
+              // Inject id (may be absent in manually-created docs) and override isAdmin
+              // with the authoritative token claim value.
+              profile = { id: firebaseUser.uid, ...snap.data(), isAdmin } as User;
               await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile));
             }
           } catch (e) {
@@ -359,10 +368,13 @@ export const [AppProvider, useApp] = createContextHook(() => {
           }
         }
         if (!profile) {
-          // Fall back to AsyncStorage profile (offline / Firestore unreachable).
+          // Offline fallback — update isAdmin from the fresh token claim.
           const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
           if (storedUser) {
-            try { profile = JSON.parse(storedUser) as User; } catch {}
+            try {
+              const parsed = JSON.parse(storedUser) as User;
+              profile = { ...parsed, isAdmin };
+            } catch {}
           }
         }
         if (profile) {
@@ -496,8 +508,17 @@ export const [AppProvider, useApp] = createContextHook(() => {
       }
     }
 
-    // Admin flag comes from Firestore profile (set by admin SDK)
-    const isAdmin = existingProfile.isAdmin === true;
+    // Admin status comes from Firebase custom claims — force-refresh so newly granted
+    // claims are reflected immediately without requiring a full sign-out/sign-in cycle.
+    let isAdmin = false;
+    if (auth.currentUser) {
+      try {
+        const tokenResult = await getIdTokenResult(auth.currentUser, /* forceRefresh */ true);
+        isAdmin = tokenResult.claims['admin'] === true;
+      } catch (e) {
+        console.error('[Auth] Failed to read ID token claims:', e);
+      }
+    }
 
     const referralCode = existingProfile.referralCode ?? ('WF' + firebaseUid.slice(-6).toUpperCase());
     const userRegistrationDate = existingProfile.registrationDate ?? new Date().toISOString();

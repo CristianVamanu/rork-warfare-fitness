@@ -1,7 +1,7 @@
 import { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
-import { verifyIdToken, getAdminEmails } from "../firebase-admin";
+import { verifyIdToken, isAdminFromClaims } from "../firebase-admin";
 
 export interface AuthUser {
   uid: string;
@@ -26,7 +26,7 @@ async function resolveUser(req: Request): Promise<AuthUser | null> {
   try {
     const decoded = await verifyIdToken(token);
     const email = (decoded.email ?? '').toLowerCase();
-    const isAdmin = getAdminEmails().includes(email);
+    const isAdmin = isAdminFromClaims(decoded);
     return { uid: decoded.uid, id: decoded.uid, email, isAdmin };
   } catch {
     return null;
