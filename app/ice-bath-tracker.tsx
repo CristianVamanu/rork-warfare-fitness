@@ -56,7 +56,10 @@ export default function IceBathTrackerScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace('/(tabs)' as any);
+          }}
         >
           <ArrowLeft size={20} color={Colors.text} />
         </TouchableOpacity>

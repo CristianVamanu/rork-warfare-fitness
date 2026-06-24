@@ -39,6 +39,7 @@ export default function WorkoutSessionScreen() {
   const [cardioTimers, setCardioTimers] = useState<Record<string, CardioTimerState>>({});
   const [sessionStartTime] = useState<string>(new Date().toISOString());
   const [demoExercise, setDemoExercise] = useState<{ name: string; imageUrl?: string } | null>(null);
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
 
   useEffect(() => {
     if (workout) {
@@ -181,25 +182,39 @@ export default function WorkoutSessionScreen() {
       testID="workout-session"
     >
       <View style={styles.headerRow}>
-        <TouchableOpacity
-          accessibilityRole="button"
-          onPress={() => {
-            Alert.alert('Quit Workout', 'Winners finish what they start. Are you sure?', [
-              { text: 'Stay and Grind', style: 'cancel' },
-              { text: 'Quit', style: 'destructive', onPress: () => {
+        {showQuitConfirm ? (
+          <View style={styles.quitConfirmRow}>
+            <Text style={styles.quitConfirmText}>Quit workout?</Text>
+            <TouchableOpacity
+              style={styles.quitConfirmYes}
+              onPress={() => {
+                setShowQuitConfirm(false);
                 if (router.canGoBack()) router.back();
                 else router.replace('/(tabs)/training' as any);
-              }},
-            ]);
-          }}
-          style={styles.backBtn}
-          testID="quit-workout"
-          activeOpacity={0.7}
-        >
-          <ArrowLeft size={18} color={Colors.text} />
-          <Text style={styles.backBtnText}>Quit</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{workout.name}</Text>
+              }}
+            >
+              <Text style={styles.quitConfirmYesText}>Quit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quitConfirmNo}
+              onPress={() => setShowQuitConfirm(false)}
+            >
+              <Text style={styles.quitConfirmNoText}>Keep Going</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            accessibilityRole="button"
+            onPress={() => setShowQuitConfirm(true)}
+            style={styles.backBtn}
+            testID="quit-workout"
+            activeOpacity={0.7}
+          >
+            <ArrowLeft size={18} color={Colors.text} />
+            <Text style={styles.backBtnText}>Quit</Text>
+          </TouchableOpacity>
+        )}
+        <Text style={styles.title} numberOfLines={1}>{workout.name}</Text>
       </View>
       <ScrollView
         contentContainerStyle={styles.container}
@@ -442,7 +457,13 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   backBtnText: { color: Colors.text, fontWeight: '800' as const },
-  title: { color: Colors.text, fontSize: 22, fontWeight: '900' as const },
+  title: { color: Colors.text, fontSize: 18, fontWeight: '900' as const, flex: 1, textAlign: 'center' },
+  quitConfirmRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  quitConfirmText: { color: Colors.textSecondary, fontSize: 13, fontWeight: '600' as const },
+  quitConfirmYes: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: Colors.danger },
+  quitConfirmYesText: { color: '#fff', fontWeight: '800' as const, fontSize: 13 },
+  quitConfirmNo: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  quitConfirmNoText: { color: Colors.text, fontWeight: '800' as const, fontSize: 13 },
   subtitle: { color: Colors.textSecondary, fontSize: 13, marginBottom: 16, fontWeight: '600' as const },
   progressWrap: { marginBottom: 16 },
   progressBarOuter: { height: 10, backgroundColor: Colors.surfaceLight, borderRadius: 6 },
@@ -457,8 +478,8 @@ const styles = StyleSheet.create({
   setCheck: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surfaceLight, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
   setCheckDone: { backgroundColor: Colors.success, borderColor: Colors.success },
   setNumber: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary, minWidth: 45 },
-  inputBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surfaceLight, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 8, height: 36, flex: 1 },
-  input: { flex: 1, color: Colors.text, fontWeight: '700' as const, fontSize: 14 },
+  inputBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surfaceLight, borderRadius: 8, paddingHorizontal: 8, height: 36, flex: 1 },
+  input: { flex: 1, color: Colors.text, fontWeight: '700' as const, fontSize: 14, ...(Platform.OS === 'web' ? { outlineWidth: 0 } as any : {}) },
   inputUnit: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600' as const },
   xText: { fontSize: 16, fontWeight: '800' as const, color: Colors.textSecondary },
   addSetBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, height: 36, borderRadius: 8, backgroundColor: Colors.border, alignSelf: 'flex-start', marginTop: 4 },
