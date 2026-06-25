@@ -2,9 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── Helper: is the caller the installed admin? ──────────────────────────
-    // Admin = the uid stored in system/config.adminUid (set on first registration).
-    // No ADMIN_EMAILS env var. No isAdmin Firestore field. Single source of truth.
+    // ─── Helpers ────────────────────────────────────────────────────────────────
+
+    // Admin = the uid stored in system/config.adminUid.
+    // Single source of truth. No custom claims. No isAdmin fields.
     function isAdmin() {
       return request.auth != null
         && exists(/databases/$(database)/documents/system/config)
@@ -15,29 +16,41 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
-    // ─── System config ───────────────────────────────────────────────────────
-    // Anyone authenticated can read (needed to derive isAdmin client-side).
-    // Write only allowed when doc doesn't exist yet (bootstrap), OR by admin.
+    // True if the installer has NOT been completed yet (no system/config exists).
+    function isFirstInstall() {
+      return !exists(/databases/$(database)/documents/system/config);
+    }
+
+    // ─── System config ───────────────────────────────────────────────────────────
+    //
+    // Read:   only the admin (or during first install, any auth'd user to derive isAdmin)
+    // Create: only if doc doesn't exist yet — allows installer to write it once
+    // Update: only admin (e.g. to update openAiKey or stripeConfig later)
+    // Delete: never
     match /system/config {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && !exists(/databases/$(database)/documents/system/config);
-      allow update: if isAdmin();
+      allow read:   if isAdmin() || isFirstInstall();
+      allow create: if request.auth != null && isFirstInstall();
+      allow update: if isAdmin()
+        // Guard: no one can change adminUid after installation
+        && request.resource.data.adminUid == resource.data.adminUid;
       allow delete: if false;
     }
 
-    // ─── App-level settings (trainer branding, feature flags) ────────────────
+    // ─── App-level settings (trainer branding, feature flags) ────────────────────
     match /warfare_admin/{docId} {
-      allow read: if request.auth != null;
+      allow read:  if request.auth != null;
       allow write: if isAdmin();
     }
 
-    // ─── User profiles ───────────────────────────────────────────────────────
+    // ─── User profiles ────────────────────────────────────────────────────────────
     match /users/{userId} {
       allow read:   if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId)
+        // Clients can never write isAdmin, trainerApproved, or trainerRevenueSplit
         && !('isAdmin' in request.resource.data);
       allow update: if (isOwner(userId)
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'trainerApproved', 'trainerRevenueSplit']))
+          && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['isAdmin', 'trainerApproved', 'trainerRevenueSplit']))
         || isAdmin();
       allow delete: if isAdmin();
 
@@ -54,13 +67,13 @@ service cloud.firestore {
       }
     }
 
-    // ─── Workouts (trainer-created templates) ────────────────────────────────
+    // ─── Workouts (trainer-created templates) ─────────────────────────────────────
     match /workouts/{workoutId} {
-      allow read:   if request.auth != null;
-      allow write:  if isAdmin();
+      allow read:  if request.auth != null;
+      allow write: if isAdmin();
     }
 
-    // ─── Meals / nutrition ───────────────────────────────────────────────────
+    // ─── Meals / nutrition ────────────────────────────────────────────────────────
     match /meals/{mealId} {
       allow read:   if isOwner(resource.data.userId) || isAdmin();
       allow create: if isOwner(request.resource.data.userId);
@@ -68,10 +81,10 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
-    // ─── Community ───────────────────────────────────────────────────────────
+    // ─── Community ────────────────────────────────────────────────────────────────
     match /channels/{channelId} {
-      allow read:   if request.auth != null;
-      allow write:  if isAdmin();
+      allow read:  if request.auth != null;
+      allow write: if isAdmin();
 
       match /messages/{messageId} {
         allow read:   if request.auth != null;
@@ -82,13 +95,13 @@ service cloud.firestore {
       }
     }
 
-    // ─── Subscriptions (written by Stripe webhook via Admin SDK) ─────────────
+    // ─── Subscriptions (written by Stripe webhook via Admin SDK only) ─────────────
     match /subscriptions/{userId} {
       allow read:  if isOwner(userId) || isAdmin();
-      allow write: if false; // Admin SDK only
+      allow write: if false;
     }
 
-    // ─── Community posts (flat collection alternative) ────────────────────────
+    // ─── Community posts ──────────────────────────────────────────────────────────
     match /community/{postId} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null

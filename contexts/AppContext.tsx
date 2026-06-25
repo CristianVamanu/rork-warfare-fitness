@@ -14,7 +14,7 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { MISSIONS, Mission } from '@/constants/missions';
 import { ADMIN_AVATAR, DEFAULT_AVATAR } from '@/constants/avatars';
 import { getFirebaseAuth, getFirebaseDb, logFirebaseDiagnostic } from '@/lib/firebase-client';
-import { bootstrapAdminIfNeeded, checkIsAdmin } from '@/lib/system-config';
+import { bootstrapAdminIfNeeded, checkIsAdmin, migrateAdminFromLegacyField } from '@/lib/system-config';
 import { syncDocToFirestore, loadCollectionFromFirestore } from '@/lib/firestore-sync';
 
 
@@ -346,37 +346,15 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
         const db = getFirebaseDb();
 
-        // Migration: if system/config is missing but the Firestore user profile has
-        // isAdmin:true (legacy field from before self-hosted SaaS migration), create
-        // system/config now so checkIsAdmin() works going forward.
-        if (db) {
-          try {
-            const { getDoc: gd, doc: d, setDoc: sd } = await import('firebase/firestore');
-            const configSnap = await gd(d(db, 'system/config'));
-            console.log('[AdminDebug] system/config exists:', configSnap.exists());
-            if (!configSnap.exists()) {
-              const userSnap = await gd(d(db, 'users', firebaseUser.uid));
-              const legacyIsAdmin = userSnap.exists() && userSnap.data()?.isAdmin === true;
-              console.log('[AdminDebug] legacy users/{uid}.isAdmin:', legacyIsAdmin);
-              if (legacyIsAdmin) {
-                const now = new Date().toISOString();
-                await sd(d(db, 'system/config'), {
-                  adminUid: firebaseUser.uid,
-                  appName: 'Warfare Fitness',
-                  trainerName: '',
-                  trainerEmail: firebaseUser.email ?? '',
-                  setupCompleted: true,
-                  createdAt: now,
-                  installedAt: now,
-                });
-                console.log('[AdminDebug] Migrated system/config — adminUid:', firebaseUser.uid);
-              }
-            } else {
-              console.log('[AdminDebug] system/config.adminUid:', configSnap.data()?.adminUid);
-            }
-          } catch (e) {
-            console.error('[AdminDebug] system/config migration failed:', e);
+        // Migration: if system/config is missing but users/{uid}.isAdmin === true
+        // (legacy field), create system/config now — one-time, self-healing.
+        try {
+          const migrated = await migrateAdminFromLegacyField(firebaseUser.uid, firebaseUser.email ?? '');
+          if (migrated) {
+            console.log('[AdminDebug] Migrated legacy admin to system/config. UID:', firebaseUser.uid);
           }
+        } catch (e) {
+          console.error('[AdminDebug] migration failed:', e);
         }
 
         // Admin = system/config.adminUid matches this uid (self-hosted SaaS model).

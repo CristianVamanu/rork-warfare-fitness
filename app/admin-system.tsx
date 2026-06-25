@@ -19,6 +19,8 @@ import {
   Key,
   HardDrive,
   Info,
+  Cpu,
+  CreditCard,
 } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
@@ -152,7 +154,9 @@ export default function AdminSystemScreen() {
           <InfoRow icon={<Key size={16} color={Colors.accent} />} label="App Name" value={config?.appName ?? '—'} />
           <InfoRow icon={<Database size={16} color={Colors.accent} />} label="Trainer Name" value={config?.trainerName ?? '—'} />
           <InfoRow icon={<Database size={16} color={Colors.accent} />} label="Trainer Email" value={config?.trainerEmail ?? '—'} />
-          <InfoRow icon={<HardDrive size={16} color={Colors.accent} />} label="Setup Completed" value={config?.setupCompleted ? 'Yes' : 'No'} />
+          <InfoRow icon={<Cpu size={16} color={Colors.accent} />} label="AI Trainer" value={config?.openAiKey ? '✓ Configured' : '— Not set'} />
+          <InfoRow icon={<CreditCard size={16} color={Colors.accent} />} label="Billing" value={config?.stripeConfig?.publishableKey ? '✓ Configured' : '— Not set'} />
+          <InfoRow icon={<HardDrive size={16} color={Colors.accent} />} label="Installer" value={config?.setupCompleted ? 'Completed' : 'Pending'} />
           <InfoRow icon={<Info size={16} color={Colors.accent} />} label="Installed At" value={config?.createdAt ? new Date(config.createdAt).toLocaleDateString() : '—'} />
           <InfoRow icon={<Info size={16} color={Colors.accent} />} label="App Version" value={APP_VERSION} />
         </View>

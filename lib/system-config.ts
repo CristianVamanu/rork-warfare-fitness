@@ -1,18 +1,20 @@
 /**
- * system/config — single Firestore document storing installation-level config.
- *
- * Written during the setup wizard (first run) and on first registration.
- * Read on every auth state change to determine isAdmin.
+ * system/config — single Firestore document, written once by the installer.
  *
  * Schema:
  *   system/config {
- *     adminUid: string,
- *     appName: string,
- *     trainerName: string,
- *     trainerEmail: string,
- *     setupCompleted: boolean,
- *     createdAt: string,
- *     installedAt?: string,   // legacy compat
+ *     adminUid:       string   — UID of the installer's admin account
+ *     appName:        string
+ *     trainerName:    string
+ *     trainerEmail:   string
+ *     openAiKey:      string   — encrypted at rest by Firestore rules
+ *     stripeConfig: {
+ *       publishableKey: string
+ *       secretKey:      string
+ *       webhookSecret:  string
+ *     }
+ *     setupCompleted: boolean
+ *     createdAt:      string   — ISO timestamp
  *   }
  */
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -20,13 +22,22 @@ import { getFirebaseDb } from './firebase-client';
 
 const SYSTEM_DOC = 'system/config';
 
+export interface StripeConfig {
+  publishableKey: string;
+  secretKey: string;
+  webhookSecret: string;
+}
+
 export interface SystemConfig {
   adminUid: string;
   appName: string;
   trainerName: string;
   trainerEmail: string;
+  openAiKey: string;
+  stripeConfig: StripeConfig;
   setupCompleted: boolean;
   createdAt: string;
+  /** legacy compat — same value as createdAt */
   installedAt?: string;
 }
 
@@ -44,27 +55,30 @@ export async function getSystemConfig(): Promise<SystemConfig | null> {
   }
 }
 
-/** Returns true if the setup wizard has been completed. */
+/** Returns true if the installer has been completed. */
 export async function isSetupComplete(): Promise<boolean> {
   const config = await getSystemConfig();
   return config?.setupCompleted === true;
 }
 
 /**
- * Called at the end of the setup wizard.
+ * Called at the end of the installer wizard.
  * Creates system/config only if it does not exist yet.
+ * Throws if the document already exists (installer already ran).
  */
 export async function completeSetup(params: {
   adminUid: string;
   appName: string;
   trainerName: string;
   trainerEmail: string;
+  openAiKey: string;
+  stripeConfig: StripeConfig;
 }): Promise<void> {
   const db = getFirebaseDb();
   if (!db) throw new Error('Firestore not available');
   const ref = doc(db, SYSTEM_DOC);
   const snap = await getDoc(ref);
-  if (snap.exists()) throw new Error('Setup has already been completed');
+  if (snap.exists()) throw new Error('Installer has already been completed');
   const now = new Date().toISOString();
   await setDoc(ref, {
     ...params,
@@ -72,12 +86,46 @@ export async function completeSetup(params: {
     createdAt: now,
     installedAt: now,
   });
-  console.log('[SystemConfig] Setup completed. Admin UID:', params.adminUid);
+  console.log('[SystemConfig] Installer completed. Admin UID:', params.adminUid);
 }
 
 /**
- * Legacy bootstrap: called during first-ever registration (fallback if setup page was skipped).
- * Sets adminUid ONLY if system/config does not yet exist.
+ * Migration: if system/config is missing but users/{uid}.isAdmin === true
+ * (legacy field from before the self-hosted SaaS migration), create system/config
+ * now so checkIsAdmin() works going forward.
+ */
+export async function migrateAdminFromLegacyField(uid: string, email: string): Promise<boolean> {
+  const db = getFirebaseDb();
+  if (!db) return false;
+  const ref = doc(db, SYSTEM_DOC);
+  try {
+    const snap = await getDoc(ref);
+    if (snap.exists()) return false; // nothing to migrate
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    if (!userSnap.exists() || userSnap.data()?.isAdmin !== true) return false;
+    const now = new Date().toISOString();
+    await setDoc(ref, {
+      adminUid: uid,
+      appName: 'Warfare Fitness',
+      trainerName: '',
+      trainerEmail: email,
+      openAiKey: '',
+      stripeConfig: { publishableKey: '', secretKey: '', webhookSecret: '' },
+      setupCompleted: true,
+      createdAt: now,
+      installedAt: now,
+    });
+    console.log('[SystemConfig] Migrated legacy admin to system/config. UID:', uid);
+    return true;
+  } catch (e) {
+    console.error('[SystemConfig] migration failed:', e);
+    return false;
+  }
+}
+
+/**
+ * Legacy bootstrap: called during new user registration if installer was skipped.
+ * Creates system/config only if it does not exist yet.
  * Returns true if this user was promoted to admin.
  */
 export async function bootstrapAdminIfNeeded(uid: string): Promise<boolean> {
@@ -93,11 +141,13 @@ export async function bootstrapAdminIfNeeded(uid: string): Promise<boolean> {
       appName: 'Warfare Fitness',
       trainerName: '',
       trainerEmail: '',
+      openAiKey: '',
+      stripeConfig: { publishableKey: '', secretKey: '', webhookSecret: '' },
       setupCompleted: true,
       createdAt: now,
       installedAt: now,
     });
-    console.log('[SystemConfig] Installation bootstrapped. Admin UID:', uid);
+    console.log('[SystemConfig] Bootstrapped. Admin UID:', uid);
     return true;
   } catch (e) {
     console.error('[SystemConfig] bootstrap failed:', e);

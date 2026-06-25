@@ -139,22 +139,22 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (isLoading || !setupChecked) return;
 
     const currentSegment = segments[0] as string;
-    const inSetup = currentSegment === 'setup';
+    const inInstall = currentSegment === 'install';
     const inAuthGroup = currentSegment === 'login' || currentSegment === 'register';
 
-    // Redirect to setup if installation not complete
-    if (!setupDone && !inSetup) {
-      router.replace('/setup');
+    // Redirect to installer if installation not complete
+    if (!setupDone && !inInstall) {
+      router.replace('/install');
       return;
     }
 
-    // Lock /setup once completed
-    if (setupDone && inSetup) {
+    // Lock /install once completed
+    if (setupDone && inInstall) {
       router.replace('/');
       return;
     }
 
-    if (!user && !inAuthGroup && !inSetup) {
+    if (!user && !inAuthGroup && !inInstall) {
       router.replace('/login');
     } else if (user && inAuthGroup) {
       router.replace('/');
@@ -193,7 +193,7 @@ function RootLayoutNav() {
         <Stack.Screen name="admin-trainers" options={{ headerShown: false }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="ai-trainer" options={{ headerShown: false }} />
-        <Stack.Screen name="setup" options={{ headerShown: false }} />
+        <Stack.Screen name="install" options={{ headerShown: false }} />
         <Stack.Screen name="admin-system" options={{ headerShown: false }} />
       </Stack>
     </AuthGuard>

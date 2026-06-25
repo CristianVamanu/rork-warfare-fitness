@@ -1,200 +1,230 @@
-# Warfare Fitness — Installation Guide
+# Warfare Fitness — Installation & Deployment Guide
 
-This guide covers everything a trainer needs to deploy and configure their own Warfare Fitness installation — no coding required.
-
----
-
-## Overview
-
-Warfare Fitness is a self-hosted SaaS fitness platform. Each Firebase project is one independent installation. The first user who registers automatically becomes the permanent admin (trainer). The setup wizard handles everything.
+Self-hosted fitness SaaS. One Firebase project = one trainer business.  
+The installer runs **after** deployment and configures the application layer only.  
+Firebase credentials are **never** entered in the installer — they come from environment variables set at deploy time.
 
 ---
 
-## Prerequisites
+## Architecture Overview
 
-| Requirement | Notes |
+```
+Firebase project (env vars) → Vercel deployment → /install wizard → system/config created → App live
+```
+
+| Layer | Config method |
 |---|---|
-| Firebase project | Free Spark plan is fine to start |
-| Vercel account (free) | Recommended for web deployment |
-| Node.js 18+ | Only needed if deploying to a VPS |
+| Firebase Auth, Firestore, Storage | `EXPO_PUBLIC_FIREBASE_*` env vars (set in Vercel before deploy) |
+| Application config (app name, trainer, AI, billing) | `/install` wizard (runs once after deploy) |
+| Admin identity | `system/config.adminUid` in Firestore (set by installer) |
 
 ---
 
 ## Step 1 — Create a Firebase Project
 
-1. Go to [console.firebase.google.com](https://console.firebase.google.com)
-2. Click **Add project** → enter a name (e.g. `my-gym-app`) → Continue
-3. Disable Google Analytics (optional) → **Create project**
+1. Go to [console.firebase.google.com](https://console.firebase.google.com) → **Add project**
+2. Disable Google Analytics (optional) → **Create project**
 
-### Enable Firebase Authentication
-
-1. In the left sidebar: **Authentication → Get started**
-2. Under **Sign-in method**, enable **Email/Password**
-3. Save
+### Enable Authentication
+- **Authentication → Get started → Email/Password → Enable → Save**
 
 ### Enable Firestore
+- **Firestore Database → Create database → Production mode → choose region → Enable**
 
-1. In the left sidebar: **Firestore Database → Create database**
-2. Choose **Start in production mode**
-3. Select a region close to your users → **Enable**
-
-### Deploy Firestore Security Rules
-
-1. In Firestore, click the **Rules** tab
-2. Replace the contents with the rules from `firestore.rules` in this repository
+### Deploy Security Rules
+1. Firestore → **Rules** tab
+2. Replace the content with `firestore.rules` from this repository
 3. Click **Publish**
 
-### Get your Firebase config keys
+### Get Firebase Config Keys
+- **Project settings → General → Your apps → Add app → Web**
+- Copy the `firebaseConfig` object. You need:
+  `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`
 
-1. Go to **Project settings** (gear icon) → **General**
-2. Scroll to **Your apps** → Click **Add app** → choose **Web** (`</>`)
-3. Register the app (any nickname) — copy the `firebaseConfig` object
-
-You'll need these values:
-```
-apiKey
-authDomain
-projectId
-storageBucket
-messagingSenderId
-appId
-```
-
-### Create a Service Account (for the backend)
-
-1. Go to **Project settings → Service accounts**
-2. Click **Generate new private key** → **Generate key**
-3. A JSON file downloads — keep it safe (never commit it)
-4. Convert to base64:
+### Create a Service Account (backend only)
+1. **Project settings → Service accounts → Generate new private key** → download JSON
+2. Convert to base64:
    ```bash
    base64 -i serviceAccountKey.json | tr -d '\n'
    ```
-   Copy the output — you'll paste it as `FIREBASE_SERVICE_ACCOUNT_KEY` below.
+3. Keep the output — it becomes `FIREBASE_SERVICE_ACCOUNT_KEY`
 
 ---
 
-## Step 2 — Deploy to Vercel (Recommended)
+## Step 2 — Deploy to Vercel
 
-### Fork or clone the repository
+### Import the repository
+1. [vercel.com](https://vercel.com) → **Add New Project** → import your fork
+2. Framework preset: **Other**
+3. Build command: `npx expo export --platform web`
+4. Output directory: `dist`
 
-1. Fork this repository to your own GitHub account, or push it to a new private repo.
+### Set Environment Variables
 
-### Import to Vercel
+Go to **Project → Settings → Environment Variables** and add all of these **before** the first successful deploy:
 
-1. Go to [vercel.com](https://vercel.com) → **Add New Project**
-2. Import your repository
-3. Framework preset: **Other** (Vercel auto-detects Expo)
-4. Build command: `npx expo export --platform web`
-5. Output directory: `dist`
-6. Click **Deploy** — it will fail on first deploy (env vars missing) — that's expected
-
-### Add Environment Variables
-
-In your Vercel project → **Settings → Environment Variables**, add:
-
-| Variable | Value | Environment |
+| Variable | Where to find it | Required |
 |---|---|---|
-| `EXPO_PUBLIC_FIREBASE_API_KEY` | from firebaseConfig | Production, Preview |
-| `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN` | from firebaseConfig | Production, Preview |
-| `EXPO_PUBLIC_FIREBASE_PROJECT_ID` | from firebaseConfig | Production, Preview |
-| `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET` | from firebaseConfig | Production, Preview |
-| `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | from firebaseConfig | Production, Preview |
-| `EXPO_PUBLIC_FIREBASE_APP_ID` | from firebaseConfig | Production, Preview |
-| `FIREBASE_SERVICE_ACCOUNT_KEY` | base64 JSON from Step 1 | Production, Preview |
+| `EXPO_PUBLIC_FIREBASE_API_KEY` | firebaseConfig | ✅ |
+| `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN` | firebaseConfig | ✅ |
+| `EXPO_PUBLIC_FIREBASE_PROJECT_ID` | firebaseConfig | ✅ |
+| `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET` | firebaseConfig | ✅ |
+| `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | firebaseConfig | ✅ |
+| `EXPO_PUBLIC_FIREBASE_APP_ID` | firebaseConfig | ✅ |
+| `FIREBASE_SERVICE_ACCOUNT_KEY` | base64 service account JSON | ✅ (backend) |
+| `OPENAI_API_KEY` | platform.openai.com | Optional — can be added via installer |
+| `STRIPE_WEBHOOK_SECRET` | Stripe dashboard | Optional — can be added via installer |
 
-> **Important:** Variables prefixed `EXPO_PUBLIC_` are embedded at build time by Metro. They must be set **before** you deploy, not after.
+> **Important:** `EXPO_PUBLIC_*` variables are embedded at **build time** by Metro.  
+> They must exist in Vercel **before** you click Deploy.
 
-### Redeploy
-
-1. Go to **Deployments → Redeploy** (or push a new commit)
-2. Wait for the build to complete
-3. Open your Vercel URL
-
----
-
-## Step 3 — Run the Setup Wizard
-
-When you open the app for the first time (before any user has registered), you will be automatically redirected to `/setup`.
-
-### Wizard Steps
-
-**Step 1 — Branding**
-- Enter your **App Name** (displayed throughout the app)
-- Enter your **Trainer Name** (displayed to members)
-- Enter your **Trainer Email** (contact email for members)
-
-**Step 2 — Firebase Connection Test**
-- The wizard automatically tests:
-  - Firebase SDK initialisation
-  - Firestore connectivity
-  - Authentication SDK
-- If any test fails, check your environment variables in Vercel and redeploy.
-
-**Step 3 — Create Admin Account**
-- Enter the email and password for your admin account
-- This becomes the permanent administrator of the installation
-- The account is created in Firebase Auth and linked to `system/config.adminUid`
-
-**Done!**
-- You are redirected to the login page
-- The `/setup` route is permanently locked — it cannot be accessed again
-- Log in with the admin account you just created
+### Deploy
+- Click **Deploy** (or push a commit). Wait for the build to finish.
+- Open your Vercel URL — you will be redirected to `/install` automatically.
 
 ---
 
-## Step 4 — Verify Installation
+## Step 3 — Run the Installer (`/install`)
 
-After logging in as admin:
+The installer is a one-time, 5-step wizard that runs on first visit.  
+It **does not ask for Firebase credentials** — those come from env vars above.
 
-1. Go to **Admin → System Health** (`/admin-system`)
-2. Confirm all services show green:
-   - ✅ Firebase SDK
-   - ✅ Firestore
-   - ✅ Authentication
-   - ✅ Storage
+### Step 1 — App Setup
+| Field | Description |
+|---|---|
+| App Name | Displayed throughout the app (e.g. "Iron Den Fitness") |
+| Trainer / Gym Name | Your name or gym name |
+| Trainer Email | Contact email shown to members |
+| Logo URL | Optional — publicly accessible image URL |
+
+### Step 2 — Admin Account
+| Field | Description |
+|---|---|
+| Admin Email | Creates a Firebase Auth account |
+| Password | Min 6 characters |
+
+This account's UID is stored as `system/config.adminUid`. It is the **permanent** system administrator.  
+⚠ There is no "change admin" feature — to change admin, edit `system/config.adminUid` directly in Firestore.
+
+### Step 3 — AI Setup (optional)
+- Enter your OpenAI API key (`sk-...`)
+- Click **Test Connection** to verify before saving
+- Can be left blank and configured later in Admin → Settings
+
+### Step 4 — Billing Setup (optional)
+- Stripe Publishable Key (`pk_live_...`)
+- Stripe Secret Key (`sk_live_...`)
+- Webhook Secret (`whsec_...`)
+- All optional — skip to use free tier only
+
+### Step 5 — Finalize
+- Review all settings
+- Click **Finalize Installation**
+- Creates `system/config` in Firestore with `setupCompleted: true`
+- Redirects to `/login`
+- **`/install` is permanently locked**
+
+---
+
+## Firestore Schema
+
+### `system/config` (single document)
+
+```jsonc
+{
+  "adminUid": "uid-of-first-admin",          // single source of truth for admin access
+  "appName": "Iron Den Fitness",
+  "trainerName": "John Smith",
+  "trainerEmail": "john@ironden.com",
+  "openAiKey": "sk-...",                      // stored server-side only
+  "stripeConfig": {
+    "publishableKey": "pk_live_...",
+    "secretKey": "sk_live_...",               // stored server-side only
+    "webhookSecret": "whsec_..."              // stored server-side only
+  },
+  "setupCompleted": true,
+  "createdAt": "2025-01-01T00:00:00.000Z"
+}
+```
+
+**Access rules:**
+- Read: admin only (or any auth'd user if doc doesn't exist yet, to detect first install)
+- Create: any authenticated user — but only if the document doesn't exist
+- Update: admin only — `adminUid` field is immutable after creation
+- Delete: never
+
+---
+
+## Auth & Admin Flow
+
+```
+User opens app
+  └─ AuthGuard checks isSetupComplete()
+       ├─ system/config missing → redirect /install
+       └─ system/config.setupCompleted = true → normal auth flow
+            ├─ Not logged in → /login
+            └─ Logged in → app
+                 └─ onAuthStateChanged
+                      ├─ calls checkIsAdmin(uid)
+                      │    └─ reads system/config.adminUid
+                      └─ sets user.isAdmin = (uid === adminUid)
+```
+
+**Admin access check (client):**
+```typescript
+user.isAdmin === true
+// set by: checkIsAdmin(uid) — compares uid to system/config.adminUid
+```
+
+**Admin access check (server / tRPC):**
+```typescript
+// backend/firebase-admin.ts
+isAdminUid(uid) → reads system/config via Admin SDK
+```
+
+---
+
+## Route Protection
+
+| Route | Access |
+|---|---|
+| `/install` | Only if `system/config.setupCompleted !== true`. Permanently locked after completion. |
+| `/login`, `/register` | Public (unauthenticated) |
+| `/(tabs)/admin` | `user.isAdmin === true` only |
+| `/admin-*` | `user.isAdmin === true` only |
+| All other routes | Any authenticated user |
+
+---
+
+## Security Rules Summary
+
+- `system/config` — admin-only read/write after installation; immutable `adminUid`
+- `users/{uid}` — users own their data; can never write `isAdmin`, `trainerApproved`, `trainerRevenueSplit`
+- `subscriptions/{uid}` — read-only for user; write only via Admin SDK (Stripe webhook)
+- All sensitive keys (OpenAI, Stripe secret) — stored in `system/config`, accessible only by admin
 
 ---
 
 ## Alternative: Hostinger VPS Deployment
 
-If you prefer to host on your own VPS (Hostinger, DigitalOcean, etc.):
-
 ### Requirements
-- Node.js 18+
-- PM2 (process manager)
-- Nginx (reverse proxy)
-
-### Steps
+- Node.js 18+, PM2, Nginx
 
 ```bash
-# 1. Clone the repo
 git clone https://github.com/your-org/warfare-fitness.git
 cd warfare-fitness
-
-# 2. Install dependencies
 npm install
-
-# 3. Create .env file
-cp env.example .env
-# Edit .env with your Firebase credentials
-
-# 4. Build the web app
+cp env.example .env          # fill in EXPO_PUBLIC_FIREBASE_* values
 npx expo export --platform web
-
-# 5. Serve with a static server (e.g. serve)
 npm install -g serve
 pm2 start "serve dist -l 3000" --name warfare-fitness
-
-# 6. Configure Nginx
-sudo nano /etc/nginx/sites-available/warfare-fitness
 ```
 
-Nginx config:
+**Nginx config:**
 ```nginx
 server {
     listen 80;
     server_name yourdomain.com;
-
     location / {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
@@ -202,73 +232,70 @@ server {
         proxy_set_header Connection 'upgrade';
         proxy_cache_bypass $http_upgrade;
     }
-
-    location /api {
-        proxy_pass http://localhost:3001;
-    }
 }
 ```
 
-```bash
-# Enable site
-sudo ln -s /etc/nginx/sites-available/warfare-fitness /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-```
+---
 
-### Backend (tRPC / Hono)
+## Deployment Checklist
 
-The backend is a Hono server that handles tRPC procedures:
+### Before deploying
+- [ ] Firebase project created
+- [ ] Email/Password authentication enabled
+- [ ] Firestore database created in production mode
+- [ ] Firestore security rules published (from `firestore.rules`)
+- [ ] `EXPO_PUBLIC_FIREBASE_*` env vars set in Vercel
+- [ ] `FIREBASE_SERVICE_ACCOUNT_KEY` env var set in Vercel
 
-```bash
-# Start backend
-pm2 start "npx tsx backend/index.ts" --name warfare-fitness-api
-```
+### After deploying
+- [ ] Open the app URL — you should see the `/install` wizard
+- [ ] Complete Step 1: App name, trainer name, email
+- [ ] Complete Step 2: Create admin account (remember this email & password!)
+- [ ] Complete Step 3: Add OpenAI key (optional)
+- [ ] Complete Step 4: Add Stripe keys (optional)
+- [ ] Click Finalize — confirm `system/config` is created in Firestore console
+- [ ] Log in with your admin account
+- [ ] Verify Admin tab is visible
+- [ ] Open Admin → System Health — confirm all services show green
+
+### Post-install verification
+- [ ] Admin tab visible after login
+- [ ] Admin → System Health: all 4 services green
+- [ ] `system/config` exists in Firestore with `setupCompleted: true`
+- [ ] `/install` route redirects away (permanently locked)
 
 ---
 
 ## Troubleshooting
 
-### "Firebase not configured" on startup
+### App redirects to `/install` on every load
+`system/config` is missing or `setupCompleted !== true`. Re-run the installer, or manually create the document in Firestore.
 
-- Check that all `EXPO_PUBLIC_FIREBASE_*` variables are set in Vercel
-- Redeploy after adding env vars (Metro embeds them at build time)
-- Open `/admin-system` (once logged in) to verify connection status
+### Installer fails at Step 2 (account creation)
+- "email-already-in-use" → use a different email, or sign in with the existing account and set `adminUid` manually in Firestore
+- "Firebase Auth not configured" → check `EXPO_PUBLIC_FIREBASE_*` env vars and redeploy
 
-### Setup wizard appears every time
-
-- This means `system/config` does not exist in Firestore, or `setupCompleted` is not `true`
-- Check Firestore rules allow creating `system/config`
-- Check the browser console for errors during setup
-
-### Can't log in after setup
-
-- Make sure you used the exact email you entered in the setup wizard
-- Check Firebase Auth → users list to confirm the account was created
-- If the account is missing, run the setup again (delete `system/config` in Firestore first)
+### Admin tab not visible after login
+Check the browser console for `[AdminDebug]` logs:
+- `system/config exists: false` → installer wasn't completed, or doc was deleted
+- `checkIsAdmin result: false` → your UID doesn't match `system/config.adminUid`
+- To fix: update `system/config.adminUid` in Firestore to match your UID (found in Firebase Auth → Users)
 
 ### How to change the admin
+1. Firebase Console → Firestore → `system/config` → edit document
+2. Change `adminUid` to the new user's UID
+3. Previous admin loses access immediately on next page load
 
-The admin is locked to the UID stored in `system/config.adminUid`. To change it:
-
-1. Go to Firebase Console → Firestore → `system/config`
-2. Edit `adminUid` to the new user's UID
-3. The previous admin will lose admin access immediately
-
----
-
-## Security Notes
-
-- `FIREBASE_SERVICE_ACCOUNT_KEY` is **server-side only** — never expose it in the frontend or commit it to git
-- The `.env` file is gitignored — never commit it
-- Firestore rules enforce that only the admin UID can write to protected collections
-- The `/setup` route is permanently locked once `setupCompleted: true` is stored in Firestore
+### Environment variables not working
+- `EXPO_PUBLIC_*` vars are embedded at build time — set them **before** deploying
+- After changing env vars in Vercel → **Redeploy** (don't just restart)
 
 ---
 
 ## Environment Variable Reference
 
 ```bash
-# ── Frontend (Metro/Expo) — embedded at build time ──
+# ── Frontend — embedded at build time by Metro (Expo) ──────────────────────
 EXPO_PUBLIC_FIREBASE_API_KEY=
 EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=
 EXPO_PUBLIC_FIREBASE_PROJECT_ID=
@@ -276,12 +303,8 @@ EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=
 EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 EXPO_PUBLIC_FIREBASE_APP_ID=
 
-# ── Backend (server-side only) ──
-FIREBASE_SERVICE_ACCOUNT_KEY=          # base64-encoded service account JSON
-OPENAI_API_KEY=                        # optional — for AI Trainer feature
-STRIPE_WEBHOOK_SECRET=                 # optional — for Stripe subscriptions
+# ── Backend — server-side only, never exposed to client ────────────────────
+FIREBASE_SERVICE_ACCOUNT_KEY=     # base64-encoded service account JSON
+OPENAI_API_KEY=                   # optional; can also be set via installer
+STRIPE_WEBHOOK_SECRET=            # optional; can also be set via installer
 ```
-
----
-
-*Warfare Fitness — Self-Hosted Edition*
