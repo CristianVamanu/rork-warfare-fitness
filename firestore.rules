@@ -2,8 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
-    // Admin = uid stored in system/config.adminUid. Single source of truth.
     function isAdmin() {
       return request.auth != null
         && exists(/databases/$(database)/documents/system/config)
@@ -14,40 +12,28 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
-    // ─── system/config ────────────────────────────────────────────────────────
-    //
-    // READ  — any authenticated user.
-    //         Required for: isSetupComplete(), checkIsAdmin(), installer flow.
-    //
-    // CREATE — any authenticated user, ONLY when the document does not exist.
-    //          This is the first-install bootstrap path.
-    //          The installer creates the Firebase Auth user in Step 2, then
-    //          writes system/config in Step 5. At that point request.auth != null.
-    //
-    // UPDATE — stored adminUid only. adminUid field is immutable after creation.
-    //
-    // DELETE — never.
-
+    // system/config
+    // READ   - any authenticated user (needed for isSetupComplete, checkIsAdmin, installer)
+    // CREATE - any authenticated user, only when doc does not exist yet (first install)
+    // UPDATE - stored adminUid only, adminUid field is immutable
+    // DELETE - never
     match /system/config {
       allow read:   if request.auth != null;
-
       allow create: if request.auth != null
                     && !exists(/databases/$(database)/documents/system/config);
-
       allow update: if request.auth != null
                     && request.auth.uid == resource.data.adminUid
                     && request.resource.data.adminUid == resource.data.adminUid;
-
       allow delete: if false;
     }
 
-    // ─── App-level settings ───────────────────────────────────────────────────
+    // App-level settings
     match /warfare_admin/{docId} {
       allow read:  if request.auth != null;
       allow write: if isAdmin();
     }
 
-    // ─── User profiles ────────────────────────────────────────────────────────
+    // User profiles
     match /users/{userId} {
       allow read:   if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId)
@@ -69,13 +55,13 @@ service cloud.firestore {
       }
     }
 
-    // ─── Workouts ─────────────────────────────────────────────────────────────
+    // Workouts
     match /workouts/{workoutId} {
       allow read:  if request.auth != null;
       allow write: if isAdmin();
     }
 
-    // ─── Meals / nutrition ────────────────────────────────────────────────────
+    // Meals / nutrition
     match /meals/{mealId} {
       allow read:   if isOwner(resource.data.userId) || isAdmin();
       allow create: if isOwner(request.resource.data.userId);
@@ -83,7 +69,7 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
-    // ─── Community channels ───────────────────────────────────────────────────
+    // Community channels
     match /channels/{channelId} {
       allow read:  if request.auth != null;
       allow write: if isAdmin();
@@ -97,13 +83,13 @@ service cloud.firestore {
       }
     }
 
-    // ─── Subscriptions (Admin SDK / Stripe webhook only) ──────────────────────
+    // Subscriptions (Admin SDK / Stripe webhook only)
     match /subscriptions/{userId} {
       allow read:  if isOwner(userId) || isAdmin();
       allow write: if false;
     }
 
-    // ─── Community posts ──────────────────────────────────────────────────────
+    // Community posts
     match /community/{postId} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null
