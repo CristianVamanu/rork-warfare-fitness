@@ -2,10 +2,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── Helpers ────────────────────────────────────────────────────────────────
+    // ─── Helpers (used by all collections EXCEPT system/config) ──────────────
+    //
+    // isAdmin() reads system/config via get(). Do NOT use it inside the
+    // system/config match block itself — that causes a circular get() on the
+    // document being created/updated and produces permission errors during the
+    // first-install bootstrap.
 
-    // Admin = the uid stored in system/config.adminUid.
-    // Single source of truth. No custom claims. No isAdmin fields.
     function isAdmin() {
       return request.auth != null
         && exists(/databases/$(database)/documents/system/config)
@@ -16,37 +19,58 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
-    // True if the installer has NOT been completed yet (no system/config exists).
-    function isFirstInstall() {
-      return !exists(/databases/$(database)/documents/system/config);
-    }
-
-    // ─── System config ───────────────────────────────────────────────────────────
+    // ─── system/config ────────────────────────────────────────────────────────
     //
-    // Read:   only the admin (or during first install, any auth'd user to derive isAdmin)
-    // Create: only if doc doesn't exist yet — allows installer to write it once
-    // Update: only admin (e.g. to update openAiKey or stripeConfig later)
-    // Delete: never
+    // Rules are written WITHOUT calling isAdmin() to avoid circular get().
+    //
+    // READ:
+    //   A) Before first install: doc doesn't exist → any authenticated user can
+    //      read (needed so isSetupComplete() works client-side).
+    //   B) After install: only the stored adminUid can read (sensitive keys).
+    //
+    // CREATE:
+    //   Only when the document does NOT exist yet (first-install bootstrap).
+    //   Any authenticated user is allowed — the installer creates the admin
+    //   account in Step 2, then writes system/config in Step 5.
+    //
+    // UPDATE:
+    //   Only the stored adminUid. adminUid field is IMMUTABLE after creation.
+    //
+    // DELETE:
+    //   Never.
+
     match /system/config {
-      allow read:   if isAdmin() || isFirstInstall();
-      allow create: if request.auth != null && isFirstInstall();
-      allow update: if isAdmin()
-        // Guard: no one can change adminUid after installation
+      allow read: if
+        // Pre-install: doc doesn't exist, allow read so client can detect first-run
+        !exists(/databases/$(database)/documents/system/config)
+        ||
+        // Post-install: admin only
+        (request.auth != null && request.auth.uid == resource.data.adminUid);
+
+      allow create: if
+        // Bootstrap: doc must not exist yet, user must be authenticated
+        request.auth != null
+        && !exists(/databases/$(database)/documents/system/config);
+
+      allow update: if
+        // Admin only; adminUid cannot be changed after installation
+        request.auth != null
+        && request.auth.uid == resource.data.adminUid
         && request.resource.data.adminUid == resource.data.adminUid;
+
       allow delete: if false;
     }
 
-    // ─── App-level settings (trainer branding, feature flags) ────────────────────
+    // ─── App-level settings (trainer branding, feature flags) ────────────────
     match /warfare_admin/{docId} {
       allow read:  if request.auth != null;
       allow write: if isAdmin();
     }
 
-    // ─── User profiles ────────────────────────────────────────────────────────────
+    // ─── User profiles ────────────────────────────────────────────────────────
     match /users/{userId} {
       allow read:   if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId)
-        // Clients can never write isAdmin, trainerApproved, or trainerRevenueSplit
         && !('isAdmin' in request.resource.data);
       allow update: if (isOwner(userId)
           && !request.resource.data.diff(resource.data).affectedKeys()
@@ -67,13 +91,13 @@ service cloud.firestore {
       }
     }
 
-    // ─── Workouts (trainer-created templates) ─────────────────────────────────────
+    // ─── Workouts (trainer-created templates) ─────────────────────────────────
     match /workouts/{workoutId} {
       allow read:  if request.auth != null;
       allow write: if isAdmin();
     }
 
-    // ─── Meals / nutrition ────────────────────────────────────────────────────────
+    // ─── Meals / nutrition ────────────────────────────────────────────────────
     match /meals/{mealId} {
       allow read:   if isOwner(resource.data.userId) || isAdmin();
       allow create: if isOwner(request.resource.data.userId);
@@ -81,7 +105,7 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
-    // ─── Community ────────────────────────────────────────────────────────────────
+    // ─── Community ────────────────────────────────────────────────────────────
     match /channels/{channelId} {
       allow read:  if request.auth != null;
       allow write: if isAdmin();
@@ -95,13 +119,13 @@ service cloud.firestore {
       }
     }
 
-    // ─── Subscriptions (written by Stripe webhook via Admin SDK only) ─────────────
+    // ─── Subscriptions (Stripe webhook via Admin SDK only) ────────────────────
     match /subscriptions/{userId} {
       allow read:  if isOwner(userId) || isAdmin();
       allow write: if false;
     }
 
-    // ─── Community posts ──────────────────────────────────────────────────────────
+    // ─── Community posts ──────────────────────────────────────────────────────
     match /community/{postId} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null
