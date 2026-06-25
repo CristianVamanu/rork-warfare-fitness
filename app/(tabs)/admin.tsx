@@ -143,6 +143,14 @@ export default function AdminScreen() {
       color: Colors.accent,
       route: '/ai-trainer',
     },
+    {
+      id: '10',
+      title: 'System Health',
+      description: 'Firebase status & install info',
+      icon: Shield,
+      color: Colors.info,
+      route: '/admin-system',
+    },
   ];
 
   return (

@@ -22,6 +22,7 @@ import { CommunityProvider } from '@/contexts/CommunityContext';
 import { SubscriptionProvider, useSubscription } from '@/contexts/SubscriptionContext';
 import { TrainerProvider } from '@/contexts/TrainerContext';
 import AdminSettingsSync from '@/components/AdminSettingsSync';
+import { isSetupComplete } from '@/lib/system-config';
 
 import { runMigrations, verifyDataIntegrity } from '@/lib/data-migration'
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
@@ -115,36 +116,58 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { setUserId, syncFromFirestore } = useSubscription();
   const segments = useSegments();
   const router = useRouter();
+  const [setupChecked, setSetupChecked] = useState(false);
+  const [setupDone, setSetupDone] = useState(true);
+
+  useEffect(() => {
+    async function checkSetup() {
+      const done = await isSetupComplete();
+      setSetupDone(done);
+      setSetupChecked(true);
+    }
+    void checkSetup();
+  }, []);
 
   useEffect(() => {
     if (user) {
-      // RevenueCat: link the user ID so purchases are associated correctly
       void setUserId(user.id);
-      // Web/Stripe: pull live subscription status from Firestore
       void syncFromFirestore(user.id);
     }
   }, [user, setUserId, syncFromFirestore]);
 
   useEffect(() => {
-    if (isLoading) return;
-    
+    if (isLoading || !setupChecked) return;
+
     const currentSegment = segments[0] as string;
+    const inSetup = currentSegment === 'setup';
     const inAuthGroup = currentSegment === 'login' || currentSegment === 'register';
-    
-    if (!user && !inAuthGroup) {
+
+    // Redirect to setup if installation not complete
+    if (!setupDone && !inSetup) {
+      router.replace('/setup');
+      return;
+    }
+
+    // Lock /setup once completed
+    if (setupDone && inSetup) {
+      router.replace('/');
+      return;
+    }
+
+    if (!user && !inAuthGroup && !inSetup) {
       router.replace('/login');
     } else if (user && inAuthGroup) {
       router.replace('/');
     }
-  }, [user, segments, router, isLoading]);
+  }, [user, segments, router, isLoading, setupChecked, setupDone]);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && setupChecked) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [isLoading]);
+  }, [isLoading, setupChecked]);
 
-  if (isLoading) {
+  if (isLoading || !setupChecked) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
         <ActivityIndicator size="large" color="#fff" />
@@ -170,6 +193,8 @@ function RootLayoutNav() {
         <Stack.Screen name="admin-trainers" options={{ headerShown: false }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="ai-trainer" options={{ headerShown: false }} />
+        <Stack.Screen name="setup" options={{ headerShown: false }} />
+        <Stack.Screen name="admin-system" options={{ headerShown: false }} />
       </Stack>
     </AuthGuard>
   );
