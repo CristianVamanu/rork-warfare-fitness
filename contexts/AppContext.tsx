@@ -342,23 +342,59 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        console.log('[AdminDebug] onAuthStateChanged — uid:', firebaseUser.uid);
+
+        const db = getFirebaseDb();
+
+        // Migration: if system/config is missing but the Firestore user profile has
+        // isAdmin:true (legacy field from before self-hosted SaaS migration), create
+        // system/config now so checkIsAdmin() works going forward.
+        if (db) {
+          try {
+            const { getDoc: gd, doc: d, setDoc: sd } = await import('firebase/firestore');
+            const configSnap = await gd(d(db, 'system/config'));
+            console.log('[AdminDebug] system/config exists:', configSnap.exists());
+            if (!configSnap.exists()) {
+              const userSnap = await gd(d(db, 'users', firebaseUser.uid));
+              const legacyIsAdmin = userSnap.exists() && userSnap.data()?.isAdmin === true;
+              console.log('[AdminDebug] legacy users/{uid}.isAdmin:', legacyIsAdmin);
+              if (legacyIsAdmin) {
+                const now = new Date().toISOString();
+                await sd(d(db, 'system/config'), {
+                  adminUid: firebaseUser.uid,
+                  appName: 'Warfare Fitness',
+                  trainerName: '',
+                  trainerEmail: firebaseUser.email ?? '',
+                  setupCompleted: true,
+                  createdAt: now,
+                  installedAt: now,
+                });
+                console.log('[AdminDebug] Migrated system/config — adminUid:', firebaseUser.uid);
+              }
+            } else {
+              console.log('[AdminDebug] system/config.adminUid:', configSnap.data()?.adminUid);
+            }
+          } catch (e) {
+            console.error('[AdminDebug] system/config migration failed:', e);
+          }
+        }
+
         // Admin = system/config.adminUid matches this uid (self-hosted SaaS model).
         let isAdmin = false;
         try {
           isAdmin = await checkIsAdmin(firebaseUser.uid);
+          console.log('[AdminDebug] checkIsAdmin result:', isAdmin, 'for uid:', firebaseUser.uid);
         } catch (e) {
           console.error('[AppContext] Failed to check admin status:', e);
         }
 
-        const db = getFirebaseDb();
         let profile: User | null = null;
         if (db) {
           try {
             const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
             if (snap.exists()) {
-              // Inject id (may be absent in manually-created docs) and override isAdmin
-              // with the authoritative token claim value.
               profile = { id: firebaseUser.uid, ...snap.data(), isAdmin } as User;
+              console.log('[AdminDebug] Final profile.isAdmin:', profile.isAdmin);
               await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile));
             }
           } catch (e) {
@@ -366,12 +402,12 @@ export const [AppProvider, useApp] = createContextHook(() => {
           }
         }
         if (!profile) {
-          // Offline fallback — update isAdmin from the fresh token claim.
           const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
           if (storedUser) {
             try {
               const parsed = JSON.parse(storedUser) as User;
               profile = { ...parsed, isAdmin };
+              console.log('[AdminDebug] Offline fallback profile.isAdmin:', profile.isAdmin);
             } catch {}
           }
         }
@@ -512,9 +548,11 @@ export const [AppProvider, useApp] = createContextHook(() => {
     try {
       if (isNewUser) {
         isAdmin = await bootstrapAdminIfNeeded(firebaseUid);
+        console.log('[AdminDebug] login() bootstrapAdminIfNeeded:', isAdmin, 'uid:', firebaseUid);
       }
       if (!isAdmin) {
         isAdmin = await checkIsAdmin(firebaseUid);
+        console.log('[AdminDebug] login() checkIsAdmin:', isAdmin, 'uid:', firebaseUid);
       }
     } catch (e) {
       console.error('[Auth] Failed to determine admin status:', e);
