@@ -63,8 +63,8 @@ export async function isSetupComplete(): Promise<boolean> {
 
 /**
  * Called at the end of the installer wizard.
- * Creates system/config only if it does not exist yet.
- * Throws if the document already exists (installer already ran).
+ * Creates system/config only if it does not exist yet (enforced by Firestore rule).
+ * Does NOT pre-read the document — the rule blocks duplicate creates server-side.
  */
 export async function completeSetup(params: {
   adminUid: string;
@@ -75,12 +75,9 @@ export async function completeSetup(params: {
   stripeConfig: StripeConfig;
 }): Promise<void> {
   const db = getFirebaseDb();
-  if (!db) throw new Error('Firestore not available');
-  const ref = doc(db, SYSTEM_DOC);
-  const snap = await getDoc(ref);
-  if (snap.exists()) throw new Error('Installer has already been completed');
+  if (!db) throw new Error('Firestore not available. Check EXPO_PUBLIC_FIREBASE_* env vars.');
   const now = new Date().toISOString();
-  await setDoc(ref, {
+  await setDoc(doc(db, SYSTEM_DOC), {
     ...params,
     setupCompleted: true,
     createdAt: now,

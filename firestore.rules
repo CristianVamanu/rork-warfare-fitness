@@ -2,13 +2,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── Helpers (used by all collections EXCEPT system/config) ──────────────
-    //
-    // isAdmin() reads system/config via get(). Do NOT use it inside the
-    // system/config match block itself — that causes a circular get() on the
-    // document being created/updated and produces permission errors during the
-    // first-install bootstrap.
-
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+    // Admin = uid stored in system/config.adminUid. Single source of truth.
     function isAdmin() {
       return request.auth != null
         && exists(/databases/$(database)/documents/system/config)
@@ -21,47 +16,32 @@ service cloud.firestore {
 
     // ─── system/config ────────────────────────────────────────────────────────
     //
-    // Rules are written WITHOUT calling isAdmin() to avoid circular get().
+    // READ  — any authenticated user.
+    //         Required for: isSetupComplete(), checkIsAdmin(), installer flow.
     //
-    // READ:
-    //   A) Before first install: doc doesn't exist → any authenticated user can
-    //      read (needed so isSetupComplete() works client-side).
-    //   B) After install: only the stored adminUid can read (sensitive keys).
+    // CREATE — any authenticated user, ONLY when the document does not exist.
+    //          This is the first-install bootstrap path.
+    //          The installer creates the Firebase Auth user in Step 2, then
+    //          writes system/config in Step 5. At that point request.auth != null.
     //
-    // CREATE:
-    //   Only when the document does NOT exist yet (first-install bootstrap).
-    //   Any authenticated user is allowed — the installer creates the admin
-    //   account in Step 2, then writes system/config in Step 5.
+    // UPDATE — stored adminUid only. adminUid field is immutable after creation.
     //
-    // UPDATE:
-    //   Only the stored adminUid. adminUid field is IMMUTABLE after creation.
-    //
-    // DELETE:
-    //   Never.
+    // DELETE — never.
 
     match /system/config {
-      allow read: if
-        // Pre-install: doc doesn't exist, allow read so client can detect first-run
-        !exists(/databases/$(database)/documents/system/config)
-        ||
-        // Post-install: admin only
-        (request.auth != null && request.auth.uid == resource.data.adminUid);
+      allow read:   if request.auth != null;
 
-      allow create: if
-        // Bootstrap: doc must not exist yet, user must be authenticated
-        request.auth != null
-        && !exists(/databases/$(database)/documents/system/config);
+      allow create: if request.auth != null
+                    && !exists(/databases/$(database)/documents/system/config);
 
-      allow update: if
-        // Admin only; adminUid cannot be changed after installation
-        request.auth != null
-        && request.auth.uid == resource.data.adminUid
-        && request.resource.data.adminUid == resource.data.adminUid;
+      allow update: if request.auth != null
+                    && request.auth.uid == resource.data.adminUid
+                    && request.resource.data.adminUid == resource.data.adminUid;
 
       allow delete: if false;
     }
 
-    // ─── App-level settings (trainer branding, feature flags) ────────────────
+    // ─── App-level settings ───────────────────────────────────────────────────
     match /warfare_admin/{docId} {
       allow read:  if request.auth != null;
       allow write: if isAdmin();
@@ -71,27 +51,25 @@ service cloud.firestore {
     match /users/{userId} {
       allow read:   if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId)
-        && !('isAdmin' in request.resource.data);
+                    && !('isAdmin' in request.resource.data);
       allow update: if (isOwner(userId)
-          && !request.resource.data.diff(resource.data).affectedKeys()
-              .hasAny(['isAdmin', 'trainerApproved', 'trainerRevenueSplit']))
-        || isAdmin();
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                            .hasAny(['isAdmin', 'trainerApproved', 'trainerRevenueSplit']))
+                    || isAdmin();
       allow delete: if isAdmin();
 
       match /workoutLogs/{logId} {
         allow read, write: if isOwner(userId) || isAdmin();
       }
-
       match /meals/{mealId} {
         allow read, write: if isOwner(userId) || isAdmin();
       }
-
       match /trainingState/{docId} {
         allow read, write: if isOwner(userId) || isAdmin();
       }
     }
 
-    // ─── Workouts (trainer-created templates) ─────────────────────────────────
+    // ─── Workouts ─────────────────────────────────────────────────────────────
     match /workouts/{workoutId} {
       allow read:  if request.auth != null;
       allow write: if isAdmin();
@@ -105,7 +83,7 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
-    // ─── Community ────────────────────────────────────────────────────────────
+    // ─── Community channels ───────────────────────────────────────────────────
     match /channels/{channelId} {
       allow read:  if request.auth != null;
       allow write: if isAdmin();
@@ -113,13 +91,13 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read:   if request.auth != null;
         allow create: if request.auth != null
-          && request.auth.uid == request.resource.data.userId;
+                      && request.auth.uid == request.resource.data.userId;
         allow update: if isOwner(resource.data.userId) || isAdmin();
         allow delete: if isOwner(resource.data.userId) || isAdmin();
       }
     }
 
-    // ─── Subscriptions (Stripe webhook via Admin SDK only) ────────────────────
+    // ─── Subscriptions (Admin SDK / Stripe webhook only) ──────────────────────
     match /subscriptions/{userId} {
       allow read:  if isOwner(userId) || isAdmin();
       allow write: if false;
@@ -129,7 +107,7 @@ service cloud.firestore {
     match /community/{postId} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null
-        && request.auth.uid == request.resource.data.userId;
+                    && request.auth.uid == request.resource.data.userId;
       allow update: if isOwner(resource.data.userId) || isAdmin();
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
