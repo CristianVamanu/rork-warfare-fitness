@@ -3,11 +3,12 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { trpc, trpcClient } from "@/lib/trpc";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { logFirebaseDiagnostic } from '@/lib/firebase-client';
 import FirebaseDiagnostic from '@/components/FirebaseDiagnostic';
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { View, ActivityIndicator, Text, Alert } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AppProvider, useApp } from '@/contexts/AppContext';
 import { TrainingProvider } from '@/contexts/TrainingContext';
@@ -30,6 +31,9 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const queryClient = new QueryClient();
+
+// AsyncStorage key for caching setup status between sessions
+const SETUP_CACHE_KEY = 'warfare_system_setup_complete';
 
 function DataMigrationGuard({ children }: { children: React.ReactNode }) {
   const [migrationStatus, setMigrationStatus] = useState<'pending' | 'success' | 'error'>('pending');
@@ -116,17 +120,67 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { setUserId, syncFromFirestore } = useSubscription();
   const segments = useSegments();
   const router = useRouter();
-  const [setupChecked, setSetupChecked] = useState(false);
-  const [setupDone, setSetupDone] = useState(true);
 
-  useEffect(() => {
-    async function checkSetup() {
+  // isSystemLoading: true until Firestore confirms setup status.
+  // NO route decisions are made while this is true.
+  const [isSystemLoading, setIsSystemLoading] = useState(true);
+
+  // setupDone: safe default is FALSE — never skip the installer by accident.
+  const [setupDone, setSetupDone] = useState(false);
+
+  // Track the previous segment so we can detect when the user leaves /install.
+  const prevSegmentRef = useRef<string | null>(null);
+
+  // Loads system/config from Firestore (source of truth).
+  // Caches result in AsyncStorage so subsequent cold-starts don't flicker.
+  const loadSystemConfig = useCallback(async (reason: string) => {
+    console.log('[SystemConfig] Loading — reason:', reason);
+    setIsSystemLoading(true);
+    try {
+      // Fast path: serve cached value immediately so the UI doesn't wait
+      const cached = await AsyncStorage.getItem(SETUP_CACHE_KEY);
+      if (cached === 'true') {
+        console.log('[SystemConfig] Cache hit: setupCompleted=true');
+        setSetupDone(true);
+        // Keep isSystemLoading=true — Firestore check below is the authority
+      }
+
+      // Always verify against Firestore — cache can be stale after an install
       const done = await isSetupComplete();
+      console.log('[SystemConfig] Firestore: setupCompleted=', done, '(reason:', reason + ')');
+
       setSetupDone(done);
-      setSetupChecked(true);
+
+      if (done) {
+        await AsyncStorage.setItem(SETUP_CACHE_KEY, 'true');
+      } else {
+        await AsyncStorage.removeItem(SETUP_CACHE_KEY);
+      }
+    } catch (e) {
+      console.error('[SystemConfig] load failed:', e);
+      // On error keep setupDone=false (safer: will redirect to /install rather
+      // than silently skipping it)
+    } finally {
+      setIsSystemLoading(false);
     }
-    void checkSetup();
   }, []);
+
+  // Initial load on mount
+  useEffect(() => {
+    void loadSystemConfig('mount');
+  }, [loadSystemConfig]);
+
+  // Critical fix: re-fetch when the user navigates AWAY from /install.
+  // Without this, setupDone stays false after the installer writes system/config
+  // and calls router.replace('/login'), causing an immediate redirect back.
+  useEffect(() => {
+    const currentSegment = segments[0] as string;
+    if (prevSegmentRef.current === 'install' && currentSegment !== 'install') {
+      console.log('[SystemConfig] Left /install → re-fetching system config');
+      void loadSystemConfig('left-install');
+    }
+    prevSegmentRef.current = currentSegment;
+  }, [segments, loadSystemConfig]);
 
   useEffect(() => {
     if (user) {
@@ -135,39 +189,47 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [user, setUserId, syncFromFirestore]);
 
+  // Route guard — runs only after BOTH app auth state AND system config are resolved.
   useEffect(() => {
-    if (isLoading || !setupChecked) return;
+    if (isLoading || isSystemLoading) {
+      console.log('[AuthGuard] Waiting — isLoading:', isLoading, 'isSystemLoading:', isSystemLoading);
+      return;
+    }
 
     const currentSegment = segments[0] as string;
     const inInstall = currentSegment === 'install';
     const inAuthGroup = currentSegment === 'login' || currentSegment === 'register';
 
-    // Redirect to installer if installation not complete
+    console.log('[AuthGuard] Decision — setupDone:', setupDone, 'segment:', currentSegment, 'user:', !!user);
+
     if (!setupDone && !inInstall) {
+      console.log('[AuthGuard] → /install (setup not complete)');
       router.replace('/install');
       return;
     }
 
-    // Lock /install once completed
     if (setupDone && inInstall) {
+      console.log('[AuthGuard] → / (installer already done, /install is locked)');
       router.replace('/');
       return;
     }
 
     if (!user && !inAuthGroup && !inInstall) {
+      console.log('[AuthGuard] → /login (not authenticated)');
       router.replace('/login');
     } else if (user && inAuthGroup) {
+      console.log('[AuthGuard] → / (already authenticated)');
       router.replace('/');
     }
-  }, [user, segments, router, isLoading, setupChecked, setupDone]);
+  }, [user, segments, router, isLoading, isSystemLoading, setupDone]);
 
   useEffect(() => {
-    if (!isLoading && setupChecked) {
+    if (!isLoading && !isSystemLoading) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [isLoading, setupChecked]);
+  }, [isLoading, isSystemLoading]);
 
-  if (isLoading || !setupChecked) {
+  if (isLoading || isSystemLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
         <ActivityIndicator size="large" color="#fff" />
