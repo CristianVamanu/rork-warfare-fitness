@@ -1,0 +1,164 @@
+'use client';
+export const dynamic = 'force-dynamic';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { LogOut, ChevronRight, Scale, Bell, Shield, Info } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { signOut } from '@/lib/auth';
+import { useAuth } from '@/contexts/AuthContext';
+import { updateUserDoc } from '@/lib/firestore';
+import { Header } from '@/components/layout/Header';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
+
+export default function SettingsPage() {
+  const router = useRouter();
+  const { user, profile, refreshProfile } = useAuth();
+  const [signOutModal, setSignOutModal] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [updatingUnit, setUpdatingUnit] = useState(false);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await signOut();
+      router.replace('/login');
+    } catch {
+      toast.error('Failed to sign out');
+      setSigningOut(false);
+    }
+  };
+
+  const toggleWeightUnit = async () => {
+    if (!user) return;
+    setUpdatingUnit(true);
+    const newUnit = profile?.weightUnit === 'kg' ? 'lbs' : 'kg';
+    try {
+      await updateUserDoc(user.uid, { weightUnit: newUnit });
+      await refreshProfile();
+      toast.success(`Weight unit changed to ${newUnit}`);
+    } catch {
+      toast.error('Failed to update');
+    } finally {
+      setUpdatingUnit(false);
+    }
+  };
+
+  const sections = [
+    {
+      title: 'Preferences',
+      items: [
+        {
+          icon: Scale,
+          label: 'Weight Unit',
+          description: `Currently: ${profile?.weightUnit || 'kg'}`,
+          action: toggleWeightUnit,
+          rightLabel: profile?.weightUnit === 'kg' ? 'Switch to lbs' : 'Switch to kg',
+        },
+      ],
+    },
+    {
+      title: 'Account',
+      items: [
+        {
+          icon: Info,
+          label: 'Email',
+          description: user?.email || '',
+          action: null,
+          rightLabel: '',
+        },
+        {
+          icon: Shield,
+          label: 'Role',
+          description: `Your account type: ${profile?.role || 'user'}`,
+          action: null,
+          rightLabel: '',
+        },
+      ],
+    },
+    {
+      title: 'App',
+      items: [
+        {
+          icon: Info,
+          label: 'Version',
+          description: 'Warfare Fitness PWA',
+          action: null,
+          rightLabel: 'v1.0.0',
+        },
+      ],
+    },
+  ];
+
+  return (
+    <div>
+      <Header title="Settings" />
+      <div className="px-4 py-4 space-y-5">
+        {sections.map(({ title, items }) => (
+          <motion.div key={title} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+            <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">{title}</h2>
+            <Card className="overflow-hidden">
+              {items.map(({ icon: Icon, label, description, action, rightLabel }, i) => (
+                <button
+                  key={label}
+                  onClick={action || undefined}
+                  disabled={!action}
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors text-left ${
+                    i < items.length - 1 ? 'border-b border-white/8' : ''
+                  } ${!action ? 'cursor-default' : ''}`}
+                >
+                  <div className="p-2 bg-surface-elevated rounded-lg">
+                    <Icon className="w-4 h-4 text-text-secondary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white">{label}</p>
+                    <p className="text-xs text-text-secondary truncate">{description}</p>
+                  </div>
+                  {action ? (
+                    <div className="flex items-center gap-1 text-xs text-accent">
+                      {rightLabel}
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </div>
+                  ) : rightLabel ? (
+                    <span className="text-xs text-text-tertiary">{rightLabel}</span>
+                  ) : null}
+                </button>
+              ))}
+            </Card>
+          </motion.div>
+        ))}
+
+        {/* Sign Out */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <Button
+            variant="danger"
+            fullWidth
+            size="lg"
+            onClick={() => setSignOutModal(true)}
+          >
+            <LogOut className="w-4 h-4" /> Sign Out
+          </Button>
+        </motion.div>
+
+        <p className="text-center text-xs text-text-tertiary pb-4">
+          Warfare Fitness · Built with ❤️ for warriors
+        </p>
+      </div>
+
+      <Modal open={signOutModal} onClose={() => setSignOutModal(false)} title="Sign Out?">
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">Are you sure you want to sign out?</p>
+          <div className="flex gap-3">
+            <Button variant="ghost" fullWidth onClick={() => setSignOutModal(false)}>Cancel</Button>
+            <Button variant="danger" fullWidth loading={signingOut} onClick={handleSignOut}>
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}

@@ -1,0 +1,23 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/ai/chat/route": "app/api/ai/chat/route.js",
+  "/api/nutrition/barcode/route": "app/api/nutrition/barcode/route.js",
+  "/api/ai/analyze-food/route": "app/api/ai/analyze-food/route.js",
+  "/page": "app/page.js",
+  "/install/page": "app/install/page.js",
+  "/(app)/nutrition/barcode/page": "app/(app)/nutrition/barcode/page.js",
+  "/(app)/community/page": "app/(app)/community/page.js",
+  "/(app)/dashboard/page": "app/(app)/dashboard/page.js",
+  "/(app)/nutrition/page": "app/(app)/nutrition/page.js",
+  "/(app)/profile/page": "app/(app)/profile/page.js",
+  "/(app)/settings/page": "app/(app)/settings/page.js",
+  "/(app)/nutrition/analyze/page": "app/(app)/nutrition/analyze/page.js",
+  "/(app)/training/[programId]/page": "app/(app)/training/[programId]/page.js",
+  "/(app)/training/page": "app/(app)/training/page.js",
+  "/(app)/progress/page": "app/(app)/progress/page.js",
+  "/(app)/training/session/page": "app/(app)/training/session/page.js",
+  "/(admin)/admin/page": "app/(admin)/admin/page.js",
+  "/(auth)/forgot-password/page": "app/(auth)/forgot-password/page.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/(auth)/register/page": "app/(auth)/register/page.js"
+}

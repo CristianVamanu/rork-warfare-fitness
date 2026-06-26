@@ -1,0 +1,71 @@
+'use client';
+
+import { forwardRef } from 'react';
+import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
+
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonSize = 'sm' | 'md' | 'lg';
+
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  loading?: boolean;
+  fullWidth?: boolean;
+}
+
+const variantClasses: Record<ButtonVariant, string> = {
+  primary:
+    'bg-accent text-black font-bold hover:bg-amber-400 shadow-glow-sm',
+  secondary:
+    'bg-surface-elevated border border-white/10 text-white hover:bg-white/10',
+  ghost:
+    'bg-transparent text-text-secondary hover:text-white hover:bg-white/5',
+  danger:
+    'bg-danger/10 border border-danger/30 text-danger hover:bg-danger/20',
+};
+
+const sizeClasses: Record<ButtonSize, string> = {
+  sm: 'px-3 py-1.5 text-sm rounded-xl',
+  md: 'px-5 py-2.5 text-sm rounded-xl',
+  lg: 'px-6 py-3.5 text-base rounded-2xl',
+};
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  (
+    {
+      variant = 'primary',
+      size = 'md',
+      loading,
+      fullWidth,
+      disabled,
+      className,
+      children,
+      ...props
+    },
+    ref
+  ) => {
+    return (
+      <motion.button
+        ref={ref}
+        whileTap={{ scale: 0.97 }}
+        whileHover={{ scale: 1.01 }}
+        className={cn(
+          'inline-flex items-center justify-center gap-2 font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-accent/40',
+          variantClasses[variant],
+          sizeClasses[size],
+          fullWidth && 'w-full',
+          className
+        )}
+        disabled={disabled || loading}
+        {...(props as React.ComponentPropsWithoutRef<typeof motion.button>)}
+      >
+        {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+        {children}
+      </motion.button>
+    );
+  }
+);
+
+Button.displayName = 'Button';
