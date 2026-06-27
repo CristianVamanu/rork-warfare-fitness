@@ -77,7 +77,7 @@ async function safeGetEvents(
   const compoundConstraints = [
     where('userId', '==', userId),
     where('type', '==', type),
-    ...(fromTs ? [where('createdAt', '>=', fromTs), orderBy('createdAt', 'desc')] : [orderBy('createdAt', 'desc')]),
+    ...(fromTs ? [where('createdAt', '>=', fromTs), orderBy('createdAt', 'desc')] : []),
     ...(toTs ? [where('createdAt', '<=', toTs)] : []),
     ...(limitN ? [limit(limitN)] : []),
   ];

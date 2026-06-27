@@ -83,7 +83,7 @@ export default function AnalyzeFoodPage() {
     try {
       await logMealAction(user.uid, { ...result, mealType });
       toast.success(`${result.name} added to ${mealType}`);
-      router.replace('/nutrition');
+      router.replace('/nutrition?refreshed=1');
     } catch (err: unknown) {
       const e = err as Error & { code?: string };
       const display = e?.code ? `${e.code}: ${e.message}` : (e?.message || String(err));

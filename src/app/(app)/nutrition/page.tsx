@@ -1,7 +1,8 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
@@ -31,7 +32,7 @@ function formatDate(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function NutritionPage() {
+function NutritionPageInner() {
   const { user } = useAuth();
   const [meals, setMeals] = useState<Meal[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
@@ -46,6 +47,7 @@ export default function NutritionPage() {
     const d = new Date(); d.setHours(0, 0, 0, 0); return d;
   });
 
+  const searchParams = useSearchParams();
   const isToday = selectedDate.toDateString() === new Date().toDateString();
   const waterMl = waterLogs.reduce((sum, w) => sum + w.amountMl, 0);
 
@@ -76,6 +78,18 @@ export default function NutritionPage() {
     refresh().finally(() => setLoading(false));
   }, [user, refresh]);
 
+  useEffect(() => {
+    const onFocus = () => { if (!loading) refresh().catch(console.error); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [refresh, loading]);
+
+  useEffect(() => {
+    if (searchParams.get('refreshed') === '1' && !loading) {
+      refresh().catch(console.error);
+    }
+  }, [searchParams, refresh, loading]);
+
   const totals = meals.reduce(
     (acc, m) => ({
       calories: acc.calories + (m.calories || 0),
@@ -88,14 +102,19 @@ export default function NutritionPage() {
 
   const addWater = async (ml: number) => {
     if (!user) return;
+    // Optimistic update — show immediately, revert on failure
+    const tempId = `temp-${Date.now()}`;
+    setWaterLogs((prev) => [...prev, { id: tempId, amountMl: ml, loggedAt: new Date() }]);
     try {
       await logWaterAction(user.uid, ml);
-      getTodayWaterLogs(user.uid).then(setWaterLogs).catch(console.error);
       toast.success(`+${ml}ml logged`);
+      // Background sync to replace temp entry with real Firestore doc
+      getTodayWaterLogs(user.uid).then(setWaterLogs).catch(console.error);
     } catch (err: unknown) {
+      setWaterLogs((prev) => prev.filter((w) => w.id !== tempId));
       const e = err as Error & { code?: string };
       const isPermission = e?.code === 'permission-denied';
-      toast.error(isPermission ? 'Save failed: Firestore rules not deployed' : (e?.message || 'Failed to log water'));
+      toast.error(isPermission ? 'Save failed: check Firestore rules' : (e?.message || 'Failed to log water'));
     }
   };
 
@@ -394,5 +413,13 @@ export default function NutritionPage() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+export default function NutritionPage() {
+  return (
+    <Suspense>
+      <NutritionPageInner />
+    </Suspense>
   );
 }
