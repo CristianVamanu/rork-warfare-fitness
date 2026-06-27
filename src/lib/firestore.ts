@@ -3,6 +3,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   collection,
   query,
   where,
@@ -14,6 +15,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import type { UserGoals } from '@/types';
 
 // System config
 export async function getSystemConfig() {
@@ -49,6 +51,16 @@ export async function getUserDoc(uid: string) {
 
 export async function updateUserDoc(uid: string, data: Record<string, unknown>) {
   await updateDoc(doc(db, 'users', uid), { ...data, lastActive: serverTimestamp() });
+}
+
+export async function getUserGoals(uid: string): Promise<UserGoals> {
+  const snap = await getDoc(doc(db, 'users', uid));
+  const data = snap.data();
+  return (data?.goals as UserGoals) ?? { calories: 2200, protein: 160, carbs: 250, fat: 70, water: 3000 };
+}
+
+export async function updateUserGoals(uid: string, goals: UserGoals) {
+  await updateDoc(doc(db, 'users', uid), { goals, lastActive: serverTimestamp() });
 }
 
 // Workout logs
@@ -114,6 +126,10 @@ export async function logWater(userId: string, amountMl: number) {
   });
 }
 
+export async function deleteWaterLog(id: string) {
+  await deleteDoc(doc(db, 'waterLogs', id));
+}
+
 export async function getTodayWater(userId: string) {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
@@ -124,6 +140,23 @@ export async function getTodayWater(userId: string) {
   );
   const snap = await getDocs(q);
   return snap.docs.reduce((sum, d) => sum + (d.data().amountMl as number), 0);
+}
+
+export async function getTodayWaterLogs(userId: string) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const q = query(
+    collection(db, 'waterLogs'),
+    where('userId', '==', userId),
+    where('loggedAt', '>=', Timestamp.fromDate(start)),
+    orderBy('loggedAt', 'desc')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, amountMl: d.data().amountMl as number, loggedAt: d.data().loggedAt }));
+}
+
+export async function deleteMeal(id: string) {
+  await deleteDoc(doc(db, 'meals', id));
 }
 
 // Programs

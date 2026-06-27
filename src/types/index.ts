@@ -1,3 +1,11 @@
+export interface UserGoals {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  water: number;
+}
+
 export interface UserProfile {
   id: string;
   displayName: string;
@@ -7,6 +15,7 @@ export interface UserProfile {
   role: 'user' | 'trainer' | 'admin';
   createdAt: unknown;
   lastActive: unknown;
+  goals?: UserGoals;
   stats: {
     streak: number;
     powerLevel: number;

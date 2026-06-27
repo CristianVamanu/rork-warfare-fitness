@@ -1,19 +1,20 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Camera, Upload, Flame, Beef, Wheat, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Camera, Upload, Flame, Beef, Wheat, AlertCircle, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { logMeal } from '@/lib/firestore';
+import { logMeal, getTodayMeals, getUserGoals } from '@/lib/firestore';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Modal } from '@/components/ui/Modal';
-import type { NutritionAnalysis } from '@/types';
+import type { NutritionAnalysis, UserGoals, Meal } from '@/types';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+const DEFAULT_GOALS: UserGoals = { calories: 2200, protein: 160, carbs: 250, fat: 70, water: 3000 };
 
 export default function AnalyzeFoodPage() {
   const router = useRouter();
@@ -24,7 +25,17 @@ export default function AnalyzeFoodPage() {
   const [result, setResult] = useState<NutritionAnalysis | null>(null);
   const [saving, setSaving] = useState(false);
   const [mealType, setMealType] = useState<MealType>('lunch');
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [todayCalories, setTodayCalories] = useState(0);
+  const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
+
+  useEffect(() => {
+    if (!user) return;
+    Promise.all([getTodayMeals(user.uid), getUserGoals(user.uid)]).then(([meals, g]) => {
+      const total = (meals as Meal[]).reduce((s, m) => s + m.calories, 0);
+      setTodayCalories(total);
+      setGoals(g);
+    });
+  }, [user]);
 
   const handleFile = useCallback((file: File) => {
     const reader = new FileReader();
@@ -45,11 +56,13 @@ export default function AnalyzeFoodPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ base64Image }),
       });
-      if (!res.ok) throw new Error('Analysis failed');
-      const data = await res.json();
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+      const data = JSON.parse(text);
       setResult(data);
-    } catch {
-      toast.error('Failed to analyze food. Check your OpenAI configuration.');
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message || String(err);
+      toast.error(`Analysis failed: ${msg}`, { duration: 8000 });
     } finally {
       setAnalyzing(false);
     }
@@ -57,16 +70,29 @@ export default function AnalyzeFoodPage() {
 
   const addToLog = async () => {
     if (!result || !user) return;
+    const projectedCalories = todayCalories + result.calories;
+    if (projectedCalories > goals.calories) {
+      const over = projectedCalories - goals.calories;
+      const ok = window.confirm(
+        `This meal will put you ${over} kcal over your daily goal of ${goals.calories} kcal.\n\nTotal would be ${projectedCalories} kcal. Add anyway?`
+      );
+      if (!ok) return;
+    }
     setSaving(true);
     try {
       await logMeal({ userId: user.uid, ...result, mealType });
       toast.success(`${result.name} added to ${mealType}`);
       router.replace('/nutrition');
-    } catch {
-      toast.error('Failed to save meal');
+    } catch (err: unknown) {
+      const e = err as Error & { code?: string };
+      const display = e?.code ? `${e.code}: ${e.message}` : (e?.message || String(err));
+      toast.error(`Failed to save meal: ${display}`, { duration: 8000 });
       setSaving(false);
     }
   };
+
+  const caloriesAfter = result ? todayCalories + result.calories : todayCalories;
+  const willExceed = result && caloriesAfter > goals.calories;
 
   return (
     <div>
@@ -152,11 +178,23 @@ export default function AnalyzeFoodPage() {
                   <div>
                     <h3 className="text-lg font-black text-white">{result.name}</h3>
                     <p className="text-2xl font-black text-accent mt-1">{result.calories} kcal</p>
+                    <p className="text-xs text-text-secondary mt-0.5">
+                      Today: {todayCalories} → {caloriesAfter} / {goals.calories} kcal
+                    </p>
                   </div>
-                  <div className="p-2 bg-green-400/10 rounded-xl">
-                    <span className="text-xl">✅</span>
+                  <div className={`p-2 rounded-xl ${willExceed ? 'bg-red-400/10' : 'bg-green-400/10'}`}>
+                    <span className="text-xl">{willExceed ? '⚠️' : '✅'}</span>
                   </div>
                 </div>
+
+                {willExceed && (
+                  <div className="flex items-center gap-2 bg-red-400/10 rounded-xl p-3">
+                    <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                    <p className="text-xs text-red-400">
+                      Adding this meal will exceed your daily calorie goal by {caloriesAfter - goals.calories} kcal.
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-3 gap-3">
                   {[
@@ -190,7 +228,7 @@ export default function AnalyzeFoodPage() {
                 </div>
 
                 <Button fullWidth size="lg" loading={saving} onClick={addToLog}>
-                  Add to Log
+                  Add to {mealType.charAt(0).toUpperCase() + mealType.slice(1)}
                 </Button>
               </Card>
             </motion.div>
