@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon } from 'lucide-react';
+import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayWater, getTodayMeals, getUserWorkouts, getUserGoals } from '@/lib/firestore';
 import { getMockProgram } from '@/lib/programs';
@@ -204,7 +204,7 @@ export default function DashboardPage() {
                 <ProgressBar value={activeProgram.completedWorkouts} max={activeProgram.totalWorkouts} color="accent" size="sm" />
                 <p className="text-xs text-text-tertiary mt-1">{programPct}% complete · {activeProgram.totalWorkouts - activeProgram.completedWorkouts} sessions remaining</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {todayDay && !todayDay.isRest ? (
                   <Link href={`/training/session?programId=${activeProgram.programId}&dow=${todayDow}`}>
                     <Button size="sm">
@@ -219,6 +219,11 @@ export default function DashboardPage() {
                 <Link href={`/training/${activeProgram.programId}`}>
                   <Button size="sm" variant="ghost">
                     View <ChevronRight className="w-3 h-3" />
+                  </Button>
+                </Link>
+                <Link href="/training">
+                  <Button size="sm" variant="ghost">
+                    <RefreshCw className="w-3 h-3" /> Replace
                   </Button>
                 </Link>
               </div>

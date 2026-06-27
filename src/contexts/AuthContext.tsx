@@ -43,6 +43,7 @@ async function ensureUserDoc(firebaseUser: User): Promise<void> {
       photoURL: firebaseUser.photoURL ?? null,
       weightUnit: 'kg',
       role: 'user',
+      onboardingComplete: false,
       createdAt: serverTimestamp(),
       lastActive: serverTimestamp(),
       stats: {

@@ -55,6 +55,18 @@ export interface ActiveProgram {
   totalWorkouts: number;     // weeks × daysPerWeek
 }
 
+export type FitnessGoal = 'lose-fat' | 'build-muscle' | 'recomposition' | 'strength';
+export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
+export type EquipmentType = 'home' | 'full-gym' | 'minimal';
+
+export interface OnboardingData {
+  fitnessGoal: FitnessGoal;
+  experience: ExperienceLevel;
+  trainingDays: number;
+  equipment: EquipmentType;
+  limitations?: string;
+}
+
 export interface UserProfile {
   id: string;
   displayName: string;
@@ -68,6 +80,8 @@ export interface UserProfile {
   goals?: UserGoals;
   statsCache?: StatsCache;  // derived — computed by events engine
   activeProgram?: ActiveProgram;
+  onboardingComplete?: boolean;
+  onboarding?: OnboardingData;
   stats: {
     streak: number;
     powerLevel: number;

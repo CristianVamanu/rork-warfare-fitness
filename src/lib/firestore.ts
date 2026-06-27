@@ -539,6 +539,27 @@ export async function getMealsForDate(userId: string, date: Date): Promise<Norma
 }
 
 // ---------------------------------------------------------------------------
+// Onboarding
+// ---------------------------------------------------------------------------
+
+import type { OnboardingData, Program } from '@/types';
+
+export async function saveOnboardingData(
+  uid: string,
+  data: OnboardingData & { onboardingComplete: boolean }
+) {
+  await setDoc(doc(db, 'users', uid), { ...data, lastActive: serverTimestamp() }, { merge: true });
+}
+
+export async function createAIProgram(program: Omit<Program, 'id'>): Promise<string> {
+  const ref = await addDoc(collection(db, 'programs'), {
+    ...program,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+// ---------------------------------------------------------------------------
 // Legacy write stubs — kept only for backward-compat import references.
 // These log a warning and are NOT used for new writes.
 // All writes go through actions.ts → createEvent().
