@@ -44,6 +44,7 @@ export async function signUp(
     trainerId: trainerId ?? null,
     createdAt: serverTimestamp(),
     lastActive: serverTimestamp(),
+    onboardingComplete: false,
     stats: { streak: 0, powerLevel: 1, totalWorkouts: 0, totalWeightLifted: 0 },
   };
   console.log('[Auth] Writing Firestore user doc at users/', credential.user.uid);

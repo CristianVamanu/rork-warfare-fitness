@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { PwaInstallBanner } from '@/components/ui/PwaInstallBanner';
+import { MembershipGuard } from '@/components/ui/MembershipGuard';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
@@ -46,7 +47,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="pb-24 max-w-lg mx-auto">{children}</main>
+      <main className="pb-24 max-w-lg mx-auto">
+        <MembershipGuard pathname={pathname}>{children}</MembershipGuard>
+      </main>
       {!hideNav && <BottomNav />}
       {!hideNav && <PwaInstallBanner />}
     </div>
