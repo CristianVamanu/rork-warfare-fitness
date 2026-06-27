@@ -1,11 +1,33 @@
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
 
-// Stripe requires the raw body for signature verification
-export const dynamic = 'force-dynamic';
+function getAdminDb() {
+  if (!getApps().length) {
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    if (!projectId || !clientEmail || !privateKey) return null;
+    initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+  }
+  return getFirestore();
+}
+
+async function setMembershipStatus(userId: string, status: 'active' | 'none', expiresAt?: Date) {
+  const db = getAdminDb();
+  if (!db) { console.error('[Stripe webhook] Admin DB not available'); return; }
+  await db.collection('users').doc(userId).update({
+    'membership.status': status,
+    'membership.updatedAt': FieldValue.serverTimestamp(),
+    ...(expiresAt ? { 'membership.expiresAt': expiresAt } : {}),
+  });
+  console.log(`[Stripe webhook] User ${userId} membership → ${status}`);
+}
 
 export async function POST(req: NextRequest) {
   let event: Stripe.Event;
@@ -17,47 +39,74 @@ export async function POST(req: NextRequest) {
     event = stripe.webhooks.constructEvent(body, sig, getStripeWebhookSecret());
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Webhook signature verification failed';
-    console.error('[Stripe webhook]', msg);
+    console.error('[Stripe webhook] Verification failed:', msg);
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
-  switch (event.type) {
-    case 'customer.subscription.created':
-    case 'customer.subscription.updated':
-    case 'customer.subscription.deleted': {
-      const sub = event.data.object as Stripe.Subscription;
-      const trainerId = sub.metadata?.trainerId;
+  try {
+    switch (event.type) {
+      // ── User subscribes successfully ────────────────────────────────────
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const userId = session.metadata?.userId;
+        if (!userId) { console.warn('[Stripe webhook] checkout.session.completed: no userId in metadata'); break; }
 
-      if (!trainerId) {
-        console.warn('[Stripe webhook] Subscription missing trainerId metadata — skipping');
+        // For subscription mode, activation is confirmed via subscription.updated below.
+        // But also activate here in case the subscription event fires first.
+        if (session.payment_status === 'paid' || session.mode === 'subscription') {
+          const stripe = getStripe();
+          const subId = session.subscription as string | null;
+          let expiresAt: Date | undefined;
+          if (subId) {
+            const sub = await stripe.subscriptions.retrieve(subId);
+            expiresAt = new Date(sub.current_period_end * 1000);
+          }
+          await setMembershipStatus(userId, 'active', expiresAt);
+        }
         break;
       }
 
-      const rawStatus = sub.status;
-      const subscriptionStatus: 'active' | 'trialing' | 'past_due' | 'canceled' | 'inactive' =
-        rawStatus === 'active' ? 'active' :
-        rawStatus === 'trialing' ? 'trialing' :
-        rawStatus === 'past_due' ? 'past_due' :
-        rawStatus === 'canceled' ? 'canceled' : 'inactive';
+      // ── Subscription activated or renewed ───────────────────────────────
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        const sub = event.data.object as Stripe.Subscription;
+        const userId = sub.metadata?.userId;
+        if (!userId) { console.warn('[Stripe webhook] subscription event: no userId in metadata'); break; }
 
-      await updateDoc(doc(db, 'tenants', trainerId), {
-        'stripe.subscriptionId': sub.id,
-        'stripe.customerId': sub.customer as string,
-        'stripe.subscriptionStatus': subscriptionStatus,
-        'stripe.currentPeriodEnd': new Date(sub.current_period_end * 1000),
-      });
+        const active = sub.status === 'active' || sub.status === 'trialing';
+        const expiresAt = new Date(sub.current_period_end * 1000);
+        await setMembershipStatus(userId, active ? 'active' : 'none', expiresAt);
+        break;
+      }
 
-      console.log(`[Stripe webhook] Tenant ${trainerId} → ${subscriptionStatus}`);
-      break;
+      // ── Subscription cancelled or lapsed ────────────────────────────────
+      case 'customer.subscription.deleted': {
+        const sub = event.data.object as Stripe.Subscription;
+        const userId = sub.metadata?.userId;
+        if (!userId) { console.warn('[Stripe webhook] subscription.deleted: no userId in metadata'); break; }
+        await setMembershipStatus(userId, 'none');
+        break;
+      }
+
+      // ── Payment failed — warn but don't deactivate immediately ──────────
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subId = (invoice as { subscription?: string }).subscription;
+        if (subId) {
+          const stripe = getStripe();
+          const sub = await stripe.subscriptions.retrieve(subId);
+          const userId = sub.metadata?.userId;
+          if (userId) console.warn(`[Stripe webhook] Payment failed for user ${userId} — subscription status: ${sub.status}`);
+        }
+        break;
+      }
+
+      default:
+        // Unhandled event — safe to ignore
     }
-
-    case 'checkout.session.completed': {
-      // Handled via subscription events above — no extra action needed
-      break;
-    }
-
-    default:
-      // Unhandled event type — safe to ignore
+  } catch (err) {
+    console.error('[Stripe webhook] Handler error:', err);
+    // Still return 200 so Stripe doesn't retry unnecessarily
   }
 
   return NextResponse.json({ received: true });

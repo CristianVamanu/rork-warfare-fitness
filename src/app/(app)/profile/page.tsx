@@ -3,11 +3,12 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare } from 'lucide-react';
+import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, XCircle, Loader2, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { updateUserDoc, getUserConversations } from '@/lib/firestore';
+import { updateUserDoc, getUserConversations, getMembershipConfig } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
@@ -15,20 +16,33 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import type { MembershipConfig } from '@/types';
 
 export default function ProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
+  const searchParams = useSearchParams();
   const [editModal, setEditModal] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.displayName || '');
   const [saving, setSaving] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [membershipConfig, setMembershipConfig] = useState<MembershipConfig | null>(null);
+  const [subscribing, setSubscribing] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     getUserConversations(user.uid)
       .then(convs => setUnreadMessages(convs.filter(c => c.unreadByUser).length))
       .catch(() => {});
+    getMembershipConfig().then(setMembershipConfig).catch(() => {});
   }, [user]);
+
+  // Show success toast if redirected back from Stripe
+  useEffect(() => {
+    if (searchParams.get('subscribed') === '1') {
+      toast.success('Membership activated! Welcome aboard 🎉');
+      refreshProfile();
+    }
+  }, [searchParams, refreshProfile]);
 
   const handleSave = async () => {
     if (!user || !displayName.trim()) return;
@@ -45,9 +59,56 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSubscribe = async () => {
+    if (!user) return;
+    setSubscribing(true);
+    try {
+      const res = await fetch('/api/stripe/member-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid, userEmail: user.email }),
+      });
+      const data = await res.json() as { url?: string; error?: string };
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error(data.error ?? 'Failed to open checkout');
+      }
+    } catch {
+      toast.error('Failed to start checkout');
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
   const totalWorkouts = profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0;
   const streak = profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0;
   const powerLevel = profile?.powerLevel ?? profile?.stats?.powerLevel ?? 0;
+
+  const membershipStatus = profile?.membership?.status ?? 'none';
+  const isActive = membershipStatus === 'active';
+
+  const expiresAt = profile?.membership?.expiresAt
+    ? (() => {
+        const raw = profile.membership!.expiresAt as { toDate?: () => Date } | string | number;
+        if (typeof raw === 'object' && raw !== null && 'toDate' in raw) return (raw as { toDate: () => Date }).toDate();
+        return new Date(raw as string | number);
+      })()
+    : null;
+
+  // Check free trial
+  const trialDays = (membershipConfig as (MembershipConfig & { trialDays?: number }) | null)?.trialDays ?? 0;
+  const inTrial = (() => {
+    if (!trialDays || !profile?.createdAt) return false;
+    const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
+    return Date.now() - created.getTime() < trialDays * 24 * 60 * 60 * 1000;
+  })();
+
+  const trialEndsAt = (() => {
+    if (!trialDays || !profile?.createdAt) return null;
+    const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
+    return new Date(created.getTime() + trialDays * 24 * 60 * 60 * 1000);
+  })();
 
   const stats = [
     { icon: Dumbbell, label: 'Workouts', value: totalWorkouts, color: 'text-purple-400' },
@@ -55,6 +116,8 @@ export default function ProfilePage() {
     { icon: Zap, label: 'Fitness Level', value: powerLevel, color: 'text-accent' },
     { icon: Trophy, label: 'Total kg', value: profile?.currentWeightKg ?? profile?.stats?.totalWeightLifted ?? 0, color: 'text-yellow-400' },
   ];
+
+  const showMembershipSection = membershipConfig?.enabled && profile?.role === 'user';
 
   return (
     <div>
@@ -74,14 +137,98 @@ export default function ProfilePage() {
             </div>
             <h2 className="text-xl font-black text-white">{profile?.displayName || 'Athlete'}</h2>
             <p className="text-text-secondary text-sm mt-0.5">{user?.email}</p>
-            <div className="flex items-center justify-center gap-2 mt-2">
+            <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
               <Badge variant={profile?.role === 'admin' ? 'danger' : profile?.role === 'trainer' ? 'accent' : 'muted'}>
                 {profile?.role || 'user'}
               </Badge>
               <Badge variant="muted">{profile?.weightUnit || 'kg'}</Badge>
+              {(isActive || inTrial) && (
+                <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />{inTrial && !isActive ? 'Trial' : 'Member'}</Badge>
+              )}
             </div>
           </Card>
         </motion.div>
+
+        {/* Membership Section */}
+        {showMembershipSection && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+            <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Membership</h2>
+            <Card className={`p-5 ${isActive || inTrial ? 'border-accent/30' : 'border-white/10'}`}>
+              {isActive || inTrial ? (
+                /* ── Active / Trial ── */
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center">
+                      <Crown className="w-5 h-5 text-accent" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-white">{inTrial && !isActive ? 'Free Trial Active' : 'Membership Active'}</p>
+                        <CheckCircle className="w-4 h-4 text-green-400" />
+                      </div>
+                      <p className="text-xs text-text-secondary mt-0.5">
+                        {inTrial && !isActive && trialEndsAt
+                          ? `Trial ends ${trialEndsAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                          : expiresAt
+                          ? `Renews ${expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                          : 'Full access to all features'}
+                      </p>
+                    </div>
+                  </div>
+                  {inTrial && !isActive && membershipConfig && (
+                    <div className="p-3 bg-accent/5 border border-accent/20 rounded-xl">
+                      <p className="text-xs text-text-secondary">
+                        Your free trial gives you full access. After it ends,{' '}
+                        <span className="text-white font-medium">
+                          ${membershipConfig.fee.toFixed(2)}/month
+                        </span>{' '}
+                        will be charged to continue.
+                      </p>
+                      <Button size="sm" className="mt-2 w-full" onClick={handleSubscribe} loading={subscribing}>
+                        Add Payment Method
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* ── Not subscribed ── */
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-surface-elevated flex items-center justify-center">
+                      <XCircle className="w-5 h-5 text-text-tertiary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">No Active Membership</p>
+                      <p className="text-xs text-text-secondary mt-0.5">Subscribe to unlock full access</p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-surface-elevated rounded-xl flex items-center justify-between">
+                    <div>
+                      <p className="text-2xl font-black text-white">${membershipConfig?.fee?.toFixed(2)}<span className="text-sm font-normal text-text-secondary">/mo</span></p>
+                      {trialDays > 0 && (
+                        <p className="text-xs text-accent mt-0.5">{trialDays}-day free trial included</p>
+                      )}
+                    </div>
+                    <Crown className="w-6 h-6 text-accent" />
+                  </div>
+
+                  <Button fullWidth onClick={handleSubscribe} loading={subscribing}>
+                    {subscribing ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Opening Checkout…</>
+                    ) : (
+                      <><Crown className="w-4 h-4" /> {trialDays > 0 ? `Start Free Trial` : 'Subscribe Now'}</>
+                    )}
+                  </Button>
+
+                  <p className="text-xs text-text-tertiary text-center">
+                    Secure payment via Stripe. Cancel anytime.
+                  </p>
+                </div>
+              )}
+            </Card>
+          </motion.div>
+        )}
 
         {/* Stats */}
         <motion.div
@@ -144,15 +291,27 @@ export default function ProfilePage() {
 
         {/* Member Since */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <Card className="p-4">
-            <p className="text-xs text-text-secondary mb-1">Member since</p>
-            <p className="text-sm font-medium text-white">
-              {profile?.createdAt
-                ? new Date(
-                    (profile.createdAt as { toDate?: () => Date }).toDate?.()?.getTime() || Date.now()
-                  ).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-                : 'Today'}
-            </p>
+          <Card className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-text-secondary mb-0.5">Member since</p>
+              <p className="text-sm font-medium text-white">
+                {profile?.createdAt
+                  ? new Date(
+                      (profile.createdAt as { toDate?: () => Date }).toDate?.()?.getTime() || Date.now()
+                    ).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                  : 'Today'}
+              </p>
+            </div>
+            {isActive && (
+              <a
+                href="https://billing.stripe.com/p/login/test_00g00000000000000"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-accent hover:underline"
+              >
+                Manage billing <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
           </Card>
         </motion.div>
       </div>
