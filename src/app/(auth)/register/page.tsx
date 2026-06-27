@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { signUp } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -21,6 +21,7 @@ const schema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
   weightUnit: z.enum(['kg', 'lbs']),
+  acceptedTerms: z.boolean().refine(v => v === true, 'You must accept the Terms & Conditions'),
 }).refine((d) => d.password === d.confirmPassword, {
   message: 'Passwords do not match',
   path: ['confirmPassword'],
@@ -35,7 +36,7 @@ export default function RegisterPage() {
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { weightUnit: 'kg' },
+    defaultValues: { weightUnit: 'kg', acceptedTerms: false },
   });
 
   const weightUnit = watch('weightUnit');
@@ -138,6 +139,31 @@ export default function RegisterPage() {
               ))}
             </div>
           </div>
+
+          {/* Disclaimer */}
+          <div className="p-3 bg-yellow-400/5 border border-yellow-400/20 rounded-xl text-xs text-yellow-400/80 leading-relaxed">
+            <p className="font-bold mb-1 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Health Disclaimer</p>
+            By registering you acknowledge that all workouts and nutrition advice are for informational purposes only. Always consult a qualified physician before starting any exercise program. You use this platform entirely at your own risk. The trainer / platform owner accepts no liability for any injury, illness, or adverse outcome.
+          </div>
+
+          {/* Terms checkbox */}
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5 w-4 h-4 rounded accent-lime-400 flex-shrink-0"
+              {...register('acceptedTerms')}
+            />
+            <span className="text-xs text-text-secondary leading-relaxed">
+              I have read and agree to the{' '}
+              <Link href="/terms" target="_blank" className="text-accent hover:underline">Terms & Conditions</Link>
+              {' '}and{' '}
+              <Link href="/privacy" target="_blank" className="text-accent hover:underline">Privacy Policy</Link>
+              , including the health disclaimer above.
+            </span>
+          </label>
+          {errors.acceptedTerms && (
+            <p className="text-xs text-danger">{errors.acceptedTerms.message}</p>
+          )}
 
           <Button type="submit" fullWidth loading={loading} size="lg">
             Create Account

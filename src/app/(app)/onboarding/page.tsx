@@ -10,12 +10,13 @@ import {
   Home, Building2, Package,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { saveOnboardingData, enrollInProgram, updateUserGoals } from '@/lib/firestore';
+import { saveOnboardingData, enrollInProgram, updateUserGoals, getSystemConfig } from '@/lib/firestore';
 import { estimateGoals } from '@/lib/tdee';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { Modal } from '@/components/ui/Modal';
 import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData } from '@/types';
 
 // ─── Step data ────────────────────────────────────────────────────────────────
@@ -62,6 +63,8 @@ export default function OnboardingPage() {
   const [limitations, setLimitations] = useState('');
   const [status, setStatus] = useState<'idle' | 'generating' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [videoGreetingUrl, setVideoGreetingUrl] = useState<string | null>(null);
+  const [showVideoModal, setShowVideoModal] = useState(false);
 
   const TOTAL_STEPS = 5;
 
@@ -138,6 +141,17 @@ export default function OnboardingPage() {
       // 5. Refresh profile so layout no longer redirects here
       setStatus('done');
       await refreshProfile();
+
+      // 6. Check for video greeting
+      try {
+        const cfg = await getSystemConfig();
+        if (cfg?.videoGreetingUrl) {
+          setVideoGreetingUrl(cfg.videoGreetingUrl as string);
+          setShowVideoModal(true);
+          return; // navigation happens when user dismisses video
+        }
+      } catch { /* ignore */ }
+
       router.replace('/dashboard');
     } catch (err) {
       console.error('[Onboarding] failed:', err);
@@ -236,6 +250,26 @@ export default function OnboardingPage() {
           </Button>
         )}
       </div>
+
+      {/* Video Greeting Modal */}
+      <Modal open={showVideoModal} onClose={() => { setShowVideoModal(false); router.replace('/dashboard'); }} title="Welcome to the Team! 🎉">
+        <div className="space-y-4">
+          {videoGreetingUrl && (
+            <div className="rounded-xl overflow-hidden bg-black aspect-video">
+              <video
+                src={videoGreetingUrl}
+                controls
+                autoPlay
+                className="w-full h-full object-contain"
+              />
+            </div>
+          )}
+          <p className="text-sm text-text-secondary text-center">A personal welcome from your coach.</p>
+          <Button fullWidth onClick={() => { setShowVideoModal(false); router.replace('/dashboard'); }}>
+            Let&apos;s Go! →
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

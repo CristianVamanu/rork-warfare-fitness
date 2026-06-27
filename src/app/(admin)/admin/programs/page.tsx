@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Edit2, Trash2, Users, Sparkles, ChevronLeft, Dumbbell } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram } from '@/lib/firestore';
+import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -28,20 +28,25 @@ export default function ProgramsPage() {
     Promise.all([
       getAllPrograms().catch(() => []),
       getAllUsers().catch(() => []),
-    ]).then(([progs, u]) => {
+      getHiddenMockIds().catch(() => [] as string[]),
+    ]).then(([progs, u, hiddenIds]) => {
       const firestoreProgs = progs as (Program & { visibility?: string })[];
-      const mockIds = new Set(firestoreProgs.map(p => p.id));
-      const mocks = MOCK_PROGRAMS.filter(p => !mockIds.has(p.id)).map(p => ({ ...p, _mock: true }));
+      const fpIds = new Set(firestoreProgs.map(p => p.id));
+      const hidden = new Set(hiddenIds as string[]);
+      const mocks = MOCK_PROGRAMS.filter(p => !fpIds.has(p.id) && !hidden.has(p.id)).map(p => ({ ...p, _mock: true }));
       setPrograms([...firestoreProgs, ...mocks]);
       setUsers((u as UserRow[]).filter((x: UserRow & { role?: string }) => x.role !== 'admin'));
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
   async function handleDelete(p: Program & { _mock?: boolean }) {
-    if (p._mock) { toast.error('Built-in programs cannot be deleted.'); return; }
     if (!confirm(`Delete "${p.name}"?`)) return;
     try {
-      await deleteProgram(p.id);
+      if (p._mock) {
+        await hideMockProgram(p.id);
+      } else {
+        await deleteProgram(p.id);
+      }
       setPrograms(prev => prev.filter(x => x.id !== p.id));
       toast.success('Deleted');
     } catch { toast.error('Failed to delete'); }
@@ -124,23 +129,21 @@ export default function ProgramsPage() {
                     <Users className="w-4 h-4" />
                   </button>
                   {!(p as { _mock?: boolean })._mock && (
-                    <>
-                      <button
-                        onClick={() => router.push(`/admin/programs/builder?id=${p.id}`)}
-                        title="Edit"
-                        className="p-2 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(p)}
-                        title="Delete"
-                        className="p-2 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </>
+                    <button
+                      onClick={() => router.push(`/admin/programs/builder?id=${p.id}`)}
+                      title="Edit"
+                      className="p-2 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
                   )}
+                  <button
+                    onClick={() => handleDelete(p)}
+                    title="Delete"
+                    className="p-2 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </Card>

@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Dumbbell, Play, Clock, Target, ChevronRight, Moon } from 'lucide-react';
 import Link from 'next/link';
-import { getPrograms, getProgram } from '@/lib/firestore';
+import { getPrograms, getProgram, getHiddenMockIds } from '@/lib/firestore';
 import { MOCK_PROGRAMS, getMockProgram } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
@@ -66,12 +66,13 @@ export default function TrainingPage() {
   }, [activeProgram, todayDow]);
 
   useEffect(() => {
-    getPrograms()
-      .then((firestoreProgs) => {
+    Promise.all([getPrograms(), getHiddenMockIds().catch(() => [] as string[])])
+      .then(([firestoreProgs, hiddenIds]) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fp = firestoreProgs as any as Program[];
         const fpIds = new Set(fp.map((p) => p.id));
-        const mocks = MOCK_PROGRAMS.filter((m) => !fpIds.has(m.id));
+        const hidden = new Set(hiddenIds);
+        const mocks = MOCK_PROGRAMS.filter((m) => !fpIds.has(m.id) && !hidden.has(m.id));
         setPrograms([...fp, ...mocks as Program[]]);
       })
       .catch(() => setPrograms(MOCK_PROGRAMS))

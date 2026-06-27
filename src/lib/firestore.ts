@@ -577,6 +577,22 @@ export async function getAllPrograms() {
 }
 
 // ---------------------------------------------------------------------------
+// Hidden mock programs — stored at config/hiddenMocks { ids: string[] }
+// ---------------------------------------------------------------------------
+export async function getHiddenMockIds(): Promise<string[]> {
+  const snap = await getDoc(doc(db, 'config', 'hiddenMocks'));
+  return snap.exists() ? ((snap.data().ids as string[]) ?? []) : [];
+}
+
+export async function hideMockProgram(id: string) {
+  const snap = await getDoc(doc(db, 'config', 'hiddenMocks'));
+  const ids: string[] = snap.exists() ? (snap.data().ids ?? []) : [];
+  if (!ids.includes(id)) {
+    await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: [...ids, id] }, { merge: true });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Membership configuration — stored at config/membership
 // ---------------------------------------------------------------------------
 import type { MembershipConfig } from '@/types';
@@ -763,6 +779,91 @@ export async function getNotificationConfig(): Promise<NotificationConfig | null
 
 export async function saveNotificationConfig(data: Partial<NotificationConfig>) {
   await setDoc(doc(db, 'config', 'notifications'), data, { merge: true });
+}
+
+// ---------------------------------------------------------------------------
+// Community channels
+// ---------------------------------------------------------------------------
+import type { Channel, ChannelPost } from '@/types';
+
+export async function getChannels(trainerId?: string): Promise<Channel[]> {
+  const snap = await getDocs(collection(db, 'channels'));
+  const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Channel);
+  return all
+    .filter((c) => !trainerId || c.trainerId === trainerId || !c.trainerId)
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+export async function createChannel(data: Omit<Channel, 'id' | 'postCount' | 'createdAt'>) {
+  return addDoc(collection(db, 'channels'), { ...data, postCount: 0, createdAt: serverTimestamp() });
+}
+
+export async function updateChannel(id: string, data: Partial<Channel>) {
+  await updateDoc(doc(db, 'channels', id), data);
+}
+
+export async function deleteChannel(id: string) {
+  await deleteDoc(doc(db, 'channels', id));
+}
+
+export async function getChannelPosts(channelId: string): Promise<ChannelPost[]> {
+  const snap = await getDocs(
+    query(collection(db, 'channels', channelId, 'posts'), orderBy('createdAt', 'desc'), limit(50))
+  );
+  return snap.docs.map((d) => ({ id: d.id, channelId, ...d.data() }) as ChannelPost);
+}
+
+export async function createChannelPost(channelId: string, data: {
+  userId: string; userDisplayName: string; userPhotoURL?: string;
+  content: string; imageURL?: string;
+}): Promise<string> {
+  const ref = await addDoc(collection(db, 'channels', channelId, 'posts'), {
+    ...data,
+    channelId,
+    likes: [],
+    replyCount: 0,
+    replyTo: null,
+    createdAt: serverTimestamp(),
+  });
+  // bump post count on channel
+  await updateDoc(doc(db, 'channels', channelId), { postCount: increment(1) });
+  // track last post time for slow mode
+  await setDoc(doc(db, 'channels', channelId, 'members', data.userId), { lastPostAt: serverTimestamp() }, { merge: true });
+  return ref.id;
+}
+
+export async function likeChannelPost(channelId: string, postId: string, userId: string, liked: boolean) {
+  const ref = doc(db, 'channels', channelId, 'posts', postId);
+  if (liked) {
+    await updateDoc(ref, { likes: [...(await getDoc(ref)).data()?.likes ?? [], userId] });
+  } else {
+    const snap = await getDoc(ref);
+    const likes: string[] = (snap.data()?.likes ?? []).filter((id: string) => id !== userId);
+    await updateDoc(ref, { likes });
+  }
+}
+
+export async function getPostReplies(channelId: string, postId: string): Promise<ChannelPost[]> {
+  const snap = await getDocs(
+    query(collection(db, 'channels', channelId, 'posts', postId, 'replies'), orderBy('createdAt', 'asc'))
+  );
+  return snap.docs.map((d) => ({ id: d.id, channelId, replyTo: postId, ...d.data() }) as ChannelPost);
+}
+
+export async function createReply(channelId: string, postId: string, data: {
+  userId: string; userDisplayName: string; userPhotoURL?: string; content: string;
+}) {
+  await addDoc(collection(db, 'channels', channelId, 'posts', postId, 'replies'), {
+    ...data, channelId, likes: [], replyCount: 0, replyTo: postId, createdAt: serverTimestamp(),
+  });
+  await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { replyCount: increment(1) });
+}
+
+export async function getUserLastPostInChannel(channelId: string, userId: string): Promise<Date | null> {
+  const snap = await getDoc(doc(db, 'channels', channelId, 'members', userId));
+  if (!snap.exists()) return null;
+  const ts = snap.data().lastPostAt;
+  return ts ? (ts as { toDate: () => Date }).toDate() : null;
 }
 
 // ---------------------------------------------------------------------------

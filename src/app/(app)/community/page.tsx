@@ -3,18 +3,14 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle, Trophy, Search, Plus, Image } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Hash, ChevronRight, Users, Clock, Trophy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getPosts, createPost } from '@/lib/firestore';
+import { getChannels } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
-import { Avatar } from '@/components/ui/Avatar';
-import { Button } from '@/components/ui/Button';
-import { Modal } from '@/components/ui/Modal';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Badge } from '@/components/ui/Badge';
-import type { Post } from '@/types';
+import Link from 'next/link';
+import type { Channel } from '@/types';
 
 const LEADERBOARD = [
   { rank: 1, name: 'Alpha Wolf', streak: 45, points: 1240 },
@@ -25,70 +21,24 @@ const LEADERBOARD = [
 ];
 
 export default function CommunityPage() {
-  const { user, profile, trainerId } = useAuth();
-  const [posts, setPosts] = useState<Post[]>([]);
+  const { trainerId } = useAuth();
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'feed' | 'leaderboard'>('feed');
-  const [createModal, setCreateModal] = useState(false);
-  const [postContent, setPostContent] = useState('');
-  const [posting, setPosting] = useState(false);
-  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [tab, setTab] = useState<'channels' | 'leaderboard'>('channels');
 
   useEffect(() => {
-    getPosts(20, trainerId ?? undefined)
-      .then((p) => setPosts(p as Post[]))
-      .catch(console.error)
+    getChannels(trainerId ?? undefined)
+      .then(setChannels)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [trainerId]);
-
-  const handlePost = async () => {
-    if (!user || !profile || !postContent.trim()) return;
-    setPosting(true);
-    try {
-      await createPost({
-        userId: user.uid,
-        ...(trainerId ? { trainerId } : {}),
-        userDisplayName: profile.displayName || 'Athlete',
-        ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
-        content: postContent,
-      });
-      setPostContent('');
-      setCreateModal(false);
-      toast.success('Post published!');
-      const updated = await getPosts();
-      setPosts(updated as Post[]);
-    } catch {
-      toast.error('Failed to post');
-    } finally {
-      setPosting(false);
-    }
-  };
-
-  const toggleLike = (postId: string) => {
-    setLikedPosts((prev) => {
-      const next = new Set(prev);
-      if (next.has(postId)) next.delete(postId); else next.add(postId);
-      return next;
-    });
-  };
-
-  const formatTime = (ts: unknown) => {
-    if (!ts) return 'just now';
-    const date = (ts as { toDate?: () => Date }).toDate?.() || new Date();
-    const diff = Math.round((Date.now() - date.getTime()) / 60000);
-    if (diff < 1) return 'just now';
-    if (diff < 60) return `${diff}m`;
-    if (diff < 1440) return `${Math.round(diff / 60)}h`;
-    return `${Math.round(diff / 1440)}d`;
-  };
 
   return (
     <div>
       <Header title="Community" />
       <div className="px-4 py-4 space-y-4">
-        {/* Tabs */}
         <div className="grid grid-cols-2 gap-1 bg-surface rounded-xl p-1">
-          {(['feed', 'leaderboard'] as const).map((t) => (
+          {(['channels', 'leaderboard'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -101,63 +51,44 @@ export default function CommunityPage() {
           ))}
         </div>
 
-        {tab === 'feed' && (
+        {tab === 'channels' && (
           <>
-            {/* Create Post Button */}
-            <button
-              onClick={() => setCreateModal(true)}
-              className="w-full flex items-center gap-3 p-4 bg-surface border border-white/8 rounded-2xl text-left"
-            >
-              <Avatar name={profile?.displayName} size="sm" />
-              <span className="text-text-tertiary text-sm flex-1">Share your progress...</span>
-              <Image className="w-4 h-4 text-text-tertiary" />
-            </button>
-
-            {/* Posts Feed */}
             {loading ? (
-              <div className="space-y-3">
-                {[1, 2].map((i) => <Skeleton key={i} className="h-32 rounded-2xl" />)}
-              </div>
-            ) : posts.length === 0 ? (
-              <Card className="p-8 text-center">
-                <p className="text-3xl mb-3">💪</p>
-                <p className="text-white font-bold">No posts yet</p>
-                <p className="text-text-secondary text-sm mt-1">Be the first to share!</p>
+              <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-2xl" />)}</div>
+            ) : channels.length === 0 ? (
+              <Card className="p-10 text-center">
+                <Hash className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
+                <p className="text-white font-bold">No channels yet</p>
+                <p className="text-text-secondary text-sm mt-1">Your trainer will create channels soon.</p>
               </Card>
             ) : (
-              <div className="space-y-3">
-                {posts.map((post, i) => (
-                  <motion.div
-                    key={post.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                    <Card className="p-4">
-                      <div className="flex items-start gap-3 mb-3">
-                        <Avatar name={post.userDisplayName} src={post.userPhotoURL} size="md" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-white">{post.userDisplayName}</p>
-                          <p className="text-xs text-text-secondary">{formatTime(post.createdAt)}</p>
+              <div className="space-y-2">
+                {channels.map((ch, i) => (
+                  <motion.div key={ch.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+                    <Link href={`/community/${ch.id}`}>
+                      <Card className="p-4 hover:border-accent/30 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center text-xl flex-shrink-0">
+                            {ch.emoji || '#'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-white"># {ch.name}</p>
+                            {ch.description && <p className="text-xs text-text-secondary truncate mt-0.5">{ch.description}</p>}
+                            <div className="flex items-center gap-3 mt-1">
+                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
+                                <Users className="w-3 h-3" /> {ch.postCount} posts
+                              </span>
+                              {ch.slowModeDays > 0 && (
+                                <span className="flex items-center gap-1 text-xs text-text-tertiary">
+                                  <Clock className="w-3 h-3" /> Slow mode: {ch.slowModeDays}d
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
                         </div>
-                      </div>
-                      <p className="text-sm text-white leading-relaxed">{post.content}</p>
-                      <div className="flex items-center gap-4 mt-4">
-                        <button
-                          onClick={() => toggleLike(post.id)}
-                          className={`flex items-center gap-1.5 text-xs transition-colors ${
-                            likedPosts.has(post.id) ? 'text-danger' : 'text-text-secondary hover:text-danger'
-                          }`}
-                        >
-                          <Heart className={`w-4 h-4 ${likedPosts.has(post.id) ? 'fill-current' : ''}`} />
-                          {post.likes.length + (likedPosts.has(post.id) ? 1 : 0)}
-                        </button>
-                        <button className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-white transition-colors">
-                          <MessageCircle className="w-4 h-4" />
-                          {post.commentCount}
-                        </button>
-                      </div>
-                    </Card>
+                      </Card>
+                    </Link>
                   </motion.div>
                 ))}
               </div>
@@ -169,22 +100,15 @@ export default function CommunityPage() {
           <div className="space-y-3">
             <h2 className="text-base font-bold text-white">Monthly Leaderboard</h2>
             {LEADERBOARD.map((entry, i) => (
-              <motion.div
-                key={entry.rank}
-                initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.06 }}
-              >
+              <motion.div key={entry.rank} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
                 <Card className={`p-4 flex items-center gap-3 ${entry.rank <= 3 ? 'border-accent/20' : ''}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-black ${
                     entry.rank === 1 ? 'bg-yellow-400 text-black' :
                     entry.rank === 2 ? 'bg-gray-300 text-black' :
-                    entry.rank === 3 ? 'bg-amber-600 text-white' :
-                    'bg-surface-elevated text-text-secondary'
+                    entry.rank === 3 ? 'bg-amber-600 text-white' : 'bg-surface-elevated text-text-secondary'
                   }`}>
-                    {entry.rank <= 3 ? ['🥇', '🥈', '🥉'][entry.rank - 1] : entry.rank}
+                    {entry.rank <= 3 ? ['🥇','🥈','🥉'][entry.rank-1] : entry.rank}
                   </div>
-                  <Avatar name={entry.name} size="sm" />
                   <div className="flex-1">
                     <p className="text-sm font-bold text-white">{entry.name}</p>
                     <p className="text-xs text-text-secondary">🔥 {entry.streak} day streak</p>
@@ -199,28 +123,6 @@ export default function CommunityPage() {
           </div>
         )}
       </div>
-
-      {/* Create Post Modal */}
-      <Modal open={createModal} onClose={() => setCreateModal(false)} title="Create Post">
-        <div className="space-y-4">
-          <div className="flex items-start gap-3">
-            <Avatar name={profile?.displayName} size="md" />
-            <textarea
-              value={postContent}
-              onChange={(e) => setPostContent(e.target.value)}
-              placeholder="Share your workout, achievement, or tip..."
-              rows={4}
-              className="flex-1 bg-surface-elevated border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:ring-2 focus:ring-accent/40"
-            />
-          </div>
-          <div className="flex gap-3">
-            <Button variant="ghost" fullWidth onClick={() => setCreateModal(false)}>Cancel</Button>
-            <Button fullWidth loading={posting} disabled={!postContent.trim()} onClick={handlePost}>
-              Post
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
-  Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw,
+  Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -17,6 +17,7 @@ import {
   getAdminConversations, getOrCreateConversation, getMessages, sendMessage, markConversationRead,
   getMembershipConfig, saveMembershipConfig, setUserMembership,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
+  getChannels, createChannel, updateChannel, deleteChannel,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -25,9 +26,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, NotificationConfig } from '@/types';
+import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel } from '@/types';
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'notifications' | 'membership' | 'settings';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'settings';
 
 interface UserData {
   id: string;
@@ -68,7 +69,7 @@ export default function AdminPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ── Settings state ─────────────────────────────────────────────────────────
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini' });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '' });
   const [savingSettings, setSavingSettings] = useState(false);
 
   // ── Membership state ───────────────────────────────────────────────────────
@@ -91,6 +92,14 @@ export default function AdminPage() {
   const [manualNotif, setManualNotif] = useState({ title: '', body: '', target: 'all' as 'all' | string });
   const [sendingNotif, setSendingNotif] = useState(false);
   const [processingCron, setProcessingCron] = useState(false);
+
+  // ── Community channels state ───────────────────────────────────────────────
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [channelForm, setChannelForm] = useState({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0 as 0|7|21|30 });
+  const [savingChannel, setSavingChannel] = useState(false);
+  const [showChannelForm, setShowChannelForm] = useState(false);
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
 
   // ── Initial load ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -121,6 +130,8 @@ export default function AdminPage() {
           trainerName: cfg.trainerName || '',
           trainerEmail: cfg.trainerEmail || '',
           openaiModel: cfg.openaiModel || 'gpt-4o-mini',
+          videoGreetingUrl: cfg.videoGreetingUrl || '',
+          stripePublishableKey: cfg.stripePublishableKey || '',
         });
       }
     }).catch(console.error).finally(() => setOverviewLoading(false));
@@ -132,6 +143,7 @@ export default function AdminPage() {
     if (tab === 'messages' && conversations.length === 0) loadConversations();
     if (tab === 'membership') loadMembership();
     if (tab === 'notifications') loadNotifConfig();
+    if (tab === 'community') loadChannels();
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadUsers() {
@@ -245,6 +257,67 @@ export default function AdminPage() {
     }));
   }
 
+  async function loadChannels() {
+    setChannelsLoading(true);
+    try { setChannels(await getChannels(profile?.trainerId)); }
+    catch { toast.error('Failed to load channels'); }
+    finally { setChannelsLoading(false); }
+  }
+
+  async function handleSaveChannel() {
+    if (!user || !channelForm.name.trim()) return;
+    setSavingChannel(true);
+    try {
+      if (editingChannel) {
+        await updateChannel(editingChannel.id, {
+          name: channelForm.name.trim(),
+          description: channelForm.description.trim() || undefined,
+          emoji: channelForm.emoji.trim() || undefined,
+          photoUploadEnabled: channelForm.photoUploadEnabled,
+          slowModeDays: channelForm.slowModeDays,
+        });
+        toast.success('Channel updated');
+      } else {
+        await createChannel({
+          name: channelForm.name.trim(),
+          description: channelForm.description.trim() || undefined,
+          emoji: channelForm.emoji.trim() || undefined,
+          createdBy: user.uid,
+          trainerId: profile?.trainerId,
+          photoUploadEnabled: channelForm.photoUploadEnabled,
+          slowModeDays: channelForm.slowModeDays,
+        });
+        toast.success('Channel created');
+      }
+      setShowChannelForm(false);
+      setEditingChannel(null);
+      setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0 });
+      await loadChannels();
+    } catch { toast.error('Failed to save channel'); }
+    finally { setSavingChannel(false); }
+  }
+
+  async function handleDeleteChannel(ch: Channel) {
+    if (!confirm(`Delete #${ch.name}? All posts will be lost.`)) return;
+    try {
+      await deleteChannel(ch.id);
+      setChannels(prev => prev.filter(c => c.id !== ch.id));
+      toast.success('Channel deleted');
+    } catch { toast.error('Failed to delete channel'); }
+  }
+
+  function startEditChannel(ch: Channel) {
+    setEditingChannel(ch);
+    setChannelForm({
+      name: ch.name,
+      description: ch.description ?? '',
+      emoji: ch.emoji ?? '',
+      photoUploadEnabled: ch.photoUploadEnabled,
+      slowModeDays: ch.slowModeDays,
+    });
+    setShowChannelForm(true);
+  }
+
   async function loadNotifConfig() {
     setNotifLoading(true);
     try {
@@ -323,6 +396,7 @@ export default function AdminPage() {
     { id: 'programs', label: 'Programs', icon: Dumbbell },
     { id: 'clients', label: 'Clients', icon: Users },
     { id: 'messages', label: 'Messages', icon: MessageSquare },
+    { id: 'community', label: 'Community', icon: Users },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'membership', label: 'Membership', icon: CreditCard },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -593,6 +667,112 @@ export default function AdminPage() {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Community ────────────────────────────────────────────────────────── */}
+      {tab === 'community' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-text-secondary text-sm">{channels.length} channel{channels.length !== 1 ? 's' : ''}</p>
+            <Button size="sm" onClick={() => { setEditingChannel(null); setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0 }); setShowChannelForm(true); }}>
+              <Plus className="w-4 h-4" /> New Channel
+            </Button>
+          </div>
+
+          {showChannelForm && (
+            <Card className="p-5 space-y-3 border-accent/30">
+              <h3 className="text-sm font-bold text-white">{editingChannel ? 'Edit Channel' : 'Create Channel'}</h3>
+              <div className="flex gap-2">
+                <input
+                  value={channelForm.emoji}
+                  onChange={e => setChannelForm(f => ({ ...f, emoji: e.target.value }))}
+                  placeholder="📢"
+                  maxLength={2}
+                  className="w-14 text-center bg-surface border border-white/10 rounded-xl px-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                />
+                <input
+                  value={channelForm.name}
+                  onChange={e => setChannelForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Channel name"
+                  className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                />
+              </div>
+              <input
+                value={channelForm.description}
+                onChange={e => setChannelForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Description (optional)"
+                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+              />
+              <div>
+                <label className="text-xs text-text-secondary mb-1.5 block">Slow Mode</label>
+                <div className="flex gap-2">
+                  {([0, 7, 21, 30] as const).map(d => (
+                    <button
+                      key={d}
+                      onClick={() => setChannelForm(f => ({ ...f, slowModeDays: d }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${channelForm.slowModeDays === d ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}
+                    >
+                      {d === 0 ? 'Off' : `${d}d`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">Photo Upload</p>
+                  <p className="text-xs text-text-secondary">Allow users to attach images</p>
+                </div>
+                <button
+                  onClick={() => setChannelForm(f => ({ ...f, photoUploadEnabled: !f.photoUploadEnabled }))}
+                  className={`w-11 h-6 rounded-full transition-colors relative ${channelForm.photoUploadEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.photoUploadEnabled ? 'left-6' : 'left-1'}`} />
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="ghost" fullWidth onClick={() => { setShowChannelForm(false); setEditingChannel(null); }}>Cancel</Button>
+                <Button fullWidth loading={savingChannel} disabled={!channelForm.name.trim()} onClick={handleSaveChannel}>
+                  {editingChannel ? 'Save' : 'Create'}
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {channelsLoading ? (
+            <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+          ) : channels.length === 0 && !showChannelForm ? (
+            <Card className="p-8 text-center">
+              <p className="text-white font-bold">No channels yet</p>
+              <p className="text-text-secondary text-sm mt-1">Create a channel for your community.</p>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {channels.map(ch => (
+                <Card key={ch.id} className="p-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{ch.emoji || '#'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-white"># {ch.name}</p>
+                      <div className="flex gap-3 text-xs text-text-tertiary mt-0.5">
+                        <span>{ch.postCount} posts</span>
+                        {ch.slowModeDays > 0 && <span>Slow: {ch.slowModeDays}d</span>}
+                        {ch.photoUploadEnabled && <span>📷 photos on</span>}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => startEditChannel(ch)} className="p-2 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDeleteChannel(ch)} className="p-2 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
             </div>
           )}
         </div>
@@ -901,37 +1081,68 @@ export default function AdminPage() {
                 <label className="text-xs text-text-secondary mb-1 block">OpenAI Model</label>
                 <Input value={settingsForm.openaiModel} onChange={e => setSettingsForm(s => ({ ...s, openaiModel: e.target.value }))} placeholder="gpt-4o-mini" />
               </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Video Greeting URL</label>
+                <Input value={settingsForm.videoGreetingUrl} onChange={e => setSettingsForm(s => ({ ...s, videoGreetingUrl: e.target.value }))} placeholder="https://… (MP4 or hosted video link)" />
+                <p className="text-xs text-text-tertiary mt-1">Plays automatically after a new user completes onboarding. Leave blank to skip.</p>
+              </div>
             </div>
             <Button onClick={handleSaveSettings} loading={savingSettings} fullWidth>Save Configuration</Button>
           </Card>
 
+          {/* Stripe Configuration */}
           <Card className="p-5 space-y-4">
             <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Key className="w-4 h-4 text-yellow-400" /> API Keys & Secrets
+              <CreditCard className="w-4 h-4 text-green-400" /> Stripe Payment Processor
             </h2>
-            <p className="text-xs text-text-secondary">These keys must be set as environment variables in Vercel — never stored in Firestore.</p>
+            <p className="text-xs text-text-secondary">Configure Stripe to accept membership payments from your clients.</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Stripe Publishable Key <span className="text-text-tertiary">(pk_live_… or pk_test_…)</span></label>
+                <Input
+                  value={settingsForm.stripePublishableKey}
+                  onChange={e => setSettingsForm(s => ({ ...s, stripePublishableKey: e.target.value }))}
+                  placeholder="pk_live_…"
+                />
+                <p className="text-xs text-text-tertiary mt-1">Safe to store — this is the public key only.</p>
+              </div>
+              <div className="p-3 bg-surface-elevated rounded-xl border border-yellow-400/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <Key className="w-4 h-4 text-yellow-400" />
+                  <p className="text-sm font-medium text-white">STRIPE_SECRET_KEY</p>
+                  <Badge variant="muted">Env var only</Badge>
+                </div>
+                <p className="text-xs text-text-tertiary">The Stripe secret key must be set as an environment variable in Vercel, never stored here. Go to Vercel → Settings → Environment Variables → add <code className="bg-black/30 px-1 rounded">STRIPE_SECRET_KEY</code>.</p>
+              </div>
+            </div>
+            <Button onClick={handleSaveSettings} loading={savingSettings} fullWidth>Save Stripe Config</Button>
+            <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-accent hover:underline">
+              <ExternalLink className="w-3.5 h-3.5" /> Stripe API Keys Dashboard
+            </a>
+          </Card>
+
+          <Card className="p-5 space-y-4">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Key className="w-4 h-4 text-yellow-400" /> Other API Keys & Secrets
+            </h2>
+            <p className="text-xs text-text-secondary">Must be set as Vercel environment variables.</p>
             <div className="space-y-3">
               <div className="p-3 bg-surface-elevated rounded-xl border border-white/5">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-sm font-medium text-white">OPENAI_API_KEY</p>
-                  <Badge variant="muted">Required for AI features</Badge>
+                  <Badge variant="muted">AI features</Badge>
                 </div>
-                <p className="text-xs text-text-tertiary">Used for food analyzer and AI coaching. Set in Vercel → Settings → Environment Variables.</p>
+                <p className="text-xs text-text-tertiary">Food analyzer, AI program builder, AI notifications.</p>
               </div>
               <div className="p-3 bg-surface-elevated rounded-xl border border-white/5">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-medium text-white">STRIPE_SECRET_KEY</p>
-                  <Badge variant="muted">Required for billing</Badge>
+                  <p className="text-sm font-medium text-white">FIREBASE_PROJECT_ID / CLIENT_EMAIL / PRIVATE_KEY</p>
+                  <Badge variant="muted">Cron jobs</Badge>
                 </div>
-                <p className="text-xs text-text-tertiary">Enables subscription management. Get it from your Stripe dashboard.</p>
+                <p className="text-xs text-text-tertiary">Required for the auto-notification cron processor (Firebase Admin SDK).</p>
               </div>
             </div>
-            <a
-              href="https://vercel.com/dashboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm text-accent hover:underline"
-            >
+            <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-accent hover:underline">
               <ExternalLink className="w-3.5 h-3.5" /> Open Vercel Dashboard
             </a>
           </Card>

@@ -105,9 +105,37 @@ export interface SystemConfig {
   trainerName: string;
   trainerEmail: string;
   themeColor: string;
-  trainerId?: string;         // uid of the primary admin / tenant owner
+  trainerId?: string;
   stripePublishableKey?: string;
   openaiModel?: string;
+  videoGreetingUrl?: string;
+}
+
+export interface Channel {
+  id: string;
+  name: string;
+  description?: string;
+  emoji?: string;
+  createdBy: string;
+  trainerId?: string;
+  photoUploadEnabled: boolean;
+  slowModeDays: 0 | 7 | 21 | 30;
+  postCount: number;
+  createdAt: unknown;
+}
+
+export interface ChannelPost {
+  id: string;
+  channelId: string;
+  userId: string;
+  userDisplayName: string;
+  userPhotoURL?: string;
+  content: string;
+  imageURL?: string;
+  likes: string[];
+  replyCount: number;
+  replyTo?: string | null;
+  createdAt: unknown;
 }
 
 export interface ProgramDay {
