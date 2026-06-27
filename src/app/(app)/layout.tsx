@@ -19,8 +19,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return;
     }
     // Redirect new users to onboarding when flag is explicitly false.
+    // Admins and trainers skip onboarding — they manage the platform.
     // undefined = existing user created before this feature → skip gate.
-    if (profile && profile.onboardingComplete === false && pathname !== '/onboarding') {
+    if (
+      profile &&
+      profile.role !== 'admin' &&
+      profile.role !== 'trainer' &&
+      profile.onboardingComplete === false &&
+      pathname !== '/onboarding'
+    ) {
       router.replace('/onboarding');
     }
   }, [user, profile, loading, router, pathname]);

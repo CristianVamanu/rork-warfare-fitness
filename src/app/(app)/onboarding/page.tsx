@@ -131,7 +131,7 @@ export default function OnboardingPage() {
         experience,
         trainingDays,
         equipment,
-        limitations: limitations.trim() || undefined,
+        ...(limitations.trim() ? { limitations: limitations.trim() } : {}),
       };
       await saveOnboardingData(user.uid, { ...onboardingData, onboardingComplete: true });
 

@@ -4,7 +4,8 @@ export const dynamic = 'force-dynamic';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { LogOut, ChevronRight, Scale, Bell, Shield, Info } from 'lucide-react';
+import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard } from 'lucide-react';
+import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { signOut } from '@/lib/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -130,6 +131,24 @@ export default function SettingsPage() {
             </Card>
           </motion.div>
         ))}
+
+        {/* Admin Panel link — only visible to admins */}
+        {profile?.role === 'admin' && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+            <Link href="/admin">
+              <Card className="flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors border-danger/30">
+                <div className="p-2 bg-danger/10 rounded-lg">
+                  <LayoutDashboard className="w-4 h-4 text-danger" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-white">Admin Panel</p>
+                  <p className="text-xs text-text-secondary">Manage users, programs & platform</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-danger" />
+              </Card>
+            </Link>
+          </motion.div>
+        )}
 
         {/* Sign Out */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
