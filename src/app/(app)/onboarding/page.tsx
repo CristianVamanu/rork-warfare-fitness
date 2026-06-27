@@ -10,12 +10,13 @@ import {
   Home, Building2, Package,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { saveOnboardingData, createAIProgram, enrollInProgram, updateUserGoals } from '@/lib/firestore';
+import { saveOnboardingData, enrollInProgram, updateUserGoals } from '@/lib/firestore';
 import { estimateGoals } from '@/lib/tdee';
+import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, Program } from '@/types';
+import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData } from '@/types';
 
 // ─── Step data ────────────────────────────────────────────────────────────────
 
@@ -77,51 +78,54 @@ export default function OnboardingPage() {
     setStep((s) => Math.max(0, Math.min(TOTAL_STEPS - 1, s + delta)));
   }
 
+  function recommendProgram(): typeof MOCK_PROGRAMS[0] {
+    // Goal → program goal mapping
+    const goalMap: Record<FitnessGoal, string> = {
+      'lose-fat': 'weight-loss',
+      'build-muscle': 'hypertrophy',
+      'recomposition': 'hypertrophy',
+      'strength': 'strength',
+    };
+    const targetGoal = goalMap[goal!];
+
+    // Score each program by how well it matches
+    const scored = MOCK_PROGRAMS.map((p) => {
+      let score = 0;
+      if (p.goal === targetGoal) score += 10;
+      if (p.level === experience) score += 5;
+      // Prefer programs whose daysPerWeek is close to what the user chose
+      score -= Math.abs(p.daysPerWeek - (trainingDays ?? 3));
+      return { p, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0].p;
+  }
+
   async function handleFinish() {
     if (!user || !goal || !experience || !trainingDays || !equipment) return;
     setError(null);
     setStatus('generating');
 
     try {
-      // 1. Call AI to generate program
-      const res = await fetch('/api/ai/recommend-program', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          goal,
-          experience,
-          trainingDays,
-          equipment,
-          limitations: limitations.trim(),
-          trainerId: trainerId ?? user.uid,
-        }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json() as { error?: string };
-        throw new Error(body.error ?? 'Program generation failed');
-      }
-
-      const { program } = await res.json() as { program: Omit<Program, 'id'> };
-
       setStatus('saving');
 
-      // 2. Save program to Firestore
-      const programId = await createAIProgram(program);
+      // 1. Pick the best matching existing program
+      const program = recommendProgram();
 
-      // 3. Enroll user in the program
+      // 2. Enroll user in the program
       await enrollInProgram(user.uid, {
-        id: programId,
+        id: program.id,
         name: program.name,
         weeks: program.weeks,
         daysPerWeek: program.daysPerWeek,
       });
 
-      // 4. Auto-set nutrition goals from TDEE estimate
+      // 3. Auto-set nutrition goals from TDEE estimate
       const estimatedGoals = estimateGoals(goal, experience, trainingDays);
       await updateUserGoals(user.uid, estimatedGoals);
 
-      // 5. Save onboarding answers + mark complete
+      // 4. Save onboarding answers + mark complete
       const onboardingData: OnboardingData = {
         fitnessGoal: goal,
         experience,
@@ -131,7 +135,7 @@ export default function OnboardingPage() {
       };
       await saveOnboardingData(user.uid, { ...onboardingData, onboardingComplete: true });
 
-      // 6. Refresh profile so layout no longer redirects here
+      // 5. Refresh profile so layout no longer redirects here
       setStatus('done');
       await refreshProfile();
       router.replace('/dashboard');
@@ -221,7 +225,7 @@ export default function OnboardingPage() {
             {isGenerating ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {status === 'generating' ? 'Building your program…' : 'Saving…'}
+                {'Setting up your program…'}
               </>
             ) : (
               <>

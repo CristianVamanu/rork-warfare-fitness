@@ -72,9 +72,8 @@ service cloud.firestore {
 
     // ── Programs ──────────────────────────────────────────────────────────
     match /programs/{programId} {
-      allow read:   if isAuthed();
-      allow create: if isAuthed();
-      allow update, delete: if isAdmin();
+      allow read:  if isAuthed();
+      allow write: if isAdmin();
     }
 
     // ── Community posts ───────────────────────────────────────────────────
