@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, CheckCircle, Timer, AlertTriangle, Plus, Minus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { logWorkout } from '@/lib/firestore';
+import { logWorkout, updateUserDoc } from '@/lib/firestore';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -33,7 +33,8 @@ interface ExerciseLog {
 
 export default function WorkoutSessionPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const weightUnit = profile?.weightUnit ?? 'kg';
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [currentSetIdx, setCurrentSetIdx] = useState(0);
   const [logs, setLogs] = useState<ExerciseLog[]>(() =>
@@ -81,7 +82,7 @@ export default function WorkoutSessionPage() {
       const set = { ...next[currentExIdx].sets[currentSetIdx] };
       const val = Math.max(0, set[field] + delta);
       if (field === 'weight' && val > currentEx.maxWeight) {
-        toast.error(`Max weight is ${currentEx.maxWeight}kg`);
+        toast.error(`Max weight is ${currentEx.maxWeight}${weightUnit}`);
         return prev;
       }
       set[field] = val;
@@ -128,16 +129,27 @@ export default function WorkoutSessionPage() {
     setSaving(true);
     try {
       const duration = Math.round((Date.now() - startTime) / 60000);
+      const totalWeightThisSession = logs.reduce(
+        (sum, ex) => sum + ex.sets.filter((s) => s.completed).reduce((s2, s) => s2 + s.weight * s.reps, 0),
+        0
+      );
       await logWorkout({
         userId: user.uid,
         exercises: logs,
         duration,
         calories: Math.round(duration * 8),
       });
+      const currentStats = profile?.stats;
+      await updateUserDoc(user.uid, {
+        'stats.totalWorkouts': (currentStats?.totalWorkouts ?? 0) + 1,
+        'stats.totalWeightLifted': (currentStats?.totalWeightLifted ?? 0) + totalWeightThisSession,
+      });
       toast.success('Workout saved!');
       router.replace('/dashboard');
-    } catch {
-      toast.error('Failed to save workout');
+    } catch (err: unknown) {
+      const e = err as Error & { code?: string };
+      const display = e?.code ? `${e.code}: ${e.message}` : (e?.message || String(err));
+      toast.error(`Failed to save workout: ${display}`, { duration: 8000 });
       setSaving(false);
     }
   };
@@ -203,7 +215,7 @@ export default function WorkoutSessionPage() {
 
               {/* Weight Control */}
               <div>
-                <p className="text-xs text-text-secondary text-center mb-3">WEIGHT (kg)</p>
+                <p className="text-xs text-text-secondary text-center mb-3">WEIGHT ({weightUnit.toUpperCase()})</p>
                 <div className="flex items-center justify-center gap-6">
                   <button
                     onClick={() => updateSet('weight', -2.5)}
@@ -213,7 +225,7 @@ export default function WorkoutSessionPage() {
                   </button>
                   <div className="text-center">
                     <p className="text-5xl font-black text-white w-24 text-center">{currentSet?.weight || 0}</p>
-                    <p className="text-xs text-text-tertiary">kg</p>
+                    <p className="text-xs text-text-tertiary">{weightUnit}</p>
                   </div>
                   <button
                     onClick={() => updateSet('weight', 2.5)}

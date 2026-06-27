@@ -17,8 +17,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [user, profile, loading, router]);
 
-  if (loading) return <FullPageSpinner />;
-  if (!user || (profile && profile.role !== 'admin')) return null;
+  // Show spinner while auth loads OR while user is confirmed but profile hasn't arrived yet
+  if (loading || (user && !profile)) return <FullPageSpinner />;
+  if (!user || !profile || profile.role !== 'admin') return null;
 
   return (
     <div className="min-h-screen bg-background">

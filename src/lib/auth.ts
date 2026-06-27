@@ -6,7 +6,7 @@ import {
   updateProfile,
   User,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 export async function signUp(
@@ -56,11 +56,6 @@ export async function signOut() {
 
 export async function resetPassword(email: string) {
   await sendPasswordResetEmail(auth, email);
-}
-
-export async function getUserProfile(uid: string) {
-  const snap = await getDoc(doc(db, 'users', uid));
-  return snap.exists() ? snap.data() : null;
 }
 
 export async function createAdminUser(

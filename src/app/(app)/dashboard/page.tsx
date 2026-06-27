@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Droplets, Footprints, Zap, Dumbbell, Apple, Thermometer, Plus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTodayWater, getTodayMeals, getUserWorkouts } from '@/lib/firestore';
+import { getTodayWater, getTodayMeals, getUserWorkouts, getUserGoals } from '@/lib/firestore';
 import { getGreeting } from '@/lib/utils';
 import { Card } from '@/components/ui/Card';
 import { Header } from '@/components/layout/Header';
@@ -23,11 +23,14 @@ const stagger = {
   },
 };
 
+const DEFAULT_GOALS = { calories: 2200, water: 3000 };
+
 export default function DashboardPage() {
   const { user, profile } = useAuth();
   const [waterMl, setWaterMl] = useState<number | null>(null);
   const [calories, setCalories] = useState<number | null>(null);
   const [recentWorkouts, setRecentWorkouts] = useState<unknown[]>([]);
+  const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,11 +39,13 @@ export default function DashboardPage() {
       getTodayWater(user.uid),
       getTodayMeals(user.uid),
       getUserWorkouts(user.uid, 5),
-    ]).then(([water, meals, workouts]) => {
+      getUserGoals(user.uid),
+    ]).then(([water, meals, workouts, g]) => {
       setWaterMl(water);
       const cal = (meals as Array<unknown>).reduce((s: number, m) => s + ((m as { calories?: number }).calories || 0), 0);
       setCalories(cal);
       setRecentWorkouts(workouts);
+      setGoals({ calories: g.calories, water: g.water });
     }).catch(console.error).finally(() => setLoading(false));
   }, [user]);
 
@@ -53,7 +58,7 @@ export default function DashboardPage() {
       label: 'Calories',
       value: calories ?? 0,
       unit: 'kcal',
-      max: 2200,
+      max: goals.calories,
       color: 'text-orange-400',
       bg: 'bg-orange-400/10',
     },
@@ -62,7 +67,7 @@ export default function DashboardPage() {
       label: 'Water',
       value: waterMl ? Math.round(waterMl / 100) / 10 : 0,
       unit: 'L',
-      max: 3,
+      max: goals.water / 1000,
       color: 'text-blue-400',
       bg: 'bg-blue-400/10',
     },
