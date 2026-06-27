@@ -32,15 +32,25 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (data: FormData) => {
+    console.log('[Login] Sign-in requested for:', data.email);
     setLoading(true);
     try {
+      console.log('[Login] Calling signIn...');
       await signIn(data.email, data.password);
+      console.log('[Login] signIn succeeded — navigating to /dashboard');
       router.replace('/dashboard');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Invalid credentials';
-      toast.error(msg.includes('user-not-found') || msg.includes('wrong-password')
-        ? 'Invalid email or password'
-        : 'Failed to sign in');
+      const e = err as Error & { code?: string };
+      console.error('[Login] Sign-in FAILED:', {
+        code: e?.code,
+        message: e?.message,
+        stack: e?.stack,
+      });
+      // Show the real Firebase error code + message — never hide it
+      const display = e?.code
+        ? `${e.code}: ${e.message}`
+        : (e?.message || String(err));
+      toast.error(display, { duration: 8000 });
     } finally {
       setLoading(false);
     }

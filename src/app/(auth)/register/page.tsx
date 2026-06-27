@@ -41,13 +41,25 @@ export default function RegisterPage() {
   const weightUnit = watch('weightUnit');
 
   const onSubmit = async (data: FormData) => {
+    console.log('[Register] Sign-up requested — email:', data.email, 'name:', data.name, 'unit:', data.weightUnit);
     setLoading(true);
     try {
+      console.log('[Register] Calling signUp...');
       await signUp(data.email, data.password, data.name, data.weightUnit);
+      console.log('[Register] signUp succeeded — navigating to /dashboard');
       router.replace('/dashboard');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Registration failed';
-      toast.error(msg.includes('email-already-in-use') ? 'Email already in use' : 'Failed to create account');
+      const e = err as Error & { code?: string };
+      console.error('[Register] Sign-up FAILED:', {
+        code: e?.code,
+        message: e?.message,
+        stack: e?.stack,
+      });
+      // Show the real Firebase error code + message — never hide it
+      const display = e?.code
+        ? `${e.code}: ${e.message}`
+        : (e?.message || String(err));
+      toast.error(display, { duration: 8000 });
     } finally {
       setLoading(false);
     }
