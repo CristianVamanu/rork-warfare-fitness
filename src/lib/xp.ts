@@ -5,13 +5,13 @@ export interface LevelTier {
 }
 
 export const LEVEL_TIERS: LevelTier[] = [
-  { min: 0,   title: 'Recruit',    color: 'text-gray-400'   },
-  { min: 10,  title: 'Soldier',    color: 'text-green-400'  },
-  { min: 25,  title: 'Warrior',    color: 'text-blue-400'   },
-  { min: 50,  title: 'Veteran',    color: 'text-purple-400' },
-  { min: 75,  title: 'Elite',      color: 'text-orange-400' },
-  { min: 100, title: 'Legendary',  color: 'text-accent'     },
-  { min: 150, title: 'Immortal',   color: 'text-red-400'    },
+  { min: 0,   title: 'Beginner',   color: 'text-gray-400'   },
+  { min: 10,  title: 'Consistent', color: 'text-green-400'  },
+  { min: 25,  title: 'Focused',    color: 'text-blue-400'   },
+  { min: 50,  title: 'Dedicated',  color: 'text-purple-400' },
+  { min: 75,  title: 'Advanced',   color: 'text-orange-400' },
+  { min: 100, title: 'Expert',     color: 'text-accent'     },
+  { min: 150, title: 'Champion',   color: 'text-red-400'    },
 ];
 
 export function getLevelTier(powerLevel: number): LevelTier {

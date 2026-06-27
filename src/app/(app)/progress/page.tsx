@@ -96,7 +96,7 @@ export default function ProgressPage() {
           <Card className="p-5 bg-gradient-to-br from-surface to-surface-elevated border-accent/20">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-xs text-text-secondary uppercase tracking-wider mb-0.5">Power Level</p>
+                <p className="text-xs text-text-secondary uppercase tracking-wider mb-0.5">Fitness Level</p>
                 <p className={`text-4xl font-black ${tier.color}`}>{powerLevel}</p>
                 <p className={`text-sm font-bold ${tier.color} mt-0.5`}>{tier.title}</p>
               </div>
@@ -197,7 +197,7 @@ export default function ProgressPage() {
           {(['workouts', 'streak', 'power', 'time', 'nutrition'] as const).map((cat) => {
             const catDefs = ACHIEVEMENT_DEFS.filter((d) => d.category === cat);
             const catLabels: Record<string, string> = {
-              workouts: '💪 Workouts', streak: '🔥 Streaks', power: '⚡ Power Level',
+              workouts: '💪 Workouts', streak: '🔥 Streaks', power: '⚡ Fitness Level',
               time: '🕐 Timing', nutrition: '🥗 Nutrition',
             };
             return (

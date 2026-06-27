@@ -39,7 +39,7 @@ export default function ProfilePage() {
   const stats = [
     { icon: Dumbbell, label: 'Workouts', value: profile?.stats?.totalWorkouts ?? 0, color: 'text-purple-400' },
     { icon: Flame, label: 'Streak', value: `${profile?.stats?.streak ?? 0}d`, color: 'text-orange-400' },
-    { icon: Zap, label: 'Power Level', value: profile?.stats?.powerLevel ?? 1, color: 'text-accent' },
+    { icon: Zap, label: 'Fitness Level', value: profile?.stats?.powerLevel ?? 1, color: 'text-accent' },
     { icon: Trophy, label: 'Total kg', value: profile?.stats?.totalWeightLifted ?? 0, color: 'text-yellow-400' },
   ];
 
@@ -59,7 +59,7 @@ export default function ProfilePage() {
                 <Edit2 className="w-3.5 h-3.5 text-black" />
               </button>
             </div>
-            <h2 className="text-xl font-black text-white">{profile?.displayName || 'Warrior'}</h2>
+            <h2 className="text-xl font-black text-white">{profile?.displayName || 'Athlete'}</h2>
             <p className="text-text-secondary text-sm mt-0.5">{user?.email}</p>
             <div className="flex items-center justify-center gap-2 mt-2">
               <Badge variant={profile?.role === 'admin' ? 'danger' : profile?.role === 'trainer' ? 'accent' : 'muted'}>
@@ -86,11 +86,11 @@ export default function ProfilePage() {
           ))}
         </motion.div>
 
-        {/* Power Level Bar */}
+        {/* Fitness Level Bar */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <Card className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-white">Power Level</span>
+              <span className="text-sm font-medium text-white">Fitness Level</span>
               <span className="text-accent font-black">{profile?.stats?.powerLevel ?? 1}</span>
             </div>
             <div className="h-3 bg-white/8 rounded-full overflow-hidden">

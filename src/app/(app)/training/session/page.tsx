@@ -814,7 +814,7 @@ export default function WorkoutSessionPage() {
               >
                 <CheckCircle className="w-16 h-16 text-success mx-auto mb-3" />
               </motion.div>
-              <p className="text-2xl font-black text-white">Beast Mode!</p>
+              <p className="text-2xl font-black text-white">Workout Complete!</p>
               <p className="text-text-secondary text-sm mt-1">
                 {completedSets} sets completed · {Math.round((Date.now() - startTime) / 60000)} min
               </p>

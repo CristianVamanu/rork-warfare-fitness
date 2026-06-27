@@ -25,6 +25,7 @@ import {
   serverTimestamp,
   limit,
   Timestamp,
+  increment,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { UserGoals } from '@/types';
@@ -72,37 +73,42 @@ async function safeGetEvents(
   toTs?: Timestamp,
   limitN?: number
 ) {
-  const build = (compound: boolean) => {
-    const constraints = [
-      where('userId', '==', userId),
-      ...(compound ? [where('type', '==', type)] : []),
-      ...(compound && fromTs ? [where('createdAt', '>=', fromTs), orderBy('createdAt', 'desc')] : []),
-      ...(compound && toTs ? [where('createdAt', '<=', toTs)] : []),
-      ...(!compound ? [orderBy('createdAt', 'desc')] : []),
-      ...(limitN ? [limit(limitN)] : []),
-    ];
-    return query(collection(db, 'events'), ...constraints);
-  };
+  // Compound query — requires deployed composite index
+  const compoundConstraints = [
+    where('userId', '==', userId),
+    where('type', '==', type),
+    ...(fromTs ? [where('createdAt', '>=', fromTs), orderBy('createdAt', 'desc')] : [orderBy('createdAt', 'desc')]),
+    ...(toTs ? [where('createdAt', '<=', toTs)] : []),
+    ...(limitN ? [limit(limitN)] : []),
+  ];
 
   try {
-    return await getDocs(build(true));
+    return await getDocs(query(collection(db, 'events'), ...compoundConstraints));
   } catch (err) {
     const e = err as Error & { code?: string };
     const isIndex = e?.code === 'failed-precondition' || (e?.message ?? '').includes('index');
     if (!isIndex) throw err;
-    console.warn('[Firestore] Composite index missing for events type=' + type + '. Falling back to client-side filter.');
-    const all = await getDocs(build(false));
-    return {
-      size: 0,
-      docs: all.docs.filter((d) => {
-        const data = d.data();
-        if (data.type !== type) return false;
-        const ts = data.createdAt as Timestamp | null;
-        if (fromTs && ts && ts.toMillis() < fromTs.toMillis()) return false;
-        if (toTs && ts && ts.toMillis() > toTs.toMillis()) return false;
-        return true;
-      }),
-    };
+
+    // Fallback: userId-only (auto-indexed by Firestore, no manual index needed)
+    // Filter and sort entirely on the client.
+    console.warn('[Firestore] Missing index for events type=' + type + ' — using client-side filter fallback.');
+    const allSnap = await getDocs(query(collection(db, 'events'), where('userId', '==', userId)));
+    const filtered = allSnap.docs.filter((d) => {
+      const data = d.data();
+      if (data.type !== type) return false;
+      const ts = data.createdAt as Timestamp | null;
+      if (fromTs && ts && ts.toMillis() < fromTs.toMillis()) return false;
+      if (toTs && ts && ts.toMillis() > toTs.toMillis()) return false;
+      return true;
+    });
+    // Sort descending by createdAt client-side
+    filtered.sort((a, b) => {
+      const ta = (a.data().createdAt as Timestamp)?.toMillis() ?? 0;
+      const tb = (b.data().createdAt as Timestamp)?.toMillis() ?? 0;
+      return tb - ta;
+    });
+    if (limitN) filtered.splice(limitN);
+    return { docs: filtered };
   }
 }
 
@@ -494,15 +500,13 @@ export async function unenrollProgram(userId: string) {
 }
 
 export async function incrementProgramWorkouts(userId: string) {
-  const { increment } = await import('firebase/firestore');
   // Check program is still active before incrementing
   const snap = await getDoc(doc(db, 'users', userId));
   if (!snap.exists() || !snap.data()?.activeProgram) return;
-  await setDoc(
-    doc(db, 'users', userId),
-    { 'activeProgram.completedWorkouts': increment(1), lastActive: serverTimestamp() },
-    { merge: true }
-  );
+  await updateDoc(doc(db, 'users', userId), {
+    'activeProgram.completedWorkouts': increment(1),
+    lastActive: serverTimestamp(),
+  });
 }
 
 // ---------------------------------------------------------------------------

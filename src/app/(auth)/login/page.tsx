@@ -68,7 +68,7 @@ export default function LoginPage() {
           <span className="text-2xl font-black text-black">W</span>
         </div>
         <h1 className="text-2xl font-black text-white tracking-tight">Warfare Fitness</h1>
-        <p className="text-text-secondary text-sm mt-1">Welcome back, warrior</p>
+        <p className="text-text-secondary text-sm mt-1">Welcome back</p>
       </div>
 
       <Card glass className="p-6">

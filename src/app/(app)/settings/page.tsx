@@ -144,7 +144,7 @@ export default function SettingsPage() {
         </motion.div>
 
         <p className="text-center text-xs text-text-tertiary pb-4">
-          Warfare Fitness · Built with ❤️ for warriors
+          Warfare Fitness · Built with ❤️ for athletes
         </p>
       </div>
 

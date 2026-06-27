@@ -80,7 +80,7 @@ export default function DashboardPage() {
   }, [user, profile?.statsCache]);
 
   const greeting = getGreeting();
-  const firstName = profile?.displayName?.split(' ')[0] || 'Warrior';
+  const firstName = profile?.displayName?.split(' ')[0] || 'Athlete';
   const streak = profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0;
   const powerLevel = profile?.powerLevel ?? 0;
   const tier = getLevelTier(powerLevel);

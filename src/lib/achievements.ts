@@ -11,21 +11,21 @@ export interface AchievementDef {
 
 export const ACHIEVEMENT_DEFS: AchievementDef[] = [
   // Workout milestones
-  { id: 'first_workout',  icon: '💪', title: 'First Blood',       desc: 'Complete your first workout',     category: 'workouts' },
+  { id: 'first_workout',  icon: '💪', title: 'Day One',           desc: 'Complete your first workout',     category: 'workouts' },
   { id: 'workouts_5',     icon: '🏅', title: 'Getting Serious',   desc: '5 workouts completed',            category: 'workouts' },
   { id: 'workouts_10',    icon: '🥇', title: 'Committed',         desc: '10 workouts completed',           category: 'workouts' },
-  { id: 'workouts_25',    icon: '🏆', title: 'Iron Will',         desc: '25 workouts completed',           category: 'workouts' },
-  { id: 'workouts_50',    icon: '👑', title: 'Warrior',           desc: '50 workouts completed',           category: 'workouts' },
+  { id: 'workouts_25',    icon: '🏆', title: 'Dedicated',         desc: '25 workouts completed',           category: 'workouts' },
+  { id: 'workouts_50',    icon: '👑', title: 'High Achiever',     desc: '50 workouts completed',           category: 'workouts' },
   { id: 'workouts_100',   icon: '💎', title: 'Century Club',      desc: '100 workouts completed',          category: 'workouts' },
   // Streak milestones
   { id: 'streak_3',       icon: '🔥', title: 'On Fire',           desc: '3-day workout streak',            category: 'streak'   },
-  { id: 'streak_7',       icon: '⚡', title: 'Week Warrior',      desc: '7-day streak',                   category: 'streak'   },
-  { id: 'streak_14',      icon: '🌟', title: 'Fortnight Force',   desc: '14-day streak',                  category: 'streak'   },
-  { id: 'streak_30',      icon: '🔱', title: 'Iron Discipline',   desc: '30-day streak',                  category: 'streak'   },
+  { id: 'streak_7',       icon: '⚡', title: 'Week Strong',       desc: '7-day streak',                   category: 'streak'   },
+  { id: 'streak_14',      icon: '🌟', title: 'Two Weeks In',      desc: '14-day streak',                  category: 'streak'   },
+  { id: 'streak_30',      icon: '🔱', title: '30-Day Streak',     desc: '30 days of consistent training', category: 'streak'   },
   // Power level milestones
   { id: 'power_10',       icon: '🚀', title: 'Power Rising',      desc: 'Reach Power Level 10',           category: 'power'    },
-  { id: 'power_50',       icon: '⚔️', title: 'Power House',      desc: 'Reach Power Level 50',           category: 'power'    },
-  { id: 'power_100',      icon: '🌊', title: 'Elite Warrior',     desc: 'Reach Power Level 100',          category: 'power'    },
+  { id: 'power_50',       icon: '⭐', title: 'Peak Performance',  desc: 'Reach Power Level 50',           category: 'power'    },
+  { id: 'power_100',      icon: '🌊', title: 'High Achiever',     desc: 'Reach Power Level 100',          category: 'power'    },
   // Time of day
   { id: 'early_bird',     icon: '🌅', title: 'Early Bird',        desc: 'Complete a workout before 7am',  category: 'time'     },
   { id: 'night_owl',      icon: '🦉', title: 'Night Owl',         desc: 'Complete a workout after 9pm',   category: 'time'     },
