@@ -271,25 +271,36 @@ export default function AdminPage() {
     if (!user || !channelForm.name.trim()) return;
     setSavingChannel(true);
     try {
+      const token = await user.getIdToken();
       if (editingChannel) {
-        await updateChannel(editingChannel.id, {
-          name: channelForm.name.trim(),
-          description: channelForm.description.trim() || undefined,
-          emoji: channelForm.emoji.trim() || undefined,
-          photoUploadEnabled: channelForm.photoUploadEnabled,
-          slowModeDays: channelForm.slowModeDays,
+        const res = await fetch('/api/admin/channels', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            id: editingChannel.id,
+            name: channelForm.name.trim(),
+            description: channelForm.description.trim() || null,
+            emoji: channelForm.emoji.trim() || null,
+            photoUploadEnabled: channelForm.photoUploadEnabled,
+            slowModeDays: channelForm.slowModeDays,
+          }),
         });
+        if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? 'Failed');
         toast.success('Channel updated');
       } else {
-        await createChannel({
-          name: channelForm.name.trim(),
-          description: channelForm.description.trim() || undefined,
-          emoji: channelForm.emoji.trim() || undefined,
-          createdBy: user.uid,
-          trainerId: profile?.trainerId ?? user.uid,
-          photoUploadEnabled: channelForm.photoUploadEnabled,
-          slowModeDays: channelForm.slowModeDays,
+        const res = await fetch('/api/admin/channels', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            name: channelForm.name.trim(),
+            description: channelForm.description.trim() || null,
+            emoji: channelForm.emoji.trim() || null,
+            trainerId: profile?.trainerId ?? user.uid,
+            photoUploadEnabled: channelForm.photoUploadEnabled,
+            slowModeDays: channelForm.slowModeDays,
+          }),
         });
+        if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? 'Failed');
         toast.success('Channel created');
       }
       setShowChannelForm(false);
@@ -303,7 +314,13 @@ export default function AdminPage() {
   async function handleDeleteChannel(ch: Channel) {
     if (!confirm(`Delete #${ch.name}? All posts will be lost.`)) return;
     try {
-      await deleteChannel(ch.id);
+      const token = await user!.getIdToken();
+      const res = await fetch('/api/admin/channels', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ id: ch.id }),
+      });
+      if (!res.ok) throw new Error();
       setChannels(prev => prev.filter(c => c.id !== ch.id));
       toast.success('Channel deleted');
     } catch { toast.error('Failed to delete channel'); }
