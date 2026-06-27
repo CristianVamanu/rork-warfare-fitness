@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, XCircle, Loader2, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -18,9 +18,21 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import type { MembershipConfig } from '@/types';
 
+// Separate component so useSearchParams doesn't block the page render
+function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('subscribed') === '1') {
+      toast.success('Membership activated! Welcome aboard 🎉');
+      onSuccess();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+}
+
 export default function ProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
-  const searchParams = useSearchParams();
   const [editModal, setEditModal] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.displayName || '');
   const [saving, setSaving] = useState(false);
@@ -35,14 +47,6 @@ export default function ProfilePage() {
       .catch(() => {});
     getMembershipConfig().then(setMembershipConfig).catch(() => {});
   }, [user]);
-
-  // Show success toast if redirected back from Stripe
-  useEffect(() => {
-    if (searchParams.get('subscribed') === '1') {
-      toast.success('Membership activated! Welcome aboard 🎉');
-      refreshProfile();
-    }
-  }, [searchParams, refreshProfile]);
 
   const handleSave = async () => {
     if (!user || !displayName.trim()) return;
@@ -117,10 +121,14 @@ export default function ProfilePage() {
     { icon: Trophy, label: 'Total kg', value: profile?.currentWeightKg ?? profile?.stats?.totalWeightLifted ?? 0, color: 'text-yellow-400' },
   ];
 
-  const showMembershipSection = membershipConfig?.enabled && profile?.role === 'user';
+  // Show membership to all non-admin/trainer users, and also to admin so they can see what users see
+  const showMembershipSection = !!membershipConfig?.enabled;
 
   return (
     <div>
+      <Suspense fallback={null}>
+        <SubscribeSuccessHandler onSuccess={refreshProfile} />
+      </Suspense>
       <Header title="Profile" />
       <div className="px-4 py-4 space-y-5">
         {/* Profile Card */}

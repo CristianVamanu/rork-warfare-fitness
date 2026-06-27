@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { getPrograms, getProgram, getHiddenMockIds } from '@/lib/firestore';
 import { MOCK_PROGRAMS, getMockProgram } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
@@ -37,6 +38,7 @@ function getTodayDow(): number {
 
 export default function TrainingPage() {
   const { profile } = useAuth();
+  const router = useRouter();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
@@ -111,19 +113,17 @@ export default function TrainingPage() {
               </div>
               <div className="flex gap-2 mt-4">
                 {todayDay && !todayDay.isRest ? (
-                  <Link href={`/training/session?programId=${activeProgram.programId}&dow=${todayDow}`}>
-                    <Button size="sm">
-                      <Play className="w-4 h-4" /> Start Today&apos;s Workout
-                    </Button>
-                  </Link>
+                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${todayDow}`)}>
+                    <Play className="w-4 h-4" /> Start Today&apos;s Workout
+                  </Button>
                 ) : (
                   <div className="flex items-center gap-2 text-sm text-text-secondary">
                     <Moon className="w-4 h-4" /> Rest day — recover well
                   </div>
                 )}
-                <Link href={`/training/${activeProgram.programId}`}>
-                  <Button size="sm" variant="secondary">View Program</Button>
-                </Link>
+                <Button size="sm" variant="secondary" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
+                  View Program
+                </Button>
               </div>
             </Card>
           ) : (
