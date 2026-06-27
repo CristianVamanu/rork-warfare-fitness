@@ -2,17 +2,18 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
-  MessageSquare, Plus, Edit2, Trash2, Send, ChevronLeft, Ban, UserCheck, X,
-  Key, ExternalLink,
+  MessageSquare, Send, ChevronLeft, Ban, UserCheck,
+  Key, ExternalLink, Sparkles,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
-  getSystemConfig, setSystemConfig, getAllPrograms, createProgram, updateProgram, deleteProgram,
-  enrollInProgram, banUser, unbanUser, getAllUsers,
+  getSystemConfig, setSystemConfig,
+  banUser, unbanUser, getAllUsers,
   getAdminConversations, getOrCreateConversation, getMessages, sendMessage, markConversationRead,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,10 +21,9 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Modal } from '@/components/ui/Modal';
 import { Skeleton } from '@/components/ui/Skeleton';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, Program } from '@/types';
+import type { Conversation, Message } from '@/types';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'settings';
 
@@ -39,23 +39,8 @@ interface UserData {
   createdAt?: unknown;
 }
 
-interface ProgramForm {
-  name: string;
-  description: string;
-  level: 'beginner' | 'intermediate' | 'advanced';
-  goal: 'strength' | 'hypertrophy' | 'endurance' | 'weight-loss' | 'general';
-  weeks: number;
-  daysPerWeek: number;
-  isPublic: boolean;
-  exercises: { name: string; sets: number; reps: string; restSeconds: number; muscleGroup: string }[];
-}
-
-const emptyProgram = (): ProgramForm => ({
-  name: '', description: '', level: 'beginner', goal: 'general',
-  weeks: 8, daysPerWeek: 3, isPublic: true, exercises: [],
-});
-
 export default function AdminPage() {
+  const router = useRouter();
   const { user, profile, tenant } = useAuth();
   const [tab, setTab] = useState<Tab>('overview');
 
@@ -66,18 +51,8 @@ export default function AdminPage() {
   const [workoutsToday, setWorkoutsToday] = useState(0);
   const [overviewLoading, setOverviewLoading] = useState(true);
 
-  // ── Programs state ─────────────────────────────────────────────────────────
-  const [programs, setPrograms] = useState<(Program & { _firestoreId?: string })[]>([]);
-  const [programsLoading, setProgramsLoading] = useState(false);
-  const [programModal, setProgramModal] = useState<'create' | 'edit' | null>(null);
-  const [editingProgram, setEditingProgram] = useState<(Program & { _firestoreId?: string }) | null>(null);
-  const [programForm, setProgramForm] = useState<ProgramForm>(emptyProgram());
-  const [savingProgram, setSavingProgram] = useState(false);
-
   // ── Clients state ──────────────────────────────────────────────────────────
   const [clientsLoading, setClientsLoading] = useState(false);
-  const [assignModal, setAssignModal] = useState<UserData | null>(null);
-  const [assigningProgram, setAssigningProgram] = useState(false);
   const [banningUser, setBanningUser] = useState<string | null>(null);
 
   // ── Messages state ─────────────────────────────────────────────────────────
@@ -102,7 +77,7 @@ export default function AdminPage() {
     Promise.all([
       getAllUsers().catch(() => [] as UserData[]),
       getSystemConfig(),
-      getAllPrograms().catch(() => []),
+      Promise.resolve([]), // programs count loaded separately
       trainerId
         ? getDocs(query(collection(db, 'events'),
             where('trainerId', '==', trainerId),
@@ -130,19 +105,9 @@ export default function AdminPage() {
 
   // ── Tab loaders ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (tab === 'programs' && programs.length === 0) loadPrograms();
     if (tab === 'clients' && users.length === 0) loadUsers();
     if (tab === 'messages' && conversations.length === 0) loadConversations();
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function loadPrograms() {
-    setProgramsLoading(true);
-    try {
-      const progs = await getAllPrograms();
-      setPrograms(progs as (Program & { _firestoreId?: string })[]);
-    } catch { toast.error('Failed to load programs'); }
-    finally { setProgramsLoading(false); }
-  }
 
   async function loadUsers() {
     setClientsLoading(true);
@@ -200,50 +165,6 @@ export default function AdminPage() {
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     } catch { toast.error('Failed to send message'); setMsgText(text); }
     finally { setSendingMsg(false); }
-  }
-
-  async function handleSaveProgram() {
-    if (!user || !programForm.name.trim()) return;
-    setSavingProgram(true);
-    try {
-      const data = {
-        ...programForm,
-        exercises: programForm.exercises.map((e, i) => ({ ...e, id: `ex-${i}` })),
-        createdBy: user.uid,
-        trainerId: user.uid,
-      };
-      if (programModal === 'create') {
-        await createProgram(data);
-        toast.success('Program created');
-      } else if (editingProgram?.id) {
-        await updateProgram(editingProgram.id, data);
-        toast.success('Program updated');
-      }
-      await loadPrograms();
-      setProgramModal(null);
-    } catch { toast.error('Failed to save program'); }
-    finally { setSavingProgram(false); }
-  }
-
-  async function handleDeleteProgram(p: Program) {
-    if (!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
-    try {
-      await deleteProgram(p.id);
-      toast.success('Program deleted');
-      await loadPrograms();
-    } catch { toast.error('Failed to delete program'); }
-  }
-
-  async function handleAssignProgram(p: Program) {
-    if (!assignModal) return;
-    setAssigningProgram(true);
-    try {
-      await enrollInProgram(assignModal.id, { id: p.id, name: p.name, weeks: p.weeks, daysPerWeek: p.daysPerWeek });
-      toast.success(`Assigned "${p.name}" to ${assignModal.displayName}`);
-      setAssignModal(null);
-      await loadUsers();
-    } catch { toast.error('Failed to assign program'); }
-    finally { setAssigningProgram(false); }
   }
 
   async function handleBanToggle(u: UserData) {
@@ -383,54 +304,21 @@ export default function AdminPage() {
       {/* ── Programs ──────────────────────────────────────────────────────────── */}
       {tab === 'programs' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-text-secondary text-sm">{programs.length} program{programs.length !== 1 ? 's' : ''}</p>
-            <Button size="sm" onClick={() => { setProgramForm(emptyProgram()); setEditingProgram(null); setProgramModal('create'); }}>
-              <Plus className="w-3.5 h-3.5" /> New Program
-            </Button>
-          </div>
-
-          {programsLoading ? (
-            <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
-          ) : programs.length === 0 ? (
-            <Card className="p-8 text-center">
-              <Dumbbell className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
-              <p className="text-text-secondary text-sm">No programs yet. Create one to get started.</p>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {programs.map((p) => (
-                <Card key={p.id} className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-bold text-white">{p.name}</p>
-                        <Badge variant="muted">{p.level}</Badge>
-                        <Badge variant="muted">{p.goal}</Badge>
-                        {p.isPublic && <Badge variant="accent">Public</Badge>}
-                      </div>
-                      <p className="text-xs text-text-secondary mt-0.5 line-clamp-1">{p.description}</p>
-                      <p className="text-xs text-text-tertiary mt-1">{p.weeks}w · {p.daysPerWeek}d/wk · {p.exercises?.length ?? 0} exercises</p>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => { setEditingProgram(p); setProgramForm({ name: p.name, description: p.description, level: p.level, goal: p.goal, weeks: p.weeks, daysPerWeek: p.daysPerWeek, isPublic: p.isPublic, exercises: p.exercises?.map(e => ({ name: e.name, sets: e.sets, reps: String(e.reps), restSeconds: e.restSeconds, muscleGroup: e.muscleGroup || '' })) || [] }); setProgramModal('edit'); }}
-                        className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-secondary hover:text-white"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteProgram(p)}
-                        className="p-2 rounded-lg hover:bg-danger/10 transition-colors text-text-secondary hover:text-danger"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
+          <Card className="p-6 text-center border-accent/20 bg-accent/5">
+            <Dumbbell className="w-10 h-10 text-accent mx-auto mb-3" />
+            <h3 className="text-white font-bold mb-1">AI-Powered Program Builder</h3>
+            <p className="text-text-secondary text-sm mb-4">
+              Describe a program in plain text — AI generates a complete weekly schedule with exercises, sets, reps, RPE, and rest times. You review and edit everything before publishing.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button onClick={() => router.push('/admin/programs/builder')}>
+                <Sparkles className="w-4 h-4" /> Create with AI
+              </Button>
+              <Button variant="secondary" onClick={() => router.push('/admin/programs')}>
+                View All Programs
+              </Button>
             </div>
-          )}
+          </Card>
         </div>
       )}
 
@@ -473,8 +361,8 @@ export default function AdminPage() {
                       >
                         <MessageSquare className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => { setProgramForm(emptyProgram()); setAssignModal(u); }}
+                                      <button
+                        onClick={() => router.push('/admin/programs')}
                         title="Assign Program"
                         className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-secondary hover:text-white"
                       >
@@ -545,7 +433,7 @@ export default function AdminPage() {
               <div className="flex items-center justify-between">
                 <p className="text-text-secondary text-sm">{conversations.length} conversation{conversations.length !== 1 ? 's' : ''}</p>
                 <Button size="sm" variant="ghost" onClick={() => setTab('clients')}>
-                  <Plus className="w-3.5 h-3.5" /> Start new (via Clients tab)
+                  Start new (via Clients tab)
                 </Button>
               </div>
               {convsLoading ? (
@@ -646,124 +534,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ── Program create/edit modal ─────────────────────────────────────────── */}
-      <Modal open={!!programModal} onClose={() => setProgramModal(null)} title={programModal === 'create' ? 'New Program' : 'Edit Program'}>
-        <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
-          <div>
-            <label className="text-xs text-text-secondary mb-1 block">Program Name *</label>
-            <Input value={programForm.name} onChange={e => setProgramForm(s => ({ ...s, name: e.target.value }))} placeholder="e.g. 12-Week Strength Builder" />
-          </div>
-          <div>
-            <label className="text-xs text-text-secondary mb-1 block">Description</label>
-            <textarea
-              value={programForm.description}
-              onChange={e => setProgramForm(s => ({ ...s, description: e.target.value }))}
-              placeholder="What this program is about…"
-              rows={2}
-              className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-text-secondary mb-1 block">Level</label>
-              <select value={programForm.level} onChange={e => setProgramForm(s => ({ ...s, level: e.target.value as ProgramForm['level'] }))} className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
-                <option value="beginner">Beginner</option>
-                <option value="intermediate">Intermediate</option>
-                <option value="advanced">Advanced</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-text-secondary mb-1 block">Goal</label>
-              <select value={programForm.goal} onChange={e => setProgramForm(s => ({ ...s, goal: e.target.value as ProgramForm['goal'] }))} className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
-                <option value="general">General</option>
-                <option value="strength">Strength</option>
-                <option value="hypertrophy">Hypertrophy</option>
-                <option value="weight-loss">Weight Loss</option>
-                <option value="endurance">Endurance</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-text-secondary mb-1 block">Weeks</label>
-              <Input type="number" value={programForm.weeks} onChange={e => setProgramForm(s => ({ ...s, weeks: Number(e.target.value) }))} min={1} max={52} />
-            </div>
-            <div>
-              <label className="text-xs text-text-secondary mb-1 block">Days/Week</label>
-              <Input type="number" value={programForm.daysPerWeek} onChange={e => setProgramForm(s => ({ ...s, daysPerWeek: Number(e.target.value) }))} min={1} max={7} />
-            </div>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={programForm.isPublic} onChange={e => setProgramForm(s => ({ ...s, isPublic: e.target.checked }))} className="rounded" />
-            <span className="text-sm text-white">Public (visible to all users)</span>
-          </label>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs text-text-secondary">Exercises ({programForm.exercises.length})</label>
-              <button
-                onClick={() => setProgramForm(s => ({ ...s, exercises: [...s.exercises, { name: '', sets: 3, reps: '8-12', restSeconds: 60, muscleGroup: '' }] }))}
-                className="text-xs text-accent hover:underline"
-              >
-                + Add Exercise
-              </button>
-            </div>
-            <div className="space-y-2">
-              {programForm.exercises.map((ex, i) => (
-                <div key={i} className="p-3 bg-surface-elevated rounded-xl space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Input value={ex.name} onChange={e => setProgramForm(s => ({ ...s, exercises: s.exercises.map((x, j) => j === i ? { ...x, name: e.target.value } : x) }))} placeholder="Exercise name" className="flex-1" />
-                    <button onClick={() => setProgramForm(s => ({ ...s, exercises: s.exercises.filter((_, j) => j !== i) }))} className="p-1.5 text-danger hover:bg-danger/10 rounded-lg">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-[10px] text-text-tertiary">Sets</label>
-                      <Input type="number" value={ex.sets} onChange={e => setProgramForm(s => ({ ...s, exercises: s.exercises.map((x, j) => j === i ? { ...x, sets: Number(e.target.value) } : x) }))} min={1} />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-text-tertiary">Reps</label>
-                      <Input value={ex.reps} onChange={e => setProgramForm(s => ({ ...s, exercises: s.exercises.map((x, j) => j === i ? { ...x, reps: e.target.value } : x) }))} placeholder="8-12" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-text-tertiary">Rest (s)</label>
-                      <Input type="number" value={ex.restSeconds} onChange={e => setProgramForm(s => ({ ...s, exercises: s.exercises.map((x, j) => j === i ? { ...x, restSeconds: Number(e.target.value) } : x) }))} min={0} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <Button fullWidth onClick={handleSaveProgram} loading={savingProgram} disabled={!programForm.name.trim()}>
-            {programModal === 'create' ? 'Create Program' : 'Save Changes'}
-          </Button>
-        </div>
-      </Modal>
-
-      {/* ── Assign program modal ──────────────────────────────────────────────── */}
-      <Modal open={!!assignModal} onClose={() => setAssignModal(null)} title={`Assign Program — ${assignModal?.displayName}`}>
-        <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-          {programs.length === 0 && (
-            <p className="text-text-secondary text-sm text-center py-4">No programs available. Create one first.</p>
-          )}
-          {programs.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => handleAssignProgram(p)}
-              disabled={assigningProgram}
-              className="w-full text-left p-3 bg-surface-elevated rounded-xl hover:bg-white/5 transition-colors"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-white">{p.name}</p>
-                  <p className="text-xs text-text-secondary">{p.level} · {p.goal} · {p.weeks}w · {p.daysPerWeek}d/wk</p>
-                </div>
-                <CheckCircle className="w-4 h-4 text-text-tertiary" />
-              </div>
-            </button>
-          ))}
-        </div>
-      </Modal>
     </div>
   );
 }
