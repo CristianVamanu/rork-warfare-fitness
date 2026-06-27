@@ -382,26 +382,15 @@ export async function getUserWorkouts(userId: string, limitCount = 10) {
 // Programs — scoped by trainerId when provided
 // ---------------------------------------------------------------------------
 export async function getPrograms(trainerId?: string) {
+  // Use collection scan + client-side filter to avoid requiring composite Firestore indexes
+  const snap = await getDocs(collection(db, 'programs'));
+  const all = snap.docs.map((d) => ({ id: d.id, ...d.data() as Record<string, unknown> }));
   if (trainerId) {
-    return runQuery('programs:byTrainer', async () => {
-      const q = query(
-        collection(db, 'programs'),
-        where('trainerId', '==', trainerId),
-        orderBy('name')
-      );
-      const snap = await getDocs(q);
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    });
+    return all.filter((p) => p.trainerId === trainerId).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   }
-  return runQuery('programs:public', async () => {
-    const q = query(
-      collection(db, 'programs'),
-      where('isPublic', '==', true),
-      orderBy('name')
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  });
+  return all
+    .filter((p) => p.isPublic === true || p.visibility === 'public')
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 
 export async function getProgram(id: string) {

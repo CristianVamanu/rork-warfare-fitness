@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Dumbbell, Play, Clock, Target, ChevronRight, Moon } from 'lucide-react';
 import Link from 'next/link';
-import { getPrograms } from '@/lib/firestore';
+import { getPrograms, getProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS, getMockProgram } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
@@ -44,17 +44,34 @@ export default function TrainingPage() {
   const activeProgram = profile?.activeProgram;
   const todayDow = getTodayDow();
 
-  // Get today's workout label for the active program
-  const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
-  const todayDay = activeMock?.schedule?.[todayDow] ?? null;
+  const [todayDay, setTodayDay] = useState<{ label: string; isRest: boolean } | null>(null);
   const pct = activeProgram
     ? Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100)
     : 0;
 
+  // Resolve today's schedule from Firestore program first, then fall back to mock
+  useEffect(() => {
+    if (!activeProgram) { setTodayDay(null); return; }
+    const mock = getMockProgram(activeProgram.programId);
+    if (mock?.schedule?.[todayDow]) {
+      setTodayDay(mock.schedule[todayDow]);
+      return;
+    }
+    getProgram(activeProgram.programId)
+      .then((p) => {
+        const day = (p as Program | null)?.schedule?.[todayDow];
+        setTodayDay(day ?? null);
+      })
+      .catch(() => setTodayDay(null));
+  }, [activeProgram, todayDow]);
+
   useEffect(() => {
     getPrograms()
-      .then((p) => {
-        setPrograms(p.length > 0 ? (p as Program[]) : MOCK_PROGRAMS);
+      .then((firestoreProgs) => {
+        const fp = firestoreProgs as Program[];
+        const fpIds = new Set(fp.map((p) => p.id));
+        const mocks = MOCK_PROGRAMS.filter((m) => !fpIds.has(m.id));
+        setPrograms([...fp, ...mocks as Program[]]);
       })
       .catch(() => setPrograms(MOCK_PROGRAMS))
       .finally(() => setLoading(false));
