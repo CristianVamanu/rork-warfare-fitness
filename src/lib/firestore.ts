@@ -382,16 +382,16 @@ export async function getUserWorkouts(userId: string, limitCount = 10) {
 // Programs — scoped by trainerId when provided
 // ---------------------------------------------------------------------------
 export async function getPrograms(trainerId?: string) {
-  // Use collection scan + client-side filter to avoid requiring composite Firestore indexes
+  // Full collection scan + client-side filter avoids composite index requirement
   const snap = await getDocs(collection(db, 'programs'));
-  type ProgramDoc = Record<string, unknown> & { id: string };
-  const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ProgramDoc);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const all: any[] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   if (trainerId) {
-    return all.filter((p) => p['trainerId'] === trainerId).sort((a, b) => String(a['name']).localeCompare(String(b['name'])));
+    return all.filter((p) => p.trainerId === trainerId).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   }
   return all
-    .filter((p) => p['isPublic'] === true || p['visibility'] === 'public')
-    .sort((a, b) => String(a['name']).localeCompare(String(b['name'])));
+    .filter((p) => p.isPublic === true || p.visibility === 'public')
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 
 export async function getProgram(id: string) {
@@ -701,6 +701,68 @@ export async function markConversationRead(convId: string, isAdmin: boolean) {
   await updateDoc(doc(db, 'conversations', convId), {
     ...(isAdmin ? { unreadByAdmin: false } : { unreadByUser: false }),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+import type { AppNotification, NotificationConfig } from '@/types';
+
+export async function sendNotification(data: {
+  userId: string;
+  trainerId?: string;
+  title: string;
+  body: string;
+  type: AppNotification['type'];
+}) {
+  await addDoc(collection(db, 'notifications'), {
+    ...data,
+    read: false,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function sendNotificationToAll(userIds: string[], data: {
+  trainerId?: string;
+  title: string;
+  body: string;
+  type: AppNotification['type'];
+}) {
+  await Promise.all(userIds.map((uid) => sendNotification({ ...data, userId: uid })));
+}
+
+export async function getUserNotifications(userId: string): Promise<AppNotification[]> {
+  const snap = await getDocs(
+    query(collection(db, 'notifications'), where('userId', '==', userId), orderBy('createdAt', 'desc'), limit(50))
+  );
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as AppNotification);
+}
+
+export async function markNotificationRead(notifId: string) {
+  await updateDoc(doc(db, 'notifications', notifId), { read: true });
+}
+
+export async function markAllNotificationsRead(userId: string) {
+  const snap = await getDocs(
+    query(collection(db, 'notifications'), where('userId', '==', userId), where('read', '==', false))
+  );
+  await Promise.all(snap.docs.map((d) => updateDoc(d.ref, { read: true })));
+}
+
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  const snap = await getDocs(
+    query(collection(db, 'notifications'), where('userId', '==', userId), where('read', '==', false))
+  );
+  return snap.size;
+}
+
+export async function getNotificationConfig(): Promise<NotificationConfig | null> {
+  const snap = await getDoc(doc(db, 'config', 'notifications'));
+  return snap.exists() ? (snap.data() as NotificationConfig) : null;
+}
+
+export async function saveNotificationConfig(data: Partial<NotificationConfig>) {
+  await setDoc(doc(db, 'config', 'notifications'), data, { merge: true });
 }
 
 // ---------------------------------------------------------------------------

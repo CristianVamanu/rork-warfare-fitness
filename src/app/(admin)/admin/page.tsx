@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
-  Key, ExternalLink, Sparkles,
+  Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -16,6 +16,7 @@ import {
   banUser, unbanUser, getAllUsers,
   getAdminConversations, getOrCreateConversation, getMessages, sendMessage, markConversationRead,
   getMembershipConfig, saveMembershipConfig, setUserMembership,
+  sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -24,9 +25,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig } from '@/types';
+import type { Conversation, Message, MembershipConfig, NotificationConfig } from '@/types';
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'membership' | 'settings';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'notifications' | 'membership' | 'settings';
 
 interface UserData {
   id: string;
@@ -78,6 +79,19 @@ export default function AdminPage() {
   const [savingMembership, setSavingMembership] = useState(false);
   const [togglingMember, setTogglingMember] = useState<string | null>(null);
 
+  // ── Notifications state ────────────────────────────────────────────────────
+  const DEFAULT_NOTIF_CONFIG: NotificationConfig = {
+    rules: { missed_workout: false, streak_reminder: false },
+    aiMotivationEnabled: false,
+    aiMotivationSchedule: 'daily',
+  };
+  const [notifConfig, setNotifConfig] = useState<NotificationConfig>(DEFAULT_NOTIF_CONFIG);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [savingNotifConfig, setSavingNotifConfig] = useState(false);
+  const [manualNotif, setManualNotif] = useState({ title: '', body: '', target: 'all' as 'all' | string });
+  const [sendingNotif, setSendingNotif] = useState(false);
+  const [processingCron, setProcessingCron] = useState(false);
+
   // ── Initial load ────────────────────────────────────────────────────────────
   useEffect(() => {
     const trainerId = profile?.trainerId;
@@ -117,6 +131,7 @@ export default function AdminPage() {
     if (tab === 'clients' && users.length === 0) loadUsers();
     if (tab === 'messages' && conversations.length === 0) loadConversations();
     if (tab === 'membership') loadMembership();
+    if (tab === 'notifications') loadNotifConfig();
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadUsers() {
@@ -230,6 +245,67 @@ export default function AdminPage() {
     }));
   }
 
+  async function loadNotifConfig() {
+    setNotifLoading(true);
+    try {
+      const cfg = await getNotificationConfig();
+      if (cfg) setNotifConfig(cfg);
+    } catch { /* use defaults */ }
+    finally { setNotifLoading(false); }
+  }
+
+  async function handleSaveNotifConfig() {
+    setSavingNotifConfig(true);
+    try {
+      await saveNotificationConfig(notifConfig);
+      toast.success('Auto-notification rules saved');
+    } catch { toast.error('Failed to save'); }
+    finally { setSavingNotifConfig(false); }
+  }
+
+  async function handleSendManualNotif() {
+    if (!manualNotif.title.trim() || !manualNotif.body.trim() || !user) return;
+    setSendingNotif(true);
+    try {
+      if (manualNotif.target === 'all') {
+        const userIds = clients.map(c => c.id);
+        await sendNotificationToAll(userIds, {
+          trainerId: user.uid,
+          title: manualNotif.title.trim(),
+          body: manualNotif.body.trim(),
+          type: 'manual',
+        });
+        toast.success(`Sent to ${userIds.length} clients`);
+      } else {
+        await sendNotification({
+          userId: manualNotif.target,
+          trainerId: user.uid,
+          title: manualNotif.title.trim(),
+          body: manualNotif.body.trim(),
+          type: 'manual',
+        });
+        const name = clients.find(c => c.id === manualNotif.target)?.displayName || 'client';
+        toast.success(`Sent to ${name}`);
+      }
+      setManualNotif(m => ({ ...m, title: '', body: '' }));
+    } catch { toast.error('Failed to send notification'); }
+    finally { setSendingNotif(false); }
+  }
+
+  async function handleRunCronNow() {
+    setProcessingCron(true);
+    try {
+      const res = await fetch('/api/notifications/process', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Auto-notifications processed — ${data.sent?.length ?? 0} sent`);
+      } else {
+        toast.error(data.error || 'Processing failed');
+      }
+    } catch { toast.error('Failed to run'); }
+    finally { setProcessingCron(false); }
+  }
+
   async function handleSaveSettings() {
     setSavingSettings(true);
     try {
@@ -247,6 +323,7 @@ export default function AdminPage() {
     { id: 'programs', label: 'Programs', icon: Dumbbell },
     { id: 'clients', label: 'Clients', icon: Users },
     { id: 'messages', label: 'Messages', icon: MessageSquare },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'membership', label: 'Membership', icon: CreditCard },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -517,6 +594,154 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Notifications ────────────────────────────────────────────────────── */}
+      {tab === 'notifications' && (
+        <div className="space-y-5">
+          {notifLoading ? (
+            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+          ) : (
+            <>
+              {/* Manual push */}
+              <Card className="p-5 space-y-4">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-accent" /> Send Notification
+                </h2>
+                <div>
+                  <label className="text-xs text-text-secondary mb-1 block">Recipient</label>
+                  <select
+                    value={manualNotif.target}
+                    onChange={e => setManualNotif(m => ({ ...m, target: e.target.value }))}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                  >
+                    <option value="all">All clients ({clients.length})</option>
+                    {clients.map(c => (
+                      <option key={c.id} value={c.id}>{c.displayName || c.email}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-text-secondary mb-1 block">Title</label>
+                  <Input
+                    value={manualNotif.title}
+                    onChange={e => setManualNotif(m => ({ ...m, title: e.target.value }))}
+                    placeholder="e.g. New program available!"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-text-secondary mb-1 block">Message</label>
+                  <textarea
+                    value={manualNotif.body}
+                    onChange={e => setManualNotif(m => ({ ...m, body: e.target.value }))}
+                    placeholder="Write your message…"
+                    rows={3}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                  />
+                </div>
+                <Button
+                  onClick={handleSendManualNotif}
+                  loading={sendingNotif}
+                  disabled={!manualNotif.title.trim() || !manualNotif.body.trim()}
+                  fullWidth
+                >
+                  <Send className="w-4 h-4" /> Send Now
+                </Button>
+              </Card>
+
+              {/* Auto-notification rules */}
+              <Card className="p-5 space-y-4">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 text-accent" /> Auto-Notification Rules
+                </h2>
+                <p className="text-xs text-text-secondary">
+                  These run automatically every day at 8 AM UTC via Vercel cron.
+                  Requires Firebase Admin SDK env vars (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY).
+                </p>
+
+                {[
+                  { id: 'missed_workout', label: 'Missed Workout', desc: 'Notify users who haven\'t logged a workout in 24h while on an active program', icon: Dumbbell, color: 'text-yellow-400' },
+                  { id: 'streak_reminder', label: 'Streak Celebration', desc: 'Remind users with an active streak to keep going', icon: Flame, color: 'text-orange-400' },
+                ].map(({ id, label, desc, icon: Icon, color }) => (
+                  <div key={id} className="flex items-start gap-3 py-1">
+                    <div className="w-8 h-8 rounded-lg bg-surface-elevated flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Icon className={`w-4 h-4 ${color}`} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-white">{label}</p>
+                      <p className="text-xs text-text-secondary mt-0.5">{desc}</p>
+                    </div>
+                    <button
+                      onClick={() => setNotifConfig(c => ({ ...c, rules: { ...c.rules, [id]: !c.rules[id] } }))}
+                      className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 mt-1 ${notifConfig.rules[id] ? 'bg-accent' : 'bg-surface-elevated'}`}
+                    >
+                      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${notifConfig.rules[id] ? 'left-6' : 'left-1'}`} />
+                    </button>
+                  </div>
+                ))}
+
+                {/* AI motivation */}
+                <div className="pt-2 border-t border-white/8 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-purple-400/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Zap className="w-4 h-4 text-purple-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-white">AI Motivation</p>
+                      <p className="text-xs text-text-secondary mt-0.5">
+                        GPT generates a personalised motivational message for each client. Requires OPENAI_API_KEY.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setNotifConfig(c => ({ ...c, aiMotivationEnabled: !c.aiMotivationEnabled }))}
+                      className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 mt-1 ${notifConfig.aiMotivationEnabled ? 'bg-purple-500' : 'bg-surface-elevated'}`}
+                    >
+                      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${notifConfig.aiMotivationEnabled ? 'left-6' : 'left-1'}`} />
+                    </button>
+                  </div>
+                  {notifConfig.aiMotivationEnabled && (
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Frequency</label>
+                      <div className="flex gap-2">
+                        {(['daily', 'weekly'] as const).map(s => (
+                          <button
+                            key={s}
+                            onClick={() => setNotifConfig(c => ({ ...c, aiMotivationSchedule: s }))}
+                            className={`px-4 py-2 rounded-xl text-xs font-medium transition-colors ${notifConfig.aiMotivationSchedule === s ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}
+                          >
+                            {s.charAt(0).toUpperCase() + s.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveNotifConfig} loading={savingNotifConfig} fullWidth>
+                    Save Rules
+                  </Button>
+                  <Button variant="secondary" onClick={handleRunCronNow} loading={processingCron} title="Run all enabled auto-rules right now">
+                    <RefreshCw className="w-4 h-4" /> Run Now
+                  </Button>
+                </div>
+              </Card>
+
+              {/* Milestone */}
+              <Card className="p-4 border-accent/20 bg-accent/5">
+                <div className="flex items-center gap-3">
+                  <Trophy className="w-8 h-8 text-accent flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-white">Milestone notifications</p>
+                    <p className="text-xs text-text-secondary mt-0.5">
+                      These fire automatically when a user completes 10, 25, or 50 workouts — no configuration needed.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </>
           )}
         </div>
       )}

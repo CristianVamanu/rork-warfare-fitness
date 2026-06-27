@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Bell, MessageCircle } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserConversations } from '@/lib/firestore';
+import { getUserConversations, getUnreadNotificationCount } from '@/lib/firestore';
 
 interface HeaderProps {
   title?: string;
@@ -15,7 +15,8 @@ interface HeaderProps {
 
 export function Header({ title, showActions = true, rightElement }: HeaderProps) {
   const { user, profile } = useAuth();
-  const [unread, setUnread] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -23,12 +24,14 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
 
     const load = () => {
       getUserConversations(user.uid)
-        .then(convs => { if (!cancelled) setUnread(convs.filter(c => c.unreadByUser).length); })
+        .then(convs => { if (!cancelled) setUnreadMessages(convs.filter(c => c.unreadByUser).length); })
+        .catch(() => {});
+      getUnreadNotificationCount(user.uid)
+        .then(count => { if (!cancelled) setUnreadNotifs(count); })
         .catch(() => {});
     };
 
     load();
-    // Re-check every 30 seconds while the page is open
     const interval = setInterval(load, 30_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [user]);
@@ -51,25 +54,30 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
           {rightElement}
           {showActions && (
             <>
-              {/* Message icon — direct access to coach DMs */}
+              {/* Notifications bell */}
+              <Link
+                href="/notifications"
+                className="relative p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadNotifs > 0 && (
+                  <span className="absolute top-1 right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
+                    {unreadNotifs > 9 ? '9+' : unreadNotifs}
+                  </span>
+                )}
+              </Link>
+              {/* Messages — direct access to coach DMs */}
               <Link
                 href="/messages"
                 className="relative p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
               >
                 <MessageCircle className="w-5 h-5" />
-                {unread > 0 && (
+                {unreadMessages > 0 && (
                   <span className="absolute top-1 right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
-                    {unread > 9 ? '9+' : unread}
+                    {unreadMessages > 9 ? '9+' : unreadMessages}
                   </span>
                 )}
               </Link>
-              {/* Bell — reserved for system/AI notifications */}
-              <button
-                className="relative p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
-                aria-label="Notifications"
-              >
-                <Bell className="w-5 h-5" />
-              </button>
               <Link href="/settings">
                 <Avatar
                   src={profile?.photoURL}

@@ -68,7 +68,8 @@ export default function TrainingPage() {
   useEffect(() => {
     getPrograms()
       .then((firestoreProgs) => {
-        const fp = firestoreProgs as unknown as Program[];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fp = firestoreProgs as any as Program[];
         const fpIds = new Set(fp.map((p) => p.id));
         const mocks = MOCK_PROGRAMS.filter((m) => !fpIds.has(m.id));
         setPrograms([...fp, ...mocks as Program[]]);

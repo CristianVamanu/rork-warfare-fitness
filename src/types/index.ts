@@ -181,6 +181,33 @@ export interface Post {
   createdAt: unknown;
 }
 
+export type NotificationType = 'manual' | 'auto_missed_workout' | 'auto_streak' | 'auto_milestone' | 'ai_motivation';
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  trainerId?: string;
+  title: string;
+  body: string;
+  type: NotificationType;
+  read: boolean;
+  createdAt: unknown;
+}
+
+export interface AutoNotificationRule {
+  id: string;
+  enabled: boolean;
+  label: string;
+  description: string;
+  schedule: 'daily' | 'weekly'; // cron frequency
+}
+
+export interface NotificationConfig {
+  rules: Record<string, boolean>; // rule id → enabled
+  aiMotivationEnabled: boolean;
+  aiMotivationSchedule: 'daily' | 'weekly';
+}
+
 export interface MembershipConfig {
   enabled: boolean;
   fee: number; // monthly in USD (e.g. 29.99)
