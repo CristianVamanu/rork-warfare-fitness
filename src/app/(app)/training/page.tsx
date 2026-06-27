@@ -3,66 +3,16 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Dumbbell, Filter, Play, Clock, Target, ChevronRight } from 'lucide-react';
+import { Dumbbell, Play, Clock, Target, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { getPrograms } from '@/lib/firestore';
+import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import type { Program } from '@/types';
-
-const MOCK_PROGRAMS: Program[] = [
-  {
-    id: 'p1',
-    name: 'Powerlifting Foundations',
-    description: 'Build serious strength with the big 3 movements',
-    level: 'intermediate',
-    goal: 'strength',
-    weeks: 8,
-    daysPerWeek: 4,
-    exercises: [],
-    createdBy: 'system',
-    isPublic: true,
-  },
-  {
-    id: 'p2',
-    name: 'Hypertrophy Program',
-    description: 'Maximize muscle growth with high volume training',
-    level: 'intermediate',
-    goal: 'hypertrophy',
-    weeks: 12,
-    daysPerWeek: 5,
-    exercises: [],
-    createdBy: 'system',
-    isPublic: true,
-  },
-  {
-    id: 'p3',
-    name: 'Beginner Full Body',
-    description: 'Perfect starting point for new lifters',
-    level: 'beginner',
-    goal: 'general',
-    weeks: 6,
-    daysPerWeek: 3,
-    exercises: [],
-    createdBy: 'system',
-    isPublic: true,
-  },
-  {
-    id: 'p4',
-    name: 'Fat Loss HIIT',
-    description: 'High-intensity training for maximum fat burn',
-    level: 'beginner',
-    goal: 'weight-loss',
-    weeks: 8,
-    daysPerWeek: 4,
-    exercises: [],
-    createdBy: 'system',
-    isPublic: true,
-  },
-];
 
 const goalColors: Record<string, string> = {
   strength: 'accent',

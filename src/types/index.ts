@@ -76,6 +76,12 @@ export interface SystemConfig {
   openaiModel?: string;
 }
 
+export interface ProgramDay {
+  label: string;       // e.g. "Push Day", "Pull Day", "Rest"
+  isRest: boolean;
+  exercises: Exercise[];
+}
+
 export interface Program {
   id: string;
   name: string;
@@ -84,7 +90,8 @@ export interface Program {
   goal: 'strength' | 'hypertrophy' | 'endurance' | 'weight-loss' | 'general';
   weeks: number;
   daysPerWeek: number;
-  exercises: Exercise[];
+  exercises: Exercise[];  // flat fallback list used by session page
+  schedule?: ProgramDay[]; // 7-element Mon–Sun weekly pattern (index 0 = Monday)
   createdBy: string;
   trainerId?: string;
   isPublic: boolean;

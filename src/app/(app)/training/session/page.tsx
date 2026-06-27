@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, CheckCircle, Timer, AlertTriangle, Plus, Minus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProgram } from '@/lib/firestore';
+import { getMockProgram, getProgramDayForDow } from '@/lib/programs';
 import { completeWorkout } from '@/lib/actions';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
@@ -53,6 +54,8 @@ export default function WorkoutSessionPage() {
   const { user, profile } = useAuth();
   const weightUnit = profile?.weightUnit ?? 'kg';
   const programId = searchParams.get('programId') ?? undefined;
+  const dowParam = searchParams.get('dow');
+  const dow = dowParam !== null ? parseInt(dowParam) : null;
 
   const [exercises, setExercises] = useState<SessionExercise[]>(DEFAULT_EXERCISES);
   const [loadingProgram, setLoadingProgram] = useState(!!programId);
@@ -78,9 +81,22 @@ export default function WorkoutSessionPage() {
     }
     getProgram(programId)
       .then((program) => {
-        const prog = program as ({ id: string; exercises?: Exercise[] }) | null;
+        const prog = program as ({ id: string; exercises?: Exercise[]; schedule?: unknown[] }) | null;
+
+        // Try day-specific exercises first (from schedule + dow param)
+        const mock = getMockProgram(programId!);
+        if (mock && dow !== null) {
+          const dayPlan = getProgramDayForDow(mock, dow);
+          if (dayPlan && !dayPlan.isRest && dayPlan.exercises.length > 0) {
+            setExercises(buildSessionExercises(dayPlan.exercises));
+            return;
+          }
+        }
+
         if (prog && prog.exercises && prog.exercises.length > 0) {
           setExercises(buildSessionExercises(prog.exercises!));
+        } else if (mock && mock.exercises.length > 0) {
+          setExercises(buildSessionExercises(mock.exercises));
         } else {
           console.warn('[Session] Program has no exercises — using defaults');
           setExercises(DEFAULT_EXERCISES);
@@ -88,6 +104,12 @@ export default function WorkoutSessionPage() {
       })
       .catch((err) => {
         console.error('[Session] Failed to load program:', err);
+        const mock = getMockProgram(programId!);
+        if (mock) {
+          const dayPlan = dow !== null ? getProgramDayForDow(mock, dow) : null;
+          const exs = (dayPlan && !dayPlan.isRest) ? dayPlan.exercises : mock.exercises;
+          if (exs.length > 0) { setExercises(buildSessionExercises(exs)); return; }
+        }
         toast.error('Could not load program — using default exercises');
         setExercises(DEFAULT_EXERCISES);
       })
