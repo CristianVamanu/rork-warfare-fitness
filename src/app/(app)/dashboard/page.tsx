@@ -3,11 +3,12 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw } from 'lucide-react';
+import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayWater, getTodayMeals, getUserWorkouts, getUserGoals } from '@/lib/firestore';
 import { getMockProgram } from '@/lib/programs';
 import { getGreeting } from '@/lib/utils';
+import { getLevelTier } from '@/lib/xp';
 import { Card } from '@/components/ui/Card';
 import { Header } from '@/components/layout/Header';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -81,6 +82,13 @@ export default function DashboardPage() {
   const greeting = getGreeting();
   const firstName = profile?.displayName?.split(' ')[0] || 'Warrior';
   const streak = profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0;
+  const powerLevel = profile?.powerLevel ?? 0;
+  const tier = getLevelTier(powerLevel);
+
+  // Streak urgency: streak > 0 and no workout today (statsCache caloriesToday can't tell us,
+  // but if the streak is positive and today's water/cals are both 0, warn the user)
+  const todayIsBlank = !loading && (profile?.statsCache?.caloriesToday ?? 0) === 0 && (profile?.statsCache?.waterToday ?? 0) === 0;
+  const streakAtRisk = streak > 0 && todayIsBlank;
 
   // Active program data
   const activeProgram = profile?.activeProgram;
@@ -138,13 +146,34 @@ export default function DashboardPage() {
     <div>
       <Header />
       <div className="px-4 py-4 space-y-5">
+        {/* Streak Urgency Banner */}
+        {streakAtRisk && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 p-3 bg-amber-400/10 border border-amber-400/30 rounded-2xl"
+          >
+            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-white">🔥 {streak}-day streak at risk!</p>
+              <p className="text-xs text-amber-400/80">Train today to keep your streak alive.</p>
+            </div>
+            <Link href="/training">
+              <Button size="sm" variant="ghost" className="text-amber-400 border-amber-400/30">Train</Button>
+            </Link>
+          </motion.div>
+        )}
+
         {/* Greeting */}
         <motion.div {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
           <p className="text-text-secondary text-sm">{greeting},</p>
           <h1 className="text-2xl font-black text-white tracking-tight">{firstName} 💪</h1>
-          {streak > 0 && (
-            <Badge variant="accent" className="mt-1">🔥 {streak} day streak</Badge>
-          )}
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {streak > 0 && <Badge variant="accent">🔥 {streak} day streak</Badge>}
+            <Badge variant="muted">
+              <span className={tier.color}>⚡</span> Lvl {powerLevel} · {tier.title}
+            </Badge>
+          </div>
         </motion.div>
 
         {/* Stats Grid */}

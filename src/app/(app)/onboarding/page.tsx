@@ -10,7 +10,8 @@ import {
   Home, Building2, Package,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { saveOnboardingData, createAIProgram, enrollInProgram } from '@/lib/firestore';
+import { saveOnboardingData, createAIProgram, enrollInProgram, updateUserGoals } from '@/lib/firestore';
+import { estimateGoals } from '@/lib/tdee';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -116,7 +117,11 @@ export default function OnboardingPage() {
         daysPerWeek: program.daysPerWeek,
       });
 
-      // 4. Save onboarding answers + mark complete
+      // 4. Auto-set nutrition goals from TDEE estimate
+      const estimatedGoals = estimateGoals(goal, experience, trainingDays);
+      await updateUserGoals(user.uid, estimatedGoals);
+
+      // 5. Save onboarding answers + mark complete
       const onboardingData: OnboardingData = {
         fitnessGoal: goal,
         experience,
@@ -126,7 +131,7 @@ export default function OnboardingPage() {
       };
       await saveOnboardingData(user.uid, { ...onboardingData, onboardingComplete: true });
 
-      // 5. Refresh profile so layout no longer redirects here
+      // 6. Refresh profile so layout no longer redirects here
       setStatus('done');
       await refreshProfile();
       router.replace('/dashboard');

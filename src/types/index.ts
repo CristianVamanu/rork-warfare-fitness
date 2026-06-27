@@ -82,6 +82,10 @@ export interface UserProfile {
   activeProgram?: ActiveProgram;
   onboardingComplete?: boolean;
   onboarding?: OnboardingData;
+  achievements?: string[];     // array of earned achievement IDs
+  xp?: number;                 // total XP accumulated
+  powerLevel?: number;         // floor(xp / 100)
+  currentWeightKg?: number;    // latest body weight
   stats: {
     streak: number;
     powerLevel: number;

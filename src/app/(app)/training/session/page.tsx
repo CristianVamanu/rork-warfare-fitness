@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getProgram } from '@/lib/firestore';
 import { getMockProgram, getProgramDayForDow } from '@/lib/programs';
 import { completeWorkout } from '@/lib/actions';
+import { WorkoutShareCard } from '@/components/workout/WorkoutShareCard';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -352,7 +353,11 @@ export default function WorkoutSessionPage() {
   const [quitModal, setQuitModal] = useState(false);
   const [completeModal, setCompleteModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [startTime] = useState(Date.now());
+  const [workoutResult, setWorkoutResult] = useState<{
+    duration: number; xpEarned: number; newPowerLevel: number; newAchievements: string[];
+  } | null>(null);
 
   // ── Load program ────────────────────────────────────────────────────────
 
@@ -581,7 +586,7 @@ export default function WorkoutSessionPage() {
     if (!user) return;
     setSaving(true);
     try {
-      const duration = Math.round((Date.now() - startTime) / 60000);
+      const duration = Math.round((Date.now() - startTime) / 60000) || 1;
       const logs = exStates.map((ex) => ({
         name: ex.name,
         sets: ex.sets.map((s) => ({
@@ -590,9 +595,9 @@ export default function WorkoutSessionPage() {
           completed: s.status === 'completed',
         })),
       }));
-      await completeWorkout(user.uid, logs, duration, programId);
-      toast.success('Workout saved!');
-      router.replace('/dashboard');
+      const result = await completeWorkout(user.uid, logs, duration, programId);
+      setSaved(true);
+      setWorkoutResult({ duration, ...result });
     } catch (err: unknown) {
       const e = err as Error & { code?: string };
       toast.error(`Failed to save: ${e?.message || String(err)}`, { duration: 8000 });
@@ -787,28 +792,41 @@ export default function WorkoutSessionPage() {
       </Modal>
 
       {/* ── Complete Modal ────────────────────────────────────────────── */}
-      <Modal open={completeModal} onClose={() => setCompleteModal(false)} title="Workout Complete!">
-        <div className="space-y-4">
-          <div className="text-center py-4">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', bounce: 0.5, delay: 0.1 }}
-            >
-              <CheckCircle className="w-16 h-16 text-success mx-auto mb-3" />
-            </motion.div>
-            <p className="text-2xl font-black text-white">Beast Mode!</p>
-            <p className="text-text-secondary text-sm mt-1">
-              {completedSets} sets completed · {Math.round((Date.now() - startTime) / 60000)} min
-            </p>
+      <Modal open={completeModal} onClose={() => !saving && setCompleteModal(false)} title={saved ? '🎉 Saved!' : 'Workout Complete!'}>
+        {saved && workoutResult ? (
+          <WorkoutShareCard
+            duration={workoutResult.duration}
+            completedSets={completedSets}
+            exerciseCount={exStates.length}
+            xpEarned={workoutResult.xpEarned}
+            newPowerLevel={workoutResult.newPowerLevel}
+            streak={profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0}
+            newAchievements={workoutResult.newAchievements}
+            onContinue={() => router.replace('/dashboard')}
+          />
+        ) : (
+          <div className="space-y-4">
+            <div className="text-center py-4">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', bounce: 0.5, delay: 0.1 }}
+              >
+                <CheckCircle className="w-16 h-16 text-success mx-auto mb-3" />
+              </motion.div>
+              <p className="text-2xl font-black text-white">Beast Mode!</p>
+              <p className="text-text-secondary text-sm mt-1">
+                {completedSets} sets completed · {Math.round((Date.now() - startTime) / 60000)} min
+              </p>
+            </div>
+            <Button fullWidth size="lg" loading={saving} onClick={saveWorkout}>
+              Save Workout
+            </Button>
+            <Button variant="ghost" fullWidth onClick={() => router.replace('/dashboard')}>
+              Skip Save
+            </Button>
           </div>
-          <Button fullWidth size="lg" loading={saving} onClick={saveWorkout}>
-            Save Workout
-          </Button>
-          <Button variant="ghost" fullWidth onClick={() => router.replace('/dashboard')}>
-            Skip Save
-          </Button>
-        </div>
+        )}
       </Modal>
     </div>
   );
