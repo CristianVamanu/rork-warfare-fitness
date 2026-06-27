@@ -82,10 +82,11 @@ export interface UserProfile {
   activeProgram?: ActiveProgram;
   onboardingComplete?: boolean;
   onboarding?: OnboardingData;
-  achievements?: string[];     // array of earned achievement IDs
-  xp?: number;                 // total XP accumulated
-  powerLevel?: number;         // floor(xp / 100)
-  currentWeightKg?: number;    // latest body weight
+  achievements?: string[];
+  xp?: number;
+  powerLevel?: number;
+  currentWeightKg?: number;
+  banned?: boolean;
   stats: {
     streak: number;
     powerLevel: number;
@@ -172,6 +173,28 @@ export interface Post {
   imageURL?: string;
   likes: string[];
   commentCount: number;
+  createdAt: unknown;
+}
+
+export interface Conversation {
+  id: string;
+  adminId: string;
+  userId: string;
+  userDisplayName: string;
+  userEmail: string;
+  lastMessage: string;
+  lastMessageAt: unknown;
+  createdAt: unknown;
+  unreadByUser: boolean;
+  unreadByAdmin: boolean;
+}
+
+export interface Message {
+  id: string;
+  senderId: string;
+  senderName: string;
+  content: string;
+  isFromAdmin: boolean;
   createdAt: unknown;
 }
 

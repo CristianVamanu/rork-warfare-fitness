@@ -1,12 +1,13 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Dumbbell, Flame, Zap, Trophy } from 'lucide-react';
+import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare } from 'lucide-react';
+import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { updateUserDoc } from '@/lib/firestore';
+import { updateUserDoc, getUserConversations } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
@@ -20,6 +21,14 @@ export default function ProfilePage() {
   const [editModal, setEditModal] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.displayName || '');
   const [saving, setSaving] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    getUserConversations(user.uid)
+      .then(convs => setUnreadMessages(convs.filter(c => c.unreadByUser).length))
+      .catch(() => {});
+  }, [user]);
 
   const handleSave = async () => {
     if (!user || !displayName.trim()) return;
@@ -109,6 +118,28 @@ export default function ProfilePage() {
               Complete workouts to increase your power level
             </p>
           </Card>
+        </motion.div>
+
+        {/* Messages from Coach */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+          <Link href="/messages">
+            <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+              <div className="relative">
+                <div className="p-2 bg-accent-muted rounded-lg">
+                  <MessageSquare className="w-4 h-4 text-accent" />
+                </div>
+                {unreadMessages > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white">
+                    {unreadMessages}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-white">Messages from Coach</p>
+                <p className="text-xs text-text-secondary">{unreadMessages > 0 ? `${unreadMessages} unread` : 'View your conversations'}</p>
+              </div>
+            </Card>
+          </Link>
         </motion.div>
 
         {/* Member Since */}

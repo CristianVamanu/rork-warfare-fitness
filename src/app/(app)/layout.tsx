@@ -21,6 +21,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // Redirect new users to onboarding when flag is explicitly false.
     // Admins and trainers skip onboarding — they manage the platform.
     // undefined = existing user created before this feature → skip gate.
+    if (profile?.banned && pathname !== '/banned') {
+      router.replace('/banned');
+      return;
+    }
     if (
       profile &&
       profile.role !== 'admin' &&
@@ -35,13 +39,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (loading) return <FullPageSpinner />;
   if (!user) return null;
 
-  // While profile is loading for first time, wait before enforcing onboarding redirect
   if (profile === null && pathname !== '/onboarding') return <FullPageSpinner />;
+
+  const hideNav = pathname === '/onboarding' || pathname === '/banned';
 
   return (
     <div className="min-h-screen bg-background">
       <main className="pb-24 max-w-lg mx-auto">{children}</main>
-      {pathname !== '/onboarding' && <BottomNav />}
+      {!hideNav && <BottomNav />}
     </div>
   );
 }

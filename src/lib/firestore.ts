@@ -565,6 +565,133 @@ export async function createAIProgram(program: Omit<Program, 'id'>): Promise<str
 }
 
 // ---------------------------------------------------------------------------
+// Admin — user management
+// ---------------------------------------------------------------------------
+
+export async function banUser(userId: string) {
+  await updateDoc(doc(db, 'users', userId), { banned: true });
+}
+
+export async function unbanUser(userId: string) {
+  await updateDoc(doc(db, 'users', userId), { banned: false });
+}
+
+export async function getAllUsers() {
+  const snap = await getDocs(collection(db, 'users'));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function getAllPrograms() {
+  const snap = await getDocs(collection(db, 'programs'));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// ---------------------------------------------------------------------------
+// Conversations — admin-initiated DMs
+// ---------------------------------------------------------------------------
+
+import type { Conversation, Message } from '@/types';
+
+export async function getOrCreateConversation(
+  adminId: string,
+  userId: string,
+  userDisplayName: string,
+  userEmail: string
+): Promise<string> {
+  const q = query(
+    collection(db, 'conversations'),
+    where('adminId', '==', adminId),
+    where('userId', '==', userId)
+  );
+  const snap = await getDocs(q);
+  if (!snap.empty) return snap.docs[0].id;
+
+  const ref = await addDoc(collection(db, 'conversations'), {
+    adminId,
+    userId,
+    userDisplayName,
+    userEmail,
+    lastMessage: '',
+    lastMessageAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+    unreadByUser: false,
+    unreadByAdmin: false,
+  });
+  return ref.id;
+}
+
+export async function getAdminConversations(adminId: string): Promise<Conversation[]> {
+  const q = query(collection(db, 'conversations'), where('adminId', '==', adminId));
+  const snap = await getDocs(q);
+  const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Conversation));
+  docs.sort((a, b) => {
+    const ta = (a.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+    const tb = (b.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+    return tb - ta;
+  });
+  return docs;
+}
+
+export async function getUserConversations(userId: string): Promise<Conversation[]> {
+  const q = query(collection(db, 'conversations'), where('userId', '==', userId));
+  const snap = await getDocs(q);
+  const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Conversation));
+  docs.sort((a, b) => {
+    const ta = (a.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+    const tb = (b.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+    return tb - ta;
+  });
+  return docs;
+}
+
+export async function getMessages(convId: string): Promise<Message[]> {
+  try {
+    const q = query(
+      collection(db, 'conversations', convId, 'messages'),
+      orderBy('createdAt', 'asc')
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message));
+  } catch {
+    const snap = await getDocs(collection(db, 'conversations', convId, 'messages'));
+    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message));
+    docs.sort((a, b) => {
+      const ta = (a.createdAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+      const tb = (b.createdAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+      return ta - tb;
+    });
+    return docs;
+  }
+}
+
+export async function sendMessage(
+  convId: string,
+  senderId: string,
+  senderName: string,
+  content: string,
+  isFromAdmin: boolean
+) {
+  await addDoc(collection(db, 'conversations', convId, 'messages'), {
+    senderId,
+    senderName,
+    content,
+    isFromAdmin,
+    createdAt: serverTimestamp(),
+  });
+  await updateDoc(doc(db, 'conversations', convId), {
+    lastMessage: content,
+    lastMessageAt: serverTimestamp(),
+    ...(isFromAdmin ? { unreadByUser: true } : { unreadByAdmin: true }),
+  });
+}
+
+export async function markConversationRead(convId: string, isAdmin: boolean) {
+  await updateDoc(doc(db, 'conversations', convId), {
+    ...(isAdmin ? { unreadByAdmin: false } : { unreadByUser: false }),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Legacy write stubs — kept only for backward-compat import references.
 // These log a warning and are NOT used for new writes.
 // All writes go through actions.ts → createEvent().
