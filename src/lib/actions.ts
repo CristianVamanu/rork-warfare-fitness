@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { createEvent } from './events';
+import { incrementProgramWorkouts } from './firestore';
 import type { EventType } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -69,6 +70,10 @@ export async function completeWorkout(
     calories,
   });
 
+  // Non-blocking: update program progress + lastActive
+  if (programId) {
+    incrementProgramWorkouts(userId).catch(console.error);
+  }
   updateDoc(doc(db, 'users', userId), { lastActive: serverTimestamp() }).catch(console.error);
 }
 

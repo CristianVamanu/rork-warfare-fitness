@@ -6,15 +6,20 @@ import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Play, Clock, Target, Dumbbell, Moon, CheckCircle, ChevronLeft,
+  AlertTriangle, RotateCcw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { getProgram } from '@/lib/firestore';
+import { enrollInProgram } from '@/lib/firestore';
 import { getMockProgram, MOCK_PROGRAMS } from '@/lib/programs';
+import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Modal } from '@/components/ui/Modal';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import type { Program, ProgramDay } from '@/types';
 
 const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -34,7 +39,6 @@ const levelColors: Record<string, string> = {
 };
 
 function getTodayDow(): number {
-  // JS getDay(): 0=Sun, 1=Mon … 6=Sat → convert to Mon-indexed 0–6
   const d = new Date().getDay();
   return d === 0 ? 6 : d - 1;
 }
@@ -46,13 +50,19 @@ function getUpcomingDays(todayDow: number, count: number): number[] {
 export default function ProgramDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { user, profile, refreshProfile } = useAuth();
   const id = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
 
   const [program, setProgram] = useState<Program | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  const [enrolling, setEnrolling] = useState(false);
+  const [switchModal, setSwitchModal] = useState(false);
 
   const todayDow = getTodayDow();
+  const activeProgram = profile?.activeProgram;
+  const isEnrolled = activeProgram?.programId === id;
+  const hasDifferentProgram = !!activeProgram && !isEnrolled;
 
   useEffect(() => {
     if (!id) return;
@@ -69,6 +79,29 @@ export default function ProgramDetailPage() {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  const handleEnroll = async (force = false) => {
+    if (!user || !program) return;
+    if (hasDifferentProgram && !force) {
+      setSwitchModal(true);
+      return;
+    }
+    setSwitchModal(false);
+    setEnrolling(true);
+    try {
+      await enrollInProgram(user.uid, {
+        id: program.id,
+        name: program.name,
+        weeks: program.weeks,
+        daysPerWeek: program.daysPerWeek,
+      });
+      await refreshProfile();
+    } catch (err) {
+      console.error('[Enroll] failed:', err);
+    } finally {
+      setEnrolling(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -125,6 +158,7 @@ export default function ProgramDetailPage() {
               <Badge variant={(levelColors[program.level] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
                 {program.level}
               </Badge>
+              {isEnrolled && <Badge variant="success">Enrolled</Badge>}
             </div>
             <h2 className="text-xl font-black text-white">{program.name}</h2>
             <p className="text-text-secondary text-sm mt-1">{program.description}</p>
@@ -139,11 +173,56 @@ export default function ProgramDetailPage() {
                 <Dumbbell className="w-3 h-3" /> {program.exercises.length} exercises
               </span>
             </div>
+
+            {/* Enrollment progress bar */}
+            {isEnrolled && activeProgram && (
+              <div className="mt-4">
+                <div className="flex justify-between text-xs text-text-secondary mb-1">
+                  <span>{activeProgram.completedWorkouts} workouts done</span>
+                  <span>{activeProgram.totalWorkouts - activeProgram.completedWorkouts} remaining</span>
+                </div>
+                <ProgressBar
+                  value={activeProgram.completedWorkouts}
+                  max={activeProgram.totalWorkouts}
+                  color="accent"
+                  size="sm"
+                />
+              </div>
+            )}
           </Card>
         </motion.div>
 
-        {/* Today's Workout */}
+        {/* Enroll / Continue CTA */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+          {isEnrolled ? (
+            <div className="space-y-2">
+              {todayDay && !todayDay.isRest ? (
+                <Link href={`/training/session?programId=${program.id}&dow=${todayDow}`}>
+                  <Button fullWidth size="lg">
+                    <Play className="w-5 h-5" /> Continue — {todayDay.label}
+                  </Button>
+                </Link>
+              ) : (
+                <div className="p-4 bg-surface border border-white/8 rounded-2xl text-center">
+                  <Moon className="w-5 h-5 text-text-tertiary mx-auto mb-1" />
+                  <p className="text-sm text-text-secondary">Rest day today</p>
+                  <p className="text-xs text-text-tertiary mt-0.5">Come back tomorrow</p>
+                </div>
+              )}
+              <Button variant="ghost" fullWidth size="sm" onClick={() => setSwitchModal(true)}>
+                <RotateCcw className="w-3.5 h-3.5" /> Switch Program
+              </Button>
+            </div>
+          ) : (
+            <Button fullWidth size="lg" loading={enrolling} onClick={() => handleEnroll(false)}>
+              <Play className="w-5 h-5" />
+              {hasDifferentProgram ? 'Switch to This Program' : 'Start Program'}
+            </Button>
+          )}
+        </motion.div>
+
+        {/* Today's Workout */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
           <h2 className="text-base font-bold text-white mb-3">Today&apos;s Workout</h2>
           {todayDay ? (
             <Card className={`p-4 ${todayDay.isRest ? 'border-white/5' : 'border-accent/30'}`}>
@@ -157,7 +236,7 @@ export default function ProgramDetailPage() {
                   <span className="text-sm font-bold text-white">{todayDay.label}</span>
                   {todayDay.isRest && <Badge variant="muted">Rest</Badge>}
                 </div>
-                {!todayDay.isRest && (
+                {!todayDay.isRest && isEnrolled && (
                   <Link href={`/training/session?programId=${program.id}&dow=${todayDow}`}>
                     <Button size="sm">
                       <Play className="w-4 h-4" /> Start
@@ -199,9 +278,7 @@ export default function ProgramDetailPage() {
                 return (
                   <motion.div key={dow} layout>
                     <Card
-                      className={`p-4 cursor-pointer transition-colors ${
-                        isToday ? 'border-accent/50 bg-accent/5' : ''
-                      }`}
+                      className={`p-4 cursor-pointer transition-colors ${isToday ? 'border-accent/50 bg-accent/5' : ''}`}
                       onClick={() => setExpandedDay(isExpanded ? null : dow)}
                     >
                       <div className="flex items-center justify-between">
@@ -222,27 +299,21 @@ export default function ProgramDetailPage() {
                               {!isToday && isUpcoming && <Badge variant="muted">Upcoming</Badge>}
                             </div>
                             {!day.isRest && (
-                              <p className="text-xs text-text-tertiary mt-0.5">
-                                {day.exercises.length} exercises
-                              </p>
+                              <p className="text-xs text-text-tertiary mt-0.5">{day.exercises.length} exercises</p>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {day.isRest ? (
-                            <Moon className="w-4 h-4 text-text-tertiary" />
-                          ) : (
-                            <Dumbbell className="w-4 h-4 text-text-tertiary" />
-                          )}
-                        </div>
+                        {day.isRest ? (
+                          <Moon className="w-4 h-4 text-text-tertiary" />
+                        ) : (
+                          <Dumbbell className="w-4 h-4 text-text-tertiary" />
+                        )}
                       </div>
 
-                      {/* Expanded exercise list */}
                       {isExpanded && !day.isRest && day.exercises.length > 0 && (
                         <motion.div
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
                           className="mt-3 pt-3 border-t border-white/8 space-y-2"
                         >
                           {day.exercises.map((ex, i) => (
@@ -254,7 +325,7 @@ export default function ProgramDetailPage() {
                               <span className="text-xs text-text-tertiary">{ex.sets}×{ex.reps}</span>
                             </div>
                           ))}
-                          {isToday && (
+                          {isToday && isEnrolled && (
                             <Link href={`/training/session?programId=${program.id}&dow=${dow}`} className="block mt-3">
                               <Button size="sm" fullWidth>
                                 <Play className="w-4 h-4" /> Start This Workout
@@ -270,18 +341,29 @@ export default function ProgramDetailPage() {
             </div>
           </motion.div>
         )}
-
-        {/* Start CTA */}
-        {todayDay && !todayDay.isRest && (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-            <Link href={`/training/session?programId=${program.id}&dow=${todayDow}`}>
-              <Button fullWidth size="lg">
-                <Play className="w-5 h-5" /> Start Today&apos;s Workout
-              </Button>
-            </Link>
-          </motion.div>
-        )}
       </div>
+
+      {/* Switch Program Modal */}
+      <Modal open={switchModal} onClose={() => setSwitchModal(false)} title="Switch Program?">
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-amber-400/10 border border-amber-400/20 rounded-xl">
+            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-white">You are currently enrolled in</p>
+              <p className="text-sm text-accent font-bold">{activeProgram?.programName}</p>
+              <p className="text-xs text-text-secondary mt-1">
+                Switching will reset your progress ({activeProgram?.completedWorkouts ?? 0} workouts completed).
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="ghost" fullWidth onClick={() => setSwitchModal(false)}>Cancel</Button>
+            <Button fullWidth loading={enrolling} onClick={() => handleEnroll(true)}>
+              Switch to {program.name}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

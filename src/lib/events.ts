@@ -90,7 +90,8 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
       collection(db, 'events'),
       where('userId', '==', userId),
       where('type', '==', 'MEAL_LOGGED'),
-      where('createdAt', '>=', todayTs)
+      where('createdAt', '>=', todayTs),
+      orderBy('createdAt', 'desc')
     )
   );
   const caloriesToday = mealSnap.docs.reduce(
@@ -104,7 +105,8 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
       collection(db, 'events'),
       where('userId', '==', userId),
       where('type', '==', 'WATER_LOGGED'),
-      where('createdAt', '>=', todayTs)
+      where('createdAt', '>=', todayTs),
+      orderBy('createdAt', 'desc')
     )
   );
   const waterToday = waterSnap.docs.reduce(

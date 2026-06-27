@@ -3,9 +3,10 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Footprints, Zap, Dumbbell, Apple, Thermometer, Plus } from 'lucide-react';
+import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayWater, getTodayMeals, getUserWorkouts, getUserGoals } from '@/lib/firestore';
+import { getMockProgram } from '@/lib/programs';
 import { getGreeting } from '@/lib/utils';
 import { Card } from '@/components/ui/Card';
 import { Header } from '@/components/layout/Header';
@@ -25,6 +26,11 @@ const stagger = {
 
 const DEFAULT_GOALS = { calories: 2200, water: 3000 };
 
+function getTodayDow(): number {
+  const d = new Date().getDay();
+  return d === 0 ? 6 : d - 1;
+}
+
 export default function DashboardPage() {
   const { user, profile } = useAuth();
   const [waterMl, setWaterMl] = useState<number | null>(null);
@@ -36,19 +42,15 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
 
-    // ── Priority 1: statsCache from profile (from events engine) ───────────
     const cache = profile?.statsCache;
     if (cache) {
       setCalories(cache.caloriesToday);
       setWaterMl(cache.waterToday);
-      // Don't return — still load workout history and goals
     }
 
-    // ── Priority 2 & 3: live queries (events → legacy fallback inside each fn) ─
     const doQueries = async () => {
       try {
         const [water, meals, workouts, g] = await Promise.all([
-          // Only fetch water/calories if statsCache is missing
           cache ? Promise.resolve(cache.waterToday) : getTodayWater(user.uid),
           cache ? Promise.resolve(null) : getTodayMeals(user.uid),
           getUserWorkouts(user.uid, 5),
@@ -59,8 +61,7 @@ export default function DashboardPage() {
           setWaterMl(water as number);
           if (Array.isArray(meals)) {
             const cal = (meals as Array<{ calories?: number }>).reduce(
-              (s, m) => s + (m.calories || 0),
-              0
+              (s, m) => s + (m.calories || 0), 0
             );
             setCalories(cal);
           }
@@ -79,12 +80,16 @@ export default function DashboardPage() {
 
   const greeting = getGreeting();
   const firstName = profile?.displayName?.split(' ')[0] || 'Warrior';
+  const streak = profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0;
 
-  // Streak: statsCache → legacy stats → 0
-  const streak =
-    profile?.statsCache?.streak ??
-    profile?.stats?.streak ??
-    0;
+  // Active program data
+  const activeProgram = profile?.activeProgram;
+  const todayDow = getTodayDow();
+  const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
+  const todayDay = activeMock?.schedule?.[todayDow] ?? null;
+  const programPct = activeProgram
+    ? Math.min(100, Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100))
+    : 0;
 
   const stats = [
     {
@@ -95,6 +100,7 @@ export default function DashboardPage() {
       max: goals.calories,
       color: 'text-orange-400',
       bg: 'bg-orange-400/10',
+      barColor: 'danger' as const,
     },
     {
       icon: Droplets,
@@ -104,32 +110,28 @@ export default function DashboardPage() {
       max: goals.water / 1000,
       color: 'text-blue-400',
       bg: 'bg-blue-400/10',
+      barColor: 'info' as const,
     },
     {
-      icon: Footprints,
-      label: 'Steps',
-      value: 0,
-      unit: '',
-      max: 10000,
-      color: 'text-green-400',
-      bg: 'bg-green-400/10',
+      icon: Dumbbell,
+      label: 'Workouts',
+      value: profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? recentWorkouts.length,
+      unit: 'total',
+      max: Math.max(profile?.statsCache?.totalWorkouts ?? 1, 1),
+      color: 'text-purple-400',
+      bg: 'bg-purple-400/10',
+      barColor: 'info' as const,
     },
     {
       icon: Zap,
       label: 'Streak',
       value: streak,
       unit: 'd',
-      max: 30,
+      max: Math.max(streak, 7),
       color: 'text-accent',
       bg: 'bg-accent-muted',
+      barColor: 'accent' as const,
     },
-  ];
-
-  const quickActions = [
-    { icon: Dumbbell, label: 'Log Workout', href: '/training', color: 'text-purple-400', bg: 'bg-purple-400/10' },
-    { icon: Apple, label: 'Log Food', href: '/nutrition', color: 'text-green-400', bg: 'bg-green-400/10' },
-    { icon: Droplets, label: 'Log Water', href: '/nutrition', color: 'text-blue-400', bg: 'bg-blue-400/10' },
-    { icon: Thermometer, label: 'Ice Bath', href: '/progress', color: 'text-cyan-400', bg: 'bg-cyan-400/10' },
   ];
 
   return (
@@ -140,20 +142,13 @@ export default function DashboardPage() {
         <motion.div {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
           <p className="text-text-secondary text-sm">{greeting},</p>
           <h1 className="text-2xl font-black text-white tracking-tight">{firstName} 💪</h1>
-          {streak > 0 ? (
-            <Badge variant="accent" className="mt-1">
-              🔥 {streak} day streak
-            </Badge>
-          ) : null}
+          {streak > 0 && (
+            <Badge variant="accent" className="mt-1">🔥 {streak} day streak</Badge>
+          )}
         </motion.div>
 
         {/* Stats Grid */}
-        <motion.div
-          variants={stagger.container}
-          initial="initial"
-          animate="animate"
-          className="grid grid-cols-2 gap-3"
-        >
+        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-2 gap-3">
           {stats.map((stat) => (
             <motion.div key={stat.label} variants={stagger.item}>
               <Card className="p-4">
@@ -177,7 +172,7 @@ export default function DashboardPage() {
                     <ProgressBar
                       value={stat.value}
                       max={stat.max}
-                      color={stat.label === 'Streak' ? 'accent' : stat.label === 'Calories' ? 'danger' : 'info'}
+                      color={stat.barColor}
                       size="sm"
                       className="mt-2"
                     />
@@ -188,11 +183,70 @@ export default function DashboardPage() {
           ))}
         </motion.div>
 
+        {/* Active Program Card */}
+        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
+          <h2 className="text-base font-bold text-white mb-3">Today&apos;s Workout</h2>
+          {activeProgram ? (
+            <Card className="p-4 relative overflow-hidden border-accent/20">
+              <div className="absolute right-4 top-4 opacity-8">
+                <Dumbbell className="w-16 h-16 text-accent" />
+              </div>
+              <Badge variant="accent" className="mb-2">
+                {activeProgram.completedWorkouts}/{activeProgram.totalWorkouts} sessions
+              </Badge>
+              <h3 className="text-base font-bold text-white">{activeProgram.programName}</h3>
+              {todayDay && (
+                <p className="text-sm text-text-secondary mt-0.5">
+                  {todayDay.isRest ? '😴 Rest Day — recover well' : `Today: ${todayDay.label}`}
+                </p>
+              )}
+              <div className="mt-3 mb-3">
+                <ProgressBar value={activeProgram.completedWorkouts} max={activeProgram.totalWorkouts} color="accent" size="sm" />
+                <p className="text-xs text-text-tertiary mt-1">{programPct}% complete · {activeProgram.totalWorkouts - activeProgram.completedWorkouts} sessions remaining</p>
+              </div>
+              <div className="flex gap-2">
+                {todayDay && !todayDay.isRest ? (
+                  <Link href={`/training/session?programId=${activeProgram.programId}&dow=${todayDow}`}>
+                    <Button size="sm">
+                      <Play className="w-4 h-4" /> Start Workout
+                    </Button>
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                    <Moon className="w-3.5 h-3.5" /> Rest day
+                  </div>
+                )}
+                <Link href={`/training/${activeProgram.programId}`}>
+                  <Button size="sm" variant="ghost">
+                    View <ChevronRight className="w-3 h-3" />
+                  </Button>
+                </Link>
+              </div>
+            </Card>
+          ) : (
+            <Link href="/training">
+              <Card className="p-4 relative overflow-hidden hover:border-accent/20 transition-colors">
+                <div className="absolute right-4 top-4 opacity-8">
+                  <Dumbbell className="w-16 h-16 text-accent" />
+                </div>
+                <Badge variant="muted" className="mb-2">No active program</Badge>
+                <h3 className="text-base font-bold text-white">Choose a Program</h3>
+                <p className="text-sm text-text-secondary mt-1">Pick a training program to get started</p>
+                <Button variant="primary" size="sm" className="mt-3">Browse Programs</Button>
+              </Card>
+            </Link>
+          )}
+        </motion.div>
+
         {/* Quick Actions */}
         <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
           <h2 className="text-base font-bold text-white mb-3">Quick Actions</h2>
-          <div className="grid grid-cols-4 gap-2">
-            {quickActions.map((action) => (
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { icon: Dumbbell, label: 'Workout', href: '/training', color: 'text-purple-400', bg: 'bg-purple-400/10' },
+              { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', color: 'text-green-400', bg: 'bg-green-400/10' },
+              { icon: WaterIcon, label: 'Water', href: '/nutrition', color: 'text-blue-400', bg: 'bg-blue-400/10' },
+            ].map((action) => (
               <Link key={action.label} href={action.href}>
                 <motion.div
                   whileHover={{ scale: 1.04 }}
@@ -207,24 +261,6 @@ export default function DashboardPage() {
               </Link>
             ))}
           </div>
-        </motion.div>
-
-        {/* Today's Workout Card */}
-        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-          <h2 className="text-base font-bold text-white mb-3">Today&apos;s Workout</h2>
-          <Link href="/training">
-            <Card className="p-4 relative overflow-hidden">
-              <div className="absolute right-4 top-4 opacity-10">
-                <Dumbbell className="w-16 h-16 text-accent" />
-              </div>
-              <Badge variant="accent" className="mb-2">Ready</Badge>
-              <h3 className="text-lg font-bold text-white">Start a Session</h3>
-              <p className="text-sm text-text-secondary mt-1">Choose a program to begin</p>
-              <Button variant="primary" size="sm" className="mt-4">
-                <Plus className="w-4 h-4" /> Start Session
-              </Button>
-            </Card>
-          </Link>
         </motion.div>
 
         {/* Recent Activity */}
@@ -243,20 +279,38 @@ export default function DashboardPage() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {(recentWorkouts as Array<{ id: string; completedAt: unknown; duration?: number; exercises?: unknown[] }>).map((w) => (
-                <Card key={w.id} className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-accent-muted rounded-xl">
-                      <Dumbbell className="w-4 h-4 text-accent" />
+              {(recentWorkouts as Array<{
+                id: string;
+                completedAt: unknown;
+                duration?: number;
+                exercises?: unknown[];
+                programId?: string;
+              }>).map((w) => {
+                const ts = w.completedAt as { toDate?: () => Date } | null;
+                const date = ts?.toDate?.() ?? null;
+                const dateStr = date
+                  ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  : '';
+                return (
+                  <Card key={w.id} className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-accent-muted rounded-xl">
+                        <Dumbbell className="w-4 h-4 text-accent" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white">
+                          {w.duration ? `${w.duration} min session` : 'Workout Session'}
+                        </p>
+                        <p className="text-xs text-text-secondary">
+                          {Array.isArray(w.exercises) ? `${w.exercises.length} exercises` : 'Completed'}
+                          {dateStr && ` · ${dateStr}`}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">Workout Session</p>
-                      <p className="text-xs text-text-secondary">{w.duration ? `${w.duration} min` : 'Completed'}</p>
-                    </div>
-                  </div>
-                  <Badge variant="success">Done</Badge>
-                </Card>
-              ))}
+                    <Badge variant="success">Done</Badge>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </motion.div>

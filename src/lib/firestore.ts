@@ -228,7 +228,8 @@ export async function getTodayWater(userId: string): Promise<number> {
         collection(db, 'events'),
         where('userId', '==', userId),
         where('type', '==', 'WATER_LOGGED'),
-        where('createdAt', '>=', todayTs)
+        where('createdAt', '>=', todayTs),
+        orderBy('createdAt', 'desc')
       )
     );
     if (snap.size > 0) {
@@ -443,6 +444,85 @@ export async function getPosts(limitCount = 20, trainerId?: string) {
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   });
+}
+
+// ---------------------------------------------------------------------------
+// Program enrollment
+// ---------------------------------------------------------------------------
+
+export async function enrollInProgram(
+  userId: string,
+  program: { id: string; name: string; weeks: number; daysPerWeek: number }
+) {
+  const totalWorkouts = program.weeks * program.daysPerWeek;
+  await updateDoc(doc(db, 'users', userId), {
+    activeProgram: {
+      programId: program.id,
+      programName: program.name,
+      enrolledAt: serverTimestamp(),
+      startDate: new Date().toISOString().split('T')[0],
+      completedWorkouts: 0,
+      totalWorkouts,
+    },
+    lastActive: serverTimestamp(),
+  });
+}
+
+export async function unenrollProgram(userId: string) {
+  const { deleteField } = await import('firebase/firestore');
+  await updateDoc(doc(db, 'users', userId), {
+    activeProgram: deleteField(),
+    lastActive: serverTimestamp(),
+  });
+}
+
+export async function incrementProgramWorkouts(userId: string) {
+  const { increment } = await import('firebase/firestore');
+  await updateDoc(doc(db, 'users', userId), {
+    'activeProgram.completedWorkouts': increment(1),
+  }).catch(() => {}); // no-op if no active program
+}
+
+// ---------------------------------------------------------------------------
+// Meal history — by date
+// ---------------------------------------------------------------------------
+
+export async function getMealsForDate(userId: string, date: Date): Promise<NormalizedMeal[]> {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  const startTs = Timestamp.fromDate(start);
+  const endTs = Timestamp.fromDate(end);
+
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, 'events'),
+        where('userId', '==', userId),
+        where('type', '==', 'MEAL_LOGGED'),
+        where('createdAt', '>=', startTs),
+        where('createdAt', '<=', endTs),
+        orderBy('createdAt', 'desc')
+      )
+    );
+    return snap.docs.map((d) => {
+      const payload = d.data().payload as Record<string, unknown>;
+      return {
+        id: d.id,
+        userId,
+        name: String(payload.name ?? ''),
+        calories: Number(payload.calories ?? 0),
+        protein: Number(payload.protein ?? 0),
+        carbs: Number(payload.carbs ?? 0),
+        fat: Number(payload.fat ?? 0),
+        mealType: String(payload.mealType ?? 'snack'),
+        loggedAt: d.data().createdAt,
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 // ---------------------------------------------------------------------------

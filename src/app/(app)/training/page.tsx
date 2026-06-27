@@ -3,15 +3,17 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Dumbbell, Play, Clock, Target, ChevronRight } from 'lucide-react';
+import { Dumbbell, Play, Clock, Target, ChevronRight, Moon } from 'lucide-react';
 import Link from 'next/link';
 import { getPrograms } from '@/lib/firestore';
-import { MOCK_PROGRAMS } from '@/lib/programs';
+import { MOCK_PROGRAMS, getMockProgram } from '@/lib/programs';
+import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import type { Program } from '@/types';
 
 const goalColors: Record<string, string> = {
@@ -28,10 +30,26 @@ const levelColors: Record<string, string> = {
   advanced: 'danger',
 };
 
+function getTodayDow(): number {
+  const d = new Date().getDay();
+  return d === 0 ? 6 : d - 1;
+}
+
 export default function TrainingPage() {
+  const { profile } = useAuth();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
+
+  const activeProgram = profile?.activeProgram;
+  const todayDow = getTodayDow();
+
+  // Get today's workout label for the active program
+  const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
+  const todayDay = activeMock?.schedule?.[todayDow] ?? null;
+  const pct = activeProgram
+    ? Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100)
+    : 0;
 
   useEffect(() => {
     getPrograms()
@@ -51,33 +69,54 @@ export default function TrainingPage() {
         {/* Active Program Hero */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <h2 className="text-sm font-medium text-text-secondary mb-2">ACTIVE PROGRAM</h2>
-          <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-surface to-surface-elevated">
-            <div className="absolute right-0 bottom-0 opacity-5">
-              <Dumbbell className="w-32 h-32 text-accent" />
-            </div>
-            <Badge variant="accent" className="mb-3">Week 2 of 8</Badge>
-            <h3 className="text-xl font-black text-white">Powerlifting Foundations</h3>
-            <p className="text-text-secondary text-sm mt-1">4 days/week · Strength</p>
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between text-xs text-text-secondary">
-                <span>Progress</span>
-                <span>25%</span>
+          {activeProgram ? (
+            <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-surface to-surface-elevated">
+              <div className="absolute right-0 bottom-0 opacity-5">
+                <Dumbbell className="w-32 h-32 text-accent" />
               </div>
-              <div className="h-2 bg-white/8 rounded-full">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: '25%' }}
-                  transition={{ duration: 0.7, delay: 0.3 }}
-                  className="h-full bg-accent rounded-full"
-                />
+              <Badge variant="accent" className="mb-3">
+                {activeProgram.completedWorkouts}/{activeProgram.totalWorkouts} sessions
+              </Badge>
+              <h3 className="text-xl font-black text-white">{activeProgram.programName}</h3>
+              {todayDay && (
+                <p className="text-text-secondary text-sm mt-1">
+                  Today: {todayDay.isRest ? '😴 Rest Day' : todayDay.label}
+                </p>
+              )}
+              <div className="mt-4 space-y-2">
+                <div className="flex justify-between text-xs text-text-secondary">
+                  <span>Progress</span>
+                  <span>{pct}%</span>
+                </div>
+                <ProgressBar value={activeProgram.completedWorkouts} max={activeProgram.totalWorkouts} color="accent" size="sm" />
               </div>
-            </div>
-            <Link href={`/training/session?programId=${programs[0]?.id ?? 'p1'}`}>
-              <Button className="mt-4" size="sm">
-                <Play className="w-4 h-4" /> Start Today&apos;s Workout
-              </Button>
-            </Link>
-          </Card>
+              <div className="flex gap-2 mt-4">
+                {todayDay && !todayDay.isRest ? (
+                  <Link href={`/training/session?programId=${activeProgram.programId}&dow=${todayDow}`}>
+                    <Button size="sm">
+                      <Play className="w-4 h-4" /> Start Today&apos;s Workout
+                    </Button>
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-text-secondary">
+                    <Moon className="w-4 h-4" /> Rest day — recover well
+                  </div>
+                )}
+                <Link href={`/training/${activeProgram.programId}`}>
+                  <Button size="sm" variant="secondary">View Program</Button>
+                </Link>
+              </div>
+            </Card>
+          ) : (
+            <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-surface to-surface-elevated">
+              <div className="absolute right-0 bottom-0 opacity-5">
+                <Dumbbell className="w-32 h-32 text-accent" />
+              </div>
+              <p className="text-text-secondary text-sm mb-2">No active program</p>
+              <h3 className="text-lg font-bold text-white">Choose a program below</h3>
+              <p className="text-text-secondary text-sm mt-1">Select a program to track your progress</p>
+            </Card>
+          )}
         </motion.div>
 
         {/* Filters */}
@@ -106,42 +145,46 @@ export default function TrainingPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filtered.map((prog, i) => (
-                <motion.div
-                  key={prog.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                >
-                  <Link href={`/training/${prog.id}`}>
-                    <Card className="p-4 hover:border-accent/30 transition-colors">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex gap-2 mb-2">
-                            <Badge variant={(goalColors[prog.goal] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
-                              {prog.goal}
-                            </Badge>
-                            <Badge variant={(levelColors[prog.level] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
-                              {prog.level}
-                            </Badge>
+              {filtered.map((prog, i) => {
+                const isActive = activeProgram?.programId === prog.id;
+                return (
+                  <motion.div
+                    key={prog.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                  >
+                    <Link href={`/training/${prog.id}`}>
+                      <Card className={`p-4 hover:border-accent/30 transition-colors ${isActive ? 'border-accent/40' : ''}`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex gap-2 mb-2 flex-wrap">
+                              <Badge variant={(goalColors[prog.goal] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
+                                {prog.goal}
+                              </Badge>
+                              <Badge variant={(levelColors[prog.level] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
+                                {prog.level}
+                              </Badge>
+                              {isActive && <Badge variant="success">Active</Badge>}
+                            </div>
+                            <h3 className="font-bold text-white">{prog.name}</h3>
+                            <p className="text-xs text-text-secondary mt-1 line-clamp-2">{prog.description}</p>
+                            <div className="flex items-center gap-4 mt-2">
+                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
+                                <Clock className="w-3 h-3" />{prog.weeks}w
+                              </span>
+                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
+                                <Target className="w-3 h-3" />{prog.daysPerWeek}d/week
+                              </span>
+                            </div>
                           </div>
-                          <h3 className="font-bold text-white">{prog.name}</h3>
-                          <p className="text-xs text-text-secondary mt-1 line-clamp-2">{prog.description}</p>
-                          <div className="flex items-center gap-4 mt-2">
-                            <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                              <Clock className="w-3 h-3" />{prog.weeks}w
-                            </span>
-                            <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                              <Target className="w-3 h-3" />{prog.daysPerWeek}d/week
-                            </span>
-                          </div>
+                          <ChevronRight className="w-4 h-4 text-text-tertiary mt-1 flex-shrink-0" />
                         </div>
-                        <ChevronRight className="w-4 h-4 text-text-tertiary mt-1 flex-shrink-0" />
-                      </div>
-                    </Card>
-                  </Link>
-                </motion.div>
-              ))}
+                      </Card>
+                    </Link>
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </div>

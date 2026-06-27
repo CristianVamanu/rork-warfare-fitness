@@ -46,6 +46,15 @@ export interface Tenant {
   stripe: TenantStripe;
 }
 
+export interface ActiveProgram {
+  programId: string;
+  programName: string;
+  enrolledAt: unknown;
+  startDate: string;         // ISO 'YYYY-MM-DD'
+  completedWorkouts: number;
+  totalWorkouts: number;     // weeks × daysPerWeek
+}
+
 export interface UserProfile {
   id: string;
   displayName: string;
@@ -58,6 +67,7 @@ export interface UserProfile {
   lastActive: unknown;
   goals?: UserGoals;
   statsCache?: StatsCache;  // derived — computed by events engine
+  activeProgram?: ActiveProgram;
   stats: {
     streak: number;
     powerLevel: number;

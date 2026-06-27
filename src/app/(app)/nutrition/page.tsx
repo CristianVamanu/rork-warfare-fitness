@@ -3,10 +3,10 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check } from 'lucide-react';
+import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTodayMeals, getTodayWaterLogs, deleteWaterLog, deleteMeal, getUserGoals, updateUserGoals } from '@/lib/firestore';
+import { getTodayMeals, getTodayWaterLogs, deleteWaterLog, deleteMeal, getUserGoals, updateUserGoals, getMealsForDate } from '@/lib/firestore';
 import { logWaterAction } from '@/lib/actions';
 import toast from 'react-hot-toast';
 import { Header } from '@/components/layout/Header';
@@ -23,6 +23,14 @@ const DEFAULT_GOALS: UserGoals = { calories: 2200, protein: 160, carbs: 250, fat
 
 interface WaterLog { id: string; amountMl: number; loggedAt: unknown }
 
+function formatDate(d: Date): string {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 export default function NutritionPage() {
   const { user } = useAuth();
   const [meals, setMeals] = useState<Meal[]>([]);
@@ -34,20 +42,34 @@ export default function NutritionPage() {
   const [savingGoals, setSavingGoals] = useState(false);
   const [customWaterMl, setCustomWaterMl] = useState('');
   const [showWaterHistory, setShowWaterHistory] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0); return d;
+  });
 
+  const isToday = selectedDate.toDateString() === new Date().toDateString();
   const waterMl = waterLogs.reduce((sum, w) => sum + w.amountMl, 0);
+
+  const shiftDate = (delta: number) => {
+    setSelectedDate((prev) => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() + delta);
+      return d;
+    });
+  };
 
   const refresh = useCallback(async () => {
     if (!user) return;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const isCurrentDay = selectedDate.toDateString() === today.toDateString();
     const [m, wLogs, g] = await Promise.all([
-      getTodayMeals(user.uid),
-      getTodayWaterLogs(user.uid),
+      isCurrentDay ? getTodayMeals(user.uid) : getMealsForDate(user.uid, selectedDate),
+      isCurrentDay ? getTodayWaterLogs(user.uid) : Promise.resolve([] as WaterLog[]),
       getUserGoals(user.uid),
     ]);
     setMeals(m as Meal[]);
     setWaterLogs(wLogs);
     setGoals(g);
-  }, [user]);
+  }, [user, selectedDate]);
 
   useEffect(() => {
     if (!user) return;
@@ -132,6 +154,25 @@ export default function NutritionPage() {
           <Settings className="w-5 h-5" />
         </button>
       } />
+
+      {/* Date navigator */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-white/8 bg-surface/50">
+        <button
+          onClick={() => shiftDate(-1)}
+          className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <p className="text-sm font-semibold text-white">{formatDate(selectedDate)}</p>
+        <button
+          onClick={() => shiftDate(1)}
+          disabled={isToday}
+          className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/5 transition-colors disabled:opacity-30"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
       <div className="px-4 py-4 space-y-5">
         {/* Macro Summary */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
@@ -181,7 +222,7 @@ export default function NutritionPage() {
           </Card>
         </motion.div>
 
-        {/* Water Tracker */}
+        {/* Water Tracker — today only */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
@@ -202,7 +243,7 @@ export default function NutritionPage() {
               </div>
             </div>
             <ProgressBar value={waterMl} max={goals.water} color="info" size="md" />
-            <div className="grid grid-cols-4 gap-2 mt-3">
+            {isToday && <div className="grid grid-cols-4 gap-2 mt-3">
               {[250, 500, 750, 1000].map((ml) => (
                 <button
                   key={ml}
@@ -212,9 +253,9 @@ export default function NutritionPage() {
                   +{ml >= 1000 ? `${ml / 1000}L` : `${ml}ml`}
                 </button>
               ))}
-            </div>
-            {/* Custom amount */}
-            <div className="flex gap-2 mt-2">
+            </div>}
+            {/* Custom amount — today only */}
+            {isToday && <div className="flex gap-2 mt-2">
               <input
                 type="number"
                 placeholder="Custom ml..."
@@ -226,7 +267,7 @@ export default function NutritionPage() {
               <button onClick={handleCustomWater} className="px-3 py-2 bg-blue-400/20 text-blue-400 rounded-xl hover:bg-blue-400/30 transition-colors">
                 <Plus className="w-4 h-4" />
               </button>
-            </div>
+            </div>}
             {/* Water history */}
             <AnimatePresence>
               {showWaterHistory && (
@@ -245,8 +286,8 @@ export default function NutritionPage() {
           </Card>
         </motion.div>
 
-        {/* Quick Add Buttons */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Quick Add Buttons — today only */}
+        {isToday && <div className="grid grid-cols-2 gap-3">
           <Link href="/nutrition/analyze">
             <motion.div
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
@@ -271,7 +312,7 @@ export default function NutritionPage() {
               <span className="text-xs text-text-secondary text-center">Scan product</span>
             </motion.div>
           </Link>
-        </div>
+        </div>}
 
         {/* Meals by Type */}
         {loading ? (
