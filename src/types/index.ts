@@ -157,6 +157,7 @@ export interface Program {
   createdBy: string;
   trainerId?: string;
   isPublic: boolean;
+  isPremium?: boolean; // requires active membership to access
 }
 
 export interface Exercise {
@@ -241,8 +242,9 @@ export interface MembershipConfig {
   fee: number; // monthly in USD (e.g. 29.99)
   currency: string; // e.g. 'USD'
   fullLock: boolean; // lock entire app for non-members
-  lockedFeatures: string[]; // 'barcode' | 'nutrition-ai'
+  lockedFeatures: string[]; // 'barcode' | 'nutrition-ai' | 'premium-programs'
   lockedProgramIds: string[]; // specific program IDs that require membership
+  trialDays: 0 | 7 | 14 | 30; // free trial length; 0 = no trial
 }
 
 export interface Conversation {

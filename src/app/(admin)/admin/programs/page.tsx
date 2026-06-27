@@ -3,9 +3,9 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Edit2, Trash2, Users, Sparkles, ChevronLeft, Dumbbell } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, Sparkles, ChevronLeft, Dumbbell, Crown } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram } from '@/lib/firestore';
+import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, updateProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -38,6 +38,15 @@ export default function ProgramsPage() {
       setUsers((u as UserRow[]).filter((x: UserRow & { role?: string }) => x.role !== 'admin'));
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
+
+  async function handleTogglePremium(p: Program & { _mock?: boolean }) {
+    if (p._mock) { toast.error('Built-in programs cannot be toggled — duplicate it first.'); return; }
+    try {
+      await updateProgram(p.id, { isPremium: !p.isPremium });
+      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPremium: !x.isPremium } : x));
+      toast.success(p.isPremium ? 'Set to Free' : 'Set to Premium');
+    } catch { toast.error('Failed to update'); }
+  }
 
   async function handleDelete(p: Program & { _mock?: boolean }) {
     if (!confirm(`Delete "${p.name}"?`)) return;
@@ -112,6 +121,7 @@ export default function ProgramsPage() {
                     {p.visibility === 'coaching' && <Badge variant="danger">1:1 Coaching</Badge>}
                     {p.isPublic && !p.visibility && <Badge variant="accent">Public</Badge>}
                     {p.visibility === 'public' && <Badge variant="accent">Public</Badge>}
+                    {p.isPremium && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <Badge variant={(goalColor[p.goal] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>{p.goal}</Badge>
@@ -121,6 +131,15 @@ export default function ProgramsPage() {
                   {p.description && <p className="text-xs text-text-secondary mt-1.5 line-clamp-1">{p.description}</p>}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  {!(p as { _mock?: boolean })._mock && (
+                    <button
+                      onClick={() => handleTogglePremium(p)}
+                      title={p.isPremium ? 'Set Free' : 'Set Premium'}
+                      className={`p-2 rounded-lg transition-colors ${p.isPremium ? 'text-yellow-400 hover:bg-yellow-400/10' : 'text-text-secondary hover:text-yellow-400 hover:bg-yellow-400/10'}`}
+                    >
+                      <Crown className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => setAssignModal(p)}
                     title="Assign to client"

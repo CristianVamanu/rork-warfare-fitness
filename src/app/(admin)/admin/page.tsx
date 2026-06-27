@@ -74,7 +74,7 @@ export default function AdminPage() {
 
   // ── Membership state ───────────────────────────────────────────────────────
   const [membership, setMembership] = useState<MembershipConfig>({
-    enabled: false, fee: 0, currency: 'USD', fullLock: false, lockedFeatures: [], lockedProgramIds: [],
+    enabled: false, fee: 0, currency: 'USD', fullLock: false, lockedFeatures: [], lockedProgramIds: [], trialDays: 0,
   });
   const [membershipLoading, setMembershipLoading] = useState(false);
   const [savingMembership, setSavingMembership] = useState(false);
@@ -283,7 +283,7 @@ export default function AdminPage() {
           description: channelForm.description.trim() || undefined,
           emoji: channelForm.emoji.trim() || undefined,
           createdBy: user.uid,
-          trainerId: profile?.trainerId,
+          trainerId: profile?.trainerId ?? user.uid,
           photoUploadEnabled: channelForm.photoUploadEnabled,
           slowModeDays: channelForm.slowModeDays,
         });
@@ -966,6 +966,21 @@ export default function AdminPage() {
                         />
                       </div>
                     </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-2 block">Free Trial Period</label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {([0, 7, 14, 30] as const).map((d) => (
+                          <button
+                            key={d}
+                            onClick={() => setMembership(m => ({ ...m, trialDays: d }))}
+                            className={`py-2 rounded-xl text-xs font-bold transition-all border ${membership.trialDays === d ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
+                          >
+                            {d === 0 ? 'None' : `${d}d`}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-text-tertiary mt-1.5">New members get this many days free before being charged.</p>
+                    </div>
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-white">Full Platform Lock</p>
@@ -992,6 +1007,7 @@ export default function AdminPage() {
                   {[
                     { id: 'barcode', label: 'Barcode Scanner', desc: 'Nutrition lookup via product barcode' },
                     { id: 'nutrition-ai', label: 'AI Food Analyzer', desc: 'Photo-based nutrition analysis' },
+                    { id: 'premium-programs', label: 'Premium Training Plans', desc: 'Programs marked as Premium require membership' },
                   ].map(({ id, label, desc }) => (
                     <div key={id} className="flex items-center justify-between py-1">
                       <div>

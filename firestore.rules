@@ -141,5 +141,41 @@ service cloud.firestore {
       allow create: if isAuthed() && request.resource.data.userId == uid();
       allow update, delete: if false;
     }
+
+    // ── Channels (Discord-style community) ────────────────────────────────
+    match /channels/{channelId} {
+      allow read: if isAuthed();
+      allow create, update, delete: if isAdmin();
+
+      match /posts/{postId} {
+        allow read: if isAuthed();
+        allow create: if isAuthed() && request.resource.data.userId == uid();
+        allow update: if isAuthed() && resource.data.userId == uid();
+        allow delete: if isAdmin();
+
+        match /replies/{replyId} {
+          allow read: if isAuthed();
+          allow create: if isAuthed() && request.resource.data.userId == uid();
+          allow update, delete: if false;
+        }
+      }
+
+      match /members/{userId} {
+        allow read, write: if isAuthed();
+      }
+    }
+
+    // ── Notifications ─────────────────────────────────────────────────────
+    match /notifications/{notifId} {
+      allow read, update: if isAuthed() && resource.data.userId == uid();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Config documents (membership, hiddenMocks, etc.) ─────────────────
+    match /config/{configId} {
+      allow read: if isAuthed();
+      allow write: if isAdmin();
+    }
   }
 }

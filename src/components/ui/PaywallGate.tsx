@@ -29,7 +29,16 @@ export function PaywallGate({ feature, programId, children }: Props) {
 
   const hasMembership = profile?.membership?.status === 'active';
 
-  if (!config || !config.enabled || hasMembership) {
+  // Check free trial: if user joined within trialDays, treat as member
+  const trialDays = (config as MembershipConfig & { trialDays?: number })?.trialDays ?? 0;
+  const inTrial = (() => {
+    if (!trialDays || !profile?.createdAt) return false;
+    const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
+    const ms = Date.now() - created.getTime();
+    return ms < trialDays * 24 * 60 * 60 * 1000;
+  })();
+
+  if (!config || !config.enabled || hasMembership || inTrial) {
     return <>{children}</>;
   }
 
@@ -40,7 +49,8 @@ export function PaywallGate({ feature, programId, children }: Props) {
 
   if (!isLocked) return <>{children}</>;
 
-  const price = config.fee > 0 ? `$${config.fee.toFixed(2)}/mo` : 'Premium';
+  const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
+  const price = config.fee > 0 ? `$${config.fee.toFixed(2)}/mo${trialLabel}` : 'Premium';
 
   return (
     <div className="px-4 py-12 flex flex-col items-center justify-center min-h-[40vh]">

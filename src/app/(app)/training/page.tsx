@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Dumbbell, Play, Clock, Target, ChevronRight, Moon } from 'lucide-react';
+import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { getPrograms, getProgram, getHiddenMockIds } from '@/lib/firestore';
 import { MOCK_PROGRAMS, getMockProgram } from '@/lib/programs';
@@ -185,6 +185,7 @@ export default function TrainingPage() {
                                 {prog.level}
                               </Badge>
                               {isActive && <Badge variant="success">Active</Badge>}
+                              {(prog as { isPremium?: boolean }).isPremium && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
                             </div>
                             <h3 className="font-bold text-white">{prog.name}</h3>
                             <p className="text-xs text-text-secondary mt-1 line-clamp-2">{prog.description}</p>
