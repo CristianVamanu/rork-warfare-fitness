@@ -64,8 +64,8 @@ export default function ProgressPage() {
           className="grid grid-cols-2 gap-3"
         >
           {[
-            { icon: Dumbbell, label: 'Total Workouts', value: profile?.stats?.totalWorkouts ?? workouts.length, color: 'text-purple-400', bg: 'bg-purple-400/10' },
-            { icon: TrendingUp, label: 'Current Streak', value: `${profile?.stats?.streak ?? 0}d`, color: 'text-accent', bg: 'bg-accent-muted' },
+            { icon: Dumbbell, label: 'Total Workouts', value: profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? workouts.length, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+            { icon: TrendingUp, label: 'Current Streak', value: `${profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0}d`, color: 'text-accent', bg: 'bg-accent-muted' },
             { icon: Scale, label: 'Weight Lost', value: '2.5kg', color: 'text-green-400', bg: 'bg-green-400/10' },
             { icon: Award, label: 'Achievements', value: `${ACHIEVEMENTS.filter(a => a.earned).length}/${ACHIEVEMENTS.length}`, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
           ].map(({ icon: Icon, label, value, color, bg }) => (

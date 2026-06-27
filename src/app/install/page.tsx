@@ -110,8 +110,18 @@ export default function InstallPage() {
       toast.success('Warfare Fitness installed successfully!');
       setTimeout(() => router.replace('/login'), 1500);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Installation failed';
-      toast.error(msg.includes('email-already-in-use') ? 'Admin email already in use' : msg);
+      const e = err as Error & { code?: string };
+      const msg = e?.message ?? 'Installation failed';
+      const code = e?.code ?? '';
+      let display: string;
+      if (code === 'permission-denied' || msg.includes('insufficient permissions')) {
+        display = 'Firestore rules not deployed. Run: firebase deploy --only firestore:rules,firestore:indexes — then retry.';
+      } else if (msg.includes('email-already-in-use')) {
+        display = 'Admin email already in use — try a different email or check your Firebase console.';
+      } else {
+        display = msg || 'Installation failed';
+      }
+      toast.error(display, { duration: 12000 });
       setInstalling(false);
     }
   };

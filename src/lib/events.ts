@@ -45,10 +45,18 @@ export async function createEvent(data: {
       return ref.id;
     } catch (err) {
       lastErr = err;
+      const e = err as Error & { code?: string };
+      // permission-denied will never succeed on retry — fail fast with a clear message
+      if (e?.code === 'permission-denied') {
+        console.error(
+          '[Events] createEvent: permission-denied. ' +
+          'Firestore rules may not be deployed. Run: firebase deploy --only firestore:rules'
+        );
+        throw err;
+      }
       if (attempt === 0) {
-        // Brief backoff before retry
         await new Promise((r) => setTimeout(r, 600));
-        console.warn('[Events] createEvent attempt 1 failed — retrying:', (err as Error)?.message);
+        console.warn('[Events] createEvent attempt 1 failed — retrying:', e?.message);
       }
     }
   }

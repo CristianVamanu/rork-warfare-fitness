@@ -66,10 +66,15 @@ export default function NutritionPage() {
 
   const addWater = async (ml: number) => {
     if (!user) return;
-    await logWaterAction(user.uid, ml);
-    // Reload logs from Firestore to get the real id for deletion
-    getTodayWaterLogs(user.uid).then(setWaterLogs).catch(console.error);
-    toast.success(`+${ml}ml logged`);
+    try {
+      await logWaterAction(user.uid, ml);
+      getTodayWaterLogs(user.uid).then(setWaterLogs).catch(console.error);
+      toast.success(`+${ml}ml logged`);
+    } catch (err: unknown) {
+      const e = err as Error & { code?: string };
+      const isPermission = e?.code === 'permission-denied';
+      toast.error(isPermission ? 'Save failed: Firestore rules not deployed' : (e?.message || 'Failed to log water'));
+    }
   };
 
   const handleCustomWater = async () => {
@@ -80,16 +85,24 @@ export default function NutritionPage() {
   };
 
   const removeWaterLog = async (id: string, amountMl: number) => {
-    await deleteWaterLog(id);
-    setWaterLogs((prev) => prev.filter((w) => w.id !== id));
-    toast.success(`-${amountMl}ml removed`);
+    try {
+      await deleteWaterLog(id);
+      setWaterLogs((prev) => prev.filter((w) => w.id !== id));
+      toast.success(`-${amountMl}ml removed`);
+    } catch (err: unknown) {
+      toast.error((err as Error)?.message || 'Failed to remove water log');
+    }
   };
 
   const removeMeal = async (meal: Meal) => {
     if (!window.confirm(`Remove "${meal.name}"?`)) return;
-    await deleteMeal(meal.id);
-    setMeals((prev) => prev.filter((m) => m.id !== meal.id));
-    toast.success('Meal removed');
+    try {
+      await deleteMeal(meal.id);
+      setMeals((prev) => prev.filter((m) => m.id !== meal.id));
+      toast.success('Meal removed');
+    } catch (err: unknown) {
+      toast.error((err as Error)?.message || 'Failed to remove meal');
+    }
   };
 
   const saveGoals = async () => {

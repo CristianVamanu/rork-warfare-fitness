@@ -7,7 +7,7 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
 } from 'lucide-react';
 import {
-  collection, getDocs, query, where, Timestamp,
+  collection, getDocs, query, where, orderBy, Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getSystemConfig, getPrograms } from '@/lib/firestore';
@@ -52,14 +52,18 @@ export default function AdminPage() {
       // Programs scoped to trainer
       getPrograms(trainerId).catch(() => []),
       // Workouts today — count WORKOUT_COMPLETED events
-      getDocs(
-        query(
-          collection(db, 'events'),
-          where('type', '==', 'WORKOUT_COMPLETED'),
-          ...(trainerId ? [where('trainerId', '==', trainerId)] : []),
-          where('createdAt', '>=', Timestamp.fromDate(todayStart))
-        )
-      ).then((s) => s.size).catch(() => 0),
+      // Uses (trainerId ASC, type ASC, createdAt DESC) composite index
+      trainerId
+        ? getDocs(
+            query(
+              collection(db, 'events'),
+              where('trainerId', '==', trainerId),
+              where('type', '==', 'WORKOUT_COMPLETED'),
+              where('createdAt', '>=', Timestamp.fromDate(todayStart)),
+              orderBy('createdAt', 'desc')
+            )
+          ).then((s) => s.size).catch(() => 0)
+        : Promise.resolve(0),
     ])
       .then(([u, c, programs, wToday]) => {
         setUsers(u as UserData[]);

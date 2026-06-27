@@ -79,24 +79,30 @@ export async function createAdminUser(
   name: string
 ) {
   const credential = await createUserWithEmailAndPassword(auth, email, password);
-  await updateProfile(credential.user, { displayName: name });
-
   const uid = credential.user.uid;
 
-  await setDoc(doc(db, 'users', uid), {
-    displayName: name,
-    email,
-    photoURL: null,
-    weightUnit: 'kg',
-    role: 'admin',
-    trainerId: uid,          // admin is their own tenant owner
-    createdAt: serverTimestamp(),
-    lastActive: serverTimestamp(),
-    stats: { streak: 0, powerLevel: 100, totalWorkouts: 0, totalWeightLifted: 0 },
-  });
+  try {
+    await updateProfile(credential.user, { displayName: name });
 
-  // Create the tenant record for this trainer
-  await createTenant(uid, name, email);
+    await setDoc(doc(db, 'users', uid), {
+      displayName: name,
+      email,
+      photoURL: null,
+      weightUnit: 'kg',
+      role: 'admin',
+      trainerId: uid,
+      createdAt: serverTimestamp(),
+      lastActive: serverTimestamp(),
+      stats: { streak: 0, powerLevel: 100, totalWorkouts: 0, totalWeightLifted: 0 },
+    });
 
-  return credential.user;
+    await createTenant(uid, name, email);
+
+    return credential.user;
+  } catch (err) {
+    // If Firestore writes fail (e.g. rules not deployed), clean up the Auth user
+    // so the installer can retry without hitting "email-already-in-use".
+    await credential.user.delete().catch(() => {});
+    throw err;
+  }
 }
