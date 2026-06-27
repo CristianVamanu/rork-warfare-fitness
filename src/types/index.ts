@@ -87,6 +87,11 @@ export interface UserProfile {
   powerLevel?: number;
   currentWeightKg?: number;
   banned?: boolean;
+  membership?: {
+    status: 'active' | 'none';
+    expiresAt?: unknown;
+    grantedBy?: string;
+  };
   stats: {
     streak: number;
     powerLevel: number;
@@ -174,6 +179,15 @@ export interface Post {
   likes: string[];
   commentCount: number;
   createdAt: unknown;
+}
+
+export interface MembershipConfig {
+  enabled: boolean;
+  fee: number; // monthly in USD (e.g. 29.99)
+  currency: string; // e.g. 'USD'
+  fullLock: boolean; // lock entire app for non-members
+  lockedFeatures: string[]; // 'barcode' | 'nutrition-ai'
+  lockedProgramIds: string[]; // specific program IDs that require membership
 }
 
 export interface Conversation {

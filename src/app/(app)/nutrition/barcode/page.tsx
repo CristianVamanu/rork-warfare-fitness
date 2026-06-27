@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { logMealAction } from '@/lib/actions';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import type { NutritionAnalysis } from '@/types';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -186,6 +187,7 @@ export default function BarcodePage() {
   };
 
   return (
+    <PaywallGate feature="barcode">
     <div>
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-white/8">
         <div className="flex items-center gap-3 px-4 py-3">
@@ -385,5 +387,6 @@ export default function BarcodePage() {
         </Card>
       </div>
     </div>
+    </PaywallGate>
   );
 }

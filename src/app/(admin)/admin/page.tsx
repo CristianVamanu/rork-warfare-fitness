@@ -15,6 +15,7 @@ import {
   getSystemConfig, setSystemConfig,
   banUser, unbanUser, getAllUsers,
   getAdminConversations, getOrCreateConversation, getMessages, sendMessage, markConversationRead,
+  getMembershipConfig, saveMembershipConfig, setUserMembership,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -23,9 +24,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import toast from 'react-hot-toast';
-import type { Conversation, Message } from '@/types';
+import type { Conversation, Message, MembershipConfig } from '@/types';
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'settings';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'membership' | 'settings';
 
 interface UserData {
   id: string;
@@ -69,6 +70,14 @@ export default function AdminPage() {
   const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini' });
   const [savingSettings, setSavingSettings] = useState(false);
 
+  // ── Membership state ───────────────────────────────────────────────────────
+  const [membership, setMembership] = useState<MembershipConfig>({
+    enabled: false, fee: 0, currency: 'USD', fullLock: false, lockedFeatures: [], lockedProgramIds: [],
+  });
+  const [membershipLoading, setMembershipLoading] = useState(false);
+  const [savingMembership, setSavingMembership] = useState(false);
+  const [togglingMember, setTogglingMember] = useState<string | null>(null);
+
   // ── Initial load ────────────────────────────────────────────────────────────
   useEffect(() => {
     const trainerId = profile?.trainerId;
@@ -107,6 +116,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (tab === 'clients' && users.length === 0) loadUsers();
     if (tab === 'messages' && conversations.length === 0) loadConversations();
+    if (tab === 'membership') loadMembership();
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadUsers() {
@@ -183,6 +193,43 @@ export default function AdminPage() {
     finally { setBanningUser(null); }
   }
 
+  async function loadMembership() {
+    setMembershipLoading(true);
+    try {
+      const cfg = await getMembershipConfig();
+      if (cfg) setMembership(cfg);
+    } catch { /* use defaults */ }
+    finally { setMembershipLoading(false); }
+  }
+
+  async function handleSaveMembership() {
+    setSavingMembership(true);
+    try {
+      await saveMembershipConfig(membership);
+      toast.success('Membership settings saved');
+    } catch { toast.error('Failed to save membership settings'); }
+    finally { setSavingMembership(false); }
+  }
+
+  async function handleToggleMember(u: UserData) {
+    setTogglingMember(u.id);
+    const currentStatus = (u as UserData & { membership?: { status?: string } }).membership?.status ?? 'none';
+    const newStatus = currentStatus === 'active' ? 'none' : 'active';
+    try {
+      await setUserMembership(u.id, newStatus);
+      toast.success(newStatus === 'active' ? `${u.displayName} is now a member` : `${u.displayName}'s membership revoked`);
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, membership: { status: newStatus } } : x));
+    } catch { toast.error('Failed to update membership'); }
+    finally { setTogglingMember(null); }
+  }
+
+  function toggleLockedFeature(f: string) {
+    setMembership(m => ({
+      ...m,
+      lockedFeatures: m.lockedFeatures.includes(f) ? m.lockedFeatures.filter(x => x !== f) : [...m.lockedFeatures, f],
+    }));
+  }
+
   async function handleSaveSettings() {
     setSavingSettings(true);
     try {
@@ -200,6 +247,7 @@ export default function AdminPage() {
     { id: 'programs', label: 'Programs', icon: Dumbbell },
     { id: 'clients', label: 'Clients', icon: Users },
     { id: 'messages', label: 'Messages', icon: MessageSquare },
+    { id: 'membership', label: 'Membership', icon: CreditCard },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -469,6 +517,137 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Membership ───────────────────────────────────────────────────────── */}
+      {tab === 'membership' && (
+        <div className="space-y-5">
+          {membershipLoading ? (
+            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+          ) : (
+            <>
+              {/* Enable / fee */}
+              <Card className="p-5 space-y-4">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-accent" /> Membership Settings
+                </h2>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-white">Enable Membership System</p>
+                    <p className="text-xs text-text-secondary mt-0.5">Restrict features to paying members only</p>
+                  </div>
+                  <button
+                    onClick={() => setMembership(m => ({ ...m, enabled: !m.enabled }))}
+                    className={`w-11 h-6 rounded-full transition-colors relative ${membership.enabled ? 'bg-accent' : 'bg-surface-elevated'}`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membership.enabled ? 'left-6' : 'left-1'}`} />
+                  </button>
+                </div>
+                {membership.enabled && (
+                  <>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Monthly Fee (USD)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={membership.fee}
+                          onChange={e => setMembership(m => ({ ...m, fee: parseFloat(e.target.value) || 0 }))}
+                          className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-white">Full Platform Lock</p>
+                        <p className="text-xs text-text-secondary mt-0.5">Non-members can only see the dashboard</p>
+                      </div>
+                      <button
+                        onClick={() => setMembership(m => ({ ...m, fullLock: !m.fullLock }))}
+                        className={`w-11 h-6 rounded-full transition-colors relative ${membership.fullLock ? 'bg-danger' : 'bg-surface-elevated'}`}
+                      >
+                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membership.fullLock ? 'left-6' : 'left-1'}`} />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </Card>
+
+              {/* Locked features */}
+              {membership.enabled && !membership.fullLock && (
+                <Card className="p-5 space-y-3">
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-accent" /> Lockable Features
+                  </h2>
+                  <p className="text-xs text-text-secondary">Non-members see a paywall on these features.</p>
+                  {[
+                    { id: 'barcode', label: 'Barcode Scanner', desc: 'Nutrition lookup via product barcode' },
+                    { id: 'nutrition-ai', label: 'AI Food Analyzer', desc: 'Photo-based nutrition analysis' },
+                  ].map(({ id, label, desc }) => (
+                    <div key={id} className="flex items-center justify-between py-1">
+                      <div>
+                        <p className="text-sm font-medium text-white">{label}</p>
+                        <p className="text-xs text-text-secondary">{desc}</p>
+                      </div>
+                      <button
+                        onClick={() => toggleLockedFeature(id)}
+                        className={`w-11 h-6 rounded-full transition-colors relative ${membership.lockedFeatures.includes(id) ? 'bg-accent' : 'bg-surface-elevated'}`}
+                      >
+                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membership.lockedFeatures.includes(id) ? 'left-6' : 'left-1'}`} />
+                      </button>
+                    </div>
+                  ))}
+                </Card>
+              )}
+
+              <Button onClick={handleSaveMembership} loading={savingMembership} fullWidth>
+                Save Membership Settings
+              </Button>
+
+              {/* Client membership management */}
+              {membership.enabled && (
+                <Card className="p-5 space-y-3">
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <Users className="w-4 h-4 text-accent" /> Client Memberships
+                  </h2>
+                  <p className="text-xs text-text-secondary">Manually grant or revoke membership for each client.</p>
+                  {clients.length === 0 ? (
+                    <p className="text-text-tertiary text-sm text-center py-4">No clients yet.</p>
+                  ) : clients.map((u) => {
+                    const isMember = (u as UserData & { membership?: { status?: string } }).membership?.status === 'active';
+                    return (
+                      <div key={u.id} className="flex items-center gap-3 py-2 border-t border-white/5 first:border-0 first:pt-0">
+                        <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center text-accent text-xs font-bold flex-shrink-0">
+                          {u.displayName?.[0]?.toUpperCase() || '?'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{u.displayName || 'Unknown'}</p>
+                          <p className="text-xs text-text-secondary truncate">{u.email}</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {isMember ? <Badge variant="success">Member</Badge> : <Badge variant="muted">Free</Badge>}
+                          <button
+                            onClick={() => handleToggleMember(u)}
+                            disabled={togglingMember === u.id}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              isMember
+                                ? 'bg-danger/10 text-danger hover:bg-danger/20'
+                                : 'bg-accent-muted text-accent hover:bg-accent/20'
+                            }`}
+                          >
+                            {togglingMember === u.id ? '…' : isMember ? 'Revoke' : 'Grant'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </Card>
+              )}
+            </>
           )}
         </div>
       )}

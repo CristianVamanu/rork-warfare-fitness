@@ -11,6 +11,7 @@ import { getTodayMeals, getUserGoals } from '@/lib/firestore';
 import { logMealAction } from '@/lib/actions';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import type { NutritionAnalysis, UserGoals, Meal } from '@/types';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -96,6 +97,7 @@ export default function AnalyzeFoodPage() {
   const willExceed = result && caloriesAfter > goals.calories;
 
   return (
+    <PaywallGate feature="nutrition-ai">
     <div>
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-white/8">
         <div className="flex items-center gap-3 px-4 py-3">
@@ -251,5 +253,6 @@ export default function AnalyzeFoodPage() {
         )}
       </div>
     </div>
+    </PaywallGate>
   );
 }

@@ -68,7 +68,7 @@ export default function TrainingPage() {
   useEffect(() => {
     getPrograms()
       .then((firestoreProgs) => {
-        const fp = firestoreProgs as Program[];
+        const fp = firestoreProgs as unknown as Program[];
         const fpIds = new Set(fp.map((p) => p.id));
         const mocks = MOCK_PROGRAMS.filter((m) => !fpIds.has(m.id));
         setPrograms([...fp, ...mocks as Program[]]);

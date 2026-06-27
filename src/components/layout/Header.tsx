@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Bell, Settings } from 'lucide-react';
+import { Bell, MessageCircle } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserConversations } from '@/lib/firestore';
@@ -51,17 +51,25 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
           {rightElement}
           {showActions && (
             <>
+              {/* Message icon — direct access to coach DMs */}
               <Link
                 href="/messages"
                 className="relative p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
               >
-                <Bell className="w-5 h-5" />
+                <MessageCircle className="w-5 h-5" />
                 {unread > 0 && (
                   <span className="absolute top-1 right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
                     {unread > 9 ? '9+' : unread}
                   </span>
                 )}
               </Link>
+              {/* Bell — reserved for system/AI notifications */}
+              <button
+                className="relative p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                aria-label="Notifications"
+              >
+                <Bell className="w-5 h-5" />
+              </button>
               <Link href="/settings">
                 <Avatar
                   src={profile?.photoURL}

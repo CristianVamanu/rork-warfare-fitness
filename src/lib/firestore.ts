@@ -384,13 +384,14 @@ export async function getUserWorkouts(userId: string, limitCount = 10) {
 export async function getPrograms(trainerId?: string) {
   // Use collection scan + client-side filter to avoid requiring composite Firestore indexes
   const snap = await getDocs(collection(db, 'programs'));
-  const all = snap.docs.map((d) => ({ id: d.id, ...d.data() as Record<string, unknown> }));
+  type ProgramDoc = Record<string, unknown> & { id: string };
+  const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ProgramDoc);
   if (trainerId) {
-    return all.filter((p) => p.trainerId === trainerId).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    return all.filter((p) => p['trainerId'] === trainerId).sort((a, b) => String(a['name']).localeCompare(String(b['name'])));
   }
   return all
-    .filter((p) => p.isPublic === true || p.visibility === 'public')
-    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    .filter((p) => p['isPublic'] === true || p['visibility'] === 'public')
+    .sort((a, b) => String(a['name']).localeCompare(String(b['name'])));
 }
 
 export async function getProgram(id: string) {
@@ -573,6 +574,28 @@ export async function getAllUsers() {
 export async function getAllPrograms() {
   const snap = await getDocs(collection(db, 'programs'));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// ---------------------------------------------------------------------------
+// Membership configuration — stored at config/membership
+// ---------------------------------------------------------------------------
+import type { MembershipConfig } from '@/types';
+
+export async function getMembershipConfig(): Promise<MembershipConfig | null> {
+  const snap = await getDoc(doc(db, 'config', 'membership'));
+  if (!snap.exists()) return null;
+  return snap.data() as MembershipConfig;
+}
+
+export async function saveMembershipConfig(data: Partial<MembershipConfig>) {
+  await setDoc(doc(db, 'config', 'membership'), data, { merge: true });
+}
+
+export async function setUserMembership(userId: string, status: 'active' | 'none') {
+  await updateDoc(doc(db, 'users', userId), {
+    'membership.status': status,
+    'membership.grantedAt': serverTimestamp(),
+  });
 }
 
 // ---------------------------------------------------------------------------
