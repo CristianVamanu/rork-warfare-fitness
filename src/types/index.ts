@@ -109,6 +109,9 @@ export interface SystemConfig {
   stripePublishableKey?: string;
   openaiModel?: string;
   videoGreetingUrl?: string;
+  logoUrl?: string;
+  pwaInstallBannerEnabled?: boolean; // admin can disable the install banner
+  vapidPublicKey?: string; // stored in Firestore so client can subscribe
 }
 
 export interface Channel {

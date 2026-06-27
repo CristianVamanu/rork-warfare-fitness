@@ -3,9 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Bell, MessageCircle } from 'lucide-react';
+import Image from 'next/image';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserConversations, getUnreadNotificationCount } from '@/lib/firestore';
+import { getUserConversations, getUnreadNotificationCount, getSystemConfig } from '@/lib/firestore';
 
 interface HeaderProps {
   title?: string;
@@ -17,6 +18,11 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
   const { user, profile } = useAuth();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    getSystemConfig().then(cfg => { if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string); }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -43,8 +49,12 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
           <h1 className="text-lg font-bold text-white">{title}</h1>
         ) : (
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center">
-              <span className="text-xs font-black text-black">W</span>
+            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center overflow-hidden">
+              {logoUrl ? (
+                <Image src={logoUrl} alt="Logo" width={28} height={28} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs font-black text-black">W</span>
+              )}
             </div>
             <span className="text-sm font-bold text-white">Warfare</span>
           </div>

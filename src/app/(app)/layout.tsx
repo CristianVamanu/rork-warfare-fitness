@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { FullPageSpinner } from '@/components/ui/Spinner';
+import { PwaInstallBanner } from '@/components/ui/PwaInstallBanner';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
@@ -47,6 +48,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background">
       <main className="pb-24 max-w-lg mx-auto">{children}</main>
       {!hideNav && <BottomNav />}
+      {!hideNav && <PwaInstallBanner />}
     </div>
   );
 }

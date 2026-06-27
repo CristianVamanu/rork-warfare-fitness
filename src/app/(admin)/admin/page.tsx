@@ -69,7 +69,7 @@ export default function AdminPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ── Settings state ─────────────────────────────────────────────────────────
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '' });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '' });
   const [savingSettings, setSavingSettings] = useState(false);
 
   // ── Membership state ───────────────────────────────────────────────────────
@@ -132,6 +132,9 @@ export default function AdminPage() {
           openaiModel: cfg.openaiModel || 'gpt-4o-mini',
           videoGreetingUrl: cfg.videoGreetingUrl || '',
           stripePublishableKey: cfg.stripePublishableKey || '',
+          logoUrl: cfg.logoUrl || '',
+          pwaInstallBannerEnabled: cfg.pwaInstallBannerEnabled !== false as unknown,
+          vapidPublicKey: cfg.vapidPublicKey || '',
         });
       }
     }).catch(console.error).finally(() => setOverviewLoading(false));
@@ -1102,6 +1105,26 @@ export default function AdminPage() {
                 <Input value={settingsForm.videoGreetingUrl} onChange={e => setSettingsForm(s => ({ ...s, videoGreetingUrl: e.target.value }))} placeholder="https://… (MP4 or hosted video link)" />
                 <p className="text-xs text-text-tertiary mt-1">Plays automatically after a new user completes onboarding. Leave blank to skip.</p>
               </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Logo / Brand Image URL</label>
+                <Input value={settingsForm.logoUrl} onChange={e => setSettingsForm(s => ({ ...s, logoUrl: e.target.value }))} placeholder="https://… (PNG or JPG, square recommended)" />
+                <p className="text-xs text-text-tertiary mt-1">Replaces the default &quot;W&quot; icon in the header and login screen. Upload to any public CDN/host and paste the link.</p>
+                {settingsForm.logoUrl && (
+                  <img src={settingsForm.logoUrl} alt="Logo preview" className="mt-2 w-12 h-12 rounded-xl object-cover border border-white/10" />
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">PWA Install Banner</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Show &ldquo;Add to Home Screen&rdquo; prompt to users. Snoozed for 30 days after dismissal.</p>
+                </div>
+                <button
+                  onClick={() => setSettingsForm(s => ({ ...s, pwaInstallBannerEnabled: !s.pwaInstallBannerEnabled }))}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${settingsForm.pwaInstallBannerEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.pwaInstallBannerEnabled ? 'left-6' : 'left-1'}`} />
+                </button>
+              </div>
             </div>
             <Button onClick={handleSaveSettings} loading={savingSettings} fullWidth>Save Configuration</Button>
           </Card>
@@ -1156,6 +1179,26 @@ export default function AdminPage() {
                   <Badge variant="muted">Cron jobs</Badge>
                 </div>
                 <p className="text-xs text-text-tertiary">Required for the auto-notification cron processor (Firebase Admin SDK).</p>
+              </div>
+              <div className="p-3 bg-surface-elevated rounded-xl border border-blue-400/20">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-medium text-white">Push Notifications (VAPID)</p>
+                  <Badge variant="info">PWA</Badge>
+                </div>
+                <p className="text-xs text-text-tertiary mb-2">Generate VAPID keys once with: <code className="bg-black/30 px-1 rounded">npx web-push generate-vapid-keys</code>. Then set in Vercel:</p>
+                <ul className="text-xs text-text-tertiary space-y-0.5 list-disc pl-4">
+                  <li><code className="bg-black/30 px-1 rounded">NEXT_PUBLIC_VAPID_PUBLIC_KEY</code> — also paste below</li>
+                  <li><code className="bg-black/30 px-1 rounded">VAPID_PRIVATE_KEY</code> — env var only, never here</li>
+                </ul>
+                <div className="mt-2">
+                  <label className="text-xs text-text-secondary mb-1 block">VAPID Public Key (saved to Firestore for clients)</label>
+                  <Input
+                    value={settingsForm.vapidPublicKey || ''}
+                    onChange={e => setSettingsForm(s => ({ ...s, vapidPublicKey: e.target.value }))}
+                    placeholder="Bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  />
+                  <Button onClick={handleSaveSettings} loading={savingSettings} size="sm" className="mt-2">Save VAPID Public Key</Button>
+                </div>
               </div>
             </div>
             <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-accent hover:underline">

@@ -177,5 +177,11 @@ service cloud.firestore {
       allow read: if isAuthed();
       allow write: if isAdmin();
     }
+
+    // ── Push subscriptions ────────────────────────────────────────────────
+    match /pushSubscriptions/{userId} {
+      allow read, write: if isAuthed() && uid() == userId;
+      allow read: if isAdmin();
+    }
   }
 }

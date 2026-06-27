@@ -1,15 +1,16 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard } from 'lucide-react';
+import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { signOut } from '@/lib/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { updateUserDoc } from '@/lib/firestore';
+import { updateUserDoc, getSystemConfig } from '@/lib/firestore';
+import { subscribeToPush, unsubscribeFromPush, getCurrentSubscription } from '@/lib/pushNotifications';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +22,37 @@ export default function SettingsPage() {
   const [signOutModal, setSignOutModal] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [updatingUnit, setUpdatingUnit] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [vapidKey, setVapidKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    getCurrentSubscription().then(sub => setPushSubscribed(!!sub));
+    getSystemConfig().then(cfg => {
+      if (cfg?.vapidPublicKey) setVapidKey(cfg.vapidPublicKey as string);
+    }).catch(() => {});
+  }, []);
+
+  async function handlePushToggle() {
+    if (!user) return;
+    setPushLoading(true);
+    try {
+      if (pushSubscribed) {
+        await unsubscribeFromPush(user.uid);
+        setPushSubscribed(false);
+        toast.success('Push notifications disabled');
+      } else {
+        if (!vapidKey) {
+          toast.error('Push notifications not configured by your trainer yet.');
+          return;
+        }
+        const ok = await subscribeToPush(user.uid, vapidKey);
+        if (ok) { setPushSubscribed(true); toast.success('Push notifications enabled!'); }
+        else toast.error('Permission denied or not supported on this device.');
+      }
+    } catch { toast.error('Failed to update push settings'); }
+    finally { setPushLoading(false); }
+  }
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -131,6 +163,29 @@ export default function SettingsPage() {
             </Card>
           </motion.div>
         ))}
+
+        {/* Push Notifications */}
+        {'Notification' in window || true ? (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+            <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Notifications</h2>
+            <Card className="flex items-center gap-3 px-4 py-3.5">
+              <div className="p-2 bg-surface-elevated rounded-lg">
+                {pushSubscribed ? <Bell className="w-4 h-4 text-accent" /> : <BellOff className="w-4 h-4 text-text-secondary" />}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-white">Push Notifications</p>
+                <p className="text-xs text-text-secondary">{pushSubscribed ? 'Enabled — you will receive coach alerts' : 'Disabled — tap to enable'}</p>
+              </div>
+              <button
+                onClick={handlePushToggle}
+                disabled={pushLoading}
+                className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${pushSubscribed ? 'bg-accent' : 'bg-surface-elevated'}`}
+              >
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${pushSubscribed ? 'left-6' : 'left-1'}`} />
+              </button>
+            </Card>
+          </motion.div>
+        ) : null}
 
         {/* Admin Panel link — only visible to admins */}
         {profile?.role === 'admin' && (

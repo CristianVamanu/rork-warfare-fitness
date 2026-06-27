@@ -4,6 +4,7 @@ const withPWA = require('next-pwa')({
   disable: process.env.NODE_ENV === 'development',
   register: true,
   skipWaiting: true,
+  customWorkerDir: 'worker',
 });
 
 const nextConfig = {
@@ -16,6 +17,10 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.firebaseapp.com' },
       { protocol: 'https', hostname: 'images.openfoodfacts.org' },
       { protocol: 'https', hostname: '**.unsplash.com' },
+      { protocol: 'https', hostname: '**.firebasestorage.googleapis.com' },
+      { protocol: 'https', hostname: '**.cloudinary.com' },
+      { protocol: 'https', hostname: '**.imgur.com' },
+      { protocol: 'https', hostname: 'i.imgur.com' },
     ],
   },
   experimental: {
