@@ -40,11 +40,12 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className={cn(
-              'fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 max-w-lg mx-auto bg-surface-elevated border border-white/10 rounded-2xl shadow-2xl',
+              'fixed inset-x-4 top-[5vh] z-50 max-w-lg mx-auto bg-surface-elevated border border-white/10 rounded-2xl shadow-2xl flex flex-col',
+              'max-h-[90vh]',
               className
             )}
           >
-            <div className="flex items-center justify-between p-5 border-b border-white/8">
+            <div className="flex items-center justify-between p-5 border-b border-white/8 flex-shrink-0">
               {title && <h2 className="text-lg font-bold text-white">{title}</h2>}
               <button
                 onClick={onClose}
@@ -53,7 +54,7 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-5">{children}</div>
+            <div className="p-5 overflow-y-auto flex-1">{children}</div>
           </motion.div>
         </>
       )}
