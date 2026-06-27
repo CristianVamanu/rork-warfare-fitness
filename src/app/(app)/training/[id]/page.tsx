@@ -209,7 +209,7 @@ export default function ProgramDetailPage() {
                   <p className="text-xs text-text-tertiary mt-0.5">Come back tomorrow</p>
                 </div>
               )}
-              <Button variant="ghost" fullWidth size="sm" onClick={() => setSwitchModal(true)}>
+              <Button variant="ghost" fullWidth size="sm" onClick={() => router.push('/training')}>
                 <RotateCcw className="w-3.5 h-3.5" /> Switch Program
               </Button>
             </div>

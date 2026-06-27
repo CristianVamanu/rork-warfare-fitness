@@ -9,6 +9,8 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
+  increment,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -107,6 +109,13 @@ export async function completeWorkout(
       powerLevel: newPowerLevel,
       lastActive: serverTimestamp(),
     }, { merge: true });
+
+    // Eagerly increment statsCache so dashboard reflects the change immediately on next profile load
+    updateDoc(doc(db, 'users', userId), {
+      'statsCache.totalWorkouts': increment(1),
+    }).catch(() => {
+      // Non-critical; recomputeStatsCache will self-correct
+    });
 
     // Check achievements after updating power level
     newAchievements = await checkAndAwardAchievements(userId, {

@@ -432,8 +432,9 @@ export async function createPost(data: {
   content: string;
   imageURL?: string;
 }) {
+  const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
   return addDoc(collection(db, 'posts'), {
-    ...data,
+    ...clean,
     likes: [],
     commentCount: 0,
     createdAt: serverTimestamp(),

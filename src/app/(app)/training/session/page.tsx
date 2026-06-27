@@ -333,7 +333,7 @@ function SetRow({
 export default function WorkoutSessionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const weightUnit = profile?.weightUnit ?? 'kg';
 
   const programId = searchParams.get('programId') ?? undefined;
@@ -802,7 +802,7 @@ export default function WorkoutSessionPage() {
             newPowerLevel={workoutResult.newPowerLevel}
             streak={profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0}
             newAchievements={workoutResult.newAchievements}
-            onContinue={() => router.replace('/dashboard')}
+            onContinue={() => { refreshProfile().catch(() => {}); router.replace('/dashboard'); }}
           />
         ) : (
           <div className="space-y-4">

@@ -47,9 +47,9 @@ export default function CommunityPage() {
     try {
       await createPost({
         userId: user.uid,
-        trainerId: trainerId ?? undefined,
-        userDisplayName: profile.displayName,
-        userPhotoURL: profile.photoURL || undefined,
+        ...(trainerId ? { trainerId } : {}),
+        userDisplayName: profile.displayName || 'Athlete',
+        ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
         content: postContent,
       });
       setPostContent('');

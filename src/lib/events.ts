@@ -84,15 +84,22 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
     try {
       return await getDocs(query(collection(db, 'events'), ...constraints));
     } catch {
-      const all = await getDocs(query(collection(db, 'events'), where('userId', '==', userId), orderBy('createdAt', 'desc')));
-      return { docs: all.docs.filter((d) => {
+      // Fallback: only userId filter (auto-indexed) + client-side filter/sort
+      const all = await getDocs(query(collection(db, 'events'), where('userId', '==', userId)));
+      const filtered = all.docs.filter((d) => {
         if (d.data().type !== type) return false;
         if (fromTs) {
           const ts = d.data().createdAt as Timestamp | null;
           if (!ts || ts.toMillis() < fromTs.toMillis()) return false;
         }
         return true;
-      }) };
+      });
+      filtered.sort((a, b) => {
+        const ta = (a.data().createdAt as Timestamp)?.toMillis() ?? 0;
+        const tb = (b.data().createdAt as Timestamp)?.toMillis() ?? 0;
+        return tb - ta;
+      });
+      return { docs: filtered };
     }
   }
 
