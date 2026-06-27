@@ -25,7 +25,7 @@ const LEADERBOARD = [
 ];
 
 export default function CommunityPage() {
-  const { user, profile } = useAuth();
+  const { user, profile, trainerId } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'feed' | 'leaderboard'>('feed');
@@ -35,11 +35,11 @@ export default function CommunityPage() {
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    getPosts()
+    getPosts(20, trainerId ?? undefined)
       .then((p) => setPosts(p as Post[]))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [trainerId]);
 
   const handlePost = async () => {
     if (!user || !profile || !postContent.trim()) return;
@@ -47,6 +47,7 @@ export default function CommunityPage() {
     try {
       await createPost({
         userId: user.uid,
+        trainerId: trainerId ?? undefined,
         userDisplayName: profile.displayName,
         userPhotoURL: profile.photoURL || undefined,
         content: postContent,
