@@ -36,11 +36,15 @@ export default function ProfilePage() {
     }
   };
 
+  const totalWorkouts = profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0;
+  const streak = profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0;
+  const powerLevel = profile?.powerLevel ?? profile?.stats?.powerLevel ?? 0;
+
   const stats = [
-    { icon: Dumbbell, label: 'Workouts', value: profile?.stats?.totalWorkouts ?? 0, color: 'text-purple-400' },
-    { icon: Flame, label: 'Streak', value: `${profile?.stats?.streak ?? 0}d`, color: 'text-orange-400' },
-    { icon: Zap, label: 'Fitness Level', value: profile?.stats?.powerLevel ?? 1, color: 'text-accent' },
-    { icon: Trophy, label: 'Total kg', value: profile?.stats?.totalWeightLifted ?? 0, color: 'text-yellow-400' },
+    { icon: Dumbbell, label: 'Workouts', value: totalWorkouts, color: 'text-purple-400' },
+    { icon: Flame, label: 'Streak', value: `${streak}d`, color: 'text-orange-400' },
+    { icon: Zap, label: 'Fitness Level', value: powerLevel, color: 'text-accent' },
+    { icon: Trophy, label: 'Total kg', value: profile?.currentWeightKg ?? profile?.stats?.totalWeightLifted ?? 0, color: 'text-yellow-400' },
   ];
 
   return (
@@ -91,12 +95,12 @@ export default function ProfilePage() {
           <Card className="p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-white">Fitness Level</span>
-              <span className="text-accent font-black">{profile?.stats?.powerLevel ?? 1}</span>
+              <span className="text-accent font-black">{powerLevel}</span>
             </div>
             <div className="h-3 bg-white/8 rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${Math.min((profile?.stats?.powerLevel ?? 1) / 100 * 100, 100)}%` }}
+                animate={{ width: `${Math.min(powerLevel, 100)}%` }}
                 transition={{ duration: 0.8, delay: 0.3 }}
                 className="h-full bg-gradient-to-r from-accent to-amber-400 rounded-full animate-pulse-glow"
               />
