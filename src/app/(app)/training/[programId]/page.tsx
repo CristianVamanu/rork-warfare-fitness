@@ -98,29 +98,36 @@ export default function ProgramDetailPage() {
         </motion.div>
 
         {/* Week Overview */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <h2 className="text-base font-bold text-white mb-3">Week 1 Preview</h2>
-          <div className="space-y-2">
-            {MOCK_EXERCISES.map((ex, i) => (
-              <Card key={ex.id} className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center text-accent text-xs font-bold">
-                    {i + 1}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">{ex.name}</p>
-                    <p className="text-xs text-text-secondary">{ex.sets} sets × {ex.reps} reps · {ex.restSeconds}s rest</p>
-                  </div>
-                </div>
-                <Badge variant="muted">{ex.muscleGroup}</Badge>
-              </Card>
-            ))}
-          </div>
-        </motion.div>
+        {(() => {
+          const exList = displayProgram.exercises?.length > 0 ? displayProgram.exercises : MOCK_EXERCISES;
+          return (
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+              <h2 className="text-base font-bold text-white mb-3">Exercise Preview</h2>
+              <div className="space-y-2">
+                {exList.map((ex, i) => (
+                  <Card key={ex.id} className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center text-accent text-xs font-bold">
+                        {i + 1}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white">{ex.name}</p>
+                        <p className="text-xs text-text-secondary">{ex.sets} sets × {ex.reps} reps · {ex.restSeconds}s rest</p>
+                      </div>
+                    </div>
+                    {'muscleGroup' in ex && ex.muscleGroup ? (
+                      <Badge variant="muted">{String(ex.muscleGroup)}</Badge>
+                    ) : null}
+                  </Card>
+                ))}
+              </div>
+            </motion.div>
+          );
+        })()}
 
         {/* CTA */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <Button fullWidth size="lg" onClick={() => router.push('/training/session')}>
+          <Button fullWidth size="lg" onClick={() => router.push(`/training/session?programId=${displayProgram.id}`)}>
             <Play className="w-5 h-5" /> Start Program
           </Button>
           <p className="text-center text-xs text-text-tertiary mt-2">

@@ -42,19 +42,19 @@ const adminSchema = z.object({
 });
 
 const openaiSchema = z.object({
-  openaiApiKey: z.string().min(1, 'Required'),
   openaiModel: z.enum(['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo']).default('gpt-4o-mini'),
 });
 
 const stripeSchema = z.object({
   stripePublishableKey: z.string().optional(),
-  stripeSecretKey: z.string().optional(),
 });
 
 type ConfigData = z.infer<typeof configSchema>;
 type AdminData = z.infer<typeof adminSchema>;
 type OpenAIData = z.infer<typeof openaiSchema>;
 type StripeData = z.infer<typeof stripeSchema>;
+// Note: OPENAI_API_KEY and STRIPE_SECRET_KEY are never stored in Firestore.
+// They must be set as environment variables on the deployment platform.
 
 export default function InstallPage() {
   const router = useRouter();
@@ -92,15 +92,14 @@ export default function InstallPage() {
       // Create admin user
       await createAdminUser(adminData.email, adminData.password, adminData.name);
 
-      // Save system config
+      // Save system config — secrets (OPENAI_API_KEY, STRIPE_SECRET_KEY) are
+      // intentionally NOT stored here; they must be set as env vars.
       await setSystemConfig({
         appName: config.appName,
         trainerName: config.trainerName,
         themeColor: config.themeColor,
-        openaiApiKey: openaiData.openaiApiKey,
         openaiModel: openaiData.openaiModel,
         stripePublishableKey: stripeData.stripePublishableKey || '',
-        stripeSecretKey: stripeData.stripeSecretKey || '',
       });
 
       // Mark as installed
@@ -321,13 +320,12 @@ export default function InstallPage() {
                 <p className="text-text-secondary text-sm mb-5">Powers AI food analysis and coaching</p>
 
                 <form onSubmit={openaiForm.handleSubmit((d) => { setOpenaiData(d); setStep(4); })} className="space-y-4">
-                  <Input
-                    label="OpenAI API Key"
-                    type="password"
-                    placeholder="sk-..."
-                    error={openaiForm.formState.errors.openaiApiKey?.message}
-                    {...openaiForm.register('openaiApiKey')}
-                  />
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                    <p className="text-xs text-amber-400 font-medium mb-1">API Key — Environment Variable Only</p>
+                    <p className="text-xs text-text-secondary">
+                      Set <code className="bg-white/10 px-1 rounded">OPENAI_API_KEY</code> in your Vercel / hosting environment variables. It is never stored in the database.
+                    </p>
+                  </div>
 
                   <div>
                     <label className="text-sm font-medium text-text-secondary block mb-2">Model</label>
@@ -379,12 +377,12 @@ export default function InstallPage() {
                     placeholder="pk_live_..."
                     {...stripeForm.register('stripePublishableKey')}
                   />
-                  <Input
-                    label="Secret Key (optional)"
-                    type="password"
-                    placeholder="sk_live_..."
-                    {...stripeForm.register('stripeSecretKey')}
-                  />
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                    <p className="text-xs text-amber-400 font-medium mb-1">Secret Key — Environment Variable Only</p>
+                    <p className="text-xs text-text-secondary">
+                      Set <code className="bg-white/10 px-1 rounded">STRIPE_SECRET_KEY</code> in your hosting environment. It is never stored in the database.
+                    </p>
+                  </div>
 
                   <div className="flex gap-3 pt-2">
                     <Button variant="ghost" onClick={() => setStep(3)} type="button">

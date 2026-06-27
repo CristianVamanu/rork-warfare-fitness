@@ -7,7 +7,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Camera, Upload, Flame, Beef, Wheat, AlertCircle, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { logMeal, getTodayMeals, getUserGoals } from '@/lib/firestore';
+import { getTodayMeals, getUserGoals } from '@/lib/firestore';
+import { logMealAction } from '@/lib/actions';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import type { NutritionAnalysis, UserGoals, Meal } from '@/types';
@@ -80,7 +81,7 @@ export default function AnalyzeFoodPage() {
     }
     setSaving(true);
     try {
-      await logMeal({ userId: user.uid, ...result, mealType });
+      await logMealAction(user.uid, { ...result, mealType });
       toast.success(`${result.name} added to ${mealType}`);
       router.replace('/nutrition');
     } catch (err: unknown) {

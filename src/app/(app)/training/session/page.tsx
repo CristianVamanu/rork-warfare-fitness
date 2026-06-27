@@ -2,51 +2,64 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, CheckCircle, Timer, AlertTriangle, Plus, Minus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { logWorkout, updateUserDoc } from '@/lib/firestore';
+import { getProgram } from '@/lib/firestore';
+import { completeWorkout } from '@/lib/actions';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { Skeleton } from '@/components/ui/Skeleton';
+import type { Exercise } from '@/types';
 
-const EXERCISES = [
+// Default exercises used when no Firestore program is available
+const DEFAULT_EXERCISES = [
   { id: 'e1', name: 'Barbell Back Squat', sets: 4, reps: 5, restSeconds: 180, maxWeight: 300 },
   { id: 'e2', name: 'Romanian Deadlift', sets: 3, reps: 8, restSeconds: 120, maxWeight: 250 },
   { id: 'e3', name: 'Leg Press', sets: 3, reps: 10, restSeconds: 90, maxWeight: 400 },
   { id: 'e4', name: 'Leg Curl', sets: 3, reps: 12, restSeconds: 60, maxWeight: 100 },
 ];
 
-interface SetLog {
-  weight: number;
+interface SessionExercise {
+  id: string;
+  name: string;
+  sets: number;
   reps: number;
-  completed: boolean;
+  restSeconds: number;
+  maxWeight: number;
 }
 
-interface ExerciseLog {
-  name: string;
-  sets: SetLog[];
+interface SetLog { weight: number; reps: number; completed: boolean }
+interface ExerciseLog { name: string; sets: SetLog[] }
+
+function buildSessionExercises(exercises: Exercise[]): SessionExercise[] {
+  return exercises.map((ex) => ({
+    id: ex.id,
+    name: ex.name,
+    sets: ex.sets,
+    reps: typeof ex.reps === 'number' ? ex.reps : parseInt(String(ex.reps)) || 8,
+    restSeconds: ex.restSeconds ?? 90,
+    maxWeight: 500, // anti-cheat max — Exercise type has no maxWeight field
+  }));
 }
 
 export default function WorkoutSessionPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, profile } = useAuth();
   const weightUnit = profile?.weightUnit ?? 'kg';
+  const programId = searchParams.get('programId') ?? undefined;
+
+  const [exercises, setExercises] = useState<SessionExercise[]>(DEFAULT_EXERCISES);
+  const [loadingProgram, setLoadingProgram] = useState(!!programId);
+
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [currentSetIdx, setCurrentSetIdx] = useState(0);
-  const [logs, setLogs] = useState<ExerciseLog[]>(() =>
-    EXERCISES.map((ex) => ({
-      name: ex.name,
-      sets: Array.from({ length: ex.sets }, () => ({
-        weight: 0,
-        reps: ex.reps,
-        completed: false,
-      })),
-    }))
-  );
+  const [logs, setLogs] = useState<ExerciseLog[]>([]);
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [restInterval, setRestInterval] = useState<NodeJS.Timeout | null>(null);
   const [quitModal, setQuitModal] = useState(false);
@@ -54,20 +67,58 @@ export default function WorkoutSessionPage() {
   const [saving, setSaving] = useState(false);
   const [startTime] = useState(Date.now());
 
-  const currentEx = EXERCISES[currentExIdx];
+  // Load program from Firestore when programId is provided
+  useEffect(() => {
+    if (!programId) {
+      setExercises(DEFAULT_EXERCISES);
+      setLoadingProgram(false);
+      return;
+    }
+    getProgram(programId)
+      .then((program) => {
+        const prog = program as ({ id: string; exercises?: Exercise[] }) | null;
+        if (prog && prog.exercises && prog.exercises.length > 0) {
+          setExercises(buildSessionExercises(prog.exercises!));
+        } else {
+          console.warn('[Session] Program has no exercises — using defaults');
+          setExercises(DEFAULT_EXERCISES);
+        }
+      })
+      .catch((err) => {
+        console.error('[Session] Failed to load program:', err);
+        toast.error('Could not load program — using default exercises');
+        setExercises(DEFAULT_EXERCISES);
+      })
+      .finally(() => setLoadingProgram(false));
+  }, [programId]);
+
+  // Rebuild logs whenever exercises change (program loaded)
+  useEffect(() => {
+    setLogs(
+      exercises.map((ex) => ({
+        name: ex.name,
+        sets: Array.from({ length: ex.sets }, () => ({
+          weight: 0,
+          reps: ex.reps,
+          completed: false,
+        })),
+      }))
+    );
+    setCurrentExIdx(0);
+    setCurrentSetIdx(0);
+  }, [exercises]);
+
+  const currentEx = exercises[currentExIdx];
   const currentLog = logs[currentExIdx];
   const currentSet = currentLog?.sets[currentSetIdx];
-  const totalSets = EXERCISES.reduce((s, e) => s + e.sets, 0);
+  const totalSets = exercises.reduce((s, e) => s + e.sets, 0);
   const completedSets = logs.reduce((s, l) => s + l.sets.filter((st) => st.completed).length, 0);
 
   const startRestTimer = useCallback((seconds: number) => {
     setRestTimer(seconds);
     const interval = setInterval(() => {
       setRestTimer((t) => {
-        if (t === null || t <= 1) {
-          clearInterval(interval);
-          return null;
-        }
+        if (t === null || t <= 1) { clearInterval(interval); return null; }
         return t - 1;
       });
     }, 1000);
@@ -107,21 +158,13 @@ export default function WorkoutSessionPage() {
     });
 
     const isLastSet = currentSetIdx === currentEx.sets - 1;
-    const isLastEx = currentExIdx === EXERCISES.length - 1;
+    const isLastEx = currentExIdx === exercises.length - 1;
 
-    if (isLastSet && isLastEx) {
-      setCompleteModal(true);
-      return;
-    }
+    if (isLastSet && isLastEx) { setCompleteModal(true); return; }
 
     startRestTimer(currentEx.restSeconds);
-
-    if (isLastSet) {
-      setCurrentExIdx((i) => i + 1);
-      setCurrentSetIdx(0);
-    } else {
-      setCurrentSetIdx((s) => s + 1);
-    }
+    if (isLastSet) { setCurrentExIdx((i) => i + 1); setCurrentSetIdx(0); }
+    else { setCurrentSetIdx((s) => s + 1); }
   };
 
   const saveWorkout = async () => {
@@ -129,21 +172,7 @@ export default function WorkoutSessionPage() {
     setSaving(true);
     try {
       const duration = Math.round((Date.now() - startTime) / 60000);
-      const totalWeightThisSession = logs.reduce(
-        (sum, ex) => sum + ex.sets.filter((s) => s.completed).reduce((s2, s) => s2 + s.weight * s.reps, 0),
-        0
-      );
-      await logWorkout({
-        userId: user.uid,
-        exercises: logs,
-        duration,
-        calories: Math.round(duration * 8),
-      });
-      const currentStats = profile?.stats;
-      await updateUserDoc(user.uid, {
-        'stats.totalWorkouts': (currentStats?.totalWorkouts ?? 0) + 1,
-        'stats.totalWeightLifted': (currentStats?.totalWeightLifted ?? 0) + totalWeightThisSession,
-      });
+      await completeWorkout(user.uid, logs, duration, programId);
       toast.success('Workout saved!');
       router.replace('/dashboard');
     } catch (err: unknown) {
@@ -154,6 +183,18 @@ export default function WorkoutSessionPage() {
     }
   };
 
+  if (loadingProgram) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col px-4 py-8 gap-4">
+        <Skeleton className="h-12 rounded-xl" />
+        <Skeleton className="h-64 rounded-2xl" />
+        <Skeleton className="h-12 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (!currentEx || !currentLog) return null;
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Session Header */}
@@ -163,7 +204,7 @@ export default function WorkoutSessionPage() {
             <X className="w-5 h-5" />
           </button>
           <div className="text-center">
-            <p className="text-xs text-text-secondary">Exercise {currentExIdx + 1} of {EXERCISES.length}</p>
+            <p className="text-xs text-text-secondary">Exercise {currentExIdx + 1} of {exercises.length}</p>
             <p className="text-sm font-bold text-white">{currentEx.name}</p>
           </div>
           <div className="text-right">
@@ -178,11 +219,7 @@ export default function WorkoutSessionPage() {
         {/* Rest Timer */}
         <AnimatePresence>
           {restTimer !== null && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-            >
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
               <Card glass className="p-4 text-center">
                 <Timer className="w-5 h-5 text-accent mx-auto mb-1" />
                 <p className="text-xs text-text-secondary mb-1">Rest Time</p>
@@ -259,7 +296,7 @@ export default function WorkoutSessionPage() {
                 </div>
               </div>
 
-              {/* Set History */}
+              {/* Set indicators */}
               <div className="flex gap-2 justify-center">
                 {currentLog.sets.map((s, i) => (
                   <div
@@ -290,7 +327,7 @@ export default function WorkoutSessionPage() {
             disabled={currentExIdx === 0 && currentSetIdx === 0}
             onClick={() => {
               if (currentSetIdx > 0) setCurrentSetIdx((s) => s - 1);
-              else if (currentExIdx > 0) { setCurrentExIdx((i) => i - 1); setCurrentSetIdx(EXERCISES[currentExIdx - 1].sets - 1); }
+              else if (currentExIdx > 0) { setCurrentExIdx((i) => i - 1); setCurrentSetIdx(exercises[currentExIdx - 1].sets - 1); }
             }}
           >
             <ChevronLeft className="w-4 h-4" /> Prev
@@ -300,7 +337,7 @@ export default function WorkoutSessionPage() {
             fullWidth
             onClick={() => {
               const isLastSet = currentSetIdx === currentEx.sets - 1;
-              const isLastEx = currentExIdx === EXERCISES.length - 1;
+              const isLastEx = currentExIdx === exercises.length - 1;
               if (isLastSet && isLastEx) setCompleteModal(true);
               else if (isLastSet) { setCurrentExIdx((i) => i + 1); setCurrentSetIdx(0); }
               else setCurrentSetIdx((s) => s + 1);
@@ -316,9 +353,7 @@ export default function WorkoutSessionPage() {
         <div className="space-y-4">
           <div className="flex items-start gap-3 p-3 bg-danger/10 border border-danger/20 rounded-xl">
             <AlertTriangle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-text-secondary">
-              Your progress will be lost if you quit now. Save your partial workout first?
-            </p>
+            <p className="text-sm text-text-secondary">Your progress will be lost. Save your partial workout?</p>
           </div>
           <div className="flex gap-3">
             <Button variant="ghost" fullWidth onClick={() => setQuitModal(false)}>Continue</Button>
@@ -331,11 +366,7 @@ export default function WorkoutSessionPage() {
       <Modal open={completeModal} onClose={() => setCompleteModal(false)} title="Workout Complete! 🎉">
         <div className="space-y-4">
           <div className="text-center py-4">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', bounce: 0.5 }}
-            >
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', bounce: 0.5 }}>
               <CheckCircle className="w-16 h-16 text-success mx-auto mb-3" />
             </motion.div>
             <p className="text-2xl font-black text-white">Beast Mode!</p>
@@ -343,12 +374,8 @@ export default function WorkoutSessionPage() {
               {completedSets} sets · {Math.round((Date.now() - startTime) / 60000)} min
             </p>
           </div>
-          <Button fullWidth size="lg" loading={saving} onClick={saveWorkout}>
-            Save Workout
-          </Button>
-          <Button variant="ghost" fullWidth onClick={() => router.replace('/dashboard')}>
-            Skip Save
-          </Button>
+          <Button fullWidth size="lg" loading={saving} onClick={saveWorkout}>Save Workout</Button>
+          <Button variant="ghost" fullWidth onClick={() => router.replace('/dashboard')}>Skip Save</Button>
         </div>
       </Modal>
     </div>

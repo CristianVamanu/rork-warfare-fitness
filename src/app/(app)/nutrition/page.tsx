@@ -6,7 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTodayMeals, getTodayWaterLogs, logWater, deleteWaterLog, deleteMeal, getUserGoals, updateUserGoals } from '@/lib/firestore';
+import { getTodayMeals, getTodayWaterLogs, deleteWaterLog, deleteMeal, getUserGoals, updateUserGoals } from '@/lib/firestore';
+import { logWaterAction } from '@/lib/actions';
 import toast from 'react-hot-toast';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -65,7 +66,7 @@ export default function NutritionPage() {
 
   const addWater = async (ml: number) => {
     if (!user) return;
-    const ref = await logWater(user.uid, ml);
+    const ref = await logWaterAction(user.uid, ml);
     setWaterLogs((prev) => [{ id: ref.id, amountMl: ml, loggedAt: new Date() }, ...prev]);
     toast.success(`+${ml}ml logged`);
   };

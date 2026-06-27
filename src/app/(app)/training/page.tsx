@@ -122,7 +122,7 @@ export default function TrainingPage() {
                 />
               </div>
             </div>
-            <Link href="/training/session">
+            <Link href={`/training/session?programId=${programs[0]?.id ?? 'p1'}`}>
               <Button className="mt-4" size="sm">
                 <Play className="w-4 h-4" /> Start Today&apos;s Workout
               </Button>
