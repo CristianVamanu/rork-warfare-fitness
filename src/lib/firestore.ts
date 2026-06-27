@@ -63,6 +63,50 @@ async function runQuery<T>(label: string, fn: () => Promise<T>): Promise<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Safe event query — falls back to userId-only when composite index is missing
+// ---------------------------------------------------------------------------
+async function safeGetEvents(
+  userId: string,
+  type: string,
+  fromTs?: Timestamp,
+  toTs?: Timestamp,
+  limitN?: number
+) {
+  const build = (compound: boolean) => {
+    const constraints = [
+      where('userId', '==', userId),
+      ...(compound ? [where('type', '==', type)] : []),
+      ...(compound && fromTs ? [where('createdAt', '>=', fromTs), orderBy('createdAt', 'desc')] : []),
+      ...(compound && toTs ? [where('createdAt', '<=', toTs)] : []),
+      ...(!compound ? [orderBy('createdAt', 'desc')] : []),
+      ...(limitN ? [limit(limitN)] : []),
+    ];
+    return query(collection(db, 'events'), ...constraints);
+  };
+
+  try {
+    return await getDocs(build(true));
+  } catch (err) {
+    const e = err as Error & { code?: string };
+    const isIndex = e?.code === 'failed-precondition' || (e?.message ?? '').includes('index');
+    if (!isIndex) throw err;
+    console.warn('[Firestore] Composite index missing for events type=' + type + '. Falling back to client-side filter.');
+    const all = await getDocs(build(false));
+    return {
+      size: 0,
+      docs: all.docs.filter((d) => {
+        const data = d.data();
+        if (data.type !== type) return false;
+        const ts = data.createdAt as Timestamp | null;
+        if (fromTs && ts && ts.toMillis() < fromTs.toMillis()) return false;
+        if (toTs && ts && ts.toMillis() > toTs.toMillis()) return false;
+        return true;
+      }),
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // System config
 // ---------------------------------------------------------------------------
 export async function getSystemConfig() {
@@ -101,7 +145,7 @@ export async function getUserDoc(uid: string) {
 }
 
 export async function updateUserDoc(uid: string, data: Record<string, unknown>) {
-  await updateDoc(doc(db, 'users', uid), { ...data, lastActive: serverTimestamp() });
+  await setDoc(doc(db, 'users', uid), { ...data, lastActive: serverTimestamp() }, { merge: true });
 }
 
 export async function getUserGoals(uid: string): Promise<UserGoals> {
@@ -119,7 +163,7 @@ export async function getUserGoals(uid: string): Promise<UserGoals> {
 }
 
 export async function updateUserGoals(uid: string, goals: UserGoals) {
-  await updateDoc(doc(db, 'users', uid), { goals, lastActive: serverTimestamp() });
+  await setDoc(doc(db, 'users', uid), { goals, lastActive: serverTimestamp() }, { merge: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -145,16 +189,8 @@ export async function getTodayMeals(userId: string): Promise<NormalizedMeal[]> {
 
   // 1. Try events (primary)
   try {
-    const snap = await getDocs(
-      query(
-        collection(db, 'events'),
-        where('userId', '==', userId),
-        where('type', '==', 'MEAL_LOGGED'),
-        where('createdAt', '>=', todayTs),
-        orderBy('createdAt', 'desc')
-      )
-    );
-    if (snap.size > 0) {
+    const snap = await safeGetEvents(userId, 'MEAL_LOGGED', todayTs);
+    if (snap.docs.length > 0) {
       return snap.docs.map((d) => {
         const payload = d.data().payload as Record<string, unknown>;
         return {
@@ -223,16 +259,8 @@ export async function getTodayWater(userId: string): Promise<number> {
 
   // 1. Try events (primary)
   try {
-    const snap = await getDocs(
-      query(
-        collection(db, 'events'),
-        where('userId', '==', userId),
-        where('type', '==', 'WATER_LOGGED'),
-        where('createdAt', '>=', todayTs),
-        orderBy('createdAt', 'desc')
-      )
-    );
-    if (snap.size > 0) {
+    const snap = await safeGetEvents(userId, 'WATER_LOGGED', todayTs);
+    if (snap.docs.length > 0) {
       return snap.docs.reduce(
         (sum, d) => sum + Number((d.data().payload as Record<string, unknown>).amountMl ?? 0),
         0
@@ -261,16 +289,8 @@ export async function getTodayWaterLogs(userId: string): Promise<NormalizedWater
 
   // 1. Try events (primary)
   try {
-    const snap = await getDocs(
-      query(
-        collection(db, 'events'),
-        where('userId', '==', userId),
-        where('type', '==', 'WATER_LOGGED'),
-        where('createdAt', '>=', todayTs),
-        orderBy('createdAt', 'desc')
-      )
-    );
-    if (snap.size > 0) {
+    const snap = await safeGetEvents(userId, 'WATER_LOGGED', todayTs);
+    if (snap.docs.length > 0) {
       return snap.docs.map((d) => ({
         id: d.id,
         amountMl: Number((d.data().payload as Record<string, unknown>).amountMl ?? 0),
@@ -320,16 +340,8 @@ export async function deleteWaterLog(id: string) {
 export async function getUserWorkouts(userId: string, limitCount = 10) {
   // 1. Try events (primary)
   try {
-    const snap = await getDocs(
-      query(
-        collection(db, 'events'),
-        where('userId', '==', userId),
-        where('type', '==', 'WORKOUT_COMPLETED'),
-        orderBy('createdAt', 'desc'),
-        limit(limitCount)
-      )
-    );
-    if (snap.size > 0) {
+    const snap = await safeGetEvents(userId, 'WORKOUT_COMPLETED', undefined, undefined, limitCount);
+    if (snap.docs.length > 0) {
       return snap.docs.map((d) => {
         const payload = d.data().payload as Record<string, unknown>;
         return {
@@ -455,32 +467,42 @@ export async function enrollInProgram(
   program: { id: string; name: string; weeks: number; daysPerWeek: number }
 ) {
   const totalWorkouts = program.weeks * program.daysPerWeek;
-  await updateDoc(doc(db, 'users', userId), {
-    activeProgram: {
-      programId: program.id,
-      programName: program.name,
-      enrolledAt: serverTimestamp(),
-      startDate: new Date().toISOString().split('T')[0],
-      completedWorkouts: 0,
-      totalWorkouts,
+  await setDoc(
+    doc(db, 'users', userId),
+    {
+      activeProgram: {
+        programId: program.id,
+        programName: program.name,
+        enrolledAt: serverTimestamp(),
+        startDate: new Date().toISOString().split('T')[0],
+        completedWorkouts: 0,
+        totalWorkouts,
+      },
+      lastActive: serverTimestamp(),
     },
-    lastActive: serverTimestamp(),
-  });
+    { merge: true }
+  );
 }
 
 export async function unenrollProgram(userId: string) {
   const { deleteField } = await import('firebase/firestore');
-  await updateDoc(doc(db, 'users', userId), {
-    activeProgram: deleteField(),
-    lastActive: serverTimestamp(),
-  });
+  await setDoc(
+    doc(db, 'users', userId),
+    { activeProgram: deleteField(), lastActive: serverTimestamp() },
+    { merge: true }
+  );
 }
 
 export async function incrementProgramWorkouts(userId: string) {
   const { increment } = await import('firebase/firestore');
-  await updateDoc(doc(db, 'users', userId), {
-    'activeProgram.completedWorkouts': increment(1),
-  }).catch(() => {}); // no-op if no active program
+  // Check program is still active before incrementing
+  const snap = await getDoc(doc(db, 'users', userId));
+  if (!snap.exists() || !snap.data()?.activeProgram) return;
+  await setDoc(
+    doc(db, 'users', userId),
+    { 'activeProgram.completedWorkouts': increment(1), lastActive: serverTimestamp() },
+    { merge: true }
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -496,16 +518,7 @@ export async function getMealsForDate(userId: string, date: Date): Promise<Norma
   const endTs = Timestamp.fromDate(end);
 
   try {
-    const snap = await getDocs(
-      query(
-        collection(db, 'events'),
-        where('userId', '==', userId),
-        where('type', '==', 'MEAL_LOGGED'),
-        where('createdAt', '>=', startTs),
-        where('createdAt', '<=', endTs),
-        orderBy('createdAt', 'desc')
-      )
-    );
+    const snap = await safeGetEvents(userId, 'MEAL_LOGGED', startTs, endTs);
     return snap.docs.map((d) => {
       const payload = d.data().payload as Record<string, unknown>;
       return {

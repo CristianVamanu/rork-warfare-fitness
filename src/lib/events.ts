@@ -11,8 +11,8 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   Timestamp,
-  updateDoc,
   where,
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -74,41 +74,41 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
   today.setHours(0, 0, 0, 0);
   const todayTs = Timestamp.fromDate(today);
 
-  // Total workouts — all time
-  const workoutSnap = await getDocs(
-    query(
-      collection(db, 'events'),
+  // Helper: query events with client-side fallback when composite index is missing
+  async function queryEvents(type: string, fromTs?: Timestamp) {
+    const constraints = [
       where('userId', '==', userId),
-      where('type', '==', 'WORKOUT_COMPLETED')
-    )
-  );
-  const totalWorkouts = workoutSnap.size;
+      where('type', '==', type),
+      ...(fromTs ? [where('createdAt', '>=', fromTs), orderBy('createdAt', 'desc')] : []),
+    ];
+    try {
+      return await getDocs(query(collection(db, 'events'), ...constraints));
+    } catch {
+      const all = await getDocs(query(collection(db, 'events'), where('userId', '==', userId), orderBy('createdAt', 'desc')));
+      return { docs: all.docs.filter((d) => {
+        if (d.data().type !== type) return false;
+        if (fromTs) {
+          const ts = d.data().createdAt as Timestamp | null;
+          if (!ts || ts.toMillis() < fromTs.toMillis()) return false;
+        }
+        return true;
+      }) };
+    }
+  }
+
+  // Total workouts — all time
+  const workoutSnap = await queryEvents('WORKOUT_COMPLETED');
+  const totalWorkouts = workoutSnap.docs.length;
 
   // Calories logged today
-  const mealSnap = await getDocs(
-    query(
-      collection(db, 'events'),
-      where('userId', '==', userId),
-      where('type', '==', 'MEAL_LOGGED'),
-      where('createdAt', '>=', todayTs),
-      orderBy('createdAt', 'desc')
-    )
-  );
+  const mealSnap = await queryEvents('MEAL_LOGGED', todayTs);
   const caloriesToday = mealSnap.docs.reduce(
     (sum, d) => sum + (((d.data().payload) as Record<string, number>).calories ?? 0),
     0
   );
 
   // Water logged today (ml)
-  const waterSnap = await getDocs(
-    query(
-      collection(db, 'events'),
-      where('userId', '==', userId),
-      where('type', '==', 'WATER_LOGGED'),
-      where('createdAt', '>=', todayTs),
-      orderBy('createdAt', 'desc')
-    )
-  );
+  const waterSnap = await queryEvents('WATER_LOGGED', todayTs);
   const waterToday = waterSnap.docs.reduce(
     (sum, d) => sum + (((d.data().payload) as Record<string, number>).amountMl ?? 0),
     0
@@ -119,15 +119,7 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
   sixtyDaysAgo.setHours(0, 0, 0, 0);
 
-  const streakSnap = await getDocs(
-    query(
-      collection(db, 'events'),
-      where('userId', '==', userId),
-      where('type', '==', 'WORKOUT_COMPLETED'),
-      where('createdAt', '>=', Timestamp.fromDate(sixtyDaysAgo)),
-      orderBy('createdAt', 'desc')
-    )
-  );
+  const streakSnap = await queryEvents('WORKOUT_COMPLETED', Timestamp.fromDate(sixtyDaysAgo));
 
   const workoutDays = new Set<string>();
   streakSnap.docs.forEach((d) => {
@@ -148,7 +140,7 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
     lastUpdated: serverTimestamp(),
   };
 
-  await updateDoc(doc(db, 'users', userId), { statsCache });
+  await setDoc(doc(db, 'users', userId), { statsCache }, { merge: true });
   return statsCache;
 }
 
