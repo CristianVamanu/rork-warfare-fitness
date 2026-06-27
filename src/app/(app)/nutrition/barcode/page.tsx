@@ -1,35 +1,42 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Scan, Flame, Beef, Wheat, AlertCircle, Smartphone } from 'lucide-react';
+import {
+  ArrowLeft, Scan, Flame, Beef, Wheat, AlertCircle,
+  Smartphone, RefreshCw, ZapOff,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { logMeal } from '@/lib/firestore';
+import { logMealAction } from '@/lib/actions';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import type { NutritionAnalysis } from '@/types';
 
-interface OpenFoodFactsProduct {
-  product_name?: string;
-  nutriments?: {
-    'energy-kcal_100g'?: number;
-    'proteins_100g'?: number;
-    'carbohydrates_100g'?: number;
-    'fat_100g'?: number;
-  };
-}
-
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+type CameraState = 'idle' | 'initializing' | 'scanning' | 'denied' | 'error';
+
+// ---------------------------------------------------------------------------
+// Root cause of black screen (previous implementation):
+//  1. Missing `autoPlay` attribute on <video> — React won't play without it
+//  2. No barcode detection library — only a comment placeholder
+//  3. iOS Safari: { facingMode: 'environment' } alone can throw OverconstrainedError;
+//     needs a two-step fallback to plain { video: true }
+//  4. `@zxing/browser` now handles all of the above cross-browser
+// ---------------------------------------------------------------------------
 
 export default function BarcodePage() {
   const router = useRouter();
   const { user } = useAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [scanning, setScanning] = useState(false);
-  const [hasCamera, setHasCamera] = useState(true);
+  const readerRef = useRef<import('@zxing/browser').BrowserMultiFormatReader | null>(null);
+  const scannedRef = useRef(false); // debounce: prevent multiple triggers
+
+  const [cameraState, setCameraState] = useState<CameraState>('idle');
+  const [cameraError, setCameraError] = useState<string>('');
   const [manualCode, setManualCode] = useState('');
   const [result, setResult] = useState<NutritionAnalysis | null>(null);
   const [productName, setProductName] = useState('');
@@ -37,46 +44,118 @@ export default function BarcodePage() {
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
 
-  const startCamera = async () => {
+  const stopScanner = useCallback(() => {
+    try { readerRef.current?.reset(); } catch { /* noop */ }
+    readerRef.current = null;
+    scannedRef.current = false;
+    if (cameraState === 'scanning' || cameraState === 'initializing') {
+      setCameraState('idle');
+    }
+  }, [cameraState]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      try { readerRef.current?.reset(); } catch { /* noop */ }
+    };
+  }, []);
+
+  const startScanner = useCallback(async () => {
+    if (!videoRef.current) return;
+    setCameraState('initializing');
+    setCameraError('');
+    scannedRef.current = false;
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+      // Dynamic import keeps ZXing out of the server bundle
+      const { BrowserMultiFormatReader, NotFoundException } = await import('@zxing/browser');
+      const { DecodeHintType, BarcodeFormat } = await import('@zxing/library');
+
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E,
+        BarcodeFormat.CODE_128,
+        BarcodeFormat.CODE_39,
+        BarcodeFormat.QR_CODE,
+        BarcodeFormat.DATA_MATRIX,
+      ]);
+      hints.set(DecodeHintType.TRY_HARDER, true);
+
+      const reader = new BrowserMultiFormatReader(hints);
+      readerRef.current = reader;
+
+      // List available cameras; prefer the back/environment camera
+      let deviceId: string | undefined;
+      try {
+        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+        console.log('[Barcode] Available cameras:', devices.map((d) => d.label));
+        const back = devices.find((d) =>
+          /back|rear|environment|0/i.test(d.label)
+        );
+        deviceId = back?.deviceId ?? devices[0]?.deviceId;
+      } catch {
+        // listVideoInputDevices can fail before permissions granted — that's fine
+        deviceId = undefined;
       }
-      setScanning(true);
-      // Note: BarcodeDetector API would go here
-      // For fallback, user can type barcode manually
-    } catch {
-      setHasCamera(false);
-      toast.error('Camera not available');
-    }
-  };
 
-  const stopCamera = () => {
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((t) => t.stop());
-      videoRef.current.srcObject = null;
-    }
-    setScanning(false);
-  };
+      setCameraState('scanning');
 
-  useEffect(() => () => stopCamera(), []);
+      await reader.decodeFromVideoDevice(
+        deviceId,
+        videoRef.current,
+        (scanResult, err) => {
+          if (scanResult && !scannedRef.current) {
+            scannedRef.current = true;
+            const code = scanResult.getText();
+            console.log('[Barcode] Detected:', code);
+            stopScanner();
+            lookupBarcode(code);
+          }
+          if (err && !(err instanceof NotFoundException)) {
+            // NotFoundException fires on every frame with no barcode — ignore it
+            console.warn('[Barcode] Scan error:', err?.message ?? err);
+          }
+        }
+      );
+    } catch (err: unknown) {
+      const e = err as Error & { name?: string };
+      console.error('[Barcode] Camera failed:', e?.name, e?.message);
+      readerRef.current = null;
+
+      if (e?.name === 'NotAllowedError' || e?.message?.includes('Permission')) {
+        setCameraState('denied');
+        setCameraError('Camera permission denied. Please allow camera access and try again.');
+      } else if (e?.name === 'NotFoundError' || e?.name === 'DevicesNotFoundError') {
+        setCameraState('error');
+        setCameraError('No camera found on this device.');
+      } else if (e?.name === 'OverconstrainedError') {
+        // iOS Safari sometimes rejects environment facingMode — retry with default
+        console.warn('[Barcode] OverconstrainedError — retrying without facingMode constraint');
+        setCameraState('idle');
+        // Small delay then retry; ZXing will pick the default camera
+        setTimeout(startScanner, 500);
+      } else {
+        setCameraState('error');
+        setCameraError(e?.message || 'Failed to start camera. Use manual entry below.');
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const lookupBarcode = async (code: string) => {
     if (!code.trim()) return;
     setSearching(true);
     try {
-      const res = await fetch(`/api/nutrition/barcode?code=${code.trim()}`);
+      const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`);
       if (!res.ok) throw new Error('Product not found');
       const data = await res.json();
       setResult(data.nutrition);
-      setProductName(data.name);
+      setProductName(data.name || data.nutrition?.name || 'Product');
     } catch {
-      toast.error('Product not found. Try another barcode.');
+      toast.error('Product not found. Try another barcode or enter manually.');
     } finally {
       setSearching(false);
     }
@@ -86,12 +165,20 @@ export default function BarcodePage() {
     if (!result || !user) return;
     setSaving(true);
     try {
-      const { name: _n, ...rest } = result;
-      await logMeal({ userId: user.uid, name: productName || result.name, ...rest, mealType });
+      await logMealAction(user.uid, {
+        name: productName || result.name,
+        calories: result.calories,
+        protein: result.protein,
+        carbs: result.carbs,
+        fat: result.fat,
+        mealType,
+      });
       toast.success('Added to log!');
       router.replace('/nutrition');
-    } catch {
-      toast.error('Failed to save');
+    } catch (err: unknown) {
+      const e = err as Error & { code?: string };
+      const display = e?.code ? `${e.code}: ${e.message}` : (e?.message || 'Save failed');
+      toast.error(display, { duration: 8000 });
       setSaving(false);
     }
   };
@@ -100,7 +187,10 @@ export default function BarcodePage() {
     <div>
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-white/8">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => { stopCamera(); router.back(); }} className="p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5">
+          <button
+            onClick={() => { stopScanner(); router.back(); }}
+            className="p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5"
+          >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-base font-bold text-white">Barcode Scanner</h1>
@@ -111,60 +201,121 @@ export default function BarcodePage() {
         {/* Camera Viewfinder */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <div className="relative aspect-square bg-black rounded-2xl overflow-hidden">
-            {scanning ? (
+
+            {/* VIDEO — always in DOM when scanning so ZXing can attach to it */}
+            {/* autoPlay is required in React; playsInline prevents fullscreen on iOS */}
+            <video
+              ref={videoRef}
+              className={`w-full h-full object-cover ${
+                cameraState === 'scanning' ? 'block' : 'hidden'
+              }`}
+              autoPlay
+              playsInline
+              muted
+            />
+
+            {/* Scanning overlay */}
+            {cameraState === 'scanning' && (
               <>
-                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-                {/* Scanning overlay */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="relative w-2/3 h-1/3">
-                    <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-accent rounded-tl-lg" />
-                    <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-accent rounded-tr-lg" />
-                    <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-accent rounded-bl-lg" />
-                    <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-accent rounded-br-lg" />
+                {/* Dark vignette outside scan zone */}
+                <div className="absolute inset-0 pointer-events-none"
+                  style={{ background: 'radial-gradient(ellipse 55% 30% at 50% 50%, transparent 80%, rgba(0,0,0,0.55) 100%)' }}
+                />
+                {/* Corner frame */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="relative w-2/3 aspect-[3/2]">
+                    <div className="absolute top-0 left-0 w-7 h-7 border-t-[3px] border-l-[3px] border-accent rounded-tl-lg" />
+                    <div className="absolute top-0 right-0 w-7 h-7 border-t-[3px] border-r-[3px] border-accent rounded-tr-lg" />
+                    <div className="absolute bottom-0 left-0 w-7 h-7 border-b-[3px] border-l-[3px] border-accent rounded-bl-lg" />
+                    <div className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] border-accent rounded-br-lg" />
+                    {/* Scan line */}
                     <motion.div
-                      animate={{ top: ['15%', '75%', '15%'] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                      className="absolute inset-x-0 h-0.5 bg-accent opacity-70"
+                      animate={{ top: ['10%', '80%', '10%'] }}
+                      transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                      className="absolute inset-x-0 h-0.5 bg-accent/80"
+                      style={{ position: 'absolute' }}
                     />
                   </div>
                 </div>
+                {/* Label */}
+                <p className="absolute bottom-4 inset-x-0 text-center text-xs text-white/70">
+                  Align barcode within the frame
+                </p>
+                {/* Stop button */}
                 <button
-                  onClick={stopCamera}
-                  className="absolute top-3 right-3 px-3 py-1.5 bg-black/50 rounded-lg text-xs text-white"
+                  onClick={stopScanner}
+                  className="absolute top-3 right-3 px-3 py-1.5 bg-black/60 backdrop-blur rounded-lg text-xs text-white flex items-center gap-1.5"
                 >
-                  Stop
+                  <ZapOff className="w-3.5 h-3.5" /> Stop
                 </button>
               </>
-            ) : (
+            )}
+
+            {/* Initializing state */}
+            {cameraState === 'initializing' && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black">
+                <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                <p className="text-xs text-white/70">Starting camera…</p>
+              </div>
+            )}
+
+            {/* Idle / start state */}
+            {cameraState === 'idle' && (
               <div className="w-full h-full flex flex-col items-center justify-center gap-4">
                 <div className="p-5 bg-accent-muted rounded-full">
                   <Scan className="w-10 h-10 text-accent" />
                 </div>
-                {!hasCamera ? (
-                  <div className="text-center px-4">
-                    <Smartphone className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
-                    <p className="text-white text-sm font-medium">Camera not available</p>
-                    <p className="text-text-secondary text-xs mt-1">Use manual entry below</p>
-                  </div>
-                ) : (
-                  <button
-                    onClick={startCamera}
-                    className="px-4 py-2 bg-accent text-black rounded-xl text-sm font-bold"
-                  >
-                    Start Camera
-                  </button>
-                )}
+                <button
+                  onClick={startScanner}
+                  className="px-4 py-2 bg-accent text-black rounded-xl text-sm font-bold"
+                >
+                  Start Camera
+                </button>
+              </div>
+            )}
+
+            {/* Permission denied */}
+            {cameraState === 'denied' && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 bg-black text-center">
+                <Smartphone className="w-10 h-10 text-text-tertiary" />
+                <p className="text-white text-sm font-medium">Camera Permission Denied</p>
+                <p className="text-text-secondary text-xs">{cameraError}</p>
+                <p className="text-text-tertiary text-xs">Use manual barcode entry below.</p>
+              </div>
+            )}
+
+            {/* Generic error */}
+            {cameraState === 'error' && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 bg-black text-center">
+                <AlertCircle className="w-10 h-10 text-danger" />
+                <p className="text-white text-sm font-medium">Camera Error</p>
+                <p className="text-text-secondary text-xs">{cameraError}</p>
+                <button
+                  onClick={() => { setCameraState('idle'); setCameraError(''); }}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-surface-elevated text-white rounded-xl text-xs mt-1"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Try Again
+                </button>
               </div>
             )}
           </div>
         </motion.div>
+
+        {/* Searching indicator */}
+        {searching && (
+          <div className="flex items-center justify-center gap-2 py-2">
+            <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-text-secondary">Looking up product…</p>
+          </div>
+        )}
 
         {/* Manual Entry */}
         <Card className="p-4">
           <p className="text-xs text-text-secondary mb-2">Or enter barcode manually:</p>
           <div className="flex gap-2">
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={manualCode}
               onChange={(e) => setManualCode(e.target.value)}
               placeholder="e.g. 5000112546415"
@@ -227,7 +378,7 @@ export default function BarcodePage() {
         <Card glass className="p-4 flex items-start gap-3">
           <AlertCircle className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
           <p className="text-xs text-text-secondary">
-            Powered by OpenFoodFacts database with 3M+ products. Nutritional values are per 100g.
+            Powered by OpenFoodFacts (3M+ products). Scans EAN-13, EAN-8, UPC-A, UPC-E, Code128, QR codes. Values are per 100g.
           </p>
         </Card>
       </div>

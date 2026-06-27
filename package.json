@@ -13,6 +13,8 @@
     "@hookform/resolvers": "3.9.0",
     "@next/bundle-analyzer": "14.2.5",
     "@stripe/stripe-js": "4.1.0",
+    "@zxing/browser": "^0.2.0",
+    "@zxing/library": "^0.22.0",
     "autoprefixer": "10.4.19",
     "clsx": "2.1.1",
     "date-fns": "3.6.0",

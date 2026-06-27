@@ -66,6 +66,8 @@ export default function WorkoutSessionPage() {
   const [completeModal, setCompleteModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [startTime] = useState(Date.now());
+  const [editingWeight, setEditingWeight] = useState(false);
+  const [weightInput, setWeightInput] = useState('');
 
   // Load program from Firestore when programId is provided
   useEffect(() => {
@@ -145,6 +147,23 @@ export default function WorkoutSessionPage() {
     });
   };
 
+  const commitWeightInput = () => {
+    const parsed = parseFloat(weightInput);
+    if (!isNaN(parsed) && parsed >= 0) {
+      const clamped = Math.min(parsed, currentEx.maxWeight);
+      if (clamped !== parsed) toast.error(`Max weight is ${currentEx.maxWeight}${weightUnit}`);
+      setLogs((prev) => {
+        const next = [...prev];
+        const sets = next[currentExIdx].sets.map((s, i) =>
+          i === currentSetIdx ? { ...s, weight: clamped } : s
+        );
+        next[currentExIdx] = { ...next[currentExIdx], sets };
+        return next;
+      });
+    }
+    setEditingWeight(false);
+  };
+
   const completeSet = () => {
     setLogs((prev) => {
       const next = [...prev];
@@ -162,6 +181,7 @@ export default function WorkoutSessionPage() {
 
     if (isLastSet && isLastEx) { setCompleteModal(true); return; }
 
+    setEditingWeight(false);
     startRestTimer(currentEx.restSeconds);
     if (isLastSet) { setCurrentExIdx((i) => i + 1); setCurrentSetIdx(0); }
     else { setCurrentSetIdx((s) => s + 1); }
@@ -260,9 +280,27 @@ export default function WorkoutSessionPage() {
                   >
                     <Minus className="w-5 h-5" />
                   </button>
-                  <div className="text-center">
-                    <p className="text-5xl font-black text-white w-24 text-center">{currentSet?.weight || 0}</p>
-                    <p className="text-xs text-text-tertiary">{weightUnit}</p>
+                  <div className="text-center" onClick={() => {
+                    if (!editingWeight) {
+                      setWeightInput(String(currentSet?.weight || 0));
+                      setEditingWeight(true);
+                    }
+                  }}>
+                    {editingWeight ? (
+                      <input
+                        autoFocus
+                        type="number"
+                        inputMode="decimal"
+                        value={weightInput}
+                        onChange={(e) => setWeightInput(e.target.value)}
+                        onBlur={commitWeightInput}
+                        onKeyDown={(e) => { if (e.key === 'Enter') commitWeightInput(); if (e.key === 'Escape') setEditingWeight(false); }}
+                        className="w-24 text-5xl font-black text-white text-center bg-transparent border-b-2 border-accent focus:outline-none"
+                      />
+                    ) : (
+                      <p className="text-5xl font-black text-white w-24 text-center cursor-pointer">{currentSet?.weight || 0}</p>
+                    )}
+                    <p className="text-xs text-text-tertiary">{editingWeight ? 'tap Enter' : `${weightUnit} — tap to edit`}</p>
                   </div>
                   <button
                     onClick={() => updateSet('weight', 2.5)}
