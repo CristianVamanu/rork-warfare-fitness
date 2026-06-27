@@ -1,54 +1,55 @@
 /**
  * Central state update layer.
- * All writes that affect user stats, streak, or lastActive go through here.
- * Pages import from this file — not directly from firestore.ts — for anything
- * that must update user state alongside the core write.
+ *
+ * ALL activity tracking must go through these functions.
+ * Each action:
+ *   1. Writes the canonical collection document (for list/history reads)
+ *   2. Emits an event via createEvent() (for stats derivation)
+ *
+ * Direct stat mutation on the user doc is forbidden outside this file.
  */
 
-import { doc, updateDoc, addDoc, collection, serverTimestamp, getDoc, Timestamp } from 'firebase/firestore';
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  serverTimestamp,
+  updateDoc,
+} from 'firebase/firestore';
 import { db } from './firebase';
-
-interface SetLog { weight: number; reps: number; completed: boolean }
-interface ExerciseLog { name: string; sets: SetLog[] }
+import { createEvent } from './events';
+import type { EventType } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-function computeNewStreak(lastWorkoutTimestamp: unknown, currentStreak: number): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  if (!lastWorkoutTimestamp) return 1;
-
-  let lastDate: Date;
-  if (lastWorkoutTimestamp instanceof Timestamp) {
-    lastDate = lastWorkoutTimestamp.toDate();
-  } else if (typeof lastWorkoutTimestamp === 'string' || typeof lastWorkoutTimestamp === 'number') {
-    lastDate = new Date(lastWorkoutTimestamp);
-  } else {
-    return 1;
-  }
-  lastDate.setHours(0, 0, 0, 0);
-
-  const diffDays = Math.round((today.getTime() - lastDate.getTime()) / 86_400_000);
-
-  if (diffDays === 0) return currentStreak;   // already worked out today
-  if (diffDays === 1) return currentStreak + 1; // consecutive day
-  return 1;                                    // missed ≥1 day — reset
+async function getTrainerId(userId: string): Promise<string> {
+  const snap = await getDoc(doc(db, 'users', userId));
+  return (snap.data()?.trainerId as string) ?? 'unknown';
 }
 
-async function touchLastActive(userId: string) {
-  await updateDoc(doc(db, 'users', userId), { lastActive: serverTimestamp() });
+async function emit(
+  type: EventType,
+  userId: string,
+  trainerId: string,
+  payload: Record<string, unknown>
+) {
+  return createEvent({ type, userId, trainerId, payload });
 }
 
 // ---------------------------------------------------------------------------
-// Public actions
+// Workout
 // ---------------------------------------------------------------------------
+
+interface SetLog { weight: number; reps: number; completed: boolean }
+interface ExerciseLog { name: string; sets: SetLog[] }
 
 /**
- * Complete a workout: write workoutLog, update totalWorkouts,
- * totalWeightLifted, streak, lastWorkoutDate, lastActive.
+ * Complete a workout:
+ *   - writes to workoutLogs (history reads)
+ *   - emits WORKOUT_COMPLETED event (stats derivation)
  */
 export async function completeWorkout(
   userId: string,
@@ -56,42 +57,47 @@ export async function completeWorkout(
   duration: number,
   programId?: string
 ): Promise<void> {
-  // 1. Write the workout log
-  await addDoc(collection(db, 'workoutLogs'), {
-    userId,
-    programId: programId ?? null,
-    exercises,
-    duration,
-    calories: Math.round(duration * 8),
-    completedAt: serverTimestamp(),
-  });
+  const trainerId = await getTrainerId(userId);
 
-  // 2. Read current user data once for stats + streak
-  const userSnap = await getDoc(doc(db, 'users', userId));
-  const userData = userSnap.data() ?? {};
-  const stats = (userData.stats as Record<string, number>) ?? {};
-
-  const totalWeightThisSession = exercises.reduce(
+  const calories = Math.round(duration * 8);
+  const totalWeightLifted = exercises.reduce(
     (sum, ex) =>
-      sum + ex.sets.filter((s) => s.completed).reduce((s2, s) => s2 + s.weight * s.reps, 0),
+      sum +
+      ex.sets
+        .filter((s) => s.completed)
+        .reduce((s2, s) => s2 + s.weight * s.reps, 0),
     0
   );
 
-  const newStreak = computeNewStreak(userData.lastWorkoutDate, stats.streak ?? 0);
-
-  // 3. Atomic stats + streak update
-  await updateDoc(doc(db, 'users', userId), {
-    'stats.totalWorkouts': (stats.totalWorkouts ?? 0) + 1,
-    'stats.totalWeightLifted': (stats.totalWeightLifted ?? 0) + totalWeightThisSession,
-    'stats.streak': newStreak,
-    lastWorkoutDate: serverTimestamp(),
-    lastActive: serverTimestamp(),
+  // 1. Write canonical workout log
+  const logRef = await addDoc(collection(db, 'workoutLogs'), {
+    userId,
+    trainerId,
+    programId: programId ?? null,
+    exercises,
+    duration,
+    calories,
+    completedAt: serverTimestamp(),
   });
+
+  // 2. Emit event for stats derivation
+  await emit('WORKOUT_COMPLETED', userId, trainerId, {
+    workoutLogId: logRef.id,
+    programId: programId ?? null,
+    exerciseCount: exercises.length,
+    totalWeightLifted,
+    duration,
+    calories,
+  });
+
+  // 3. Touch lastActive (non-blocking)
+  updateDoc(doc(db, 'users', userId), { lastActive: serverTimestamp() }).catch(console.error);
 }
 
-/**
- * Log a meal and touch lastActive.
- */
+// ---------------------------------------------------------------------------
+// Nutrition — meals
+// ---------------------------------------------------------------------------
+
 export async function logMealAction(
   userId: string,
   meal: {
@@ -102,25 +108,64 @@ export async function logMealAction(
     fat: number;
     mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   }
-) {
-  const ref = await addDoc(collection(db, 'meals'), {
+): Promise<void> {
+  const trainerId = await getTrainerId(userId);
+
+  // 1. Write canonical meal doc
+  const mealRef = await addDoc(collection(db, 'meals'), {
     userId,
+    trainerId,
     ...meal,
     loggedAt: serverTimestamp(),
   });
-  await touchLastActive(userId);
-  return ref;
+
+  // 2. Emit event
+  await emit('MEAL_LOGGED', userId, trainerId, { mealId: mealRef.id, ...meal });
+
+  // 3. Touch lastActive (non-blocking)
+  updateDoc(doc(db, 'users', userId), { lastActive: serverTimestamp() }).catch(console.error);
 }
 
-/**
- * Log water and touch lastActive.
- */
-export async function logWaterAction(userId: string, amountMl: number) {
-  const ref = await addDoc(collection(db, 'waterLogs'), {
+// ---------------------------------------------------------------------------
+// Nutrition — water
+// ---------------------------------------------------------------------------
+
+export async function logWaterAction(userId: string, amountMl: number): Promise<void> {
+  const trainerId = await getTrainerId(userId);
+
+  // 1. Write canonical water log doc
+  const waterRef = await addDoc(collection(db, 'waterLogs'), {
     userId,
+    trainerId,
     amountMl,
     loggedAt: serverTimestamp(),
   });
-  await touchLastActive(userId);
-  return ref;
+
+  // 2. Emit event
+  await emit('WATER_LOGGED', userId, trainerId, { waterLogId: waterRef.id, amountMl });
+
+  // 3. Touch lastActive (non-blocking)
+  updateDoc(doc(db, 'users', userId), { lastActive: serverTimestamp() }).catch(console.error);
+}
+
+// ---------------------------------------------------------------------------
+// Body weight
+// ---------------------------------------------------------------------------
+
+export async function recordWeight(userId: string, weightKg: number): Promise<void> {
+  const trainerId = await getTrainerId(userId);
+
+  await addDoc(collection(db, 'weightLogs'), {
+    userId,
+    trainerId,
+    weightKg,
+    loggedAt: serverTimestamp(),
+  });
+
+  await emit('WEIGHT_RECORDED', userId, trainerId, { weightKg });
+
+  updateDoc(doc(db, 'users', userId), {
+    lastActive: serverTimestamp(),
+    currentWeightKg: weightKg,
+  }).catch(console.error);
 }

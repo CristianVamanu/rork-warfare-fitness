@@ -32,7 +32,8 @@ export default function BarcodePage() {
   const router = useRouter();
   const { user } = useAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const readerRef = useRef<import('@zxing/browser').BrowserMultiFormatReader | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const readerRef = useRef<any>(null);
   const scannedRef = useRef(false); // debounce: prevent multiple triggers
 
   const [cameraState, setCameraState] = useState<CameraState>('idle');
@@ -68,7 +69,8 @@ export default function BarcodePage() {
 
     try {
       // Dynamic import keeps ZXing out of the server bundle
-      const { BrowserMultiFormatReader, NotFoundException } = await import('@zxing/browser');
+      const { BrowserMultiFormatReader } = await import('@zxing/browser');
+      const { NotFoundException } = await import('@zxing/library');
       const { DecodeHintType, BarcodeFormat } = await import('@zxing/library');
 
       const hints = new Map();

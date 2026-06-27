@@ -66,8 +66,9 @@ export default function NutritionPage() {
 
   const addWater = async (ml: number) => {
     if (!user) return;
-    const ref = await logWaterAction(user.uid, ml);
-    setWaterLogs((prev) => [{ id: ref.id, amountMl: ml, loggedAt: new Date() }, ...prev]);
+    await logWaterAction(user.uid, ml);
+    // Reload logs from Firestore to get the real id for deletion
+    getTodayWaterLogs(user.uid).then(setWaterLogs).catch(console.error);
     toast.success(`+${ml}ml logged`);
   };
 

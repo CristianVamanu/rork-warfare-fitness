@@ -89,17 +89,19 @@ export default function InstallPage() {
       // Sign out any existing user first
       await signOut().catch(() => {});
 
-      // Create admin user
-      await createAdminUser(adminData.email, adminData.password, adminData.name);
+      // Create admin user + tenant record (trainerId = admin uid)
+      const adminUser = await createAdminUser(adminData.email, adminData.password, adminData.name);
 
       // Save system config — secrets (OPENAI_API_KEY, STRIPE_SECRET_KEY) are
       // intentionally NOT stored here; they must be set as env vars.
+      // trainerId is stored so new client sign-ups are linked to this trainer.
       await setSystemConfig({
         appName: config.appName,
         trainerName: config.trainerName,
         themeColor: config.themeColor,
         openaiModel: openaiData.openaiModel,
         stripePublishableKey: stripeData.stripePublishableKey || '',
+        trainerId: adminUser.uid,
       });
 
       // Mark as installed

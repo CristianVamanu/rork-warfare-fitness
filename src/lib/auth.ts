@@ -4,10 +4,11 @@ import {
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
   updateProfile,
-  User,
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { createTenant } from './tenants';
+import { getSystemConfig } from './firestore';
 
 export async function signUp(
   email: string,
@@ -25,12 +26,22 @@ export async function signUp(
   await updateProfile(credential.user, { displayName });
   console.log('[Auth] updateProfile succeeded');
 
+  // Resolve trainerId from system config (set during install)
+  let trainerId: string | undefined;
+  try {
+    const cfg = await getSystemConfig();
+    trainerId = (cfg?.trainerId as string) ?? undefined;
+  } catch {
+    // Non-fatal: trainerId will be undefined for legacy installs
+  }
+
   const userData = {
     displayName,
     email,
     photoURL: null,
     weightUnit,
     role: 'user',
+    trainerId: trainerId ?? null,
     createdAt: serverTimestamp(),
     lastActive: serverTimestamp(),
     stats: { streak: 0, powerLevel: 1, totalWorkouts: 0, totalWeightLifted: 0 },
@@ -58,6 +69,10 @@ export async function resetPassword(email: string) {
   await sendPasswordResetEmail(auth, email);
 }
 
+/**
+ * Creates the admin (trainer) account and the corresponding tenant record.
+ * trainerId == the admin user's uid.
+ */
 export async function createAdminUser(
   email: string,
   password: string,
@@ -65,15 +80,23 @@ export async function createAdminUser(
 ) {
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(credential.user, { displayName: name });
-  await setDoc(doc(db, 'users', credential.user.uid), {
+
+  const uid = credential.user.uid;
+
+  await setDoc(doc(db, 'users', uid), {
     displayName: name,
     email,
     photoURL: null,
     weightUnit: 'kg',
     role: 'admin',
+    trainerId: uid,          // admin is their own tenant owner
     createdAt: serverTimestamp(),
     lastActive: serverTimestamp(),
     stats: { streak: 0, powerLevel: 100, totalWorkouts: 0, totalWeightLifted: 0 },
   });
+
+  // Create the tenant record for this trainer
+  await createTenant(uid, name, email);
+
   return credential.user;
 }

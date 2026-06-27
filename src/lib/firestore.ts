@@ -25,12 +25,13 @@ async function runQuery<T>(label: string, fn: () => Promise<T>): Promise<T> {
     return await fn();
   } catch (err: unknown) {
     const e = err as Error & { code?: string };
+    const msg = e?.message ?? '';
     const isIndexError =
       e?.code === 'failed-precondition' ||
-      (e?.message ?? '').includes('requires an index') ||
-      (e?.message ?? '').includes('The query requires an index');
+      msg.includes('requires an index') ||
+      msg.includes('The query requires an index');
     if (isIndexError) {
-      const urlMatch = (e?.message ?? '').match(/https:\/\/console\.firebase\.google\.com[^\s]*/);
+      const urlMatch = msg.match(/https:\/\/console\.firebase\.google\.com[^\s]*/);
       const createUrl = urlMatch?.[0] ?? '';
       console.error(
         `[Firestore] Missing composite index for "${label}".`,
@@ -44,7 +45,7 @@ async function runQuery<T>(label: string, fn: () => Promise<T>): Promise<T> {
         { code: 'index-missing', createUrl }
       );
     }
-    console.error(`[Firestore] Query "${label}" failed:`, e?.code, e?.message);
+    console.error(`[Firestore] Query "${label}" failed:`, e?.code, msg);
     throw err;
   }
 }
@@ -60,7 +61,9 @@ export async function getSystemConfig() {
 export async function getInstallerStatus() {
   try {
     const snap = await getDoc(doc(db, 'system', 'installer'));
-    return snap.exists() ? (snap.data() as { installed: boolean; installedAt?: Timestamp }) : null;
+    return snap.exists()
+      ? (snap.data() as { installed: boolean; installedAt?: Timestamp })
+      : null;
   } catch {
     return null;
   }
@@ -92,7 +95,15 @@ export async function updateUserDoc(uid: string, data: Record<string, unknown>) 
 export async function getUserGoals(uid: string): Promise<UserGoals> {
   const snap = await getDoc(doc(db, 'users', uid));
   const data = snap.data();
-  return (data?.goals as UserGoals) ?? { calories: 2200, protein: 160, carbs: 250, fat: 70, water: 3000 };
+  return (
+    (data?.goals as UserGoals) ?? {
+      calories: 2200,
+      protein: 160,
+      carbs: 250,
+      fat: 70,
+      water: 3000,
+    }
+  );
 }
 
 export async function updateUserGoals(uid: string, goals: UserGoals) {
@@ -100,21 +111,8 @@ export async function updateUserGoals(uid: string, goals: UserGoals) {
 }
 
 // ---------------------------------------------------------------------------
-// Workout logs
+// Workout logs (read-only — writes go through actions.ts → createEvent)
 // ---------------------------------------------------------------------------
-export async function logWorkout(data: {
-  userId: string;
-  programId?: string | null;
-  exercises: Array<{ name: string; sets: Array<{ weight: number; reps: number; completed?: boolean }> }>;
-  duration: number;
-  calories: number;
-}) {
-  return await addDoc(collection(db, 'workoutLogs'), {
-    ...data,
-    completedAt: serverTimestamp(),
-  });
-}
-
 export async function getUserWorkouts(userId: string, limitCount = 10) {
   return runQuery('workoutLogs:byUser', async () => {
     const q = query(
@@ -129,23 +127,8 @@ export async function getUserWorkouts(userId: string, limitCount = 10) {
 }
 
 // ---------------------------------------------------------------------------
-// Meals
+// Meals (read-only — writes go through actions.ts → createEvent)
 // ---------------------------------------------------------------------------
-export async function logMeal(data: {
-  userId: string;
-  name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
-}) {
-  return await addDoc(collection(db, 'meals'), {
-    ...data,
-    loggedAt: serverTimestamp(),
-  });
-}
-
 export async function getTodayMeals(userId: string) {
   return runQuery('meals:today', async () => {
     const start = new Date();
@@ -166,16 +149,8 @@ export async function deleteMeal(id: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Water logs
+// Water logs (read-only — writes go through actions.ts → createEvent)
 // ---------------------------------------------------------------------------
-export async function logWater(userId: string, amountMl: number) {
-  return await addDoc(collection(db, 'waterLogs'), {
-    userId,
-    amountMl,
-    loggedAt: serverTimestamp(),
-  });
-}
-
 export async function deleteWaterLog(id: string) {
   await deleteDoc(doc(db, 'waterLogs', id));
 }
@@ -214,13 +189,24 @@ export async function getTodayWaterLogs(userId: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Programs
+// Programs — scoped by trainerId when provided
 // ---------------------------------------------------------------------------
-export async function getPrograms(isPublic = true) {
+export async function getPrograms(trainerId?: string) {
+  if (trainerId) {
+    return runQuery('programs:byTrainer', async () => {
+      const q = query(
+        collection(db, 'programs'),
+        where('trainerId', '==', trainerId),
+        orderBy('name')
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    });
+  }
   return runQuery('programs:public', async () => {
     const q = query(
       collection(db, 'programs'),
-      where('isPublic', '==', isPublic),
+      where('isPublic', '==', true),
       orderBy('name')
     );
     const snap = await getDocs(q);
@@ -233,17 +219,33 @@ export async function getProgram(id: string) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
+export async function createProgram(data: Record<string, unknown>) {
+  return addDoc(collection(db, 'programs'), {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function updateProgram(id: string, data: Record<string, unknown>) {
+  await updateDoc(doc(db, 'programs', id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteProgram(id: string) {
+  await deleteDoc(doc(db, 'programs', id));
+}
+
 // ---------------------------------------------------------------------------
-// Community posts
+// Community posts — scoped by trainerId when provided
 // ---------------------------------------------------------------------------
 export async function createPost(data: {
   userId: string;
+  trainerId?: string;
   userDisplayName: string;
   userPhotoURL?: string;
   content: string;
   imageURL?: string;
 }) {
-  return await addDoc(collection(db, 'posts'), {
+  return addDoc(collection(db, 'posts'), {
     ...data,
     likes: [],
     commentCount: 0,
@@ -251,7 +253,19 @@ export async function createPost(data: {
   });
 }
 
-export async function getPosts(limitCount = 20) {
+export async function getPosts(limitCount = 20, trainerId?: string) {
+  if (trainerId) {
+    return runQuery('posts:byTrainer', async () => {
+      const q = query(
+        collection(db, 'posts'),
+        where('trainerId', '==', trainerId),
+        orderBy('createdAt', 'desc'),
+        limit(limitCount)
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    });
+  }
   return runQuery('posts:recent', async () => {
     const q = query(
       collection(db, 'posts'),
@@ -261,4 +275,36 @@ export async function getPosts(limitCount = 20) {
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   });
+}
+
+// Legacy exports kept for backward compatibility — routes all writes through actions.ts
+export async function logWorkout(data: {
+  userId: string;
+  trainerId?: string;
+  programId?: string | null;
+  exercises: Array<{ name: string; sets: Array<{ weight: number; reps: number; completed?: boolean }> }>;
+  duration: number;
+  calories: number;
+}) {
+  return addDoc(collection(db, 'workoutLogs'), {
+    ...data,
+    completedAt: serverTimestamp(),
+  });
+}
+
+export async function logMeal(data: {
+  userId: string;
+  trainerId?: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+}) {
+  return addDoc(collection(db, 'meals'), { ...data, loggedAt: serverTimestamp() });
+}
+
+export async function logWater(userId: string, amountMl: number) {
+  return addDoc(collection(db, 'waterLogs'), { userId, amountMl, loggedAt: serverTimestamp() });
 }
