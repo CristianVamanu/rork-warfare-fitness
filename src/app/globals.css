@@ -66,3 +66,8 @@ input:-webkit-autofill:focus {
 button, a {
   touch-action: manipulation;
 }
+
+/* Hide scrollbar inside weight wheel */
+.weight-wheel-scroll::-webkit-scrollbar {
+  display: none;
+}
