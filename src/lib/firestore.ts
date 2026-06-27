@@ -1,3 +1,15 @@
+/**
+ * Firestore data access layer.
+ *
+ * Read strategy (dual system compatibility):
+ *   1. Events collection (primary — new architecture)
+ *   2. Legacy collections: meals / waterLogs / workoutLogs (fallback — pre-migration data)
+ *
+ * Write policy:
+ *   - Legacy collections are READ-ONLY here (for migration/fallback only).
+ *   - All new writes go through actions.ts → createEvent().
+ */
+
 import {
   doc,
   getDoc,
@@ -111,72 +123,169 @@ export async function updateUserGoals(uid: string, goals: UserGoals) {
 }
 
 // ---------------------------------------------------------------------------
-// Workout logs (read-only — writes go through actions.ts → createEvent)
+// Meals — event-primary reads with legacy fallback
 // ---------------------------------------------------------------------------
-export async function getUserWorkouts(userId: string, limitCount = 10) {
-  return runQuery('workoutLogs:byUser', async () => {
-    const q = query(
-      collection(db, 'workoutLogs'),
-      where('userId', '==', userId),
-      orderBy('completedAt', 'desc'),
-      limit(limitCount)
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  });
+
+interface NormalizedMeal {
+  id: string;
+  userId: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  mealType: string;
+  loggedAt: unknown;
 }
 
-// ---------------------------------------------------------------------------
-// Meals (read-only — writes go through actions.ts → createEvent)
-// ---------------------------------------------------------------------------
-export async function getTodayMeals(userId: string) {
-  return runQuery('meals:today', async () => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
+export async function getTodayMeals(userId: string): Promise<NormalizedMeal[]> {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const todayTs = Timestamp.fromDate(start);
+
+  // 1. Try events (primary)
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, 'events'),
+        where('userId', '==', userId),
+        where('type', '==', 'MEAL_LOGGED'),
+        where('createdAt', '>=', todayTs),
+        orderBy('createdAt', 'desc')
+      )
+    );
+    if (snap.size > 0) {
+      return snap.docs.map((d) => {
+        const payload = d.data().payload as Record<string, unknown>;
+        return {
+          id: d.id,
+          userId,
+          name: String(payload.name ?? ''),
+          calories: Number(payload.calories ?? 0),
+          protein: Number(payload.protein ?? 0),
+          carbs: Number(payload.carbs ?? 0),
+          fat: Number(payload.fat ?? 0),
+          mealType: String(payload.mealType ?? 'snack'),
+          loggedAt: d.data().createdAt,
+        };
+      });
+    }
+  } catch (err) {
+    console.warn('[Firestore] getTodayMeals: events query failed, trying legacy fallback', err);
+  }
+
+  // 2. Legacy fallback (meals collection)
+  return runQuery('meals:today:legacy', async () => {
     const q = query(
       collection(db, 'meals'),
       where('userId', '==', userId),
-      where('loggedAt', '>=', Timestamp.fromDate(start)),
+      where('loggedAt', '>=', todayTs),
       orderBy('loggedAt', 'desc')
     );
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as NormalizedMeal));
   });
 }
 
+/**
+ * Deletes a meal. Tries events collection first (post-migration id), then
+ * falls back to legacy meals collection (pre-migration id).
+ */
 export async function deleteMeal(id: string) {
-  await deleteDoc(doc(db, 'meals', id));
+  try {
+    await deleteDoc(doc(db, 'events', id));
+    return;
+  } catch {
+    // Event doc not found — fall through to legacy collection
+  }
+  try {
+    await deleteDoc(doc(db, 'meals', id));
+  } catch (err) {
+    console.error('[Firestore] deleteMeal failed for id', id, err);
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Water logs (read-only — writes go through actions.ts → createEvent)
+// Water logs — event-primary reads with legacy fallback
 // ---------------------------------------------------------------------------
-export async function deleteWaterLog(id: string) {
-  await deleteDoc(doc(db, 'waterLogs', id));
+
+interface NormalizedWaterLog {
+  id: string;
+  amountMl: number;
+  loggedAt: unknown;
 }
 
 export async function getTodayWater(userId: string): Promise<number> {
-  return runQuery('waterLogs:today:total', async () => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const todayTs = Timestamp.fromDate(start);
+
+  // 1. Try events (primary)
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, 'events'),
+        where('userId', '==', userId),
+        where('type', '==', 'WATER_LOGGED'),
+        where('createdAt', '>=', todayTs)
+      )
+    );
+    if (snap.size > 0) {
+      return snap.docs.reduce(
+        (sum, d) => sum + Number((d.data().payload as Record<string, unknown>).amountMl ?? 0),
+        0
+      );
+    }
+  } catch (err) {
+    console.warn('[Firestore] getTodayWater: events query failed, trying legacy fallback', err);
+  }
+
+  // 2. Legacy fallback
+  return runQuery('waterLogs:today:total:legacy', async () => {
     const q = query(
       collection(db, 'waterLogs'),
       where('userId', '==', userId),
-      where('loggedAt', '>=', Timestamp.fromDate(start))
+      where('loggedAt', '>=', todayTs)
     );
     const snap = await getDocs(q);
     return snap.docs.reduce((sum, d) => sum + (d.data().amountMl as number), 0);
   });
 }
 
-export async function getTodayWaterLogs(userId: string) {
-  return runQuery('waterLogs:today:list', async () => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
+export async function getTodayWaterLogs(userId: string): Promise<NormalizedWaterLog[]> {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const todayTs = Timestamp.fromDate(start);
+
+  // 1. Try events (primary)
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, 'events'),
+        where('userId', '==', userId),
+        where('type', '==', 'WATER_LOGGED'),
+        where('createdAt', '>=', todayTs),
+        orderBy('createdAt', 'desc')
+      )
+    );
+    if (snap.size > 0) {
+      return snap.docs.map((d) => ({
+        id: d.id,
+        amountMl: Number((d.data().payload as Record<string, unknown>).amountMl ?? 0),
+        loggedAt: d.data().createdAt,
+      }));
+    }
+  } catch (err) {
+    console.warn('[Firestore] getTodayWaterLogs: events query failed, trying legacy fallback', err);
+  }
+
+  // 2. Legacy fallback
+  return runQuery('waterLogs:today:list:legacy', async () => {
     const q = query(
       collection(db, 'waterLogs'),
       where('userId', '==', userId),
-      where('loggedAt', '>=', Timestamp.fromDate(start)),
+      where('loggedAt', '>=', todayTs),
       orderBy('loggedAt', 'desc')
     );
     const snap = await getDocs(q);
@@ -185,6 +294,68 @@ export async function getTodayWaterLogs(userId: string) {
       amountMl: d.data().amountMl as number,
       loggedAt: d.data().loggedAt,
     }));
+  });
+}
+
+export async function deleteWaterLog(id: string) {
+  try {
+    await deleteDoc(doc(db, 'events', id));
+    return;
+  } catch {
+    // Not in events — try legacy
+  }
+  try {
+    await deleteDoc(doc(db, 'waterLogs', id));
+  } catch (err) {
+    console.error('[Firestore] deleteWaterLog failed for id', id, err);
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Workout history — event-primary reads with legacy fallback
+// ---------------------------------------------------------------------------
+
+export async function getUserWorkouts(userId: string, limitCount = 10) {
+  // 1. Try events (primary)
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, 'events'),
+        where('userId', '==', userId),
+        where('type', '==', 'WORKOUT_COMPLETED'),
+        orderBy('createdAt', 'desc'),
+        limit(limitCount)
+      )
+    );
+    if (snap.size > 0) {
+      return snap.docs.map((d) => {
+        const payload = d.data().payload as Record<string, unknown>;
+        return {
+          id: d.id,
+          userId,
+          programId: payload.programId ?? null,
+          duration: Number(payload.duration ?? 0),
+          calories: Number(payload.calories ?? 0),
+          exercises: payload.exercises ?? [],
+          completedAt: d.data().createdAt,
+        };
+      });
+    }
+  } catch (err) {
+    console.warn('[Firestore] getUserWorkouts: events query failed, trying legacy fallback', err);
+  }
+
+  // 2. Legacy fallback
+  return runQuery('workoutLogs:byUser:legacy', async () => {
+    const q = query(
+      collection(db, 'workoutLogs'),
+      where('userId', '==', userId),
+      orderBy('completedAt', 'desc'),
+      limit(limitCount)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   });
 }
 
@@ -220,10 +391,7 @@ export async function getProgram(id: string) {
 }
 
 export async function createProgram(data: Record<string, unknown>) {
-  return addDoc(collection(db, 'programs'), {
-    ...data,
-    createdAt: serverTimestamp(),
-  });
+  return addDoc(collection(db, 'programs'), { ...data, createdAt: serverTimestamp() });
 }
 
 export async function updateProgram(id: string, data: Record<string, unknown>) {
@@ -277,34 +445,17 @@ export async function getPosts(limitCount = 20, trainerId?: string) {
   });
 }
 
-// Legacy exports kept for backward compatibility — routes all writes through actions.ts
-export async function logWorkout(data: {
-  userId: string;
-  trainerId?: string;
-  programId?: string | null;
-  exercises: Array<{ name: string; sets: Array<{ weight: number; reps: number; completed?: boolean }> }>;
-  duration: number;
-  calories: number;
-}) {
-  return addDoc(collection(db, 'workoutLogs'), {
-    ...data,
-    completedAt: serverTimestamp(),
-  });
+// ---------------------------------------------------------------------------
+// Legacy write stubs — kept only for backward-compat import references.
+// These log a warning and are NOT used for new writes.
+// All writes go through actions.ts → createEvent().
+// ---------------------------------------------------------------------------
+export async function logWorkout(..._args: unknown[]) {
+  console.warn('[Firestore] logWorkout() called — use actions.completeWorkout() instead');
 }
-
-export async function logMeal(data: {
-  userId: string;
-  trainerId?: string;
-  name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
-}) {
-  return addDoc(collection(db, 'meals'), { ...data, loggedAt: serverTimestamp() });
+export async function logMeal(..._args: unknown[]) {
+  console.warn('[Firestore] logMeal() called — use actions.logMealAction() instead');
 }
-
-export async function logWater(userId: string, amountMl: number) {
-  return addDoc(collection(db, 'waterLogs'), { userId, amountMl, loggedAt: serverTimestamp() });
+export async function logWater(..._args: unknown[]) {
+  console.warn('[Firestore] logWater() called — use actions.logWaterAction() instead');
 }

@@ -20,27 +20,47 @@ import type { EventType, StatsCache } from '@/types';
 
 export interface EventPayload extends Record<string, unknown> {}
 
+// ---------------------------------------------------------------------------
+// createEvent — with single retry on transient failures (Task 7)
+// ---------------------------------------------------------------------------
+
 export async function createEvent(data: {
   type: EventType;
   userId: string;
   trainerId: string;
   payload: EventPayload;
 }): Promise<string> {
-  const ref = await addDoc(collection(db, 'events'), {
-    ...data,
-    createdAt: serverTimestamp(),
-  });
-  // Recompute stats cache without blocking the caller
-  recomputeStatsCache(data.userId).catch((err) =>
-    console.error('[Events] Stats recompute failed:', err)
-  );
-  return ref.id;
+  let lastErr: unknown;
+
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    try {
+      const ref = await addDoc(collection(db, 'events'), {
+        ...data,
+        createdAt: serverTimestamp(),
+      });
+      // Non-blocking stats recompute
+      recomputeStatsCache(data.userId).catch((err) =>
+        console.error('[Events] Stats recompute failed:', err)
+      );
+      return ref.id;
+    } catch (err) {
+      lastErr = err;
+      if (attempt === 0) {
+        // Brief backoff before retry
+        await new Promise((r) => setTimeout(r, 600));
+        console.warn('[Events] createEvent attempt 1 failed — retrying:', (err as Error)?.message);
+      }
+    }
+  }
+
+  console.error('[Events] createEvent failed after retry:', lastErr);
+  throw lastErr;
 }
 
-/**
- * Derives and caches user stats from the events collection.
- * Called after every event creation and on login.
- */
+// ---------------------------------------------------------------------------
+// recomputeStatsCache — derives and caches stats from events (single source of truth)
+// ---------------------------------------------------------------------------
+
 export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -99,7 +119,6 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
     )
   );
 
-  // Unique workout days (YYYY-M-D key to avoid timezone issues)
   const workoutDays = new Set<string>();
   streakSnap.docs.forEach((d) => {
     const ts = d.data().createdAt as Timestamp | undefined;
@@ -128,7 +147,6 @@ function computeStreak(workoutDays: Set<string>): number {
   checkDate.setHours(0, 0, 0, 0);
   const todayKey = `${checkDate.getFullYear()}-${checkDate.getMonth()}-${checkDate.getDate()}`;
 
-  // If no workout today, start checking from yesterday
   if (!workoutDays.has(todayKey)) {
     checkDate.setDate(checkDate.getDate() - 1);
   }

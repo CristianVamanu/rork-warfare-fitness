@@ -2,16 +2,12 @@
  * Central state update layer.
  *
  * ALL activity tracking must go through these functions.
- * Each action:
- *   1. Writes the canonical collection document (for list/history reads)
- *   2. Emits an event via createEvent() (for stats derivation)
- *
- * Direct stat mutation on the user doc is forbidden outside this file.
+ * Each action emits an event via createEvent() — the single write path.
+ * Legacy collection (meals / waterLogs / workoutLogs) writes are DISABLED.
+ * Reads from those collections are for migration purposes only.
  */
 
 import {
-  addDoc,
-  collection,
   doc,
   getDoc,
   serverTimestamp,
@@ -22,7 +18,7 @@ import { createEvent } from './events';
 import type { EventType } from '@/types';
 
 // ---------------------------------------------------------------------------
-// Internal helpers
+// Helpers
 // ---------------------------------------------------------------------------
 
 async function getTrainerId(userId: string): Promise<string> {
@@ -35,7 +31,7 @@ async function emit(
   userId: string,
   trainerId: string,
   payload: Record<string, unknown>
-) {
+): Promise<string> {
   return createEvent({ type, userId, trainerId, payload });
 }
 
@@ -46,11 +42,6 @@ async function emit(
 interface SetLog { weight: number; reps: number; completed: boolean }
 interface ExerciseLog { name: string; sets: SetLog[] }
 
-/**
- * Complete a workout:
- *   - writes to workoutLogs (history reads)
- *   - emits WORKOUT_COMPLETED event (stats derivation)
- */
 export async function completeWorkout(
   userId: string,
   exercises: ExerciseLog[],
@@ -69,28 +60,15 @@ export async function completeWorkout(
     0
   );
 
-  // 1. Write canonical workout log
-  const logRef = await addDoc(collection(db, 'workoutLogs'), {
-    userId,
-    trainerId,
-    programId: programId ?? null,
-    exercises,
-    duration,
-    calories,
-    completedAt: serverTimestamp(),
-  });
-
-  // 2. Emit event for stats derivation
   await emit('WORKOUT_COMPLETED', userId, trainerId, {
-    workoutLogId: logRef.id,
     programId: programId ?? null,
     exerciseCount: exercises.length,
+    exercises, // store full exercise log in payload for history reads
     totalWeightLifted,
     duration,
     calories,
   });
 
-  // 3. Touch lastActive (non-blocking)
   updateDoc(doc(db, 'users', userId), { lastActive: serverTimestamp() }).catch(console.error);
 }
 
@@ -111,18 +89,8 @@ export async function logMealAction(
 ): Promise<void> {
   const trainerId = await getTrainerId(userId);
 
-  // 1. Write canonical meal doc
-  const mealRef = await addDoc(collection(db, 'meals'), {
-    userId,
-    trainerId,
-    ...meal,
-    loggedAt: serverTimestamp(),
-  });
+  await emit('MEAL_LOGGED', userId, trainerId, { ...meal });
 
-  // 2. Emit event
-  await emit('MEAL_LOGGED', userId, trainerId, { mealId: mealRef.id, ...meal });
-
-  // 3. Touch lastActive (non-blocking)
   updateDoc(doc(db, 'users', userId), { lastActive: serverTimestamp() }).catch(console.error);
 }
 
@@ -133,18 +101,8 @@ export async function logMealAction(
 export async function logWaterAction(userId: string, amountMl: number): Promise<void> {
   const trainerId = await getTrainerId(userId);
 
-  // 1. Write canonical water log doc
-  const waterRef = await addDoc(collection(db, 'waterLogs'), {
-    userId,
-    trainerId,
-    amountMl,
-    loggedAt: serverTimestamp(),
-  });
+  await emit('WATER_LOGGED', userId, trainerId, { amountMl });
 
-  // 2. Emit event
-  await emit('WATER_LOGGED', userId, trainerId, { waterLogId: waterRef.id, amountMl });
-
-  // 3. Touch lastActive (non-blocking)
   updateDoc(doc(db, 'users', userId), { lastActive: serverTimestamp() }).catch(console.error);
 }
 
@@ -154,13 +112,6 @@ export async function logWaterAction(userId: string, amountMl: number): Promise<
 
 export async function recordWeight(userId: string, weightKg: number): Promise<void> {
   const trainerId = await getTrainerId(userId);
-
-  await addDoc(collection(db, 'weightLogs'), {
-    userId,
-    trainerId,
-    weightKg,
-    loggedAt: serverTimestamp(),
-  });
 
   await emit('WEIGHT_RECORDED', userId, trainerId, { weightKg });
 

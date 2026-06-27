@@ -35,22 +35,56 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
-    Promise.all([
-      getTodayWater(user.uid),
-      getTodayMeals(user.uid),
-      getUserWorkouts(user.uid, 5),
-      getUserGoals(user.uid),
-    ]).then(([water, meals, workouts, g]) => {
-      setWaterMl(water);
-      const cal = (meals as Array<unknown>).reduce((s: number, m) => s + ((m as { calories?: number }).calories || 0), 0);
-      setCalories(cal);
-      setRecentWorkouts(workouts);
-      setGoals({ calories: g.calories, water: g.water });
-    }).catch(console.error).finally(() => setLoading(false));
-  }, [user]);
+
+    // ── Priority 1: statsCache from profile (from events engine) ───────────
+    const cache = profile?.statsCache;
+    if (cache) {
+      setCalories(cache.caloriesToday);
+      setWaterMl(cache.waterToday);
+      // Don't return — still load workout history and goals
+    }
+
+    // ── Priority 2 & 3: live queries (events → legacy fallback inside each fn) ─
+    const doQueries = async () => {
+      try {
+        const [water, meals, workouts, g] = await Promise.all([
+          // Only fetch water/calories if statsCache is missing
+          cache ? Promise.resolve(cache.waterToday) : getTodayWater(user.uid),
+          cache ? Promise.resolve(null) : getTodayMeals(user.uid),
+          getUserWorkouts(user.uid, 5),
+          getUserGoals(user.uid),
+        ]);
+
+        if (!cache) {
+          setWaterMl(water as number);
+          if (Array.isArray(meals)) {
+            const cal = (meals as Array<{ calories?: number }>).reduce(
+              (s, m) => s + (m.calories || 0),
+              0
+            );
+            setCalories(cal);
+          }
+        }
+        setRecentWorkouts(workouts);
+        setGoals({ calories: g.calories, water: g.water });
+      } catch (err) {
+        console.error('[Dashboard] Data load error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    doQueries();
+  }, [user, profile?.statsCache]);
 
   const greeting = getGreeting();
   const firstName = profile?.displayName?.split(' ')[0] || 'Warrior';
+
+  // Streak: statsCache → legacy stats → 0
+  const streak =
+    profile?.statsCache?.streak ??
+    profile?.stats?.streak ??
+    0;
 
   const stats = [
     {
@@ -83,7 +117,7 @@ export default function DashboardPage() {
     {
       icon: Zap,
       label: 'Streak',
-      value: profile?.stats?.streak ?? 0,
+      value: streak,
       unit: 'd',
       max: 30,
       color: 'text-accent',
@@ -106,9 +140,9 @@ export default function DashboardPage() {
         <motion.div {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
           <p className="text-text-secondary text-sm">{greeting},</p>
           <h1 className="text-2xl font-black text-white tracking-tight">{firstName} 💪</h1>
-          {profile?.stats?.streak ? (
+          {streak > 0 ? (
             <Badge variant="accent" className="mt-1">
-              🔥 {profile.stats.streak} day streak
+              🔥 {streak} day streak
             </Badge>
           ) : null}
         </motion.div>
@@ -123,7 +157,7 @@ export default function DashboardPage() {
           {stats.map((stat) => (
             <motion.div key={stat.label} variants={stagger.item}>
               <Card className="p-4">
-                {loading ? (
+                {loading && calories === null ? (
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-1/2" />
                     <Skeleton className="h-6 w-3/4" />
@@ -184,13 +218,10 @@ export default function DashboardPage() {
                 <Dumbbell className="w-16 h-16 text-accent" />
               </div>
               <Badge variant="accent" className="mb-2">Ready</Badge>
-              <h3 className="text-lg font-bold text-white">Upper Body Strength</h3>
-              <p className="text-sm text-text-secondary mt-1">4 exercises · ~45 min</p>
-              <div className="mt-4">
-                <ProgressBar value={0} max={100} label="Today's progress" showLabel size="sm" />
-              </div>
+              <h3 className="text-lg font-bold text-white">Start a Session</h3>
+              <p className="text-sm text-text-secondary mt-1">Choose a program to begin</p>
               <Button variant="primary" size="sm" className="mt-4">
-                Start Session
+                <Plus className="w-4 h-4" /> Start Session
               </Button>
             </Card>
           </Link>

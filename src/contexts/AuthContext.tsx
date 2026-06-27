@@ -5,7 +5,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { getUserDoc } from '@/lib/firestore';
 import { getTenant } from '@/lib/tenants';
-import { recomputeStatsCache } from '@/lib/events';
+import { checkAndRunMigration } from '@/lib/migration';
 import type { UserProfile, Tenant } from '@/types';
 
 interface AuthContextValue {
@@ -39,13 +39,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(p);
 
     // Load tenant if trainerId is known
-    const tid = p.trainerId;
-    if (tid) {
-      getTenant(tid).then(setTenant).catch(console.error);
+    if (p.trainerId) {
+      getTenant(p.trainerId).then(setTenant).catch(console.error);
     }
 
-    // Refresh stats cache on login (non-blocking)
-    recomputeStatsCache(uid).catch(console.error);
+    // ── Auto-heal: silently migrate legacy data + rebuild stats ──────────
+    // Non-blocking — never delays auth / page render.
+    // checkAndRunMigration handles idempotency via migrationCompletedAt flag.
+    checkAndRunMigration(uid)
+      .then(() => {
+        // Re-load profile so statsCache is fresh after migration
+        getUserDoc(uid)
+          .then((updated) => { if (updated) setProfile(updated as UserProfile); })
+          .catch(console.error);
+      })
+      .catch(console.error);
   };
 
   const refreshProfile = async () => {
