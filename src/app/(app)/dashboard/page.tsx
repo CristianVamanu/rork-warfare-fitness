@@ -227,8 +227,8 @@ export default function DashboardPage() {
           <h2 className="text-base font-bold text-white mb-3">Today&apos;s Workout</h2>
           {activeProgram ? (
             <Card className="p-4 relative overflow-hidden border-accent/20">
-              <div className="absolute right-4 top-4 opacity-8">
-                <Dumbbell className="w-16 h-16 text-accent" />
+              <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
+                <Dumbbell className="w-28 h-28 text-accent" />
               </div>
               <Badge variant="accent" className="mb-2">
                 {activeProgram.completedWorkouts}/{activeProgram.totalWorkouts} sessions
@@ -264,8 +264,8 @@ export default function DashboardPage() {
           ) : (
             <Link href="/training">
               <Card className="p-4 relative overflow-hidden hover:border-accent/20 transition-colors">
-                <div className="absolute right-4 top-4 opacity-8">
-                  <Dumbbell className="w-16 h-16 text-accent" />
+                <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
+                  <Dumbbell className="w-28 h-28 text-accent" />
                 </div>
                 <Badge variant="muted" className="mb-2">No active program</Badge>
                 <h3 className="text-base font-bold text-white">Choose a Program</h3>
