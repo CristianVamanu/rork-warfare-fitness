@@ -4,11 +4,36 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
+/* ── Dark theme (default) ── */
 :root {
   --background: #0A0A0A;
   --surface: #111111;
   --surface-elevated: #1A1A1A;
   --accent: #F5A623;
+  --color-text: #ffffff;
+  --color-text-secondary: rgba(255,255,255,0.55);
+  --color-text-tertiary: rgba(255,255,255,0.30);
+  --border-subtle: rgba(255,255,255,0.08);
+  --scrollbar-thumb: rgba(255,255,255,0.15);
+  --scrollbar-thumb-hover: rgba(255,255,255,0.25);
+  --autofill-bg: #1A1A1A;
+  --autofill-text: #ffffff;
+}
+
+/* ── Light theme ── */
+html.light {
+  --background: #F4F4F5;
+  --surface: #FFFFFF;
+  --surface-elevated: #E8E8EC;
+  --accent: #E8930A;
+  --color-text: #0A0A0A;
+  --color-text-secondary: rgba(0,0,0,0.55);
+  --color-text-tertiary: rgba(0,0,0,0.35);
+  --border-subtle: rgba(0,0,0,0.08);
+  --scrollbar-thumb: rgba(0,0,0,0.15);
+  --scrollbar-thumb-hover: rgba(0,0,0,0.25);
+  --autofill-bg: #ffffff;
+  --autofill-text: #0A0A0A;
 }
 
 * {
@@ -22,11 +47,12 @@ html {
 
 body {
   background-color: var(--background);
-  color: #ffffff;
+  color: var(--color-text);
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Safe area for iOS */
@@ -45,21 +71,21 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--scrollbar-thumb);
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Input autofill override */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 1000px #1A1A1A inset;
-  -webkit-text-fill-color: #ffffff;
-  caret-color: #ffffff;
+  -webkit-box-shadow: 0 0 0 1000px var(--autofill-bg) inset;
+  -webkit-text-fill-color: var(--autofill-text);
+  caret-color: var(--autofill-text);
 }
 
 /* Prevent double-tap zoom on mobile */
@@ -71,3 +97,17 @@ button, a {
 .weight-wheel-scroll::-webkit-scrollbar {
   display: none;
 }
+
+/* ── Light theme overrides for Tailwind utility classes ── */
+html.light .text-white { color: #0A0A0A !important; }
+html.light .text-text-secondary { color: rgba(0,0,0,0.55) !important; }
+html.light .text-text-tertiary { color: rgba(0,0,0,0.38) !important; }
+html.light .bg-white\/8 { background-color: rgba(0,0,0,0.07) !important; }
+html.light .bg-white\/5 { background-color: rgba(0,0,0,0.04) !important; }
+html.light .bg-white\/10 { background-color: rgba(0,0,0,0.08) !important; }
+html.light .bg-white\/15 { background-color: rgba(0,0,0,0.10) !important; }
+html.light .border-white\/8 { border-color: rgba(0,0,0,0.08) !important; }
+html.light .border-white\/10 { border-color: rgba(0,0,0,0.10) !important; }
+html.light .border-white\/20 { border-color: rgba(0,0,0,0.15) !important; }
+html.light .text-black { color: #0A0A0A !important; }
+html.light .bg-black { background-color: #F4F4F5 !important; }

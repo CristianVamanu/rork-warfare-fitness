@@ -3,12 +3,13 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, XCircle, Loader2, ExternalLink } from 'lucide-react';
+import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, XCircle, Loader2, ExternalLink, Sun, Moon } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { updateUserDoc, getUserConversations, getMembershipConfig } from '@/lib/firestore';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
@@ -33,6 +34,7 @@ function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
 
 export default function ProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [editModal, setEditModal] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.displayName || '');
   const [saving, setSaving] = useState(false);
@@ -295,6 +297,30 @@ export default function ProfilePage() {
               </div>
             </Card>
           </Link>
+        </motion.div>
+
+        {/* Appearance */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.19 }}>
+          <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Appearance</h2>
+          <Card className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-surface-elevated rounded-lg">
+                {theme === 'dark' ? <Moon className="w-4 h-4 text-accent" /> : <Sun className="w-4 h-4 text-accent" />}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white">{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</p>
+                <p className="text-xs text-text-secondary">Tap to switch theme</p>
+              </div>
+            </div>
+            <button
+              onClick={toggleTheme}
+              className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${theme === 'light' ? 'bg-accent' : 'bg-white/20'}`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${theme === 'light' ? 'translate-x-6' : 'translate-x-0'}`}
+              />
+            </button>
+          </Card>
         </motion.div>
 
         {/* Member Since */}
