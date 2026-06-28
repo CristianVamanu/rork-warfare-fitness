@@ -46,22 +46,24 @@ export default function DashboardPage() {
     if (!user) return;
 
     const cache = profile?.statsCache;
-    if (cache) {
+    const localDateStr = new Date().toLocaleDateString('sv-SE');
+    // Only use cache for today — stale cache from a previous day shows wrong values
+    const cacheIsToday = cache?.cacheDate === localDateStr;
+    if (cache && cacheIsToday) {
       setCalories(cache.caloriesToday);
       setWaterMl(cache.waterToday);
     }
 
     const doQueries = async () => {
       try {
-        const localDateStr = new Date().toLocaleDateString('sv-SE');
         const [water, meals, workouts, g] = await Promise.all([
-          cache ? Promise.resolve(cache.waterToday) : getTodayWater(user.uid, localDateStr),
-          cache ? Promise.resolve(null) : getTodayMeals(user.uid, localDateStr),
+          cacheIsToday && cache ? Promise.resolve(cache.waterToday) : getTodayWater(user.uid, localDateStr),
+          cacheIsToday && cache ? Promise.resolve(null) : getTodayMeals(user.uid, localDateStr),
           getUserWorkouts(user.uid, 5),
           getUserGoals(user.uid),
         ]);
 
-        if (!cache) {
+        if (!cacheIsToday || !cache) {
           setWaterMl(water as number);
           if (Array.isArray(meals)) {
             const cal = (meals as Array<{ calories?: number }>).reduce(

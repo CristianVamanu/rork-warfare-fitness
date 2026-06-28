@@ -92,7 +92,7 @@ export default function TrainingPage() {
           <h2 className="text-sm font-medium text-text-secondary mb-2">ACTIVE PROGRAM</h2>
           {activeProgram ? (
             <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-surface to-surface-elevated">
-              <div className="absolute right-0 bottom-0 opacity-5">
+              <div className="absolute right-0 bottom-0 opacity-5 pointer-events-none">
                 <Dumbbell className="w-32 h-32 text-accent" />
               </div>
               <Badge variant="accent" className="mb-3">
@@ -134,7 +134,7 @@ export default function TrainingPage() {
             </Card>
           ) : (
             <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-surface to-surface-elevated">
-              <div className="absolute right-0 bottom-0 opacity-5">
+              <div className="absolute right-0 bottom-0 opacity-5 pointer-events-none">
                 <Dumbbell className="w-32 h-32 text-accent" />
               </div>
               <p className="text-text-secondary text-sm mb-2">No active program</p>

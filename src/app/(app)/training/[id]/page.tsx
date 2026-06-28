@@ -284,9 +284,7 @@ export default function ProgramDetailPage() {
                     : upcomingDows.includes(idx)
                 );
                 const isExpanded = expandedDay === idx;
-                const dayLabel = isEnrolled && programStartDate
-                  ? `Day ${idx + 1}`
-                  : DOW_LABELS[idx] ?? `Day ${idx + 1}`;
+                const dayLabel = `Day ${idx + 1}`;
 
                 return (
                   <motion.div key={idx} layout>

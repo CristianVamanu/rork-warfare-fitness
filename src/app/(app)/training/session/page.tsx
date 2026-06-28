@@ -184,10 +184,11 @@ function SetRow({
         layout
         initial={{ opacity: 0, x: -16 }}
         animate={{ opacity: 1, x: 0 }}
+        onClick={isSkipped ? onActivate : undefined}
         className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
           isCompleted
             ? 'bg-success/5 border-success/20'
-            : 'bg-white/3 border-white/6 opacity-40'
+            : 'bg-white/3 border-white/6 opacity-40 cursor-pointer hover:opacity-60 hover:border-white/12 transition-opacity'
         }`}
       >
         <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -210,7 +211,7 @@ function SetRow({
           </div>
         )}
         {isSkipped && (
-          <span className="text-xs text-text-tertiary">Skipped</span>
+          <span className="text-xs text-text-tertiary">Skipped — tap to undo</span>
         )}
       </motion.div>
     );
@@ -455,7 +456,9 @@ export default function WorkoutSessionPage() {
       setExStates((prev) => {
         const next = [...prev];
         const ex = { ...next[exIdx], sets: next[exIdx].sets.map((s, i) => {
-          if (i === setIdx && s.status === 'pending') return { ...s, status: 'active' as SetStatus };
+          // Allow activating pending OR skipped sets
+          if (i === setIdx && (s.status === 'pending' || s.status === 'skipped')) return { ...s, status: 'active' as SetStatus };
+          // Demote any currently-active set back to pending when unskipping
           if (s.status === 'active') return { ...s, status: 'pending' as SetStatus };
           return s;
         })};

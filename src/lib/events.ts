@@ -145,6 +145,7 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
     waterToday,
     streak,
     lastUpdated: serverTimestamp(),
+    cacheDate: new Date().toLocaleDateString('sv-SE'),
   };
 
   await setDoc(doc(db, 'users', userId), { statsCache }, { merge: true });
