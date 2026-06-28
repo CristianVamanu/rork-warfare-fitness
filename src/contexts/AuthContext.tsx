@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { getUserDoc } from '@/lib/firestore';
 import { getTenant } from '@/lib/tenants';
@@ -62,53 +62,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
+  const profileUnsubRef = useRef<(() => void) | null>(null);
 
-  const loadProfile = async (firebaseUser: User) => {
+  const subscribeToProfile = (firebaseUser: User) => {
     const uid = firebaseUser.uid;
 
-    // Guarantee user doc exists before any other reads/writes
-    await ensureUserDoc(firebaseUser).catch((err) =>
-      console.error('[Auth] ensureUserDoc failed:', err)
-    );
+    // Cancel any previous listener
+    profileUnsubRef.current?.();
 
-    const data = await getUserDoc(uid);
-    if (!data) {
-      console.error('[Auth] Could not load profile for', uid);
-      return;
-    }
-    const p = data as UserProfile;
-    setProfile(p);
+    // Guarantee user doc exists first, then open a real-time listener
+    ensureUserDoc(firebaseUser)
+      .catch((err) => console.error('[Auth] ensureUserDoc failed:', err))
+      .then(() => {
+        const unsub = onSnapshot(
+          doc(db, 'users', uid),
+          (snap) => {
+            if (!snap.exists()) return;
+            const p = snap.data() as UserProfile;
+            setProfile(p);
+            if (p.trainerId) {
+              getTenant(p.trainerId).then(setTenant).catch(console.error);
+            }
+          },
+          (err) => console.error('[Auth] profile listener error:', err),
+        );
+        profileUnsubRef.current = unsub;
+      });
 
-    if (p.trainerId) {
-      getTenant(p.trainerId).then(setTenant).catch(console.error);
-    }
-
-    // Non-blocking stats migration + recompute
-    checkAndRunMigration(uid)
-      .then(() =>
-        getUserDoc(uid)
-          .then((updated) => { if (updated) setProfile(updated as UserProfile); })
-          .catch(console.error)
-      )
-      .catch(console.error);
+    // Non-blocking stats migration
+    checkAndRunMigration(uid).catch(console.error);
   };
 
   const refreshProfile = async () => {
-    if (user) await loadProfile(user);
+    if (user) {
+      const data = await getUserDoc(user.uid);
+      if (data) setProfile(data as UserProfile);
+    }
   };
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        await loadProfile(firebaseUser);
+        subscribeToProfile(firebaseUser);
       } else {
+        profileUnsubRef.current?.();
+        profileUnsubRef.current = null;
         setProfile(null);
         setTenant(null);
       }
       setLoading(false);
     });
-    return unsub;
+    return () => {
+      unsub();
+      profileUnsubRef.current?.();
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const trainerId = profile?.trainerId ?? null;

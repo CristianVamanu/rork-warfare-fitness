@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserWorkouts, getUserGoals, subscribeTodayCalories, subscribeTodayWater } from '@/lib/firestore';
+import { getUserWorkouts, getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater } from '@/lib/firestore';
 import { getMockProgram, getProgramDayForUser, stripWeekdayPrefix } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
@@ -42,28 +42,41 @@ export default function DashboardPage() {
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
 
+  // Sync calories + water from profile.statsCache whenever it updates (real-time via AuthContext)
+  useEffect(() => {
+    const localDateStr = new Date().toLocaleDateString('sv-SE');
+    const cache = profile?.statsCache;
+    if (cache && cache.cacheDate === localDateStr) {
+      setCalories(cache.caloriesToday ?? 0);
+      setWaterMl(cache.waterToday ?? 0);
+    }
+  }, [profile?.statsCache]);
+
   useEffect(() => {
     if (!user) return;
 
     const localDateStr = new Date().toLocaleDateString('sv-SE');
 
-    // Real-time listeners — update instantly whenever a meal/water event is written
-    const unsubCal = subscribeTodayCalories(user.uid, localDateStr, (cal) => {
-      setCalories(cal);
-      setLoading(false);
-    });
-    const unsubWater = subscribeTodayWater(user.uid, localDateStr, (ml) => {
-      setWaterMl(ml);
-    });
-
-    // Non-reactive one-shot queries
-    Promise.all([getUserWorkouts(user.uid, 5), getUserGoals(user.uid)])
-      .then(([workouts, g]) => {
+    // Direct queries on mount — authoritative source regardless of cache state
+    Promise.all([
+      getTodayMeals(user.uid, localDateStr),
+      getTodayWater(user.uid, localDateStr),
+      getUserWorkouts(user.uid, 5),
+      getUserGoals(user.uid),
+    ])
+      .then(([meals, water, workouts, g]) => {
+        const cal = (meals as Array<{ calories?: number }>).reduce((s, m) => s + (m.calories ?? 0), 0);
+        setCalories(cal);
+        setWaterMl(water as number);
         setRecentWorkouts(workouts);
         setGoals({ calories: g.calories, water: g.water });
       })
       .catch((err) => console.error('[Dashboard] Data load error:', err))
       .finally(() => setLoading(false));
+
+    // Real-time event listeners — update immediately on new writes
+    const unsubCal = subscribeTodayCalories(user.uid, localDateStr, setCalories);
+    const unsubWater = subscribeTodayWater(user.uid, localDateStr, setWaterMl);
 
     return () => {
       unsubCal();
