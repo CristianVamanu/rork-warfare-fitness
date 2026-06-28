@@ -344,7 +344,7 @@ function NutritionPageInner() {
                   </span>
                 </div>
                 {mealsByType[type].length === 0 ? (
-                  <Link href="/nutrition/analyze">
+                  <Link href={`/nutrition/analyze?mealType=${type}`}>
                     <Card className="p-3 border-dashed border-white/8 flex items-center gap-2 text-text-tertiary hover:border-accent/30 transition-colors cursor-pointer">
                       <Plus className="w-4 h-4" />
                       <span className="text-xs">Add {type}</span>

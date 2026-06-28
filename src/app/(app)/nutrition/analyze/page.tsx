@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Camera, Upload, Flame, Beef, Wheat, AlertCircle, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -20,13 +20,15 @@ const DEFAULT_GOALS: UserGoals = { calories: 2200, protein: 160, carbs: 250, fat
 
 export default function AnalyzeFoodPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<NutritionAnalysis | null>(null);
   const [saving, setSaving] = useState(false);
-  const [mealType, setMealType] = useState<MealType>('lunch');
+  const initialMealType = (searchParams.get('mealType') as MealType | null) ?? 'lunch';
+  const [mealType, setMealType] = useState<MealType>(initialMealType);
   const [todayCalories, setTodayCalories] = useState(0);
   const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
 
