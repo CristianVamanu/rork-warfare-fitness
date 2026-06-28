@@ -287,6 +287,16 @@ export function getMockProgram(id: string): Program | null {
   return MOCK_PROGRAMS.find((p) => p.id === id) ?? null;
 }
 
+const WEEKDAY_PREFIX = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*[-–—]?\s*/i;
+
+/**
+ * Strips weekday prefix from a day label so programs always show
+ * theme-based names ("Push Day") rather than calendar names ("Monday - Push Day").
+ */
+export function stripWeekdayPrefix(label: string): string {
+  return label.replace(WEEKDAY_PREFIX, '').trim() || label;
+}
+
 /**
  * Returns the ProgramDay for the current user based on days since enrollment.
  * Falls back to day-of-week logic for legacy users without programStartDate.

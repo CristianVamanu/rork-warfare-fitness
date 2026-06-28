@@ -7,7 +7,7 @@ import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown } from 'lucide
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, getProgram, getHiddenMockIds } from '@/lib/firestore';
-import { MOCK_PROGRAMS, getMockProgram, getProgramDayForUser } from '@/lib/programs';
+import { MOCK_PROGRAMS, getMockProgram, getProgramDayForUser, stripWeekdayPrefix } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -101,7 +101,7 @@ export default function TrainingPage() {
               <h3 className="text-xl font-black text-white">{activeProgram.programName}</h3>
               {todayDay && (
                 <p className="text-text-secondary text-sm mt-1">
-                  Today: {todayDay.isRest ? '😴 Rest Day' : todayDay.label}
+                  Today: {todayDay.isRest ? '😴 Rest Day' : stripWeekdayPrefix(todayDay.label)}
                 </p>
               )}
               <div className="mt-4 space-y-2">

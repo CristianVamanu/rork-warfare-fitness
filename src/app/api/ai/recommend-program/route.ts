@@ -53,7 +53,7 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
 }
 
 Rules:
-- "schedule" must have EXACTLY 7 items (index 0 = Monday through index 6 = Sunday)
+- "schedule" must have EXACTLY 7 items (Day 1 through Day 7); labels must NOT use weekday names — use theme names like "Push Day", "Pull Day", "Leg Day", "Rest"
 - Distribute ${trainingDays} training days and ${7 - trainingDays} rest days optimally across the week
 - Rest day items must have "isRest": true and "exercises": []
 - Each training day must have 4-7 exercises appropriate for the goal and experience level

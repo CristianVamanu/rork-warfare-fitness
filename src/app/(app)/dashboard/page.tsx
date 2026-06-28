@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayWater, getTodayMeals, getUserWorkouts, getUserGoals } from '@/lib/firestore';
-import { getMockProgram, getProgramDayForUser } from '@/lib/programs';
+import { getMockProgram, getProgramDayForUser, stripWeekdayPrefix } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
@@ -236,7 +236,7 @@ export default function DashboardPage() {
               <h3 className="text-base font-bold text-white">{activeProgram.programName}</h3>
               {todayDay && (
                 <p className="text-sm text-text-secondary mt-0.5">
-                  {todayDay.isRest ? '😴 Rest Day — recover well' : `Today: ${todayDay.label}`}
+                  {todayDay.isRest ? '😴 Rest Day — recover well' : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
                 </p>
               )}
               <div className="mt-3 mb-3">

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { getProgram } from '@/lib/firestore';
 import { enrollInProgram } from '@/lib/firestore';
-import { getMockProgram, MOCK_PROGRAMS, getProgramDayForUser } from '@/lib/programs';
+import { getMockProgram, MOCK_PROGRAMS, getProgramDayForUser, stripWeekdayPrefix } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -192,7 +192,7 @@ export default function ProgramDetailPage() {
             <div className="space-y-2">
               {todayDay && !todayDay.isRest ? (
                 <Button fullWidth size="lg" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${enrolledDayIndex}`)}>
-                  <Play className="w-5 h-5" /> Continue — {todayDay.label}
+                  <Play className="w-5 h-5" /> Continue — {stripWeekdayPrefix(todayDay.label ?? '')}
                 </Button>
               ) : (
                 <div className="p-4 bg-surface border border-white/8 rounded-2xl text-center">
@@ -225,7 +225,7 @@ export default function ProgramDetailPage() {
                   ) : (
                     <Dumbbell className="w-4 h-4 text-accent" />
                   )}
-                  <span className="text-sm font-bold text-white">{todayDay.label}</span>
+                  <span className="text-sm font-bold text-white">{stripWeekdayPrefix(todayDay.label)}</span>
                   {todayDay.isRest && <Badge variant="muted">Rest</Badge>}
                 </div>
                 {!todayDay.isRest && isEnrolled && (
@@ -287,7 +287,7 @@ export default function ProgramDetailPage() {
                           <div>
                             <div className="flex items-center gap-2">
                               <p className={`text-sm font-medium ${isToday ? 'text-white' : 'text-text-secondary'}`}>
-                                {day.label}
+                                {stripWeekdayPrefix(day.label ?? '')}
                               </p>
                               {isToday && <Badge variant="accent">Today</Badge>}
                               {!isToday && isUpcoming && <Badge variant="muted">Upcoming</Badge>}

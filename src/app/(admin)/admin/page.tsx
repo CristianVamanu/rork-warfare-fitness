@@ -307,7 +307,11 @@ export default function AdminPage() {
       setEditingChannel(null);
       setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0 });
       await loadChannels();
-    } catch { toast.error('Failed to save channel'); }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to save channel';
+      toast.error(msg, { duration: 6000 });
+      console.error('[Admin] channel save error:', msg);
+    }
     finally { setSavingChannel(false); }
   }
 
@@ -320,10 +324,12 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ id: ch.id }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? 'Failed to delete channel');
       setChannels(prev => prev.filter(c => c.id !== ch.id));
       toast.success('Channel deleted');
-    } catch { toast.error('Failed to delete channel'); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete channel', { duration: 6000 });
+    }
   }
 
   function startEditChannel(ch: Channel) {

@@ -3,19 +3,14 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAdminApp } from '@/lib/firebase-admin';
 import type Stripe from 'stripe';
 
 function getAdminDb() {
-  if (!getApps().length) {
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    if (!projectId || !clientEmail || !privateKey) return null;
-    initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
-  }
-  return getFirestore();
+  const app = getAdminApp();
+  if (!app) return null;
+  return getFirestore(app);
 }
 
 async function setMembershipStatus(userId: string, status: 'active' | 'none', expiresAt?: Date) {

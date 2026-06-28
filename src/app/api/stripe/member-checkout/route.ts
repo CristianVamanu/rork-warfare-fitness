@@ -3,18 +3,13 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getAdminApp } from '@/lib/firebase-admin';
 
 function getAdminDb() {
-  if (!getApps().length) {
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    if (!projectId || !clientEmail || !privateKey) return null;
-    initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
-  }
-  return getFirestore();
+  const app = getAdminApp();
+  if (!app) return null;
+  return getFirestore(app);
 }
 
 export async function POST(req: NextRequest) {

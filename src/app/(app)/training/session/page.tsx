@@ -370,27 +370,37 @@ export default function WorkoutSessionPage() {
         try {
           const prog = await getProgram(programId);
           const mock = getMockProgram(programId);
+          type AnyProgram = { schedule?: { isRest?: boolean; exercises?: Exercise[] }[]; exercises?: Exercise[] };
 
-          // Prefer day-specific exercises when dow is given
-          if (mock && dow !== null) {
-            const dayPlan = getProgramDayForDow(mock, dow);
-            if (dayPlan && !dayPlan.isRest && dayPlan.exercises.length > 0) {
-              exercises = dayPlan.exercises;
-            } else if (mock.exercises.length > 0) {
-              exercises = mock.exercises;
+          if (dow !== null) {
+            // Try Firestore program schedule first, then mock schedule
+            const firestoreProg = prog as AnyProgram | null;
+            const schedule = firestoreProg?.schedule ?? (mock as AnyProgram | null)?.schedule ?? null;
+            if (schedule?.length) {
+              const dayPlan = schedule[dow % schedule.length];
+              if (dayPlan && !dayPlan.isRest && dayPlan.exercises && dayPlan.exercises.length > 0) {
+                exercises = dayPlan.exercises as Exercise[];
+              }
+            } else {
+              // No schedule — use flat exercises list or mock
+              const flat = firestoreProg?.exercises ?? (mock as AnyProgram | null)?.exercises ?? [];
+              exercises = flat.length > 0 ? flat as Exercise[] : DEFAULT_EXERCISES;
             }
-          } else if (prog && (prog as unknown as { exercises?: Exercise[] }).exercises?.length) {
-            exercises = (prog as unknown as { exercises: Exercise[] }).exercises;
-          } else if (mock) {
-            exercises = mock.exercises.length > 0 ? mock.exercises : DEFAULT_EXERCISES;
+          } else {
+            // No dow — use flat exercises list
+            const firestoreProg = prog as AnyProgram | null;
+            const flat = firestoreProg?.exercises ?? (mock as AnyProgram | null)?.exercises ?? [];
+            exercises = flat.length > 0 ? flat as Exercise[] : DEFAULT_EXERCISES;
           }
         } catch {
           const mock = getMockProgram(programId);
-          if (mock) {
-            const dayPlan = dow !== null ? getProgramDayForDow(mock, dow) : null;
+          if (mock && dow !== null) {
+            const dayPlan = getProgramDayForDow(mock, dow);
             exercises = (dayPlan && !dayPlan.isRest && dayPlan.exercises.length > 0)
               ? dayPlan.exercises
               : (mock.exercises.length > 0 ? mock.exercises : DEFAULT_EXERCISES);
+          } else if (mock) {
+            exercises = mock.exercises.length > 0 ? mock.exercises : DEFAULT_EXERCISES;
           }
         }
       }

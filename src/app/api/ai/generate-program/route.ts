@@ -32,7 +32,8 @@ Return ONLY valid JSON with this exact structure (no markdown, no extra text):
 }
 
 RULES:
-- schedule array must have EXACTLY 7 elements (index 0 = Monday, 6 = Sunday)
+- schedule array must have EXACTLY 7 elements (Day 1 through Day 7)
+- Day labels must NOT reference weekdays (Monday, Tuesday, etc.) — use theme-based names like "Push Day", "Pull Day", "Leg Day", "Rest", "Active Recovery"
 - Rest days: isRest=true, empty exercises array, label="Rest"
 - Training days: isRest=false, 3-8 exercises per day
 - Include compound movements first, isolation after
