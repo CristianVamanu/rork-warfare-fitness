@@ -542,10 +542,13 @@ export function subscribeTodayCalories(
     collection(db, 'events'),
     where('userId', '==', userId),
     where('type', '==', 'MEAL_LOGGED'),
-    where('timestamp', '>=', todayTs),
+    where('createdAt', '>=', todayTs),
   );
   return onSnapshot(q, (snap) => {
-    const total = snap.docs.reduce((sum, d) => sum + ((d.data()?.data?.calories as number) ?? 0), 0);
+    const total = snap.docs.reduce(
+      (sum, d) => sum + (((d.data().payload) as Record<string, number>)?.calories ?? 0),
+      0,
+    );
     onUpdate(total);
   });
 }
@@ -560,10 +563,13 @@ export function subscribeTodayWater(
     collection(db, 'events'),
     where('userId', '==', userId),
     where('type', '==', 'WATER_LOGGED'),
-    where('timestamp', '>=', todayTs),
+    where('createdAt', '>=', todayTs),
   );
   return onSnapshot(q, (snap) => {
-    const total = snap.docs.reduce((sum, d) => sum + ((d.data()?.data?.amount as number) ?? 0), 0);
+    const total = snap.docs.reduce(
+      (sum, d) => sum + (((d.data().payload) as Record<string, number>)?.amountMl ?? 0),
+      0,
+    );
     onUpdate(total);
   });
 }
