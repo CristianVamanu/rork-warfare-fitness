@@ -26,6 +26,11 @@ export function getAdminApp(): App | null {
     return null;
   }
 
-  _app = initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+  try {
+    _app = initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+  } catch (err) {
+    console.error('[firebase-admin] initializeApp failed:', err);
+    return null;
+  }
   return _app;
 }

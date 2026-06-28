@@ -1,8 +1,3 @@
-/**
- * Admin channel management via Firebase Admin SDK.
- * Bypasses Firestore client rules — auth is verified by checking the
- * caller's user doc role server-side instead.
- */
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
