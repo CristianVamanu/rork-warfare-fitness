@@ -50,7 +50,8 @@ export interface ActiveProgram {
   programId: string;
   programName: string;
   enrolledAt: unknown;
-  startDate: string;         // ISO 'YYYY-MM-DD'
+  startDate?: string;         // ISO 'YYYY-MM-DD' (legacy)
+  programStartDate?: string;  // Full ISO timestamp (new)
   completedWorkouts: number;
   totalWorkouts: number;     // weeks × daysPerWeek
 }

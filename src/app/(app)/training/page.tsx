@@ -7,7 +7,7 @@ import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown } from 'lucide
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, getProgram, getHiddenMockIds } from '@/lib/firestore';
-import { MOCK_PROGRAMS, getMockProgram } from '@/lib/programs';
+import { MOCK_PROGRAMS, getMockProgram, getProgramDayForUser } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -44,7 +44,6 @@ export default function TrainingPage() {
   const [filter, setFilter] = useState<string>('all');
 
   const activeProgram = profile?.activeProgram;
-  const todayDow = getTodayDow();
 
   const [todayDay, setTodayDay] = useState<{ label: string; isRest: boolean } | null>(null);
   const pct = activeProgram
@@ -55,17 +54,18 @@ export default function TrainingPage() {
   useEffect(() => {
     if (!activeProgram) { setTodayDay(null); return; }
     const mock = getMockProgram(activeProgram.programId);
-    if (mock?.schedule?.[todayDow]) {
-      setTodayDay(mock.schedule[todayDow]);
+    if (mock?.schedule?.length) {
+      setTodayDay(getProgramDayForUser(mock, activeProgram.programStartDate ?? undefined));
       return;
     }
     getProgram(activeProgram.programId)
       .then((p) => {
-        const day = (p as Program | null)?.schedule?.[todayDow];
-        setTodayDay(day ?? null);
+        const prog = p as Program | null;
+        const day = prog ? getProgramDayForUser(prog, activeProgram.programStartDate ?? undefined) : null;
+        setTodayDay(day);
       })
       .catch(() => setTodayDay(null));
-  }, [activeProgram, todayDow]);
+  }, [activeProgram]);
 
   useEffect(() => {
     Promise.all([getPrograms(), getHiddenMockIds().catch(() => [] as string[])])
@@ -113,7 +113,13 @@ export default function TrainingPage() {
               </div>
               <div className="flex gap-2 mt-4">
                 {todayDay && !todayDay.isRest ? (
-                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${todayDow}`)}>
+                  <Button size="sm" onClick={() => {
+                    const startDate = activeProgram.programStartDate;
+                    const dayIndex = startDate
+                      ? Math.floor((Date.now() - new Date(startDate).getTime()) / 86400000)
+                      : getTodayDow();
+                    router.push(`/training/session?programId=${activeProgram.programId}&dow=${dayIndex}`);
+                  }}>
                     <Play className="w-4 h-4" /> Start Today&apos;s Workout
                   </Button>
                 ) : (

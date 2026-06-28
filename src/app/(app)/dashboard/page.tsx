@@ -6,7 +6,8 @@ import { motion } from 'framer-motion';
 import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayWater, getTodayMeals, getUserWorkouts, getUserGoals } from '@/lib/firestore';
-import { getMockProgram } from '@/lib/programs';
+import { getMockProgram, getProgramDayForUser } from '@/lib/programs';
+import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
 import { Card } from '@/components/ui/Card';
@@ -34,6 +35,7 @@ function getTodayDow(): number {
 
 export default function DashboardPage() {
   const { user, profile } = useAuth();
+  const router = useRouter();
   const [waterMl, setWaterMl] = useState<number | null>(null);
   const [calories, setCalories] = useState<number | null>(null);
   const [recentWorkouts, setRecentWorkouts] = useState<unknown[]>([]);
@@ -51,9 +53,10 @@ export default function DashboardPage() {
 
     const doQueries = async () => {
       try {
+        const localDateStr = new Date().toLocaleDateString('sv-SE');
         const [water, meals, workouts, g] = await Promise.all([
-          cache ? Promise.resolve(cache.waterToday) : getTodayWater(user.uid),
-          cache ? Promise.resolve(null) : getTodayMeals(user.uid),
+          cache ? Promise.resolve(cache.waterToday) : getTodayWater(user.uid, localDateStr),
+          cache ? Promise.resolve(null) : getTodayMeals(user.uid, localDateStr),
           getUserWorkouts(user.uid, 5),
           getUserGoals(user.uid),
         ]);
@@ -94,7 +97,12 @@ export default function DashboardPage() {
   const activeProgram = profile?.activeProgram;
   const todayDow = getTodayDow();
   const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
-  const todayDay = activeMock?.schedule?.[todayDow] ?? null;
+  const todayDay = activeMock
+    ? getProgramDayForUser(activeMock, activeProgram?.programStartDate ?? undefined)
+    : null;
+  const dashboardDayIndex = activeProgram?.programStartDate
+    ? Math.floor((Date.now() - new Date(activeProgram.programStartDate).getTime()) / 86400000)
+    : todayDow;
   const programPct = activeProgram
     ? Math.min(100, Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
@@ -235,26 +243,20 @@ export default function DashboardPage() {
               </div>
               <div className="flex gap-2 flex-wrap">
                 {todayDay && !todayDay.isRest ? (
-                  <Link href={`/training/session?programId=${activeProgram.programId}&dow=${todayDow}`}>
-                    <Button size="sm">
-                      <Play className="w-4 h-4" /> Start Workout
-                    </Button>
-                  </Link>
+                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${dashboardDayIndex}`)}>
+                    <Play className="w-4 h-4" /> Start Workout
+                  </Button>
                 ) : (
                   <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                     <Moon className="w-3.5 h-3.5" /> Rest day
                   </div>
                 )}
-                <Link href={`/training/${activeProgram.programId}`}>
-                  <Button size="sm" variant="ghost">
-                    View <ChevronRight className="w-3 h-3" />
-                  </Button>
-                </Link>
-                <Link href="/training">
-                  <Button size="sm" variant="ghost">
-                    <RefreshCw className="w-3 h-3" /> Replace
-                  </Button>
-                </Link>
+                <Button size="sm" variant="ghost" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
+                  View <ChevronRight className="w-3 h-3" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => router.push('/training')}>
+                  <RefreshCw className="w-3 h-3" /> Replace
+                </Button>
               </div>
             </Card>
           ) : (

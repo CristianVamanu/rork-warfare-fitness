@@ -188,9 +188,9 @@ interface NormalizedMeal {
   loggedAt: unknown;
 }
 
-export async function getTodayMeals(userId: string): Promise<NormalizedMeal[]> {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+export async function getTodayMeals(userId: string, localDateStr?: string): Promise<NormalizedMeal[]> {
+  const start = localDateStr ? new Date(localDateStr + 'T00:00:00') : new Date();
+  if (!localDateStr) start.setHours(0, 0, 0, 0);
   const todayTs = Timestamp.fromDate(start);
 
   // 1. Try events (primary)
@@ -258,9 +258,9 @@ interface NormalizedWaterLog {
   loggedAt: unknown;
 }
 
-export async function getTodayWater(userId: string): Promise<number> {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+export async function getTodayWater(userId: string, localDateStr?: string): Promise<number> {
+  const start = localDateStr ? new Date(localDateStr + 'T00:00:00') : new Date();
+  if (!localDateStr) start.setHours(0, 0, 0, 0);
   const todayTs = Timestamp.fromDate(start);
 
   // 1. Try events (primary)
@@ -288,9 +288,9 @@ export async function getTodayWater(userId: string): Promise<number> {
   });
 }
 
-export async function getTodayWaterLogs(userId: string): Promise<NormalizedWaterLog[]> {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+export async function getTodayWaterLogs(userId: string, localDateStr?: string): Promise<NormalizedWaterLog[]> {
+  const start = localDateStr ? new Date(localDateStr + 'T00:00:00') : new Date();
+  if (!localDateStr) start.setHours(0, 0, 0, 0);
   const todayTs = Timestamp.fromDate(start);
 
   // 1. Try events (primary)
@@ -471,7 +471,7 @@ export async function enrollInProgram(
         programId: program.id,
         programName: program.name,
         enrolledAt: serverTimestamp(),
-        startDate: new Date().toISOString().split('T')[0],
+        programStartDate: new Date().toISOString(),
         completedWorkouts: 0,
         totalWorkouts,
       },

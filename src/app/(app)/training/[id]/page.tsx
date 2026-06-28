@@ -8,10 +8,9 @@ import {
   Play, Clock, Target, Dumbbell, Moon, CheckCircle, ChevronLeft,
   AlertTriangle, RotateCcw,
 } from 'lucide-react';
-import Link from 'next/link';
 import { getProgram } from '@/lib/firestore';
 import { enrollInProgram } from '@/lib/firestore';
-import { getMockProgram, MOCK_PROGRAMS } from '@/lib/programs';
+import { getMockProgram, MOCK_PROGRAMS, getProgramDayForUser } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -62,6 +61,10 @@ export default function ProgramDetailPage() {
   const todayDow = getTodayDow();
   const activeProgram = profile?.activeProgram;
   const isEnrolled = activeProgram?.programId === id;
+  const programStartDate = isEnrolled ? (activeProgram?.programStartDate ?? undefined) : undefined;
+  const enrolledDayIndex = programStartDate
+    ? Math.floor((Date.now() - new Date(programStartDate).getTime()) / 86400000)
+    : todayDow;
   const hasDifferentProgram = !!activeProgram && !isEnrolled;
 
   useEffect(() => {
@@ -132,7 +135,9 @@ export default function ProgramDetailPage() {
     );
   }
 
-  const todayDay: ProgramDay | undefined = program.schedule?.[todayDow];
+  const todayDay: ProgramDay | undefined = isEnrolled && programStartDate
+    ? (getProgramDayForUser(program, programStartDate) ?? undefined)
+    : (program.schedule?.[todayDow]);
   const upcomingDows = getUpcomingDays(todayDow, 5);
 
   return (
@@ -197,11 +202,9 @@ export default function ProgramDetailPage() {
           {isEnrolled ? (
             <div className="space-y-2">
               {todayDay && !todayDay.isRest ? (
-                <Link href={`/training/session?programId=${program.id}&dow=${todayDow}`}>
-                  <Button fullWidth size="lg">
-                    <Play className="w-5 h-5" /> Continue — {todayDay.label}
-                  </Button>
-                </Link>
+                <Button fullWidth size="lg" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${enrolledDayIndex}`)}>
+                  <Play className="w-5 h-5" /> Continue — {todayDay.label}
+                </Button>
               ) : (
                 <div className="p-4 bg-surface border border-white/8 rounded-2xl text-center">
                   <Moon className="w-5 h-5 text-text-tertiary mx-auto mb-1" />
@@ -237,11 +240,9 @@ export default function ProgramDetailPage() {
                   {todayDay.isRest && <Badge variant="muted">Rest</Badge>}
                 </div>
                 {!todayDay.isRest && isEnrolled && (
-                  <Link href={`/training/session?programId=${program.id}&dow=${todayDow}`}>
-                    <Button size="sm">
-                      <Play className="w-4 h-4" /> Start
-                    </Button>
-                  </Link>
+                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${enrolledDayIndex}`)}>
+                    <Play className="w-4 h-4" /> Start
+                  </Button>
                 )}
               </div>
               {!todayDay.isRest && todayDay.exercises.length > 0 && (
@@ -265,21 +266,33 @@ export default function ProgramDetailPage() {
           )}
         </motion.div>
 
-        {/* Weekly Schedule */}
-        {program.schedule && program.schedule.length === 7 && (
+        {/* Schedule */}
+        {program.schedule && program.schedule.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <h2 className="text-base font-bold text-white mb-3">Weekly Schedule</h2>
+            <h2 className="text-base font-bold text-white mb-3">
+              {isEnrolled && programStartDate ? 'Program Schedule' : 'Weekly Schedule'}
+            </h2>
             <div className="space-y-2">
-              {program.schedule.map((day, dow) => {
-                const isToday = dow === todayDow;
-                const isExpanded = expandedDay === dow;
-                const isUpcoming = upcomingDows.includes(dow);
+              {program.schedule.map((day, idx) => {
+                const todayDayIndex = isEnrolled && programStartDate
+                  ? enrolledDayIndex % program.schedule!.length
+                  : todayDow;
+                const isToday = idx === todayDayIndex;
+                const isUpcoming = !isToday && (
+                  isEnrolled && programStartDate
+                    ? (idx - todayDayIndex + program.schedule!.length) % program.schedule!.length <= 5 && idx !== todayDayIndex
+                    : upcomingDows.includes(idx)
+                );
+                const isExpanded = expandedDay === idx;
+                const dayLabel = isEnrolled && programStartDate
+                  ? `Day ${idx + 1}`
+                  : DOW_LABELS[idx] ?? `Day ${idx + 1}`;
 
                 return (
-                  <motion.div key={dow} layout>
+                  <motion.div key={idx} layout>
                     <Card
                       className={`p-4 cursor-pointer transition-colors ${isToday ? 'border-accent/50 bg-accent/5' : ''}`}
-                      onClick={() => setExpandedDay(isExpanded ? null : dow)}
+                      onClick={() => setExpandedDay(isExpanded ? null : idx)}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -288,7 +301,7 @@ export default function ProgramDetailPage() {
                             day.isRest ? 'bg-surface-elevated text-text-tertiary' :
                             'bg-surface-elevated text-white'
                           }`}>
-                            <span>{DOW_LABELS[dow]}</span>
+                            <span>{dayLabel}</span>
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
@@ -326,11 +339,9 @@ export default function ProgramDetailPage() {
                             </div>
                           ))}
                           {isToday && isEnrolled && (
-                            <Link href={`/training/session?programId=${program.id}&dow=${dow}`} className="block mt-3">
-                              <Button size="sm" fullWidth>
-                                <Play className="w-4 h-4" /> Start This Workout
-                              </Button>
-                            </Link>
+                            <Button size="sm" fullWidth className="mt-3" onClick={(e) => { e.stopPropagation(); router.push(`/training/session?programId=${program.id}&dow=${enrolledDayIndex}`); }}>
+                              <Play className="w-4 h-4" /> Start This Workout
+                            </Button>
                           )}
                         </motion.div>
                       )}
