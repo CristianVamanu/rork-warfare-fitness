@@ -1,8 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
@@ -47,7 +46,6 @@ function NutritionPageInner() {
     const d = new Date(); d.setHours(0, 0, 0, 0); return d;
   });
 
-  const searchParams = useSearchParams();
   const isToday = selectedDate.toDateString() === new Date().toDateString();
   const waterMl = waterLogs.reduce((sum, w) => sum + w.amountMl, 0);
 
@@ -85,11 +83,6 @@ function NutritionPageInner() {
     return () => window.removeEventListener('focus', onFocus);
   }, [refresh, loading]);
 
-  useEffect(() => {
-    if (searchParams.get('refreshed') === '1' && !loading) {
-      refresh().catch(console.error);
-    }
-  }, [searchParams, refresh, loading]);
 
   const totals = meals.reduce(
     (acc, m) => ({
@@ -199,7 +192,7 @@ function NutritionPageInner() {
           <Card className="p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-xs text-text-secondary">CALORIES TODAY</p>
+                <p className="text-xs text-text-secondary">CALORIES {isToday ? 'TODAY' : formatDate(selectedDate).toUpperCase()}</p>
                 <p className="text-3xl font-black text-white">
                   {totals.calories}
                   <span className="text-sm font-medium text-text-secondary ml-1">/ {goals.calories}</span>
@@ -418,9 +411,5 @@ function NutritionPageInner() {
 }
 
 export default function NutritionPage() {
-  return (
-    <Suspense>
-      <NutritionPageInner />
-    </Suspense>
-  );
+  return <NutritionPageInner />;
 }

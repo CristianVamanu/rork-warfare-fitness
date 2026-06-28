@@ -21,8 +21,6 @@ import { Modal } from '@/components/ui/Modal';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import type { Program, ProgramDay } from '@/types';
 
-const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
 const goalColors: Record<string, string> = {
   strength: 'accent',
   hypertrophy: 'info',
@@ -37,14 +35,6 @@ const levelColors: Record<string, string> = {
   advanced: 'danger',
 };
 
-function getTodayDow(): number {
-  const d = new Date().getDay();
-  return d === 0 ? 6 : d - 1;
-}
-
-function getUpcomingDays(todayDow: number, count: number): number[] {
-  return Array.from({ length: count }, (_, i) => (todayDow + 1 + i) % 7);
-}
 
 export default function ProgramDetailPage() {
   const params = useParams();
@@ -58,13 +48,12 @@ export default function ProgramDetailPage() {
   const [enrolling, setEnrolling] = useState(false);
   const [switchModal, setSwitchModal] = useState(false);
 
-  const todayDow = getTodayDow();
   const activeProgram = profile?.activeProgram;
   const isEnrolled = activeProgram?.programId === id;
   const programStartDate = isEnrolled ? (activeProgram?.programStartDate ?? undefined) : undefined;
   const enrolledDayIndex = programStartDate
     ? Math.floor((Date.now() - new Date(programStartDate).getTime()) / 86400000)
-    : todayDow;
+    : 0;
   const hasDifferentProgram = !!activeProgram && !isEnrolled;
 
   useEffect(() => {
@@ -135,10 +124,10 @@ export default function ProgramDetailPage() {
     );
   }
 
-  const todayDay: ProgramDay | undefined = isEnrolled && programStartDate
+  const todayDay: ProgramDay | undefined = isEnrolled
     ? (getProgramDayForUser(program, programStartDate) ?? undefined)
-    : (program.schedule?.[todayDow]);
-  const upcomingDows = getUpcomingDays(todayDow, 5);
+    : undefined;
+  const todayDayIndex = isEnrolled ? (enrolledDayIndex % (program.schedule?.length || 1)) : -1;
 
   return (
     <div>
@@ -175,7 +164,7 @@ export default function ProgramDetailPage() {
                 <Target className="w-3 h-3" /> {program.daysPerWeek} days/week
               </span>
               <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                <Dumbbell className="w-3 h-3" /> {program.exercises.length} exercises
+                <Dumbbell className="w-3 h-3" /> {program.schedule ? program.schedule.filter(d => !d.isRest).length : program.daysPerWeek} workout days
               </span>
             </div>
 
@@ -274,15 +263,9 @@ export default function ProgramDetailPage() {
             </h2>
             <div className="space-y-2">
               {program.schedule.map((day, idx) => {
-                const todayDayIndex = isEnrolled && programStartDate
-                  ? enrolledDayIndex % program.schedule!.length
-                  : todayDow;
-                const isToday = idx === todayDayIndex;
-                const isUpcoming = !isToday && (
-                  isEnrolled && programStartDate
-                    ? (idx - todayDayIndex + program.schedule!.length) % program.schedule!.length <= 5 && idx !== todayDayIndex
-                    : upcomingDows.includes(idx)
-                );
+                const isToday = isEnrolled && idx === todayDayIndex;
+                const isUpcoming = isEnrolled && !isToday &&
+                  (idx - todayDayIndex + program.schedule!.length) % program.schedule!.length <= 5;
                 const isExpanded = expandedDay === idx;
                 const dayLabel = `Day ${idx + 1}`;
 

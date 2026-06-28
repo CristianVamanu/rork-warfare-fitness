@@ -193,25 +193,23 @@ export async function getTodayMeals(userId: string, localDateStr?: string): Prom
   if (!localDateStr) start.setHours(0, 0, 0, 0);
   const todayTs = Timestamp.fromDate(start);
 
-  // 1. Try events (primary)
+  // 1. Try events (primary) — always return this result, even if empty
   try {
     const snap = await safeGetEvents(userId, 'MEAL_LOGGED', todayTs);
-    if (snap.docs.length > 0) {
-      return snap.docs.map((d) => {
-        const payload = d.data().payload as Record<string, unknown>;
-        return {
-          id: d.id,
-          userId,
-          name: String(payload.name ?? ''),
-          calories: Number(payload.calories ?? 0),
-          protein: Number(payload.protein ?? 0),
-          carbs: Number(payload.carbs ?? 0),
-          fat: Number(payload.fat ?? 0),
-          mealType: String(payload.mealType ?? 'snack'),
-          loggedAt: d.data().createdAt,
-        };
-      });
-    }
+    return snap.docs.map((d) => {
+      const payload = d.data().payload as Record<string, unknown>;
+      return {
+        id: d.id,
+        userId,
+        name: String(payload.name ?? ''),
+        calories: Number(payload.calories ?? 0),
+        protein: Number(payload.protein ?? 0),
+        carbs: Number(payload.carbs ?? 0),
+        fat: Number(payload.fat ?? 0),
+        mealType: String(payload.mealType ?? 'snack'),
+        loggedAt: d.data().createdAt,
+      };
+    });
   } catch (err) {
     console.warn('[Firestore] getTodayMeals: events query failed, trying legacy fallback', err);
   }
@@ -263,15 +261,13 @@ export async function getTodayWater(userId: string, localDateStr?: string): Prom
   if (!localDateStr) start.setHours(0, 0, 0, 0);
   const todayTs = Timestamp.fromDate(start);
 
-  // 1. Try events (primary)
+  // 1. Try events (primary) — always return this result, even if empty
   try {
     const snap = await safeGetEvents(userId, 'WATER_LOGGED', todayTs);
-    if (snap.docs.length > 0) {
-      return snap.docs.reduce(
-        (sum, d) => sum + Number((d.data().payload as Record<string, unknown>).amountMl ?? 0),
-        0
-      );
-    }
+    return snap.docs.reduce(
+      (sum, d) => sum + Number((d.data().payload as Record<string, unknown>).amountMl ?? 0),
+      0
+    );
   } catch (err) {
     console.warn('[Firestore] getTodayWater: events query failed, trying legacy fallback', err);
   }
@@ -293,16 +289,14 @@ export async function getTodayWaterLogs(userId: string, localDateStr?: string): 
   if (!localDateStr) start.setHours(0, 0, 0, 0);
   const todayTs = Timestamp.fromDate(start);
 
-  // 1. Try events (primary)
+  // 1. Try events (primary) — always return this result, even if empty
   try {
     const snap = await safeGetEvents(userId, 'WATER_LOGGED', todayTs);
-    if (snap.docs.length > 0) {
-      return snap.docs.map((d) => ({
-        id: d.id,
-        amountMl: Number((d.data().payload as Record<string, unknown>).amountMl ?? 0),
-        loggedAt: d.data().createdAt,
-      }));
-    }
+    return snap.docs.map((d) => ({
+      id: d.id,
+      amountMl: Number((d.data().payload as Record<string, unknown>).amountMl ?? 0),
+      loggedAt: d.data().createdAt,
+    }));
   } catch (err) {
     console.warn('[Firestore] getTodayWaterLogs: events query failed, trying legacy fallback', err);
   }
