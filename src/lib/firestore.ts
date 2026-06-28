@@ -26,6 +26,7 @@ import {
   limit,
   Timestamp,
   increment,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { UserGoals } from '@/types';
@@ -525,6 +526,46 @@ export async function getMealsForDate(userId: string, date: Date): Promise<Norma
   } catch {
     return [];
   }
+}
+
+// ---------------------------------------------------------------------------
+// Real-time listeners for today's nutrition (used by dashboard widget)
+// ---------------------------------------------------------------------------
+
+export function subscribeTodayCalories(
+  userId: string,
+  localDateStr: string,
+  onUpdate: (calories: number) => void,
+): () => void {
+  const todayTs = Timestamp.fromDate(new Date(localDateStr));
+  const q = query(
+    collection(db, 'events'),
+    where('userId', '==', userId),
+    where('type', '==', 'MEAL_LOGGED'),
+    where('timestamp', '>=', todayTs),
+  );
+  return onSnapshot(q, (snap) => {
+    const total = snap.docs.reduce((sum, d) => sum + ((d.data()?.data?.calories as number) ?? 0), 0);
+    onUpdate(total);
+  });
+}
+
+export function subscribeTodayWater(
+  userId: string,
+  localDateStr: string,
+  onUpdate: (ml: number) => void,
+): () => void {
+  const todayTs = Timestamp.fromDate(new Date(localDateStr));
+  const q = query(
+    collection(db, 'events'),
+    where('userId', '==', userId),
+    where('type', '==', 'WATER_LOGGED'),
+    where('timestamp', '>=', todayTs),
+  );
+  return onSnapshot(q, (snap) => {
+    const total = snap.docs.reduce((sum, d) => sum + ((d.data()?.data?.amount as number) ?? 0), 0);
+    onUpdate(total);
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTodayWater, getTodayMeals, getUserWorkouts, getUserGoals } from '@/lib/firestore';
+import { getUserWorkouts, getUserGoals, subscribeTodayCalories, subscribeTodayWater } from '@/lib/firestore';
 import { getMockProgram, getProgramDayForUser, stripWeekdayPrefix } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
@@ -45,44 +45,31 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
 
-    const cache = profile?.statsCache;
     const localDateStr = new Date().toLocaleDateString('sv-SE');
-    // Only use cache for today — stale cache from a previous day shows wrong values
-    const cacheIsToday = cache?.cacheDate === localDateStr;
-    if (cache && cacheIsToday) {
-      setCalories(cache.caloriesToday);
-      setWaterMl(cache.waterToday);
-    }
 
-    const doQueries = async () => {
-      try {
-        const [water, meals, workouts, g] = await Promise.all([
-          cacheIsToday && cache ? Promise.resolve(cache.waterToday) : getTodayWater(user.uid, localDateStr),
-          cacheIsToday && cache ? Promise.resolve(null) : getTodayMeals(user.uid, localDateStr),
-          getUserWorkouts(user.uid, 5),
-          getUserGoals(user.uid),
-        ]);
+    // Real-time listeners — update instantly whenever a meal/water event is written
+    const unsubCal = subscribeTodayCalories(user.uid, localDateStr, (cal) => {
+      setCalories(cal);
+      setLoading(false);
+    });
+    const unsubWater = subscribeTodayWater(user.uid, localDateStr, (ml) => {
+      setWaterMl(ml);
+    });
 
-        if (!cacheIsToday || !cache) {
-          setWaterMl(water as number);
-          if (Array.isArray(meals)) {
-            const cal = (meals as Array<{ calories?: number }>).reduce(
-              (s, m) => s + (m.calories || 0), 0
-            );
-            setCalories(cal);
-          }
-        }
+    // Non-reactive one-shot queries
+    Promise.all([getUserWorkouts(user.uid, 5), getUserGoals(user.uid)])
+      .then(([workouts, g]) => {
         setRecentWorkouts(workouts);
         setGoals({ calories: g.calories, water: g.water });
-      } catch (err) {
-        console.error('[Dashboard] Data load error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+      })
+      .catch((err) => console.error('[Dashboard] Data load error:', err))
+      .finally(() => setLoading(false));
 
-    doQueries();
-  }, [user, profile?.statsCache]);
+    return () => {
+      unsubCal();
+      unsubWater();
+    };
+  }, [user]);
 
   const greeting = getGreeting();
   const firstName = profile?.displayName?.split(' ')[0] || 'Athlete';
