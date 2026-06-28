@@ -28,8 +28,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             id={inputId}
+            style={{
+              backgroundColor: 'var(--surface-elevated)',
+              borderColor: error ? undefined : 'var(--border-subtle)',
+              color: 'var(--foreground)',
+            }}
             className={cn(
-              'w-full bg-surface-elevated border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-text-tertiary text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/40 transition-all',
+              'w-full border rounded-xl px-4 py-3 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/40 transition-all',
               leftIcon && 'pl-10',
               rightIcon && 'pr-10',
               error && 'border-danger/50 focus:ring-danger/30',

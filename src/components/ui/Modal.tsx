@@ -32,24 +32,27 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
+            style={{ backgroundColor: 'var(--overlay)' }}
+            className="fixed inset-0 backdrop-blur-sm z-50"
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
+            style={{ boxShadow: 'var(--shadow-modal)' }}
             className={cn(
-              'fixed inset-x-4 top-[5vh] z-50 max-w-lg mx-auto bg-surface-elevated border border-white/10 rounded-2xl shadow-2xl flex flex-col',
+              'fixed inset-x-4 top-[5vh] z-50 max-w-lg mx-auto bg-surface-elevated border border-border rounded-2xl flex flex-col',
               'max-h-[90vh]',
               className
             )}
           >
-            <div className="flex items-center justify-between p-5 border-b border-white/8 flex-shrink-0">
-              {title && <h2 className="text-lg font-bold text-white">{title}</h2>}
+            <div className="flex items-center justify-between p-5 border-b border-border flex-shrink-0">
+              {title && <h2 className="text-lg font-bold text-foreground">{title}</h2>}
               <button
                 onClick={onClose}
-                className="ml-auto p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/10 transition-colors"
+                className="ml-auto p-1.5 rounded-lg text-text-secondary hover:text-foreground transition-colors"
+                style={{ ':hover': { backgroundColor: 'var(--hover-overlay)' } } as React.CSSProperties}
               >
                 <X className="w-5 h-5" />
               </button>

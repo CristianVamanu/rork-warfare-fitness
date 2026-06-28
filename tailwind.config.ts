@@ -9,15 +9,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: '#0A0A0A',
-        surface: '#111111',
-        'surface-elevated': '#1A1A1A',
-        border: 'rgba(255,255,255,0.08)',
-        accent: '#F5A623',
-        'accent-muted': 'rgba(245,166,35,0.15)',
-        'text-primary': '#FFFFFF',
-        'text-secondary': '#94a3b8',
-        'text-tertiary': '#475569',
+        // All theme-sensitive colors → CSS variables (flip with light/dark class)
+        background: 'var(--background)',
+        surface: 'var(--surface)',
+        'surface-elevated': 'var(--surface-elevated)',
+        foreground: 'var(--foreground)',
+        border: 'var(--border-subtle)',
+        accent: 'var(--accent)',
+        'accent-muted': 'var(--accent-muted)',
+        'text-primary': 'var(--foreground)',
+        'text-secondary': 'var(--text-secondary)',
+        'text-tertiary': 'var(--text-tertiary)',
+        // Static — same in both themes
         success: '#10B981',
         danger: '#EF4444',
         info: '#3B82F6',

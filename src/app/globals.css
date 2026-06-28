@@ -10,31 +10,65 @@
   --surface: #111111;
   --surface-elevated: #1A1A1A;
   --accent: #F5A623;
-  --color-text: #ffffff;
-  --color-text-secondary: rgba(255,255,255,0.55);
-  --color-text-tertiary: rgba(255,255,255,0.30);
-  --border-subtle: rgba(255,255,255,0.08);
-  --scrollbar-thumb: rgba(255,255,255,0.15);
-  --scrollbar-thumb-hover: rgba(255,255,255,0.25);
-  --autofill-bg: #1A1A1A;
-  --autofill-text: #ffffff;
+  --accent-hover: #E8941A;
+  --accent-muted: rgba(245, 166, 35, 0.15);
+  --foreground: #FFFFFF;
+  --text-secondary: rgba(255, 255, 255, 0.55);
+  --text-tertiary: rgba(255, 255, 255, 0.33);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --overlay: rgba(0, 0, 0, 0.70);
+  --input-bg: #1A1A1A;
+  --input-text: #FFFFFF;
+  --input-placeholder: rgba(255, 255, 255, 0.33);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-hover: rgba(255, 255, 255, 0.25);
+  --card-glass-bg: rgba(255, 255, 255, 0.05);
+  --card-glass-border: rgba(255, 255, 255, 0.10);
+  --skeleton-bg: rgba(255, 255, 255, 0.08);
+  --nav-bg: rgba(17, 17, 17, 0.85);
+  --header-bg: rgba(10, 10, 10, 0.85);
+  --progress-track: rgba(255, 255, 255, 0.08);
+  --badge-muted-bg: rgba(255, 255, 255, 0.06);
+  --badge-default-bg: rgba(255, 255, 255, 0.10);
+  --hover-overlay: rgba(255, 255, 255, 0.05);
+  --active-overlay: rgba(255, 255, 255, 0.10);
+  --shadow-modal: 0 25px 60px rgba(0, 0, 0, 0.8);
+  --btn-primary-text: #000000;
 }
 
 /* ── Light theme ── */
 html.light {
-  --background: #F4F4F5;
+  --background: #F2F2F7;
   --surface: #FFFFFF;
-  --surface-elevated: #E8E8EC;
-  --accent: #E8930A;
-  --color-text: #0A0A0A;
-  --color-text-secondary: rgba(0,0,0,0.55);
-  --color-text-tertiary: rgba(0,0,0,0.35);
-  --border-subtle: rgba(0,0,0,0.08);
-  --scrollbar-thumb: rgba(0,0,0,0.15);
-  --scrollbar-thumb-hover: rgba(0,0,0,0.25);
-  --autofill-bg: #ffffff;
-  --autofill-text: #0A0A0A;
+  --surface-elevated: #E8E8ED;
+  --accent: #D4820A;
+  --accent-hover: #C07508;
+  --accent-muted: rgba(212, 130, 10, 0.12);
+  --foreground: #0A0A0A;
+  --text-secondary: rgba(0, 0, 0, 0.55);
+  --text-tertiary: rgba(0, 0, 0, 0.38);
+  --border-subtle: rgba(0, 0, 0, 0.09);
+  --overlay: rgba(0, 0, 0, 0.45);
+  --input-bg: #FFFFFF;
+  --input-text: #0A0A0A;
+  --input-placeholder: rgba(0, 0, 0, 0.35);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-hover: rgba(0, 0, 0, 0.25);
+  --card-glass-bg: rgba(255, 255, 255, 0.70);
+  --card-glass-border: rgba(0, 0, 0, 0.08);
+  --skeleton-bg: rgba(0, 0, 0, 0.07);
+  --nav-bg: rgba(255, 255, 255, 0.88);
+  --header-bg: rgba(242, 242, 247, 0.88);
+  --progress-track: rgba(0, 0, 0, 0.08);
+  --badge-muted-bg: rgba(0, 0, 0, 0.05);
+  --badge-default-bg: rgba(0, 0, 0, 0.08);
+  --hover-overlay: rgba(0, 0, 0, 0.04);
+  --active-overlay: rgba(0, 0, 0, 0.08);
+  --shadow-modal: 0 25px 60px rgba(0, 0, 0, 0.20);
+  --btn-primary-text: #ffffff;
 }
+
+/* ─────────────────────────────────────────── */
 
 * {
   box-sizing: border-box;
@@ -47,7 +81,7 @@ html {
 
 body {
   background-color: var(--background);
-  color: var(--color-text);
+  color: var(--foreground);
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -61,53 +95,56 @@ body {
 }
 
 /* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 2px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-}
-
-/* Input autofill override */
+/* Input autofill */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 1000px var(--autofill-bg) inset;
-  -webkit-text-fill-color: var(--autofill-text);
-  caret-color: var(--autofill-text);
+  -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset;
+  -webkit-text-fill-color: var(--input-text);
+  caret-color: var(--input-text);
 }
 
 /* Prevent double-tap zoom on mobile */
-button, a {
-  touch-action: manipulation;
-}
+button, a { touch-action: manipulation; }
 
 /* Hide scrollbar inside weight wheel */
-.weight-wheel-scroll::-webkit-scrollbar {
-  display: none;
-}
+.weight-wheel-scroll::-webkit-scrollbar { display: none; }
 
-/* ── Light theme overrides for Tailwind utility classes ── */
-html.light .text-white { color: #0A0A0A !important; }
-html.light .text-text-secondary { color: rgba(0,0,0,0.55) !important; }
-html.light .text-text-tertiary { color: rgba(0,0,0,0.38) !important; }
-html.light .bg-white\/8 { background-color: rgba(0,0,0,0.07) !important; }
-html.light .bg-white\/5 { background-color: rgba(0,0,0,0.04) !important; }
-html.light .bg-white\/10 { background-color: rgba(0,0,0,0.08) !important; }
-html.light .bg-white\/15 { background-color: rgba(0,0,0,0.10) !important; }
-html.light .border-white\/8 { border-color: rgba(0,0,0,0.08) !important; }
-html.light .border-white\/10 { border-color: rgba(0,0,0,0.10) !important; }
-html.light .border-white\/20 { border-color: rgba(0,0,0,0.15) !important; }
-html.light .text-black { color: #0A0A0A !important; }
-html.light .bg-black { background-color: #F4F4F5 !important; }
+/* ── Light-mode overrides for Tailwind utilities that can't use CSS vars ── */
+/* These cover page-level usages of raw Tailwind color classes */
+
+html.light .text-white          { color: var(--foreground) !important; }
+html.light .text-black          { color: var(--foreground) !important; }
+
+/* White/opacity backgrounds → light equivalents */
+html.light .bg-white\/5         { background-color: rgba(0,0,0,0.03) !important; }
+html.light .bg-white\/8         { background-color: rgba(0,0,0,0.06) !important; }
+html.light .bg-white\/10        { background-color: rgba(0,0,0,0.07) !important; }
+html.light .bg-white\/15        { background-color: rgba(0,0,0,0.09) !important; }
+html.light .bg-white\/20        { background-color: rgba(0,0,0,0.11) !important; }
+html.light .bg-black\/70        { background-color: rgba(0,0,0,0.45) !important; }
+html.light .bg-black\/50        { background-color: rgba(0,0,0,0.30) !important; }
+
+/* White/opacity borders */
+html.light .border-white\/8     { border-color: rgba(0,0,0,0.08) !important; }
+html.light .border-white\/10    { border-color: rgba(0,0,0,0.09) !important; }
+html.light .border-white\/20    { border-color: rgba(0,0,0,0.13) !important; }
+
+/* Hover states */
+html.light .hover\:bg-white\/5:hover  { background-color: rgba(0,0,0,0.04) !important; }
+html.light .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.07) !important; }
+html.light .hover\:text-white:hover   { color: var(--foreground) !important; }
+
+/* Focus ring */
+html.light .focus\:ring-accent\/40:focus { --tw-ring-color: rgba(212,130,10,0.35); }
+
+/* Primary button text — stays black on accent bg for contrast in both modes */
+html.light .bg-accent.text-black { color: #ffffff !important; }
+
+/* Gradient text (stays white on gradient) */
+html.light .bg-gradient-to-r.text-transparent { -webkit-text-fill-color: transparent !important; }

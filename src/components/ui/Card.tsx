@@ -11,11 +11,12 @@ export function Card({ children, className, glass, onClick }: CardProps) {
   return (
     <div
       onClick={onClick}
+      style={glass ? { backgroundColor: 'var(--card-glass-bg)', borderColor: 'var(--card-glass-border)' } : undefined}
       className={cn(
-        'rounded-2xl',
+        'rounded-2xl transition-colors',
         glass
-          ? 'bg-white/5 backdrop-blur-xl border border-white/10'
-          : 'bg-surface border border-white/8',
+          ? 'backdrop-blur-xl border'
+          : 'bg-surface border border-border',
         onClick && 'cursor-pointer',
         className
       )}

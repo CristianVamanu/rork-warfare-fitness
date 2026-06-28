@@ -45,7 +45,7 @@ export function ProgressBar({
           {showLabel && <span>{Math.round(pct)}%</span>}
         </div>
       )}
-      <div className={cn('w-full bg-white/8 rounded-full overflow-hidden', sizes[size])}>
+      <div style={{ backgroundColor: 'var(--progress-track)' }} className={cn('w-full rounded-full overflow-hidden', sizes[size])}>
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}

@@ -43,20 +43,23 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
   }, [user]);
 
   return (
-    <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-white/8">
+    <header
+      style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--border-subtle)' }}
+      className="sticky top-0 z-30 backdrop-blur-xl border-b"
+    >
       <div className="flex items-center justify-between px-4 py-3 max-w-lg mx-auto">
         {title ? (
-          <h1 className="text-lg font-bold text-white">{title}</h1>
+          <h1 className="text-lg font-bold text-foreground">{title}</h1>
         ) : (
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center overflow-hidden">
               {logoUrl ? (
                 <Image src={logoUrl} alt="Logo" width={28} height={28} className="w-full h-full object-cover" />
               ) : (
-                <span className="text-xs font-black text-black">W</span>
+                <span className="text-xs font-black" style={{ color: 'var(--btn-primary-text)' }}>W</span>
               )}
             </div>
-            <span className="text-sm font-bold text-white">Warfare</span>
+            <span className="text-sm font-bold text-foreground">Warfare</span>
           </div>
         )}
 
@@ -64,10 +67,9 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
           {rightElement}
           {showActions && (
             <>
-              {/* Notifications bell */}
               <Link
                 href="/notifications"
-                className="relative p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                className="relative p-2 rounded-xl text-text-secondary transition-colors"
               >
                 <Bell className="w-5 h-5" />
                 {unreadNotifs > 0 && (
@@ -76,10 +78,9 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
                   </span>
                 )}
               </Link>
-              {/* Messages — direct access to coach DMs */}
               <Link
                 href="/messages"
-                className="relative p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                className="relative p-2 rounded-xl text-text-secondary transition-colors"
               >
                 <MessageCircle className="w-5 h-5" />
                 {unreadMessages > 0 && (
@@ -89,11 +90,7 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
                 )}
               </Link>
               <Link href="/settings">
-                <Avatar
-                  src={profile?.photoURL}
-                  name={profile?.displayName}
-                  size="sm"
-                />
+                <Avatar src={profile?.photoURL} name={profile?.displayName} size="sm" />
               </Link>
             </>
           )}

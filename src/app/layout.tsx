@@ -38,17 +38,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             position="top-center"
             toastOptions={{
               style: {
-                background: '#1A1A1A',
-                color: '#ffffff',
-                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'var(--surface-elevated)',
+                color: 'var(--foreground)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '12px',
                 fontSize: '14px',
               },
               success: {
-                iconTheme: { primary: '#10B981', secondary: '#ffffff' },
+                iconTheme: { primary: '#10B981', secondary: 'var(--surface-elevated)' },
               },
               error: {
-                iconTheme: { primary: '#EF4444', secondary: '#ffffff' },
+                iconTheme: { primary: '#EF4444', secondary: 'var(--surface-elevated)' },
               },
             }}
           />
