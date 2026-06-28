@@ -63,9 +63,10 @@ function NutritionPageInner() {
     if (!user) return;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const isCurrentDay = selectedDate.toDateString() === today.toDateString();
+    const localDateStr = new Date().toLocaleDateString('sv-SE');
     const [m, wLogs, g] = await Promise.all([
-      isCurrentDay ? getTodayMeals(user.uid) : getMealsForDate(user.uid, selectedDate),
-      isCurrentDay ? getTodayWaterLogs(user.uid) : Promise.resolve([] as WaterLog[]),
+      isCurrentDay ? getTodayMeals(user.uid, localDateStr) : getMealsForDate(user.uid, selectedDate),
+      isCurrentDay ? getTodayWaterLogs(user.uid, localDateStr) : Promise.resolve([] as WaterLog[]),
       getUserGoals(user.uid),
     ]);
     setMeals(m as Meal[]);
@@ -109,7 +110,7 @@ function NutritionPageInner() {
       await logWaterAction(user.uid, ml);
       toast.success(`+${ml}ml logged`);
       // Background sync to replace temp entry with real Firestore doc
-      getTodayWaterLogs(user.uid).then(setWaterLogs).catch(console.error);
+      getTodayWaterLogs(user.uid, new Date().toLocaleDateString('sv-SE')).then(setWaterLogs).catch(console.error);
     } catch (err: unknown) {
       setWaterLogs((prev) => prev.filter((w) => w.id !== tempId));
       const e = err as Error & { code?: string };
