@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, Utensils, Timer } from 'lucide-react';
+import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, Utensils, Timer, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, subscribeRecentActivity, type ActivityItem } from '@/lib/firestore';
 import { getMockProgram, getProgramDayForUser, stripWeekdayPrefix } from '@/lib/programs';
@@ -248,38 +248,67 @@ export default function DashboardPage() {
         <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
           <h2 className="text-base font-bold text-white mb-3">Today&apos;s Workout</h2>
           {activeProgram ? (
-            <Card className="p-4 relative overflow-hidden border-accent/20">
+            <Card className={`p-4 relative overflow-hidden ${workedOutToday ? 'border-success/30' : 'border-accent/20'}`}>
               <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
                 <Dumbbell className="w-28 h-28 text-accent" />
               </div>
-              <Badge variant="accent" className="mb-2">
-                {activeProgram.completedWorkouts}/{activeProgram.totalWorkouts} sessions
-              </Badge>
+
+              {/* Badge row */}
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {workedOutToday ? (
+                  <Badge variant="success">
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    Day {activeProgram.completedWorkouts} Complete
+                  </Badge>
+                ) : (
+                  <Badge variant="accent">
+                    Day {activeProgram.completedWorkouts + 1} of {activeProgram.totalWorkouts}
+                  </Badge>
+                )}
+              </div>
+
               <h3 className="text-base font-bold text-white">{activeProgram.programName}</h3>
-              {todayDay && (
+
+              {/* Status line */}
+              {workedOutToday ? (
+                <p className="text-sm text-success mt-0.5">
+                  🎉 Great work! Come back tomorrow for Day {activeProgram.completedWorkouts + 1}.
+                  {activeProgram.totalWorkouts - activeProgram.completedWorkouts > 0 &&
+                    ` ${activeProgram.totalWorkouts - activeProgram.completedWorkouts} session${activeProgram.totalWorkouts - activeProgram.completedWorkouts !== 1 ? 's' : ''} remaining.`
+                  }
+                </p>
+              ) : todayDay ? (
                 <p className="text-sm text-text-secondary mt-0.5">
                   {todayDay.isRest ? '😴 Rest Day — recover well' : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
                 </p>
-              )}
+              ) : null}
+
               <div className="mt-3 mb-3">
-                <ProgressBar value={activeProgram.completedWorkouts} max={activeProgram.totalWorkouts} color="accent" size="sm" />
-                <p className="text-xs text-text-tertiary mt-1">{programPct}% complete · {activeProgram.totalWorkouts - activeProgram.completedWorkouts} sessions remaining</p>
+                <ProgressBar value={activeProgram.completedWorkouts} max={activeProgram.totalWorkouts} color={workedOutToday ? 'success' : 'accent'} size="sm" />
+                <p className="text-xs text-text-tertiary mt-1">
+                  {programPct}% complete · {activeProgram.totalWorkouts - activeProgram.completedWorkouts} sessions remaining
+                </p>
               </div>
+
               <div className="flex gap-2 flex-wrap">
-                {todayDay && !todayDay.isRest ? (
-                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${dashboardDayIndex}`)}>
-                    <Play className="w-4 h-4" /> Start Workout
-                  </Button>
-                ) : (
+                {todayDay?.isRest ? (
                   <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                     <Moon className="w-3.5 h-3.5" /> Rest day
                   </div>
+                ) : workedOutToday ? (
+                  <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${dashboardDayIndex}`)}>
+                    <RefreshCw className="w-3.5 h-3.5" /> Repeat Day
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${dashboardDayIndex}`)}>
+                    <Play className="w-4 h-4" /> Start Workout
+                  </Button>
                 )}
                 <Button size="sm" variant="ghost" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
                   View <ChevronRight className="w-3 h-3" />
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => router.push('/training')}>
-                  <RefreshCw className="w-3 h-3" /> Replace
+                  <RefreshCw className="w-3 h-3" /> Switch
                 </Button>
               </div>
             </Card>
