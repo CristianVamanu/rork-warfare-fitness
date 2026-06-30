@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
-  Play, Clock, Target, Dumbbell, Moon, CheckCircle, ChevronLeft,
+  Play, Clock, Target, Dumbbell, Moon, CheckCircle, CheckCircle2, ChevronLeft,
   AlertTriangle, RotateCcw,
 } from 'lucide-react';
 import { getProgram } from '@/lib/firestore';
@@ -127,7 +127,14 @@ export default function ProgramDetailPage() {
   const todayDay: ProgramDay | undefined = isEnrolled
     ? (getProgramDayForUser(program, programStartDate) ?? undefined)
     : undefined;
-  const todayDayIndex = isEnrolled ? (enrolledDayIndex % (program.schedule?.length || 1)) : -1;
+  const scheduleLen = program.schedule?.length || 1;
+  const todayDayIndex = isEnrolled ? (enrolledDayIndex % scheduleLen) : -1;
+
+  const localDateStr = new Date().toLocaleDateString('sv-SE');
+  const workedOutToday = profile?.statsCache?.lastWorkoutDate === localDateStr;
+
+  // How many calendar days have fully passed (exclude today itself)
+  const passedDays = isEnrolled ? enrolledDayIndex : 0;
 
   return (
     <div>
@@ -171,14 +178,18 @@ export default function ProgramDetailPage() {
             {/* Enrollment progress bar */}
             {isEnrolled && activeProgram && (
               <div className="mt-4">
-                <div className="flex justify-between text-xs text-text-secondary mb-1">
-                  <span>{activeProgram.completedWorkouts} workouts done</span>
-                  <span>{activeProgram.totalWorkouts - activeProgram.completedWorkouts} remaining</span>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className={workedOutToday ? 'text-success font-medium' : 'text-text-secondary'}>
+                    {workedOutToday
+                      ? `✓ Day ${activeProgram.completedWorkouts} complete`
+                      : `${activeProgram.completedWorkouts} workouts done`}
+                  </span>
+                  <span className="text-text-tertiary">{activeProgram.totalWorkouts - activeProgram.completedWorkouts} remaining</span>
                 </div>
                 <ProgressBar
                   value={activeProgram.completedWorkouts}
                   max={activeProgram.totalWorkouts}
-                  color="accent"
+                  color={workedOutToday ? 'success' : 'accent'}
                   size="sm"
                 />
               </div>
@@ -190,7 +201,18 @@ export default function ProgramDetailPage() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
           {isEnrolled ? (
             <div className="space-y-2">
-              {todayDay && !todayDay.isRest ? (
+              {workedOutToday ? (
+                <div className="p-4 bg-success/10 border border-success/30 rounded-2xl text-center">
+                  <CheckCircle2 className="w-6 h-6 text-success mx-auto mb-1.5" />
+                  <p className="text-sm font-bold text-white">Day {activeProgram?.completedWorkouts} Complete!</p>
+                  <p className="text-xs text-text-secondary mt-0.5">
+                    Come back tomorrow for Day {(activeProgram?.completedWorkouts ?? 0) + 1}
+                  </p>
+                  <Button size="sm" variant="ghost" className="mt-2" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${enrolledDayIndex}`)}>
+                    <RotateCcw className="w-3.5 h-3.5" /> Repeat Today
+                  </Button>
+                </div>
+              ) : todayDay && !todayDay.isRest ? (
                 <Button fullWidth size="lg" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${enrolledDayIndex}`)}>
                   <Play className="w-5 h-5" /> Continue — {stripWeekdayPrefix(todayDay.label ?? '')}
                 </Button>
@@ -214,46 +236,54 @@ export default function ProgramDetailPage() {
         </motion.div>
 
         {/* Today's Workout */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
-          <h2 className="text-base font-bold text-white mb-3">Today&apos;s Workout</h2>
-          {todayDay ? (
-            <Card className={`p-4 ${todayDay.isRest ? 'border-white/5' : 'border-accent/30'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  {todayDay.isRest ? (
-                    <Moon className="w-4 h-4 text-text-tertiary" />
-                  ) : (
-                    <Dumbbell className="w-4 h-4 text-accent" />
+        {isEnrolled && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
+            <h2 className="text-base font-bold text-white mb-3">Today&apos;s Workout</h2>
+            {todayDay ? (
+              <Card className={`p-4 ${workedOutToday ? 'border-success/30' : todayDay.isRest ? 'border-white/5' : 'border-accent/30'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    {workedOutToday ? (
+                      <CheckCircle2 className="w-4 h-4 text-success" />
+                    ) : todayDay.isRest ? (
+                      <Moon className="w-4 h-4 text-text-tertiary" />
+                    ) : (
+                      <Dumbbell className="w-4 h-4 text-accent" />
+                    )}
+                    <span className="text-sm font-bold text-white">{stripWeekdayPrefix(todayDay.label)}</span>
+                    {workedOutToday ? <Badge variant="success">Done</Badge> : todayDay.isRest ? <Badge variant="muted">Rest</Badge> : null}
+                  </div>
+                  {!todayDay.isRest && !workedOutToday && (
+                    <Button size="sm" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${enrolledDayIndex}`)}>
+                      <Play className="w-4 h-4" /> Start
+                    </Button>
                   )}
-                  <span className="text-sm font-bold text-white">{stripWeekdayPrefix(todayDay.label)}</span>
-                  {todayDay.isRest && <Badge variant="muted">Rest</Badge>}
                 </div>
-                {!todayDay.isRest && isEnrolled && (
-                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${enrolledDayIndex}`)}>
-                    <Play className="w-4 h-4" /> Start
-                  </Button>
+                {!todayDay.isRest && todayDay.exercises.length > 0 && (
+                  <div className="space-y-2 mt-2">
+                    {todayDay.exercises.map((ex, i) => (
+                      <div key={ex.id ?? i} className="flex items-center justify-between text-sm">
+                        {workedOutToday
+                          ? <CheckCircle className="w-3 h-3 text-success flex-shrink-0" />
+                          : <CheckCircle className="w-3 h-3 text-text-tertiary flex-shrink-0" />
+                        }
+                        <span className={`flex-1 ml-2 ${workedOutToday ? 'text-text-secondary line-through' : 'text-text-secondary'}`}>{ex.name}</span>
+                        <span className="text-text-tertiary text-xs">{ex.sets}×{ex.reps}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </div>
-              {!todayDay.isRest && todayDay.exercises.length > 0 && (
-                <div className="space-y-2 mt-2">
-                  {todayDay.exercises.map((ex, i) => (
-                    <div key={ex.id ?? i} className="flex items-center justify-between text-sm">
-                      <span className="text-text-secondary">{ex.name}</span>
-                      <span className="text-text-tertiary text-xs">{ex.sets}×{ex.reps}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {todayDay.isRest && (
-                <p className="text-xs text-text-secondary">Recovery day — let your muscles grow.</p>
-              )}
-            </Card>
-          ) : (
-            <Card className="p-4">
-              <p className="text-text-secondary text-sm">No schedule for today.</p>
-            </Card>
-          )}
-        </motion.div>
+                {todayDay.isRest && (
+                  <p className="text-xs text-text-secondary">Recovery day — let your muscles grow.</p>
+                )}
+              </Card>
+            ) : (
+              <Card className="p-4">
+                <p className="text-text-secondary text-sm">No schedule for today.</p>
+              </Card>
+            )}
+          </motion.div>
+        )}
 
         {/* Schedule */}
         {program.schedule && program.schedule.length > 0 && (
@@ -264,7 +294,12 @@ export default function ProgramDetailPage() {
             <div className="space-y-2">
               {program.schedule.map((day, idx) => {
                 const isToday = isEnrolled && idx === todayDayIndex;
-                const isUpcoming = isEnrolled && !isToday &&
+                const currentWeek = Math.floor(enrolledDayIndex / scheduleLen);
+                const absoluteDay = currentWeek * scheduleLen + idx;
+                const isPast = isEnrolled && !isToday && absoluteDay < enrolledDayIndex;
+                const isDoneToday = isToday && workedOutToday;
+                const isCompleted = (isPast || isDoneToday) && !day.isRest;
+                const isUpcoming = isEnrolled && !isToday && !isPast &&
                   (idx - todayDayIndex + program.schedule!.length) % program.schedule!.length <= 5;
                 const isExpanded = expandedDay === idx;
                 const dayLabel = `Day ${idx + 1}`;
@@ -272,25 +307,30 @@ export default function ProgramDetailPage() {
                 return (
                   <motion.div key={idx} layout>
                     <Card
-                      className={`p-4 cursor-pointer transition-colors ${isToday ? 'border-accent/50 bg-accent/5' : ''}`}
+                      className={`p-4 cursor-pointer transition-colors ${
+                        isCompleted ? 'border-success/30 bg-success/5' :
+                        isToday ? 'border-accent/50 bg-accent/5' : ''
+                      }`}
                       onClick={() => setExpandedDay(isExpanded ? null : idx)}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center text-xs font-bold ${
+                            isCompleted ? 'bg-success/20 text-success' :
                             isToday ? 'bg-accent text-black' :
                             day.isRest ? 'bg-surface-elevated text-text-tertiary' :
                             'bg-surface-elevated text-white'
                           }`}>
-                            <span>{dayLabel}</span>
+                            {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <span>{dayLabel}</span>}
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <p className={`text-sm font-medium ${isToday ? 'text-white' : 'text-text-secondary'}`}>
+                              <p className={`text-sm font-medium ${isCompleted ? 'text-success' : isToday ? 'text-white' : 'text-text-secondary'}`}>
                                 {stripWeekdayPrefix(day.label ?? '')}
                               </p>
-                              {isToday && <Badge variant="accent">Today</Badge>}
-                              {!isToday && isUpcoming && <Badge variant="muted">Upcoming</Badge>}
+                              {isCompleted && <Badge variant="success">Done</Badge>}
+                              {!isCompleted && isToday && <Badge variant="accent">Today</Badge>}
+                              {!isCompleted && !isToday && isUpcoming && <Badge variant="muted">Upcoming</Badge>}
                             </div>
                             {!day.isRest && (
                               <p className="text-xs text-text-tertiary mt-0.5">{day.exercises.length} exercises</p>
@@ -299,6 +339,8 @@ export default function ProgramDetailPage() {
                         </div>
                         {day.isRest ? (
                           <Moon className="w-4 h-4 text-text-tertiary" />
+                        ) : isCompleted ? (
+                          <CheckCircle2 className="w-4 h-4 text-success" />
                         ) : (
                           <Dumbbell className="w-4 h-4 text-text-tertiary" />
                         )}
@@ -313,13 +355,13 @@ export default function ProgramDetailPage() {
                           {day.exercises.map((ex, i) => (
                             <div key={ex.id ?? i} className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <CheckCircle className="w-3 h-3 text-text-tertiary" />
-                                <span className="text-sm text-text-secondary">{ex.name}</span>
+                                <CheckCircle className={`w-3 h-3 ${isCompleted ? 'text-success' : 'text-text-tertiary'}`} />
+                                <span className={`text-sm ${isCompleted ? 'text-text-secondary line-through' : 'text-text-secondary'}`}>{ex.name}</span>
                               </div>
                               <span className="text-xs text-text-tertiary">{ex.sets}×{ex.reps}</span>
                             </div>
                           ))}
-                          {isToday && isEnrolled && (
+                          {isToday && isEnrolled && !workedOutToday && (
                             <Button size="sm" fullWidth className="mt-3" onClick={(e) => { e.stopPropagation(); router.push(`/training/session?programId=${program.id}&dow=${enrolledDayIndex}`); }}>
                               <Play className="w-4 h-4" /> Start This Workout
                             </Button>
