@@ -9,7 +9,6 @@ export const metadata: Metadata = {
   description: 'Premium fitness tracking and AI-powered coaching',
   manifest: '/manifest.json',
   appleWebApp: {
-    capable: true,
     statusBarStyle: 'black-translucent',
     title: 'Warfare Fitness',
   },
@@ -28,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="dark">
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body>
         <ThemeProvider>
