@@ -255,7 +255,7 @@ export default function DashboardPage() {
 
               {/* Badge row */}
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                {workedOutToday ? (
+                {workedOutToday && activeProgram.completedWorkouts > 0 ? (
                   <Badge variant="success">
                     <CheckCircle2 className="w-3 h-3 mr-1" />
                     Day {activeProgram.completedWorkouts} Complete
@@ -270,7 +270,7 @@ export default function DashboardPage() {
               <h3 className="text-base font-bold text-white">{activeProgram.programName}</h3>
 
               {/* Status line */}
-              {workedOutToday ? (
+              {workedOutToday && activeProgram.completedWorkouts > 0 ? (
                 <p className="text-sm text-success mt-0.5">
                   🎉 Great work! Come back tomorrow for Day {activeProgram.completedWorkouts + 1}.
                   {activeProgram.totalWorkouts - activeProgram.completedWorkouts > 0 &&
@@ -295,7 +295,7 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                     <Moon className="w-3.5 h-3.5" /> Rest day
                   </div>
-                ) : workedOutToday ? (
+                ) : workedOutToday && activeProgram.completedWorkouts > 0 ? (
                   <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${dashboardDayIndex}`)}>
                     <RefreshCw className="w-3.5 h-3.5" /> Repeat Day
                   </Button>

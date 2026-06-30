@@ -563,6 +563,8 @@ export default function WorkoutSessionPage() {
   const dowParam = searchParams.get('dow');
   const dow = dowParam !== null ? parseInt(dowParam) : null;
 
+  const sessionKey = `workout_session_${programId ?? 'free'}_${dow ?? 'x'}`;
+
   const [exStates, setExStates] = useState<ExState[]>([]);
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [loadingProgram, setLoadingProgram] = useState(true);
@@ -627,12 +629,35 @@ export default function WorkoutSessionPage() {
         }
       }
 
+      // Restore saved session if available
+      try {
+        const saved = sessionStorage.getItem(sessionKey);
+        if (saved) {
+          const { states, exIdx } = JSON.parse(saved) as { states: ExState[]; exIdx: number };
+          if (states?.length) {
+            setExStates(states);
+            setCurrentExIdx(exIdx ?? 0);
+            setLoadingProgram(false);
+            return;
+          }
+        }
+      } catch { /* ignore */ }
+
       setExStates(buildExState(exercises));
       setLoadingProgram(false);
     };
 
     resolveExercises();
-  }, [programId, dow]);
+  }, [programId, dow, sessionKey]);
+
+  // ── Persist session to sessionStorage ───────────────────────────────────
+
+  useEffect(() => {
+    if (exStates.length === 0) return;
+    try {
+      sessionStorage.setItem(sessionKey, JSON.stringify({ states: exStates, exIdx: currentExIdx }));
+    } catch { /* quota exceeded — ignore */ }
+  }, [exStates, currentExIdx, sessionKey]);
 
   // ── Rest timer tick ─────────────────────────────────────────────────────
 
@@ -666,6 +691,9 @@ export default function WorkoutSessionPage() {
   const completedSets = exStates.reduce(
     (s, e) => s + e.sets.filter((st) => st.status === 'completed').length,
     0,
+  );
+  const allExercisesDone = exStates.length > 0 && exStates.every((e) =>
+    e.sets.every((s) => s.status === 'completed' || s.status === 'skipped'),
   );
 
   // ── Mutators ────────────────────────────────────────────────────────────
@@ -836,6 +864,7 @@ export default function WorkoutSessionPage() {
         })),
       }));
       const result = await completeWorkout(user.uid, logs, duration, programId);
+      sessionStorage.removeItem(sessionKey);
       setSaved(true);
       setWorkoutResult({ duration, ...result });
     } catch (err: unknown) {
@@ -974,6 +1003,17 @@ export default function WorkoutSessionPage() {
         </div>
       </div>
 
+      {/* ── Finish Workout button (shown when all sets done) ─────────── */}
+      {allExercisesDone && !completeModal && (
+        <div className="fixed bottom-20 left-4 right-4 z-50 max-w-lg mx-auto">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <Button fullWidth size="lg" onClick={() => setCompleteModal(true)}>
+              <CheckCircle className="w-5 h-5" /> Finish Workout
+            </Button>
+          </motion.div>
+        </div>
+      )}
+
       {/* ── Exercise nav ──────────────────────────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-xl border-t border-white/8 pb-safe">
         <div className="px-4 py-3 max-w-lg mx-auto flex items-center gap-3">
@@ -1043,7 +1083,7 @@ export default function WorkoutSessionPage() {
           </div>
           <div className="flex gap-3">
             <Button variant="ghost" fullWidth onClick={() => setQuitModal(false)}>Continue</Button>
-            <Button variant="danger" fullWidth onClick={() => router.replace('/training')}>Quit</Button>
+            <Button variant="danger" fullWidth onClick={() => { sessionStorage.removeItem(sessionKey); router.replace('/training'); }}>Quit</Button>
           </div>
         </div>
       </Modal>
