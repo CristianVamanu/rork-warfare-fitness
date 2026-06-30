@@ -51,9 +51,25 @@ const DEFAULT_EXERCISES: Exercise[] = [
   { id: 'e4', name: 'Leg Curl', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'hamstrings' },
 ];
 
+const CARDIO_KEYWORDS = [
+  'run', 'running', 'jog', 'jogging', 'sprint', 'walk', 'walking',
+  'cardio', 'bike', 'biking', 'cycling', 'cycle', 'row', 'rowing',
+  'swim', 'swimming', 'elliptical', 'treadmill', 'stair', 'hiit',
+  'jump rope', 'skipping', 'rucking', 'ruck', 'hike', 'hiking',
+];
+
+function isCardioExercise(ex: Exercise): boolean {
+  if (ex.isCardio) return true;
+  const nameLower = ex.name.toLowerCase();
+  return CARDIO_KEYWORDS.some((kw) => nameLower.includes(kw));
+}
+
 function buildExState(exercises: Exercise[]): ExState[] {
   return exercises.map((ex) => {
+    const cardio = isCardioExercise(ex);
     const targetReps = typeof ex.reps === 'number' ? ex.reps : parseInt(String(ex.reps)) || 8;
+    // For cardio, treat reps as minutes unless cardioDurationSeconds is explicitly set
+    const cardioDuration = ex.cardioDurationSeconds ?? (targetReps * 60);
     const sets: SetState[] = Array.from({ length: ex.sets }, (_, i) => ({
       weight: 0,
       reps: targetReps,
@@ -66,8 +82,8 @@ function buildExState(exercises: Exercise[]): ExState[] {
       targetReps,
       restSeconds: ex.restSeconds ?? 90,
       muscleGroup: ex.muscleGroup,
-      isCardio: ex.isCardio ?? false,
-      cardioDurationSeconds: ex.cardioDurationSeconds ?? 60,
+      isCardio: cardio,
+      cardioDurationSeconds: cardioDuration,
       sets,
     };
   });
