@@ -863,7 +863,7 @@ export async function deleteChannel(id: string) {
 
 export async function getChannelPosts(channelId: string): Promise<ChannelPost[]> {
   const snap = await getDocs(
-    query(collection(db, 'channels', channelId, 'posts'), orderBy('createdAt', 'desc'), limit(50))
+    query(collection(db, 'channels', channelId, 'posts'), orderBy('createdAt', 'asc'), limit(50))
   );
   return snap.docs.map((d) => ({ id: d.id, channelId, ...d.data() }) as ChannelPost);
 }
@@ -940,23 +940,48 @@ export interface LeaderboardEntry {
 
 export async function getLeaderboard(trainerId: string, limitCount = 10): Promise<LeaderboardEntry[]> {
   const snap = await getDocs(
-    query(
-      collection(db, 'users'),
-      where('trainerId', '==', trainerId),
-      orderBy('xp', 'desc'),
-      limit(limitCount),
-    )
+    query(collection(db, 'users'), where('trainerId', '==', trainerId), limit(100))
   );
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return {
-      id: d.id,
-      displayName: (data.displayName as string) || 'Athlete',
-      xp: (data.xp as number) ?? 0,
-      powerLevel: (data.powerLevel as number) ?? 0,
-      streak: (data.statsCache as Record<string, number> | undefined)?.streak ?? (data.stats as Record<string, number> | undefined)?.streak ?? 0,
-      totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? (data.stats as Record<string, number> | undefined)?.totalWorkouts ?? 0,
-    };
+  return snap.docs
+    .map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        displayName: (data.displayName as string) || 'Athlete',
+        xp: (data.xp as number) ?? 0,
+        powerLevel: (data.powerLevel as number) ?? 0,
+        streak: (data.statsCache as Record<string, number> | undefined)?.streak ?? (data.stats as Record<string, number> | undefined)?.streak ?? 0,
+        totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? (data.stats as Record<string, number> | undefined)?.totalWorkouts ?? 0,
+      };
+    })
+    .sort((a, b) => b.xp - a.xp)
+    .slice(0, limitCount);
+}
+
+export function subscribeLeaderboard(
+  trainerId: string,
+  onUpdate: (entries: LeaderboardEntry[]) => void,
+  limitCount = 10,
+): () => void {
+  const q = query(collection(db, 'users'), where('trainerId', '==', trainerId), limit(100));
+  return onSnapshot(q, (snap) => {
+    const entries = snap.docs
+      .map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          displayName: (data.displayName as string) || 'Athlete',
+          xp: (data.xp as number) ?? 0,
+          powerLevel: (data.powerLevel as number) ?? 0,
+          streak: (data.statsCache as Record<string, number> | undefined)?.streak ?? (data.stats as Record<string, number> | undefined)?.streak ?? 0,
+          totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? (data.stats as Record<string, number> | undefined)?.totalWorkouts ?? 0,
+        };
+      })
+      .sort((a, b) => b.xp - a.xp)
+      .slice(0, limitCount);
+    onUpdate(entries);
+  }, (err) => {
+    console.error('[Firestore] subscribeLeaderboard error:', err);
   });
 }
 

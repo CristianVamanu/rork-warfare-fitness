@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin } from 'lucide-react';
+import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import toast from 'react-hot-toast';
@@ -179,10 +179,12 @@ export default function ChannelPage() {
   const [replyTarget, setReplyTarget] = useState<ChannelPost | null>(null);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const postsEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!channelId) return;
@@ -200,6 +202,25 @@ export default function ChannelPage() {
       }
     }).catch(() => {}).finally(() => setLoading(false));
   }, [channelId, trainerId, user]);
+
+  // Scroll to bottom when posts first load
+  useEffect(() => {
+    if (!loading && posts.length > 0) {
+      setTimeout(() => postsEndRef.current?.scrollIntoView({ behavior: 'instant' }), 50);
+    }
+  }, [loading]); // only on initial load
+
+  // Show "Jump to latest" when user scrolls away from bottom
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowJumpToLatest(distanceFromBottom > 200);
+    };
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [loading]);
 
   // Focus reply textarea when sheet opens
   useEffect(() => {
@@ -251,7 +272,10 @@ export default function ChannelPage() {
         setSlowModeBlocked(new Date(Date.now() + channel.slowModeDays * 86400000));
       }
       toast.success('Posted!');
-      setTimeout(() => postsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      setTimeout(() => {
+        postsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        setShowJumpToLatest(false);
+      }, 100);
     } catch { toast.error('Failed to post'); }
     finally { setPosting(false); }
   }
@@ -373,6 +397,7 @@ export default function ChannelPage() {
 
       {/* ── Posts ── */}
       <div
+        ref={scrollContainerRef}
         className="flex-1 overflow-y-auto"
         style={{ paddingBottom: `${COMPOSE_HEIGHT + 64 + 16}px` }}
       >
@@ -416,6 +441,23 @@ export default function ChannelPage() {
           <div ref={postsEndRef} />
         </div>
       </div>
+
+      {/* ── Jump to latest FAB ── */}
+      <AnimatePresence>
+        {showJumpToLatest && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 8 }}
+            onClick={() => postsEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+            className="fixed z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-accent text-black text-xs font-bold shadow-lg"
+            style={{ bottom: `${COMPOSE_HEIGHT + 64 + 12}px`, left: '50%', transform: 'translateX(-50%)' }}
+          >
+            <ChevronsDown className="w-3.5 h-3.5" />
+            Jump to latest
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* ── Compose box (fixed above tab bar) ── */}
       <div className="fixed bottom-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">

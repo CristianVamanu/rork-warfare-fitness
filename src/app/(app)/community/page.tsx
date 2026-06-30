@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getChannels, getLeaderboard, type LeaderboardEntry } from '@/lib/firestore';
+import { getChannels, subscribeLeaderboard, type LeaderboardEntry } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -28,11 +28,12 @@ export default function CommunityPage() {
   }, [trainerId]);
 
   useEffect(() => {
-    if (!trainerId) return;
-    getLeaderboard(trainerId, 10)
-      .then(setLeaderboard)
-      .catch(() => {})
-      .finally(() => setLbLoading(false));
+    if (!trainerId) { setLbLoading(false); return; }
+    const unsub = subscribeLeaderboard(trainerId, (entries) => {
+      setLeaderboard(entries);
+      setLbLoading(false);
+    }, 10);
+    return unsub;
   }, [trainerId]);
 
   const medalColors = [
@@ -113,6 +114,8 @@ export default function CommunityPage() {
             <div className="flex items-center gap-2">
               <Trophy className="w-4 h-4 text-accent" />
               <h2 className="text-base font-bold text-white">Top Athletes</h2>
+              <span className="text-xs text-text-tertiary ml-auto">Live</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             </div>
 
             {lbLoading ? (
