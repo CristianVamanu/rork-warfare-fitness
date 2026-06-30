@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2 } from 'lucide-react';
+import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import toast from 'react-hot-toast';
@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   getChannels, getChannelPosts, createChannelPost, deleteChannelPost,
   likeChannelPost, getPostReplies, createReply, getUserLastPostInChannel,
+  pinChannelPost, unpinChannelPost,
 } from '@/lib/firestore';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -32,16 +33,18 @@ function timeAgo(ts: unknown): string {
 }
 
 function PostCard({
-  post, userId, isAdmin, channelId,
-  onLike, onReply, onDelete,
+  post, userId, isAdmin, channelId, pinnedPostId,
+  onLike, onReply, onDelete, onPin,
 }: {
   post: ChannelPost;
   userId: string;
   isAdmin: boolean;
   channelId: string;
+  pinnedPostId?: string;
   onLike: (post: ChannelPost) => void;
   onReply: (post: ChannelPost) => void;
   onDelete: (post: ChannelPost) => void;
+  onPin: (post: ChannelPost, pin: boolean) => void;
 }) {
   const [replies, setReplies] = useState<ChannelPost[]>([]);
   const [showReplies, setShowReplies] = useState(false);
@@ -49,6 +52,7 @@ function PostCard({
   const [showMenu, setShowMenu] = useState(false);
   const liked = post.likes.includes(userId);
   const canDelete = isAdmin || post.userId === userId;
+  const isPinned = pinnedPostId === post.id;
 
   const handleShowReplies = async () => {
     if (showReplies) { setShowReplies(false); return; }
@@ -62,36 +66,50 @@ function PostCard({
   };
 
   return (
-    <Card className="p-4">
+    <Card className={`p-4 ${isPinned ? 'border border-accent/40 bg-accent/5' : ''}`}>
       <div className="flex items-start gap-3 mb-3">
         <Avatar name={post.userDisplayName} src={post.userPhotoURL} size="md" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-white">{post.userDisplayName}</p>
           <p className="text-xs text-text-tertiary">{timeAgo(post.createdAt)}</p>
         </div>
-        {canDelete && (
-          <div className="relative">
-            <button
-              onClick={() => setShowMenu((v) => !v)}
-              className="p-1.5 rounded-lg text-text-tertiary hover:text-white hover:bg-white/8 transition-colors"
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-            {showMenu && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                <div className="absolute right-0 top-8 z-20 bg-surface-elevated border border-white/10 rounded-xl shadow-xl min-w-[120px]">
-                  <button
-                    onClick={() => { setShowMenu(false); onDelete(post); }}
-                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors rounded-xl"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Delete
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-1">
+          {isPinned && <Pin className="w-3.5 h-3.5 text-accent flex-shrink-0" />}
+          {(canDelete || isAdmin) && (
+            <div className="relative">
+              <button
+                onClick={() => setShowMenu((v) => !v)}
+                className="p-1.5 rounded-lg text-text-tertiary hover:text-white hover:bg-white/8 transition-colors"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+              {showMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                  <div className="absolute right-0 top-8 z-20 bg-surface-elevated border border-white/10 rounded-xl shadow-xl min-w-[140px]">
+                    {isAdmin && (
+                      <button
+                        onClick={() => { setShowMenu(false); onPin(post, !isPinned); }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/8 transition-colors rounded-t-xl"
+                      >
+                        <Pin className="w-3.5 h-3.5" />
+                        {isPinned ? 'Unpin' : 'Pin to top'}
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={() => { setShowMenu(false); onDelete(post); }}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors ${isAdmin ? 'rounded-b-xl' : 'rounded-xl'}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Delete
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
       <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{post.content}</p>
       {post.imageURL && (
@@ -252,8 +270,26 @@ export default function ChannelPage() {
     try {
       await deleteChannelPost(channelId, post.id);
       setPosts(prev => prev.filter(p => p.id !== post.id));
+      // If the pinned post was deleted, clear pinnedPostId from channel state
+      if (channel?.pinnedPostId === post.id) {
+        setChannel(prev => prev ? { ...prev, pinnedPostId: undefined } : prev);
+      }
       toast.success('Post deleted');
     } catch { toast.error('Failed to delete'); }
+  }
+
+  async function handlePin(post: ChannelPost, pin: boolean) {
+    try {
+      if (pin) {
+        await pinChannelPost(channelId, post.id);
+        setChannel(prev => prev ? { ...prev, pinnedPostId: post.id } : prev);
+        toast.success('Post pinned to top');
+      } else {
+        await unpinChannelPost(channelId, post.id);
+        setChannel(prev => prev ? { ...prev, pinnedPostId: undefined } : prev);
+        toast.success('Post unpinned');
+      }
+    } catch { toast.error('Failed to update pin'); }
   }
 
   async function handleReply() {
@@ -305,6 +341,7 @@ export default function ChannelPage() {
 
   const isBlocked = !!slowModeBlocked && slowModeBlocked > new Date();
   const canSend = (text.trim().length > 0 || !!pendingImageURL) && !isBlocked;
+  const pinnedPost = channel.pinnedPostId ? posts.find(p => p.id === channel.pinnedPostId) : null;
 
   // Height of the compose box (approx) so the post list doesn't hide behind it
   const COMPOSE_HEIGHT = channel.photoUploadEnabled ? 80 : 72;
@@ -340,6 +377,21 @@ export default function ChannelPage() {
         style={{ paddingBottom: `${COMPOSE_HEIGHT + 64 + 16}px` }}
       >
         <div className="px-4 py-4 space-y-3 max-w-2xl mx-auto w-full">
+          {/* Pinned post banner */}
+          {pinnedPost && (
+            <div className="flex items-start gap-2 bg-accent/10 border border-accent/30 rounded-2xl px-3 py-3">
+              <Pin className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-accent mb-1">Pinned message</p>
+                <p className="text-sm text-white font-bold">{pinnedPost.userDisplayName}</p>
+                <p className="text-sm text-text-secondary line-clamp-3 mt-0.5">{pinnedPost.content}</p>
+                {pinnedPost.imageURL && (
+                  <img src={pinnedPost.imageURL} alt="pinned" className="mt-2 rounded-lg w-full object-cover max-h-32" />
+                )}
+              </div>
+            </div>
+          )}
+
           {posts.length === 0 ? (
             <Card className="p-10 text-center">
               <p className="text-2xl mb-2">💬</p>
@@ -353,9 +405,11 @@ export default function ChannelPage() {
                 userId={user?.uid ?? ''}
                 isAdmin={isAdmin}
                 channelId={channelId}
+                pinnedPostId={channel.pinnedPostId}
                 onLike={handleLike}
                 onReply={setReplyTarget}
                 onDelete={handleDelete}
+                onPin={handlePin}
               />
             </motion.div>
           ))}

@@ -123,6 +123,7 @@ export interface Channel {
   description?: string;
   emoji?: string;
   createdBy: string;
+  pinnedPostId?: string;
   trainerId?: string;
   photoUploadEnabled: boolean;
   slowModeDays: 0 | 7 | 21 | 30;
@@ -141,6 +142,7 @@ export interface ChannelPost {
   likes: string[];
   replyCount: number;
   replyTo?: string | null;
+  pinned?: boolean;
   createdAt: unknown;
 }
 

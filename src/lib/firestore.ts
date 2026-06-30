@@ -27,6 +27,7 @@ import {
   Timestamp,
   increment,
   onSnapshot,
+  deleteField,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { UserGoals } from '@/types';
@@ -477,7 +478,6 @@ export async function enrollInProgram(
 }
 
 export async function unenrollProgram(userId: string) {
-  const { deleteField } = await import('firebase/firestore');
   await setDoc(
     doc(db, 'users', userId),
     { activeProgram: deleteField(), lastActive: serverTimestamp() },
@@ -917,6 +917,16 @@ export async function createReply(channelId: string, postId: string, data: {
 export async function deleteChannelPost(channelId: string, postId: string) {
   await deleteDoc(doc(db, 'channels', channelId, 'posts', postId));
   await updateDoc(doc(db, 'channels', channelId), { postCount: increment(-1) }).catch(() => {});
+}
+
+export async function pinChannelPost(channelId: string, postId: string) {
+  await updateDoc(doc(db, 'channels', channelId), { pinnedPostId: postId });
+  await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { pinned: true });
+}
+
+export async function unpinChannelPost(channelId: string, postId: string) {
+  await updateDoc(doc(db, 'channels', channelId), { pinnedPostId: deleteField() });
+  await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { pinned: false });
 }
 
 export interface LeaderboardEntry {
