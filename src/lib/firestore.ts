@@ -915,6 +915,115 @@ export async function getUserLastPostInChannel(channelId: string, userId: string
 }
 
 // ---------------------------------------------------------------------------
+// Real-time recent activity feed (dashboard)
+// ---------------------------------------------------------------------------
+
+export interface ActivityItem {
+  id: string;
+  type: 'WORKOUT_COMPLETED' | 'MEAL_LOGGED' | 'WATER_LOGGED' | 'WEIGHT_RECORDED';
+  label: string;
+  sub: string;
+  createdAt: Timestamp | null;
+}
+
+export function subscribeRecentActivity(
+  userId: string,
+  onUpdate: (items: ActivityItem[]) => void,
+  limitCount = 10,
+): () => void {
+  const q = query(
+    collection(db, 'events'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc'),
+    limit(limitCount),
+  );
+  return onSnapshot(q, (snap) => {
+    const items: ActivityItem[] = snap.docs.map((d) => {
+      const data = d.data();
+      const type = data.type as ActivityItem['type'];
+      const payload = (data.payload ?? {}) as Record<string, unknown>;
+      const createdAt = (data.createdAt as Timestamp) ?? null;
+
+      let label = 'Activity';
+      let sub = '';
+
+      if (type === 'WORKOUT_COMPLETED') {
+        const dur = Number(payload.duration ?? 0);
+        label = dur > 0 ? `${dur} min workout` : 'Workout completed';
+        const exList = payload.exercises as unknown[] | undefined;
+        sub = Array.isArray(exList) && exList.length > 0
+          ? `${exList.length} exercises`
+          : 'Completed';
+      } else if (type === 'MEAL_LOGGED') {
+        label = String(payload.name || 'Meal logged');
+        const cal = Number(payload.calories ?? 0);
+        const mealType = String(payload.mealType || '');
+        sub = [mealType, cal > 0 ? `${cal} kcal` : ''].filter(Boolean).join(' · ');
+      } else if (type === 'WATER_LOGGED') {
+        const ml = Number(payload.amountMl ?? 0);
+        label = 'Water logged';
+        sub = ml >= 1000 ? `${(ml / 1000).toFixed(1)} L` : `${ml} ml`;
+      } else if (type === 'WEIGHT_RECORDED') {
+        const kg = Number(payload.weightKg ?? 0);
+        label = 'Weight recorded';
+        sub = kg > 0 ? `${kg} kg` : '';
+      }
+
+      return { id: d.id, type, label, sub, createdAt };
+    });
+    onUpdate(items);
+  }, (err) => {
+    // Missing composite index fallback — try without orderBy
+    console.warn('[Firestore] subscribeRecentActivity: index missing, using fallback', err);
+    const fallbackQ = query(
+      collection(db, 'events'),
+      where('userId', '==', userId),
+      limit(50),
+    );
+    onSnapshot(fallbackQ, (snap) => {
+      const sorted = [...snap.docs].sort((a, b) => {
+        const ta = (a.data().createdAt as Timestamp)?.toMillis() ?? 0;
+        const tb = (b.data().createdAt as Timestamp)?.toMillis() ?? 0;
+        return tb - ta;
+      }).slice(0, limitCount);
+
+      const items: ActivityItem[] = sorted.map((d) => {
+        const data = d.data();
+        const type = data.type as ActivityItem['type'];
+        const payload = (data.payload ?? {}) as Record<string, unknown>;
+        const createdAt = (data.createdAt as Timestamp) ?? null;
+
+        let label = 'Activity';
+        let sub = '';
+
+        if (type === 'WORKOUT_COMPLETED') {
+          const dur = Number(payload.duration ?? 0);
+          label = dur > 0 ? `${dur} min workout` : 'Workout completed';
+          const exList = payload.exercises as unknown[] | undefined;
+          sub = Array.isArray(exList) && exList.length > 0 ? `${exList.length} exercises` : 'Completed';
+        } else if (type === 'MEAL_LOGGED') {
+          label = String(payload.name || 'Meal logged');
+          const cal = Number(payload.calories ?? 0);
+          const mealType = String(payload.mealType || '');
+          sub = [mealType, cal > 0 ? `${cal} kcal` : ''].filter(Boolean).join(' · ');
+        } else if (type === 'WATER_LOGGED') {
+          const ml = Number(payload.amountMl ?? 0);
+          label = 'Water logged';
+          sub = ml >= 1000 ? `${(ml / 1000).toFixed(1)} L` : `${ml} ml`;
+        } else if (type === 'WEIGHT_RECORDED') {
+          const kg = Number(payload.weightKg ?? 0);
+          label = 'Weight recorded';
+          sub = kg > 0 ? `${kg} kg` : '';
+        }
+
+        return { id: d.id, type, label, sub, createdAt };
+      });
+      onUpdate(items);
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Legacy write stubs — kept only for backward-compat import references.
 // These log a warning and are NOT used for new writes.
 // All writes go through actions.ts → createEvent().

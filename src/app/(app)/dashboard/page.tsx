@@ -3,9 +3,9 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, Utensils, Timer } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserWorkouts, getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater } from '@/lib/firestore';
+import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, subscribeRecentActivity, type ActivityItem } from '@/lib/firestore';
 import { getMockProgram, getProgramDayForUser, stripWeekdayPrefix } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
@@ -38,7 +38,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [waterMl, setWaterMl] = useState<number | null>(null);
   const [calories, setCalories] = useState<number | null>(null);
-  const [recentWorkouts, setRecentWorkouts] = useState<unknown[]>([]);
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
   const [dailyTip, setDailyTip] = useState<string>('');
@@ -79,30 +79,30 @@ export default function DashboardPage() {
 
     const localDateStr = new Date().toLocaleDateString('sv-SE');
 
-    // Direct queries on mount — authoritative source regardless of cache state
+    // Direct queries on mount for goals and initial nutrition totals
     Promise.all([
       getTodayMeals(user.uid, localDateStr),
       getTodayWater(user.uid, localDateStr),
-      getUserWorkouts(user.uid, 5),
       getUserGoals(user.uid),
     ])
-      .then(([meals, water, workouts, g]) => {
+      .then(([meals, water, g]) => {
         const cal = (meals as Array<{ calories?: number }>).reduce((s, m) => s + (m.calories ?? 0), 0);
         setCalories(cal);
         setWaterMl(water as number);
-        setRecentWorkouts(workouts);
         setGoals({ calories: g.calories, water: g.water });
       })
       .catch((err) => console.error('[Dashboard] Data load error:', err))
       .finally(() => setLoading(false));
 
-    // Real-time event listeners — update immediately on new writes
+    // Real-time listeners — update immediately on any new write
     const unsubCal = subscribeTodayCalories(user.uid, localDateStr, setCalories);
     const unsubWater = subscribeTodayWater(user.uid, localDateStr, setWaterMl);
+    const unsubActivity = subscribeRecentActivity(user.uid, setRecentActivity, 10);
 
     return () => {
       unsubCal();
       unsubWater();
+      unsubActivity();
     };
   }, [user]);
 
@@ -155,7 +155,7 @@ export default function DashboardPage() {
     {
       icon: Dumbbell,
       label: 'Workouts',
-      value: profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? recentWorkouts.length,
+      value: profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0,
       unit: 'total',
       max: Math.max(profile?.statsCache?.totalWorkouts ?? 1, 1),
       color: 'text-purple-400',
@@ -326,48 +326,54 @@ export default function DashboardPage() {
         {/* Recent Activity */}
         <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
           <h2 className="text-base font-bold text-white mb-3">Recent Activity</h2>
-          {loading ? (
+          {loading && recentActivity.length === 0 ? (
             <div className="space-y-2">
               <Skeleton className="h-16 rounded-2xl" />
               <Skeleton className="h-16 rounded-2xl" />
             </div>
-          ) : recentWorkouts.length === 0 ? (
+          ) : recentActivity.length === 0 ? (
             <Card className="p-6 text-center">
               <Dumbbell className="w-10 h-10 text-text-tertiary mx-auto mb-2" />
-              <p className="text-text-secondary text-sm">No recent workouts</p>
-              <p className="text-text-tertiary text-xs mt-1">Complete your first session!</p>
+              <p className="text-text-secondary text-sm">No recent activity</p>
+              <p className="text-text-tertiary text-xs mt-1">Log a meal, water, or complete a workout!</p>
             </Card>
           ) : (
             <div className="space-y-2">
-              {(recentWorkouts as Array<{
-                id: string;
-                completedAt: unknown;
-                duration?: number;
-                exercises?: unknown[];
-                programId?: string;
-              }>).map((w) => {
-                const ts = w.completedAt as { toDate?: () => Date } | null;
-                const date = ts?.toDate?.() ?? null;
-                const dateStr = date
-                  ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                  : '';
+              {recentActivity.map((item) => {
+                const date = item.createdAt?.toDate?.() ?? null;
+                const now = new Date();
+                let dateStr = '';
+                if (date) {
+                  const diffMs = now.getTime() - date.getTime();
+                  const diffMins = Math.floor(diffMs / 60000);
+                  if (diffMins < 60) dateStr = diffMins <= 1 ? 'Just now' : `${diffMins}m ago`;
+                  else if (diffMins < 1440) dateStr = `${Math.floor(diffMins / 60)}h ago`;
+                  else dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }
+
+                const iconConfig = {
+                  WORKOUT_COMPLETED: { icon: Dumbbell, color: 'text-accent', bg: 'bg-accent-muted' },
+                  MEAL_LOGGED:       { icon: Utensils, color: 'text-green-400', bg: 'bg-green-400/10' },
+                  WATER_LOGGED:      { icon: Droplets, color: 'text-blue-400', bg: 'bg-blue-400/10' },
+                  WEIGHT_RECORDED:   { icon: Timer,    color: 'text-purple-400', bg: 'bg-purple-400/10' },
+                }[item.type] ?? { icon: Zap, color: 'text-accent', bg: 'bg-accent-muted' };
+
+                const Icon = iconConfig.icon;
+
                 return (
-                  <Card key={w.id} className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-accent-muted rounded-xl">
-                        <Dumbbell className="w-4 h-4 text-accent" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-white">
-                          {w.duration ? `${w.duration} min session` : 'Workout Session'}
-                        </p>
-                        <p className="text-xs text-text-secondary">
-                          {Array.isArray(w.exercises) ? `${w.exercises.length} exercises` : 'Completed'}
-                          {dateStr && ` · ${dateStr}`}
-                        </p>
-                      </div>
+                  <Card key={item.id} className="p-4 flex items-center gap-3">
+                    <div className={`p-2 rounded-xl flex-shrink-0 ${iconConfig.bg}`}>
+                      <Icon className={`w-4 h-4 ${iconConfig.color}`} />
                     </div>
-                    <Badge variant="success">Done</Badge>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{item.label}</p>
+                      {item.sub && (
+                        <p className="text-xs text-text-secondary truncate capitalize">{item.sub}</p>
+                      )}
+                    </div>
+                    {dateStr && (
+                      <span className="text-xs text-text-tertiary flex-shrink-0">{dateStr}</span>
+                    )}
                   </Card>
                 );
               })}
