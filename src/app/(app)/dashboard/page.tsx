@@ -41,6 +41,28 @@ export default function DashboardPage() {
   const [recentWorkouts, setRecentWorkouts] = useState<unknown[]>([]);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
+  const [dailyTip, setDailyTip] = useState<string>('');
+
+  // Fetch daily AI fitness tip (changes every day, cached server-side)
+  useEffect(() => {
+    const today = new Date().toLocaleDateString('sv-SE');
+    const cached = sessionStorage.getItem('dailyTip');
+    const cachedDate = sessionStorage.getItem('dailyTipDate');
+    if (cached && cachedDate === today) {
+      setDailyTip(cached);
+      return;
+    }
+    fetch('/api/ai/tip')
+      .then(r => r.json())
+      .then((d: { tip?: string }) => {
+        if (d.tip) {
+          setDailyTip(d.tip);
+          sessionStorage.setItem('dailyTip', d.tip);
+          sessionStorage.setItem('dailyTipDate', today);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Sync calories + water from profile.statsCache whenever it updates (real-time via AuthContext)
   useEffect(() => {
@@ -354,18 +376,17 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* AI Tip */}
-        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-          <Card glass className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-lg">🤖</span>
-              <span className="text-xs font-medium text-accent">AI TIP OF THE DAY</span>
-            </div>
-            <p className="text-sm text-text-secondary leading-relaxed">
-              Progressive overload is the key to muscle growth. Try adding 2.5kg to your main lifts each week,
-              or add one extra rep per set. Consistency beats intensity every time.
-            </p>
-          </Card>
-        </motion.div>
+        {dailyTip && (
+          <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
+            <Card glass className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">🤖</span>
+                <span className="text-xs font-medium text-accent">AI TIP OF THE DAY</span>
+              </div>
+              <p className="text-sm text-text-secondary leading-relaxed">{dailyTip}</p>
+            </Card>
+          </motion.div>
+        )}
       </div>
     </div>
   );

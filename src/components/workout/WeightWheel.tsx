@@ -104,15 +104,15 @@ export function WeightWheel({
 
   return (
     <div className="relative select-none" style={{ height: 72 }}>
-      {/* Left fade */}
+      {/* Left fade — uses CSS variable so it matches the card background in light/dark mode */}
       <div
         className="absolute left-0 top-0 h-full w-20 pointer-events-none z-10"
-        style={{ background: 'linear-gradient(to right, #111111 0%, transparent 100%)' }}
+        style={{ background: 'linear-gradient(to right, var(--surface) 0%, transparent 100%)' }}
       />
       {/* Right fade */}
       <div
         className="absolute right-0 top-0 h-full w-20 pointer-events-none z-10"
-        style={{ background: 'linear-gradient(to left, #111111 0%, transparent 100%)' }}
+        style={{ background: 'linear-gradient(to left, var(--surface) 0%, transparent 100%)' }}
       />
       {/* Center highlight rails */}
       <div
@@ -162,7 +162,7 @@ export function WeightWheel({
             >
               <span
                 className={`font-black leading-none ${
-                  isCenter ? 'text-2xl text-white' : 'text-lg text-text-secondary'
+                  isCenter ? 'text-2xl text-foreground' : 'text-lg text-text-secondary'
                 }`}
               >
                 {v % 1 === 0 ? v : v.toFixed(1)}
@@ -174,7 +174,7 @@ export function WeightWheel({
               )}
               {/* tick mark */}
               <div
-                className={`rounded-full mt-0.5 ${isMajor ? 'bg-accent/40' : 'bg-white/15'}`}
+                className={`rounded-full mt-0.5 ${isMajor ? 'bg-accent/40' : 'bg-border'}`}
                 style={{ width: isMajor ? 3 : 2, height: isMajor ? 6 : 4 }}
               />
             </button>

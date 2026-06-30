@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, CheckCircle, Timer, AlertTriangle, ChevronLeft, ChevronRight,
-  Copy, SkipForward, Plus, Minus, Dumbbell, Zap,
+  Copy, SkipForward, Plus, Minus, Dumbbell, Zap, Play, Pause, RotateCcw,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProgram } from '@/lib/firestore';
@@ -37,6 +37,8 @@ interface ExState {
   targetReps: number;
   restSeconds: number;
   muscleGroup?: string;
+  isCardio: boolean;
+  cardioDurationSeconds: number;
   sets: SetState[];
 }
 
@@ -64,6 +66,8 @@ function buildExState(exercises: Exercise[]): ExState[] {
       targetReps,
       restSeconds: ex.restSeconds ?? 90,
       muscleGroup: ex.muscleGroup,
+      isCardio: ex.isCardio ?? false,
+      cardioDurationSeconds: ex.cardioDurationSeconds ?? 60,
       sets,
     };
   });
@@ -155,6 +159,189 @@ function RestPill({ seconds, total, onSkip, onExtend }: RestPillProps) {
   );
 }
 
+// ─── Cardio Timer Row ────────────────────────────────────────────────────────
+
+interface CardioTimerRowProps {
+  setNum: number;
+  durationSeconds: number;
+  isActive: boolean;
+  isPending: boolean;
+  isCompleted: boolean;
+  isSkipped: boolean;
+  onActivate: () => void;
+  onComplete: () => void;
+  onSkip: () => void;
+}
+
+function CardioTimerRow({
+  setNum, durationSeconds, isActive, isPending, isCompleted, isSkipped,
+  onActivate, onComplete, onSkip,
+}: CardioTimerRowProps) {
+  const [elapsed, setElapsed] = useState(0);
+  const [running, setRunning] = useState(false);
+  const tickRef = useRef<NodeJS.Timeout>();
+
+  useEffect(() => {
+    return () => clearInterval(tickRef.current);
+  }, []);
+
+  const remaining = Math.max(0, durationSeconds - elapsed);
+  const pct = elapsed / durationSeconds;
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
+  const label = mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}s`;
+  const circumference = 2 * Math.PI * 22;
+
+  function toggle() {
+    if (running) {
+      clearInterval(tickRef.current);
+      setRunning(false);
+    } else {
+      setRunning(true);
+      tickRef.current = setInterval(() => {
+        setElapsed((prev) => {
+          if (prev + 1 >= durationSeconds) {
+            clearInterval(tickRef.current);
+            setRunning(false);
+            return durationSeconds;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    }
+  }
+
+  function reset() {
+    clearInterval(tickRef.current);
+    setRunning(false);
+    setElapsed(0);
+  }
+
+  if (isCompleted || isSkipped) {
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, x: -16 }}
+        animate={{ opacity: 1, x: 0 }}
+        className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+          isCompleted ? 'bg-success/5 border-success/20' : 'bg-white/3 border-white/6 opacity-40'
+        }`}
+      >
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+          isCompleted ? 'bg-success/20' : 'bg-white/8'
+        }`}>
+          {isCompleted ? <CheckCircle className="w-4 h-4 text-success" /> : <span className="text-xs text-text-tertiary">{setNum}</span>}
+        </div>
+        <div className="flex-1">
+          <span className="text-sm text-text-secondary">Set {setNum}</span>
+        </div>
+        {isCompleted && <Timer className="w-4 h-4 text-success" />}
+        {isSkipped && <span className="text-xs text-text-tertiary">Skipped</span>}
+      </motion.div>
+    );
+  }
+
+  if (isPending) {
+    return (
+      <motion.button
+        layout
+        onClick={onActivate}
+        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-surface hover:bg-surface-elevated transition-colors text-left"
+      >
+        <div className="w-7 h-7 rounded-lg bg-white/8 flex items-center justify-center flex-shrink-0">
+          <span className="text-xs text-text-tertiary font-bold">{setNum}</span>
+        </div>
+        <span className="text-sm text-text-secondary flex-1">Set {setNum}</span>
+        <span className="text-xs text-text-tertiary">tap to activate</span>
+      </motion.button>
+    );
+  }
+
+  // Active cardio set — countdown timer
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="rounded-2xl border border-accent/40 bg-accent/5 overflow-hidden"
+    >
+      <div className="flex items-center justify-between px-4 py-3 border-b border-accent/15">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center">
+            <span className="text-xs font-black text-accent">{setNum}</span>
+          </div>
+          <span className="text-sm font-semibold text-foreground">Set {setNum} — Cardio</span>
+        </div>
+        <button
+          onClick={onSkip}
+          className="px-2.5 py-1.5 rounded-lg text-xs text-text-tertiary hover:text-white hover:bg-white/8 transition-colors"
+        >
+          Skip
+        </button>
+      </div>
+
+      <div className="flex flex-col items-center py-6 gap-4">
+        {/* Circular countdown */}
+        <div className="relative">
+          <svg width={120} height={120} className="-rotate-90">
+            <circle cx={60} cy={60} r={50} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={6} />
+            <motion.circle
+              cx={60} cy={60} r={50} fill="none"
+              stroke="#F5A623" strokeWidth={6}
+              strokeLinecap="round"
+              strokeDasharray={2 * Math.PI * 50}
+              strokeDashoffset={2 * Math.PI * 50 * pct}
+              transition={{ duration: 0.5 }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <Timer className="w-4 h-4 text-accent mb-1" />
+            <motion.span
+              key={remaining}
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+              className="text-2xl font-black text-foreground leading-none"
+            >
+              {label}
+            </motion.span>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={reset}
+            className="w-10 h-10 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-text-secondary hover:text-foreground transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={toggle}
+            className="w-14 h-14 rounded-full bg-accent flex items-center justify-center shadow-glow-sm active:scale-95 transition-all"
+          >
+            {running
+              ? <Pause className="w-6 h-6 text-black" />
+              : <Play className="w-6 h-6 text-black ml-1" />
+            }
+          </button>
+        </div>
+      </div>
+
+      <div className="px-4 pb-4">
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={onComplete}
+          className="w-full py-3.5 rounded-xl bg-accent text-black font-bold text-sm flex items-center justify-center gap-2 shadow-glow-sm hover:bg-amber-400 transition-colors"
+        >
+          <CheckCircle className="w-4 h-4" />
+          Done — Mark Complete
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Set Row ─────────────────────────────────────────────────────────────────
 
 interface SetRowProps {
@@ -222,7 +409,7 @@ function SetRow({
       <motion.button
         layout
         onClick={onActivate}
-        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-white/6 bg-white/3 hover:border-white/12 hover:bg-white/5 transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-surface hover:bg-surface-elevated transition-colors text-left"
       >
         <div className="w-7 h-7 rounded-lg bg-white/8 flex items-center justify-center flex-shrink-0">
           <span className="text-xs text-text-tertiary font-bold">{setNum}</span>
@@ -247,7 +434,7 @@ function SetRow({
           <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center">
             <span className="text-xs font-black text-accent">{setNum}</span>
           </div>
-          <span className="text-sm font-semibold text-white">Set {setNum} — Active</span>
+          <span className="text-sm font-semibold text-foreground">Set {setNum} — Active</span>
         </div>
         <div className="flex items-center gap-1.5">
           <button
@@ -289,7 +476,7 @@ function SetRow({
         <div className="flex items-center justify-center gap-5">
           <button
             onClick={() => onRepsChange(-1)}
-            className="w-11 h-11 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-white hover:bg-white/15 active:scale-95 transition-all"
+            className="w-11 h-11 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-foreground hover:bg-border active:scale-95 transition-all"
           >
             <Minus className="w-4 h-4" />
           </button>
@@ -299,7 +486,7 @@ function SetRow({
               initial={{ scale: 0.85, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-              className="text-4xl font-black text-white"
+              className="text-4xl font-black text-foreground"
             >
               {state.reps}
             </motion.p>
@@ -307,7 +494,7 @@ function SetRow({
           </div>
           <button
             onClick={() => onRepsChange(1)}
-            className="w-11 h-11 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-white hover:bg-white/15 active:scale-95 transition-all"
+            className="w-11 h-11 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-foreground hover:bg-border active:scale-95 transition-all"
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -697,8 +884,10 @@ export default function WorkoutSessionPage() {
                 <div>
                   <h2 className="text-lg font-black text-white leading-tight">{currentEx.name}</h2>
                   <p className="text-xs text-text-secondary">
-                    {currentEx.targetSets} sets × {currentEx.targetReps} reps
-                    {currentEx.restSeconds > 0 && ` · ${currentEx.restSeconds}s rest`}
+                    {currentEx.isCardio
+                      ? `${currentEx.targetSets} sets · ${Math.floor(currentEx.cardioDurationSeconds / 60)}:${String(currentEx.cardioDurationSeconds % 60).padStart(2, '0')} each`
+                      : `${currentEx.targetSets} sets × ${currentEx.targetReps} reps${currentEx.restSeconds > 0 ? ` · ${currentEx.restSeconds}s rest` : ''}`
+                    }
                   </p>
                 </div>
               </div>
@@ -706,23 +895,38 @@ export default function WorkoutSessionPage() {
               {/* Set rows */}
               <div className="space-y-2 mt-3">
                 {currentEx.sets.map((setState, si) => (
-                  <SetRow
-                    key={si}
-                    setNum={si + 1}
-                    state={setState}
-                    isActive={setState.status === 'active'}
-                    weightUnit={weightUnit}
-                    onActivate={() => activateSet(currentExIdx, si)}
-                    onWeightChange={(v) => updateSet(currentExIdx, si, { weight: v })}
-                    onRepsChange={(delta) =>
-                      updateSet(currentExIdx, si, {
-                        reps: Math.max(1, setState.reps + delta),
-                      })
-                    }
-                    onComplete={() => completeSet(currentExIdx, si)}
-                    onSkip={() => skipSet(currentExIdx, si)}
-                    onDuplicate={() => duplicatePrevSet(currentExIdx, si)}
-                  />
+                  currentEx.isCardio ? (
+                    <CardioTimerRow
+                      key={si}
+                      setNum={si + 1}
+                      durationSeconds={currentEx.cardioDurationSeconds}
+                      isActive={setState.status === 'active'}
+                      isPending={setState.status === 'pending'}
+                      isCompleted={setState.status === 'completed'}
+                      isSkipped={setState.status === 'skipped'}
+                      onActivate={() => activateSet(currentExIdx, si)}
+                      onComplete={() => completeSet(currentExIdx, si)}
+                      onSkip={() => skipSet(currentExIdx, si)}
+                    />
+                  ) : (
+                    <SetRow
+                      key={si}
+                      setNum={si + 1}
+                      state={setState}
+                      isActive={setState.status === 'active'}
+                      weightUnit={weightUnit}
+                      onActivate={() => activateSet(currentExIdx, si)}
+                      onWeightChange={(v) => updateSet(currentExIdx, si, { weight: v })}
+                      onRepsChange={(delta) =>
+                        updateSet(currentExIdx, si, {
+                          reps: Math.max(1, setState.reps + delta),
+                        })
+                      }
+                      onComplete={() => completeSet(currentExIdx, si)}
+                      onSkip={() => skipSet(currentExIdx, si)}
+                      onDuplicate={() => duplicatePrevSet(currentExIdx, si)}
+                    />
+                  )
                 ))}
               </div>
             </motion.div>

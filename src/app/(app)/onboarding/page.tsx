@@ -260,6 +260,8 @@ export default function OnboardingPage() {
                 src={videoGreetingUrl}
                 controls
                 autoPlay
+                playsInline
+                webkit-playsinline="true"
                 className="w-full h-full object-contain"
               />
             </div>

@@ -754,6 +754,13 @@ export async function sendMessage(
   });
 }
 
+export async function deleteConversation(convId: string) {
+  // Delete all messages in the subcollection first
+  const msgs = await getDocs(collection(db, 'conversations', convId, 'messages'));
+  await Promise.all(msgs.docs.map((d) => deleteDoc(d.ref)));
+  await deleteDoc(doc(db, 'conversations', convId));
+}
+
 export async function markConversationRead(convId: string, isAdmin: boolean) {
   await updateDoc(doc(db, 'conversations', convId), {
     ...(isAdmin ? { unreadByAdmin: false } : { unreadByUser: false }),

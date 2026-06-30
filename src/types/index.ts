@@ -173,6 +173,8 @@ export interface Exercise {
   restSeconds: number;
   notes?: string;
   muscleGroup?: string;
+  isCardio?: boolean;
+  cardioDurationSeconds?: number; // duration per set for cardio exercises
 }
 
 export interface WorkoutLog {

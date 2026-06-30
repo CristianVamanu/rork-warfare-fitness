@@ -14,7 +14,7 @@ import { db } from '@/lib/firebase';
 import {
   getSystemConfig, setSystemConfig,
   banUser, unbanUser, getAllUsers,
-  getAdminConversations, getOrCreateConversation, getMessages, sendMessage, markConversationRead,
+  getAdminConversations, getOrCreateConversation, getMessages, sendMessage, markConversationRead, deleteConversation,
   getMembershipConfig, saveMembershipConfig, setUserMembership,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
   getChannels, createChannel, updateChannel, deleteChannel,
@@ -674,20 +674,39 @@ export default function AdminPage() {
                   {conversations.map((conv) => (
                     <Card
                       key={conv.id}
-                      className={`p-4 cursor-pointer hover:bg-white/5 transition-colors ${conv.unreadByAdmin ? 'border-accent/40' : ''}`}
-                      onClick={() => openConversation(conv)}
+                      className={`p-4 transition-colors ${conv.unreadByAdmin ? 'border-accent/40' : ''}`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-accent-muted flex items-center justify-center text-accent text-sm font-bold flex-shrink-0">
+                        <div
+                          className="w-9 h-9 rounded-full bg-accent-muted flex items-center justify-center text-accent text-sm font-bold flex-shrink-0 cursor-pointer"
+                          onClick={() => openConversation(conv)}
+                        >
                           {conv.userDisplayName?.[0]?.toUpperCase() || '?'}
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openConversation(conv)}>
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-white">{conv.userDisplayName}</p>
+                            <p className="text-sm font-medium text-foreground">{conv.userDisplayName}</p>
                             {conv.unreadByAdmin && <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
                           </div>
                           <p className="text-xs text-text-secondary truncate">{conv.lastMessage || 'No messages yet'}</p>
                         </div>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!confirm(`Delete conversation with ${conv.userDisplayName}? This cannot be undone.`)) return;
+                            try {
+                              await deleteConversation(conv.id);
+                              setConversations(cs => cs.filter(c => c.id !== conv.id));
+                              toast.success('Conversation deleted');
+                            } catch {
+                              toast.error('Failed to delete conversation');
+                            }
+                          }}
+                          className="p-2 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors flex-shrink-0"
+                          title="Delete conversation"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </Card>
                   ))}
