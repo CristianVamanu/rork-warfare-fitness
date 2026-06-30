@@ -409,7 +409,7 @@ export default function ChannelPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-accent mb-1">Pinned message</p>
                 <p className="text-sm text-white font-bold">{pinnedPost.userDisplayName}</p>
-                <p className="text-sm text-text-secondary line-clamp-3 mt-0.5">{pinnedPost.content}</p>
+                <p className="text-sm text-text-secondary mt-0.5 whitespace-pre-wrap">{pinnedPost.content}</p>
                 {pinnedPost.imageURL && (
                   <img src={pinnedPost.imageURL} alt="pinned" className="mt-2 rounded-lg w-full object-cover max-h-32" />
                 )}
