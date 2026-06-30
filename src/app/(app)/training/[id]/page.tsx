@@ -51,8 +51,14 @@ export default function ProgramDetailPage() {
   const activeProgram = profile?.activeProgram;
   const isEnrolled = activeProgram?.programId === id;
   const programStartDate = isEnrolled ? (activeProgram?.programStartDate ?? undefined) : undefined;
-  const enrolledDayIndex = programStartDate
-    ? Math.floor((Date.now() - new Date(programStartDate).getTime()) / 86400000)
+  const localDateStr = new Date().toLocaleDateString('sv-SE');
+  const workedOutToday = profile?.statsCache?.lastWorkoutDate === localDateStr;
+  const completedWorkouts = activeProgram?.completedWorkouts ?? 0;
+  // If programStartDate is missing fall back to completedWorkouts as proxy for elapsed days
+  const enrolledDayIndex = isEnrolled
+    ? (programStartDate
+      ? Math.floor((Date.now() - new Date(programStartDate).getTime()) / 86400000)
+      : (workedOutToday ? Math.max(0, completedWorkouts - 1) : completedWorkouts))
     : 0;
   const hasDifferentProgram = !!activeProgram && !isEnrolled;
 
@@ -129,12 +135,6 @@ export default function ProgramDetailPage() {
     : undefined;
   const scheduleLen = program.schedule?.length || 1;
   const todayDayIndex = isEnrolled ? (enrolledDayIndex % scheduleLen) : -1;
-
-  const localDateStr = new Date().toLocaleDateString('sv-SE');
-  const workedOutToday = profile?.statsCache?.lastWorkoutDate === localDateStr;
-
-  // How many calendar days have fully passed (exclude today itself)
-  const passedDays = isEnrolled ? enrolledDayIndex : 0;
 
   return (
     <div>
