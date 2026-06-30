@@ -271,36 +271,20 @@ export default function AdminPage() {
     if (!user || !channelForm.name.trim()) return;
     setSavingChannel(true);
     try {
-      const token = await user.getIdToken();
+      const data = {
+        name: channelForm.name.trim(),
+        description: channelForm.description.trim() || undefined,
+        emoji: channelForm.emoji.trim() || undefined,
+        photoUploadEnabled: channelForm.photoUploadEnabled,
+        slowModeDays: channelForm.slowModeDays,
+        createdBy: user.uid,
+        trainerId: profile?.trainerId ?? user.uid,
+      };
       if (editingChannel) {
-        const res = await fetch('/api/admin/channels', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({
-            id: editingChannel.id,
-            name: channelForm.name.trim(),
-            description: channelForm.description.trim() || null,
-            emoji: channelForm.emoji.trim() || null,
-            photoUploadEnabled: channelForm.photoUploadEnabled,
-            slowModeDays: channelForm.slowModeDays,
-          }),
-        });
-        if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? 'Failed');
+        await updateChannel(editingChannel.id, data);
         toast.success('Channel updated');
       } else {
-        const res = await fetch('/api/admin/channels', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({
-            name: channelForm.name.trim(),
-            description: channelForm.description.trim() || null,
-            emoji: channelForm.emoji.trim() || null,
-            trainerId: profile?.trainerId ?? user.uid,
-            photoUploadEnabled: channelForm.photoUploadEnabled,
-            slowModeDays: channelForm.slowModeDays,
-          }),
-        });
-        if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? 'Failed');
+        await createChannel(data as Parameters<typeof createChannel>[0]);
         toast.success('Channel created');
       }
       setShowChannelForm(false);
@@ -311,20 +295,15 @@ export default function AdminPage() {
       const msg = err instanceof Error ? err.message : 'Failed to save channel';
       toast.error(msg, { duration: 6000 });
       console.error('[Admin] channel save error:', msg);
+    } finally {
+      setSavingChannel(false);
     }
-    finally { setSavingChannel(false); }
   }
 
   async function handleDeleteChannel(ch: Channel) {
     if (!confirm(`Delete #${ch.name}? All posts will be lost.`)) return;
     try {
-      const token = await user!.getIdToken();
-      const res = await fetch('/api/admin/channels', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ id: ch.id }),
-      });
-      if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? 'Failed to delete channel');
+      await deleteChannel(ch.id);
       setChannels(prev => prev.filter(c => c.id !== ch.id));
       toast.success('Channel deleted');
     } catch (err) {
