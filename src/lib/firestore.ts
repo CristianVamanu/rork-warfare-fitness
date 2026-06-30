@@ -848,7 +848,13 @@ export async function createChannel(data: Omit<Channel, 'id' | 'postCount' | 'cr
 }
 
 export async function updateChannel(id: string, data: Partial<Channel>) {
-  await updateDoc(doc(db, 'channels', id), data);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const clean: Record<string, any> = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+  await updateDoc(doc(db, 'channels', id), clean);
+}
+
+export async function deleteUserAccount(userId: string) {
+  await deleteDoc(doc(db, 'users', userId));
 }
 
 export async function deleteChannel(id: string) {

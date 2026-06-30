@@ -4,7 +4,9 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal } from 'lucide-react';
+import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2 } from 'lucide-react';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/lib/firebase';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -76,19 +78,22 @@ function PostCard({
               <MoreHorizontal className="w-4 h-4" />
             </button>
             {showMenu && (
-              <div className="absolute right-0 top-8 z-10 bg-surface-elevated border border-white/10 rounded-xl shadow-xl min-w-[120px]">
-                <button
-                  onClick={() => { setShowMenu(false); onDelete(post); }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors rounded-xl"
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> Delete
-                </button>
-              </div>
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                <div className="absolute right-0 top-8 z-20 bg-surface-elevated border border-white/10 rounded-xl shadow-xl min-w-[120px]">
+                  <button
+                    onClick={() => { setShowMenu(false); onDelete(post); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors rounded-xl"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
+                </div>
+              </>
             )}
           </div>
         )}
       </div>
-      <p className="text-sm text-white leading-relaxed">{post.content}</p>
+      <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{post.content}</p>
       {post.imageURL && (
         <img src={post.imageURL} alt="post" className="mt-3 rounded-xl w-full object-cover max-h-64" />
       )}
@@ -150,12 +155,16 @@ export default function ChannelPage() {
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [pendingImageURL, setPendingImageURL] = useState<string | null>(null);
   const [slowModeBlocked, setSlowModeBlocked] = useState<Date | null>(null);
   const [replyTarget, setReplyTarget] = useState<ChannelPost | null>(null);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const postsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!channelId) return;
@@ -174,8 +183,34 @@ export default function ChannelPage() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, [channelId, trainerId, user]);
 
+  // Focus reply textarea when sheet opens
+  useEffect(() => {
+    if (replyTarget) {
+      setTimeout(() => replyTextareaRef.current?.focus(), 100);
+    }
+  }, [replyTarget]);
+
+  async function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5 MB'); return; }
+    setUploadingImage(true);
+    try {
+      const storageRef = ref(storage, `community/${channelId}/${user.uid}_${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setPendingImageURL(url);
+      toast.success('Image ready — tap send to post');
+    } catch {
+      toast.error('Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
   async function handlePost() {
-    if (!user || !profile || !text.trim() || !channelId) return;
+    if (!user || !profile || (!text.trim() && !pendingImageURL) || !channelId) return;
     if (slowModeBlocked && slowModeBlocked > new Date()) {
       toast.error(`Slow mode active. You can post again on ${slowModeBlocked.toLocaleDateString()}`);
       return;
@@ -187,15 +222,18 @@ export default function ChannelPage() {
         userDisplayName: profile.displayName || 'Athlete',
         ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
         content: text.trim(),
+        ...(pendingImageURL ? { imageURL: pendingImageURL } : {}),
       });
       setText('');
+      setPendingImageURL(null);
+      if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
       const updated = await getChannelPosts(channelId);
       setPosts(updated);
       if (channel && channel.slowModeDays > 0) {
         setSlowModeBlocked(new Date(Date.now() + channel.slowModeDays * 86400000));
       }
       toast.success('Posted!');
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      setTimeout(() => postsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch { toast.error('Failed to post'); }
     finally { setPosting(false); }
   }
@@ -266,6 +304,10 @@ export default function ChannelPage() {
   }
 
   const isBlocked = !!slowModeBlocked && slowModeBlocked > new Date();
+  const canSend = (text.trim().length > 0 || !!pendingImageURL) && !isBlocked;
+
+  // Height of the compose box (approx) so the post list doesn't hide behind it
+  const COMPOSE_HEIGHT = channel.photoUploadEnabled ? 80 : 72;
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -292,9 +334,12 @@ export default function ChannelPage() {
         </div>
       </div>
 
-      {/* ── Posts (scrollable, padded for compose box) ── */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-4 py-4 space-y-3 max-w-2xl mx-auto w-full pb-48">
+      {/* ── Posts ── */}
+      <div
+        className="flex-1 overflow-y-auto"
+        style={{ paddingBottom: `${COMPOSE_HEIGHT + 64 + 16}px` }}
+      >
+        <div className="px-4 py-4 space-y-3 max-w-2xl mx-auto w-full">
           {posts.length === 0 ? (
             <Card className="p-10 text-center">
               <p className="text-2xl mb-2">💬</p>
@@ -314,17 +359,29 @@ export default function ChannelPage() {
               />
             </motion.div>
           ))}
-          <div ref={bottomRef} />
+          <div ref={postsEndRef} />
         </div>
       </div>
 
-      {/* ── Compose box ── */}
+      {/* ── Compose box (fixed above tab bar) ── */}
       <div className="fixed bottom-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
-        <div className="px-4 py-3 max-w-2xl mx-auto w-full">
+        <div className="px-4 py-3 max-w-2xl mx-auto w-full space-y-2">
           {isBlocked && (
-            <div className="flex items-center gap-2 text-xs text-yellow-400 mb-2 bg-yellow-400/10 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-400/10 rounded-lg px-3 py-2">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
               Slow mode: next post available {slowModeBlocked!.toLocaleDateString()}
+            </div>
+          )}
+          {/* Image preview */}
+          {pendingImageURL && (
+            <div className="relative inline-block">
+              <img src={pendingImageURL} alt="preview" className="h-16 rounded-lg object-cover" />
+              <button
+                onClick={() => setPendingImageURL(null)}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-danger rounded-full flex items-center justify-center"
+              >
+                <X className="w-3 h-3 text-white" />
+              </button>
             </div>
           )}
           <div className="flex gap-2 items-end">
@@ -344,12 +401,32 @@ export default function ChannelPage() {
                 t.style.height = Math.min(t.scrollHeight, 96) + 'px';
               }}
             />
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImagePick}
+            />
             {channel.photoUploadEnabled && !isBlocked && (
-              <button className="p-2.5 rounded-xl bg-surface border border-white/10 text-text-secondary hover:text-white transition-colors flex-shrink-0">
-                <ImageIcon className="w-5 h-5" />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="p-2.5 rounded-xl bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors flex-shrink-0 disabled:opacity-50"
+              >
+                {uploadingImage
+                  ? <Loader2 className="w-5 h-5 animate-spin" />
+                  : <ImageIcon className="w-5 h-5" />
+                }
               </button>
             )}
-            <Button onClick={handlePost} loading={posting} disabled={!text.trim() || isBlocked} className="flex-shrink-0">
+            <Button
+              onClick={handlePost}
+              loading={posting}
+              disabled={!canSend}
+              className="flex-shrink-0"
+            >
               <Send className="w-4 h-4" />
             </Button>
           </div>
@@ -363,7 +440,7 @@ export default function ChannelPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-40 flex items-end justify-center"
+            className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center"
             onClick={() => setReplyTarget(null)}
           >
             <motion.div
@@ -371,34 +448,44 @@ export default function ChannelPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-              className="w-full max-w-2xl bg-surface rounded-t-2xl p-4 space-y-3"
+              className="w-full max-w-2xl bg-surface-elevated border-t border-white/10 rounded-t-2xl"
               onClick={e => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between">
+              <div className="px-4 pt-4 pb-2 flex items-center justify-between">
                 <p className="text-sm font-bold text-white">Reply to {replyTarget.userDisplayName}</p>
-                <button onClick={() => setReplyTarget(null)} className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/8 transition-colors">
+                <button
+                  onClick={() => setReplyTarget(null)}
+                  className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/8 transition-colors"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <p className="text-xs text-text-secondary line-clamp-2 bg-surface-elevated rounded-lg px-3 py-2">
-                {replyTarget.content}
-              </p>
-              <div className="flex gap-2 items-end">
+              {/* Quoted post */}
+              <div className="mx-4 mb-3 bg-surface rounded-xl px-3 py-2 border border-white/8">
+                <p className="text-xs text-text-secondary line-clamp-3">{replyTarget.content}</p>
+              </div>
+              {/* Reply input */}
+              <div className="px-4 pb-4 flex gap-2 items-end">
                 <textarea
-                  autoFocus
+                  ref={replyTextareaRef}
                   value={replyText}
                   onChange={e => setReplyText(e.target.value)}
                   placeholder="Write a reply…"
-                  rows={2}
-                  className="flex-1 bg-surface-elevated border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent/50"
+                  rows={3}
+                  className="flex-1 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent/50"
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(); } }}
                 />
-                <Button onClick={handleReply} loading={sendingReply} disabled={!replyText.trim()} className="flex-shrink-0">
+                <Button
+                  onClick={handleReply}
+                  loading={sendingReply}
+                  disabled={!replyText.trim()}
+                  className="flex-shrink-0"
+                >
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
-              {/* safe-area spacer for mobile */}
-              <div className="h-safe-bottom" />
+              {/* iOS safe area */}
+              <div className="h-6" />
             </motion.div>
           </motion.div>
         )}

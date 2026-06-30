@@ -18,6 +18,7 @@ import {
   getMembershipConfig, saveMembershipConfig, setUserMembership,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
   getChannels, createChannel, updateChannel, deleteChannel,
+  deleteUserAccount,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -221,6 +222,15 @@ export default function AdminPage() {
       await loadUsers();
     } catch { toast.error('Failed to update user'); }
     finally { setBanningUser(null); }
+  }
+
+  async function handleDeleteUser(u: UserData) {
+    if (!confirm(`Permanently delete ${u.displayName || u.email}? This cannot be undone.`)) return;
+    try {
+      await deleteUserAccount(u.id);
+      toast.success(`${u.displayName || 'User'} deleted`);
+      await loadUsers();
+    } catch { toast.error('Failed to delete user'); }
   }
 
   async function loadMembership() {
@@ -579,6 +589,13 @@ export default function AdminPage() {
                         className={`p-2 rounded-lg transition-colors ${u.banned ? 'hover:bg-green-400/10 text-green-400' : 'hover:bg-danger/10 text-text-secondary hover:text-danger'}`}
                       >
                         {u.banned ? <UserCheck className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(u)}
+                        title="Delete user"
+                        className="p-2 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
