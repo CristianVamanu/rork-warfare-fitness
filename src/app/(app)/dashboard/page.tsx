@@ -97,7 +97,7 @@ export default function DashboardPage() {
     // Real-time listeners — update immediately on any new write
     const unsubCal = subscribeTodayCalories(user.uid, localDateStr, setCalories);
     const unsubWater = subscribeTodayWater(user.uid, localDateStr, setWaterMl);
-    const unsubActivity = subscribeRecentActivity(user.uid, setRecentActivity, 10);
+    const unsubActivity = subscribeRecentActivity(user.uid, setRecentActivity, 5);
 
     return () => {
       unsubCal();

@@ -587,6 +587,20 @@ export default function WorkoutSessionPage() {
   // ── Load program ────────────────────────────────────────────────────────
 
   useEffect(() => {
+    // Check sessionStorage first — instant restore with no network call
+    try {
+      const saved = sessionStorage.getItem(sessionKey);
+      if (saved) {
+        const { states, exIdx } = JSON.parse(saved) as { states: ExState[]; exIdx: number };
+        if (states?.length) {
+          setExStates(states);
+          setCurrentExIdx(exIdx ?? 0);
+          setLoadingProgram(false);
+          return;
+        }
+      }
+    } catch { /* ignore */ }
+
     const resolveExercises = async () => {
       let exercises: Exercise[] = DEFAULT_EXERCISES;
 
@@ -597,7 +611,6 @@ export default function WorkoutSessionPage() {
           type AnyProgram = { schedule?: { isRest?: boolean; exercises?: Exercise[] }[]; exercises?: Exercise[] };
 
           if (dow !== null) {
-            // Try Firestore program schedule first, then mock schedule
             const firestoreProg = prog as AnyProgram | null;
             const schedule = firestoreProg?.schedule ?? (mock as AnyProgram | null)?.schedule ?? null;
             if (schedule?.length) {
@@ -606,12 +619,10 @@ export default function WorkoutSessionPage() {
                 exercises = dayPlan.exercises as Exercise[];
               }
             } else {
-              // No schedule — use flat exercises list or mock
               const flat = firestoreProg?.exercises ?? (mock as AnyProgram | null)?.exercises ?? [];
               exercises = flat.length > 0 ? flat as Exercise[] : DEFAULT_EXERCISES;
             }
           } else {
-            // No dow — use flat exercises list
             const firestoreProg = prog as AnyProgram | null;
             const flat = firestoreProg?.exercises ?? (mock as AnyProgram | null)?.exercises ?? [];
             exercises = flat.length > 0 ? flat as Exercise[] : DEFAULT_EXERCISES;
@@ -628,20 +639,6 @@ export default function WorkoutSessionPage() {
           }
         }
       }
-
-      // Restore saved session if available
-      try {
-        const saved = sessionStorage.getItem(sessionKey);
-        if (saved) {
-          const { states, exIdx } = JSON.parse(saved) as { states: ExState[]; exIdx: number };
-          if (states?.length) {
-            setExStates(states);
-            setCurrentExIdx(exIdx ?? 0);
-            setLoadingProgram(false);
-            return;
-          }
-        }
-      } catch { /* ignore */ }
 
       setExStates(buildExState(exercises));
       setLoadingProgram(false);
