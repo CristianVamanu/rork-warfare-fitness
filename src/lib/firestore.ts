@@ -908,6 +908,42 @@ export async function createReply(channelId: string, postId: string, data: {
   await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { replyCount: increment(1) });
 }
 
+export async function deleteChannelPost(channelId: string, postId: string) {
+  await deleteDoc(doc(db, 'channels', channelId, 'posts', postId));
+  await updateDoc(doc(db, 'channels', channelId), { postCount: increment(-1) }).catch(() => {});
+}
+
+export interface LeaderboardEntry {
+  id: string;
+  displayName: string;
+  xp: number;
+  powerLevel: number;
+  streak: number;
+  totalWorkouts: number;
+}
+
+export async function getLeaderboard(trainerId: string, limitCount = 10): Promise<LeaderboardEntry[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'users'),
+      where('trainerId', '==', trainerId),
+      orderBy('xp', 'desc'),
+      limit(limitCount),
+    )
+  );
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      displayName: (data.displayName as string) || 'Athlete',
+      xp: (data.xp as number) ?? 0,
+      powerLevel: (data.powerLevel as number) ?? 0,
+      streak: (data.statsCache as Record<string, number> | undefined)?.streak ?? (data.stats as Record<string, number> | undefined)?.streak ?? 0,
+      totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? (data.stats as Record<string, number> | undefined)?.totalWorkouts ?? 0,
+    };
+  });
+}
+
 export async function getUserLastPostInChannel(channelId: string, userId: string): Promise<Date | null> {
   const snap = await getDoc(doc(db, 'channels', channelId, 'members', userId));
   if (!snap.exists()) return null;

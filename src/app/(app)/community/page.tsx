@@ -3,27 +3,21 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Hash, ChevronRight, Users, Clock, Trophy } from 'lucide-react';
+import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getChannels } from '@/lib/firestore';
+import { getChannels, getLeaderboard, type LeaderboardEntry } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import Link from 'next/link';
 import type { Channel } from '@/types';
 
-const LEADERBOARD = [
-  { rank: 1, name: 'Alpha Wolf', streak: 45, points: 1240 },
-  { rank: 2, name: 'Iron Mike', streak: 38, points: 980 },
-  { rank: 3, name: 'Beast Mode', streak: 30, points: 875 },
-  { rank: 4, name: 'Steel Amy', streak: 28, points: 740 },
-  { rank: 5, name: 'Max Power', streak: 22, points: 620 },
-];
-
 export default function CommunityPage() {
-  const { trainerId } = useAuth();
+  const { trainerId, user } = useAuth();
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lbLoading, setLbLoading] = useState(true);
   const [tab, setTab] = useState<'channels' | 'leaderboard'>('channels');
 
   useEffect(() => {
@@ -33,10 +27,26 @@ export default function CommunityPage() {
       .finally(() => setLoading(false));
   }, [trainerId]);
 
+  useEffect(() => {
+    if (!trainerId) return;
+    getLeaderboard(trainerId, 10)
+      .then(setLeaderboard)
+      .catch(() => {})
+      .finally(() => setLbLoading(false));
+  }, [trainerId]);
+
+  const medalColors = [
+    'bg-yellow-400 text-black',
+    'bg-gray-300 text-black',
+    'bg-amber-600 text-white',
+  ];
+  const medals = ['🥇', '🥈', '🥉'];
+
   return (
     <div>
       <Header title="Community" />
-      <div className="px-4 py-4 space-y-4">
+      <div className="px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
+        {/* Tab switcher */}
         <div className="grid grid-cols-2 gap-1 bg-surface rounded-xl p-1">
           {(['channels', 'leaderboard'] as const).map((t) => (
             <button
@@ -46,11 +56,12 @@ export default function CommunityPage() {
                 tab === t ? 'bg-surface-elevated text-white' : 'text-text-secondary'
               }`}
             >
-              {t}
+              {t === 'leaderboard' ? '🏆 Leaderboard' : '# Channels'}
             </button>
           ))}
         </div>
 
+        {/* Channels tab */}
         {tab === 'channels' && (
           <>
             {loading ? (
@@ -96,30 +107,66 @@ export default function CommunityPage() {
           </>
         )}
 
+        {/* Leaderboard tab */}
         {tab === 'leaderboard' && (
           <div className="space-y-3">
-            <h2 className="text-base font-bold text-white">Monthly Leaderboard</h2>
-            {LEADERBOARD.map((entry, i) => (
-              <motion.div key={entry.rank} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
-                <Card className={`p-4 flex items-center gap-3 ${entry.rank <= 3 ? 'border-accent/20' : ''}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-black ${
-                    entry.rank === 1 ? 'bg-yellow-400 text-black' :
-                    entry.rank === 2 ? 'bg-gray-300 text-black' :
-                    entry.rank === 3 ? 'bg-amber-600 text-white' : 'bg-surface-elevated text-text-secondary'
-                  }`}>
-                    {entry.rank <= 3 ? ['🥇','🥈','🥉'][entry.rank-1] : entry.rank}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-white">{entry.name}</p>
-                    <p className="text-xs text-text-secondary">🔥 {entry.streak} day streak</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-accent">{entry.points}</p>
-                    <p className="text-xs text-text-secondary">pts</p>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
+            <div className="flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-accent" />
+              <h2 className="text-base font-bold text-white">Top Athletes</h2>
+            </div>
+
+            {lbLoading ? (
+              <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-16 rounded-2xl" />)}</div>
+            ) : leaderboard.length === 0 ? (
+              <Card className="p-10 text-center">
+                <Trophy className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
+                <p className="text-white font-bold">No data yet</p>
+                <p className="text-text-secondary text-sm mt-1">Complete workouts to appear on the leaderboard.</p>
+              </Card>
+            ) : leaderboard.map((entry, i) => {
+              const isMe = entry.id === user?.uid;
+              return (
+                <motion.div key={entry.id} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
+                  <Card className={`p-4 ${i < 3 ? 'border-accent/20' : ''} ${isMe ? 'border-accent/40 bg-accent/5' : ''}`}>
+                    <div className="flex items-center gap-3">
+                      {/* Rank badge */}
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0 ${
+                        i < 3 ? medalColors[i] : 'bg-surface-elevated text-text-secondary'
+                      }`}>
+                        {i < 3 ? medals[i] : i + 1}
+                      </div>
+
+                      {/* Name + stats */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-bold text-white truncate">{entry.displayName}</p>
+                          {isMe && <span className="text-xs text-accent font-medium">(you)</span>}
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          {entry.streak > 0 && (
+                            <span className="flex items-center gap-1 text-xs text-text-tertiary">
+                              <Flame className="w-3 h-3 text-orange-400" /> {entry.streak}d streak
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1 text-xs text-text-tertiary">
+                            <Dumbbell className="w-3 h-3 text-purple-400" /> {entry.totalWorkouts} workouts
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* XP */}
+                      <div className="text-right flex-shrink-0">
+                        <div className="flex items-center gap-1 justify-end">
+                          <Zap className="w-3.5 h-3.5 text-accent" />
+                          <p className="text-sm font-black text-accent">{entry.xp.toLocaleString()}</p>
+                        </div>
+                        <p className="text-xs text-text-tertiary">XP · Lvl {entry.powerLevel}</p>
+                      </div>
+                    </div>
+                  </Card>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>
