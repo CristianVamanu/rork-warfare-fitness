@@ -112,10 +112,10 @@ export default function DashboardPage() {
   const powerLevel = profile?.powerLevel ?? 0;
   const tier = getLevelTier(powerLevel);
 
-  // Streak urgency: streak > 0 and no workout today (statsCache caloriesToday can't tell us,
-  // but if the streak is positive and today's water/cals are both 0, warn the user)
-  const todayIsBlank = !loading && (profile?.statsCache?.caloriesToday ?? 0) === 0 && (profile?.statsCache?.waterToday ?? 0) === 0;
-  const streakAtRisk = streak > 0 && todayIsBlank;
+  // Streak urgency: streak > 0 but user hasn't worked out today yet
+  const localDateStr = new Date().toLocaleDateString('sv-SE');
+  const workedOutToday = profile?.statsCache?.lastWorkoutDate === localDateStr;
+  const streakAtRisk = !loading && streak > 0 && !workedOutToday;
 
   // Active program data
   const activeProgram = profile?.activeProgram;

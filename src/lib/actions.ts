@@ -110,11 +110,26 @@ export async function completeWorkout(
       lastActive: serverTimestamp(),
     }, { merge: true });
 
-    // Eagerly increment statsCache so dashboard reflects the change immediately on next profile load
+    // Eagerly update statsCache so the dashboard reflects changes immediately
+    const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD local
+    const lastWorkoutDate = (statsCache as Record<string, unknown> | undefined)?.lastWorkoutDate as string | undefined;
+    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('sv-SE');
+    let newStreak: number;
+    if (lastWorkoutDate === today) {
+      newStreak = streak; // same day — streak unchanged
+    } else if (lastWorkoutDate === yesterday) {
+      newStreak = streak + 1; // consecutive day — extend streak
+    } else {
+      newStreak = 1; // gap or first workout — start at 1
+    }
+
     updateDoc(doc(db, 'users', userId), {
       'statsCache.totalWorkouts': increment(1),
+      'statsCache.streak': newStreak,
+      'statsCache.lastWorkoutDate': today,
+      'statsCache.cacheDate': today,
     }).catch(() => {
-      // Non-critical; recomputeStatsCache will self-correct
+      // Non-critical; background recompute will self-correct
     });
 
     // Check achievements after updating power level

@@ -28,7 +28,8 @@ export interface StatsCache {
   waterToday: number;   // ml
   streak: number;
   lastUpdated: unknown;
-  cacheDate?: string;   // YYYY-MM-DD local date when cache was last written
+  cacheDate?: string;          // YYYY-MM-DD local date when cache was last written
+  lastWorkoutDate?: string;    // YYYY-MM-DD of the most recent completed workout
 }
 
 export interface TenantStripe {
