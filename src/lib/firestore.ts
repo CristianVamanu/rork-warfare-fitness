@@ -843,7 +843,8 @@ export async function getChannels(trainerId?: string): Promise<Channel[]> {
 }
 
 export async function createChannel(data: Omit<Channel, 'id' | 'postCount' | 'createdAt'>) {
-  return addDoc(collection(db, 'channels'), { ...data, postCount: 0, createdAt: serverTimestamp() });
+  const clean = Object.fromEntries(Object.entries({ ...data, postCount: 0, createdAt: serverTimestamp() }).filter(([, v]) => v !== undefined));
+  return addDoc(collection(db, 'channels'), clean);
 }
 
 export async function updateChannel(id: string, data: Partial<Channel>) {

@@ -52,8 +52,9 @@ export default function ProgramDetailPage() {
   const isEnrolled = activeProgram?.programId === id;
   const programStartDate = isEnrolled ? (activeProgram?.programStartDate ?? undefined) : undefined;
   const localDateStr = new Date().toLocaleDateString('sv-SE');
-  const workedOutToday = profile?.statsCache?.lastWorkoutDate === localDateStr;
   const completedWorkouts = activeProgram?.completedWorkouts ?? 0;
+  // workedOutToday is scoped to this program — lastWorkoutDate from a prior program doesn't count
+  const workedOutToday = completedWorkouts > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
   // If programStartDate is missing fall back to completedWorkouts as proxy for elapsed days
   const enrolledDayIndex = isEnrolled
     ? (programStartDate
