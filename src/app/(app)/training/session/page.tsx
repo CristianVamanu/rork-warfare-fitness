@@ -273,20 +273,21 @@ function CardioTimerRow({
     );
   }
 
-  // Active cardio set — countdown timer
+  // Active cardio set — compact timer that fits on screen without scrolling
   return (
     <motion.div
       layout
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="rounded-2xl border border-accent/40 bg-accent/5 overflow-hidden"
+      className="rounded-2xl border border-accent/40 bg-accent/5"
     >
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-accent/15">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center">
             <span className="text-xs font-black text-accent">{setNum}</span>
           </div>
-          <span className="text-sm font-semibold text-foreground">Set {setNum} — Cardio</span>
+          <span className="text-sm font-semibold text-foreground">Set {setNum} — Active</span>
         </div>
         <button
           onClick={onSkip}
@@ -296,54 +297,72 @@ function CardioTimerRow({
         </button>
       </div>
 
-      <div className="flex flex-col items-center py-6 gap-4">
-        {/* Circular countdown */}
-        <div className="relative">
-          <svg width={120} height={120} className="-rotate-90">
-            <circle cx={60} cy={60} r={50} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={6} />
+      {/* Timer row — horizontal layout keeps height low */}
+      <div className="flex items-center gap-4 px-4 py-4">
+        {/* Compact circular ring */}
+        <div className="relative flex-shrink-0">
+          <svg width={72} height={72} className="-rotate-90">
+            <circle cx={36} cy={36} r={30} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={5} />
             <motion.circle
-              cx={60} cy={60} r={50} fill="none"
-              stroke="#F5A623" strokeWidth={6}
+              cx={36} cy={36} r={30} fill="none"
+              stroke="#F5A623" strokeWidth={5}
               strokeLinecap="round"
-              strokeDasharray={2 * Math.PI * 50}
-              strokeDashoffset={2 * Math.PI * 50 * pct}
+              strokeDasharray={2 * Math.PI * 30}
+              strokeDashoffset={2 * Math.PI * 30 * pct}
               transition={{ duration: 0.5 }}
             />
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <Timer className="w-4 h-4 text-accent mb-1" />
-            <motion.span
-              key={remaining}
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              className="text-2xl font-black text-foreground leading-none"
-            >
-              {label}
-            </motion.span>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Timer className="w-3.5 h-3.5 text-accent" />
           </div>
         </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-3">
+        {/* Time display */}
+        <div className="flex-1">
+          <motion.p
+            key={remaining}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            className="text-3xl font-black text-foreground leading-none tabular-nums"
+          >
+            {label}
+          </motion.p>
+          <p className="text-xs text-text-tertiary mt-1">
+            {running ? 'Running…' : elapsed > 0 ? 'Paused' : 'Tap ▶ to start'}
+          </p>
+        </div>
+
+        {/* Play/Pause + Reset */}
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={reset}
-            className="w-10 h-10 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-text-secondary hover:text-foreground transition-colors"
+            className="w-9 h-9 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-text-secondary hover:text-foreground transition-colors"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={toggle}
-            className="w-14 h-14 rounded-full bg-accent flex items-center justify-center shadow-glow-sm active:scale-95 transition-all"
+            className="w-12 h-12 rounded-full bg-accent flex items-center justify-center shadow-glow-sm active:scale-95 transition-all"
           >
             {running
-              ? <Pause className="w-6 h-6 text-black" />
-              : <Play className="w-6 h-6 text-black ml-1" />
+              ? <Pause className="w-5 h-5 text-black" />
+              : <Play className="w-5 h-5 text-black ml-0.5" />
             }
           </button>
         </div>
       </div>
 
+      {/* Progress bar */}
+      <div className="mx-4 h-1 bg-white/8 rounded-full overflow-hidden mb-4">
+        <motion.div
+          className="h-full bg-accent rounded-full"
+          animate={{ width: `${pct * 100}%` }}
+          transition={{ duration: 0.5 }}
+        />
+      </div>
+
+      {/* Complete button — always visible */}
       <div className="px-4 pb-4">
         <motion.button
           whileTap={{ scale: 0.97 }}
@@ -708,39 +727,44 @@ export default function WorkoutSessionPage() {
         i === setIdx ? true : s.status === 'completed' || s.status === 'skipped',
       );
 
-      // Start rest timer
-      startRest(ex.restSeconds);
+      const advanceToNext = () => {
+        setCurrentExIdx(exIdx + 1);
+        setExStates((prev) => {
+          const next = [...prev];
+          const nextEx = { ...next[exIdx + 1], sets: [...next[exIdx + 1].sets] };
+          if (nextEx.sets[0].status === 'pending') {
+            nextEx.sets[0] = { ...nextEx.sets[0], status: 'active' };
+          }
+          next[exIdx + 1] = nextEx;
+          return next;
+        });
+      };
 
       if (allDone) {
-        // Last exercise?
         const isLastEx = exIdx === exStates.length - 1;
-        if (isLastEx) {
-          // Small delay so timer is seen briefly then complete modal
+        if (ex.isCardio) {
+          // Cardio: no rest timer, short delay then continue
+          setTimeout(() => {
+            if (isLastEx) {
+              setCompleteModal(true);
+            } else {
+              advanceToNext();
+            }
+          }, 1200);
+        } else if (isLastEx) {
+          startRest(ex.restSeconds);
           setTimeout(() => {
             stopRest();
             setCompleteModal(true);
           }, 1200);
         } else {
-          // Advance to next exercise after rest
-          const autoAdvance = () => {
-            setCurrentExIdx(exIdx + 1);
-            // Mark first set of next exercise as active
-            setExStates((prev) => {
-              const next = [...prev];
-              const nextEx = { ...next[exIdx + 1], sets: [...next[exIdx + 1].sets] };
-              if (nextEx.sets[0].status === 'pending') {
-                nextEx.sets[0] = { ...nextEx.sets[0], status: 'active' };
-              }
-              next[exIdx + 1] = nextEx;
-              return next;
-            });
-          };
-          // Auto-advance after rest (will be cancelled if user skips)
-          const advanceTimer = setTimeout(autoAdvance, ex.restSeconds * 1000);
-          // Store so skip can cancel it — we use the stopRest side-effect pattern:
-          // when user skips rest we call stopRest + manual advance
+          startRest(ex.restSeconds);
+          const advanceTimer = setTimeout(advanceToNext, ex.restSeconds * 1000);
           (window as Window & { __advanceTimer?: NodeJS.Timeout }).__advanceTimer = advanceTimer;
         }
+      } else if (!ex.isCardio) {
+        // Non-cardio: start rest between sets
+        startRest(ex.restSeconds);
       }
     },
     [exStates, startRest, stopRest],
