@@ -10,6 +10,7 @@ import {
 import toast from 'react-hot-toast';
 import {
   getProgram, createProgram, updateProgram, getAllUsers, enrollInProgram,
+  matchExercisesToVideos,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -30,6 +31,7 @@ interface BEx {
   rpe: number;
   restSeconds: number;
   notes: string;
+  videoUrl?: string;
 }
 
 interface BDay {
@@ -157,6 +159,12 @@ function BuilderInner() {
       if (!res.ok) throw new Error(data.error || 'Failed');
 
       const p = data.program;
+
+      // Collect all exercise names and match to library videos
+      const allExNames: string[] = (p.schedule ?? [])
+        .flatMap((d: BDay) => (d.exercises ?? []).map((e: BEx) => e.name).filter(Boolean));
+      const videoMap = allExNames.length > 0 ? await matchExercisesToVideos(allExNames).catch(() => ({})) : {};
+
       setProg({
         name: p.name || '',
         description: p.description || '',
@@ -178,6 +186,7 @@ function BuilderInner() {
             rpe: Number(e.rpe) || 8,
             restSeconds: Number(e.restSeconds) || 90,
             notes: e.notes || '',
+            videoUrl: (videoMap as Record<string, string>)[e.name] ?? '',
           })),
         })),
       });

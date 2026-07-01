@@ -30,7 +30,7 @@ import {
   deleteField,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { UserGoals, CoachingPlan } from '@/types';
+import type { UserGoals, CoachingPlan, ExerciseVideo } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Query safety wrapper — surfaces missing-index errors instead of silent []
@@ -1119,4 +1119,55 @@ export async function logMeal(..._args: unknown[]) {
 }
 export async function logWater(..._args: unknown[]) {
   console.warn('[Firestore] logWater() called — use actions.logWaterAction() instead');
+}
+
+// ---------------------------------------------------------------------------
+// Exercise Video Library
+// ---------------------------------------------------------------------------
+
+export async function getExerciseVideos(): Promise<ExerciseVideo[]> {
+  const snap = await getDocs(query(collection(db, 'exerciseLibrary'), orderBy('name', 'asc')));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ExerciseVideo));
+}
+
+export async function saveExerciseVideo(
+  video: Omit<ExerciseVideo, 'id' | 'uploadedAt'>,
+  existingId?: string,
+): Promise<string> {
+  const payload = { ...video, uploadedAt: serverTimestamp() };
+  if (existingId) {
+    await setDoc(doc(db, 'exerciseLibrary', existingId), payload, { merge: true });
+    return existingId;
+  }
+  const ref = await addDoc(collection(db, 'exerciseLibrary'), payload);
+  return ref.id;
+}
+
+export async function deleteExerciseVideo(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'exerciseLibrary', id));
+}
+
+/**
+ * Given a list of exercise names (from AI-generated program), return a map of
+ * name → videoUrl for any exercises that exist in the library.
+ * Matching is case-insensitive; also checks aliases.
+ */
+export async function matchExercisesToVideos(
+  exerciseNames: string[],
+): Promise<Record<string, string>> {
+  if (exerciseNames.length === 0) return {};
+  const library = await getExerciseVideos();
+  const result: Record<string, string> = {};
+
+  for (const queryName of exerciseNames) {
+    const normalized = queryName.toLowerCase().trim();
+    for (const entry of library) {
+      const names = [entry.name, ...(entry.aliases ?? [])].map((n) => n.toLowerCase().trim());
+      if (names.some((n) => n === normalized || normalized.includes(n) || n.includes(normalized))) {
+        result[queryName] = entry.videoUrl;
+        break;
+      }
+    }
+  }
+  return result;
 }

@@ -78,6 +78,23 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .filter((u: any) => u.role !== 'admin' && !u.banned);
 
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? `https://${req.headers.get('host')}`;
+  const cronSecret = process.env.CRON_SECRET;
+
+  async function sendPush(userId: string, title: string, body: string) {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (cronSecret) headers['Authorization'] = `Bearer ${cronSecret}`;
+      await fetch(`${baseUrl}/api/push/send`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ userId, title, body }),
+      });
+    } catch {
+      // Non-fatal — push delivery failure shouldn't abort notification creation
+    }
+  }
+
   const oneDayAgo = Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
   const sent: string[] = [];
 
@@ -93,15 +110,13 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .get();
       if (logsSnap.empty) {
+        const title = "Don't break the chain!";
+        const body = `You haven't logged a workout today. Get back on track with ${u.activeProgram.programName}.`;
         await db.collection('notifications').add({
-          userId: u.id,
-          trainerId: u.trainerId ?? null,
-          title: "Don't break the chain!",
-          body: `You haven't logged a workout today. Get back on track with ${u.activeProgram.programName}.`,
-          type: 'auto_missed_workout',
-          read: false,
-          createdAt: Timestamp.now(),
+          userId: u.id, trainerId: u.trainerId ?? null,
+          title, body, type: 'auto_missed_workout', read: false, createdAt: Timestamp.now(),
         });
+        await sendPush(u.id, title, body);
         sent.push(`missed_workout:${u.id}`);
       }
     }
@@ -110,15 +125,13 @@ export async function POST(req: NextRequest) {
     if (rules['streak_reminder']) {
       const streak = u.statsCache?.streak ?? u.stats?.streak ?? 0;
       if (streak > 0) {
+        const title = `🔥 ${streak}-day streak!`;
+        const body = `You're on a roll, ${u.displayName ?? 'champ'}! Keep showing up every day.`;
         await db.collection('notifications').add({
-          userId: u.id,
-          trainerId: u.trainerId ?? null,
-          title: `🔥 ${streak}-day streak!`,
-          body: `You're on a roll, ${u.displayName ?? 'champ'}! Keep showing up every day.`,
-          type: 'auto_streak',
-          read: false,
-          createdAt: Timestamp.now(),
+          userId: u.id, trainerId: u.trainerId ?? null,
+          title, body, type: 'auto_streak', read: false, createdAt: Timestamp.now(),
         });
+        await sendPush(u.id, title, body);
         sent.push(`streak:${u.id}`);
       }
     }
@@ -129,14 +142,10 @@ export async function POST(req: NextRequest) {
         const streak = u.statsCache?.streak ?? u.stats?.streak ?? 0;
         const msg = await generateMotivation(u.displayName ?? 'champ', streak);
         await db.collection('notifications').add({
-          userId: u.id,
-          trainerId: u.trainerId ?? null,
-          title: msg.title,
-          body: msg.body,
-          type: 'ai_motivation',
-          read: false,
-          createdAt: Timestamp.now(),
+          userId: u.id, trainerId: u.trainerId ?? null,
+          title: msg.title, body: msg.body, type: 'ai_motivation', read: false, createdAt: Timestamp.now(),
         });
+        await sendPush(u.id, msg.title, msg.body);
         sent.push(`ai_motivation:${u.id}`);
       } catch {
         // Non-fatal — AI generation can fail

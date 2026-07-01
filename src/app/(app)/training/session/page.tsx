@@ -40,6 +40,7 @@ interface ExState {
   isCardio: boolean;
   cardioDurationSeconds: number;
   sets: SetState[];
+  videoUrl?: string;
 }
 
 // ─── Defaults ───────────────────────────────────────────────────────────────
@@ -85,6 +86,7 @@ function buildExState(exercises: Exercise[]): ExState[] {
       isCardio: cardio,
       cardioDurationSeconds: cardioDuration,
       sets,
+      videoUrl: ex.videoUrl,
     };
   });
 }
@@ -551,6 +553,44 @@ function SetRow({
   );
 }
 
+// ─── Demo Video Button ────────────────────────────────────────────────────────
+
+function DemoVideoButton({ videoUrl, name }: { videoUrl: string; name: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-accent/20 transition-colors text-xs text-accent font-medium flex-shrink-0"
+      >
+        <Play className="w-3.5 h-3.5" /> Demo
+      </button>
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4"
+          onClick={() => setOpen(false)}
+        >
+          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-bold text-white">{name}</p>
+              <button onClick={() => setOpen(false)} className="text-text-secondary hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <video
+              src={videoUrl}
+              controls
+              autoPlay
+              playsInline
+              className="w-full rounded-xl bg-black"
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function WorkoutSessionPage() {
@@ -947,7 +987,7 @@ export default function WorkoutSessionPage() {
                 <div className="p-2 rounded-xl bg-accent-muted">
                   <Zap className="w-4 h-4 text-accent" />
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <h2 className="text-lg font-black text-white leading-tight">{currentEx.name}</h2>
                   <p className="text-xs text-text-secondary">
                     {currentEx.isCardio
@@ -956,6 +996,9 @@ export default function WorkoutSessionPage() {
                     }
                   </p>
                 </div>
+                {currentEx.videoUrl && (
+                  <DemoVideoButton videoUrl={currentEx.videoUrl} name={currentEx.name} />
+                )}
               </div>
 
               {/* Set rows */}

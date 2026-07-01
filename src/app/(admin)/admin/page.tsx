@@ -8,9 +8,11 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2,
+  Video, Upload, X as XIcon, Play,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { getIdToken } from 'firebase/auth';
 import {
   getSystemConfig, setSystemConfig,
@@ -21,6 +23,7 @@ import {
   getChannels, createChannel, updateChannel, deleteChannel,
   deleteUserAccount,
   getCoachingPlans, saveCoachingPlans, assignCoachingPlan, revokeCoachingPlan,
+  getExerciseVideos, saveExerciseVideo, deleteExerciseVideo,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -29,9 +32,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan } from '@/types';
+import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo } from '@/types';
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'settings';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'library' | 'settings';
 
 interface UserData {
   id: string;
@@ -104,6 +107,17 @@ export default function AdminPage() {
   const [planForm, setPlanForm] = useState({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true });
   const [assigningPlan, setAssigningPlan] = useState<string | null>(null);
 
+  // ── Exercise library state ────────────────────────────────────────────────
+  const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseVideo[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [showExForm, setShowExForm] = useState(false);
+  const [editingEx, setEditingEx] = useState<ExerciseVideo | null>(null);
+  const [exForm, setExForm] = useState({ name: '', aliases: '', muscleGroups: '', equipment: '' });
+  const [exFile, setExFile] = useState<File | null>(null);
+  const [exUploadProgress, setExUploadProgress] = useState(0);
+  const [savingEx, setSavingEx] = useState(false);
+  const [previewVideo, setPreviewVideo] = useState<string | null>(null);
+
   // ── Community channels state ───────────────────────────────────────────────
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
@@ -158,6 +172,7 @@ export default function AdminPage() {
     if (tab === 'membership') { loadMembership(); loadCoachingPlans(); }
     if (tab === 'notifications') loadNotifConfig();
     if (tab === 'community') loadChannels();
+    if (tab === 'library' && exerciseLibrary.length === 0) loadExerciseLibrary();
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadUsers() {
@@ -485,6 +500,79 @@ export default function AdminPage() {
     finally { setProcessingCron(false); }
   }
 
+  // ── Exercise Library ────────────────────────────────────────────────────────
+  async function loadExerciseLibrary() {
+    setLibraryLoading(true);
+    try { setExerciseLibrary(await getExerciseVideos()); } catch { /* noop */ }
+    finally { setLibraryLoading(false); }
+  }
+
+  function startEditEx(ex?: ExerciseVideo) {
+    if (ex) {
+      setEditingEx(ex);
+      setExForm({
+        name: ex.name,
+        aliases: ex.aliases.join(', '),
+        muscleGroups: ex.muscleGroups.join(', '),
+        equipment: ex.equipment.join(', '),
+      });
+    } else {
+      setEditingEx(null);
+      setExForm({ name: '', aliases: '', muscleGroups: '', equipment: '' });
+    }
+    setExFile(null);
+    setExUploadProgress(0);
+    setShowExForm(true);
+  }
+
+  async function handleSaveEx() {
+    if (!user || !exForm.name.trim()) { toast.error('Exercise name required'); return; }
+    if (!editingEx && !exFile) { toast.error('Please select a video file'); return; }
+    setSavingEx(true);
+    try {
+      let videoUrl = editingEx?.videoUrl ?? '';
+      if (exFile) {
+        const path = `exerciseLibrary/${Date.now()}_${exFile.name.replace(/\s+/g, '_')}`;
+        const storageRef = ref(storage!, path);
+        await new Promise<void>((resolve, reject) => {
+          const task = uploadBytesResumable(storageRef, exFile);
+          task.on('state_changed',
+            (snap) => setExUploadProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
+            reject,
+            async () => { videoUrl = await getDownloadURL(task.snapshot.ref); resolve(); }
+          );
+        });
+      }
+      const payload = {
+        name: exForm.name.trim(),
+        aliases: exForm.aliases.split(',').map(s => s.trim()).filter(Boolean),
+        muscleGroups: exForm.muscleGroups.split(',').map(s => s.trim()).filter(Boolean),
+        equipment: exForm.equipment.split(',').map(s => s.trim()).filter(Boolean),
+        videoUrl,
+        uploadedBy: user.uid,
+      };
+      await saveExerciseVideo(payload, editingEx?.id);
+      toast.success(editingEx ? 'Exercise updated' : 'Exercise added to library');
+      setShowExForm(false);
+      await loadExerciseLibrary();
+    } catch (err) {
+      toast.error('Failed to save exercise');
+      console.error(err);
+    } finally {
+      setSavingEx(false);
+      setExUploadProgress(0);
+    }
+  }
+
+  async function handleDeleteEx(id: string) {
+    if (!confirm('Delete this exercise from the library?')) return;
+    try {
+      await deleteExerciseVideo(id);
+      setExerciseLibrary(prev => prev.filter(e => e.id !== id));
+      toast.success('Deleted');
+    } catch { toast.error('Failed to delete'); }
+  }
+
   async function handleSaveSettings() {
     setSavingSettings(true);
     try {
@@ -505,6 +593,7 @@ export default function AdminPage() {
     { id: 'community', label: 'Community', icon: Users },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'membership', label: 'Membership', icon: CreditCard },
+    { id: 'library', label: 'Library', icon: Video },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -1368,6 +1457,119 @@ export default function AdminPage() {
               </Card>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Exercise Library ──────────────────────────────────────────────────── */}
+      {tab === 'library' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-white">Exercise Library</h2>
+              <p className="text-xs text-text-secondary mt-0.5">Upload exercise videos. The AI will auto-match exercises when generating programs.</p>
+            </div>
+            <Button size="sm" onClick={() => startEditEx()}>
+              <Plus className="w-4 h-4" /> Add Exercise
+            </Button>
+          </div>
+
+          {showExForm && (
+            <Card className="p-4 space-y-3 border border-accent/30">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-white">{editingEx ? 'Edit Exercise' : 'New Exercise'}</h3>
+                <button onClick={() => setShowExForm(false)}><XIcon className="w-4 h-4 text-text-secondary" /></button>
+              </div>
+              <Input placeholder="Exercise name (e.g. Barbell Back Squat)" value={exForm.name} onChange={e => setExForm(f => ({ ...f, name: e.target.value }))} />
+              <Input placeholder="Aliases — comma separated (e.g. squat, back squat, bb squat)" value={exForm.aliases} onChange={e => setExForm(f => ({ ...f, aliases: e.target.value }))} />
+              <Input placeholder="Muscle groups — comma separated (e.g. Quadriceps, Glutes)" value={exForm.muscleGroups} onChange={e => setExForm(f => ({ ...f, muscleGroups: e.target.value }))} />
+              <Input placeholder="Equipment — comma separated (e.g. Barbell, Rack)" value={exForm.equipment} onChange={e => setExForm(f => ({ ...f, equipment: e.target.value }))} />
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Video file (MP4, MOV, WebM)</label>
+                <input
+                  type="file"
+                  accept="video/*"
+                  className="text-sm text-text-secondary w-full"
+                  onChange={e => setExFile(e.target.files?.[0] ?? null)}
+                />
+                {editingEx?.videoUrl && !exFile && (
+                  <p className="text-xs text-text-tertiary mt-1">Current video on file — upload a new one to replace it.</p>
+                )}
+              </div>
+              {savingEx && exUploadProgress > 0 && exUploadProgress < 100 && (
+                <div className="w-full bg-white/10 rounded-full h-1.5">
+                  <div className="bg-accent h-1.5 rounded-full transition-all" style={{ width: `${exUploadProgress}%` }} />
+                </div>
+              )}
+              <Button onClick={handleSaveEx} loading={savingEx} className="w-full">
+                {savingEx ? (exUploadProgress > 0 ? `Uploading ${exUploadProgress}%…` : 'Saving…') : 'Save Exercise'}
+              </Button>
+            </Card>
+          )}
+
+          {previewVideo && (
+            <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setPreviewVideo(null)}>
+              <div className="relative w-full max-w-lg" onClick={e => e.stopPropagation()}>
+                <button className="absolute -top-8 right-0 text-white" onClick={() => setPreviewVideo(null)}><XIcon className="w-5 h-5" /></button>
+                <video src={previewVideo} controls autoPlay className="w-full rounded-xl" />
+              </div>
+            </div>
+          )}
+
+          {libraryLoading ? (
+            <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+          ) : exerciseLibrary.length === 0 ? (
+            <Card className="p-8 text-center">
+              <Video className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
+              <p className="text-text-secondary text-sm">No exercises yet. Add your first video above.</p>
+              <p className="text-text-tertiary text-xs mt-1">The AI will reference this library when generating programs.</p>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {exerciseLibrary.map(ex => (
+                <Card key={ex.id} className="p-3 flex items-center gap-3">
+                  <button
+                    onClick={() => setPreviewVideo(ex.videoUrl)}
+                    className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 hover:bg-accent/20 transition-colors"
+                  >
+                    <Play className="w-5 h-5 text-accent" />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{ex.name}</p>
+                    <p className="text-xs text-text-secondary truncate">
+                      {[...ex.muscleGroups, ...ex.equipment].join(' · ')}
+                    </p>
+                    {ex.aliases.length > 0 && (
+                      <p className="text-xs text-text-tertiary truncate">Also: {ex.aliases.join(', ')}</p>
+                    )}
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <button onClick={() => startEditEx(ex)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+                      <Edit2 className="w-4 h-4 text-text-secondary" />
+                    </button>
+                    <button onClick={() => handleDeleteEx(ex.id)} className="p-1.5 rounded-lg hover:bg-red-500/20 transition-colors">
+                      <Trash2 className="w-4 h-4 text-red-400" />
+                    </button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <Card className="p-4 border border-white/5">
+            <div className="flex items-start gap-3">
+              <Sparkles className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-white">AI Auto-Matching</p>
+                <p className="text-xs text-text-secondary mt-0.5">
+                  When you generate a program with AI, exercises are automatically matched to your library by name and aliases.
+                  Matched exercises will have a demo video attached that clients can watch during their workout.
+                </p>
+                <p className="text-xs text-text-tertiary mt-2">
+                  Tip: add common aliases (e.g. &quot;squat&quot;, &quot;bb squat&quot;) so the AI can match different name variations.
+                </p>
+              </div>
+            </div>
+          </Card>
         </div>
       )}
 

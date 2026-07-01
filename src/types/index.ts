@@ -181,6 +181,19 @@ export interface Exercise {
   muscleGroup?: string;
   isCardio?: boolean;
   cardioDurationSeconds?: number; // duration per set for cardio exercises
+  videoUrl?: string;             // Firebase Storage download URL from exercise library
+}
+
+export interface ExerciseVideo {
+  id: string;
+  name: string;                 // canonical name e.g. "Barbell Back Squat"
+  aliases: string[];            // alternate names for AI matching
+  muscleGroups: string[];
+  equipment: string[];
+  videoUrl: string;
+  thumbnailUrl?: string;
+  uploadedAt: unknown;
+  uploadedBy: string;
 }
 
 export interface WorkoutLog {
