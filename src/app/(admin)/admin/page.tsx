@@ -36,6 +36,48 @@ import type { Conversation, Message, MembershipConfig, NotificationConfig, Chann
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'library' | 'settings';
 
+interface BulkFile {
+  id: string;
+  file: File;
+  name: string;       // parsed and editable
+  aliases: string;    // comma-separated, editable
+  status: 'pending' | 'uploading' | 'done' | 'error';
+  errorMsg?: string;
+}
+
+/** Parse an exercise name from a video filename.
+ *  Handles patterns like: "050c7a09-45_degree_side_bend.mp4"
+ *  and "d66c0b3d-45_Degree_Side_Bend_..._552_F.mp4"
+ */
+function parseExerciseName(filename: string): string {
+  let name = filename;
+  // Strip extension
+  name = name.replace(/\.[^.]+$/, '');
+  // Strip leading UUID prefix (8 hex chars + dash)
+  name = name.replace(/^[0-9a-f]{8}-/i, '');
+  // Replace underscores and hyphens with spaces
+  name = name.replace(/[_-]+/g, ' ');
+  // Remove trailing codes like "552 F", "552", standalone letters at end
+  name = name.replace(/\s+\d+\s+[A-Z]\s*$/, '');
+  name = name.replace(/\s+\d+\s*$/, '');
+  // Remove ellipsis artifacts
+  name = name.replace(/\.\.\./g, '').replace(/\s{2,}/g, ' ');
+  // Title case
+  name = name.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  return name;
+}
+
+const MUSCLE_CATEGORIES = [
+  'Abs', 'Arms', 'Back', 'Biceps', 'Calves', 'Cardio', 'Chest',
+  'Core', 'Full Body', 'Glutes', 'Hamstrings', 'Legs', 'Obliques',
+  'Quadriceps', 'Shoulders', 'Triceps',
+];
+
+const EQUIPMENT_OPTIONS = [
+  'Bodyweight', 'Barbell', 'Dumbbell', 'Cable', 'Machine',
+  'Kettlebell', 'Resistance Band', 'Pull-up Bar', 'Bench', 'Mixed',
+];
+
 interface UserData {
   id: string;
   displayName?: string;
@@ -117,6 +159,13 @@ export default function AdminPage() {
   const [exUploadProgress, setExUploadProgress] = useState(0);
   const [savingEx, setSavingEx] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<string | null>(null);
+  // Bulk upload
+  const [bulkCategory, setBulkCategory] = useState('Abs');
+  const [bulkEquipment, setBulkEquipment] = useState('Bodyweight');
+  const [bulkFiles, setBulkFiles] = useState<BulkFile[]>([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<Record<string, number>>({});
+  const bulkDropRef = useRef<HTMLDivElement>(null);
 
   // ── Community channels state ───────────────────────────────────────────────
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -571,6 +620,78 @@ export default function AdminPage() {
       setExerciseLibrary(prev => prev.filter(e => e.id !== id));
       toast.success('Deleted');
     } catch { toast.error('Failed to delete'); }
+  }
+
+  // ── Bulk upload ──────────────────────────────────────────────────────────────
+  function handleBulkFilePick(files: FileList | null) {
+    if (!files) return;
+    const newItems: BulkFile[] = Array.from(files)
+      .filter(f => f.type.startsWith('video/'))
+      .map(f => ({
+        id: Math.random().toString(36).slice(2),
+        file: f,
+        name: parseExerciseName(f.name),
+        aliases: '',
+        status: 'pending',
+      }));
+    setBulkFiles(prev => [...prev, ...newItems]);
+  }
+
+  function updateBulkFile(id: string, patch: Partial<Pick<BulkFile, 'name' | 'aliases'>>) {
+    setBulkFiles(prev => prev.map(f => f.id === id ? { ...f, ...patch } : f));
+  }
+
+  function removeBulkFile(id: string) {
+    setBulkFiles(prev => prev.filter(f => f.id !== id));
+  }
+
+  async function handleBulkUpload() {
+    if (!user || bulkFiles.filter(f => f.status === 'pending').length === 0) return;
+    setBulkUploading(true);
+    const pending = bulkFiles.filter(f => f.status === 'pending');
+    let done = 0;
+    let failed = 0;
+
+    await Promise.all(pending.map(async (item) => {
+      setBulkFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'uploading' } : f));
+      try {
+        const path = `exerciseLibrary/${Date.now()}_${item.file.name.replace(/\s+/g, '_')}`;
+        const storageRef = ref(storage!, path);
+        const videoUrl = await new Promise<string>((resolve, reject) => {
+          const task = uploadBytesResumable(storageRef, item.file);
+          task.on('state_changed',
+            (snap) => {
+              const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
+              setBulkProgress(prev => ({ ...prev, [item.id]: pct }));
+            },
+            reject,
+            async () => resolve(await getDownloadURL(task.snapshot.ref))
+          );
+        });
+        await saveExerciseVideo({
+          name: item.name.trim(),
+          aliases: item.aliases.split(',').map(s => s.trim()).filter(Boolean),
+          muscleGroups: [bulkCategory],
+          equipment: [bulkEquipment],
+          videoUrl,
+          uploadedBy: user.uid,
+        });
+        setBulkFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'done' } : f));
+        done++;
+      } catch (err) {
+        console.error('Bulk upload error:', err);
+        setBulkFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'error', errorMsg: 'Upload failed' } : f));
+        failed++;
+      }
+    }));
+
+    setBulkUploading(false);
+    if (done > 0) toast.success(`${done} exercise${done !== 1 ? 's' : ''} uploaded!`);
+    if (failed > 0) toast.error(`${failed} failed — check red items`);
+    if (done > 0) {
+      setBulkFiles(prev => prev.filter(f => f.status !== 'done'));
+      await loadExerciseLibrary();
+    }
   }
 
   async function handleSaveSettings() {
@@ -1463,13 +1584,141 @@ export default function AdminPage() {
       {/* ── Exercise Library ──────────────────────────────────────────────────── */}
       {tab === 'library' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-white">Exercise Library</h2>
-              <p className="text-xs text-text-secondary mt-0.5">Upload exercise videos. The AI will auto-match exercises when generating programs.</p>
+          <div>
+            <h2 className="text-lg font-bold text-white">Exercise Library</h2>
+            <p className="text-xs text-text-secondary mt-0.5">
+              Bulk-upload by category — names are parsed from filenames automatically. The AI matches these to generated programs.
+            </p>
+          </div>
+
+          {/* ── Bulk Upload Panel ─────────────────────────────────────────────── */}
+          <Card className="p-4 space-y-4 border border-accent/20">
+            <div className="flex items-center gap-2">
+              <Upload className="w-4 h-4 text-accent" />
+              <h3 className="text-sm font-bold text-white">Bulk Upload</h3>
             </div>
-            <Button size="sm" onClick={() => startEditEx()}>
-              <Plus className="w-4 h-4" /> Add Exercise
+
+            {/* Category + Equipment selectors */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-text-secondary mb-1.5 block">Muscle Group / Category</label>
+                <select
+                  value={bulkCategory}
+                  onChange={e => setBulkCategory(e.target.value)}
+                  className="w-full bg-surface-elevated border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
+                >
+                  {MUSCLE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1.5 block">Equipment</label>
+                <select
+                  value={bulkEquipment}
+                  onChange={e => setBulkEquipment(e.target.value)}
+                  className="w-full bg-surface-elevated border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
+                >
+                  {EQUIPMENT_OPTIONS.map(e => <option key={e} value={e}>{e}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Drop zone */}
+            <div
+              ref={bulkDropRef}
+              onDragOver={e => { e.preventDefault(); bulkDropRef.current?.classList.add('border-accent'); }}
+              onDragLeave={() => bulkDropRef.current?.classList.remove('border-accent')}
+              onDrop={e => {
+                e.preventDefault();
+                bulkDropRef.current?.classList.remove('border-accent');
+                handleBulkFilePick(e.dataTransfer.files);
+              }}
+              className="border-2 border-dashed border-white/15 rounded-xl p-6 text-center cursor-pointer hover:border-accent/40 transition-colors"
+              onClick={() => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'video/*'; inp.multiple = true; inp.onchange = (e) => handleBulkFilePick((e.target as HTMLInputElement).files); inp.click(); }}
+            >
+              <Upload className="w-6 h-6 text-text-tertiary mx-auto mb-2" />
+              <p className="text-sm text-text-secondary">Drop video files here or <span className="text-accent">browse</span></p>
+              <p className="text-xs text-text-tertiary mt-1">MP4 · MOV · WebM — select multiple at once</p>
+              <p className="text-xs text-text-tertiary">Names are auto-parsed from filenames</p>
+            </div>
+
+            {/* Staging list */}
+            {bulkFiles.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-text-secondary font-medium">{bulkFiles.length} file{bulkFiles.length !== 1 ? 's' : ''} staged</p>
+                  <button onClick={() => setBulkFiles([])} className="text-xs text-red-400 hover:underline" disabled={bulkUploading}>Clear all</button>
+                </div>
+                {bulkFiles.map(item => (
+                  <div
+                    key={item.id}
+                    className={`rounded-xl border p-3 space-y-2 ${
+                      item.status === 'done' ? 'border-success/30 bg-success/5' :
+                      item.status === 'error' ? 'border-red-500/30 bg-red-500/5' :
+                      item.status === 'uploading' ? 'border-accent/30 bg-accent/5' :
+                      'border-white/8 bg-surface-elevated'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Video className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <input
+                          className="w-full bg-transparent text-sm text-white font-medium border-b border-transparent hover:border-white/20 focus:border-accent/50 focus:outline-none pb-0.5"
+                          value={item.name}
+                          onChange={e => updateBulkFile(item.id, { name: e.target.value })}
+                          disabled={item.status !== 'pending'}
+                          placeholder="Exercise name"
+                        />
+                        <input
+                          className="w-full bg-transparent text-xs text-text-secondary border-b border-transparent hover:border-white/20 focus:border-accent/50 focus:outline-none pb-0.5 mt-0.5"
+                          value={item.aliases}
+                          onChange={e => updateBulkFile(item.id, { aliases: e.target.value })}
+                          disabled={item.status !== 'pending'}
+                          placeholder="Aliases (optional, comma-separated)"
+                        />
+                      </div>
+                      {item.status === 'pending' && (
+                        <button onClick={() => removeBulkFile(item.id)} className="p-1 text-text-tertiary hover:text-red-400 flex-shrink-0">
+                          <XIcon className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {item.status === 'done' && <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />}
+                      {item.status === 'error' && <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />}
+                    </div>
+                    {item.status === 'uploading' && (
+                      <div className="w-full bg-white/10 rounded-full h-1">
+                        <div
+                          className="bg-accent h-1 rounded-full transition-all"
+                          style={{ width: `${bulkProgress[item.id] ?? 0}%` }}
+                        />
+                      </div>
+                    )}
+                    {item.status === 'error' && item.errorMsg && (
+                      <p className="text-xs text-red-400">{item.errorMsg}</p>
+                    )}
+                  </div>
+                ))}
+
+                <Button
+                  fullWidth
+                  onClick={handleBulkUpload}
+                  loading={bulkUploading}
+                  disabled={bulkUploading || bulkFiles.every(f => f.status !== 'pending')}
+                >
+                  <Upload className="w-4 h-4" />
+                  {bulkUploading
+                    ? `Uploading ${bulkFiles.filter(f => f.status === 'done').length} of ${bulkFiles.filter(f => f.status !== 'error').length}…`
+                    : `Upload ${bulkFiles.filter(f => f.status === 'pending').length} exercise${bulkFiles.filter(f => f.status === 'pending').length !== 1 ? 's' : ''} as ${bulkCategory}`
+                  }
+                </Button>
+              </div>
+            )}
+          </Card>
+
+          {/* ── Single add / edit form ────────────────────────────────────────── */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-text-secondary">Library ({exerciseLibrary.length})</p>
+            <Button size="sm" variant="ghost" onClick={() => startEditEx()}>
+              <Plus className="w-4 h-4" /> Add Single
             </Button>
           </div>
 
@@ -1506,6 +1755,7 @@ export default function AdminPage() {
             </Card>
           )}
 
+          {/* ── Library list ─────────────────────────────────────────────────── */}
           {previewVideo && (
             <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setPreviewVideo(null)}>
               <div className="relative w-full max-w-lg" onClick={e => e.stopPropagation()}>
@@ -1520,8 +1770,8 @@ export default function AdminPage() {
           ) : exerciseLibrary.length === 0 ? (
             <Card className="p-8 text-center">
               <Video className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
-              <p className="text-text-secondary text-sm">No exercises yet. Add your first video above.</p>
-              <p className="text-text-tertiary text-xs mt-1">The AI will reference this library when generating programs.</p>
+              <p className="text-text-secondary text-sm">No exercises yet.</p>
+              <p className="text-text-tertiary text-xs mt-1">Use bulk upload above to get started.</p>
             </Card>
           ) : (
             <div className="space-y-2">
@@ -1565,7 +1815,7 @@ export default function AdminPage() {
                   Matched exercises will have a demo video attached that clients can watch during their workout.
                 </p>
                 <p className="text-xs text-text-tertiary mt-2">
-                  Tip: add common aliases (e.g. &quot;squat&quot;, &quot;bb squat&quot;) so the AI can match different name variations.
+                  Tip: the exercise name in the library should match what the AI would name it. Add short aliases (e.g. &quot;side bend&quot;) to catch variations.
                 </p>
               </div>
             </div>
