@@ -679,8 +679,9 @@ export default function AdminPage() {
         setBulkFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'done' } : f));
         done++;
       } catch (err) {
-        console.error('Bulk upload error:', err);
-        setBulkFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'error', errorMsg: 'Upload failed' } : f));
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('Bulk upload error:', msg);
+        setBulkFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'error', errorMsg: msg } : f));
         failed++;
       }
     }));
