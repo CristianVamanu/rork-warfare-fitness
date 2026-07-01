@@ -89,7 +89,8 @@ export default function ProgramDetailPage() {
     : 0;
   const todayDayIndex = nextAbsIdx % scheduleLen; // which slot in the 7-day template
   const currentWeek = Math.floor(nextAbsIdx / scheduleLen); // 0-based week the user is in
-  const totalWeeks = program?.weeks || 1;
+  // Use whichever is larger: program's declared weeks or the user's actual progress
+  const totalWeeks = Math.max(program?.weeks || 1, currentWeek + 1);
 
   // Sync displayWeek to user's current week whenever program or user state changes
   useEffect(() => {
@@ -300,7 +301,7 @@ export default function ProgramDetailPage() {
                   ? `Week ${displayWeek + 1} of ${totalWeeks}`
                   : 'Weekly Schedule'}
               </h2>
-              {isEnrolled && totalWeeks > 1 && (
+              {isEnrolled && (totalWeeks > 1 || currentWeek > 0) && (
                 <div className="flex gap-1">
                   <button
                     onClick={() => setDisplayWeek(w => Math.max(0, w - 1))}
