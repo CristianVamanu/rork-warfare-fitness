@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, Utensils, Timer, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, subscribeRecentActivity, type ActivityItem } from '@/lib/firestore';
-import { getMockProgram, getProgramDayForUser, stripWeekdayPrefix } from '@/lib/programs';
+import { getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
@@ -28,10 +28,6 @@ const stagger = {
 
 const DEFAULT_GOALS = { calories: 2200, water: 3000 };
 
-function getTodayDow(): number {
-  const d = new Date().getDay();
-  return d === 0 ? 6 : d - 1;
-}
 
 export default function DashboardPage() {
   const { user, profile } = useAuth();
@@ -117,21 +113,20 @@ export default function DashboardPage() {
   const workedOutToday = profile?.statsCache?.lastWorkoutDate === localDateStr;
   const streakAtRisk = !loading && streak > 0 && !workedOutToday;
 
-  // Active program data
+  // Active program data — single source of truth: lastCompletedDayIndex
   const activeProgram = profile?.activeProgram;
+  const completedWorkouts = activeProgram?.completedWorkouts ?? 0;
   const lastCompleted = activeProgram?.lastCompletedDayIndex !== undefined
     ? activeProgram.lastCompletedDayIndex
-    : ((activeProgram?.completedWorkouts ?? 0) > 0 ? (activeProgram?.completedWorkouts ?? 1) - 1 : -1);
-  const todayDow = getTodayDow();
+    : (completedWorkouts > 0 ? completedWorkouts - 1 : -1);
+  // nextAbsIdx: absolute day index the user should do next (or just did today)
+  const nextAbsIdx = workedOutToday ? lastCompleted : lastCompleted + 1;
   const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
-  const todayDay = activeMock
-    ? getProgramDayForUser(activeMock, activeProgram?.programStartDate ?? undefined)
-    : null;
-  const dashboardDayIndex = activeProgram?.programStartDate
-    ? Math.floor((Date.now() - new Date(activeProgram.programStartDate).getTime()) / 86400000)
-    : todayDow;
+  const scheduleLen = activeMock?.schedule?.length || 7;
+  const todayScheduleIdx = nextAbsIdx % scheduleLen;
+  const todayDay = activeMock?.schedule?.[todayScheduleIdx] ?? null;
   const programPct = activeProgram
-    ? Math.min(100, Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100))
+    ? Math.min(100, Math.round((completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
 
   const stats = [
@@ -258,7 +253,7 @@ export default function DashboardPage() {
 
               {/* Badge row */}
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                {workedOutToday && activeProgram.completedWorkouts > 0 ? (
+                {workedOutToday && completedWorkouts > 0 ? (
                   <Badge variant="success">
                     <CheckCircle2 className="w-3 h-3 mr-1" />
                     Day {lastCompleted + 1} Complete
@@ -273,11 +268,11 @@ export default function DashboardPage() {
               <h3 className="text-base font-bold text-white">{activeProgram.programName}</h3>
 
               {/* Status line */}
-              {workedOutToday && activeProgram.completedWorkouts > 0 ? (
+              {workedOutToday && completedWorkouts > 0 ? (
                 <p className="text-sm text-success mt-0.5">
                   🎉 Great work! Come back tomorrow for Day {lastCompleted + 2}.
-                  {activeProgram.totalWorkouts - activeProgram.completedWorkouts > 0 &&
-                    ` ${activeProgram.totalWorkouts - activeProgram.completedWorkouts} session${activeProgram.totalWorkouts - activeProgram.completedWorkouts !== 1 ? 's' : ''} remaining.`
+                  {activeProgram.totalWorkouts - completedWorkouts > 0 &&
+                    ` ${activeProgram.totalWorkouts - completedWorkouts} session${activeProgram.totalWorkouts - completedWorkouts !== 1 ? 's' : ''} remaining.`
                   }
                 </p>
               ) : todayDay ? (
@@ -287,9 +282,9 @@ export default function DashboardPage() {
               ) : null}
 
               <div className="mt-3 mb-3">
-                <ProgressBar value={activeProgram.completedWorkouts} max={activeProgram.totalWorkouts} color={workedOutToday ? 'success' : 'accent'} size="sm" />
+                <ProgressBar value={completedWorkouts} max={activeProgram.totalWorkouts} color={workedOutToday ? 'success' : 'accent'} size="sm" />
                 <p className="text-xs text-text-tertiary mt-1">
-                  {programPct}% complete · {activeProgram.totalWorkouts - activeProgram.completedWorkouts} sessions remaining
+                  {programPct}% complete · {activeProgram.totalWorkouts - completedWorkouts} sessions remaining
                 </p>
               </div>
 
@@ -298,12 +293,12 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                     <Moon className="w-3.5 h-3.5" /> Rest day
                   </div>
-                ) : workedOutToday && activeProgram.completedWorkouts > 0 ? (
-                  <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${dashboardDayIndex}`)}>
+                ) : workedOutToday && completedWorkouts > 0 ? (
+                  <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
                     <RefreshCw className="w-3.5 h-3.5" /> Repeat Day
                   </Button>
                 ) : (
-                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${dashboardDayIndex}`)}>
+                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
                     <Play className="w-4 h-4" /> Start Workout
                   </Button>
                 )}
