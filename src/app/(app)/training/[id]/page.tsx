@@ -53,13 +53,19 @@ export default function ProgramDetailPage() {
   const programStartDate = isEnrolled ? (activeProgram?.programStartDate ?? undefined) : undefined;
   const localDateStr = new Date().toLocaleDateString('sv-SE');
   const completedWorkouts = activeProgram?.completedWorkouts ?? 0;
+  // lastCompleted: the absolute day index (0-based) of the last unique day done.
+  // Falls back to completedWorkouts-1 for programs that pre-date lastCompletedDayIndex.
+  const lastCompleted = activeProgram?.lastCompletedDayIndex !== undefined
+    ? activeProgram.lastCompletedDayIndex
+    : (completedWorkouts > 0 ? completedWorkouts - 1 : -1);
   // workedOutToday is scoped to this program — lastWorkoutDate from a prior program doesn't count
   const workedOutToday = completedWorkouts > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
-  // If programStartDate is missing fall back to completedWorkouts as proxy for elapsed days
+  // If programStartDate is missing, derive position from lastCompletedDayIndex instead of completedWorkouts.
+  // When worked out today, stay on the completed day; otherwise advance to the next.
   const enrolledDayIndex = isEnrolled
     ? (programStartDate
       ? Math.floor((Date.now() - new Date(programStartDate).getTime()) / 86400000)
-      : (workedOutToday ? Math.max(0, completedWorkouts - 1) : completedWorkouts))
+      : (workedOutToday ? lastCompleted : lastCompleted + 1))
     : 0;
   const hasDifferentProgram = !!activeProgram && !isEnrolled;
 
@@ -182,10 +188,10 @@ export default function ProgramDetailPage() {
                 <div className="flex justify-between text-xs mb-1">
                   <span className={workedOutToday ? 'text-success font-medium' : 'text-text-secondary'}>
                     {workedOutToday
-                      ? `✓ Day ${activeProgram.completedWorkouts} complete`
-                      : `${activeProgram.completedWorkouts} workouts done`}
+                      ? `✓ Day ${lastCompleted + 1} complete`
+                      : `${completedWorkouts} workouts done`}
                   </span>
-                  <span className="text-text-tertiary">{activeProgram.totalWorkouts - activeProgram.completedWorkouts} remaining</span>
+                  <span className="text-text-tertiary">{activeProgram.totalWorkouts - completedWorkouts} remaining</span>
                 </div>
                 <ProgressBar
                   value={activeProgram.completedWorkouts}
@@ -205,9 +211,9 @@ export default function ProgramDetailPage() {
               {workedOutToday ? (
                 <div className="p-4 bg-success/10 border border-success/30 rounded-2xl text-center">
                   <CheckCircle2 className="w-6 h-6 text-success mx-auto mb-1.5" />
-                  <p className="text-sm font-bold text-white">Day {activeProgram?.completedWorkouts} Complete!</p>
+                  <p className="text-sm font-bold text-white">Day {lastCompleted + 1} Complete!</p>
                   <p className="text-xs text-text-secondary mt-0.5">
-                    Come back tomorrow for Day {(activeProgram?.completedWorkouts ?? 0) + 1}
+                    Come back tomorrow for Day {lastCompleted + 2}
                   </p>
                   <Button size="sm" variant="ghost" className="mt-2" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${enrolledDayIndex}`)}>
                     <RotateCcw className="w-3.5 h-3.5" /> Repeat Today

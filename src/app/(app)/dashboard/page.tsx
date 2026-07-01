@@ -119,6 +119,9 @@ export default function DashboardPage() {
 
   // Active program data
   const activeProgram = profile?.activeProgram;
+  const lastCompleted = activeProgram?.lastCompletedDayIndex !== undefined
+    ? activeProgram.lastCompletedDayIndex
+    : ((activeProgram?.completedWorkouts ?? 0) > 0 ? (activeProgram?.completedWorkouts ?? 1) - 1 : -1);
   const todayDow = getTodayDow();
   const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
   const todayDay = activeMock
@@ -258,11 +261,11 @@ export default function DashboardPage() {
                 {workedOutToday && activeProgram.completedWorkouts > 0 ? (
                   <Badge variant="success">
                     <CheckCircle2 className="w-3 h-3 mr-1" />
-                    Day {activeProgram.completedWorkouts} Complete
+                    Day {lastCompleted + 1} Complete
                   </Badge>
                 ) : (
                   <Badge variant="accent">
-                    Day {activeProgram.completedWorkouts + 1} of {activeProgram.totalWorkouts}
+                    Day {lastCompleted + 2} of {activeProgram.totalWorkouts}
                   </Badge>
                 )}
               </div>
@@ -272,7 +275,7 @@ export default function DashboardPage() {
               {/* Status line */}
               {workedOutToday && activeProgram.completedWorkouts > 0 ? (
                 <p className="text-sm text-success mt-0.5">
-                  🎉 Great work! Come back tomorrow for Day {activeProgram.completedWorkouts + 1}.
+                  🎉 Great work! Come back tomorrow for Day {lastCompleted + 2}.
                   {activeProgram.totalWorkouts - activeProgram.completedWorkouts > 0 &&
                     ` ${activeProgram.totalWorkouts - activeProgram.completedWorkouts} session${activeProgram.totalWorkouts - activeProgram.completedWorkouts !== 1 ? 's' : ''} remaining.`
                   }

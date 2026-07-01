@@ -55,7 +55,8 @@ export async function completeWorkout(
   userId: string,
   exercises: ExerciseLog[],
   duration: number,
-  programId?: string
+  programId?: string,
+  dayIndex?: number,
 ): Promise<WorkoutResult> {
   const trainerId = await getTrainerId(userId);
 
@@ -82,9 +83,9 @@ export async function completeWorkout(
     xpEarned,
   });
 
-  // Non-blocking program progress increment
+  // Non-blocking program progress increment (dayIndex prevents counting repeats)
   if (programId) {
-    incrementProgramWorkouts(userId).catch(console.error);
+    incrementProgramWorkouts(userId, dayIndex).catch(console.error);
   }
 
   // Update XP + powerLevel

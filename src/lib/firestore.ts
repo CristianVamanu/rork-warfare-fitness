@@ -485,12 +485,15 @@ export async function unenrollProgram(userId: string) {
   );
 }
 
-export async function incrementProgramWorkouts(userId: string) {
-  // Check program is still active before incrementing
+export async function incrementProgramWorkouts(userId: string, dayIndex?: number) {
   const snap = await getDoc(doc(db, 'users', userId));
   if (!snap.exists() || !snap.data()?.activeProgram) return;
+  const lastCompleted: number = snap.data()?.activeProgram?.lastCompletedDayIndex ?? -1;
+  // Only advance the counter when doing a genuinely new (later) day, not a repeat
+  const isNewDay = dayIndex === undefined || dayIndex > lastCompleted;
   await updateDoc(doc(db, 'users', userId), {
-    'activeProgram.completedWorkouts': increment(1),
+    ...(isNewDay ? { 'activeProgram.completedWorkouts': increment(1) } : {}),
+    ...(dayIndex !== undefined && isNewDay ? { 'activeProgram.lastCompletedDayIndex': dayIndex } : {}),
     lastActive: serverTimestamp(),
   });
 }

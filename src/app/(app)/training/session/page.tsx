@@ -860,7 +860,7 @@ export default function WorkoutSessionPage() {
           completed: s.status === 'completed',
         })),
       }));
-      const result = await completeWorkout(user.uid, logs, duration, programId);
+      const result = await completeWorkout(user.uid, logs, duration, programId, dow ?? undefined);
       sessionStorage.removeItem(sessionKey);
       setSaved(true);
       setWorkoutResult({ duration, ...result });
