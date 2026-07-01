@@ -10,6 +10,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1077.0",
+    "@aws-sdk/s3-request-presigner": "^3.1077.0",
     "@hookform/resolvers": "3.9.0",
     "@next/bundle-analyzer": "14.2.5",
     "@stripe/stripe-js": "4.1.0",

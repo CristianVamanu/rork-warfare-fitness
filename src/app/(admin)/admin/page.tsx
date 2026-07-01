@@ -11,9 +11,9 @@ import {
   Video, Upload, X as XIcon, Play,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
-import { db, storage } from '@/lib/firebase';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { db } from '@/lib/firebase';
 import { getIdToken } from 'firebase/auth';
+import { uploadToR2 } from '@/lib/uploadToR2';
 import {
   getSystemConfig, setSystemConfig,
   banUser, unbanUser, getAllUsers,
@@ -581,16 +581,7 @@ export default function AdminPage() {
     try {
       let videoUrl = editingEx?.videoUrl ?? '';
       if (exFile) {
-        const path = `exerciseLibrary/${Date.now()}_${exFile.name.replace(/\s+/g, '_')}`;
-        const storageRef = ref(storage!, path);
-        await new Promise<void>((resolve, reject) => {
-          const task = uploadBytesResumable(storageRef, exFile);
-          task.on('state_changed',
-            (snap) => setExUploadProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
-            reject,
-            async () => { videoUrl = await getDownloadURL(task.snapshot.ref); resolve(); }
-          );
-        });
+        videoUrl = await uploadToR2(user, exFile, 'exerciseLibrary', setExUploadProgress);
       }
       const payload = {
         name: exForm.name.trim(),
@@ -655,18 +646,8 @@ export default function AdminPage() {
     await Promise.all(pending.map(async (item) => {
       setBulkFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'uploading' } : f));
       try {
-        const path = `exerciseLibrary/${Date.now()}_${item.file.name.replace(/\s+/g, '_')}`;
-        const storageRef = ref(storage!, path);
-        const videoUrl = await new Promise<string>((resolve, reject) => {
-          const task = uploadBytesResumable(storageRef, item.file);
-          task.on('state_changed',
-            (snap) => {
-              const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
-              setBulkProgress(prev => ({ ...prev, [item.id]: pct }));
-            },
-            reject,
-            async () => resolve(await getDownloadURL(task.snapshot.ref))
-          );
+        const videoUrl = await uploadToR2(user, item.file, 'exerciseLibrary', (pct) => {
+          setBulkProgress(prev => ({ ...prev, [item.id]: pct }));
         });
         await saveExerciseVideo({
           name: item.name.trim(),
