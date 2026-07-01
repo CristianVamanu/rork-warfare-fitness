@@ -13,7 +13,9 @@ import Link from 'next/link';
 import type { Channel } from '@/types';
 
 export default function CommunityPage() {
-  const { trainerId, user } = useAuth();
+  const { trainerId, user, profile } = useAuth();
+  // Trainer/admin users don't have trainerId on their own doc — use their uid as the tenant root
+  const effectiveTrainerId = trainerId ?? ((profile?.role === 'admin' || profile?.role === 'trainer') ? user?.uid : null) ?? null;
   const [channels, setChannels] = useState<Channel[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,20 +23,20 @@ export default function CommunityPage() {
   const [tab, setTab] = useState<'channels' | 'leaderboard'>('channels');
 
   useEffect(() => {
-    getChannels(trainerId ?? undefined)
+    getChannels(effectiveTrainerId ?? undefined)
       .then(setChannels)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [trainerId]);
+  }, [effectiveTrainerId]);
 
   useEffect(() => {
-    if (!trainerId) { setLbLoading(false); return; }
-    const unsub = subscribeLeaderboard(trainerId, (entries) => {
+    if (!effectiveTrainerId) { setLbLoading(false); return; }
+    const unsub = subscribeLeaderboard(effectiveTrainerId, (entries) => {
       setLeaderboard(entries);
       setLbLoading(false);
     }, 10);
     return unsub;
-  }, [trainerId]);
+  }, [effectiveTrainerId]);
 
   const medalColors = [
     'bg-yellow-400 text-black',

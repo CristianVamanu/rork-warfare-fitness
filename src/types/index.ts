@@ -94,6 +94,8 @@ export interface UserProfile {
     status: 'active' | 'none';
     expiresAt?: unknown;
     grantedBy?: string;
+    planId?: string;    // coaching plan ID if on a specific plan
+    planName?: string;
   };
   stats: {
     streak: number;
@@ -245,6 +247,16 @@ export interface NotificationConfig {
   rules: Record<string, boolean>; // rule id → enabled
   aiMotivationEnabled: boolean;
   aiMotivationSchedule: 'daily' | 'weekly';
+}
+
+export interface CoachingPlan {
+  id: string;
+  name: string;
+  description: string;
+  priceMonthly: number;
+  currency: string;       // 'USD' | 'EUR' | 'GBP'
+  features: string[];     // bullet points shown to users
+  active: boolean;
 }
 
 export interface MembershipConfig {

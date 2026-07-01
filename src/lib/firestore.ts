@@ -30,7 +30,7 @@ import {
   deleteField,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { UserGoals } from '@/types';
+import type { UserGoals, CoachingPlan } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Query safety wrapper — surfaces missing-index errors instead of silent []
@@ -938,24 +938,27 @@ export interface LeaderboardEntry {
   totalWorkouts: number;
 }
 
+function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): LeaderboardEntry {
+  return {
+    id,
+    displayName: (data.displayName as string) || 'Athlete',
+    xp: (data.xp as number) ?? 0,
+    powerLevel: (data.powerLevel as number) ?? 0,
+    streak: (data.statsCache as Record<string, number> | undefined)?.streak ?? (data.stats as Record<string, number> | undefined)?.streak ?? 0,
+    totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? (data.stats as Record<string, number> | undefined)?.totalWorkouts ?? 0,
+  };
+}
+
 export async function getLeaderboard(trainerId: string, limitCount = 10): Promise<LeaderboardEntry[]> {
-  const snap = await getDocs(
-    query(collection(db, 'users'), where('trainerId', '==', trainerId), limit(100))
-  );
-  return snap.docs
-    .map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        displayName: (data.displayName as string) || 'Athlete',
-        xp: (data.xp as number) ?? 0,
-        powerLevel: (data.powerLevel as number) ?? 0,
-        streak: (data.statsCache as Record<string, number> | undefined)?.streak ?? (data.stats as Record<string, number> | undefined)?.streak ?? 0,
-        totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? (data.stats as Record<string, number> | undefined)?.totalWorkouts ?? 0,
-      };
-    })
-    .sort((a, b) => b.xp - a.xp)
-    .slice(0, limitCount);
+  const [clientsSnap, trainerSnap] = await Promise.all([
+    getDocs(query(collection(db, 'users'), where('trainerId', '==', trainerId), limit(100))),
+    getDoc(doc(db, 'users', trainerId)),
+  ]);
+  const entries: LeaderboardEntry[] = clientsSnap.docs.map((d) => mapToLeaderboardEntry(d.id, d.data()));
+  if (trainerSnap.exists() && !entries.find(e => e.id === trainerId)) {
+    entries.push(mapToLeaderboardEntry(trainerSnap.id, trainerSnap.data()));
+  }
+  return entries.sort((a, b) => b.xp - a.xp).slice(0, limitCount);
 }
 
 export function subscribeLeaderboard(
@@ -963,25 +966,57 @@ export function subscribeLeaderboard(
   onUpdate: (entries: LeaderboardEntry[]) => void,
   limitCount = 10,
 ): () => void {
+  let clientEntries: LeaderboardEntry[] = [];
+  let trainerEntry: LeaderboardEntry | null = null;
+
+  function notify() {
+    const combined = trainerEntry
+      ? [trainerEntry, ...clientEntries.filter(e => e.id !== trainerId)]
+      : clientEntries;
+    onUpdate(combined.sort((a, b) => b.xp - a.xp).slice(0, limitCount));
+  }
+
   const q = query(collection(db, 'users'), where('trainerId', '==', trainerId), limit(100));
-  return onSnapshot(q, (snap) => {
-    const entries = snap.docs
-      .map((d) => {
-        const data = d.data();
-        return {
-          id: d.id,
-          displayName: (data.displayName as string) || 'Athlete',
-          xp: (data.xp as number) ?? 0,
-          powerLevel: (data.powerLevel as number) ?? 0,
-          streak: (data.statsCache as Record<string, number> | undefined)?.streak ?? (data.stats as Record<string, number> | undefined)?.streak ?? 0,
-          totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? (data.stats as Record<string, number> | undefined)?.totalWorkouts ?? 0,
-        };
-      })
-      .sort((a, b) => b.xp - a.xp)
-      .slice(0, limitCount);
-    onUpdate(entries);
-  }, (err) => {
-    console.error('[Firestore] subscribeLeaderboard error:', err);
+  const unsubClients = onSnapshot(q, (snap) => {
+    clientEntries = snap.docs.map((d) => mapToLeaderboardEntry(d.id, d.data()));
+    notify();
+  }, (err) => console.error('[Firestore] subscribeLeaderboard clients error:', err));
+
+  // Also watch the trainer's own user doc (their uid = trainerId)
+  const unsubTrainer = onSnapshot(doc(db, 'users', trainerId), (snap) => {
+    trainerEntry = snap.exists() ? mapToLeaderboardEntry(snap.id, snap.data()) : null;
+    notify();
+  }, (err) => console.error('[Firestore] subscribeLeaderboard trainer error:', err));
+
+  return () => { unsubClients(); unsubTrainer(); };
+}
+
+// ---------------------------------------------------------------------------
+// Coaching Plans
+// ---------------------------------------------------------------------------
+
+export async function getCoachingPlans(): Promise<CoachingPlan[]> {
+  const snap = await getDoc(doc(db, 'config', 'coachingPlans'));
+  return (snap.data()?.plans as CoachingPlan[]) ?? [];
+}
+
+export async function saveCoachingPlans(plans: CoachingPlan[]): Promise<void> {
+  await setDoc(doc(db, 'config', 'coachingPlans'), { plans });
+}
+
+export async function assignCoachingPlan(userId: string, planId: string, planName: string): Promise<void> {
+  await updateDoc(doc(db, 'users', userId), {
+    'membership.status': 'active',
+    'membership.planId': planId,
+    'membership.planName': planName,
+    'membership.grantedBy': 'admin',
+  });
+}
+
+export async function revokeCoachingPlan(userId: string): Promise<void> {
+  await updateDoc(doc(db, 'users', userId), {
+    'membership.planId': deleteField(),
+    'membership.planName': deleteField(),
   });
 }
 

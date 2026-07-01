@@ -19,6 +19,7 @@ import {
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
   getChannels, createChannel, updateChannel, deleteChannel,
   deleteUserAccount,
+  getCoachingPlans, saveCoachingPlans, assignCoachingPlan, revokeCoachingPlan,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -27,7 +28,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel } from '@/types';
+import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan } from '@/types';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'settings';
 
@@ -94,6 +95,14 @@ export default function AdminPage() {
   const [sendingNotif, setSendingNotif] = useState(false);
   const [processingCron, setProcessingCron] = useState(false);
 
+  // ── Coaching plans state ───────────────────────────────────────────────────
+  const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
+  const [savingPlans, setSavingPlans] = useState(false);
+  const [showPlanForm, setShowPlanForm] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<CoachingPlan | null>(null);
+  const [planForm, setPlanForm] = useState({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true });
+  const [assigningPlan, setAssigningPlan] = useState<string | null>(null);
+
   // ── Community channels state ───────────────────────────────────────────────
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
@@ -145,7 +154,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (tab === 'clients' && users.length === 0) loadUsers();
     if (tab === 'messages' && conversations.length === 0) loadConversations();
-    if (tab === 'membership') loadMembership();
+    if (tab === 'membership') { loadMembership(); loadCoachingPlans(); }
     if (tab === 'notifications') loadNotifConfig();
     if (tab === 'community') loadChannels();
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -249,6 +258,82 @@ export default function AdminPage() {
       toast.success('Membership settings saved');
     } catch { toast.error('Failed to save membership settings'); }
     finally { setSavingMembership(false); }
+  }
+
+  async function loadCoachingPlans() {
+    try { setCoachingPlans(await getCoachingPlans()); } catch { /* noop */ }
+  }
+
+  async function handleSavePlan() {
+    const price = parseFloat(planForm.priceMonthly);
+    if (!planForm.name.trim() || isNaN(price) || price <= 0) {
+      toast.error('Name and a valid price are required'); return;
+    }
+    setSavingPlans(true);
+    try {
+      const plan: CoachingPlan = {
+        id: editingPlan?.id ?? `plan_${Date.now()}`,
+        name: planForm.name.trim(),
+        description: planForm.description.trim(),
+        priceMonthly: price,
+        currency: planForm.currency,
+        features: planForm.features.split('\n').map(f => f.trim()).filter(Boolean),
+        active: planForm.active,
+      };
+      const updated = editingPlan
+        ? coachingPlans.map(p => p.id === plan.id ? plan : p)
+        : [...coachingPlans, plan];
+      await saveCoachingPlans(updated);
+      setCoachingPlans(updated);
+      setShowPlanForm(false);
+      setEditingPlan(null);
+      setPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true });
+      toast.success(editingPlan ? 'Plan updated' : 'Plan created');
+    } catch { toast.error('Failed to save plan'); }
+    finally { setSavingPlans(false); }
+  }
+
+  async function handleDeletePlan(plan: CoachingPlan) {
+    if (!confirm(`Delete the "${plan.name}" plan? This cannot be undone.`)) return;
+    try {
+      const updated = coachingPlans.filter(p => p.id !== plan.id);
+      await saveCoachingPlans(updated);
+      setCoachingPlans(updated);
+      toast.success('Plan deleted');
+    } catch { toast.error('Failed to delete plan'); }
+  }
+
+  function startEditPlan(plan: CoachingPlan) {
+    setEditingPlan(plan);
+    setPlanForm({
+      name: plan.name,
+      description: plan.description,
+      priceMonthly: String(plan.priceMonthly),
+      currency: plan.currency,
+      features: plan.features.join('\n'),
+      active: plan.active,
+    });
+    setShowPlanForm(true);
+  }
+
+  async function handleAssignPlan(u: UserData, planId: string, planName: string) {
+    setAssigningPlan(u.id);
+    try {
+      await assignCoachingPlan(u.id, planId, planName);
+      toast.success(`${u.displayName} assigned to ${planName}`);
+      await loadUsers();
+    } catch { toast.error('Failed to assign plan'); }
+    finally { setAssigningPlan(null); }
+  }
+
+  async function handleRevokePlan(u: UserData) {
+    setAssigningPlan(u.id);
+    try {
+      await revokeCoachingPlan(u.id);
+      toast.success(`Coaching plan revoked from ${u.displayName}`);
+      await loadUsers();
+    } catch { toast.error('Failed to revoke plan'); }
+    finally { setAssigningPlan(null); }
   }
 
   async function handleToggleMember(u: UserData) {
@@ -1070,45 +1155,211 @@ export default function AdminPage() {
                 Save Membership Settings
               </Button>
 
-              {/* Client membership management */}
-              {membership.enabled && (
-                <Card className="p-5 space-y-3">
+              {/* ── Coaching Plans ── */}
+              <Card className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
-                    <Users className="w-4 h-4 text-accent" /> Client Memberships
+                    <Trophy className="w-4 h-4 text-accent" /> Coaching Plans
                   </h2>
-                  <p className="text-xs text-text-secondary">Manually grant or revoke membership for each client.</p>
-                  {clients.length === 0 ? (
-                    <p className="text-text-tertiary text-sm text-center py-4">No clients yet.</p>
-                  ) : clients.map((u) => {
-                    const isMember = (u as UserData & { membership?: { status?: string } }).membership?.status === 'active';
-                    return (
-                      <div key={u.id} className="flex items-center gap-3 py-2 border-t border-white/5 first:border-0 first:pt-0">
+                  <Button size="sm" onClick={() => { setEditingPlan(null); setPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true }); setShowPlanForm(true); }}>
+                    <Plus className="w-3.5 h-3.5" /> New Plan
+                  </Button>
+                </div>
+                <p className="text-xs text-text-secondary">Create tiered coaching plans that clients can subscribe to. Coaching programs (marked 1:1) are unlocked by any active plan.</p>
+
+                {showPlanForm && (
+                  <div className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+                    <p className="text-sm font-bold text-white">{editingPlan ? 'Edit Plan' : 'New Coaching Plan'}</p>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
+                      <input
+                        value={planForm.name}
+                        onChange={e => setPlanForm(f => ({ ...f, name: e.target.value }))}
+                        placeholder="e.g. 1:1 Personal Coaching"
+                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Description</label>
+                      <textarea
+                        value={planForm.description}
+                        onChange={e => setPlanForm(f => ({ ...f, description: e.target.value }))}
+                        placeholder="What clients get with this plan…"
+                        rows={2}
+                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-text-secondary mb-1 block">Price / Month</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={planForm.priceMonthly}
+                            onChange={e => setPlanForm(f => ({ ...f, priceMonthly: e.target.value }))}
+                            placeholder="99.00"
+                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-text-secondary mb-1 block">Currency</label>
+                        <select
+                          value={planForm.currency}
+                          onChange={e => setPlanForm(f => ({ ...f, currency: e.target.value }))}
+                          className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        >
+                          <option value="USD">USD</option>
+                          <option value="EUR">EUR</option>
+                          <option value="GBP">GBP</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Features (one per line)</label>
+                      <textarea
+                        value={planForm.features}
+                        onChange={e => setPlanForm(f => ({ ...f, features: e.target.value }))}
+                        placeholder={"Weekly check-in calls\nPersonalised training plan\nDirect messaging with coach"}
+                        rows={4}
+                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none font-mono"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-white">Active</p>
+                        <p className="text-xs text-text-secondary">Visible to clients for purchase</p>
+                      </div>
+                      <button
+                        onClick={() => setPlanForm(f => ({ ...f, active: !f.active }))}
+                        className={`w-11 h-6 rounded-full transition-colors relative ${planForm.active ? 'bg-accent' : 'bg-surface-elevated'}`}
+                      >
+                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${planForm.active ? 'left-6' : 'left-1'}`} />
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" fullWidth onClick={() => { setShowPlanForm(false); setEditingPlan(null); }}>Cancel</Button>
+                      <Button fullWidth loading={savingPlans} disabled={!planForm.name.trim() || !planForm.priceMonthly} onClick={handleSavePlan}>
+                        {editingPlan ? 'Save' : 'Create'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {coachingPlans.length === 0 && !showPlanForm ? (
+                  <p className="text-text-tertiary text-sm text-center py-3">No coaching plans yet. Create one above.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {coachingPlans.map((plan) => (
+                      <div key={plan.id} className={`p-4 rounded-2xl border ${plan.active ? 'border-accent/20 bg-accent/5' : 'border-white/8 opacity-60'}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-bold text-white">{plan.name}</p>
+                              {plan.active ? <Badge variant="success">Active</Badge> : <Badge variant="muted">Inactive</Badge>}
+                            </div>
+                            <p className="text-sm font-black text-accent mt-0.5">{plan.currency} {plan.priceMonthly.toFixed(2)}/mo</p>
+                            {plan.description && <p className="text-xs text-text-secondary mt-1">{plan.description}</p>}
+                            {plan.features.length > 0 && (
+                              <ul className="mt-2 space-y-0.5">
+                                {plan.features.map((f, i) => (
+                                  <li key={i} className="text-xs text-text-secondary flex items-center gap-1.5">
+                                    <CheckCircle className="w-3 h-3 text-accent flex-shrink-0" />{f}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button onClick={() => startEditPlan(plan)} className="p-1.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleDeletePlan(plan)} className="p-1.5 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Client membership management */}
+              <Card className="p-5 space-y-3">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Users className="w-4 h-4 text-accent" /> Client Access
+                </h2>
+                <p className="text-xs text-text-secondary">Manually grant membership and assign coaching plans to each client.</p>
+                {clients.length === 0 ? (
+                  <p className="text-text-tertiary text-sm text-center py-4">No clients yet.</p>
+                ) : clients.map((u) => {
+                  const mem = (u as UserData & { membership?: { status?: string; planId?: string; planName?: string } }).membership;
+                  const isMember = mem?.status === 'active';
+                  const currentPlanId = mem?.planId;
+                  const currentPlanName = mem?.planName;
+                  return (
+                    <div key={u.id} className="py-2 border-t border-white/5 first:border-0 first:pt-0 space-y-2">
+                      <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center text-accent text-xs font-bold flex-shrink-0">
                           {u.displayName?.[0]?.toUpperCase() || '?'}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-white truncate">{u.displayName || 'Unknown'}</p>
                           <p className="text-xs text-text-secondary truncate">{u.email}</p>
+                          {currentPlanName && <p className="text-xs text-accent mt-0.5">📋 {currentPlanName}</p>}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {isMember ? <Badge variant="success">Member</Badge> : <Badge variant="muted">Free</Badge>}
-                          <button
-                            onClick={() => handleToggleMember(u)}
-                            disabled={togglingMember === u.id}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                              isMember
-                                ? 'bg-danger/10 text-danger hover:bg-danger/20'
-                                : 'bg-accent-muted text-accent hover:bg-accent/20'
-                            }`}
-                          >
-                            {togglingMember === u.id ? '…' : isMember ? 'Revoke' : 'Grant'}
-                          </button>
+                          {membership.enabled && (
+                            <button
+                              onClick={() => handleToggleMember(u)}
+                              disabled={togglingMember === u.id}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                isMember
+                                  ? 'bg-danger/10 text-danger hover:bg-danger/20'
+                                  : 'bg-accent-muted text-accent hover:bg-accent/20'
+                              }`}
+                            >
+                              {togglingMember === u.id ? '…' : isMember ? 'Revoke' : 'Grant'}
+                            </button>
+                          )}
                         </div>
                       </div>
-                    );
-                  })}
-                </Card>
-              )}
+                      {coachingPlans.filter(p => p.active).length > 0 && (
+                        <div className="flex items-center gap-2 pl-11">
+                          <select
+                            className="flex-1 bg-surface border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent/50"
+                            defaultValue=""
+                            onChange={async (e) => {
+                              const pid = e.target.value;
+                              if (!pid) return;
+                              const plan = coachingPlans.find(p => p.id === pid);
+                              if (plan) await handleAssignPlan(u, plan.id, plan.name);
+                              e.target.value = '';
+                            }}
+                          >
+                            <option value="">Assign coaching plan…</option>
+                            {coachingPlans.filter(p => p.active).map(p => (
+                              <option key={p.id} value={p.id}>{p.name} — {p.currency} {p.priceMonthly}/mo</option>
+                            ))}
+                          </select>
+                          {currentPlanId && (
+                            <button
+                              onClick={() => handleRevokePlan(u)}
+                              disabled={assigningPlan === u.id}
+                              className="px-2 py-1.5 rounded-lg text-xs text-danger hover:bg-danger/10 transition-colors whitespace-nowrap"
+                            >
+                              {assigningPlan === u.id ? '…' : 'Remove plan'}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </Card>
             </>
           )}
         </div>

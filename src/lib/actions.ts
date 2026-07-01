@@ -128,6 +128,8 @@ export async function completeWorkout(
       'statsCache.streak': newStreak,
       'statsCache.lastWorkoutDate': today,
       'statsCache.cacheDate': today,
+      'stats.totalWeightLifted': increment(totalWeightLifted),
+      'stats.totalWorkouts': increment(1),
     }).catch(() => {
       // Non-critical; background recompute will self-correct
     });

@@ -13,15 +13,22 @@ function getAdminDb() {
   return getFirestore(app);
 }
 
-async function setMembershipStatus(userId: string, status: 'active' | 'none', expiresAt?: Date) {
+async function setMembershipStatus(
+  userId: string,
+  status: 'active' | 'none',
+  expiresAt?: Date,
+  planId?: string,
+  planName?: string,
+) {
   const db = getAdminDb();
   if (!db) { console.error('[Stripe webhook] Admin DB not available'); return; }
   await db.collection('users').doc(userId).update({
     'membership.status': status,
     'membership.updatedAt': FieldValue.serverTimestamp(),
     ...(expiresAt ? { 'membership.expiresAt': expiresAt } : {}),
+    ...(planId ? { 'membership.planId': planId, 'membership.planName': planName ?? '' } : {}),
   });
-  console.log(`[Stripe webhook] User ${userId} membership → ${status}`);
+  console.log(`[Stripe webhook] User ${userId} membership → ${status}${planId ? ` (plan: ${planId})` : ''}`);
 }
 
 export async function POST(req: NextRequest) {
@@ -56,7 +63,9 @@ export async function POST(req: NextRequest) {
             const sub = await stripe.subscriptions.retrieve(subId);
             expiresAt = new Date(sub.current_period_end * 1000);
           }
-          await setMembershipStatus(userId, 'active', expiresAt);
+          const planId = session.metadata?.planId;
+          const planName = session.metadata?.planName;
+          await setMembershipStatus(userId, 'active', expiresAt, planId, planName);
         }
         break;
       }
@@ -70,7 +79,9 @@ export async function POST(req: NextRequest) {
 
         const active = sub.status === 'active' || sub.status === 'trialing';
         const expiresAt = new Date(sub.current_period_end * 1000);
-        await setMembershipStatus(userId, active ? 'active' : 'none', expiresAt);
+        const planId = sub.metadata?.planId;
+        const planName = sub.metadata?.planName;
+        await setMembershipStatus(userId, active ? 'active' : 'none', expiresAt, planId, planName);
         break;
       }
 
