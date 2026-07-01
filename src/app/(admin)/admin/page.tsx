@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getIdToken } from 'firebase/auth';
 import {
   getSystemConfig, setSystemConfig,
   banUser, unbanUser, getAllUsers,
@@ -466,9 +467,14 @@ export default function AdminPage() {
   }
 
   async function handleRunCronNow() {
+    if (!user) return;
     setProcessingCron(true);
     try {
-      const res = await fetch('/api/notifications/process', { method: 'POST' });
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/run-notifications', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       if (res.ok) {
         toast.success(`Auto-notifications processed — ${data.sent?.length ?? 0} sent`);
