@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     const feeUsd = Number(cfg.fee ?? 0);
     if (feeUsd <= 0) return NextResponse.json({ error: 'Membership fee not set' }, { status: 400 });
 
-    const stripe = getStripe();
+    const stripe = await getStripe();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
     const trialDays = Number(cfg.trialDays ?? 0);
 

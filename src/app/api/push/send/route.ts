@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAdminApp } from '@/lib/firebase-admin';
+import { getSecret } from '@/lib/secrets';
 
 function getAdminDb() {
   const app = getAdminApp();
@@ -11,9 +12,11 @@ function getAdminDb() {
   return getFirestore(app);
 }
 
-function initWebPush() {
-  const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  const priv = process.env.VAPID_PRIVATE_KEY;
+async function initWebPush() {
+  const [pub, priv] = await Promise.all([
+    getSecret('NEXT_PUBLIC_VAPID_PUBLIC_KEY'),
+    getSecret('VAPID_PRIVATE_KEY'),
+  ]);
   if (!pub || !priv) return false;
   webpush.setVapidDetails(
     'mailto:' + (process.env.ADMIN_EMAIL || 'admin@warfarefitness.com'),
@@ -31,7 +34,7 @@ export async function POST(req: NextRequest) {
 
   const { userId, title, body } = await req.json() as { userId?: string; title: string; body: string };
 
-  if (!initWebPush()) return NextResponse.json({ error: 'VAPID keys not configured' }, { status: 500 });
+  if (!(await initWebPush())) return NextResponse.json({ error: 'VAPID keys not configured' }, { status: 500 });
 
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });

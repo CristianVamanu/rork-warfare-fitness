@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'trainerId and priceId are required' }, { status: 400 });
     }
 
-    const stripe = getStripe();
+    const stripe = await getStripe();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
 
     const session = await stripe.checkout.sessions.create({

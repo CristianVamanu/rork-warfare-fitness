@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { getSecret } from '@/lib/secrets';
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await getSecret('OPENAI_API_KEY');
   if (!apiKey) {
     console.error('[analyze-food] OPENAI_API_KEY env var is not set');
     return NextResponse.json(

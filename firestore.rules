@@ -32,6 +32,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Encrypted third-party API keys (OpenAI, Stripe, R2, VAPID, etc).
+    // Admin-only read+write — values are AES-256-GCM ciphertext, decryptable
+    // only server-side with ENCRYPTION_KEY, but no reason to expose them at all.
+    match /system/secrets {
+      allow read:  if isAdmin();
+      allow write: if isAdmin();
+    }
+
     // Catch-all for any other system docs
     match /system/{doc} {
       allow read:  if isAuthed();

@@ -7,41 +7,11 @@ export const dynamic = 'force-dynamic';
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { getAdminApp } from '@/lib/firebase-admin';
+import { verifyAdmin } from '@/lib/verifyAdmin';
 import { getR2Client, r2PublicUrl } from '@/lib/r2';
-
-function getAdminServices() {
-  const app = getAdminApp();
-  if (!app) return null;
-  return { db: getFirestore(app), auth: getAuth(app) };
-}
-
-async function verifyAdmin(req: NextRequest): Promise<{ uid: string } | { error: string; status: number }> {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '');
-  if (!token) return { error: 'Missing authorization header', status: 401 };
-
-  const svc = getAdminServices();
-  if (!svc) return { error: 'Firebase Admin not configured', status: 500 };
-
-  let uid: string;
-  try {
-    const decoded = await svc.auth.verifyIdToken(token);
-    uid = decoded.uid;
-  } catch {
-    return { error: 'Invalid or expired token', status: 401 };
-  }
-
-  const userDoc = await svc.db.collection('users').doc(uid).get();
-  if (userDoc.data()?.role !== 'admin') {
-    return { error: 'Access denied: admin only', status: 403 };
-  }
-
-  return { uid };
-}
+import { getSecret } from '@/lib/secrets';
 
 export async function POST(req: NextRequest) {
   const check = await verifyAdmin(req);
@@ -49,8 +19,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: check.error }, { status: check.status });
   }
 
-  const client = getR2Client();
-  const bucket = process.env.R2_BUCKET_NAME;
+  const client = await getR2Client();
+  const bucket = await getSecret('R2_BUCKET_NAME');
   if (!client || !bucket) {
     return NextResponse.json({ error: 'R2 not configured' }, { status: 500 });
   }
@@ -75,6 +45,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     uploadUrl,
     key,
-    publicUrl: r2PublicUrl(key),
+    publicUrl: await r2PublicUrl(key),
   });
 }

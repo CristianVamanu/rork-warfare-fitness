@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getAdminApp } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
+import { getSecret } from '@/lib/secrets';
 
 function todayKey() {
   return new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
@@ -28,7 +29,7 @@ export async function GET() {
     }
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await getSecret('OPENAI_API_KEY');
   if (!apiKey) {
     return NextResponse.json({
       tip: 'Focus on compound movements like squats, deadlifts and bench press — they build more muscle and burn more calories than isolation exercises.',

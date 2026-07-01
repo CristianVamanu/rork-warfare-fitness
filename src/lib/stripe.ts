@@ -4,20 +4,17 @@
  */
 
 import Stripe from 'stripe';
+import { getSecret } from '@/lib/secrets';
 
-let _stripe: Stripe | undefined;
-
-export function getStripe(): Stripe {
-  if (_stripe) return _stripe;
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error('STRIPE_SECRET_KEY environment variable is not set.');
+export async function getStripe(): Promise<Stripe> {
+  const key = await getSecret('STRIPE_SECRET_KEY');
+  if (!key) throw new Error('STRIPE_SECRET_KEY is not configured.');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  _stripe = new (Stripe as any)(key, { apiVersion: '2024-06-20' });
-  return _stripe!;
+  return new (Stripe as any)(key, { apiVersion: '2024-06-20' });
 }
 
-export function getStripeWebhookSecret(): string {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) throw new Error('STRIPE_WEBHOOK_SECRET environment variable is not set.');
+export async function getStripeWebhookSecret(): Promise<string> {
+  const secret = await getSecret('STRIPE_WEBHOOK_SECRET');
+  if (!secret) throw new Error('STRIPE_WEBHOOK_SECRET is not configured.');
   return secret;
 }

@@ -37,8 +37,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.text();
     const sig = req.headers.get('stripe-signature') ?? '';
-    const stripe = getStripe();
-    event = stripe.webhooks.constructEvent(body, sig, getStripeWebhookSecret());
+    const stripe = await getStripe();
+    event = stripe.webhooks.constructEvent(body, sig, await getStripeWebhookSecret());
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Webhook signature verification failed';
     console.error('[Stripe webhook] Verification failed:', msg);
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         // For subscription mode, activation is confirmed via subscription.updated below.
         // But also activate here in case the subscription event fires first.
         if (session.payment_status === 'paid' || session.mode === 'subscription') {
-          const stripe = getStripe();
+          const stripe = await getStripe();
           const subId = session.subscription as string | null;
           let expiresAt: Date | undefined;
           if (subId) {
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
         const invoice = event.data.object as Stripe.Invoice;
         const subId = (invoice as { subscription?: string }).subscription;
         if (subId) {
-          const stripe = getStripe();
+          const stripe = await getStripe();
           const sub = await stripe.subscriptions.retrieve(subId);
           const userId = sub.metadata?.userId;
           if (userId) console.warn(`[Stripe webhook] Payment failed for user ${userId} — subscription status: ${sub.status}`);

@@ -8,13 +8,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { getSecret } from '@/lib/secrets';
 
 export async function POST(req: NextRequest) {
   try {
     const { message, systemPrompt } = await req.json();
     if (!message) return NextResponse.json({ error: 'Message required' }, { status: 400 });
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = await getSecret('OPENAI_API_KEY');
     if (!apiKey) return NextResponse.json({ error: 'OpenAI not configured' }, { status: 500 });
 
     const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';

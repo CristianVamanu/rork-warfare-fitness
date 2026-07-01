@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { getSecret } from '@/lib/secrets';
 
 const SYSTEM_PROMPT = `You are an elite strength and conditioning coach with 20+ years of experience.
 Your job is to design precise, periodized weekly training programs tailored to the individual.
@@ -131,7 +132,7 @@ function normalizeProgram(
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await getSecret('OPENAI_API_KEY');
   if (!apiKey) {
     return NextResponse.json(
       { error: 'OpenAI API key not configured. Set OPENAI_API_KEY environment variable.' },

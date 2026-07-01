@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { getSecret } from '@/lib/secrets';
 
 const SYSTEM_PROMPT = `You are an elite strength and conditioning coach with 20+ years of experience. Generate a detailed, periodized workout program based on the trainer's description.
 
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
     const { prompt } = await req.json();
     if (!prompt) return NextResponse.json({ error: 'Prompt required' }, { status: 400 });
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = await getSecret('OPENAI_API_KEY');
     if (!apiKey) return NextResponse.json({ error: 'OpenAI not configured. Set OPENAI_API_KEY in Vercel environment variables.' }, { status: 500 });
 
     const openai = new OpenAI({ apiKey });

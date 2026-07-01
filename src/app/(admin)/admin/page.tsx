@@ -13,7 +13,7 @@ import {
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getIdToken } from 'firebase/auth';
-import { uploadToR2 } from '@/lib/uploadToR2';
+import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
 import {
   getSystemConfig, setSystemConfig,
   banUser, unbanUser, getAllUsers,
@@ -34,7 +34,47 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import toast from 'react-hot-toast';
 import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo } from '@/types';
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'library' | 'settings';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'library' | 'integrations' | 'settings';
+
+interface SecretStatusUI {
+  key: string;
+  configured: boolean;
+  source: 'firestore' | 'env' | 'none';
+  masked: string;
+}
+
+const SECRET_GROUPS: { title: string; service: string; keys: { key: string; label: string; placeholder: string }[] }[] = [
+  {
+    title: 'OpenAI', service: 'openai', keys: [
+      { key: 'OPENAI_API_KEY', label: 'API Key', placeholder: 'sk-...' },
+    ],
+  },
+  {
+    title: 'Stripe', service: 'stripe', keys: [
+      { key: 'STRIPE_SECRET_KEY', label: 'Secret Key', placeholder: 'sk_live_...' },
+      { key: 'STRIPE_WEBHOOK_SECRET', label: 'Webhook Signing Secret', placeholder: 'whsec_...' },
+      { key: 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', label: 'Publishable Key', placeholder: 'pk_live_...' },
+    ],
+  },
+  {
+    title: 'Cloudflare R2', service: 'r2', keys: [
+      { key: 'R2_ACCOUNT_ID', label: 'Account ID', placeholder: 'a589823...' },
+      { key: 'R2_ACCESS_KEY_ID', label: 'Access Key ID', placeholder: '' },
+      { key: 'R2_SECRET_ACCESS_KEY', label: 'Secret Access Key', placeholder: '' },
+      { key: 'R2_BUCKET_NAME', label: 'Bucket Name', placeholder: 'warfare-fitness-storage' },
+      { key: 'R2_PUBLIC_URL', label: 'Public URL', placeholder: 'https://pub-xxxx.r2.dev' },
+    ],
+  },
+  {
+    title: 'Push Notifications (VAPID)', service: 'vapid', keys: [
+      { key: 'NEXT_PUBLIC_VAPID_PUBLIC_KEY', label: 'Public Key', placeholder: '' },
+      { key: 'VAPID_PRIVATE_KEY', label: 'Private Key', placeholder: '' },
+    ],
+  },
+  {
+    title: 'Firebase Storage', service: 'firebase-storage', keys: [],
+  },
+];
 
 interface BulkFile {
   id: string;
@@ -167,6 +207,16 @@ export default function AdminPage() {
   const [bulkProgress, setBulkProgress] = useState<Record<string, number>>({});
   const bulkDropRef = useRef<HTMLDivElement>(null);
 
+  // ── Integrations / API keys state ─────────────────────────────────────────
+  const [storageProvider, setStorageProvider] = useState<StorageProvider>('firebase');
+  const [savingProvider, setSavingProvider] = useState(false);
+  const [secretStatuses, setSecretStatuses] = useState<SecretStatusUI[]>([]);
+  const [secretsLoading, setSecretsLoading] = useState(false);
+  const [secretInputs, setSecretInputs] = useState<Record<string, string>>({});
+  const [savingSecret, setSavingSecret] = useState<string | null>(null);
+  const [testingService, setTestingService] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
+
   // ── Community channels state ───────────────────────────────────────────────
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
@@ -210,6 +260,7 @@ export default function AdminPage() {
           pwaInstallBannerEnabled: cfg.pwaInstallBannerEnabled !== false as unknown,
           vapidPublicKey: cfg.vapidPublicKey || '',
         });
+        setStorageProvider((cfg.storageProvider as StorageProvider) || 'firebase');
       }
     }).catch(console.error).finally(() => setOverviewLoading(false));
   }, [profile?.trainerId]);
@@ -222,7 +273,73 @@ export default function AdminPage() {
     if (tab === 'notifications') loadNotifConfig();
     if (tab === 'community') loadChannels();
     if (tab === 'library' && exerciseLibrary.length === 0) loadExerciseLibrary();
+    if (tab === 'integrations') loadSecretStatuses();
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function loadSecretStatuses() {
+    if (!user) return;
+    setSecretsLoading(true);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/secrets', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) setSecretStatuses(data.secrets);
+      else toast.error(data.error || 'Failed to load integration status');
+    } catch { toast.error('Failed to load integration status'); }
+    finally { setSecretsLoading(false); }
+  }
+
+  async function handleSaveSecret(key: string) {
+    if (!user) return;
+    const value = secretInputs[key] ?? '';
+    setSavingSecret(key);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/secrets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ key, value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      toast.success(`${key} saved`);
+      setSecretInputs(prev => ({ ...prev, [key]: '' }));
+      await loadSecretStatuses();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save key');
+    } finally {
+      setSavingSecret(null);
+    }
+  }
+
+  async function handleTestService(service: string) {
+    if (!user) return;
+    setTestingService(service);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/secrets/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ service }),
+      });
+      const data = await res.json();
+      setTestResults(prev => ({ ...prev, [service]: { ok: !!data.ok, message: data.message || data.error || 'Unknown error' } }));
+    } catch {
+      setTestResults(prev => ({ ...prev, [service]: { ok: false, message: 'Request failed' } }));
+    } finally {
+      setTestingService(null);
+    }
+  }
+
+  async function handleSaveStorageProvider(provider: StorageProvider) {
+    setSavingProvider(true);
+    try {
+      await setSystemConfig({ storageProvider: provider });
+      setStorageProvider(provider);
+      toast.success(`Storage provider set to ${provider === 'r2' ? 'Cloudflare R2' : 'Firebase Storage'}`);
+    } catch { toast.error('Failed to save storage provider'); }
+    finally { setSavingProvider(false); }
+  }
 
   async function loadUsers() {
     setClientsLoading(true);
@@ -581,7 +698,7 @@ export default function AdminPage() {
     try {
       let videoUrl = editingEx?.videoUrl ?? '';
       if (exFile) {
-        videoUrl = await uploadToR2(user, exFile, 'exerciseLibrary', setExUploadProgress);
+        videoUrl = await uploadVideo(storageProvider, user, exFile, 'exerciseLibrary', setExUploadProgress);
       }
       const payload = {
         name: exForm.name.trim(),
@@ -646,7 +763,7 @@ export default function AdminPage() {
     await Promise.all(pending.map(async (item) => {
       setBulkFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'uploading' } : f));
       try {
-        const videoUrl = await uploadToR2(user, item.file, 'exerciseLibrary', (pct) => {
+        const videoUrl = await uploadVideo(storageProvider, user, item.file, 'exerciseLibrary', (pct) => {
           setBulkProgress(prev => ({ ...prev, [item.id]: pct }));
         });
         await saveExerciseVideo({
@@ -697,6 +814,7 @@ export default function AdminPage() {
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'membership', label: 'Membership', icon: CreditCard },
     { id: 'library', label: 'Library', icon: Video },
+    { id: 'integrations', label: 'Integrations', icon: Key },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -1805,6 +1923,121 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* ── Integrations / API Keys ──────────────────────────────────────────── */}
+      {tab === 'integrations' && (
+        <div className="space-y-5">
+          <Card className="p-4 border border-blue-400/20 bg-blue-400/5">
+            <div className="flex items-start gap-3">
+              <Shield className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-white">Keys are encrypted before storage</p>
+                <p className="text-xs text-text-secondary mt-0.5">
+                  Every key you save here is encrypted (AES-256-GCM) using a master key that lives only on the server —
+                  never in this database. Even a full data leak would expose only unreadable ciphertext.
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Storage provider toggle */}
+          <Card className="p-5 space-y-3">
+            <h2 className="text-base font-bold text-white">Video Storage Provider</h2>
+            <p className="text-xs text-text-secondary">
+              Choose where exercise video uploads go. Cloudflare R2 has no egress fees — recommended once configured below.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleSaveStorageProvider('firebase')}
+                disabled={savingProvider}
+                className={`flex-1 p-3 rounded-xl border text-sm font-medium transition-colors ${
+                  storageProvider === 'firebase' ? 'border-accent bg-accent/10 text-white' : 'border-white/10 text-text-secondary hover:bg-white/5'
+                }`}
+              >
+                Firebase Storage
+              </button>
+              <button
+                onClick={() => handleSaveStorageProvider('r2')}
+                disabled={savingProvider}
+                className={`flex-1 p-3 rounded-xl border text-sm font-medium transition-colors ${
+                  storageProvider === 'r2' ? 'border-accent bg-accent/10 text-white' : 'border-white/10 text-text-secondary hover:bg-white/5'
+                }`}
+              >
+                Cloudflare R2 <span className="text-success text-xs">(no egress fees)</span>
+              </button>
+            </div>
+          </Card>
+
+          {secretsLoading ? (
+            <Skeleton className="h-40 rounded-2xl" />
+          ) : (
+            SECRET_GROUPS.map((group) => {
+              const result = testResults[group.service];
+              return (
+                <Card key={group.service} className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-base font-bold text-white">{group.title}</h2>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      loading={testingService === group.service}
+                      onClick={() => handleTestService(group.service)}
+                    >
+                      Test Connection
+                    </Button>
+                  </div>
+
+                  {result && (
+                    <div className={`text-xs p-2 rounded-lg ${result.ok ? 'bg-success/10 text-success' : 'bg-red-500/10 text-red-400'}`}>
+                      {result.ok ? '✓ ' : '✗ '}{result.message}
+                    </div>
+                  )}
+
+                  {group.keys.length === 0 ? (
+                    <p className="text-xs text-text-tertiary">Uses your existing Firebase project — no extra keys needed.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {group.keys.map(({ key, label, placeholder }) => {
+                        const status = secretStatuses.find(s => s.key === key);
+                        return (
+                          <div key={key} className="p-3 bg-surface-elevated rounded-xl border border-white/5">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="text-xs font-medium text-white">{label}</label>
+                              {status?.configured ? (
+                                <Badge variant={status.source === 'firestore' ? 'success' : 'info'}>
+                                  {status.source === 'firestore' ? `Saved · ${status.masked}` : `Env var · ${status.masked}`}
+                                </Badge>
+                              ) : (
+                                <Badge variant="muted">Not configured</Badge>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <Input
+                                type="password"
+                                value={secretInputs[key] ?? ''}
+                                onChange={e => setSecretInputs(prev => ({ ...prev, [key]: e.target.value }))}
+                                placeholder={placeholder || 'Paste new value to replace'}
+                              />
+                              <Button
+                                size="sm"
+                                loading={savingSecret === key}
+                                disabled={!secretInputs[key]?.trim()}
+                                onClick={() => handleSaveSecret(key)}
+                              >
+                                Save
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Card>
+              );
+            })
+          )}
+        </div>
+      )}
+
       {/* ── Settings ──────────────────────────────────────────────────────────── */}
       {tab === 'settings' && (
         <div className="space-y-5">
@@ -1880,7 +2113,7 @@ export default function AdminPage() {
                   <p className="text-sm font-medium text-white">STRIPE_SECRET_KEY</p>
                   <Badge variant="muted">Env var only</Badge>
                 </div>
-                <p className="text-xs text-text-tertiary">The Stripe secret key must be set as an environment variable in Vercel, never stored here. Go to Vercel → Settings → Environment Variables → add <code className="bg-black/30 px-1 rounded">STRIPE_SECRET_KEY</code>.</p>
+                <p className="text-xs text-text-tertiary">The Stripe secret key is managed in the <button className="text-accent underline" onClick={() => setTab('integrations')}>Integrations</button> tab, not here.</p>
               </div>
             </div>
             <Button onClick={handleSaveSettings} loading={savingSettings} fullWidth>Save Stripe Config</Button>
@@ -1889,50 +2122,14 @@ export default function AdminPage() {
             </a>
           </Card>
 
-          <Card className="p-5 space-y-4">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Key className="w-4 h-4 text-yellow-400" /> Other API Keys & Secrets
-            </h2>
-            <p className="text-xs text-text-secondary">Must be set as Vercel environment variables.</p>
-            <div className="space-y-3">
-              <div className="p-3 bg-surface-elevated rounded-xl border border-white/5">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-medium text-white">OPENAI_API_KEY</p>
-                  <Badge variant="muted">AI features</Badge>
-                </div>
-                <p className="text-xs text-text-tertiary">Food analyzer, AI program builder, AI notifications.</p>
-              </div>
-              <div className="p-3 bg-surface-elevated rounded-xl border border-white/5">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-medium text-white">FIREBASE_PROJECT_ID / CLIENT_EMAIL / PRIVATE_KEY</p>
-                  <Badge variant="muted">Cron jobs</Badge>
-                </div>
-                <p className="text-xs text-text-tertiary">Required for the auto-notification cron processor (Firebase Admin SDK).</p>
-              </div>
-              <div className="p-3 bg-surface-elevated rounded-xl border border-blue-400/20">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-medium text-white">Push Notifications (VAPID)</p>
-                  <Badge variant="info">PWA</Badge>
-                </div>
-                <p className="text-xs text-text-tertiary mb-2">Generate VAPID keys once with: <code className="bg-black/30 px-1 rounded">npx web-push generate-vapid-keys</code>. Then set in Vercel:</p>
-                <ul className="text-xs text-text-tertiary space-y-0.5 list-disc pl-4">
-                  <li><code className="bg-black/30 px-1 rounded">NEXT_PUBLIC_VAPID_PUBLIC_KEY</code> — also paste below</li>
-                  <li><code className="bg-black/30 px-1 rounded">VAPID_PRIVATE_KEY</code> — env var only, never here</li>
-                </ul>
-                <div className="mt-2">
-                  <label className="text-xs text-text-secondary mb-1 block">VAPID Public Key (saved to Firestore for clients)</label>
-                  <Input
-                    value={settingsForm.vapidPublicKey || ''}
-                    onChange={e => setSettingsForm(s => ({ ...s, vapidPublicKey: e.target.value }))}
-                    placeholder="Bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                  />
-                  <Button onClick={handleSaveSettings} loading={savingSettings} size="sm" className="mt-2">Save VAPID Public Key</Button>
-                </div>
-              </div>
+          <Card className="p-5 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Key className="w-4 h-4 text-yellow-400" /> API Keys & Storage
+              </h2>
+              <p className="text-xs text-text-secondary mt-1">OpenAI, Stripe, R2, and push notification keys are managed in one place now.</p>
             </div>
-            <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-accent hover:underline">
-              <ExternalLink className="w-3.5 h-3.5" /> Open Vercel Dashboard
-            </a>
+            <Button size="sm" onClick={() => setTab('integrations')}>Open Integrations</Button>
           </Card>
         </div>
       )}

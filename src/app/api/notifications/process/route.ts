@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getAdminApp } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
+import { getSecret } from '@/lib/secrets';
 
 function getAdminDb() {
   const app = getAdminApp();
@@ -20,7 +21,7 @@ function getAdminDb() {
 }
 
 async function generateMotivation(userName: string, streak: number): Promise<{ title: string; body: string }> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await getSecret('OPENAI_API_KEY');
   if (!apiKey) return {
     title: 'Keep pushing!',
     body: `Hey ${userName}, consistency is the key to results. You've got this!`,
