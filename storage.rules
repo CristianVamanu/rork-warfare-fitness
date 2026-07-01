@@ -1,16 +1,32 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    // Admin role lives in Firestore (users/{uid}.role), not an Auth custom claim
+    function isAdmin() {
+      return isAuthed() &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // Exercise library videos — admin write, authenticated read
     match /exerciseLibrary/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.auth.token.admin == true;
+      allow read: if isAuthed();
+      allow write: if isAdmin();
     }
 
     // User-specific files (profile photos, etc.)
     match /users/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isAuthed() && request.auth.uid == userId;
+    }
+
+    // Community channel post images/attachments
+    match /community/{channelId}/{allPaths=**} {
+      allow read: if isAuthed();
+      allow write: if isAuthed();
     }
 
     // Deny everything else
