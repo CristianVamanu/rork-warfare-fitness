@@ -46,6 +46,7 @@ export default function ProfilePage() {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [membershipConfig, setMembershipConfig] = useState<MembershipConfig | null>(null);
   const [subscribing, setSubscribing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
   const [subscribingPlanId, setSubscribingPlanId] = useState<string | null>(null);
 
@@ -99,6 +100,30 @@ export default function ProfilePage() {
       toast.error('Failed to start checkout');
     } finally {
       setSubscribing(false);
+    }
+  };
+
+  const handleCancelMembership = async () => {
+    if (!user) return;
+    if (!confirm('Cancel your membership? You will keep access until the end of your current billing period.')) return;
+    setCancelling(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/stripe/cancel-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (data.ok) {
+        toast.success('Membership cancelled — access continues until your billing period ends');
+        await refreshProfile();
+      } else {
+        toast.error(data.error ?? 'Failed to cancel membership');
+      }
+    } catch {
+      toast.error('Failed to cancel membership');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -213,6 +238,17 @@ export default function ProfilePage() {
                         Add Payment Method
                       </Button>
                     </div>
+                  )}
+                  {isActive && (
+                    profile?.membership?.cancelAtPeriodEnd ? (
+                      <p className="text-xs text-text-tertiary text-center">
+                        Cancelled — access continues until {expiresAt ? expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'the end of your billing period'}.
+                      </p>
+                    ) : (
+                      <Button size="sm" variant="ghost" fullWidth onClick={handleCancelMembership} loading={cancelling}>
+                        Cancel Membership
+                      </Button>
+                    )
                   )}
                 </div>
               ) : (

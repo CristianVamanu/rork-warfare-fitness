@@ -34,6 +34,15 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
     const trialDays = Number(cfg.trialDays ?? 0);
 
+    // Active time-limited discount, if the admin has set one
+    let discounts: { coupon: string }[] | undefined;
+    const discountPercent = Number(cfg.discountPercent ?? 0);
+    const discountExpiresAt = cfg.discountExpiresAt ? new Date(cfg.discountExpiresAt as string) : null;
+    if (discountPercent > 0 && discountExpiresAt && discountExpiresAt.getTime() > Date.now()) {
+      const coupon = await stripe.coupons.create({ percent_off: discountPercent, duration: 'once' });
+      discounts = [{ coupon: coupon.id }];
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
@@ -49,6 +58,7 @@ export async function POST(req: NextRequest) {
           },
         },
       ],
+      ...(discounts ? { discounts } : { allow_promotion_codes: true }),
       subscription_data: {
         // Pass userId so the webhook knows which user to activate
         metadata: { userId },

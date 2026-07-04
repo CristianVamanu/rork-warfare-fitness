@@ -40,6 +40,15 @@ export default function ProgramsPage() {
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
+  async function handleSetPrice(p: Program & { _mock?: boolean }, price: number) {
+    if (p._mock) { toast.error('Built-in programs cannot be priced — duplicate it first.'); return; }
+    try {
+      await updateProgram(p.id, { price });
+      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, price } : x));
+      toast.success(price > 0 ? `Price set to $${price.toFixed(2)}` : 'Price removed');
+    } catch { toast.error('Failed to update price'); }
+  }
+
   async function handleTogglePremium(p: Program & { _mock?: boolean }) {
     if (p._mock) { toast.error('Built-in programs cannot be toggled — duplicate it first.'); return; }
     try {
@@ -143,6 +152,27 @@ export default function ProgramsPage() {
                     <span className="text-xs text-text-tertiary">{p.weeks}w · {p.daysPerWeek}d/wk</span>
                   </div>
                   {p.description && <p className="text-xs text-text-secondary mt-1.5 line-clamp-1">{p.description}</p>}
+                  {!(p as { _mock?: boolean })._mock && (
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <span className="text-xs text-text-tertiary">One-time price:</span>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary text-xs">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          defaultValue={p.price || ''}
+                          placeholder="0"
+                          onBlur={(e) => {
+                            const v = parseFloat(e.target.value) || 0;
+                            if (v !== (p.price || 0)) handleSetPrice(p, v);
+                          }}
+                          className="w-20 bg-surface border border-white/10 rounded-lg pl-4 pr-1.5 py-1 text-xs text-white focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+                      <span className="text-xs text-text-tertiary">(optional — lets clients buy this program without full membership)</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {!(p as { _mock?: boolean })._mock && !p.isPublic && p.visibility !== 'coaching' && p.visibility !== 'public' && (

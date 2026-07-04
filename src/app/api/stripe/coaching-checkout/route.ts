@@ -30,6 +30,17 @@ export async function POST(req: NextRequest) {
     const stripe = await getStripe();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
 
+    // Reuse the same site-wide time-limited discount as platform membership, if active
+    let discounts: { coupon: string }[] | undefined;
+    const membershipCfgSnap = await db.collection('config').doc('membership').get();
+    const membershipCfg = membershipCfgSnap.data() ?? {};
+    const discountPercent = Number(membershipCfg.discountPercent ?? 0);
+    const discountExpiresAt = membershipCfg.discountExpiresAt ? new Date(membershipCfg.discountExpiresAt as string) : null;
+    if (discountPercent > 0 && discountExpiresAt && discountExpiresAt.getTime() > Date.now()) {
+      const coupon = await stripe.coupons.create({ percent_off: discountPercent, duration: 'once' });
+      discounts = [{ coupon: coupon.id }];
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
@@ -45,6 +56,7 @@ export async function POST(req: NextRequest) {
           },
         },
       ],
+      ...(discounts ? { discounts } : { allow_promotion_codes: true }),
       subscription_data: {
         metadata: { userId, planId, planName: plan.name },
       },

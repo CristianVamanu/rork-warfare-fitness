@@ -771,7 +771,8 @@ export default function AdminPage() {
       setShowExForm(false);
       await loadExerciseLibrary();
     } catch (err) {
-      toast.error('Failed to save exercise');
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to save exercise: ${msg}`, { duration: 6000 });
       console.error(err);
     } finally {
       setSavingEx(false);
@@ -1529,6 +1530,45 @@ export default function AdminPage() {
                   </>
                 )}
               </Card>
+
+              {/* Limited-time discount */}
+              {membership.enabled && (
+                <Card className="p-5 space-y-4">
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-accent" /> Limited-Time Discount
+                  </h2>
+                  <p className="text-xs text-text-secondary">
+                    Applies to the first payment on new membership and coaching plan checkouts while active. Leave at 0% to disable.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Discount %</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={membership.discountPercent ?? 0}
+                        onChange={e => setMembership(m => ({ ...m, discountPercent: parseInt(e.target.value) || 0 }))}
+                        className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Expires</label>
+                      <input
+                        type="datetime-local"
+                        value={membership.discountExpiresAt ? membership.discountExpiresAt.slice(0, 16) : ''}
+                        onChange={e => setMembership(m => ({ ...m, discountExpiresAt: e.target.value ? new Date(e.target.value).toISOString() : undefined }))}
+                        className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                      />
+                    </div>
+                  </div>
+                  {(membership.discountPercent ?? 0) > 0 && membership.discountExpiresAt && new Date(membership.discountExpiresAt).getTime() > Date.now() && (
+                    <div className="p-2.5 bg-success/10 border border-success/20 rounded-xl text-xs text-success">
+                      Active: {membership.discountPercent}% off until {new Date(membership.discountExpiresAt).toLocaleString()}
+                    </div>
+                  )}
+                </Card>
+              )}
 
               {/* Locked features */}
               {membership.enabled && !membership.fullLock && (

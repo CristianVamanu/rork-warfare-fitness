@@ -19,6 +19,8 @@ async function setMembershipStatus(
   expiresAt?: Date,
   planId?: string,
   planName?: string,
+  subscriptionId?: string,
+  cancelAtPeriodEnd?: boolean,
 ) {
   const db = getAdminDb();
   if (!db) { console.error('[Stripe webhook] Admin DB not available'); return; }
@@ -27,6 +29,8 @@ async function setMembershipStatus(
     'membership.updatedAt': FieldValue.serverTimestamp(),
     ...(expiresAt ? { 'membership.expiresAt': expiresAt } : {}),
     ...(planId ? { 'membership.planId': planId, 'membership.planName': planName ?? '' } : {}),
+    ...(subscriptionId ? { 'membership.stripeSubscriptionId': subscriptionId } : {}),
+    ...(cancelAtPeriodEnd !== undefined ? { 'membership.cancelAtPeriodEnd': cancelAtPeriodEnd } : {}),
   });
   console.log(`[Stripe webhook] User ${userId} membership → ${status}${planId ? ` (plan: ${planId})` : ''}`);
 }
@@ -53,6 +57,21 @@ export async function POST(req: NextRequest) {
         const userId = session.metadata?.userId;
         if (!userId) { console.warn('[Stripe webhook] checkout.session.completed: no userId in metadata'); break; }
 
+        // One-time individual program purchase (not a subscription)
+        if (session.metadata?.kind === 'program_purchase' && session.payment_status === 'paid') {
+          const programId = session.metadata?.programId;
+          if (programId) {
+            const db = getAdminDb();
+            if (db) {
+              await db.collection('users').doc(userId).update({
+                purchasedProgramIds: FieldValue.arrayUnion(programId),
+              });
+              console.log(`[Stripe webhook] User ${userId} purchased program ${programId}`);
+            }
+          }
+          break;
+        }
+
         // For subscription mode, activation is confirmed via subscription.updated below.
         // But also activate here in case the subscription event fires first.
         if (session.payment_status === 'paid' || session.mode === 'subscription') {
@@ -65,7 +84,7 @@ export async function POST(req: NextRequest) {
           }
           const planId = session.metadata?.planId;
           const planName = session.metadata?.planName;
-          await setMembershipStatus(userId, 'active', expiresAt, planId, planName);
+          await setMembershipStatus(userId, 'active', expiresAt, planId, planName, subId ?? undefined, false);
         }
         break;
       }
@@ -81,7 +100,7 @@ export async function POST(req: NextRequest) {
         const expiresAt = new Date(sub.current_period_end * 1000);
         const planId = sub.metadata?.planId;
         const planName = sub.metadata?.planName;
-        await setMembershipStatus(userId, active ? 'active' : 'none', expiresAt, planId, planName);
+        await setMembershipStatus(userId, active ? 'active' : 'none', expiresAt, planId, planName, sub.id, sub.cancel_at_period_end);
         break;
       }
 

@@ -95,6 +95,7 @@ export interface UserProfile {
   xp?: number;
   powerLevel?: number;
   currentWeightKg?: number;
+  purchasedProgramIds?: string[];
   banned?: boolean;
   membership?: {
     status: 'active' | 'none';
@@ -102,6 +103,8 @@ export interface UserProfile {
     grantedBy?: string;
     planId?: string;    // coaching plan ID if on a specific plan
     planName?: string;
+    stripeSubscriptionId?: string;
+    cancelAtPeriodEnd?: boolean;
   };
   stats: {
     streak: number;
@@ -174,6 +177,7 @@ export interface Program {
   trainerId?: string;
   isPublic: boolean;
   isPremium?: boolean; // requires active membership to access
+  price?: number;      // one-time USD price for individual purchase (alternative to membership gate)
 }
 
 export interface Exercise {
@@ -303,6 +307,8 @@ export interface MembershipConfig {
   lockedFeatures: string[]; // 'barcode' | 'nutrition-ai' | 'premium-programs'
   lockedProgramIds: string[]; // specific program IDs that require membership
   trialDays: 0 | 7 | 14 | 30; // free trial length; 0 = no trial
+  discountPercent?: number;   // 1-100, applied to new checkouts while active
+  discountExpiresAt?: string; // ISO datetime; discount inactive after this
 }
 
 export interface Conversation {

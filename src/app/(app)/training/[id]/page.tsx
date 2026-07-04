@@ -48,6 +48,7 @@ export default function ProgramDetailPage() {
   const [enrolling, setEnrolling] = useState(false);
   const [switchModal, setSwitchModal] = useState(false);
   const [displayWeek, setDisplayWeek] = useState(0); // 0-based week shown in schedule
+  const [purchasing, setPurchasing] = useState(false);
 
   const activeProgram = profile?.activeProgram;
   const isEnrolled = activeProgram?.programId === id;
@@ -119,6 +120,27 @@ export default function ProgramDetailPage() {
       console.error('[Enroll] failed:', err);
     } finally {
       setEnrolling(false);
+    }
+  };
+
+  const hasPurchased = !!(program?.id && profile?.purchasedProgramIds?.includes(program.id));
+  const hasMembership = profile?.membership?.status === 'active';
+  const needsPurchase = !!program?.price && program.price > 0 && !hasPurchased && !hasMembership;
+
+  const handleBuyProgram = async () => {
+    if (!user || !program) return;
+    setPurchasing(true);
+    try {
+      const res = await fetch('/api/stripe/program-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid, userEmail: user.email, programId: program.id }),
+      });
+      const data = await res.json() as { url?: string; error?: string };
+      if (data.url) window.location.href = data.url;
+      else { setPurchasing(false); }
+    } catch {
+      setPurchasing(false);
     }
   };
 
@@ -241,6 +263,13 @@ export default function ProgramDetailPage() {
               <Button variant="ghost" fullWidth size="sm" onClick={() => router.push('/training')}>
                 <RotateCcw className="w-3.5 h-3.5" /> Switch Program
               </Button>
+            </div>
+          ) : needsPurchase ? (
+            <div className="space-y-2">
+              <Button fullWidth size="lg" loading={purchasing} onClick={handleBuyProgram}>
+                <Play className="w-5 h-5" /> Buy Program — ${program.price!.toFixed(2)}
+              </Button>
+              <p className="text-xs text-text-tertiary text-center">One-time purchase. Full platform members get this program included.</p>
             </div>
           ) : (
             <Button fullWidth size="lg" loading={enrolling} onClick={() => handleEnroll(false)}>
