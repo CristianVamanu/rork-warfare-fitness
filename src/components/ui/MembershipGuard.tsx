@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Lock, Star } from 'lucide-react';
+import { Lock, Star, Loader2, Crown } from 'lucide-react';
 import { getMembershipConfig } from '@/lib/firestore';
+import { startMembershipCheckout } from '@/lib/checkout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from './Card';
+import { Button } from './Button';
 import type { MembershipConfig } from '@/types';
 
 // Pages that are always accessible regardless of membership
@@ -59,8 +61,17 @@ export function MembershipGuard({ pathname, children }: Props) {
 }
 
 function LockedScreen({ config, trialDays }: { config: MembershipConfig; trialDays: number }) {
+  const { user } = useAuth();
+  const [subscribing, setSubscribing] = useState(false);
   const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
   const price = config.fee > 0 ? `$${config.fee.toFixed(2)}/mo${trialLabel}` : 'Members only';
+
+  async function handleSubscribe() {
+    if (!user) return;
+    setSubscribing(true);
+    const err = await startMembershipCheckout(user);
+    if (err) setSubscribing(false);
+  }
 
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center px-4">
@@ -74,15 +85,25 @@ function LockedScreen({ config, trialDays }: { config: MembershipConfig; trialDa
         </div>
         <h3 className="text-xl font-black text-white mb-2">Membership Required</h3>
         <p className="text-text-secondary text-sm mb-5">
-          This platform is for active members. Contact your coach to activate your access.
+          This platform is for active members. Subscribe below to unlock full access.
         </p>
         <div className="p-4 bg-surface-elevated rounded-xl mb-4">
           <p className="text-3xl font-black text-white">{price}</p>
           <p className="text-xs text-text-secondary mt-0.5">membership plan</p>
         </div>
-        <p className="text-xs text-text-tertiary">
-          Already a member? Ask your coach to grant you access.
-        </p>
+        {config.fee > 0 ? (
+          <Button fullWidth onClick={handleSubscribe} loading={subscribing}>
+            {subscribing ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Opening Checkout…</>
+            ) : (
+              <><Crown className="w-4 h-4" /> {trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now'}</>
+            )}
+          </Button>
+        ) : (
+          <p className="text-xs text-text-tertiary">
+            Already a member? Ask your coach to grant you access.
+          </p>
+        )}
       </Card>
     </div>
   );

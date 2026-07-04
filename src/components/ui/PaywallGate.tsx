@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Lock, Star } from 'lucide-react';
+import { Lock, Star, Loader2, Crown } from 'lucide-react';
 import { getMembershipConfig } from '@/lib/firestore';
+import { startMembershipCheckout } from '@/lib/checkout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from './Card';
+import { Button } from './Button';
 import type { MembershipConfig } from '@/types';
 
 interface Props {
@@ -14,9 +16,10 @@ interface Props {
 }
 
 export function PaywallGate({ feature, programId, children }: Props) {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const [config, setConfig] = useState<MembershipConfig | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
 
   useEffect(() => {
     getMembershipConfig()
@@ -49,6 +52,13 @@ export function PaywallGate({ feature, programId, children }: Props) {
 
   if (!isLocked) return <>{children}</>;
 
+  async function handleSubscribe() {
+    if (!user) return;
+    setSubscribing(true);
+    const err = await startMembershipCheckout(user);
+    if (err) setSubscribing(false);
+  }
+
   const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
   const price = config.fee > 0 ? `$${config.fee.toFixed(2)}/mo${trialLabel}` : 'Premium';
 
@@ -64,15 +74,21 @@ export function PaywallGate({ feature, programId, children }: Props) {
         </div>
         <h3 className="text-lg font-black text-white mb-2">Members Only</h3>
         <p className="text-text-secondary text-sm mb-4">
-          This feature is available to active members. Contact your trainer to unlock access.
+          This feature is available to active members. Subscribe below to unlock it.
         </p>
-        <div className="p-3 bg-surface-elevated rounded-xl">
+        <div className="p-3 bg-surface-elevated rounded-xl mb-4">
           <p className="text-2xl font-black text-white">{price}</p>
           <p className="text-xs text-text-secondary mt-0.5">membership</p>
         </div>
-        <p className="text-xs text-text-tertiary mt-4">
-          Reach out to your coach to activate your membership.
-        </p>
+        {config.fee > 0 && (
+          <Button fullWidth onClick={handleSubscribe} loading={subscribing}>
+            {subscribing ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Opening Checkout…</>
+            ) : (
+              <><Crown className="w-4 h-4" /> {trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now'}</>
+            )}
+          </Button>
+        )}
       </Card>
     </div>
   );

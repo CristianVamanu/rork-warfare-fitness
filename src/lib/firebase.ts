@@ -29,6 +29,15 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.authD
   console.error('[Firebase] MISSING environment variables:', missing.join(', '));
 }
 
+if (!firebaseConfig.storageBucket) {
+  console.error(
+    '[Firebase] NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET is not set. ' +
+    'Storage uploads (profile photos, community images, exercise videos) will fail ' +
+    'with storage/no-default-bucket until this env var is set on your hosting platform. ' +
+    'Find it in Firebase Console → Project Settings → General → Your apps → Web app config.'
+  );
+}
+
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
@@ -38,11 +47,10 @@ try {
   app = getApps().length ? getApp() : initializeApp(firebaseConfig as Record<string, string>);
   auth = getAuth(app);
   db = getFirestore(app);
-  storage = getStorage(app);
-  console.log('[Firebase] Initialized successfully. Project:', firebaseConfig.projectId);
+  console.log('[Firebase] Auth + Firestore initialized. Project:', firebaseConfig.projectId);
 } catch (err: unknown) {
   const e = err as Error & { code?: string };
-  console.error('[Firebase] Initialization FAILED:', {
+  console.error('[Firebase] Core initialization FAILED:', {
     code: e?.code,
     message: e?.message,
     stack: e?.stack,
@@ -52,6 +60,18 @@ try {
   app = {} as FirebaseApp;
   auth = {} as Auth;
   db = {} as Firestore;
+}
+
+// Storage is initialized independently — a missing/misconfigured storageBucket
+// must never take down Auth or Firestore, which the app can run fully without Storage.
+try {
+  storage = getStorage(app);
+} catch (err: unknown) {
+  const e = err as Error & { code?: string };
+  console.error('[Firebase] Storage initialization FAILED (Auth/Firestore unaffected):', {
+    code: e?.code,
+    message: e?.message,
+  });
   storage = {} as FirebaseStorage;
 }
 

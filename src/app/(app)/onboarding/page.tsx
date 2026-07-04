@@ -7,17 +7,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Flame, Dumbbell, RefreshCw, Zap,
   ChevronRight, ChevronLeft, Loader2, CheckCircle,
-  Home, Building2, Package,
+  Home, Building2, Package, User, Users, AlertCircle, TrendingDown, TrendingUp, PartyPopper,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { saveOnboardingData, enrollInProgram, updateUserGoals, getSystemConfig } from '@/lib/firestore';
-import { estimateGoals } from '@/lib/tdee';
+import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig } from '@/lib/firestore';
+import { estimateGoals, calculateBmi, estimateBmiTimeline } from '@/lib/tdee';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Modal } from '@/components/ui/Modal';
-import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData } from '@/types';
+import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex } from '@/types';
 
 // ─── Step data ────────────────────────────────────────────────────────────────
 
@@ -61,18 +61,29 @@ export default function OnboardingPage() {
   const [trainingDays, setTrainingDays] = useState<number | null>(null);
   const [equipment, setEquipment] = useState<EquipmentType | null>(null);
   const [limitations, setLimitations] = useState('');
+  const [sex, setSex] = useState<BiologicalSex | null>(null);
+  const [age, setAge] = useState('');
+  const [heightCm, setHeightCm] = useState('');
+  const [weightKg, setWeightKg] = useState('');
   const [status, setStatus] = useState<'idle' | 'generating' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [videoGreetingUrl, setVideoGreetingUrl] = useState<string | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
 
-  const TOTAL_STEPS = 5;
+  const TOTAL_STEPS = 7;
+
+  const ageNum = parseInt(age, 10);
+  const heightNum = parseFloat(heightCm);
+  const weightNum = parseFloat(weightKg);
+  const biometricsValid = !!sex && ageNum >= 13 && ageNum <= 100 && heightNum >= 100 && heightNum <= 250 && weightNum >= 30 && weightNum <= 300;
 
   const canAdvance = [
     !!goal,
     !!experience,
     !!trainingDays,
     !!equipment,
+    biometricsValid,
+    true, // BMI result step is informational only
     true, // limitations is optional
   ][step];
 
@@ -124,8 +135,11 @@ export default function OnboardingPage() {
         daysPerWeek: program.daysPerWeek,
       });
 
-      // 3. Auto-set nutrition goals from TDEE estimate
-      const estimatedGoals = estimateGoals(goal, experience, trainingDays);
+      // 3. Auto-set nutrition goals from TDEE estimate (uses real biometrics when available)
+      const estimatedGoals = estimateGoals(
+        goal, experience, trainingDays,
+        biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, weightKg: weightNum } : undefined
+      );
       await updateUserGoals(user.uid, estimatedGoals);
 
       // 4. Save onboarding answers + mark complete
@@ -135,8 +149,12 @@ export default function OnboardingPage() {
         trainingDays,
         equipment,
         ...(limitations.trim() ? { limitations: limitations.trim() } : {}),
+        ...(biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum } : {}),
       };
       await saveOnboardingData(user.uid, { ...onboardingData, onboardingComplete: true });
+      if (biometricsValid) {
+        await updateUserDoc(user.uid, { currentWeightKg: weightNum });
+      }
 
       // 5. Refresh profile so layout no longer redirects here
       setStatus('done');
@@ -205,6 +223,17 @@ export default function OnboardingPage() {
               <StepEquipment selected={equipment} onSelect={setEquipment} />
             )}
             {step === 4 && (
+              <StepBiometrics
+                sex={sex} onSex={setSex}
+                age={age} onAge={setAge}
+                heightCm={heightCm} onHeight={setHeightCm}
+                weightKg={weightKg} onWeight={setWeightKg}
+              />
+            )}
+            {step === 5 && (
+              <StepBmiResult heightCm={heightNum} weightKg={weightNum} />
+            )}
+            {step === 6 && (
               <StepLimitations value={limitations} onChange={setLimitations} />
             )}
           </motion.div>
@@ -397,6 +426,143 @@ function StepLimitations({ value, onChange }: { value: string; onChange: (v: str
       <p className="text-xs text-text-tertiary mt-2 text-center">
         Leave blank if you have no limitations.
       </p>
+    </div>
+  );
+}
+
+const SEX_OPTIONS: { value: BiologicalSex; label: string; icon: React.ElementType }[] = [
+  { value: 'male', label: 'Male', icon: User },
+  { value: 'female', label: 'Female', icon: User },
+  { value: 'prefer-not-to-say', label: 'Prefer not to say', icon: Users },
+];
+
+function StepBiometrics({
+  sex, onSex, age, onAge, heightCm, onHeight, weightKg, onWeight,
+}: {
+  sex: BiologicalSex | null; onSex: (v: BiologicalSex) => void;
+  age: string; onAge: (v: string) => void;
+  heightCm: string; onHeight: (v: string) => void;
+  weightKg: string; onWeight: (v: string) => void;
+}) {
+  return (
+    <div>
+      <h1 className="text-2xl font-black text-white mb-1">About you</h1>
+      <p className="text-text-secondary text-sm mb-5">
+        Used to calculate your calorie needs accurately and calibrate your program — not shared with anyone.
+      </p>
+
+      <p className="text-xs font-medium text-text-secondary mb-2">Sex</p>
+      <div className="grid grid-cols-3 gap-2 mb-5">
+        {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
+          <button key={value} onClick={() => onSex(value)}>
+            <Card className={`p-3 text-center transition-colors ${sex === value ? 'border-accent bg-accent/5' : ''}`}>
+              <Icon className="w-4 h-4 mx-auto mb-1 text-text-secondary" />
+              <p className="text-xs font-medium text-white">{label}</p>
+            </Card>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Age</label>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={age}
+            onChange={(e) => onAge(e.target.value)}
+            placeholder="28"
+            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Height (cm)</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            value={heightCm}
+            onChange={(e) => onHeight(e.target.value)}
+            placeholder="178"
+            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Weight (kg)</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            value={weightKg}
+            onChange={(e) => onWeight(e.target.value)}
+            placeholder="80"
+            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepBmiResult({ heightCm, weightKg }: { heightCm: number; weightKg: number }) {
+  const { bmi, category, healthyWeightRangeKg } = calculateBmi(heightCm, weightKg);
+  const { weeksToHealthy, weightChangeKg } = estimateBmiTimeline(heightCm, weightKg);
+
+  const categoryColor = {
+    Underweight: 'text-blue-400',
+    Healthy: 'text-success',
+    Overweight: 'text-amber-400',
+    Obese: 'text-red-400',
+  }[category];
+
+  const months = weeksToHealthy ? Math.round((weeksToHealthy / 4.345) * 10) / 10 : null;
+
+  return (
+    <div>
+      <h1 className="text-2xl font-black text-white mb-1">Your BMI</h1>
+      <p className="text-text-secondary text-sm mb-5">
+        A starting reference point — your program will track real progress from here.
+      </p>
+
+      <Card className="p-6 text-center border-accent/20">
+        <p className="text-5xl font-black text-white">{bmi}</p>
+        <p className={`text-sm font-bold mt-1 ${categoryColor}`}>{category}</p>
+        <p className="text-xs text-text-tertiary mt-2">
+          Healthy range for your height: {healthyWeightRangeKg[0]}–{healthyWeightRangeKg[1]} kg
+        </p>
+      </Card>
+
+      {category === 'Healthy' ? (
+        <div className="mt-4 p-4 bg-success/10 border border-success/20 rounded-2xl flex items-start gap-3">
+          <PartyPopper className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-text-secondary">
+            You&apos;re already in a healthy BMI range! Your program will focus on building strength and performance from here.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-4 p-4 bg-accent/5 border border-accent/20 rounded-2xl flex items-start gap-3">
+          {weightChangeKg < 0 ? (
+            <TrendingDown className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+          ) : (
+            <TrendingUp className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+          )}
+          <p className="text-sm text-text-secondary">
+            Following your program consistently, a realistic estimate is{' '}
+            <span className="text-white font-medium">
+              ~{months} month{months !== 1 ? 's' : ''}
+            </span>{' '}
+            to reach a healthy BMI range ({weightChangeKg < 0 ? 'losing' : 'gaining'} ~{Math.abs(Math.round(weightChangeKg))}kg
+            at a safe, sustainable pace).
+          </p>
+        </div>
+      )}
+
+      <div className="mt-3 p-3 bg-surface-elevated rounded-xl flex items-start gap-2.5">
+        <AlertCircle className="w-4 h-4 text-text-tertiary flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-text-tertiary leading-relaxed">
+          BMI doesn&apos;t distinguish muscle from fat — very muscular individuals often score
+          &quot;overweight&quot; or higher on BMI while being perfectly healthy. Treat this as a rough
+          starting reference, not a diagnosis. Consult a professional for a full body composition assessment.
+        </p>
+      </div>
     </div>
   );
 }

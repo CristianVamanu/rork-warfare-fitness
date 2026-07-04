@@ -8,7 +8,8 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { updateUserDoc, getUserConversations, getMembershipConfig } from '@/lib/firestore';
+import { updateUserDoc, getUserConversations, getMembershipConfig, getCoachingPlans } from '@/lib/firestore';
+import { startCoachingCheckout } from '@/lib/checkout';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -17,14 +18,18 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
-import type { MembershipConfig } from '@/types';
+import type { MembershipConfig, CoachingPlan } from '@/types';
 
 // Separate component so useSearchParams doesn't block the page render
 function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
   const searchParams = useSearchParams();
   useEffect(() => {
-    if (searchParams.get('subscribed') === '1') {
+    const subscribed = searchParams.get('subscribed');
+    if (subscribed === '1') {
       toast.success('Membership activated! Welcome aboard 🎉');
+      onSuccess();
+    } else if (subscribed === 'coaching') {
+      toast.success('Coaching plan activated! Your trainer has been notified 🎉');
       onSuccess();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -41,6 +46,8 @@ export default function ProfilePage() {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [membershipConfig, setMembershipConfig] = useState<MembershipConfig | null>(null);
   const [subscribing, setSubscribing] = useState(false);
+  const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
+  const [subscribingPlanId, setSubscribingPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -48,7 +55,15 @@ export default function ProfilePage() {
       .then(convs => setUnreadMessages(convs.filter(c => c.unreadByUser).length))
       .catch(() => {});
     getMembershipConfig().then(setMembershipConfig).catch(() => {});
+    getCoachingPlans().then(plans => setCoachingPlans(plans.filter(p => p.active))).catch(() => {});
   }, [user]);
+
+  const handleSubscribeCoachingPlan = async (planId: string) => {
+    if (!user) return;
+    setSubscribingPlanId(planId);
+    const err = await startCoachingCheckout(user, planId);
+    if (err) { toast.error(err); setSubscribingPlanId(null); }
+  };
 
   const handleSave = async () => {
     if (!user || !displayName.trim()) return;
@@ -237,6 +252,57 @@ export default function ProfilePage() {
                 </div>
               )}
             </Card>
+          </motion.div>
+        )}
+
+        {/* Coaching Plans — 1:1 personal training available for purchase */}
+        {coachingPlans.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }}>
+            <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">1:1 Coaching</h2>
+            <div className="space-y-3">
+              {coachingPlans.map((plan) => {
+                const isCurrentPlan = profile?.membership?.status === 'active' && profile?.membership?.planId === plan.id;
+                return (
+                  <Card key={plan.id} className={`p-5 ${isCurrentPlan ? 'border-accent/30' : 'border-white/10'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-white">{plan.name}</p>
+                          {isCurrentPlan && <Badge variant="success">Active</Badge>}
+                        </div>
+                        <p className="text-xs text-text-secondary mt-0.5">{plan.description}</p>
+                      </div>
+                      <p className="text-lg font-black text-white whitespace-nowrap">
+                        ${plan.priceMonthly.toFixed(2)}<span className="text-xs font-normal text-text-secondary">/mo</span>
+                      </p>
+                    </div>
+                    {plan.features?.length > 0 && (
+                      <ul className="mt-3 space-y-1">
+                        {plan.features.map((f, i) => (
+                          <li key={i} className="flex items-center gap-2 text-xs text-text-secondary">
+                            <CheckCircle className="w-3 h-3 text-accent flex-shrink-0" /> {f}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {!isCurrentPlan && (
+                      <Button
+                        fullWidth
+                        className="mt-4"
+                        onClick={() => handleSubscribeCoachingPlan(plan.id)}
+                        loading={subscribingPlanId === plan.id}
+                      >
+                        {subscribingPlanId === plan.id ? (
+                          <><Loader2 className="w-4 h-4 animate-spin" /> Opening Checkout…</>
+                        ) : (
+                          <><Crown className="w-4 h-4" /> Subscribe</>
+                        )}
+                      </Button>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
           </motion.div>
         )}
 

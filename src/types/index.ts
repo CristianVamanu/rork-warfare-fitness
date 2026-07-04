@@ -62,6 +62,7 @@ export interface ActiveProgram {
 export type FitnessGoal = 'lose-fat' | 'build-muscle' | 'recomposition' | 'strength';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 export type EquipmentType = 'home' | 'full-gym' | 'minimal';
+export type BiologicalSex = 'male' | 'female' | 'prefer-not-to-say';
 
 export interface OnboardingData {
   fitnessGoal: FitnessGoal;
@@ -69,6 +70,9 @@ export interface OnboardingData {
   trainingDays: number;
   equipment: EquipmentType;
   limitations?: string;
+  sex?: BiologicalSex;
+  age?: number;
+  heightCm?: number;
 }
 
 export interface UserProfile {

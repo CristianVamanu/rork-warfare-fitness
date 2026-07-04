@@ -7,12 +7,21 @@ Your job is to design precise, periodized weekly training programs tailored to t
 Programs must be scientifically sound, progressive, and specific to the user's goal, experience, and equipment.
 Never give generic advice. Every exercise selection, set/rep scheme, and rest period must be intentional.`;
 
+interface AthleteBiometrics {
+  sex?: 'male' | 'female' | 'prefer-not-to-say';
+  age?: number;
+  heightCm?: number;
+  weightKg?: number;
+  bmi?: number;
+}
+
 function buildUserPrompt(
   goal: string,
   experience: string,
   trainingDays: number,
   equipment: string,
-  limitations: string
+  limitations: string,
+  biometrics?: AthleteBiometrics
 ): string {
   const goalMap: Record<string, string> = {
     'lose-fat': 'fat loss while preserving muscle mass',
@@ -26,8 +35,18 @@ function buildUserPrompt(
     minimal: 'minimal equipment — bodyweight, one set of dumbbells, pull-up bar',
   };
 
+  const athleteLine = biometrics && (biometrics.sex || biometrics.age || biometrics.heightCm)
+    ? `Athlete profile: ${biometrics.sex && biometrics.sex !== 'prefer-not-to-say' ? biometrics.sex : 'unspecified sex'}` +
+      `${biometrics.age ? `, ${biometrics.age} years old` : ''}` +
+      `${biometrics.heightCm ? `, ${biometrics.heightCm}cm` : ''}` +
+      `${biometrics.weightKg ? `, ${biometrics.weightKg}kg` : ''}` +
+      `${biometrics.bmi ? ` (BMI ${biometrics.bmi})` : ''}. ` +
+      `Use this only to calibrate realistic starting loads, volume tolerance, and recovery — never exclude or substitute an exercise based on sex alone. ` +
+      `Every major compound lift (squat, deadlift, bench, overhead press, pull-up) is appropriate for any athlete regardless of sex; scale load and starting volume to experience level, not sex.\n`
+    : '';
+
   return `Design a complete ${trainingDays}-day-per-week training program for a ${experience}-level athlete with the primary goal of ${goalMap[goal] ?? goal}.
-Equipment available: ${equipMap[equipment] ?? equipment}.
+${athleteLine}Equipment available: ${equipMap[equipment] ?? equipment}.
 ${limitations ? `Injury/limitations to work around: ${limitations}.` : ''}
 
 Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
@@ -142,13 +161,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { goal, experience, trainingDays, equipment, limitations = '', trainerId = '' } = body as {
+    const { goal, experience, trainingDays, equipment, limitations = '', trainerId = '', biometrics } = body as {
       goal: string;
       experience: string;
       trainingDays: number;
       equipment: string;
       limitations?: string;
       trainerId?: string;
+      biometrics?: AthleteBiometrics;
     };
 
     if (!goal || !experience || !trainingDays || !equipment) {
@@ -164,7 +184,7 @@ export async function POST(req: NextRequest) {
       temperature: 0.7,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(goal, experience, trainingDays, equipment, limitations) },
+        { role: 'user', content: buildUserPrompt(goal, experience, trainingDays, equipment, limitations, biometrics) },
       ],
     });
 
