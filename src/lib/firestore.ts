@@ -353,6 +353,7 @@ export async function getUserWorkouts(userId: string, limitCount = 10) {
           duration: Number(payload.duration ?? 0),
           calories: Number(payload.calories ?? 0),
           exercises: payload.exercises ?? [],
+          totalWeightLifted: Number(payload.totalWeightLifted ?? 0),
           completedAt: d.data().createdAt,
         };
       });
@@ -372,6 +373,66 @@ export async function getUserWorkouts(userId: string, limitCount = 10) {
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   });
+}
+
+interface WorkoutSetLog {
+  weight: number;
+  reps: number;
+  completed: boolean;
+}
+interface WorkoutExerciseLog {
+  name: string;
+  sets: WorkoutSetLog[];
+}
+interface UserWorkoutRecord {
+  exercises: WorkoutExerciseLog[];
+  totalWeightLifted: number;
+  completedAt: { toDate?: () => Date } | null;
+}
+
+export interface WeeklySummary {
+  volumeKg: number;
+  workoutsCompleted: number;
+}
+
+/** Real, computed-from-history weekly totals — no estimation. */
+export async function getWeeklySummary(userId: string): Promise<WeeklySummary> {
+  const workouts = await getUserWorkouts(userId, 20) as unknown as UserWorkoutRecord[];
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  let volumeKg = 0;
+  let workoutsCompleted = 0;
+  for (const w of workouts) {
+    const completedDate = w.completedAt?.toDate?.() ?? null;
+    if (!completedDate || completedDate.getTime() < weekAgo) continue;
+    workoutsCompleted++;
+    volumeKg += w.totalWeightLifted ?? 0;
+  }
+  return { volumeKg: Math.round(volumeKg), workoutsCompleted };
+}
+
+export interface PersonalBest {
+  weight: number;
+  reps: number;
+}
+
+/** Scans logged set history for the heaviest completed set of a given exercise. */
+export async function getPersonalBest(userId: string, exerciseName: string): Promise<PersonalBest | null> {
+  const target = exerciseName.trim().toLowerCase();
+  if (!target) return null;
+  const workouts = await getUserWorkouts(userId, 30) as unknown as UserWorkoutRecord[];
+  let best: PersonalBest | null = null;
+  for (const w of workouts) {
+    for (const ex of w.exercises ?? []) {
+      if (String(ex.name ?? '').trim().toLowerCase() !== target) continue;
+      for (const s of ex.sets ?? []) {
+        if (!s.completed || !s.weight) continue;
+        if (!best || s.weight > best.weight || (s.weight === best.weight && s.reps > best.reps)) {
+          best = { weight: s.weight, reps: s.reps };
+        }
+      }
+    }
+  }
+  return best;
 }
 
 // ---------------------------------------------------------------------------

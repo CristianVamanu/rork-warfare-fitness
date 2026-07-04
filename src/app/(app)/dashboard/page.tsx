@@ -3,9 +3,9 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, Utensils, Timer, CheckCircle2 } from 'lucide-react';
+import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, Utensils, Timer, CheckCircle2, TrendingUp, Trophy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, subscribeRecentActivity, type ActivityItem } from '@/lib/firestore';
+import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, subscribeRecentActivity, getWeeklySummary, getPersonalBest, type ActivityItem, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import { getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
@@ -38,6 +38,8 @@ export default function DashboardPage() {
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
   const [dailyTip, setDailyTip] = useState<string>('');
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
+  const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
 
   // Fetch daily AI fitness tip (changes every day, cached server-side)
   useEffect(() => {
@@ -129,6 +131,18 @@ export default function DashboardPage() {
     ? Math.min(100, Math.round((completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
 
+  const firstExerciseName = !todayDay?.isRest ? todayDay?.exercises?.[0]?.name : undefined;
+
+  useEffect(() => {
+    if (!user) return;
+    getWeeklySummary(user.uid).then(setWeeklySummary).catch(() => {});
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !firstExerciseName) { setPersonalBest(null); return; }
+    getPersonalBest(user.uid, firstExerciseName).then(setPersonalBest).catch(() => setPersonalBest(null));
+  }, [user, firstExerciseName]);
+
   const stats = [
     {
       icon: Flame,
@@ -148,16 +162,6 @@ export default function DashboardPage() {
       max: goals.water / 1000,
       color: 'text-blue-400',
       bg: 'bg-blue-400/10',
-      barColor: 'info' as const,
-    },
-    {
-      icon: Dumbbell,
-      label: 'Workouts',
-      value: profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0,
-      unit: 'total',
-      max: Math.max(profile?.statsCache?.totalWorkouts ?? 1, 1),
-      color: 'text-purple-400',
-      bg: 'bg-purple-400/10',
       barColor: 'info' as const,
     },
     {
@@ -199,7 +203,12 @@ export default function DashboardPage() {
           <p className="text-text-secondary text-sm">{greeting},</p>
           <h1 className="text-2xl font-black text-white tracking-tight">{firstName} 💪</h1>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            {streak > 0 && <Badge variant="accent">🔥 {streak} day streak</Badge>}
+            {activeProgram && (
+              <Badge variant="accent">
+                Day {workedOutToday ? lastCompleted + 1 : lastCompleted + 2} of {activeProgram.programName}
+              </Badge>
+            )}
+            {streak > 0 && <Badge variant="muted">🔥 {streak} day streak</Badge>}
             <Badge variant="muted">
               <span className={tier.color}>⚡</span> Lvl {powerLevel} · {tier.title}
             </Badge>
@@ -207,7 +216,7 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* Stats Grid */}
-        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-2 gap-3">
+        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-3 gap-3">
           {stats.map((stat) => (
             <motion.div key={stat.label} variants={stagger.item}>
               <Card className="p-4">
@@ -281,6 +290,25 @@ export default function DashboardPage() {
                 </p>
               ) : null}
 
+              {!workedOutToday && !todayDay?.isRest && firstExerciseName && (
+                <div className="mt-2 flex items-center gap-1.5 text-xs text-text-tertiary">
+                  <Dumbbell className="w-3 h-3" />
+                  Target: {firstExerciseName}
+                  {todayDay?.exercises?.[0] && (
+                    <span> — {todayDay.exercises[0].sets}×{todayDay.exercises[0].reps}</span>
+                  )}
+                </div>
+              )}
+
+              {!workedOutToday && !todayDay?.isRest && personalBest && (
+                <div className="mt-2 flex items-center gap-1.5 p-2 bg-accent/5 border border-accent/20 rounded-lg">
+                  <Trophy className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                  <p className="text-xs text-accent">
+                    Your best: {personalBest.weight}{profile?.weightUnit ?? 'kg'} × {personalBest.reps}. Beat it today.
+                  </p>
+                </div>
+              )}
+
               <div className="mt-3 mb-3">
                 <ProgressBar value={completedWorkouts} max={activeProgram.totalWorkouts} color={workedOutToday ? 'success' : 'accent'} size="sm" />
                 <p className="text-xs text-text-tertiary mt-1">
@@ -324,6 +352,39 @@ export default function DashboardPage() {
             </Link>
           )}
         </motion.div>
+
+        {/* Weekly Momentum — real, computed from logged sets this week */}
+        {weeklySummary && (weeklySummary.workoutsCompleted > 0 || weeklySummary.volumeKg > 0) && (
+          <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
+            <Card className="p-4 relative overflow-hidden">
+              <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
+                <TrendingUp className="w-24 h-24 text-accent" />
+              </div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-1.5 rounded-lg bg-accent-muted">
+                  <TrendingUp className="w-4 h-4 text-accent" />
+                </div>
+                <span className="text-xs text-text-secondary font-medium">THIS WEEK</span>
+              </div>
+              <div className="flex items-end gap-6">
+                <div>
+                  <p className="text-2xl font-black text-white">
+                    {weeklySummary.volumeKg.toLocaleString()}
+                    <span className="text-sm font-medium text-text-secondary ml-1">{profile?.weightUnit ?? 'kg'}</span>
+                  </p>
+                  <p className="text-xs text-text-tertiary mt-0.5">total volume lifted</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-white">
+                    {weeklySummary.workoutsCompleted}
+                    {activeMock?.daysPerWeek ? <span className="text-sm font-medium text-text-secondary ml-1">/{activeMock.daysPerWeek}</span> : null}
+                  </p>
+                  <p className="text-xs text-text-tertiary mt-0.5">workouts done</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Quick Actions */}
         <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
