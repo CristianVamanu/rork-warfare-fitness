@@ -90,6 +90,7 @@ export interface UserProfile {
   activeProgram?: ActiveProgram;
   onboardingComplete?: boolean;
   onboarding?: OnboardingData;
+  assignedNutritionPlan?: NutritionPlan;
   achievements?: string[];
   xp?: number;
   powerLevel?: number;
@@ -275,6 +276,23 @@ export interface CoachingPlan {
   currency: string;       // 'USD' | 'EUR' | 'GBP'
   features: string[];     // bullet points shown to users
   active: boolean;
+}
+
+export interface NutritionPlanMeal {
+  name: string;         // e.g. "Breakfast", "Lunch", "Post-Workout Snack"
+  items: string[];      // e.g. "3 whole eggs + 2 egg whites", "1 cup oats with berries"
+  calories?: number;
+}
+
+export interface NutritionPlan {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  meals: NutritionPlanMeal[];
+  coachNotes?: string;
+  assignedAt: unknown;
+  assignedBy: string;   // trainer/admin uid
 }
 
 export interface MembershipConfig {

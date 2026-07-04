@@ -23,6 +23,7 @@ export default function ProgramsPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [assignModal, setAssignModal] = useState<(Program & { visibility?: string }) | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -46,6 +47,16 @@ export default function ProgramsPage() {
       setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPremium: !x.isPremium } : x));
       toast.success(p.isPremium ? 'Set to Free' : 'Set to Premium');
     } catch { toast.error('Failed to update'); }
+  }
+
+  async function handlePublish(p: Program) {
+    setPublishing(p.id);
+    try {
+      await updateProgram(p.id, { isPublic: true, status: 'published' });
+      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPublic: true } : x));
+      toast.success('Program published — now visible to clients');
+    } catch { toast.error('Failed to publish'); }
+    finally { setPublishing(null); }
   }
 
   async function handleDelete(p: Program & { _mock?: boolean }) {
@@ -121,6 +132,9 @@ export default function ProgramsPage() {
                     {p.visibility === 'coaching' && <Badge variant="danger">1:1 Coaching</Badge>}
                     {p.isPublic && !p.visibility && <Badge variant="accent">Public</Badge>}
                     {p.visibility === 'public' && <Badge variant="accent">Public</Badge>}
+                    {!(p as { _mock?: boolean })._mock && !p.isPublic && p.visibility !== 'coaching' && p.visibility !== 'public' && (
+                      <Badge variant="muted">Draft — not visible to clients</Badge>
+                    )}
                     {p.isPremium && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
                   </div>
                   <div className="flex gap-2 flex-wrap">
@@ -131,6 +145,11 @@ export default function ProgramsPage() {
                   {p.description && <p className="text-xs text-text-secondary mt-1.5 line-clamp-1">{p.description}</p>}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  {!(p as { _mock?: boolean })._mock && !p.isPublic && p.visibility !== 'coaching' && p.visibility !== 'public' && (
+                    <Button size="sm" onClick={() => handlePublish(p)} loading={publishing === p.id}>
+                      Publish
+                    </Button>
+                  )}
                   {!(p as { _mock?: boolean })._mock && (
                     <button
                       onClick={() => handleTogglePremium(p)}

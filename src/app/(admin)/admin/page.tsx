@@ -8,7 +8,7 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2,
-  Video, Upload, X as XIcon, Play,
+  Video, Upload, X as XIcon, Play, Apple, Wand2,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -24,6 +24,7 @@ import {
   deleteUserAccount,
   getCoachingPlans, saveCoachingPlans, assignCoachingPlan, revokeCoachingPlan,
   getExerciseVideos, saveExerciseVideo, deleteExerciseVideo,
+  assignNutritionPlan,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -31,8 +32,9 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo } from '@/types';
+import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan } from '@/types';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'library' | 'integrations' | 'settings';
 
@@ -216,6 +218,13 @@ export default function AdminPage() {
   const [savingSecret, setSavingSecret] = useState<string | null>(null);
   const [testingService, setTestingService] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
+
+  // ── Nutrition plan (AI) state ─────────────────────────────────────────────
+  const [nutritionModalUser, setNutritionModalUser] = useState<UserData | null>(null);
+  const [nutritionTrainerNotes, setNutritionTrainerNotes] = useState('');
+  const [nutritionDraft, setNutritionDraft] = useState<Omit<NutritionPlan, 'assignedAt' | 'assignedBy'> | null>(null);
+  const [generatingNutrition, setGeneratingNutrition] = useState(false);
+  const [assigningNutrition, setAssigningNutrition] = useState(false);
 
   // ── Community channels state ───────────────────────────────────────────────
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -422,6 +431,47 @@ export default function AdminPage() {
       toast.success(`${u.displayName || 'User'} deleted`);
       await loadUsers();
     } catch { toast.error('Failed to delete user'); }
+  }
+
+  function openNutritionModal(u: UserData) {
+    setNutritionModalUser(u);
+    setNutritionDraft(null);
+    setNutritionTrainerNotes('');
+  }
+
+  async function handleGenerateNutrition() {
+    if (!user || !nutritionModalUser) return;
+    setGeneratingNutrition(true);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/nutrition-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId: nutritionModalUser.id, trainerNotes: nutritionTrainerNotes.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Generation failed');
+      setNutritionDraft(data.plan);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to generate plan');
+    } finally {
+      setGeneratingNutrition(false);
+    }
+  }
+
+  async function handleAssignNutrition() {
+    if (!user || !nutritionModalUser || !nutritionDraft) return;
+    setAssigningNutrition(true);
+    try {
+      await assignNutritionPlan(nutritionModalUser.id, { ...nutritionDraft, assignedBy: user.uid });
+      toast.success(`Nutrition plan assigned to ${nutritionModalUser.displayName || 'client'}`);
+      setNutritionModalUser(null);
+      setNutritionDraft(null);
+    } catch {
+      toast.error('Failed to assign plan');
+    } finally {
+      setAssigningNutrition(false);
+    }
   }
 
   async function loadMembership() {
@@ -982,6 +1032,13 @@ export default function AdminPage() {
                         className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-secondary hover:text-white"
                       >
                         <Dumbbell className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => openNutritionModal(u)}
+                        title="AI Nutrition Plan"
+                        className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-secondary hover:text-green-400"
+                      >
+                        <Apple className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleBanToggle(u)}
@@ -2133,6 +2190,99 @@ export default function AdminPage() {
           </Card>
         </div>
       )}
+
+      {/* ── AI Nutrition Plan Modal ──────────────────────────────────────────── */}
+      <Modal
+        open={!!nutritionModalUser}
+        onClose={() => { setNutritionModalUser(null); setNutritionDraft(null); }}
+        title={`Nutrition Plan — ${nutritionModalUser?.displayName || nutritionModalUser?.email || ''}`}
+      >
+        <div className="space-y-4">
+          {!nutritionDraft ? (
+            <>
+              <p className="text-sm text-text-secondary">
+                AI will generate a plan based on this client&apos;s onboarding profile (goal, experience, sex, age, height, weight, limitations).
+              </p>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Additional instructions (optional)</label>
+                <textarea
+                  value={nutritionTrainerNotes}
+                  onChange={(e) => setNutritionTrainerNotes(e.target.value)}
+                  placeholder="e.g. vegetarian, 5 meals/day, avoid dairy…"
+                  rows={3}
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                />
+              </div>
+              <Button fullWidth onClick={handleGenerateNutrition} loading={generatingNutrition}>
+                <Wand2 className="w-4 h-4" /> Generate with AI
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-4 gap-2">
+                {(['calories', 'protein', 'carbs', 'fat'] as const).map((key) => (
+                  <div key={key}>
+                    <label className="text-[10px] text-text-tertiary uppercase block mb-1">{key}</label>
+                    <input
+                      type="number"
+                      value={nutritionDraft[key]}
+                      onChange={(e) => setNutritionDraft(prev => prev ? { ...prev, [key]: Number(e.target.value) } : prev)}
+                      className="w-full bg-surface border border-white/10 rounded-lg px-2 py-1.5 text-white text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {nutritionDraft.meals.map((meal, i) => (
+                  <div key={i} className="p-3 bg-surface-elevated rounded-xl border border-white/5">
+                    <input
+                      value={meal.name}
+                      onChange={(e) => setNutritionDraft(prev => {
+                        if (!prev) return prev;
+                        const meals = [...prev.meals];
+                        meals[i] = { ...meals[i], name: e.target.value };
+                        return { ...prev, meals };
+                      })}
+                      className="w-full bg-transparent text-sm font-bold text-white mb-2 focus:outline-none"
+                    />
+                    <textarea
+                      value={meal.items.join('\n')}
+                      onChange={(e) => setNutritionDraft(prev => {
+                        if (!prev) return prev;
+                        const meals = [...prev.meals];
+                        meals[i] = { ...meals[i], items: e.target.value.split('\n').filter(Boolean) };
+                        return { ...prev, meals };
+                      })}
+                      rows={3}
+                      className="w-full bg-surface border border-white/10 rounded-lg px-2 py-1.5 text-xs text-text-secondary focus:outline-none focus:border-accent/50 resize-none"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Coach notes</label>
+                <textarea
+                  value={nutritionDraft.coachNotes ?? ''}
+                  onChange={(e) => setNutritionDraft(prev => prev ? { ...prev, coachNotes: e.target.value } : prev)}
+                  rows={2}
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm resize-none focus:outline-none focus:border-accent/50"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={handleGenerateNutrition} loading={generatingNutrition}>
+                  <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+                </Button>
+                <Button fullWidth onClick={handleAssignNutrition} loading={assigningNutrition}>
+                  Assign to Client
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
 
     </div>
   );

@@ -32,7 +32,8 @@ function formatDate(d: Date): string {
 }
 
 function NutritionPageInner() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const [showPlanModal, setShowPlanModal] = useState(false);
   const [meals, setMeals] = useState<Meal[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
   const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
@@ -187,6 +188,26 @@ function NutritionPageInner() {
       </div>
 
       <div className="px-4 py-4 space-y-5">
+        {/* Coach-assigned nutrition plan banner */}
+        {profile?.assignedNutritionPlan && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+            <button onClick={() => setShowPlanModal(true)} className="w-full text-left">
+              <Card className="p-4 border-accent/30 bg-accent/5 flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-accent-muted flex-shrink-0">
+                  <Beef className="w-4 h-4 text-accent" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-white">Your Coach&apos;s Nutrition Plan</p>
+                  <p className="text-xs text-text-secondary">
+                    {profile.assignedNutritionPlan.calories}kcal · {profile.assignedNutritionPlan.protein}p / {profile.assignedNutritionPlan.carbs}c / {profile.assignedNutritionPlan.fat}f
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+              </Card>
+            </button>
+          </motion.div>
+        )}
+
         {/* Macro Summary */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <Card className="p-5">
@@ -406,6 +427,48 @@ function NutritionPageInner() {
           </div>
         </div>
       </Modal>
+
+      {profile?.assignedNutritionPlan && (
+        <Modal open={showPlanModal} onClose={() => setShowPlanModal(false)} title="Your Nutrition Plan">
+          <div className="space-y-4">
+            <div className="grid grid-cols-4 gap-2 text-center">
+              {([
+                { key: 'calories', label: 'kcal' },
+                { key: 'protein', label: 'protein' },
+                { key: 'carbs', label: 'carbs' },
+                { key: 'fat', label: 'fat' },
+              ] as const).map(({ key, label }) => (
+                <div key={key} className="p-2 bg-surface-elevated rounded-xl">
+                  <p className="text-lg font-black text-white">{profile.assignedNutritionPlan![key]}</p>
+                  <p className="text-[10px] text-text-tertiary">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              {profile.assignedNutritionPlan.meals.map((meal, i) => (
+                <Card key={i} className="p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-sm font-bold text-white">{meal.name}</p>
+                    {meal.calories ? <span className="text-xs text-text-tertiary">{meal.calories}kcal</span> : null}
+                  </div>
+                  <ul className="space-y-1">
+                    {meal.items.map((item, j) => (
+                      <li key={j} className="text-xs text-text-secondary">• {item}</li>
+                    ))}
+                  </ul>
+                </Card>
+              ))}
+            </div>
+
+            {profile.assignedNutritionPlan.coachNotes && (
+              <div className="p-3 bg-accent/5 border border-accent/20 rounded-xl">
+                <p className="text-xs text-text-secondary">{profile.assignedNutritionPlan.coachNotes}</p>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

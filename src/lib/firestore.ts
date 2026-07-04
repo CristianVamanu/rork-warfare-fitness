@@ -30,7 +30,7 @@ import {
   deleteField,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { UserGoals, CoachingPlan, ExerciseVideo } from '@/types';
+import type { UserGoals, CoachingPlan, ExerciseVideo, NutritionPlan } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Query safety wrapper — surfaces missing-index errors instead of silent []
@@ -1074,6 +1074,15 @@ export async function assignCoachingPlan(userId: string, planId: string, planNam
     'membership.planId': planId,
     'membership.planName': planName,
     'membership.grantedBy': 'admin',
+  });
+}
+
+export async function assignNutritionPlan(
+  userId: string,
+  plan: Omit<NutritionPlan, 'assignedAt'>
+): Promise<void> {
+  await updateDoc(doc(db, 'users', userId), {
+    assignedNutritionPlan: { ...plan, assignedAt: serverTimestamp() },
   });
 }
 
