@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
@@ -136,8 +136,13 @@ interface UserData {
 
 export default function AdminPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, profile, tenant } = useAuth();
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = searchParams.get('tab');
+    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'community', 'notifications', 'membership', 'coaching', 'library', 'integrations', 'settings'];
+    return (valid as string[]).includes(t ?? '') ? (t as Tab) : 'overview';
+  });
 
   // ── Overview state ──────────────────────────────────────────────────────────
   const [users, setUsers] = useState<UserData[]>([]);

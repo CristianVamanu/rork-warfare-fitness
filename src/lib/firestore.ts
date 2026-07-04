@@ -861,11 +861,18 @@ export async function sendNotificationToAll(userIds: string[], data: {
   await Promise.all(userIds.map((uid) => sendNotification({ ...data, userId: uid })));
 }
 
+// NOTE: sorted client-side rather than via Firestore orderBy() to avoid
+// requiring a composite (userId + createdAt) index — this collection is
+// small per-user, so an in-memory sort is cheap and needs zero Firebase
+// console setup.
 export async function getUserNotifications(userId: string): Promise<AppNotification[]> {
   const snap = await getDocs(
-    query(collection(db, 'notifications'), where('userId', '==', userId), orderBy('createdAt', 'desc'), limit(50))
+    query(collection(db, 'notifications'), where('userId', '==', userId), limit(200))
   );
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as AppNotification);
+  const notifs = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as AppNotification);
+  return notifs
+    .sort((a, b) => ((b.createdAt as Timestamp)?.toMillis() ?? 0) - ((a.createdAt as Timestamp)?.toMillis() ?? 0))
+    .slice(0, 50);
 }
 
 export async function markNotificationRead(notifId: string) {
@@ -1092,20 +1099,46 @@ export async function submitCoachingApplication(data: {
   injuries: string;
   availability: string;
 }): Promise<string> {
+  // Block duplicate submissions while one is already pending for this plan —
+  // the UI is supposed to hide the Apply button in this state, but guard
+  // server-side too in case of a stale client.
+  const existing = await getUserCoachingApplication(data.userId);
+  if (existing && existing.planId === data.planId && existing.status === 'pending') {
+    throw new Error('You already have a pending application for this plan.');
+  }
+
   const ref = await addDoc(collection(db, 'coachingApplications'), {
     ...data,
     status: 'pending',
     createdAt: serverTimestamp(),
   });
+
+  // Notify every admin so they know to review it.
+  const adminSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
+  await Promise.all(
+    adminSnap.docs.map((d) => sendNotification({
+      userId: d.id,
+      title: 'New 1:1 Coaching Application',
+      body: `${data.userName} applied for "${data.planName}". Review it in Admin → Coaching Apps.`,
+      type: 'manual',
+      actionLabel: 'Review Application',
+      actionUrl: '/admin?tab=coaching',
+    }))
+  );
+
   return ref.id;
 }
 
+// NOTE: sorted client-side rather than via Firestore orderBy() to avoid
+// requiring a composite (userId + createdAt) index for a brand-new collection.
 export async function getUserCoachingApplication(userId: string): Promise<CoachingApplication | null> {
   const snap = await getDocs(
-    query(collection(db, 'coachingApplications'), where('userId', '==', userId), orderBy('createdAt', 'desc'), limit(1))
+    query(collection(db, 'coachingApplications'), where('userId', '==', userId), limit(50))
   );
   if (snap.empty) return null;
-  return { id: snap.docs[0].id, ...snap.docs[0].data() } as CoachingApplication;
+  const apps = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as CoachingApplication);
+  apps.sort((a, b) => ((b.createdAt as Timestamp)?.toMillis() ?? 0) - ((a.createdAt as Timestamp)?.toMillis() ?? 0));
+  return apps[0];
 }
 
 export async function getCoachingApplications(): Promise<CoachingApplication[]> {
