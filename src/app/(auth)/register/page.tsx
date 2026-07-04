@@ -76,7 +76,7 @@ export default function RegisterPage() {
         <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mb-4 shadow-glow-accent">
           <span className="text-2xl font-black text-black">W</span>
         </div>
-        <h1 className="text-2xl font-black text-white tracking-tight">Join the War</h1>
+        <h1 className="text-2xl font-black text-white tracking-tight">Create Your Account</h1>
         <p className="text-text-secondary text-sm mt-1">Start your fitness journey</p>
       </div>
 
