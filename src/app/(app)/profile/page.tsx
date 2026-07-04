@@ -56,7 +56,7 @@ export default function ProfilePage() {
       .then(convs => setUnreadMessages(convs.filter(c => c.unreadByUser).length))
       .catch(() => {});
     getMembershipConfig().then(setMembershipConfig).catch(() => {});
-    getCoachingPlans().then(plans => setCoachingPlans(plans.filter(p => p.active))).catch(() => {});
+    getCoachingPlans().then(plans => setCoachingPlans(plans.filter(p => p.active))).catch((err) => console.error('[Profile] Failed to load coaching plans:', err));
   }, [user]);
 
   const handleSubscribeCoachingPlan = async (planId: string) => {
@@ -199,10 +199,13 @@ export default function ProfilePage() {
           </Card>
         </motion.div>
 
-        {/* Membership Section */}
+        {/* Plans — platform membership + 1:1 coaching, always shown together */}
+        {(showMembershipSection || coachingPlans.length > 0) && (
+          <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Available Plans</h2>
+        )}
         {showMembershipSection && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-            <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Membership</h2>
+            <p className="text-sm font-bold text-white mb-2 px-1">Platform Membership</p>
             <Card className={`p-5 ${isActive || inTrial ? 'border-accent/30' : 'border-white/10'}`}>
               {isActive || inTrial ? (
                 /* ── Active / Trial ── */
@@ -290,7 +293,7 @@ export default function ProfilePage() {
         {/* Coaching Plans — 1:1 personal training available for purchase */}
         {coachingPlans.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }}>
-            <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">1:1 Coaching</h2>
+            <p className="text-sm font-bold text-white mb-2 px-1">1:1 Coaching</p>
             <div className="space-y-3">
               {coachingPlans.map((plan) => {
                 const isCurrentPlan = profile?.membership?.status === 'active' && profile?.membership?.planId === plan.id;

@@ -42,6 +42,8 @@ export default function BarcodePage() {
   const [manualCode, setManualCode] = useState('');
   const [result, setResult] = useState<NutritionAnalysis | null>(null);
   const [productName, setProductName] = useState('');
+  const [nutriScoreGrade, setNutriScoreGrade] = useState<string | null>(null);
+  const [novaGroup, setNovaGroup] = useState<number | null>(null);
   const [mealType, setMealType] = useState<MealType>('snack');
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -149,16 +151,23 @@ export default function BarcodePage() {
   }, []);
 
   const lookupBarcode = async (code: string) => {
-    if (!code.trim()) return;
+    if (!code.trim() || !user) return;
     setSearching(true);
+    setNutriScoreGrade(null);
+    setNovaGroup(null);
     try {
-      const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`);
-      if (!res.ok) throw new Error('Product not found');
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Product not found');
       setResult(data.nutrition);
       setProductName(data.name || data.nutrition?.name || 'Product');
-    } catch {
-      toast.error('Product not found. Try another barcode or enter manually.');
+      setNutriScoreGrade(data.nutriScoreGrade ?? null);
+      setNovaGroup(data.novaGroup ?? null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Product not found. Try another barcode or enter manually.');
     } finally {
       setSearching(false);
     }
@@ -337,10 +346,18 @@ export default function BarcodePage() {
           {result && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="p-5 space-y-4">
-                <div>
-                  <h3 className="text-lg font-black text-white">{productName || result.name}</h3>
-                  <p className="text-2xl font-black text-accent mt-1">{result.calories} kcal</p>
-                  <p className="text-xs text-text-secondary mt-0.5">per 100g</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-black text-white">{productName || result.name}</h3>
+                    <p className="text-2xl font-black text-accent mt-1">{result.calories} kcal</p>
+                    <p className="text-xs text-text-secondary mt-0.5">per 100g</p>
+                  </div>
+                  {(nutriScoreGrade || novaGroup) && (
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      {nutriScoreGrade && <NutriScoreBadge grade={nutriScoreGrade} />}
+                      {novaGroup && <NovaBadge group={novaGroup} />}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
@@ -383,10 +400,50 @@ export default function BarcodePage() {
           <AlertCircle className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
           <p className="text-xs text-text-secondary">
             Powered by OpenFoodFacts (3M+ products). Scans EAN-13, EAN-8, UPC-A, UPC-E, Code128, QR codes. Values are per 100g.
+            Nutri-Score and NOVA processing grade shown when available in the OpenFoodFacts database.
           </p>
         </Card>
       </div>
     </div>
     </PaywallGate>
+  );
+}
+
+const NUTRISCORE_COLORS: Record<string, string> = {
+  a: 'bg-green-500 text-black',
+  b: 'bg-lime-400 text-black',
+  c: 'bg-yellow-400 text-black',
+  d: 'bg-orange-500 text-black',
+  e: 'bg-red-500 text-white',
+};
+
+function NutriScoreBadge({ grade }: { grade: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm font-black ${NUTRISCORE_COLORS[grade] ?? 'bg-surface-elevated text-white'}`}>
+        {grade.toUpperCase()}
+      </div>
+      <span className="text-[10px] text-text-tertiary">Nutri-Score</span>
+    </div>
+  );
+}
+
+const NOVA_LABELS: Record<number, { label: string; color: string }> = {
+  1: { label: 'Unprocessed', color: 'text-green-400' },
+  2: { label: 'Processed culinary', color: 'text-lime-400' },
+  3: { label: 'Processed', color: 'text-orange-400' },
+  4: { label: 'Ultra-processed', color: 'text-red-400' },
+};
+
+function NovaBadge({ group }: { group: number }) {
+  const info = NOVA_LABELS[group];
+  if (!info) return null;
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className={`w-7 h-7 rounded-lg bg-surface-elevated flex items-center justify-center text-sm font-black ${info.color}`}>
+        {group}
+      </div>
+      <span className="text-[10px] text-text-tertiary">{info.label}</span>
+    </div>
   );
 }

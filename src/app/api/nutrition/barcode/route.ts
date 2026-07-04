@@ -1,10 +1,17 @@
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyUser } from '@/lib/verifyUser';
+import { checkAndIncrementDailyLimit } from '@/lib/rateLimit';
 
 interface OpenFoodFactsResponse {
   status: number;
   product?: {
     product_name?: string;
     brands?: string;
+    nutriscore_grade?: string;   // 'a' | 'b' | 'c' | 'd' | 'e'
+    nova_group?: number;         // 1-4, processing level (1 = unprocessed, 4 = ultra-processed)
+    additives_tags?: string[];
     nutriments?: {
       'energy-kcal_100g'?: number;
       'energy-kcal'?: number;
@@ -20,6 +27,17 @@ interface OpenFoodFactsResponse {
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
   if (!code) return NextResponse.json({ error: 'Barcode required' }, { status: 400 });
+
+  const check = await verifyUser(req);
+  if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
+
+  const limit = await checkAndIncrementDailyLimit(check.uid, 'barcodeScans');
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: `Daily barcode scan limit reached (${limit.limit}/day). Try again tomorrow.` },
+      { status: 429 }
+    );
+  }
 
   try {
     const res = await fetch(
@@ -39,9 +57,15 @@ export async function GET(req: NextRequest) {
     const { product } = data;
     const n = product.nutriments || {};
 
+    const grade = product.nutriscore_grade?.toLowerCase();
+    const validGrade = grade && ['a', 'b', 'c', 'd', 'e'].includes(grade) ? grade : null;
+
     return NextResponse.json({
       name: product.product_name || 'Unknown Product',
       brand: product.brands || '',
+      nutriScoreGrade: validGrade,
+      novaGroup: product.nova_group ?? null,
+      additivesCount: product.additives_tags?.length ?? 0,
       nutrition: {
         name: product.product_name || 'Unknown Product',
         calories: Math.round(n['energy-kcal_100g'] || n['energy-kcal'] || 0),

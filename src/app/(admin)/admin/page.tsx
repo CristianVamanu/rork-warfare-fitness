@@ -282,6 +282,12 @@ export default function AdminPage() {
     }).catch(console.error).finally(() => setOverviewLoading(false));
   }, [profile?.trainerId]);
 
+  // Load real Stripe/OpenAI/etc config status once on mount for the Overview card
+  useEffect(() => {
+    if (user) loadSecretStatuses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   // ── Tab loaders ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (tab === 'clients' && users.length === 0) loadUsers();
@@ -887,7 +893,7 @@ export default function AdminPage() {
     finally { setSavingLegal(false); }
   }
 
-  const stripeStatus = tenant?.stripe?.subscriptionStatus ?? 'inactive';
+  const stripeConfigured = secretStatuses.find(s => s.key === 'STRIPE_SECRET_KEY')?.configured ?? false;
   const clients = users.filter(u => u.role !== 'admin');
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
@@ -949,31 +955,22 @@ export default function AdminPage() {
 
           <Card className="p-5">
             <h2 className="text-base font-bold text-white mb-4 flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-accent" /> Subscription
+              <CreditCard className="w-4 h-4 text-accent" /> Payment Processing
             </h2>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {stripeStatus === 'active' ? <CheckCircle className="w-5 h-5 text-success" /> :
-                 stripeStatus === 'past_due' || stripeStatus === 'canceled' ? <AlertTriangle className="w-5 h-5 text-danger" /> :
-                 <CreditCard className="w-5 h-5 text-text-tertiary" />}
-                <span className={`text-sm font-medium ${
-                  stripeStatus === 'active' ? 'text-success' :
-                  stripeStatus === 'trialing' ? 'text-yellow-400' :
-                  stripeStatus === 'past_due' || stripeStatus === 'canceled' ? 'text-danger' : 'text-text-tertiary'
-                }`}>
-                  {stripeStatus === 'active' ? 'Active' : stripeStatus === 'trialing' ? 'Trial' :
-                   stripeStatus === 'past_due' ? 'Past Due' : stripeStatus === 'canceled' ? 'Canceled' : 'Not set up'}
+                {stripeConfigured ? <CheckCircle className="w-5 h-5 text-success" /> : <CreditCard className="w-5 h-5 text-text-tertiary" />}
+                <span className={`text-sm font-medium ${stripeConfigured ? 'text-success' : 'text-text-tertiary'}`}>
+                  {stripeConfigured ? 'Stripe Connected' : 'Not configured'}
                 </span>
               </div>
-              {tenant?.stripe?.currentPeriodEnd != null && stripeStatus !== 'inactive' && (
-                <p className="text-xs text-text-secondary">
-                  Renews {new Date(String(tenant.stripe.currentPeriodEnd)).toLocaleDateString()}
-                </p>
+              {!stripeConfigured && (
+                <Button size="sm" variant="ghost" onClick={() => setTab('integrations')}>Set up</Button>
               )}
             </div>
-            {stripeStatus === 'inactive' && (
+            {!stripeConfigured && (
               <p className="text-xs text-text-secondary mt-2">
-                Set STRIPE_SECRET_KEY in your Vercel environment variables to enable billing.
+                Add your Stripe secret key in Admin → Integrations to enable membership and program billing.
               </p>
             )}
           </Card>

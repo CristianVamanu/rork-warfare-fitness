@@ -52,21 +52,26 @@ export default function AnalyzeFoodPage() {
   }, []);
 
   const analyzeImage = async (base64Image: string) => {
+    if (!user) return;
     setAnalyzing(true);
     setResult(null);
     try {
+      const token = await user.getIdToken();
       const res = await fetch('/api/ai/analyze-food', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ base64Image }),
       });
       const text = await res.text();
-      if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+      if (!res.ok) {
+        const parsed = (() => { try { return JSON.parse(text); } catch { return null; } })();
+        throw new Error(parsed?.error || text || `HTTP ${res.status}`);
+      }
       const data = JSON.parse(text);
       setResult(data);
     } catch (err: unknown) {
       const msg = (err as Error)?.message || String(err);
-      toast.error(`Analysis failed: ${msg}`, { duration: 8000 });
+      toast.error(msg.includes('limit reached') ? msg : `Analysis failed: ${msg}`, { duration: 8000 });
     } finally {
       setAnalyzing(false);
     }
