@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, XCircle, ExternalLink, Sun, Moon } from 'lucide-react';
+import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -199,138 +199,124 @@ export default function ProfilePage() {
           </Card>
         </motion.div>
 
-        {/* Plans — platform membership + 1:1 coaching, always shown together */}
+        {/* Plans — platform membership + 1:1 coaching, unified pricing-card layout */}
         {(showMembershipSection || coachingPlans.length > 0) && (
-          <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Available Plans</h2>
-        )}
-        {showMembershipSection && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-            <p className="text-sm font-bold text-white mb-2 px-1">Platform Membership</p>
-            <Card className={`p-5 ${isActive || inTrial ? 'border-accent/30' : 'border-white/10'}`}>
-              {isActive || inTrial ? (
-                /* ── Active / Trial ── */
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center">
-                      <Crown className="w-5 h-5 text-accent" />
+            <div className="text-center mb-4">
+              <h2 className="text-lg font-black text-white">Choose Your Plan</h2>
+              <p className="text-xs text-text-secondary mt-0.5">Unlock full access or go all-in with 1:1 coaching</p>
+            </div>
+
+            <div className="space-y-4">
+              {showMembershipSection && (
+                <div className={`relative rounded-2xl border-2 p-5 ${isActive || inTrial ? 'border-accent bg-accent/[0.03]' : 'border-white/10 bg-surface'}`}>
+                  {(isActive || inTrial) && (
+                    <div className="absolute -top-3 left-4 px-2.5 py-0.5 bg-accent rounded-full">
+                      <span className="text-[10px] font-bold text-black">{inTrial ? 'TRIAL ACTIVE' : 'YOUR PLAN'}</span>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-white">{inTrial && !isActive ? 'Free Trial Active' : 'Membership Active'}</p>
-                        <CheckCircle className="w-4 h-4 text-green-400" />
+                  )}
+                  <div className="flex items-center gap-2 mb-1">
+                    <Crown className="w-4 h-4 text-accent" />
+                    <p className="text-xs font-bold text-accent uppercase tracking-wide">Platform Membership</p>
+                  </div>
+                  <div className="flex items-baseline gap-1 mt-2">
+                    <span className="text-3xl font-black text-white">${membershipConfig?.fee?.toFixed(2) ?? '—'}</span>
+                    <span className="text-sm text-text-secondary">/month</span>
+                  </div>
+                  {trialDays > 0 && !isActive && !inTrial && (
+                    <p className="text-xs text-accent mt-1">{trialDays}-day free trial included</p>
+                  )}
+
+                  <ul className="mt-4 space-y-2">
+                    {['Full access to all training programs', 'AI food analyzer & barcode scanner', 'Community & leaderboard access', 'Direct messaging with your coach'].map((f) => (
+                      <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
+                        <CheckCircle className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="mt-5">
+                    {isActive ? (
+                      profile?.membership?.cancelAtPeriodEnd ? (
+                        <p className="text-xs text-text-tertiary text-center py-2">
+                          Cancelled — access continues until {expiresAt ? expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'the end of your billing period'}.
+                        </p>
+                      ) : (
+                        <>
+                          <div className="text-center py-2 mb-2 bg-success/10 border border-success/20 rounded-xl">
+                            <p className="text-xs text-success font-medium">
+                              {expiresAt ? `Renews ${expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Active'}
+                            </p>
+                          </div>
+                          <Button size="sm" variant="ghost" fullWidth onClick={handleCancelMembership} loading={cancelling}>
+                            Cancel Membership
+                          </Button>
+                        </>
+                      )
+                    ) : inTrial ? (
+                      <div className="p-3 bg-accent/5 border border-accent/20 rounded-xl">
+                        <p className="text-xs text-text-secondary mb-2">
+                          {trialEndsAt ? `Trial ends ${trialEndsAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Trial active'} — add a payment method to continue after.
+                        </p>
+                        <Button size="sm" fullWidth onClick={handleSubscribe} loading={subscribing}>Add Payment Method</Button>
                       </div>
-                      <p className="text-xs text-text-secondary mt-0.5">
-                        {inTrial && !isActive && trialEndsAt
-                          ? `Trial ends ${trialEndsAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                          : expiresAt
-                          ? `Renews ${expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                          : 'Full access to all features'}
-                      </p>
-                    </div>
-                  </div>
-                  {inTrial && !isActive && membershipConfig && (
-                    <div className="p-3 bg-accent/5 border border-accent/20 rounded-xl">
-                      <p className="text-xs text-text-secondary">
-                        Your free trial gives you full access. After it ends,{' '}
-                        <span className="text-white font-medium">
-                          ${membershipConfig.fee.toFixed(2)}/month
-                        </span>{' '}
-                        will be charged to continue.
-                      </p>
-                      <Button size="sm" className="mt-2 w-full" onClick={handleSubscribe} loading={subscribing}>
-                        Add Payment Method
-                      </Button>
-                    </div>
-                  )}
-                  {isActive && (
-                    profile?.membership?.cancelAtPeriodEnd ? (
-                      <p className="text-xs text-text-tertiary text-center">
-                        Cancelled — access continues until {expiresAt ? expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'the end of your billing period'}.
-                      </p>
                     ) : (
-                      <Button size="sm" variant="ghost" fullWidth onClick={handleCancelMembership} loading={cancelling}>
-                        Cancel Membership
-                      </Button>
-                    )
-                  )}
-                </div>
-              ) : (
-                /* ── Not subscribed ── */
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-surface-elevated flex items-center justify-center">
-                      <XCircle className="w-5 h-5 text-text-tertiary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-white">No Active Membership</p>
-                      <p className="text-xs text-text-secondary mt-0.5">Subscribe to unlock full access</p>
-                    </div>
+                      <>
+                        <Button fullWidth onClick={handleSubscribe} loading={subscribing}>
+                          <Crown className="w-4 h-4" /> {subscribing ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
+                        </Button>
+                        <p className="text-[10px] text-text-tertiary text-center mt-2">Secure payment via Stripe. Cancel anytime.</p>
+                      </>
+                    )}
                   </div>
-
-                  <div className="p-4 bg-surface-elevated rounded-xl flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-black text-white">${membershipConfig?.fee?.toFixed(2)}<span className="text-sm font-normal text-text-secondary">/mo</span></p>
-                      {trialDays > 0 && (
-                        <p className="text-xs text-accent mt-0.5">{trialDays}-day free trial included</p>
-                      )}
-                    </div>
-                    <Crown className="w-6 h-6 text-accent" />
-                  </div>
-
-                  <Button fullWidth onClick={handleSubscribe} loading={subscribing}>
-                    <Crown className="w-4 h-4" /> {subscribing ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
-                  </Button>
-
-                  <p className="text-xs text-text-tertiary text-center">
-                    Secure payment via Stripe. Cancel anytime.
-                  </p>
                 </div>
               )}
-            </Card>
-          </motion.div>
-        )}
 
-        {/* Coaching Plans — 1:1 personal training available for purchase */}
-        {coachingPlans.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }}>
-            <p className="text-sm font-bold text-white mb-2 px-1">1:1 Coaching</p>
-            <div className="space-y-3">
               {coachingPlans.map((plan) => {
                 const isCurrentPlan = profile?.membership?.status === 'active' && profile?.membership?.planId === plan.id;
                 return (
-                  <Card key={plan.id} className={`p-5 ${isCurrentPlan ? 'border-accent/30' : 'border-white/10'}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-bold text-white">{plan.name}</p>
-                          {isCurrentPlan && <Badge variant="success">Active</Badge>}
-                        </div>
-                        <p className="text-xs text-text-secondary mt-0.5">{plan.description}</p>
+                  <div key={plan.id} className={`relative rounded-2xl border-2 p-5 ${isCurrentPlan ? 'border-accent bg-accent/[0.03]' : 'border-white/10 bg-surface'}`}>
+                    {isCurrentPlan && (
+                      <div className="absolute -top-3 left-4 px-2.5 py-0.5 bg-accent rounded-full">
+                        <span className="text-[10px] font-bold text-black">YOUR PLAN</span>
                       </div>
-                      <p className="text-lg font-black text-white whitespace-nowrap">
-                        ${plan.priceMonthly.toFixed(2)}<span className="text-xs font-normal text-text-secondary">/mo</span>
-                      </p>
+                    )}
+                    <div className="flex items-center gap-2 mb-1">
+                      <Trophy className="w-4 h-4 text-accent" />
+                      <p className="text-xs font-bold text-accent uppercase tracking-wide">{plan.name}</p>
                     </div>
+                    <div className="flex items-baseline gap-1 mt-2">
+                      <span className="text-3xl font-black text-white">${plan.priceMonthly.toFixed(2)}</span>
+                      <span className="text-sm text-text-secondary">/month</span>
+                    </div>
+                    {plan.description && <p className="text-xs text-text-secondary mt-2">{plan.description}</p>}
+
                     {plan.features?.length > 0 && (
-                      <ul className="mt-3 space-y-1">
+                      <ul className="mt-4 space-y-2">
                         {plan.features.map((f, i) => (
                           <li key={i} className="flex items-center gap-2 text-xs text-text-secondary">
-                            <CheckCircle className="w-3 h-3 text-accent flex-shrink-0" /> {f}
+                            <CheckCircle className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {f}
                           </li>
                         ))}
                       </ul>
                     )}
-                    {!isCurrentPlan && (
-                      <Button
-                        fullWidth
-                        className="mt-4"
-                        onClick={() => handleSubscribeCoachingPlan(plan.id)}
-                        loading={subscribingPlanId === plan.id}
-                      >
-                        <Crown className="w-4 h-4" /> {subscribingPlanId === plan.id ? 'Opening Checkout…' : 'Subscribe'}
-                      </Button>
-                    )}
-                  </Card>
+
+                    <div className="mt-5">
+                      {isCurrentPlan ? (
+                        <div className="text-center py-2 bg-success/10 border border-success/20 rounded-xl">
+                          <p className="text-xs text-success font-medium">Active</p>
+                        </div>
+                      ) : (
+                        <Button
+                          fullWidth
+                          onClick={() => handleSubscribeCoachingPlan(plan.id)}
+                          loading={subscribingPlanId === plan.id}
+                        >
+                          <Crown className="w-4 h-4" /> {subscribingPlanId === plan.id ? 'Opening Checkout…' : 'Apply for 1:1 Coaching'}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>

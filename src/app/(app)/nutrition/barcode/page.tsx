@@ -61,14 +61,18 @@ export default function BarcodePage() {
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
 
+  // No cameraState dependency here on purpose: this is called from inside the
+  // decodeFromVideoDevice callback, a closure frozen at scanner-start time by
+  // startScanner's empty-deps useCallback. A cameraState-gated check here
+  // would compare against the stale value from that render and silently skip
+  // setCameraState('idle') on a successful scan — the scanner UI would keep
+  // showing "scanning" forever even though decoding had already stopped.
   const stopScanner = useCallback(() => {
     try { readerRef.current?.reset(); } catch { /* noop */ }
     readerRef.current = null;
     scannedRef.current = false;
-    if (cameraState === 'scanning' || cameraState === 'initializing') {
-      setCameraState('idle');
-    }
-  }, [cameraState]);
+    setCameraState('idle');
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {

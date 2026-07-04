@@ -58,6 +58,7 @@ export default function AnalyzeFoodPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
+  const galleryFileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<NutritionAnalysis | null>(null);
@@ -161,7 +162,22 @@ export default function AnalyzeFoodPage() {
             accept="image/*"
             capture="environment"
             className="sr-only"
-            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFile(file);
+              e.target.value = ''; // allow re-selecting the same file/retaking the same shot
+            }}
+          />
+          <input
+            ref={galleryFileRef}
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFile(file);
+              e.target.value = '';
+            }}
           />
 
           {preview ? (
@@ -199,15 +215,7 @@ export default function AnalyzeFoodPage() {
           <Button variant="secondary" onClick={() => fileRef.current?.click()}>
             <Camera className="w-4 h-4" /> Camera
           </Button>
-          <Button variant="secondary" onClick={() => {
-            const input = document.createElement('input');
-            input.type = 'file'; input.accept = 'image/*';
-            input.onchange = (e) => {
-              const file = (e.target as HTMLInputElement).files?.[0];
-              if (file) handleFile(file);
-            };
-            input.click();
-          }}>
+          <Button variant="secondary" onClick={() => galleryFileRef.current?.click()}>
             <Upload className="w-4 h-4" /> Upload
           </Button>
         </div>
