@@ -1202,6 +1202,40 @@ export async function deleteExerciseVideo(id: string): Promise<void> {
  * name → videoUrl for any exercises that exist in the library.
  * Matching is case-insensitive; also checks aliases.
  */
+const MATCH_STOPWORDS = new Set(['the', 'a', 'an', 'and', 'or', 'with', 'for', 'to', 'on', 'of', 'in']);
+
+function tokenize(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 0 && !MATCH_STOPWORDS.has(w));
+}
+
+/**
+ * Word-overlap similarity, not substring containment. Uploaded video names
+ * are often verbose/specific (parsed from filenames, e.g. "45 Degree Bicycle
+ * Twisting Crunches") while AI-generated exercise names are generic (e.g.
+ * "Bicycle Crunch") — neither is a substring of the other despite clearly
+ * being the same exercise, so a containment check alone misses almost every
+ * real-world match. This scores by how much of the SHORTER name's word set
+ * appears in the longer one.
+ */
+function nameSimilarity(a: string, b: string): number {
+  const tokensA = tokenize(a);
+  const tokensB = tokenize(b);
+  if (tokensA.length === 0 || tokensB.length === 0) return 0;
+  const setA = new Set(tokensA);
+  const setB = new Set(tokensB);
+  const shorter = setA.size <= setB.size ? setA : setB;
+  const longer = setA.size <= setB.size ? setB : setA;
+  let overlap = 0;
+  shorter.forEach((word) => {
+    if (longer.has(word)) overlap++;
+  });
+  return overlap / shorter.size;
+}
+
 export async function matchExercisesToVideos(
   exerciseNames: string[],
 ): Promise<Record<string, string>> {
@@ -1211,12 +1245,33 @@ export async function matchExercisesToVideos(
 
   for (const queryName of exerciseNames) {
     const normalized = queryName.toLowerCase().trim();
+    let bestScore = 0;
+    let bestUrl = '';
+
     for (const entry of library) {
-      const names = [entry.name, ...(entry.aliases ?? [])].map((n) => n.toLowerCase().trim());
-      if (names.some((n) => n === normalized || normalized.includes(n) || n.includes(normalized))) {
-        result[queryName] = entry.videoUrl;
-        break;
+      const candidates = [entry.name, ...(entry.aliases ?? [])];
+      for (const candidate of candidates) {
+        const c = candidate.toLowerCase().trim();
+        // Exact match or full substring containment — cheap, high-confidence fast path
+        if (c === normalized || normalized.includes(c) || c.includes(normalized)) {
+          bestScore = 1;
+          bestUrl = entry.videoUrl;
+          break;
+        }
+        const score = nameSimilarity(normalized, c);
+        if (score > bestScore) {
+          bestScore = score;
+          bestUrl = entry.videoUrl;
+        }
       }
+      if (bestScore === 1) break;
+    }
+
+    // Require at least half the shorter name's significant words to match —
+    // loose enough to bridge naming-convention differences, tight enough to
+    // avoid matching unrelated exercises that just share one common word.
+    if (bestScore >= 0.5) {
+      result[queryName] = bestUrl;
     }
   }
   return result;
