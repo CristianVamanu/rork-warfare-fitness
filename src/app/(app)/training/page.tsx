@@ -7,7 +7,7 @@ import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown } from 'lucide
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, getProgram, getHiddenMockIds } from '@/lib/firestore';
-import { MOCK_PROGRAMS, getMockProgram, getProgramDayForUser, stripWeekdayPrefix } from '@/lib/programs';
+import { MOCK_PROGRAMS, getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -31,11 +31,6 @@ const levelColors: Record<string, string> = {
   advanced: 'danger',
 };
 
-function getTodayDow(): number {
-  const d = new Date().getDay();
-  return d === 0 ? 6 : d - 1;
-}
-
 export default function TrainingPage() {
   const { profile } = useAuth();
   const router = useRouter();
@@ -45,27 +40,40 @@ export default function TrainingPage() {
 
   const activeProgram = profile?.activeProgram;
 
-  const [todayDay, setTodayDay] = useState<{ label: string; isRest: boolean } | null>(null);
+  // ── Single source of truth for "which day is the user on" — mirrors
+  // dashboard and training/[id]. lastCompletedDayIndex is authoritative;
+  // programStartDate is never used for display/navigation.
+  const localDateStr = new Date().toLocaleDateString('sv-SE');
+  const completedWorkouts = activeProgram?.completedWorkouts ?? 0;
+  const lastCompleted = activeProgram?.lastCompletedDayIndex !== undefined
+    ? activeProgram.lastCompletedDayIndex
+    : (completedWorkouts > 0 ? completedWorkouts - 1 : -1);
+  const workedOutToday = completedWorkouts > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
+  const nextAbsIdx = activeProgram ? (workedOutToday ? lastCompleted : lastCompleted + 1) : 0;
+
+  const [activeSchedule, setActiveSchedule] = useState<{ label: string; isRest: boolean }[] | null>(null);
   const pct = activeProgram
     ? Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100)
     : 0;
 
-  // Resolve today's schedule from Firestore program first, then fall back to mock
+  // Resolve schedule from Firestore program first, then fall back to mock
   useEffect(() => {
-    if (!activeProgram) { setTodayDay(null); return; }
+    if (!activeProgram) { setActiveSchedule(null); return; }
     const mock = getMockProgram(activeProgram.programId);
     if (mock?.schedule?.length) {
-      setTodayDay(getProgramDayForUser(mock, activeProgram.programStartDate ?? undefined));
+      setActiveSchedule(mock.schedule);
       return;
     }
     getProgram(activeProgram.programId)
       .then((p) => {
         const prog = p as Program | null;
-        const day = prog ? getProgramDayForUser(prog, activeProgram.programStartDate ?? undefined) : null;
-        setTodayDay(day);
+        setActiveSchedule(prog?.schedule?.length ? prog.schedule : null);
       })
-      .catch(() => setTodayDay(null));
+      .catch(() => setActiveSchedule(null));
   }, [activeProgram]);
+
+  const scheduleLen = activeSchedule?.length || 1;
+  const todayDay = activeSchedule ? activeSchedule[nextAbsIdx % scheduleLen] : null;
 
   useEffect(() => {
     Promise.all([getPrograms(), getHiddenMockIds().catch(() => [] as string[])])
@@ -114,11 +122,7 @@ export default function TrainingPage() {
               <div className="flex gap-2 mt-4">
                 {todayDay && !todayDay.isRest ? (
                   <Button size="sm" onClick={() => {
-                    const startDate = activeProgram.programStartDate;
-                    const dayIndex = startDate
-                      ? Math.floor((Date.now() - new Date(startDate).getTime()) / 86400000)
-                      : getTodayDow();
-                    router.push(`/training/session?programId=${activeProgram.programId}&dow=${dayIndex}`);
+                    router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`);
                   }}>
                     <Play className="w-4 h-4" /> Start Today&apos;s Workout
                   </Button>
