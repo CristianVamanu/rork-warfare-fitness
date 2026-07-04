@@ -154,7 +154,7 @@ export default function BarcodePage() {
 
   const lookupBarcode = async (code: string) => {
     const trimmed = code.trim();
-    if (!trimmed || !user) return;
+    if (!trimmed) return;
     // Product barcodes are numeric (EAN-8/13, UPC-A/E, sometimes padded Code128).
     // Anything else (e.g. a stray QR/URL scan) can't be a valid product code.
     if (!/^\d{6,14}$/.test(trimmed)) {
@@ -165,10 +165,7 @@ export default function BarcodePage() {
     setNutriScoreGrade(null);
     setNovaGroup(null);
     try {
-      const token = await user.getIdToken();
-      const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Product not found');
       setResult(data.nutrition);

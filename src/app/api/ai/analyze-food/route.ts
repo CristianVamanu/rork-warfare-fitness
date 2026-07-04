@@ -3,22 +3,9 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
-import { verifyUser } from '@/lib/verifyUser';
-import { checkAndIncrementDailyLimit } from '@/lib/rateLimit';
 
 export async function POST(req: NextRequest) {
   try {
-    const check = await verifyUser(req);
-    if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
-
-    const limit = await checkAndIncrementDailyLimit(check.uid, 'foodScans');
-    if (!limit.ok) {
-      return NextResponse.json(
-        { error: `Daily food scan limit reached (${limit.limit}/day). Try again tomorrow.` },
-        { status: 429 }
-      );
-    }
-
     const apiKey = await getSecret('OPENAI_API_KEY');
     if (!apiKey) {
       console.error('[analyze-food] OPENAI_API_KEY not configured');

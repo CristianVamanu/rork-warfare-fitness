@@ -1,8 +1,6 @@
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyUser } from '@/lib/verifyUser';
-import { checkAndIncrementDailyLimit } from '@/lib/rateLimit';
 
 interface OpenFoodFactsResponse {
   status: number;
@@ -35,17 +33,6 @@ export async function GET(req: NextRequest) {
     // surfaces as a confusing low-level fetch/URL error to the user.
     if (!/^\d{6,14}$/.test(code)) {
       return NextResponse.json({ error: 'Invalid barcode format' }, { status: 400 });
-    }
-
-    const check = await verifyUser(req);
-    if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
-
-    const limit = await checkAndIncrementDailyLimit(check.uid, 'barcodeScans');
-    if (!limit.ok) {
-      return NextResponse.json(
-        { error: `Daily barcode scan limit reached (${limit.limit}/day). Try again tomorrow.` },
-        { status: 429 }
-      );
     }
 
     const res = await fetch(
