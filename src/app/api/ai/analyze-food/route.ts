@@ -7,27 +7,27 @@ import { verifyUser } from '@/lib/verifyUser';
 import { checkAndIncrementDailyLimit } from '@/lib/rateLimit';
 
 export async function POST(req: NextRequest) {
-  const check = await verifyUser(req);
-  if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
-
-  const limit = await checkAndIncrementDailyLimit(check.uid, 'foodScans');
-  if (!limit.ok) {
-    return NextResponse.json(
-      { error: `Daily food scan limit reached (${limit.limit}/day). Try again tomorrow.` },
-      { status: 429 }
-    );
-  }
-
-  const apiKey = await getSecret('OPENAI_API_KEY');
-  if (!apiKey) {
-    console.error('[analyze-food] OPENAI_API_KEY not configured');
-    return NextResponse.json(
-      { error: 'OpenAI API key not configured. Add it in Admin → Integrations.' },
-      { status: 500 }
-    );
-  }
-
   try {
+    const check = await verifyUser(req);
+    if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
+
+    const limit = await checkAndIncrementDailyLimit(check.uid, 'foodScans');
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: `Daily food scan limit reached (${limit.limit}/day). Try again tomorrow.` },
+        { status: 429 }
+      );
+    }
+
+    const apiKey = await getSecret('OPENAI_API_KEY');
+    if (!apiKey) {
+      console.error('[analyze-food] OPENAI_API_KEY not configured');
+      return NextResponse.json(
+        { error: 'OpenAI API key not configured. Add it in Admin → Integrations.' },
+        { status: 500 }
+      );
+    }
+
     const { base64Image } = await req.json();
     if (!base64Image) {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 });

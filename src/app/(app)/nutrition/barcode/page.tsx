@@ -77,6 +77,10 @@ export default function BarcodePage() {
       const { DecodeHintType, BarcodeFormat } = await import('@zxing/library');
 
       const hints = new Map();
+      // Product barcode formats only — QR_CODE/DATA_MATRIX commonly encode
+      // arbitrary URLs/text, not product identifiers, and a stray QR scan
+      // would pass a URL-shaped string through as a "barcode", breaking the
+      // OpenFoodFacts lookup request downstream.
       hints.set(DecodeHintType.POSSIBLE_FORMATS, [
         BarcodeFormat.EAN_13,
         BarcodeFormat.EAN_8,
@@ -84,8 +88,6 @@ export default function BarcodePage() {
         BarcodeFormat.UPC_E,
         BarcodeFormat.CODE_128,
         BarcodeFormat.CODE_39,
-        BarcodeFormat.QR_CODE,
-        BarcodeFormat.DATA_MATRIX,
       ]);
       hints.set(DecodeHintType.TRY_HARDER, true);
 
@@ -151,13 +153,20 @@ export default function BarcodePage() {
   }, []);
 
   const lookupBarcode = async (code: string) => {
-    if (!code.trim() || !user) return;
+    const trimmed = code.trim();
+    if (!trimmed || !user) return;
+    // Product barcodes are numeric (EAN-8/13, UPC-A/E, sometimes padded Code128).
+    // Anything else (e.g. a stray QR/URL scan) can't be a valid product code.
+    if (!/^\d{6,14}$/.test(trimmed)) {
+      toast.error('That doesn\'t look like a product barcode. Try scanning again or enter the numbers manually.');
+      return;
+    }
     setSearching(true);
     setNutriScoreGrade(null);
     setNovaGroup(null);
     try {
       const token = await user.getIdToken();
-      const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
+      const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -399,7 +408,7 @@ export default function BarcodePage() {
         <Card glass className="p-4 flex items-start gap-3">
           <AlertCircle className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
           <p className="text-xs text-text-secondary">
-            Powered by OpenFoodFacts (3M+ products). Scans EAN-13, EAN-8, UPC-A, UPC-E, Code128, QR codes. Values are per 100g.
+            Powered by OpenFoodFacts (3M+ products). Scans EAN-13, EAN-8, UPC-A, UPC-E, Code128 product barcodes. Values are per 100g.
             Nutri-Score and NOVA processing grade shown when available in the OpenFoodFacts database.
           </p>
         </Card>

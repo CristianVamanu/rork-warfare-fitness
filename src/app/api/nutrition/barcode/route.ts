@@ -25,21 +25,29 @@ interface OpenFoodFactsResponse {
 }
 
 export async function GET(req: NextRequest) {
-  const code = req.nextUrl.searchParams.get('code');
-  if (!code) return NextResponse.json({ error: 'Barcode required' }, { status: 400 });
-
-  const check = await verifyUser(req);
-  if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
-
-  const limit = await checkAndIncrementDailyLimit(check.uid, 'barcodeScans');
-  if (!limit.ok) {
-    return NextResponse.json(
-      { error: `Daily barcode scan limit reached (${limit.limit}/day). Try again tomorrow.` },
-      { status: 429 }
-    );
-  }
-
   try {
+    const code = req.nextUrl.searchParams.get('code');
+    if (!code) return NextResponse.json({ error: 'Barcode required' }, { status: 400 });
+
+    // Product barcodes are numeric only (EAN-8/13, UPC-A/E). Reject anything
+    // else before it reaches the external request — a malformed/non-numeric
+    // "code" (e.g. from a stray QR scan) breaks the OpenFoodFacts URL and
+    // surfaces as a confusing low-level fetch/URL error to the user.
+    if (!/^\d{6,14}$/.test(code)) {
+      return NextResponse.json({ error: 'Invalid barcode format' }, { status: 400 });
+    }
+
+    const check = await verifyUser(req);
+    if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
+
+    const limit = await checkAndIncrementDailyLimit(check.uid, 'barcodeScans');
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: `Daily barcode scan limit reached (${limit.limit}/day). Try again tomorrow.` },
+        { status: 429 }
+      );
+    }
+
     const res = await fetch(
       `https://world.openfoodfacts.org/api/v0/product/${code}.json`,
       {
