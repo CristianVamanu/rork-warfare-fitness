@@ -876,8 +876,9 @@ export default function AdminPage() {
       setSettingsForm(s => ({ ...s, logoUrl: url }));
       await setSystemConfig({ logoUrl: url });
       toast.success('Logo uploaded');
-    } catch {
-      toast.error('Failed to upload logo');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to upload logo: ${msg}`, { duration: 6000 });
     } finally {
       setUploadingLogo(false);
       e.target.value = '';

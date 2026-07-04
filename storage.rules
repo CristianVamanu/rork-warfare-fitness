@@ -29,6 +29,13 @@ service firebase.storage {
       allow write: if isAuthed();
     }
 
+    // App branding (logo) — must be publicly readable since it shows on
+    // login/register pages before the visitor is authenticated
+    match /branding/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Deny everything else
     match /{allPaths=**} {
       allow read, write: if false;
