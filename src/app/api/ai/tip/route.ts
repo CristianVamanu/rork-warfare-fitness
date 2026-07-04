@@ -2,8 +2,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import { getAdminApp } from '@/lib/firebase-admin';
+import { Timestamp } from 'firebase-admin/firestore';
+import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 
@@ -18,7 +18,7 @@ export async function GET() {
   const app = getAdminApp();
   if (app) {
     try {
-      const db = getFirestore(app);
+      const db = getAdminDb(app);
       const snap = await db.doc(`config/dailyTip`).get();
       const data = snap.data();
       if (data?.date === dateKey && data?.tip) {
@@ -73,7 +73,7 @@ export async function GET() {
     // Cache in Firestore for the rest of the day
     if (app) {
       try {
-        const db = getFirestore(app);
+        const db = getAdminDb(app);
         await db.doc('config/dailyTip').set({ tip, date: dateKey, updatedAt: Timestamp.now() });
       } catch { /* non-fatal */ }
     }

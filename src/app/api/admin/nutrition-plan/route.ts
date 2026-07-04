@@ -9,10 +9,9 @@ export const dynamic = 'force-dynamic';
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore } from 'firebase-admin/firestore';
 import OpenAI from 'openai';
 import { verifyAdmin } from '@/lib/verifyAdmin';
-import { getAdminApp } from '@/lib/firebase-admin';
+import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { getSecret } from '@/lib/secrets';
 
 export async function POST(req: NextRequest) {
@@ -26,7 +25,7 @@ export async function POST(req: NextRequest) {
     const app = getAdminApp();
     if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
 
-    const userSnap = await getFirestore(app).collection('users').doc(userId).get();
+    const userSnap = await getAdminDb(app).collection('users').doc(userId).get();
     if (!userSnap.exists) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     const u = userSnap.data()!;
 

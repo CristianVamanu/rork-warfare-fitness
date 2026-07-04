@@ -3,14 +3,14 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { getAdminApp } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import type Stripe from 'stripe';
 
 function getAdminDb() {
   const app = getAdminApp();
   if (!app) return null;
-  return getFirestore(app);
+  return getDb(app);
 }
 
 async function setMembershipStatus(

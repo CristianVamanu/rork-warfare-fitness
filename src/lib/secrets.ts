@@ -1,5 +1,5 @@
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { getAdminApp } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { encryptSecret, decryptSecret, maskSecret, type EncryptedPayload } from '@/lib/crypto';
 
 /**
@@ -26,7 +26,7 @@ export type SecretKey = typeof SECRET_KEYS[number];
 
 function getDb() {
   const app = getAdminApp();
-  return app ? getFirestore(app) : null;
+  return app ? getAdminDb(app) : null;
 }
 
 function docRef(db: FirebaseFirestore.Firestore) {

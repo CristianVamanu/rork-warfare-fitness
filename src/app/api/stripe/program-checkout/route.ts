@@ -5,8 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAdminApp } from '@/lib/firebase-admin';
+import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import type { Program } from '@/types';
 
 export async function POST(req: NextRequest) {
@@ -16,7 +15,7 @@ export async function POST(req: NextRequest) {
 
     const app = getAdminApp();
     if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
-    const db = getFirestore(app);
+    const db = getAdminDb(app);
 
     const progSnap = await db.collection('programs').doc(programId).get();
     if (!progSnap.exists) return NextResponse.json({ error: 'Program not found' }, { status: 404 });

@@ -1,6 +1,8 @@
 import { initializeApp, getApps, getApp, cert, type App } from 'firebase-admin/app';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 let _app: App | null = null;
+let _db: Firestore | null = null;
 
 /**
  * Returns the initialized Firebase Admin App, or null if env vars are missing.
@@ -33,4 +35,29 @@ export function getAdminApp(): App | null {
     return null;
   }
   return _app;
+}
+
+/**
+ * Returns a Firestore instance forced onto REST transport instead of the
+ * default gRPC transport. firebase-admin's gRPC client relies on native
+ * (.node) bindings that are a well-known source of servers crashing outside
+ * any catchable JS exception on serverless platforms like Vercel — the
+ * process dies before a try/catch ever runs, so the client sees a raw
+ * platform error page instead of a JSON error response. preferRest avoids
+ * loading that native binding path entirely. Must be set before any other
+ * Firestore call on this instance, so this is the only place that should
+ * ever call getFirestore(app) for admin routes — everywhere else should
+ * import this function instead.
+ */
+export function getAdminDb(app: App): Firestore {
+  if (_db) return _db;
+  _db = getFirestore(app);
+  try {
+    _db.settings({ preferRest: true });
+  } catch (err) {
+    // settings() throws if any Firestore call already happened on this
+    // instance — non-fatal, just means another module beat us to it.
+    console.warn('[firebase-admin] Firestore settings() skipped:', err instanceof Error ? err.message : err);
+  }
+  return _db;
 }

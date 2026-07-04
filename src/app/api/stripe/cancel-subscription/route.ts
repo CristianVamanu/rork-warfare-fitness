@@ -9,8 +9,8 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { getAdminApp } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { getStripe } from '@/lib/stripe';
 
 export async function POST(req: NextRequest) {
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
 
-    const db = getFirestore(app);
+    const db = getAdminDb(app);
     const userSnap = await db.collection('users').doc(uid).get();
     const subId = userSnap.data()?.membership?.stripeSubscriptionId as string | undefined;
     if (!subId) return NextResponse.json({ error: 'No active subscription found' }, { status: 400 });

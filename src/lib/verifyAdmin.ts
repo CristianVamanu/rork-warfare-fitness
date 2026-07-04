@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server';
-import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import { getAdminApp } from '@/lib/firebase-admin';
+import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 
 export async function verifyAdmin(req: NextRequest): Promise<{ uid: string } | { error: string; status: number }> {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
@@ -19,7 +18,7 @@ export async function verifyAdmin(req: NextRequest): Promise<{ uid: string } | {
   }
 
   try {
-    const userDoc = await getFirestore(app).collection('users').doc(uid).get();
+    const userDoc = await getAdminDb(app).collection('users').doc(uid).get();
     if (userDoc.data()?.role !== 'admin') {
       return { error: 'Access denied: admin only', status: 403 };
     }

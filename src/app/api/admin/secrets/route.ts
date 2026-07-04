@@ -2,9 +2,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore } from 'firebase-admin/firestore';
 import { verifyAdmin } from '@/lib/verifyAdmin';
-import { getAdminApp } from '@/lib/firebase-admin';
+import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { listSecretStatuses, setSecret, SECRET_KEYS, type SecretKey } from '@/lib/secrets';
 
 export async function GET(req: NextRequest) {
@@ -21,15 +20,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const check = await verifyAdmin(req);
-  if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
-
-  const { key, value } = await req.json();
-  if (!SECRET_KEYS.includes(key as SecretKey)) {
-    return NextResponse.json({ error: 'Unknown secret key' }, { status: 400 });
-  }
-
   try {
+    const check = await verifyAdmin(req);
+    if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
+
+    const { key, value } = await req.json();
+    if (!SECRET_KEYS.includes(key as SecretKey)) {
+      return NextResponse.json({ error: 'Unknown secret key' }, { status: 400 });
+    }
+
     const trimmed = typeof value === 'string' ? value.trim() : '';
     await setSecret(key as SecretKey, trimmed);
 
@@ -38,7 +37,7 @@ export async function POST(req: NextRequest) {
     if (key === 'NEXT_PUBLIC_VAPID_PUBLIC_KEY') {
       const app = getAdminApp();
       if (app) {
-        await getFirestore(app).collection('system').doc('config')
+        await getAdminDb(app).collection('system').doc('config')
           .set({ vapidPublicKey: trimmed }, { merge: true });
       }
     }

@@ -3,13 +3,12 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAdminApp } from '@/lib/firebase-admin';
+import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 
 function getAdminDb() {
   const app = getAdminApp();
   if (!app) return null;
-  return getFirestore(app);
+  return getDb(app);
 }
 
 export async function POST(req: NextRequest) {

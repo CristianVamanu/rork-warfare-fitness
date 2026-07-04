@@ -2,14 +2,13 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAdminApp } from '@/lib/firebase-admin';
+import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { getSecret } from '@/lib/secrets';
 
 function getAdminDb() {
   const app = getAdminApp();
   if (!app) return null;
-  return getFirestore(app);
+  return getDb(app);
 }
 
 async function initWebPush() {
