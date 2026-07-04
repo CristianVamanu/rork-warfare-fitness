@@ -25,7 +25,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no extra text):
           "reps": "e.g. 5 or 8-12 or 3-5",
           "rpe": <number 6-10>,
           "restSeconds": <number 30-300>,
-          "notes": "Form cue or coaching note"
+          "notes": "How-to-perform tip, max 12 words, e.g. 'Keep chest up, drive through heels'"
         }
       ]
     }
@@ -40,7 +40,8 @@ RULES:
 - Include compound movements first, isolation after
 - RPE 6-7 = easy/moderate, 8 = hard, 9 = very hard, 10 = max
 - Rest 60-90s for hypertrophy, 120-180s for strength, 30-60s for metabolic
-- Vary rep schemes based on goal (strength: 1-6 reps, hypertrophy: 8-15 reps, endurance: 15-25 reps)`;
+- Vary rep schemes based on goal (strength: 1-6 reps, hypertrophy: 8-15 reps, endurance: 15-25 reps)
+- Every exercise MUST include a short "notes" tip (max 12 words) on how to perform it correctly — this is shown to the user as an in-workout info tip, so keep it punchy and actionable, not generic`;
 
 export async function POST(req: NextRequest) {
   try {

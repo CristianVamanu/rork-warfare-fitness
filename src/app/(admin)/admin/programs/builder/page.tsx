@@ -5,12 +5,11 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Sparkles, ChevronLeft, Plus, Trash2, ChevronUp, ChevronDown, Save,
-  Users, CheckCircle, Loader2, Moon, Dumbbell, AlertCircle, Video, Search, X,
+  Users, CheckCircle, Loader2, Moon, Dumbbell, AlertCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   getProgram, createProgram, updateProgram, getAllUsers, enrollInProgram,
-  matchExercisesToVideos, getExerciseVideos,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -18,7 +17,7 @@ import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
-import type { Program, ExerciseVideo } from '@/types';
+import type { Program } from '@/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,7 +30,6 @@ interface BEx {
   rpe: number;
   restSeconds: number;
   notes: string;
-  videoUrl?: string;
 }
 
 interface BDay {
@@ -100,11 +98,6 @@ function BuilderInner() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [assigning, setAssigning] = useState<string | null>(null);
 
-  const [videoPickerFor, setVideoPickerFor] = useState<string | null>(null);
-  const [videoLibrary, setVideoLibrary] = useState<ExerciseVideo[]>([]);
-  const [videoLibraryLoading, setVideoLibraryLoading] = useState(false);
-  const [videoSearch, setVideoSearch] = useState('');
-
   const [loading, setLoading] = useState(!!programId);
 
   // Load existing program for edit
@@ -165,11 +158,6 @@ function BuilderInner() {
 
       const p = data.program;
 
-      // Collect all exercise names and match to library videos
-      const allExNames: string[] = (p.schedule ?? [])
-        .flatMap((d: BDay) => (d.exercises ?? []).map((e: BEx) => e.name).filter(Boolean));
-      const videoMap = allExNames.length > 0 ? await matchExercisesToVideos(allExNames).catch(() => ({})) : {};
-
       setProg({
         name: p.name || '',
         description: p.description || '',
@@ -191,7 +179,6 @@ function BuilderInner() {
             rpe: Number(e.rpe) || 8,
             restSeconds: Number(e.restSeconds) || 90,
             notes: e.notes || '',
-            videoUrl: (videoMap as Record<string, string>)[e.name] ?? '',
           })),
         })),
       });
@@ -282,28 +269,6 @@ function BuilderInner() {
     setDay(dayIdx, { exercises: exs });
   }
 
-  async function openVideoPicker(exId: string) {
-    setVideoPickerFor(exId);
-    setVideoSearch('');
-    if (videoLibrary.length === 0) {
-      setVideoLibraryLoading(true);
-      try {
-        const lib = await getExerciseVideos();
-        setVideoLibrary(lib);
-      } catch {
-        toast.error('Failed to load video library');
-      } finally {
-        setVideoLibraryLoading(false);
-      }
-    }
-  }
-
-  function pickVideo(video: ExerciseVideo) {
-    if (videoPickerFor) {
-      updateEx(activeDay, videoPickerFor, { videoUrl: video.videoUrl });
-    }
-    setVideoPickerFor(null);
-  }
 
   if (loading) {
     return (
@@ -637,40 +602,12 @@ function BuilderInner() {
                             />
                           </div>
                           <div className="col-span-2">
-                            <label className="text-[10px] text-text-tertiary mb-1 block">Coaching Notes / Form Cues</label>
+                            <label className="text-[10px] text-text-tertiary mb-1 block">Exercise Tip (shown to user during workout)</label>
                             <Input
                               value={ex.notes}
                               onChange={e => updateEx(activeDay, ex.id, { notes: e.target.value })}
                               placeholder="e.g. Keep chest up, drive through heels"
                             />
-                          </div>
-                          <div className="col-span-2">
-                            <label className="text-[10px] text-text-tertiary mb-1 block">Demo Video</label>
-                            {ex.videoUrl ? (
-                              <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-white/10">
-                                <Video className="w-4 h-4 text-accent flex-shrink-0" />
-                                <span className="text-xs text-text-secondary truncate flex-1">Video attached</span>
-                                <button
-                                  onClick={() => openVideoPicker(ex.id)}
-                                  className="text-xs text-accent hover:underline flex-shrink-0"
-                                >
-                                  Change
-                                </button>
-                                <button
-                                  onClick={() => updateEx(activeDay, ex.id, { videoUrl: '' })}
-                                  className="p-1 text-text-tertiary hover:text-danger flex-shrink-0"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => openVideoPicker(ex.id)}
-                                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed border-white/20 text-text-secondary hover:text-white hover:border-white/40 text-xs transition-colors"
-                              >
-                                <Search className="w-3.5 h-3.5" /> Search Video Library
-                              </button>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -769,62 +706,6 @@ function BuilderInner() {
               )}
             </button>
           ))}
-        </div>
-      </Modal>
-
-      {/* Video picker modal */}
-      <Modal open={!!videoPickerFor} onClose={() => setVideoPickerFor(null)} title="Select Demo Video">
-        <div className="space-y-3">
-          <Input
-            value={videoSearch}
-            onChange={e => setVideoSearch(e.target.value)}
-            placeholder="Search by exercise name..."
-            autoFocus
-          />
-          <div className="space-y-2 max-h-[55vh] overflow-y-auto">
-            {videoLibraryLoading && (
-              <div className="flex justify-center py-6">
-                <Loader2 className="w-6 h-6 animate-spin text-accent" />
-              </div>
-            )}
-            {!videoLibraryLoading && videoLibrary
-              .filter((v) => {
-                const q = videoSearch.trim().toLowerCase();
-                if (!q) return true;
-                return v.name.toLowerCase().includes(q) || (v.aliases ?? []).some((a) => a.toLowerCase().includes(q));
-              })
-              .map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() => pickVideo(v)}
-                  className="w-full text-left p-3 bg-surface-elevated rounded-xl hover:bg-white/5 transition-colors flex items-center gap-3"
-                >
-                  {v.thumbnailUrl ? (
-                    <img src={v.thumbnailUrl} alt={v.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-lg bg-accent-muted flex items-center justify-center flex-shrink-0">
-                      <Video className="w-5 h-5 text-accent" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{v.name}</p>
-                    {v.muscleGroups?.length > 0 && (
-                      <p className="text-xs text-text-secondary truncate">{v.muscleGroups.join(', ')}</p>
-                    )}
-                  </div>
-                </button>
-              ))}
-            {!videoLibraryLoading && videoLibrary.length === 0 && (
-              <p className="text-text-secondary text-sm text-center py-4">No videos in the library yet.</p>
-            )}
-            {!videoLibraryLoading && videoLibrary.length > 0 && videoLibrary.filter((v) => {
-              const q = videoSearch.trim().toLowerCase();
-              if (!q) return true;
-              return v.name.toLowerCase().includes(q) || (v.aliases ?? []).some((a) => a.toLowerCase().includes(q));
-            }).length === 0 && (
-              <p className="text-text-secondary text-sm text-center py-4">No matches for &ldquo;{videoSearch}&rdquo;.</p>
-            )}
-          </div>
         </div>
       </Modal>
     </div>

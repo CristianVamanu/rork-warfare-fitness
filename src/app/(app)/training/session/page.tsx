@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, CheckCircle, Timer, AlertTriangle, ChevronLeft, ChevronRight,
-  Copy, SkipForward, Plus, Minus, Dumbbell, Zap, Play, Pause, RotateCcw,
+  Copy, SkipForward, Plus, Minus, Dumbbell, Zap, Play, Pause, RotateCcw, Info,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProgram } from '@/lib/firestore';
@@ -40,7 +40,7 @@ interface ExState {
   isCardio: boolean;
   cardioDurationSeconds: number;
   sets: SetState[];
-  videoUrl?: string;
+  notes?: string;
 }
 
 // ─── Defaults ───────────────────────────────────────────────────────────────
@@ -86,7 +86,7 @@ function buildExState(exercises: Exercise[]): ExState[] {
       isCardio: cardio,
       cardioDurationSeconds: cardioDuration,
       sets,
-      videoUrl: ex.videoUrl,
+      notes: ex.notes,
     };
   });
 }
@@ -553,37 +553,35 @@ function SetRow({
   );
 }
 
-// ─── Demo Video Button ────────────────────────────────────────────────────────
+// ─── Exercise Tip Button ────────────────────────────────────────────────────
 
-function DemoVideoButton({ videoUrl, name }: { videoUrl: string; name: string }) {
+function ExerciseTipButton({ tip, name }: { tip: string; name: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-accent/20 transition-colors text-xs text-accent font-medium flex-shrink-0"
+        className="flex items-center justify-center w-7 h-7 rounded-full bg-white/10 hover:bg-accent/20 transition-colors text-accent flex-shrink-0"
+        aria-label="How to perform"
       >
-        <Play className="w-3.5 h-3.5" /> Demo
+        <Info className="w-4 h-4" />
       </button>
       {open && (
         <div
-          className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
           onClick={() => setOpen(false)}
         >
-          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="w-full max-w-sm bg-surface-elevated rounded-2xl p-4 border border-white/10"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-bold text-white">{name}</p>
               <button onClick={() => setOpen(false)} className="text-text-secondary hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <video
-              src={videoUrl}
-              controls
-              autoPlay
-              playsInline
-              className="w-full rounded-xl bg-black"
-            />
+            <p className="text-sm text-text-secondary leading-relaxed">{tip}</p>
           </div>
         </div>
       )}
@@ -996,8 +994,8 @@ export default function WorkoutSessionPage() {
                     }
                   </p>
                 </div>
-                {currentEx.videoUrl && (
-                  <DemoVideoButton videoUrl={currentEx.videoUrl} name={currentEx.name} />
+                {currentEx.notes && (
+                  <ExerciseTipButton tip={currentEx.notes} name={currentEx.name} />
                 )}
               </div>
 
