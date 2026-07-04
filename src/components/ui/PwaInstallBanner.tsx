@@ -13,6 +13,12 @@ interface BeforeInstallPromptEvent extends Event {
 const SNOOZE_KEY = 'pwa_install_snoozed_until';
 const SNOOZE_DAYS = 30;
 
+// In-memory guard, separate from the localStorage snooze. Covers the case
+// where this component gets remounted within the same page session (e.g. by
+// a parent re-render or a stray key change) before the 30-day snooze would
+// otherwise apply — without this, a dismissed banner could flash back on.
+let dismissedThisSession = false;
+
 function isSnoozed() {
   const val = localStorage.getItem(SNOOZE_KEY);
   if (!val) return false;
@@ -43,6 +49,7 @@ export function PwaInstallBanner() {
 
   useEffect(() => {
     if (enabled === null || enabled === false) return;
+    if (dismissedThisSession) return;
 
     // Already installed as PWA
     if (window.matchMedia('(display-mode: standalone)').matches) return;
@@ -55,21 +62,30 @@ export function PwaInstallBanner() {
 
     if (ios) {
       // Show iOS instructions immediately (no install prompt available)
-      const t = setTimeout(() => setShow(true), 3000);
+      const t = setTimeout(() => {
+        if (!dismissedThisSession) setShow(true);
+      }, 3000);
       return () => clearTimeout(t);
     }
 
     // Android / desktop Chrome — wait for beforeinstallprompt
+    let showTimer: ReturnType<typeof setTimeout> | null = null;
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setTimeout(() => setShow(true), 3000);
+      showTimer = setTimeout(() => {
+        if (!dismissedThisSession) setShow(true);
+      }, 3000);
     };
     window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      if (showTimer) clearTimeout(showTimer);
+    };
   }, [enabled]);
 
   function dismiss() {
+    dismissedThisSession = true;
     snooze();
     setShow(false);
   }
@@ -78,6 +94,7 @@ export function PwaInstallBanner() {
     if (!deferredPrompt) return;
     await deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
+    dismissedThisSession = true;
     if (outcome === 'accepted') snooze();
     setShow(false);
     setDeferredPrompt(null);

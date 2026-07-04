@@ -192,5 +192,11 @@ service cloud.firestore {
       allow read, write: if isAuthed() && uid() == userId;
       allow read: if isAdmin();
     }
+
+    // ── Exercise video library ────────────────────────────────────────────
+    match /exerciseLibrary/{videoId} {
+      allow read:  if isAuthed();
+      allow write: if isAdmin();
+    }
   }
 }
