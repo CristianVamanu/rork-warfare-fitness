@@ -26,6 +26,7 @@ import {
   getCoachingPlans, saveCoachingPlans, assignCoachingPlan, revokeCoachingPlan,
   getExerciseVideos, saveExerciseVideo, deleteExerciseVideo,
   assignNutritionPlan,
+  getCoachingApplications, approveCoachingApplication, rejectCoachingApplication,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -35,9 +36,9 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan } from '@/types';
+import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication } from '@/types';
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'library' | 'integrations' | 'settings';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'integrations' | 'settings';
 
 interface SecretStatusUI {
   key: string;
@@ -195,6 +196,13 @@ export default function AdminPage() {
   const [planForm, setPlanForm] = useState({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true });
   const [assigningPlan, setAssigningPlan] = useState<string | null>(null);
 
+  // ── Coaching applications state ────────────────────────────────────────────
+  const [coachingApplications, setCoachingApplications] = useState<CoachingApplication[]>([]);
+  const [loadingApplications, setLoadingApplications] = useState(false);
+  const [reviewingApp, setReviewingApp] = useState<string | null>(null);
+  const [rejectingApp, setRejectingApp] = useState<CoachingApplication | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
   // ── Exercise library state ────────────────────────────────────────────────
   const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseVideo[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
@@ -293,6 +301,7 @@ export default function AdminPage() {
     if (tab === 'clients' && users.length === 0) loadUsers();
     if (tab === 'messages' && conversations.length === 0) loadConversations();
     if (tab === 'membership') { loadMembership(); loadCoachingPlans(); }
+    if (tab === 'coaching') loadCoachingApplications();
     if (tab === 'notifications') loadNotifConfig();
     if (tab === 'community') loadChannels();
     if (tab === 'library' && exerciseLibrary.length === 0) loadExerciseLibrary();
@@ -587,6 +596,38 @@ export default function AdminPage() {
       await loadUsers();
     } catch { toast.error('Failed to revoke plan'); }
     finally { setAssigningPlan(null); }
+  }
+
+  async function loadCoachingApplications() {
+    setLoadingApplications(true);
+    try {
+      setCoachingApplications(await getCoachingApplications());
+    } catch { toast.error('Failed to load coaching applications'); }
+    finally { setLoadingApplications(false); }
+  }
+
+  async function handleApproveApplication(app: CoachingApplication) {
+    if (!user) return;
+    setReviewingApp(app.id);
+    try {
+      await approveCoachingApplication(app, user.uid);
+      toast.success(`${app.userName} approved — they've been notified to pay`);
+      setCoachingApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'approved' } : a));
+    } catch { toast.error('Failed to approve application'); }
+    finally { setReviewingApp(null); }
+  }
+
+  async function handleRejectApplication() {
+    if (!user || !rejectingApp) return;
+    setReviewingApp(rejectingApp.id);
+    try {
+      await rejectCoachingApplication(rejectingApp, user.uid, rejectReason.trim() || undefined);
+      toast.success(`${rejectingApp.userName}'s application rejected`);
+      setCoachingApplications(prev => prev.map(a => a.id === rejectingApp.id ? { ...a, status: 'rejected' } : a));
+      setRejectingApp(null);
+      setRejectReason('');
+    } catch { toast.error('Failed to reject application'); }
+    finally { setReviewingApp(null); }
   }
 
   async function handleToggleMember(u: UserData) {
@@ -917,6 +958,7 @@ export default function AdminPage() {
     { id: 'community', label: 'Community', icon: Users },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'membership', label: 'Membership', icon: CreditCard },
+    { id: 'coaching', label: 'Coaching Apps', icon: UserCheck },
     { id: 'library', label: 'Library', icon: Video },
     { id: 'integrations', label: 'Integrations', icon: Key },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -1821,6 +1863,103 @@ export default function AdminPage() {
           )}
         </div>
       )}
+
+      {/* ── Coaching Applications ─────────────────────────────────────────────── */}
+      {tab === 'coaching' && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-bold text-white">1:1 Coaching Applications</h2>
+            <p className="text-xs text-text-secondary mt-0.5">
+              Review intake forms, then approve or reject. Approved clients get a notification with a pay button; rejected clients get a notification too.
+            </p>
+          </div>
+
+          {loadingApplications ? (
+            <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
+          ) : coachingApplications.length === 0 ? (
+            <Card className="p-6 text-center">
+              <p className="text-sm text-text-secondary">No applications yet.</p>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {coachingApplications.map((app) => (
+                <Card key={app.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-bold text-white">{app.userName}</p>
+                      <p className="text-xs text-text-secondary">{app.userEmail}</p>
+                      <p className="text-xs text-accent mt-0.5">{app.planName}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full whitespace-nowrap ${
+                      app.status === 'pending' ? 'bg-yellow-400/10 text-yellow-400'
+                      : app.status === 'approved' ? 'bg-success/10 text-success'
+                      : 'bg-danger/10 text-danger'
+                    }`}>
+                      {app.status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div><span className="text-text-tertiary">Weight:</span> <span className="text-white">{app.currentWeight || '—'}</span></div>
+                    <div><span className="text-text-tertiary">Availability:</span> <span className="text-white">{app.availability || '—'}</span></div>
+                    <div className="col-span-2"><span className="text-text-tertiary">Goals:</span> <span className="text-white">{app.goals || '—'}</span></div>
+                    <div className="col-span-2"><span className="text-text-tertiary">Experience:</span> <span className="text-white">{app.experience || '—'}</span></div>
+                    {app.injuries && (
+                      <div className="col-span-2"><span className="text-text-tertiary">Injuries:</span> <span className="text-white">{app.injuries}</span></div>
+                    )}
+                    {app.status === 'rejected' && app.rejectionReason && (
+                      <div className="col-span-2"><span className="text-text-tertiary">Rejection reason:</span> <span className="text-danger">{app.rejectionReason}</span></div>
+                    )}
+                  </div>
+
+                  {app.status === 'pending' && (
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        fullWidth
+                        onClick={() => handleApproveApplication(app)}
+                        loading={reviewingApp === app.id}
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        fullWidth
+                        onClick={() => { setRejectingApp(app); setRejectReason(''); }}
+                        disabled={reviewingApp === app.id}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Reject application modal */}
+      <Modal open={!!rejectingApp} onClose={() => setRejectingApp(null)} title={`Reject ${rejectingApp?.userName ?? ''}'s Application`}>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-text-secondary">Reason (optional, shown to the user)</label>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g. Currently at full 1:1 capacity, please re-apply next month"
+              rows={3}
+              style={{ backgroundColor: 'var(--surface-elevated)', borderColor: 'var(--border-subtle)', color: 'var(--foreground)' }}
+              className="w-full border rounded-xl px-4 py-3 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/40 transition-all resize-none"
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button variant="ghost" fullWidth onClick={() => setRejectingApp(null)}>Cancel</Button>
+            <Button fullWidth loading={reviewingApp === rejectingApp?.id} onClick={handleRejectApplication}>Confirm Reject</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ── Exercise Library ──────────────────────────────────────────────────── */}
       {tab === 'library' && (

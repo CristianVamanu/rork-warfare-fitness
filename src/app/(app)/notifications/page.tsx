@@ -3,7 +3,8 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, BellOff, CheckCheck, Zap, Dumbbell, Flame, Trophy, MessageSquare } from 'lucide-react';
+import { Bell, BellOff, CheckCheck, Zap, Dumbbell, Flame, Trophy, MessageSquare, Crown, XCircle } from 'lucide-react';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserNotifications, markNotificationRead, markAllNotificationsRead } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
@@ -18,6 +19,8 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   auto_streak: Flame,
   auto_milestone: Trophy,
   ai_motivation: Zap,
+  coaching_approved: Crown,
+  coaching_rejected: XCircle,
 };
 
 const TYPE_COLOR: Record<string, string> = {
@@ -26,6 +29,8 @@ const TYPE_COLOR: Record<string, string> = {
   auto_streak: 'text-orange-400 bg-orange-400/10',
   auto_milestone: 'text-accent bg-accent-muted',
   ai_motivation: 'text-purple-400 bg-purple-400/10',
+  coaching_approved: 'text-success bg-success/10',
+  coaching_rejected: 'text-danger bg-danger/10',
 };
 
 function timeAgo(ts: unknown): string {
@@ -121,6 +126,11 @@ export default function NotificationsPage() {
                         </div>
                         <p className="text-sm text-text-secondary mt-0.5 leading-relaxed">{n.body}</p>
                         <p className="text-xs text-text-tertiary mt-1">{timeAgo(n.createdAt)}</p>
+                        {n.actionUrl && n.actionLabel && (
+                          <Link href={n.actionUrl} onClick={(e) => e.stopPropagation()}>
+                            <Button size="sm" className="mt-2">{n.actionLabel}</Button>
+                          </Link>
+                        )}
                       </div>
                     </div>
                   </Card>

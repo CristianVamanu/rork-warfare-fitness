@@ -842,6 +842,8 @@ export async function sendNotification(data: {
   title: string;
   body: string;
   type: AppNotification['type'];
+  actionLabel?: string;
+  actionUrl?: string;
 }) {
   await addDoc(collection(db, 'notifications'), {
     ...data,
@@ -1070,6 +1072,77 @@ export async function revokeCoachingPlan(userId: string): Promise<void> {
   await updateDoc(doc(db, 'users', userId), {
     'membership.planId': deleteField(),
     'membership.planName': deleteField(),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Coaching Applications (intake form → admin review → pay/reject)
+// ---------------------------------------------------------------------------
+import type { CoachingApplication } from '@/types';
+
+export async function submitCoachingApplication(data: {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  planId: string;
+  planName: string;
+  currentWeight: string;
+  goals: string;
+  experience: string;
+  injuries: string;
+  availability: string;
+}): Promise<string> {
+  const ref = await addDoc(collection(db, 'coachingApplications'), {
+    ...data,
+    status: 'pending',
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getUserCoachingApplication(userId: string): Promise<CoachingApplication | null> {
+  const snap = await getDocs(
+    query(collection(db, 'coachingApplications'), where('userId', '==', userId), orderBy('createdAt', 'desc'), limit(1))
+  );
+  if (snap.empty) return null;
+  return { id: snap.docs[0].id, ...snap.docs[0].data() } as CoachingApplication;
+}
+
+export async function getCoachingApplications(): Promise<CoachingApplication[]> {
+  const snap = await getDocs(query(collection(db, 'coachingApplications'), orderBy('createdAt', 'desc')));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as CoachingApplication);
+}
+
+export async function approveCoachingApplication(app: CoachingApplication, reviewedBy: string): Promise<void> {
+  await updateDoc(doc(db, 'coachingApplications', app.id), {
+    status: 'approved',
+    reviewedAt: serverTimestamp(),
+    reviewedBy,
+  });
+  await sendNotification({
+    userId: app.userId,
+    title: "You're approved for 1:1 Coaching!",
+    body: `Great news, ${app.userName}! Your application for "${app.planName}" has been approved. Tap below to complete your payment and get started.`,
+    type: 'coaching_approved',
+    actionLabel: 'Pay for 1:1 Coaching',
+    actionUrl: `/profile?coachingPlanId=${app.planId}`,
+  });
+}
+
+export async function rejectCoachingApplication(app: CoachingApplication, reviewedBy: string, reason?: string): Promise<void> {
+  await updateDoc(doc(db, 'coachingApplications', app.id), {
+    status: 'rejected',
+    reviewedAt: serverTimestamp(),
+    reviewedBy,
+    ...(reason ? { rejectionReason: reason } : {}),
+  });
+  await sendNotification({
+    userId: app.userId,
+    title: '1:1 Coaching Application Update',
+    body: reason
+      ? `Thanks for applying, ${app.userName}. We're not able to take you on for 1:1 coaching right now: ${reason}`
+      : `Thanks for applying, ${app.userName}. We're not able to take you on for 1:1 coaching right now — keep crushing your training and feel free to re-apply later.`,
+    type: 'coaching_rejected',
   });
 }
 

@@ -245,7 +245,9 @@ export interface Post {
   createdAt: unknown;
 }
 
-export type NotificationType = 'manual' | 'auto_missed_workout' | 'auto_streak' | 'auto_milestone' | 'ai_motivation';
+export type NotificationType =
+  | 'manual' | 'auto_missed_workout' | 'auto_streak' | 'auto_milestone' | 'ai_motivation'
+  | 'coaching_approved' | 'coaching_rejected';
 
 export interface AppNotification {
   id: string;
@@ -256,6 +258,29 @@ export interface AppNotification {
   type: NotificationType;
   read: boolean;
   createdAt: unknown;
+  actionLabel?: string;  // e.g. "Pay for 1:1 Coaching"
+  actionUrl?: string;    // e.g. "/profile?coachingPlanId=xxx"
+}
+
+export type CoachingApplicationStatus = 'pending' | 'approved' | 'rejected';
+
+export interface CoachingApplication {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  planId: string;
+  planName: string;
+  currentWeight: string;
+  goals: string;
+  experience: string;
+  injuries: string;
+  availability: string;
+  status: CoachingApplicationStatus;
+  createdAt: unknown;
+  reviewedAt?: unknown;
+  reviewedBy?: string;
+  rejectionReason?: string;
 }
 
 export interface AutoNotificationRule {

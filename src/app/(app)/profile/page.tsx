@@ -8,7 +8,10 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { updateUserDoc, getUserConversations, getMembershipConfig, getCoachingPlans } from '@/lib/firestore';
+import {
+  updateUserDoc, getUserConversations, getMembershipConfig, getCoachingPlans,
+  submitCoachingApplication, getUserCoachingApplication,
+} from '@/lib/firestore';
 import { startCoachingCheckout } from '@/lib/checkout';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Header } from '@/components/layout/Header';
@@ -18,7 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
-import type { MembershipConfig, CoachingPlan } from '@/types';
+import type { MembershipConfig, CoachingPlan, CoachingApplication } from '@/types';
 
 // Separate component so useSearchParams doesn't block the page render
 function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
@@ -49,6 +52,15 @@ export default function ProfilePage() {
   const [cancelling, setCancelling] = useState(false);
   const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
   const [subscribingPlanId, setSubscribingPlanId] = useState<string | null>(null);
+  const [coachingApplication, setCoachingApplication] = useState<CoachingApplication | null>(null);
+  const [applyPlan, setApplyPlan] = useState<CoachingPlan | null>(null);
+  const [applyForm, setApplyForm] = useState({ currentWeight: '', goals: '', experience: '', injuries: '', availability: '' });
+  const [applySubmitting, setApplySubmitting] = useState(false);
+
+  const refreshCoachingApplication = () => {
+    if (!user) return;
+    getUserCoachingApplication(user.uid).then(setCoachingApplication).catch(() => {});
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -57,6 +69,8 @@ export default function ProfilePage() {
       .catch(() => {});
     getMembershipConfig().then(setMembershipConfig).catch(() => {});
     getCoachingPlans().then(plans => setCoachingPlans(plans.filter(p => p.active))).catch((err) => console.error('[Profile] Failed to load coaching plans:', err));
+    refreshCoachingApplication();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const handleSubscribeCoachingPlan = async (planId: string) => {
@@ -64,6 +78,37 @@ export default function ProfilePage() {
     setSubscribingPlanId(planId);
     const err = await startCoachingCheckout(user, planId);
     if (err) { toast.error(err); setSubscribingPlanId(null); }
+  };
+
+  const openApplyModal = (plan: CoachingPlan) => {
+    setApplyForm({ currentWeight: '', goals: '', experience: '', injuries: '', availability: '' });
+    setApplyPlan(plan);
+  };
+
+  const handleSubmitApplication = async () => {
+    if (!user || !applyPlan) return;
+    if (!applyForm.currentWeight.trim() || !applyForm.goals.trim()) {
+      toast.error('Please fill in at least your current weight and goals.');
+      return;
+    }
+    setApplySubmitting(true);
+    try {
+      await submitCoachingApplication({
+        userId: user.uid,
+        userName: profile?.displayName || user.email || 'Unknown',
+        userEmail: user.email || '',
+        planId: applyPlan.id,
+        planName: applyPlan.name,
+        ...applyForm,
+      });
+      toast.success('Application submitted! Your trainer will review it shortly.');
+      setApplyPlan(null);
+      refreshCoachingApplication();
+    } catch {
+      toast.error('Failed to submit application. Please try again.');
+    } finally {
+      setApplySubmitting(false);
+    }
   };
 
   const handleSave = async () => {
@@ -306,13 +351,32 @@ export default function ProfilePage() {
                         <div className="text-center py-2 bg-success/10 border border-success/20 rounded-xl">
                           <p className="text-xs text-success font-medium">Active</p>
                         </div>
-                      ) : (
+                      ) : coachingApplication?.planId === plan.id && coachingApplication.status === 'pending' ? (
+                        <div className="text-center py-2.5 bg-yellow-400/10 border border-yellow-400/20 rounded-xl">
+                          <p className="text-xs text-yellow-400 font-medium">Application under review — we&apos;ll notify you soon</p>
+                        </div>
+                      ) : coachingApplication?.planId === plan.id && coachingApplication.status === 'approved' ? (
                         <Button
                           fullWidth
                           onClick={() => handleSubscribeCoachingPlan(plan.id)}
                           loading={subscribingPlanId === plan.id}
                         >
-                          <Crown className="w-4 h-4" /> {subscribingPlanId === plan.id ? 'Opening Checkout…' : 'Apply for 1:1 Coaching'}
+                          <Crown className="w-4 h-4" /> {subscribingPlanId === plan.id ? 'Opening Checkout…' : 'Pay for 1:1 Coaching'}
+                        </Button>
+                      ) : coachingApplication?.planId === plan.id && coachingApplication.status === 'rejected' ? (
+                        <div className="space-y-2">
+                          <div className="text-center py-2 bg-danger/10 border border-danger/20 rounded-xl">
+                            <p className="text-xs text-danger font-medium">
+                              {coachingApplication.rejectionReason || 'Application not approved at this time'}
+                            </p>
+                          </div>
+                          <Button fullWidth variant="secondary" onClick={() => openApplyModal(plan)}>
+                            Apply Again
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button fullWidth onClick={() => openApplyModal(plan)}>
+                          <Crown className="w-4 h-4" /> Apply for 1:1 Coaching
                         </Button>
                       )}
                     </div>
@@ -445,6 +509,59 @@ export default function ProfilePage() {
           <div className="flex gap-3">
             <Button variant="ghost" fullWidth onClick={() => setEditModal(false)}>Cancel</Button>
             <Button fullWidth loading={saving} onClick={handleSave}>Save</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 1:1 Coaching Application Modal */}
+      <Modal open={!!applyPlan} onClose={() => setApplyPlan(null)} title={`Apply for ${applyPlan?.name ?? '1:1 Coaching'}`}>
+        <div className="space-y-4">
+          <p className="text-xs text-text-secondary">
+            Tell your trainer a bit about yourself. They&apos;ll review your application and get back to you.
+          </p>
+          <Input
+            label="Current Weight"
+            value={applyForm.currentWeight}
+            onChange={(e) => setApplyForm((f) => ({ ...f, currentWeight: e.target.value }))}
+            placeholder="e.g. 82kg / 180lbs"
+          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-text-secondary">Goals</label>
+            <textarea
+              value={applyForm.goals}
+              onChange={(e) => setApplyForm((f) => ({ ...f, goals: e.target.value }))}
+              placeholder="What do you want to achieve? e.g. lose fat, build muscle, compete..."
+              rows={2}
+              style={{ backgroundColor: 'var(--surface-elevated)', borderColor: 'var(--border-subtle)', color: 'var(--foreground)' }}
+              className="w-full border rounded-xl px-4 py-3 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/40 transition-all resize-none"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-text-secondary">Training Experience</label>
+            <textarea
+              value={applyForm.experience}
+              onChange={(e) => setApplyForm((f) => ({ ...f, experience: e.target.value }))}
+              placeholder="e.g. 2 years lifting, beginner, former athlete..."
+              rows={2}
+              style={{ backgroundColor: 'var(--surface-elevated)', borderColor: 'var(--border-subtle)', color: 'var(--foreground)' }}
+              className="w-full border rounded-xl px-4 py-3 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/40 transition-all resize-none"
+            />
+          </div>
+          <Input
+            label="Injuries / Limitations (optional)"
+            value={applyForm.injuries}
+            onChange={(e) => setApplyForm((f) => ({ ...f, injuries: e.target.value }))}
+            placeholder="e.g. bad knee, none"
+          />
+          <Input
+            label="Availability"
+            value={applyForm.availability}
+            onChange={(e) => setApplyForm((f) => ({ ...f, availability: e.target.value }))}
+            placeholder="e.g. 4x/week, mornings only"
+          />
+          <div className="flex gap-3">
+            <Button variant="ghost" fullWidth onClick={() => setApplyPlan(null)}>Cancel</Button>
+            <Button fullWidth loading={applySubmitting} onClick={handleSubmitApplication}>Submit Application</Button>
           </div>
         </div>
       </Modal>
