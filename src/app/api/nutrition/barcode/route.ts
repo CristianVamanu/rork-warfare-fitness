@@ -9,7 +9,16 @@ interface OpenFoodFactsResponse {
     brands?: string;
     nutriscore_grade?: string;   // 'a' | 'b' | 'c' | 'd' | 'e'
     nova_group?: number;         // 1-4, processing level (1 = unprocessed, 4 = ultra-processed)
+    ecoscore_grade?: string;     // 'a' | 'b' | 'c' | 'd' | 'e' — environmental impact
     additives_tags?: string[];
+    labels_tags?: string[];      // e.g. 'en:organic', 'en:vegan'
+    ingredients_text?: string;
+    nutrient_levels?: {
+      fat?: 'low' | 'moderate' | 'high';
+      'saturated-fat'?: 'low' | 'moderate' | 'high';
+      sugars?: 'low' | 'moderate' | 'high';
+      salt?: 'low' | 'moderate' | 'high';
+    };
     nutriments?: {
       'energy-kcal_100g'?: number;
       'energy-kcal'?: number;
@@ -18,9 +27,21 @@ interface OpenFoodFactsResponse {
       'fat_100g'?: number;
       'fiber_100g'?: number;
       'sugars_100g'?: number;
+      'salt_100g'?: number;
     };
   };
 }
+
+const KNOWN_LABELS: Record<string, string> = {
+  'en:organic': 'Organic',
+  'en:vegan': 'Vegan',
+  'en:vegetarian': 'Vegetarian',
+  'en:gluten-free': 'Gluten-Free',
+  'en:no-preservatives': 'No Preservatives',
+  'en:no-additives': 'No Additives',
+  'en:fair-trade': 'Fair Trade',
+  'en:palm-oil-free': 'Palm Oil Free',
+};
 
 export async function GET(req: NextRequest) {
   try {
@@ -54,13 +75,23 @@ export async function GET(req: NextRequest) {
 
     const grade = product.nutriscore_grade?.toLowerCase();
     const validGrade = grade && ['a', 'b', 'c', 'd', 'e'].includes(grade) ? grade : null;
+    const ecoGrade = product.ecoscore_grade?.toLowerCase();
+    const validEcoGrade = ecoGrade && ['a', 'b', 'c', 'd', 'e'].includes(ecoGrade) ? ecoGrade : null;
+
+    const labels = (product.labels_tags ?? [])
+      .map((tag) => KNOWN_LABELS[tag])
+      .filter((label): label is string => !!label);
 
     return NextResponse.json({
       name: product.product_name || 'Unknown Product',
       brand: product.brands || '',
       nutriScoreGrade: validGrade,
       novaGroup: product.nova_group ?? null,
+      ecoScoreGrade: validEcoGrade,
       additivesCount: product.additives_tags?.length ?? 0,
+      additives: (product.additives_tags ?? []).map((t) => t.replace(/^en:/, '').toUpperCase()),
+      nutrientLevels: product.nutrient_levels ?? null,
+      labels,
       nutrition: {
         name: product.product_name || 'Unknown Product',
         calories: Math.round(n['energy-kcal_100g'] || n['energy-kcal'] || 0),
@@ -69,6 +100,7 @@ export async function GET(req: NextRequest) {
         fat: Math.round((n['fat_100g'] || 0) * 10) / 10,
         fiber: Math.round((n['fiber_100g'] || 0) * 10) / 10,
         sugar: Math.round((n['sugars_100g'] || 0) * 10) / 10,
+        salt: Math.round((n['salt_100g'] || 0) * 10) / 10,
       },
     });
   } catch (err) {

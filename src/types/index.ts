@@ -341,4 +341,5 @@ export interface NutritionAnalysis {
   fat: number;
   fiber?: number;
   sugar?: number;
+  salt?: number;
 }

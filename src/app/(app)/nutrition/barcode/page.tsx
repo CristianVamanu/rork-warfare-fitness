@@ -13,10 +13,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { logMealAction } from '@/lib/actions';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Modal } from '@/components/ui/Modal';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import type { NutritionAnalysis } from '@/types';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+interface NutrientLevels {
+  fat?: 'low' | 'moderate' | 'high';
+  'saturated-fat'?: 'low' | 'moderate' | 'high';
+  sugars?: 'low' | 'moderate' | 'high';
+  salt?: 'low' | 'moderate' | 'high';
+}
 
 type CameraState = 'idle' | 'initializing' | 'scanning' | 'denied' | 'error';
 
@@ -44,6 +52,11 @@ export default function BarcodePage() {
   const [productName, setProductName] = useState('');
   const [nutriScoreGrade, setNutriScoreGrade] = useState<string | null>(null);
   const [novaGroup, setNovaGroup] = useState<number | null>(null);
+  const [ecoScoreGrade, setEcoScoreGrade] = useState<string | null>(null);
+  const [additives, setAdditives] = useState<string[]>([]);
+  const [nutrientLevels, setNutrientLevels] = useState<NutrientLevels | null>(null);
+  const [labels, setLabels] = useState<string[]>([]);
+  const [showScoreDetail, setShowScoreDetail] = useState(false);
   const [mealType, setMealType] = useState<MealType>('snack');
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -164,6 +177,10 @@ export default function BarcodePage() {
     setSearching(true);
     setNutriScoreGrade(null);
     setNovaGroup(null);
+    setEcoScoreGrade(null);
+    setAdditives([]);
+    setNutrientLevels(null);
+    setLabels([]);
     try {
       const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}`);
       const data = await res.json();
@@ -172,6 +189,10 @@ export default function BarcodePage() {
       setProductName(data.name || data.nutrition?.name || 'Product');
       setNutriScoreGrade(data.nutriScoreGrade ?? null);
       setNovaGroup(data.novaGroup ?? null);
+      setEcoScoreGrade(data.ecoScoreGrade ?? null);
+      setAdditives(data.additives ?? []);
+      setNutrientLevels(data.nutrientLevels ?? null);
+      setLabels(data.labels ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Product not found. Try another barcode or enter manually.');
     } finally {
@@ -359,10 +380,11 @@ export default function BarcodePage() {
                     <p className="text-xs text-text-secondary mt-0.5">per 100g</p>
                   </div>
                   {(nutriScoreGrade || novaGroup) && (
-                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <button onClick={() => setShowScoreDetail(true)} className="flex flex-col items-end gap-1.5 flex-shrink-0">
                       {nutriScoreGrade && <NutriScoreBadge grade={nutriScoreGrade} />}
                       {novaGroup && <NovaBadge group={novaGroup} />}
-                    </div>
+                      <span className="text-[9px] text-accent underline">Tap for details</span>
+                    </button>
                   )}
                 </div>
 
@@ -410,6 +432,92 @@ export default function BarcodePage() {
           </p>
         </Card>
       </div>
+
+      <Modal open={showScoreDetail} onClose={() => setShowScoreDetail(false)} title={productName || 'Health Score'}>
+        <div className="space-y-4">
+          {nutriScoreGrade && (
+            <div className="flex items-center gap-3 p-3 bg-surface-elevated rounded-xl">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black flex-shrink-0 ${NUTRISCORE_COLORS[nutriScoreGrade] ?? 'bg-surface text-white'}`}>
+                {nutriScoreGrade.toUpperCase()}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">Nutri-Score {nutriScoreGrade.toUpperCase()}</p>
+                <p className="text-xs text-text-secondary">
+                  Overall nutritional quality, based on calories, sugar, saturated fat, salt vs. fiber and protein.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {novaGroup && NOVA_LABELS[novaGroup] && (
+            <div className="flex items-center gap-3 p-3 bg-surface-elevated rounded-xl">
+              <div className={`w-12 h-12 rounded-xl bg-surface flex items-center justify-center text-xl font-black flex-shrink-0 ${NOVA_LABELS[novaGroup].color}`}>
+                {novaGroup}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">NOVA {novaGroup} — {NOVA_LABELS[novaGroup].label}</p>
+                <p className="text-xs text-text-secondary">{NOVA_DESCRIPTIONS[novaGroup]}</p>
+              </div>
+            </div>
+          )}
+
+          {ecoScoreGrade && (
+            <div className="flex items-center gap-3 p-3 bg-surface-elevated rounded-xl">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black flex-shrink-0 ${NUTRISCORE_COLORS[ecoScoreGrade] ?? 'bg-surface text-white'}`}>
+                {ecoScoreGrade.toUpperCase()}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">Eco-Score {ecoScoreGrade.toUpperCase()}</p>
+                <p className="text-xs text-text-secondary">Estimated environmental impact of this product.</p>
+              </div>
+            </div>
+          )}
+
+          {nutrientLevels && Object.keys(nutrientLevels).length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-text-secondary mb-2">Nutrient Levels (per 100g)</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(Object.entries(nutrientLevels) as [keyof NutrientLevels, string][]).map(([key, level]) => (
+                  <div key={key} className="p-2.5 bg-surface-elevated rounded-lg flex items-center justify-between">
+                    <span className="text-xs text-text-secondary capitalize">{key.replace('-', ' ')}</span>
+                    <span className={`text-xs font-bold ${
+                      level === 'low' ? 'text-green-400' : level === 'moderate' ? 'text-yellow-400' : 'text-red-400'
+                    }`}>
+                      {level}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {additives.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-text-secondary mb-2">Additives ({additives.length})</p>
+              <div className="flex flex-wrap gap-1.5">
+                {additives.map((a) => (
+                  <span key={a} className="text-[10px] px-2 py-1 bg-surface-elevated rounded-md text-text-secondary">{a}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {labels.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-text-secondary mb-2">Labels</p>
+              <div className="flex flex-wrap gap-1.5">
+                {labels.map((l) => (
+                  <span key={l} className="text-[10px] px-2 py-1 bg-accent/10 border border-accent/20 rounded-md text-accent">{l}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className="text-[10px] text-text-tertiary pt-2 border-t border-white/8">
+            Data from OpenFoodFacts, a free open database. Scores reflect the product as sold, not how you prepare or portion it.
+          </p>
+        </div>
+      </Modal>
     </div>
     </PaywallGate>
   );
@@ -439,6 +547,13 @@ const NOVA_LABELS: Record<number, { label: string; color: string }> = {
   2: { label: 'Processed culinary', color: 'text-lime-400' },
   3: { label: 'Processed', color: 'text-orange-400' },
   4: { label: 'Ultra-processed', color: 'text-red-400' },
+};
+
+const NOVA_DESCRIPTIONS: Record<number, string> = {
+  1: 'Unprocessed or minimally processed foods — no or minimal alteration from their natural state.',
+  2: 'Processed culinary ingredients — oils, butter, sugar, salt, used to prepare food at home.',
+  3: 'Processed foods — canned, bottled, or baked with added salt, sugar, or oil.',
+  4: 'Ultra-processed foods — industrial formulations with additives rarely used in home cooking.',
 };
 
 function NovaBadge({ group }: { group: number }) {
