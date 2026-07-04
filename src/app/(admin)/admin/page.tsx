@@ -305,11 +305,15 @@ export default function AdminPage() {
     try {
       const token = await getIdToken(user);
       const res = await fetch('/api/admin/secrets', { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      if (res.ok) setSecretStatuses(data.secrets);
-      else toast.error(data.error || 'Failed to load integration status');
-    } catch { toast.error('Failed to load integration status'); }
-    finally { setSecretsLoading(false); }
+      const text = await res.text();
+      let data: { secrets?: SecretStatusUI[]; error?: string };
+      try { data = JSON.parse(text); }
+      catch { throw new Error(`Server returned a non-JSON response (status ${res.status}). Check Vercel function logs.`); }
+      if (res.ok) setSecretStatuses(data.secrets ?? []);
+      else throw new Error(data.error || `Request failed (status ${res.status})`);
+    } catch (err) {
+      toast.error(`Failed to load integration status: ${err instanceof Error ? err.message : String(err)}`, { duration: 8000 });
+    } finally { setSecretsLoading(false); }
   }
 
   async function handleSaveSecret(key: string) {
@@ -463,11 +467,14 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ userId: nutritionModalUser.id, trainerNotes: nutritionTrainerNotes.trim() }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Generation failed');
-      setNutritionDraft(data.plan);
+      const text = await res.text();
+      let data: { plan?: typeof nutritionDraft; error?: string };
+      try { data = JSON.parse(text); }
+      catch { throw new Error(`Server returned a non-JSON response (status ${res.status}). Check Vercel function logs.`); }
+      if (!res.ok) throw new Error(data.error || `Generation failed (status ${res.status})`);
+      setNutritionDraft(data.plan ?? null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to generate plan');
+      toast.error(err instanceof Error ? err.message : 'Failed to generate plan', { duration: 8000 });
     } finally {
       setGeneratingNutrition(false);
     }
@@ -720,13 +727,18 @@ export default function AdminPage() {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: { sent?: unknown[]; error?: string };
+      try { data = JSON.parse(text); }
+      catch { throw new Error(`Server returned a non-JSON response (status ${res.status}). Check Vercel function logs.`); }
       if (res.ok) {
         toast.success(`Auto-notifications processed — ${data.sent?.length ?? 0} sent`);
       } else {
-        toast.error(data.error || 'Processing failed');
+        throw new Error(data.error || `Request failed (status ${res.status})`);
       }
-    } catch { toast.error('Failed to run'); }
+    } catch (err) {
+      toast.error(`Failed to run: ${err instanceof Error ? err.message : String(err)}`, { duration: 8000 });
+    }
     finally { setProcessingCron(false); }
   }
 
