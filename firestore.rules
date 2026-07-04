@@ -47,8 +47,13 @@ service cloud.firestore {
     }
 
     // ── Users ─────────────────────────────────────────────────────────────
+    // Read is open to any authenticated user (not just self/admin) so the
+    // leaderboard can query the whole users collection — this is a single
+    // community app where members already see each other's names/stats in
+    // channels. Trade-off: email is technically readable by any signed-in
+    // member via direct Firestore calls, not just through the app UI.
     match /users/{userId} {
-      allow read:   if isAuthed() && (uid() == userId || isAdmin());
+      allow read:   if isAuthed();
       allow create: if isAuthed() && uid() == userId;
       allow update: if isAuthed() && (uid() == userId || isAdmin());
       allow delete: if isAdmin();
@@ -103,7 +108,11 @@ service cloud.firestore {
         resource.data.adminId == uid() ||
         resource.data.userId == uid()
       );
-      allow delete: if isAdmin();
+      // Either side of the conversation can delete it
+      allow delete: if isAuthed() && (
+        resource.data.adminId == uid() ||
+        resource.data.userId == uid()
+      );
 
       match /messages/{msgId} {
         allow read: if isAuthed() && (
@@ -117,7 +126,13 @@ service cloud.firestore {
             get(/databases/$(database)/documents/conversations/$(convId)).data.userId == uid()
           );
         allow update: if false;
-        allow delete: if isAdmin();
+        // Deleting a message requires the parent conversation to still exist,
+        // so this only fires as part of deleteConversation() clearing the
+        // subcollection before the parent doc — same ownership check.
+        allow delete: if isAuthed() && (
+          get(/databases/$(database)/documents/conversations/$(convId)).data.adminId == uid() ||
+          get(/databases/$(database)/documents/conversations/$(convId)).data.userId == uid()
+        );
       }
     }
 

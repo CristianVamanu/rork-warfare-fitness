@@ -30,13 +30,12 @@ export default function CommunityPage() {
   }, [effectiveTrainerId]);
 
   useEffect(() => {
-    if (!effectiveTrainerId) { setLbLoading(false); return; }
-    const unsub = subscribeLeaderboard(effectiveTrainerId, (entries) => {
+    const unsub = subscribeLeaderboard((entries) => {
       setLeaderboard(entries);
       setLbLoading(false);
     }, 10);
     return unsub;
-  }, [effectiveTrainerId]);
+  }, []);
 
   const medalColors = [
     'bg-yellow-400 text-black',

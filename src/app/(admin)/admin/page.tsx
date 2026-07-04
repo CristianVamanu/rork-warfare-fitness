@@ -14,6 +14,7 @@ import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/
 import { db } from '@/lib/firebase';
 import { getIdToken } from 'firebase/auth';
 import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
+import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS } from '@/lib/legalDefaults';
 import {
   getSystemConfig, setSystemConfig,
   banUser, unbanUser, getAllUsers,
@@ -161,6 +162,9 @@ export default function AdminPage() {
   // ── Settings state ─────────────────────────────────────────────────────────
   const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '' });
   const [savingSettings, setSavingSettings] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '' });
+  const [savingLegal, setSavingLegal] = useState(false);
 
   // ── Membership state ───────────────────────────────────────────────────────
   const [membership, setMembership] = useState<MembershipConfig>({
@@ -270,6 +274,10 @@ export default function AdminPage() {
           vapidPublicKey: cfg.vapidPublicKey || '',
         });
         setStorageProvider((cfg.storageProvider as StorageProvider) || 'firebase');
+        setLegalForm({
+          privacyPolicyText: cfg.privacyPolicyText || DEFAULT_PRIVACY_POLICY,
+          termsText: cfg.termsText || DEFAULT_TERMS,
+        });
       }
     }).catch(console.error).finally(() => setOverviewLoading(false));
   }, [profile?.trainerId]);
@@ -850,6 +858,32 @@ export default function AdminPage() {
       toast.success('Settings saved');
     } catch { toast.error('Failed to save settings'); }
     finally { setSavingSettings(false); }
+  }
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingLogo(true);
+    try {
+      const url = await uploadVideo(storageProvider, user, file, 'branding');
+      setSettingsForm(s => ({ ...s, logoUrl: url }));
+      await setSystemConfig({ logoUrl: url });
+      toast.success('Logo uploaded');
+    } catch {
+      toast.error('Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleSaveLegal() {
+    setSavingLegal(true);
+    try {
+      await setSystemConfig(legalForm);
+      toast.success('Legal pages saved');
+    } catch { toast.error('Failed to save legal pages'); }
+    finally { setSavingLegal(false); }
   }
 
   const stripeStatus = tenant?.stripe?.subscriptionStatus ?? 'inactive';
@@ -2125,12 +2159,24 @@ export default function AdminPage() {
                 <p className="text-xs text-text-tertiary mt-1">Plays automatically after a new user completes onboarding. Leave blank to skip.</p>
               </div>
               <div>
-                <label className="text-xs text-text-secondary mb-1 block">Logo / Brand Image URL</label>
-                <Input value={settingsForm.logoUrl} onChange={e => setSettingsForm(s => ({ ...s, logoUrl: e.target.value }))} placeholder="https://… (PNG or JPG, square recommended)" />
-                <p className="text-xs text-text-tertiary mt-1">Replaces the default &quot;W&quot; icon in the header and login screen. Upload to any public CDN/host and paste the link.</p>
-                {settingsForm.logoUrl && (
-                  <img src={settingsForm.logoUrl} alt="Logo preview" className="mt-2 w-12 h-12 rounded-xl object-cover border border-white/10" />
-                )}
+                <label className="text-xs text-text-secondary mb-1 block">Logo / Brand Image</label>
+                <p className="text-xs text-text-tertiary mb-2">Replaces the default &quot;W&quot; icon in the header and throughout the app. Square image recommended.</p>
+                <div className="flex items-center gap-3">
+                  {settingsForm.logoUrl && (
+                    <img src={settingsForm.logoUrl} alt="Logo preview" className="w-12 h-12 rounded-xl object-cover border border-white/10 flex-shrink-0" />
+                  )}
+                  <label className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleLogoUpload}
+                    />
+                    <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-elevated border border-white/10 text-sm text-white hover:border-accent/40 cursor-pointer transition-colors">
+                      <Upload className="w-4 h-4" /> {uploadingLogo ? 'Uploading…' : settingsForm.logoUrl ? 'Change Logo' : 'Upload Logo'}
+                    </span>
+                  </label>
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <div>
@@ -2146,6 +2192,33 @@ export default function AdminPage() {
               </div>
             </div>
             <Button onClick={handleSaveSettings} loading={savingSettings} fullWidth>Save Configuration</Button>
+          </Card>
+
+          {/* Legal Pages */}
+          <Card className="p-5 space-y-4">
+            <h2 className="text-base font-bold text-white">Legal Pages</h2>
+            <p className="text-xs text-text-secondary">
+              Edit your Privacy Policy and Terms & Conditions. Use blank lines between paragraphs and start a line with <code className="bg-black/30 px-1 rounded">## </code> for a section heading.
+            </p>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Privacy Policy</label>
+              <textarea
+                value={legalForm.privacyPolicyText}
+                onChange={e => setLegalForm(s => ({ ...s, privacyPolicyText: e.target.value }))}
+                rows={8}
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs font-mono placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-y"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Terms & Conditions</label>
+              <textarea
+                value={legalForm.termsText}
+                onChange={e => setLegalForm(s => ({ ...s, termsText: e.target.value }))}
+                rows={8}
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs font-mono placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-y"
+              />
+            </div>
+            <Button onClick={handleSaveLegal} loading={savingLegal} fullWidth>Save Legal Pages</Button>
           </Card>
 
           {/* Stripe Configuration */}

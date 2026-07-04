@@ -8,11 +8,16 @@ import { getAdminApp } from '@/lib/firebase-admin';
 import { listSecretStatuses, setSecret, SECRET_KEYS, type SecretKey } from '@/lib/secrets';
 
 export async function GET(req: NextRequest) {
-  const check = await verifyAdmin(req);
-  if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
+  try {
+    const check = await verifyAdmin(req);
+    if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
 
-  const statuses = await listSecretStatuses();
-  return NextResponse.json({ secrets: statuses });
+    const statuses = await listSecretStatuses();
+    return NextResponse.json({ secrets: statuses });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

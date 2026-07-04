@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, XCircle, Loader2, ExternalLink, Sun, Moon } from 'lucide-react';
+import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, XCircle, ExternalLink, Sun, Moon } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -239,11 +239,7 @@ export default function ProfilePage() {
                   </div>
 
                   <Button fullWidth onClick={handleSubscribe} loading={subscribing}>
-                    {subscribing ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Opening Checkout…</>
-                    ) : (
-                      <><Crown className="w-4 h-4" /> {trialDays > 0 ? `Start Free Trial` : 'Subscribe Now'}</>
-                    )}
+                    <Crown className="w-4 h-4" /> {subscribing ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
                   </Button>
 
                   <p className="text-xs text-text-tertiary text-center">
@@ -292,11 +288,7 @@ export default function ProfilePage() {
                         onClick={() => handleSubscribeCoachingPlan(plan.id)}
                         loading={subscribingPlanId === plan.id}
                       >
-                        {subscribingPlanId === plan.id ? (
-                          <><Loader2 className="w-4 h-4 animate-spin" /> Opening Checkout…</>
-                        ) : (
-                          <><Crown className="w-4 h-4" /> Subscribe</>
-                        )}
+                        <Crown className="w-4 h-4" /> {subscribingPlanId === plan.id ? 'Opening Checkout…' : 'Subscribe'}
                       </Button>
                     )}
                   </Card>

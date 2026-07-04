@@ -18,9 +18,14 @@ export async function verifyAdmin(req: NextRequest): Promise<{ uid: string } | {
     return { error: 'Invalid or expired token', status: 401 };
   }
 
-  const userDoc = await getFirestore(app).collection('users').doc(uid).get();
-  if (userDoc.data()?.role !== 'admin') {
-    return { error: 'Access denied: admin only', status: 403 };
+  try {
+    const userDoc = await getFirestore(app).collection('users').doc(uid).get();
+    if (userDoc.data()?.role !== 'admin') {
+      return { error: 'Access denied: admin only', status: 403 };
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Failed to verify admin role';
+    return { error: msg, status: 500 };
   }
 
   return { uid };

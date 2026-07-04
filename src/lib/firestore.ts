@@ -1013,46 +1013,26 @@ function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): Leade
   };
 }
 
-export async function getLeaderboard(trainerId: string, limitCount = 10): Promise<LeaderboardEntry[]> {
-  const [clientsSnap, trainerSnap] = await Promise.all([
-    getDocs(query(collection(db, 'users'), where('trainerId', '==', trainerId), limit(100))),
-    getDoc(doc(db, 'users', trainerId)),
-  ]);
-  const entries: LeaderboardEntry[] = clientsSnap.docs.map((d) => mapToLeaderboardEntry(d.id, d.data()));
-  if (trainerSnap.exists() && !entries.find(e => e.id === trainerId)) {
-    entries.push(mapToLeaderboardEntry(trainerSnap.id, trainerSnap.data()));
-  }
+// NOTE: This app is currently single-tenant (one trainer per install), so the
+// leaderboard intentionally shows every user rather than filtering by
+// trainerId — that filter was fragile (any mismatch between a user's stored
+// trainerId and the live admin uid made them silently invisible) and adds no
+// value with only one trainer. Revisit if true multi-tenant coaching ships.
+export async function getLeaderboard(limitCount = 10): Promise<LeaderboardEntry[]> {
+  const snap = await getDocs(query(collection(db, 'users'), limit(200)));
+  const entries = snap.docs.map((d) => mapToLeaderboardEntry(d.id, d.data()));
   return entries.sort((a, b) => b.xp - a.xp).slice(0, limitCount);
 }
 
 export function subscribeLeaderboard(
-  trainerId: string,
   onUpdate: (entries: LeaderboardEntry[]) => void,
   limitCount = 10,
 ): () => void {
-  let clientEntries: LeaderboardEntry[] = [];
-  let trainerEntry: LeaderboardEntry | null = null;
-
-  function notify() {
-    const combined = trainerEntry
-      ? [trainerEntry, ...clientEntries.filter(e => e.id !== trainerId)]
-      : clientEntries;
-    onUpdate(combined.sort((a, b) => b.xp - a.xp).slice(0, limitCount));
-  }
-
-  const q = query(collection(db, 'users'), where('trainerId', '==', trainerId), limit(100));
-  const unsubClients = onSnapshot(q, (snap) => {
-    clientEntries = snap.docs.map((d) => mapToLeaderboardEntry(d.id, d.data()));
-    notify();
-  }, (err) => console.error('[Firestore] subscribeLeaderboard clients error:', err));
-
-  // Also watch the trainer's own user doc (their uid = trainerId)
-  const unsubTrainer = onSnapshot(doc(db, 'users', trainerId), (snap) => {
-    trainerEntry = snap.exists() ? mapToLeaderboardEntry(snap.id, snap.data()) : null;
-    notify();
-  }, (err) => console.error('[Firestore] subscribeLeaderboard trainer error:', err));
-
-  return () => { unsubClients(); unsubTrainer(); };
+  const q = query(collection(db, 'users'), limit(200));
+  return onSnapshot(q, (snap) => {
+    const entries = snap.docs.map((d) => mapToLeaderboardEntry(d.id, d.data()));
+    onUpdate(entries.sort((a, b) => b.xp - a.xp).slice(0, limitCount));
+  }, (err) => console.error('[Firestore] subscribeLeaderboard error:', err));
 }
 
 // ---------------------------------------------------------------------------

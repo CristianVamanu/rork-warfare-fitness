@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Lock, Star, Loader2, Crown } from 'lucide-react';
+import { Lock, Star, Crown } from 'lucide-react';
 import { getMembershipConfig } from '@/lib/firestore';
 import { startMembershipCheckout } from '@/lib/checkout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -93,11 +93,7 @@ function LockedScreen({ config, trialDays }: { config: MembershipConfig; trialDa
         </div>
         {config.fee > 0 ? (
           <Button fullWidth onClick={handleSubscribe} loading={subscribing}>
-            {subscribing ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Opening Checkout…</>
-            ) : (
-              <><Crown className="w-4 h-4" /> {trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now'}</>
-            )}
+            <Crown className="w-4 h-4" /> {subscribing ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
           </Button>
         ) : (
           <p className="text-xs text-text-tertiary">
