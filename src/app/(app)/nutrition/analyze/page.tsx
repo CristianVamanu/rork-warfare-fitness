@@ -18,6 +18,41 @@ type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
 const DEFAULT_GOALS: UserGoals = { calories: 2200, protein: 160, carbs: 250, fat: 70, water: 3000 };
 
+/**
+ * Downscales a data-URL image to at most maxDimension on its longest side and
+ * re-encodes as JPEG. Camera photos can be 3-10MB — base64-encoded, that
+ * comfortably exceeds Vercel's ~4.5MB serverless request body limit and gets
+ * rejected as "entity too large" before it ever reaches our API route.
+ * OpenAI's vision "low detail" mode only uses ~512px of the image anyway, so
+ * this loses no real analysis quality.
+ */
+function resizeImage(dataUrl: string, maxDimension: number, quality: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas not supported')); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = dataUrl;
+  });
+}
+
 export default function AnalyzeFoodPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -43,10 +78,17 @@ export default function AnalyzeFoodPage() {
 
   const handleFile = useCallback((file: File) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const b64 = (e.target?.result as string).split(',')[1];
-      setPreview(e.target?.result as string);
-      analyzeImage(b64);
+    reader.onload = async (e) => {
+      const original = e.target?.result as string;
+      try {
+        const resized = await resizeImage(original, 1024, 0.75);
+        setPreview(resized);
+        analyzeImage(resized.split(',')[1]);
+      } catch {
+        // Fallback to the original if resizing fails for any reason
+        setPreview(original);
+        analyzeImage(original.split(',')[1]);
+      }
     };
     reader.readAsDataURL(file);
   }, []);
