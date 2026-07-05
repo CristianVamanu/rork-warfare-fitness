@@ -152,6 +152,7 @@ export interface Channel {
   trainerId?: string;
   photoUploadEnabled: boolean;
   slowModeDays: 0 | 7 | 21 | 30;
+  allowUserPosts: boolean; // false = announcement-only channel, admin/trainer posts only
   postCount: number;
   createdAt: unknown;
 }

@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown } from 'lucide-react';
+import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown, Megaphone } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import toast from 'react-hot-toast';
@@ -460,6 +460,14 @@ export default function ChannelPage() {
       </AnimatePresence>
 
       {/* ── Compose box (fixed above tab bar) ── */}
+      {channel.allowUserPosts === false && !isAdmin ? (
+        <div className="fixed bottom-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
+          <div className="px-4 py-3 max-w-2xl mx-auto w-full flex items-center gap-2 text-sm text-text-secondary">
+            <Megaphone className="w-4 h-4 flex-shrink-0" />
+            Announcement-only channel — only your coach can post here.
+          </div>
+        </div>
+      ) : (
       <div className="fixed bottom-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
         <div className="px-4 py-3 max-w-2xl mx-auto w-full space-y-2">
           {isBlocked && (
@@ -528,6 +536,7 @@ export default function ChannelPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* ── Reply sheet ── */}
       <AnimatePresence>

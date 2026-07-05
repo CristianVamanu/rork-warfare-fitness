@@ -177,7 +177,15 @@ service cloud.firestore {
 
       match /posts/{postId} {
         allow read: if isAuthed();
-        allow create: if isAuthed() && request.resource.data.userId == uid();
+        // Announcement-only channels (allowUserPosts == false) restrict
+        // top-level posts to admin/trainer; missing field defaults to allowed
+        // so pre-existing channels aren't retroactively locked.
+        allow create: if isAuthed()
+          && request.resource.data.userId == uid()
+          && (
+            isAdmin() ||
+            get(/databases/$(database)/documents/channels/$(channelId)).data.get('allowUserPosts', true) == true
+          );
         allow update: if isAuthed() && resource.data.userId == uid();
         allow delete: if isAdmin();
 

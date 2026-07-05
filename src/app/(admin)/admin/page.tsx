@@ -263,7 +263,7 @@ export default function AdminPage() {
   // ── Community channels state ───────────────────────────────────────────────
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
-  const [channelForm, setChannelForm] = useState({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0 as 0|7|21|30 });
+  const [channelForm, setChannelForm] = useState({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0 as 0|7|21|30, allowUserPosts: true });
   const [savingChannel, setSavingChannel] = useState(false);
   const [showChannelForm, setShowChannelForm] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
@@ -688,6 +688,7 @@ export default function AdminPage() {
         emoji: channelForm.emoji.trim() || undefined,
         photoUploadEnabled: channelForm.photoUploadEnabled,
         slowModeDays: channelForm.slowModeDays,
+        allowUserPosts: channelForm.allowUserPosts,
         createdBy: user.uid,
         trainerId: profile?.trainerId ?? user.uid,
       };
@@ -700,7 +701,7 @@ export default function AdminPage() {
       }
       setShowChannelForm(false);
       setEditingChannel(null);
-      setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0 });
+      setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0, allowUserPosts: true });
       await loadChannels();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to save channel';
@@ -730,6 +731,7 @@ export default function AdminPage() {
       emoji: ch.emoji ?? '',
       photoUploadEnabled: ch.photoUploadEnabled,
       slowModeDays: ch.slowModeDays,
+      allowUserPosts: ch.allowUserPosts ?? true,
     });
     setShowChannelForm(true);
   }
@@ -1298,7 +1300,7 @@ export default function AdminPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-text-secondary text-sm">{channels.length} channel{channels.length !== 1 ? 's' : ''}</p>
-            <Button size="sm" onClick={() => { setEditingChannel(null); setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0 }); setShowChannelForm(true); }}>
+            <Button size="sm" onClick={() => { setEditingChannel(null); setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0, allowUserPosts: true }); setShowChannelForm(true); }}>
               <Plus className="w-4 h-4" /> New Channel
             </Button>
           </div>
@@ -1353,6 +1355,18 @@ export default function AdminPage() {
                   <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.photoUploadEnabled ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">Allow User Posts</p>
+                  <p className="text-xs text-text-secondary">Off = announcement-only, only admin/trainer can post</p>
+                </div>
+                <button
+                  onClick={() => setChannelForm(f => ({ ...f, allowUserPosts: !f.allowUserPosts }))}
+                  className={`w-11 h-6 rounded-full transition-colors relative ${channelForm.allowUserPosts ? 'bg-accent' : 'bg-surface-elevated'}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.allowUserPosts ? 'left-6' : 'left-1'}`} />
+                </button>
+              </div>
               <div className="flex gap-2">
                 <Button variant="ghost" fullWidth onClick={() => { setShowChannelForm(false); setEditingChannel(null); }}>Cancel</Button>
                 <Button fullWidth loading={savingChannel} disabled={!channelForm.name.trim()} onClick={handleSaveChannel}>
@@ -1381,6 +1395,7 @@ export default function AdminPage() {
                         <span>{ch.postCount} posts</span>
                         {ch.slowModeDays > 0 && <span>Slow: {ch.slowModeDays}d</span>}
                         {ch.photoUploadEnabled && <span>📷 photos on</span>}
+                        {ch.allowUserPosts === false && <span className="text-yellow-400">📢 announcement-only</span>}
                       </div>
                     </div>
                     <div className="flex gap-1">
