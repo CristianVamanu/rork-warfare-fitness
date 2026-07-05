@@ -555,69 +555,44 @@ function SetRow({
   );
 }
 
-// ─── Exercise Tip Button ────────────────────────────────────────────────────
-
-function ExerciseTipButton({ tip, name }: { tip: string; name: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center justify-center w-7 h-7 rounded-full bg-white/10 hover:bg-accent/20 transition-colors text-accent flex-shrink-0"
-        aria-label="How to perform"
-      >
-        <Info className="w-4 h-4" />
-      </button>
-      {open && (
-        <div
-          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm bg-surface-elevated rounded-2xl p-4 border border-white/10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-bold text-white">{name}</p>
-              <button onClick={() => setOpen(false)} className="text-text-secondary hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-sm text-text-secondary leading-relaxed">{tip}</p>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-// ─── Exercise Demo Thumb ─────────────────────────────────────────────────────
-// Short (~5s), muted clips from the exercise library — small enough to
+// ─── Exercise Info Button ────────────────────────────────────────────────────
+// Single entry point for "how do I do this" — combines the demo video (if the
+// library has one) and the short form-cue tip into one tap target and one
+// expanded view, instead of two separate buttons for related info.
+// Short (~5s), muted clips from the exercise library are small enough to
 // autoplay inline without the buffering issues a full-screen modal player had.
 
-function ExerciseDemoThumb({ videoUrl, name }: { videoUrl: string; name: string }) {
+function ExerciseInfoButton({ videoUrl, tip, name }: { videoUrl?: string; tip?: string; name: string }) {
   const [expanded, setExpanded] = useState(false);
+  if (!videoUrl && !tip) return null;
+
   return (
     <>
       <button
         onClick={() => setExpanded(true)}
-        className="w-11 h-11 rounded-xl overflow-hidden bg-black flex-shrink-0 relative"
-        aria-label={`${name} demo`}
+        className={videoUrl
+          ? 'w-11 h-11 rounded-xl overflow-hidden bg-black flex-shrink-0 relative'
+          : 'flex items-center justify-center w-7 h-7 rounded-full bg-white/10 hover:bg-accent/20 transition-colors text-accent flex-shrink-0'}
+        aria-label={videoUrl ? `${name} demo` : 'How to perform'}
       >
-        {/* Only one <video> for this clip is ever mounted at a time — having
-            both the corner thumb and the expanded view play simultaneously
-            doubled the decode/network load and caused stutter. */}
-        {!expanded && (
-          <video
-            key={videoUrl}
-            src={videoUrl}
-            muted
-            loop
-            autoPlay
-            playsInline
-            preload="auto"
-            className="w-full h-full object-cover"
-          />
+        {videoUrl ? (
+          // Only one <video> for this clip is ever mounted at a time — having
+          // both the corner thumb and the expanded view play simultaneously
+          // doubled the decode/network load and caused stutter.
+          !expanded && (
+            <video
+              key={videoUrl}
+              src={videoUrl}
+              muted
+              loop
+              autoPlay
+              playsInline
+              preload="auto"
+              className="w-full h-full object-cover"
+            />
+          )
+        ) : (
+          <Info className="w-4 h-4" />
         )}
       </button>
       {expanded && (
@@ -626,15 +601,23 @@ function ExerciseDemoThumb({ videoUrl, name }: { videoUrl: string; name: string 
           onClick={() => setExpanded(false)}
         >
           <div className="relative w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-            <video
-              key={videoUrl}
-              src={videoUrl}
-              muted
-              loop
-              autoPlay
-              playsInline
-              className="w-full rounded-2xl bg-black"
-            />
+            {videoUrl && (
+              <video
+                key={videoUrl}
+                src={videoUrl}
+                muted
+                loop
+                autoPlay
+                playsInline
+                className="w-full rounded-2xl bg-black"
+              />
+            )}
+            {tip && (
+              <div className={`bg-surface-elevated rounded-2xl p-4 border border-white/10 ${videoUrl ? 'mt-3' : ''}`}>
+                <p className="text-sm font-bold text-white mb-1.5">{name}</p>
+                <p className="text-sm text-text-secondary leading-relaxed">{tip}</p>
+              </div>
+            )}
             <button
               onClick={() => setExpanded(false)}
               className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-lg"
@@ -1041,9 +1024,7 @@ export default function WorkoutSessionPage() {
               transition={{ type: 'spring', stiffness: 380, damping: 30 }}
             >
               <div className="flex items-center gap-3 px-1 mb-1">
-                {currentEx.videoUrl ? (
-                  <ExerciseDemoThumb videoUrl={currentEx.videoUrl} name={currentEx.name} />
-                ) : (
+                {!currentEx.videoUrl && (
                   <div className="p-2 rounded-xl bg-accent-muted">
                     <Zap className="w-4 h-4 text-accent" />
                   </div>
@@ -1057,9 +1038,7 @@ export default function WorkoutSessionPage() {
                     }
                   </p>
                 </div>
-                {currentEx.notes && (
-                  <ExerciseTipButton tip={currentEx.notes} name={currentEx.name} />
-                )}
+                <ExerciseInfoButton videoUrl={currentEx.videoUrl} tip={currentEx.notes} name={currentEx.name} />
               </div>
 
               {/* Set rows */}
