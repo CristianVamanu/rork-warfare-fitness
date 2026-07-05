@@ -11,6 +11,8 @@ import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
 import { Card } from '@/components/ui/Card';
+import { FastingWidget } from '@/components/dashboard/FastingWidget';
+import { DaysWithoutWidget } from '@/components/dashboard/DaysWithoutWidget';
 import { Header } from '@/components/layout/Header';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -409,6 +411,12 @@ export default function DashboardPage() {
               </Link>
             ))}
           </div>
+        </motion.div>
+
+        {/* Personal Trackers — fasting timer + custom "days without" streaks */}
+        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate} className="space-y-3">
+          <FastingWidget />
+          <DaysWithoutWidget />
         </motion.div>
 
         {/* Recent Activity */}

@@ -774,11 +774,23 @@ export default function AdminPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const text = await res.text();
-      let data: { sent?: unknown[]; error?: string };
+      let data: { sent?: unknown[]; error?: string; debug?: { rulesEnabled?: Record<string, boolean>; aiEnabled?: boolean; usersConsidered?: number; usersWithActiveProgram?: number } };
       try { data = JSON.parse(text); }
       catch { throw new Error(`Server returned a non-JSON response (status ${res.status}). Check Vercel function logs.`); }
       if (res.ok) {
-        toast.success(`Auto-notifications processed — ${data.sent?.length ?? 0} sent`);
+        const sentCount = data.sent?.length ?? 0;
+        if (sentCount === 0 && data.debug) {
+          const { rulesEnabled, aiEnabled, usersConsidered, usersWithActiveProgram } = data.debug;
+          const noRulesOn = !rulesEnabled?.missed_workout && !rulesEnabled?.streak_reminder && !aiEnabled;
+          toast(
+            noRulesOn
+              ? `0 sent — no rules are enabled. Toggle a rule and click "Save Rules" first, then Run Now.`
+              : `0 sent — ${usersConsidered ?? 0} users checked (${usersWithActiveProgram ?? 0} with an active program), but none matched any enabled rule right now.`,
+            { icon: 'ℹ️', duration: 8000 }
+          );
+        } else {
+          toast.success(`Auto-notifications processed — ${sentCount} sent`);
+        }
       } else {
         throw new Error(data.error || `Request failed (status ${res.status})`);
       }
@@ -1938,6 +1950,15 @@ export default function AdminPage() {
                       </Button>
                     </div>
                   )}
+
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    fullWidth
+                    onClick={() => startConversation({ id: app.userId, displayName: app.userName, email: app.userEmail })}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" /> Message {app.userName}
+                  </Button>
                 </Card>
               ))}
             </div>

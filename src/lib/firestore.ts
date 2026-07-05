@@ -156,6 +156,48 @@ export async function updateUserDoc(uid: string, data: Record<string, unknown>) 
   await setDoc(doc(db, 'users', uid), { ...data, lastActive: serverTimestamp() }, { merge: true });
 }
 
+// ---------------------------------------------------------------------------
+// Fasting timer
+// ---------------------------------------------------------------------------
+import type { FastingSession, DaysWithoutGoal } from '@/types';
+
+export async function startFasting(userId: string, goalHours: number): Promise<void> {
+  const session: FastingSession = { startedAt: serverTimestamp(), goalHours };
+  await updateDoc(doc(db, 'users', userId), { fasting: session });
+}
+
+export async function stopFasting(userId: string): Promise<void> {
+  await updateDoc(doc(db, 'users', userId), { fasting: deleteField() });
+}
+
+// ---------------------------------------------------------------------------
+// "Days Without" streak goals (quit smoking, quit porn, custom, etc.)
+// ---------------------------------------------------------------------------
+
+export async function addDaysWithoutGoal(userId: string, label: string): Promise<void> {
+  const snap = await getDoc(doc(db, 'users', userId));
+  const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
+  const goal: DaysWithoutGoal = {
+    id: Math.random().toString(36).slice(2),
+    label: label.trim().slice(0, 40),
+    startedAt: Timestamp.now(),
+  };
+  await updateDoc(doc(db, 'users', userId), { daysWithoutGoals: [...goals, goal] });
+}
+
+export async function resetDaysWithoutGoal(userId: string, goalId: string): Promise<void> {
+  const snap = await getDoc(doc(db, 'users', userId));
+  const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
+  const updated = goals.map((g) => g.id === goalId ? { ...g, startedAt: Timestamp.now() } : g);
+  await updateDoc(doc(db, 'users', userId), { daysWithoutGoals: updated });
+}
+
+export async function deleteDaysWithoutGoal(userId: string, goalId: string): Promise<void> {
+  const snap = await getDoc(doc(db, 'users', userId));
+  const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
+  await updateDoc(doc(db, 'users', userId), { daysWithoutGoals: goals.filter((g) => g.id !== goalId) });
+}
+
 export async function getUserGoals(uid: string): Promise<UserGoals> {
   const snap = await getDoc(doc(db, 'users', uid));
   const data = snap.data();

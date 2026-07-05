@@ -112,6 +112,19 @@ export interface UserProfile {
     totalWorkouts: number;
     totalWeightLifted: number;
   };
+  fasting?: FastingSession | null;
+  daysWithoutGoals?: DaysWithoutGoal[];
+}
+
+export interface FastingSession {
+  startedAt: unknown;   // Firestore Timestamp
+  goalHours: number;
+}
+
+export interface DaysWithoutGoal {
+  id: string;
+  label: string;        // e.g. "Smoking", "Porn", or a custom short goal
+  startedAt: unknown;    // Firestore Timestamp — resets on relapse
 }
 
 export interface SystemConfig {

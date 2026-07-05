@@ -101,13 +101,22 @@ export async function POST(req: NextRequest) {
 
       try {
         // Rule: missed_workout
+        // NOTE: workouts are logged as `events` docs (type=WORKOUT_COMPLETED)
+        // in the current architecture, not the legacy `workoutLogs`
+        // collection, which nothing writes to anymore. Query by userId+type
+        // only (equality-only — no composite index needed) and filter the
+        // 24h window client-side, since Firestore compound equality+range
+        // queries on different fields require a manually-deployed index.
         if (rules['missed_workout'] && u.activeProgram) {
-          const logsSnap = await db.collection('workoutLogs')
+          const eventsSnap = await db.collection('events')
             .where('userId', '==', u.id)
-            .where('completedAt', '>=', oneDayAgo)
-            .limit(1)
+            .where('type', '==', 'WORKOUT_COMPLETED')
             .get();
-          if (logsSnap.empty) {
+          const hasRecentWorkout = eventsSnap.docs.some((d) => {
+            const createdAt = d.data().createdAt as FirebaseFirestore.Timestamp | undefined;
+            return createdAt && createdAt.toMillis() >= oneDayAgo.toMillis();
+          });
+          if (!hasRecentWorkout) {
             const title = "Don't break the chain!";
             const body = `You haven't logged a workout today. Get back on track with ${u.activeProgram.programName}.`;
             await db.collection('notifications').add({
@@ -151,7 +160,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, sent });
+    return NextResponse.json({
+      ok: true,
+      sent,
+      debug: {
+        rulesEnabled: rules,
+        aiEnabled,
+        usersConsidered: users.length,
+        usersWithActiveProgram: users.filter((u) => (u as { activeProgram?: unknown }).activeProgram).length,
+      },
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[notifications/process] Fatal error:', msg);

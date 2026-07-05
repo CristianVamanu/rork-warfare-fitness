@@ -43,6 +43,8 @@ export default function BarcodePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const readerRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const controlsRef = useRef<any>(null); // IScannerControls — .stop() actually releases the camera stream
   const scannedRef = useRef(false); // debounce: prevent multiple triggers
 
   const [cameraState, setCameraState] = useState<CameraState>('idle');
@@ -68,7 +70,11 @@ export default function BarcodePage() {
   // setCameraState('idle') on a successful scan — the scanner UI would keep
   // showing "scanning" forever even though decoding had already stopped.
   const stopScanner = useCallback(() => {
-    try { readerRef.current?.reset(); } catch { /* noop */ }
+    // BrowserCodeReader has no reset() method — the object that actually
+    // controls (and can release) the camera stream is the `controls` value
+    // decodeFromVideoDevice() resolves with, not the reader instance itself.
+    try { controlsRef.current?.stop(); } catch { /* noop */ }
+    controlsRef.current = null;
     readerRef.current = null;
     scannedRef.current = false;
     setCameraState('idle');
@@ -77,7 +83,7 @@ export default function BarcodePage() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      try { readerRef.current?.reset(); } catch { /* noop */ }
+      try { controlsRef.current?.stop(); } catch { /* noop */ }
     };
   }, []);
 
@@ -127,7 +133,7 @@ export default function BarcodePage() {
 
       setCameraState('scanning');
 
-      await reader.decodeFromVideoDevice(
+      controlsRef.current = await reader.decodeFromVideoDevice(
         deviceId,
         videoRef.current,
         (scanResult, err) => {
