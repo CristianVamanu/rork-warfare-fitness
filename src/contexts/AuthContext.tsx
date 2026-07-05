@@ -74,6 +74,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ensureUserDoc(firebaseUser)
       .catch((err) => console.error('[Auth] ensureUserDoc failed:', err))
       .then(() => {
+        // Record login time on every session start — ensureUserDoc only sets
+        // this once (at account creation, via its merge-and-return-early
+        // guard), so it doesn't reflect actual last-login without this.
+        setDoc(doc(db, 'users', uid), { lastLoginAt: serverTimestamp() }, { merge: true }).catch(() => {});
         const unsub = onSnapshot(
           doc(db, 'users', uid),
           (snap) => {

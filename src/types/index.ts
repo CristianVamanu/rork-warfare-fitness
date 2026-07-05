@@ -85,6 +85,7 @@ export interface UserProfile {
   trainerId?: string;        // uid of the owning trainer / tenant
   createdAt: unknown;
   lastActive: unknown;
+  lastLoginAt?: unknown;
   goals?: UserGoals;
   statsCache?: StatsCache;  // derived — computed by events engine
   activeProgram?: ActiveProgram;

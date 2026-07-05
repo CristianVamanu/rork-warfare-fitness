@@ -19,9 +19,13 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [appName, setAppName] = useState<string>('Warfare Fitness');
 
   useEffect(() => {
-    getSystemConfig().then(cfg => { if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string); }).catch(() => {});
+    getSystemConfig().then(cfg => {
+      if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string);
+      if (cfg?.appName) setAppName(cfg.appName as string);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -59,7 +63,7 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
                 <span className="text-xs font-black" style={{ color: 'var(--btn-primary-text)' }}>W</span>
               )}
             </div>
-            <span className="text-sm font-bold text-foreground">Warfare</span>
+            <span className="text-sm font-bold text-foreground whitespace-nowrap">{appName}</span>
           </div>
         )}
 

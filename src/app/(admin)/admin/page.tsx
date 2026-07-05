@@ -132,6 +132,23 @@ interface UserData {
   stats?: { totalWorkouts?: number };
   activeProgram?: { programName?: string; completedWorkouts?: number; totalWorkouts?: number };
   createdAt?: unknown;
+  lastLoginAt?: unknown;
+}
+
+function formatLastLogin(ts: unknown): string {
+  const t = ts as { toDate?: () => Date } | undefined;
+  const date = t?.toDate?.();
+  if (!date) return 'Never';
+  const diffMs = Date.now() - date.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+    ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
 export default function AdminPage() {
@@ -1116,6 +1133,7 @@ export default function AdminPage() {
                         {u.banned && <Badge variant="danger">Banned</Badge>}
                       </div>
                       <p className="text-xs text-text-secondary truncate">{u.email}</p>
+                      <p className="text-xs text-text-tertiary mt-0.5">Last login: {formatLastLogin(u.lastLoginAt)}</p>
                       {u.activeProgram && (
                         <p className="text-xs text-text-tertiary mt-0.5">
                           {u.activeProgram.programName} · {u.activeProgram.completedWorkouts}/{u.activeProgram.totalWorkouts} sessions
