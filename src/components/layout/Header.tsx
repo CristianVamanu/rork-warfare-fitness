@@ -22,6 +22,11 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
   const [appName, setAppName] = useState<string>('Warfare Fitness');
 
   useEffect(() => {
+    // system/config is publicly readable (branding needs to render before
+    // sign-in too), so no need to wait on auth here. It previously read
+    // isAuthed()-gated and this effect fired before Firebase Auth finished
+    // initializing, so the read got permission-denied and silently never
+    // retried, leaving the logo/name stuck on their fallback forever.
     getSystemConfig().then(cfg => {
       if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string);
       if (cfg?.appName) setAppName(cfg.appName as string);

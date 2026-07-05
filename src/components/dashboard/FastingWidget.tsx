@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Timer, Flame, X } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Timer, Flame, X, Quote } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { startFasting, stopFasting } from '@/lib/firestore';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { CircularProgress } from '@/components/ui/CircularProgress';
+import { FASTING_QUOTES, pickQuote } from '@/lib/motivationalQuotes';
 import type { Timestamp } from 'firebase/firestore';
 
 const PRESETS: { label: string; hours: number; desc: string }[] = [
@@ -52,6 +54,7 @@ export function FastingWidget() {
   const [stopping, setStopping] = useState(false);
 
   const fasting = profile?.fasting ?? null;
+  const quote = useMemo(() => pickQuote(FASTING_QUOTES), [fasting?.startedAt]);
 
   useEffect(() => {
     if (!fasting) return;
@@ -153,30 +156,30 @@ export function FastingWidget() {
   return (
     <>
       <button onClick={() => setDetailModal(true)} className="w-full text-left">
-        <Card className="p-4 space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-400/10">
-              <Timer className="w-5 h-5 text-blue-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">{formatDuration(elapsedMs)}</p>
-              <p className="text-xs text-text-secondary truncate">{goalReached ? 'Goal reached! 🎉' : stage.label}</p>
-            </div>
-          </div>
-          <div className="h-1.5 rounded-full bg-surface-elevated overflow-hidden">
-            <div className="h-full bg-blue-400 transition-all" style={{ width: `${pct}%` }} />
+        <Card className="p-4 flex items-center gap-4 bg-gradient-to-br from-blue-500/10 via-surface to-surface">
+          <CircularProgress pct={pct} size={72} strokeWidth={7} color="#38bdf8">
+            <Timer className="w-6 h-6 text-blue-400" />
+          </CircularProgress>
+          <div className="flex-1 min-w-0">
+            <p className="text-xl font-black text-white leading-tight">{formatDuration(elapsedMs)}</p>
+            <p className="text-xs text-blue-300 font-medium truncate">{goalReached ? 'Goal reached! 🎉' : stage.label}</p>
+            <p className="text-[10px] text-text-tertiary mt-0.5">Tap for details</p>
           </div>
         </Card>
       </button>
 
       <Modal open={detailModal} onClose={() => setDetailModal(false)} title="Fasting Progress">
         <div className="space-y-4">
-          <div className="text-center py-3">
-            <p className="text-3xl font-black text-white">{formatDuration(elapsedMs)}</p>
-            <p className="text-xs text-text-tertiary mt-1">Goal: {fasting.goalHours}h {goalReached ? '— reached!' : `(${formatDuration(Math.max(0, goalMs - elapsedMs))} left)`}</p>
-          </div>
-          <div className="h-2 rounded-full bg-surface-elevated overflow-hidden">
-            <div className="h-full bg-blue-400 transition-all" style={{ width: `${pct}%` }} />
+          <div className="flex flex-col items-center py-2">
+            <CircularProgress pct={pct} size={180} strokeWidth={14} color="#38bdf8">
+              <div className="text-center">
+                <p className="text-2xl font-black text-white">{formatDuration(elapsedMs)}</p>
+                <p className="text-[10px] text-text-tertiary mt-1">
+                  {goalReached ? 'Goal reached!' : `${formatDuration(Math.max(0, goalMs - elapsedMs))} left`}
+                </p>
+              </div>
+            </CircularProgress>
+            <p className="text-xs text-text-secondary mt-3">Goal: {fasting.goalHours}h fast</p>
           </div>
           <div className="p-3 bg-blue-400/5 border border-blue-400/20 rounded-xl flex items-start gap-2">
             <Flame className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
@@ -184,6 +187,10 @@ export function FastingWidget() {
               <p className="text-sm font-bold text-white">{stage.label}</p>
               <p className="text-xs text-text-secondary mt-0.5">{stage.desc}</p>
             </div>
+          </div>
+          <div className="p-3 bg-surface-elevated rounded-xl flex items-start gap-2">
+            <Quote className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-text-secondary italic leading-relaxed">{quote}</p>
           </div>
           <Button fullWidth variant="secondary" loading={stopping} onClick={handleStop}>
             <X className="w-4 h-4" /> End Fast

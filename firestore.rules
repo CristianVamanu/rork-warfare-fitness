@@ -27,8 +27,12 @@ service cloud.firestore {
       allow write: if isAuthed();   // admin is signed in by the time this is written
     }
 
+    // Publicly readable — branding (app name, logo) needs to render on the
+    // public landing/login/register pages before anyone is signed in. Every
+    // field here is meant to be public anyway (Stripe publishable key and
+    // VAPID public key are, by design, safe to expose client-side).
     match /system/config {
-      allow read:  if isAuthed();
+      allow read:  if true;
       allow write: if isAdmin();
     }
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Ban, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Ban, Plus, RotateCcw, Trash2, Flame, Quote } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDaysWithoutGoal, resetDaysWithoutGoal, deleteDaysWithoutGoal } from '@/lib/firestore';
@@ -9,10 +9,11 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { HABIT_QUOTES, pickQuote } from '@/lib/motivationalQuotes';
 import type { DaysWithoutGoal } from '@/types';
 import type { Timestamp } from 'firebase/firestore';
 
-const PRESET_GOALS = ['Smoking', 'Alcohol', 'Porn', 'Junk Food', 'Social Media'];
+const PRESET_GOALS = ['Quit Smoking', 'Quit Alcohol', 'Quit Porn', 'Quit Junk Food', 'Quit Social Media'];
 
 function toMillis(ts: unknown): number {
   const t = ts as Timestamp | undefined;
@@ -37,6 +38,7 @@ export function DaysWithoutWidget() {
   const [busy, setBusy] = useState(false);
 
   const goals = profile?.daysWithoutGoals ?? [];
+  const quote = useMemo(() => pickQuote(HABIT_QUOTES), [detailGoal?.id, detailGoal?.startedAt]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60000);
@@ -105,17 +107,26 @@ export function DaysWithoutWidget() {
             <p className="text-xs text-text-secondary">Track a habit you&apos;re quitting — tap + to add one.</p>
           </button>
         ) : (
-          <div className="space-y-1.5">
-            {goals.map((g) => (
-              <button
-                key={g.id}
-                onClick={() => setDetailGoal(g)}
-                className="w-full flex items-center justify-between p-2.5 bg-surface-elevated rounded-xl hover:bg-white/5 transition-colors"
-              >
-                <span className="text-xs text-text-secondary truncate">{g.label}</span>
-                <span className="text-sm font-bold text-white flex-shrink-0">{formatElapsed(now - toMillis(g.startedAt))}</span>
-              </button>
-            ))}
+          <div className="space-y-2">
+            {goals.map((g) => {
+              const elapsedMs = now - toMillis(g.startedAt);
+              const days = Math.floor(elapsedMs / 86400000);
+              return (
+                <button
+                  key={g.id}
+                  onClick={() => setDetailGoal(g)}
+                  className="w-full flex items-center gap-3 p-3 bg-gradient-to-br from-danger/5 via-surface-elevated to-surface-elevated rounded-xl hover:bg-white/5 transition-colors"
+                >
+                  <div className="w-11 h-11 rounded-full bg-danger/10 border-2 border-danger/30 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-black text-danger">{days}</span>
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-xs font-bold text-white truncate">{g.label}</p>
+                    <p className="text-[10px] text-text-tertiary">{formatElapsed(elapsedMs)} clean</p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </Card>
@@ -151,9 +162,17 @@ export function DaysWithoutWidget() {
       <Modal open={!!detailGoal} onClose={() => setDetailGoal(null)} title={detailGoal?.label ?? ''}>
         {detailGoal && (
           <div className="space-y-4">
-            <div className="text-center py-4">
-              <p className="text-3xl font-black text-white">{formatElapsed(now - toMillis(detailGoal.startedAt))}</p>
-              <p className="text-xs text-text-tertiary mt-1">and counting</p>
+            <div className="flex flex-col items-center py-4">
+              <div className="w-28 h-28 rounded-full bg-danger/10 border-4 border-danger/30 flex flex-col items-center justify-center">
+                <Flame className="w-5 h-5 text-danger mb-1" />
+                <span className="text-2xl font-black text-white">{Math.floor((now - toMillis(detailGoal.startedAt)) / 86400000)}</span>
+                <span className="text-[9px] text-text-tertiary uppercase tracking-wide">days</span>
+              </div>
+              <p className="text-xs text-text-tertiary mt-3">{formatElapsed(now - toMillis(detailGoal.startedAt))} and counting</p>
+            </div>
+            <div className="p-3 bg-surface-elevated rounded-xl flex items-start gap-2">
+              <Quote className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-text-secondary italic leading-relaxed">{quote}</p>
             </div>
             <Button fullWidth variant="secondary" loading={busy} onClick={handleReset}>
               <RotateCcw className="w-4 h-4" /> Reset Timer
