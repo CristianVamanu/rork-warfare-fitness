@@ -3,16 +3,27 @@ import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { Toaster } from 'react-hot-toast';
+import { getSystemConfig } from '@/lib/firestore';
 
-export const metadata: Metadata = {
-  title: 'Warfare Fitness',
-  description: 'Premium fitness tracking and AI-powered coaching',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    statusBarStyle: 'black-translucent',
-    title: 'Warfare Fitness',
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const cfg = await getSystemConfig().catch(() => null);
+  const name = (cfg?.appName as string) || 'Warfare Fitness';
+  const logoUrl = cfg?.logoUrl as string | undefined;
+
+  return {
+    title: name,
+    description: 'Premium fitness tracking and AI-powered coaching',
+    // No explicit `manifest` field — Next's file convention auto-serves
+    // src/app/manifest.ts at /manifest.webmanifest and links it for us.
+    appleWebApp: {
+      statusBarStyle: 'black-translucent',
+      title: name,
+    },
+    icons: logoUrl
+      ? { icon: logoUrl, apple: logoUrl }
+      : { icon: '/icons/icon-192x192.png', apple: '/icons/icon-192x192.png' },
+  };
+}
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -26,7 +37,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="dark">
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body>
