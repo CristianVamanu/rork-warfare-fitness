@@ -41,6 +41,7 @@ interface ExState {
   cardioDurationSeconds: number;
   sets: SetState[];
   notes?: string;
+  videoUrl?: string;
 }
 
 // ─── Defaults ───────────────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ function buildExState(exercises: Exercise[]): ExState[] {
       cardioDurationSeconds: cardioDuration,
       sets,
       notes: ex.notes,
+      videoUrl: ex.videoUrl,
     };
   });
 }
@@ -589,6 +591,58 @@ function ExerciseTipButton({ tip, name }: { tip: string; name: string }) {
   );
 }
 
+// ─── Exercise Demo Thumb ─────────────────────────────────────────────────────
+// Short (~5s), muted clips from the exercise library — small enough to
+// autoplay inline without the buffering issues a full-screen modal player had.
+
+function ExerciseDemoThumb({ videoUrl, name }: { videoUrl: string; name: string }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setExpanded(true)}
+        className="w-11 h-11 rounded-xl overflow-hidden bg-black flex-shrink-0 relative"
+        aria-label={`${name} demo`}
+      >
+        <video
+          key={videoUrl}
+          src={videoUrl}
+          muted
+          loop
+          autoPlay
+          playsInline
+          preload="auto"
+          className="w-full h-full object-cover"
+        />
+      </button>
+      {expanded && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setExpanded(false)}
+        >
+          <div className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-bold text-white">{name}</p>
+              <button onClick={() => setExpanded(false)} className="text-text-secondary hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <video
+              src={videoUrl}
+              muted
+              loop
+              autoPlay
+              playsInline
+              controls
+              className="w-full rounded-xl bg-black"
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function WorkoutSessionPage() {
@@ -982,9 +1036,13 @@ export default function WorkoutSessionPage() {
               transition={{ type: 'spring', stiffness: 380, damping: 30 }}
             >
               <div className="flex items-center gap-3 px-1 mb-1">
-                <div className="p-2 rounded-xl bg-accent-muted">
-                  <Zap className="w-4 h-4 text-accent" />
-                </div>
+                {currentEx.videoUrl ? (
+                  <ExerciseDemoThumb videoUrl={currentEx.videoUrl} name={currentEx.name} />
+                ) : (
+                  <div className="p-2 rounded-xl bg-accent-muted">
+                    <Zap className="w-4 h-4 text-accent" />
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <h2 className="text-lg font-black text-white leading-tight">{currentEx.name}</h2>
                   <p className="text-xs text-text-secondary">
