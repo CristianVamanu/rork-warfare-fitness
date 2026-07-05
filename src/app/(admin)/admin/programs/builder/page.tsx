@@ -5,7 +5,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Sparkles, ChevronLeft, Plus, Trash2, ChevronUp, ChevronDown, Save,
-  Users, CheckCircle, Loader2, Moon, Dumbbell, AlertCircle, Video, Search, X,
+  Users, CheckCircle, Loader2, Moon, Dumbbell, AlertCircle, Video, Search, X, Play,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -104,6 +104,7 @@ function BuilderInner() {
   const [videoLibrary, setVideoLibrary] = useState<ExerciseVideo[]>([]);
   const [videoLibraryLoading, setVideoLibraryLoading] = useState(false);
   const [videoSearch, setVideoSearch] = useState('');
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(!!programId);
 
@@ -285,6 +286,7 @@ function BuilderInner() {
   async function openVideoPicker(exId: string) {
     setVideoPickerFor(exId);
     setVideoSearch('');
+    setPreviewingId(null);
     if (videoLibrary.length === 0) {
       setVideoLibraryLoading(true);
       try {
@@ -302,6 +304,7 @@ function BuilderInner() {
     if (videoPickerFor) {
       updateEx(activeDay, videoPickerFor, { videoUrl: video.videoUrl });
     }
+    setPreviewingId(null);
     setVideoPickerFor(null);
   }
 
@@ -795,25 +798,44 @@ function BuilderInner() {
                 return v.name.toLowerCase().includes(q) || (v.aliases ?? []).some((a) => a.toLowerCase().includes(q));
               })
               .map((v) => (
-                <button
+                <div
                   key={v.id}
-                  onClick={() => pickVideo(v)}
-                  className="w-full text-left p-3 bg-surface-elevated rounded-xl hover:bg-white/5 transition-colors flex items-center gap-3"
+                  className="w-full p-3 bg-surface-elevated rounded-xl flex items-center gap-3"
                 >
-                  {v.thumbnailUrl ? (
-                    <img src={v.thumbnailUrl} alt={v.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-lg bg-accent-muted flex items-center justify-center flex-shrink-0">
-                      <Video className="w-5 h-5 text-accent" />
-                    </div>
-                  )}
+                  <button
+                    onClick={() => setPreviewingId(previewingId === v.id ? null : v.id)}
+                    className="w-14 h-14 rounded-lg overflow-hidden bg-black flex-shrink-0 relative flex items-center justify-center"
+                    title="Preview"
+                  >
+                    {previewingId === v.id ? (
+                      <video
+                        key={v.videoUrl}
+                        src={v.videoUrl}
+                        muted
+                        loop
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <>
+                        {v.thumbnailUrl && (
+                          <img src={v.thumbnailUrl} alt={v.name} className="absolute inset-0 w-full h-full object-cover" />
+                        )}
+                        <Play className="w-5 h-5 text-white relative z-10" />
+                      </>
+                    )}
+                  </button>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{v.name}</p>
                     {v.muscleGroups?.length > 0 && (
                       <p className="text-xs text-text-secondary truncate">{v.muscleGroups.join(', ')}</p>
                     )}
                   </div>
-                </button>
+                  <Button size="sm" onClick={() => pickVideo(v)} className="flex-shrink-0">
+                    Select
+                  </Button>
+                </div>
               ))}
             {!videoLibraryLoading && videoLibrary.length === 0 && (
               <p className="text-text-secondary text-sm text-center py-4">No videos in the library yet.</p>
