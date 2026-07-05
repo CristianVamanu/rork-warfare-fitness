@@ -604,38 +604,43 @@ function ExerciseDemoThumb({ videoUrl, name }: { videoUrl: string; name: string 
         className="w-11 h-11 rounded-xl overflow-hidden bg-black flex-shrink-0 relative"
         aria-label={`${name} demo`}
       >
-        <video
-          key={videoUrl}
-          src={videoUrl}
-          muted
-          loop
-          autoPlay
-          playsInline
-          preload="auto"
-          className="w-full h-full object-cover"
-        />
+        {/* Only one <video> for this clip is ever mounted at a time — having
+            both the corner thumb and the expanded view play simultaneously
+            doubled the decode/network load and caused stutter. */}
+        {!expanded && (
+          <video
+            key={videoUrl}
+            src={videoUrl}
+            muted
+            loop
+            autoPlay
+            playsInline
+            preload="auto"
+            className="w-full h-full object-cover"
+          />
+        )}
       </button>
       {expanded && (
         <div
           className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
           onClick={() => setExpanded(false)}
         >
-          <div className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-bold text-white">{name}</p>
-              <button onClick={() => setExpanded(false)} className="text-text-secondary hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+          <div className="relative w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
             <video
+              key={videoUrl}
               src={videoUrl}
               muted
               loop
               autoPlay
               playsInline
-              controls
-              className="w-full rounded-xl bg-black"
+              className="w-full rounded-2xl bg-black"
             />
+            <button
+              onClick={() => setExpanded(false)}
+              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-lg"
+            >
+              <X className="w-4 h-4 text-black" />
+            </button>
           </div>
         </div>
       )}
