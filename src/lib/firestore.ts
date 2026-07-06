@@ -563,17 +563,26 @@ export async function enrollInProgram(
   program: { id: string; name: string; weeks: number; daysPerWeek: number }
 ) {
   const totalWorkouts = program.weeks * program.daysPerWeek;
+  // Dotted field paths instead of a single nested `activeProgram` object —
+  // setDoc(..., {merge:true}) on a nested object only merges the sub-fields
+  // you list, it does NOT clear ones you don't mention. Re-enrolling (or
+  // switching back into a program) used to reset completedWorkouts to 0
+  // while silently leaving the previous enrollment's lastCompletedDayIndex
+  // in place, permanently desyncing the two — completedWorkouts would show
+  // 0 while the "Done" badges (driven by lastCompletedDayIndex) still
+  // showed old progress, and future completions could never advance the
+  // counter since dayIndex could never exceed the stale leftover value.
+  // Explicitly deleting it here guarantees a clean slate every time.
   await setDoc(
     doc(db, 'users', userId),
     {
-      activeProgram: {
-        programId: program.id,
-        programName: program.name,
-        enrolledAt: serverTimestamp(),
-        programStartDate: new Date().toISOString(),
-        completedWorkouts: 0,
-        totalWorkouts,
-      },
+      'activeProgram.programId': program.id,
+      'activeProgram.programName': program.name,
+      'activeProgram.enrolledAt': serverTimestamp(),
+      'activeProgram.programStartDate': new Date().toISOString(),
+      'activeProgram.completedWorkouts': 0,
+      'activeProgram.totalWorkouts': totalWorkouts,
+      'activeProgram.lastCompletedDayIndex': deleteField(),
       lastActive: serverTimestamp(),
     },
     { merge: true }
@@ -588,15 +597,23 @@ export async function unenrollProgram(userId: string) {
   );
 }
 
+// lastCompletedDayIndex is the single source of truth for program progress;
+// completedWorkouts is always derived from it (index + 1 = count of unique
+// days done) in the same write, rather than tracked as a separately
+// incremented counter — the previous version updated them independently,
+// which meant any code path that forgot to touch one of them (or an
+// enrollment reset that missed clearing the other) let them drift apart.
 export async function incrementProgramWorkouts(userId: string, dayIndex?: number) {
   const snap = await getDoc(doc(db, 'users', userId));
   if (!snap.exists() || !snap.data()?.activeProgram) return;
   const lastCompleted: number = snap.data()?.activeProgram?.lastCompletedDayIndex ?? -1;
-  // Only advance the counter when doing a genuinely new (later) day, not a repeat
+  // Only advance when doing a genuinely new (later) day, not a repeat
   const isNewDay = dayIndex === undefined || dayIndex > lastCompleted;
+  if (!isNewDay) return;
+  const newLastCompleted = dayIndex !== undefined ? dayIndex : lastCompleted + 1;
   await updateDoc(doc(db, 'users', userId), {
-    ...(isNewDay ? { 'activeProgram.completedWorkouts': increment(1) } : {}),
-    ...(dayIndex !== undefined && isNewDay ? { 'activeProgram.lastCompletedDayIndex': dayIndex } : {}),
+    'activeProgram.completedWorkouts': newLastCompleted + 1,
+    'activeProgram.lastCompletedDayIndex': newLastCompleted,
     lastActive: serverTimestamp(),
   });
 }

@@ -83,9 +83,11 @@ export async function completeWorkout(
     xpEarned,
   });
 
-  // Non-blocking program progress increment (dayIndex prevents counting repeats)
+  // Awaited (not fire-and-forget) so a fast navigation right after finishing
+  // a workout can't cancel this write mid-flight and silently drop progress —
+  // dayIndex prevents counting repeats of the same day.
   if (programId) {
-    incrementProgramWorkouts(userId, dayIndex).catch(console.error);
+    await incrementProgramWorkouts(userId, dayIndex).catch(console.error);
   }
 
   // Update XP + powerLevel
