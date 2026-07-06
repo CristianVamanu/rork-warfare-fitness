@@ -563,30 +563,24 @@ export async function enrollInProgram(
   program: { id: string; name: string; weeks: number; daysPerWeek: number }
 ) {
   const totalWorkouts = program.weeks * program.daysPerWeek;
-  // Dotted field paths instead of a single nested `activeProgram` object —
-  // setDoc(..., {merge:true}) on a nested object only merges the sub-fields
-  // you list, it does NOT clear ones you don't mention. Re-enrolling (or
-  // switching back into a program) used to reset completedWorkouts to 0
-  // while silently leaving the previous enrollment's lastCompletedDayIndex
-  // in place, permanently desyncing the two — completedWorkouts would show
-  // 0 while the "Done" badges (driven by lastCompletedDayIndex) still
-  // showed old progress, and future completions could never advance the
-  // counter since dayIndex could never exceed the stale leftover value.
-  // Explicitly deleting it here guarantees a clean slate every time.
-  await setDoc(
-    doc(db, 'users', userId),
-    {
-      'activeProgram.programId': program.id,
-      'activeProgram.programName': program.name,
-      'activeProgram.enrolledAt': serverTimestamp(),
-      'activeProgram.programStartDate': new Date().toISOString(),
-      'activeProgram.completedWorkouts': 0,
-      'activeProgram.totalWorkouts': totalWorkouts,
-      'activeProgram.lastCompletedDayIndex': deleteField(),
-      lastActive: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  // updateDoc (not setDoc+merge) — dotted field paths only reliably resolve
+  // to nested fields with updateDoc; setDoc's merge doesn't parse dotted
+  // string keys as paths, so a previous version of this using setDoc wrote
+  // nothing where the rest of the app expected it (enroll/switch appeared
+  // to silently do nothing). This also lets us explicitly delete any
+  // leftover lastCompletedDayIndex from a prior enrollment in the same
+  // write, so completedWorkouts (derived from it elsewhere) can't desync
+  // from stale progress on re-enroll/switch.
+  await updateDoc(doc(db, 'users', userId), {
+    'activeProgram.programId': program.id,
+    'activeProgram.programName': program.name,
+    'activeProgram.enrolledAt': serverTimestamp(),
+    'activeProgram.programStartDate': new Date().toISOString(),
+    'activeProgram.completedWorkouts': 0,
+    'activeProgram.totalWorkouts': totalWorkouts,
+    'activeProgram.lastCompletedDayIndex': deleteField(),
+    lastActive: serverTimestamp(),
+  });
 }
 
 export async function unenrollProgram(userId: string) {
