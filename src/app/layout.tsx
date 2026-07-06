@@ -38,6 +38,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="dark">
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
+        {/* Open the connection to Firebase Storage (exercise demo videos,
+            uploaded images) as early as possible, so the TLS/DNS handshake
+            is already done by the time a video element needs to fetch —
+            shaves a real chunk off first-frame latency on top of fixing
+            "moov atom at end of file" MP4s with ffmpeg -movflags +faststart. */}
+        <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
       </head>
       <body>
         <ThemeProvider>
