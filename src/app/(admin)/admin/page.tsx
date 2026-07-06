@@ -8,7 +8,7 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2,
-  Video, Upload, X as XIcon, Play, Apple, Wand2,
+  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -36,7 +36,8 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication } from '@/types';
+import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig } from '@/types';
+import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'integrations' | 'settings';
 
@@ -268,6 +269,10 @@ export default function AdminPage() {
   const [showChannelForm, setShowChannelForm] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
 
+  // ── Landing page state ─────────────────────────────────────────────────────
+  const [landingForm, setLandingForm] = useState<LandingPageConfig>(DEFAULT_LANDING_CONFIG);
+  const [savingLanding, setSavingLanding] = useState(false);
+
   // ── Initial load ────────────────────────────────────────────────────────────
   useEffect(() => {
     const trainerId = profile?.trainerId;
@@ -308,6 +313,10 @@ export default function AdminPage() {
           privacyPolicyText: cfg.privacyPolicyText || DEFAULT_PRIVACY_POLICY,
           termsText: cfg.termsText || DEFAULT_TERMS,
         });
+        const savedLanding = (c as { landingPage?: Partial<LandingPageConfig> }).landingPage;
+        if (savedLanding) {
+          setLandingForm({ ...DEFAULT_LANDING_CONFIG, ...savedLanding });
+        }
       }
     }).catch(console.error).finally(() => setOverviewLoading(false));
   }, [profile?.trainerId]);
@@ -954,6 +963,34 @@ export default function AdminPage() {
       toast.success('Settings saved');
     } catch { toast.error('Failed to save settings'); }
     finally { setSavingSettings(false); }
+  }
+
+  function updateLandingFeature(i: number, patch: Partial<{ title: string; desc: string }>) {
+    setLandingForm(f => ({
+      ...f,
+      features: f.features.map((feat, idx) => idx === i ? { ...feat, ...patch } : feat),
+    }));
+  }
+
+  function updateSocialProof(i: number, value: string) {
+    setLandingForm(f => ({
+      ...f,
+      socialProof: f.socialProof.map((line, idx) => idx === i ? value : line),
+    }));
+  }
+
+  async function handleSaveLanding() {
+    setSavingLanding(true);
+    try {
+      await setSystemConfig({ landingPage: landingForm });
+      toast.success('Landing page saved');
+    } catch { toast.error('Failed to save landing page'); }
+    finally { setSavingLanding(false); }
+  }
+
+  function handleResetLanding() {
+    if (!confirm('Reset the landing page to the default copy? This discards your customizations (until you save again).')) return;
+    setLandingForm(DEFAULT_LANDING_CONFIG);
   }
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -2440,6 +2477,100 @@ export default function AdminPage() {
               </div>
             </div>
             <Button onClick={handleSaveSettings} loading={savingSettings} fullWidth>Save Configuration</Button>
+          </Card>
+
+          {/* Landing Page */}
+          <Card className="p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Rocket className="w-4 h-4 text-accent" /> Landing Page
+              </h2>
+              <a href="/" target="_blank" rel="noreferrer" className="text-xs text-accent hover:underline">Preview ↗</a>
+            </div>
+            <p className="text-xs text-text-secondary">
+              Customize your public homepage — this stays exactly as you set it across every app update, since it&apos;s stored here, not in code. Use <code className="bg-black/30 px-1 rounded">{'{appName}'}</code> in the subheadline to insert your app name automatically.
+            </p>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Badge Text (above headline)</label>
+              <Input value={landingForm.badgeText} onChange={e => setLandingForm(f => ({ ...f, badgeText: e.target.value }))} placeholder="Your coach. Your plan. Your results." />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Headline — Line 1</label>
+                <Input value={landingForm.headlineLine1} onChange={e => setLandingForm(f => ({ ...f, headlineLine1: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Headline — Line 2 (accent color)</label>
+                <Input value={landingForm.headlineLine2} onChange={e => setLandingForm(f => ({ ...f, headlineLine2: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Subheadline</label>
+              <textarea
+                value={landingForm.subheadline}
+                onChange={e => setLandingForm(f => ({ ...f, subheadline: e.target.value }))}
+                rows={3}
+                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Primary Button Label</label>
+                <Input value={landingForm.ctaPrimaryLabel} onChange={e => setLandingForm(f => ({ ...f, ctaPrimaryLabel: e.target.value }))} placeholder="Get Started" />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Secondary Button Label</label>
+                <Input value={landingForm.ctaSecondaryLabel} onChange={e => setLandingForm(f => ({ ...f, ctaSecondaryLabel: e.target.value }))} placeholder="Sign In" />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-2 block">Feature Highlights</label>
+              <div className="space-y-2">
+                {landingForm.features.map((f, i) => (
+                  <div key={i} className="p-3 bg-surface-elevated rounded-xl space-y-2">
+                    <Input
+                      value={f.title}
+                      onChange={e => updateLandingFeature(i, { title: e.target.value })}
+                      placeholder={`Feature ${i + 1} title`}
+                    />
+                    <textarea
+                      value={f.desc}
+                      onChange={e => updateLandingFeature(i, { desc: e.target.value })}
+                      rows={2}
+                      placeholder="One-sentence benefit"
+                      className="w-full bg-surface border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-2 block">Social Proof Line Items</label>
+              <div className="space-y-2">
+                {landingForm.socialProof.map((line, i) => (
+                  <Input key={i} value={line} onChange={e => updateSocialProof(i, e.target.value)} placeholder={`Line ${i + 1}`} />
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Final CTA Headline</label>
+                <Input value={landingForm.finalCtaHeadline} onChange={e => setLandingForm(f => ({ ...f, finalCtaHeadline: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Final CTA Subtext</label>
+                <Input value={landingForm.finalCtaSubtext} onChange={e => setLandingForm(f => ({ ...f, finalCtaSubtext: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={handleResetLanding}>Reset to Default</Button>
+              <Button onClick={handleSaveLanding} loading={savingLanding} fullWidth>Save Landing Page</Button>
+            </div>
           </Card>
 
           {/* Legal Pages */}

@@ -140,6 +140,25 @@ export interface SystemConfig {
   logoUrl?: string;
   pwaInstallBannerEnabled?: boolean; // admin can disable the install banner
   vapidPublicKey?: string; // stored in Firestore so client can subscribe
+  landingPage?: LandingPageConfig;
+}
+
+export interface LandingFeature {
+  title: string;
+  desc: string;
+}
+
+export interface LandingPageConfig {
+  badgeText: string;
+  headlineLine1: string;
+  headlineLine2: string; // shown in the accent color, second line of the hero
+  subheadline: string;
+  ctaPrimaryLabel: string;
+  ctaSecondaryLabel: string;
+  features: LandingFeature[];       // title/desc editable; icon/color stay fixed by position
+  socialProof: string[];
+  finalCtaHeadline: string;
+  finalCtaSubtext: string;
 }
 
 export interface Channel {
