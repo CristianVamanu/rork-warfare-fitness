@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Modal } from '@/components/ui/Modal';
-import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex } from '@/types';
+import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex, MedicalHistoryAnswers } from '@/types';
 
 // ─── Step data ────────────────────────────────────────────────────────────────
 
@@ -65,12 +65,17 @@ export default function OnboardingPage() {
   const [age, setAge] = useState('');
   const [heightCm, setHeightCm] = useState('');
   const [weightKg, setWeightKg] = useState('');
+  const [medicalHistory, setMedicalHistory] = useState<MedicalHistoryAnswers>({});
   const [status, setStatus] = useState<'idle' | 'generating' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [videoGreetingUrl, setVideoGreetingUrl] = useState<string | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
 
-  const TOTAL_STEPS = 7;
+  function updateMedical(patch: Partial<MedicalHistoryAnswers>) {
+    setMedicalHistory((m) => ({ ...m, ...patch }));
+  }
+
+  const TOTAL_STEPS = 9;
 
   const ageNum = parseInt(age, 10);
   const heightNum = parseFloat(heightCm);
@@ -85,6 +90,8 @@ export default function OnboardingPage() {
     biometricsValid,
     true, // BMI result step is informational only
     true, // limitations is optional
+    true, // medical history is optional
+    true, // lifestyle habits is optional
   ][step];
 
   function go(delta: number) {
@@ -143,6 +150,9 @@ export default function OnboardingPage() {
       await updateUserGoals(user.uid, estimatedGoals);
 
       // 4. Save onboarding answers + mark complete
+      const cleanedMedicalHistory = Object.fromEntries(
+        Object.entries(medicalHistory).filter(([, v]) => v !== undefined && v !== '')
+      ) as MedicalHistoryAnswers;
       const onboardingData: OnboardingData = {
         fitnessGoal: goal,
         experience,
@@ -150,6 +160,7 @@ export default function OnboardingPage() {
         equipment,
         ...(limitations.trim() ? { limitations: limitations.trim() } : {}),
         ...(biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum } : {}),
+        ...(Object.keys(cleanedMedicalHistory).length > 0 ? { medicalHistory: cleanedMedicalHistory } : {}),
       };
       await saveOnboardingData(user.uid, { ...onboardingData, onboardingComplete: true });
       if (biometricsValid) {
@@ -235,6 +246,12 @@ export default function OnboardingPage() {
             )}
             {step === 6 && (
               <StepLimitations value={limitations} onChange={setLimitations} />
+            )}
+            {step === 7 && (
+              <StepMedicalHistory data={medicalHistory} onChange={updateMedical} />
+            )}
+            {step === 8 && (
+              <StepLifestyleHabits data={medicalHistory} onChange={updateMedical} />
             )}
           </motion.div>
         </AnimatePresence>
@@ -426,6 +443,132 @@ function StepLimitations({ value, onChange }: { value: string; onChange: (v: str
       <p className="text-xs text-text-tertiary mt-2 text-center">
         Leave blank if you have no limitations.
       </p>
+    </div>
+  );
+}
+
+function YesNoField({
+  label, value, onChange, detail, onDetailChange, detailPlaceholder,
+}: {
+  label: string;
+  value: boolean | null | undefined;
+  onChange: (v: boolean) => void;
+  detail?: string;
+  onDetailChange?: (v: string) => void;
+  detailPlaceholder?: string;
+}) {
+  return (
+    <div className="py-3 first:pt-0 last:pb-0">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-white flex-1">{label}</p>
+        <div className="flex gap-1.5 flex-shrink-0">
+          <button
+            onClick={() => onChange(false)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${value === false ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}
+          >
+            No
+          </button>
+          <button
+            onClick={() => onChange(true)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${value === true ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}
+          >
+            Yes
+          </button>
+        </div>
+      </div>
+      {value === true && onDetailChange && (
+        <input
+          value={detail ?? ''}
+          onChange={(e) => onDetailChange(e.target.value)}
+          placeholder={detailPlaceholder ?? 'Please specify (optional)'}
+          className="w-full mt-2 bg-surface border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+        />
+      )}
+    </div>
+  );
+}
+
+function StepMedicalHistory({ data, onChange }: { data: MedicalHistoryAnswers; onChange: (patch: Partial<MedicalHistoryAnswers>) => void }) {
+  return (
+    <div>
+      <h1 className="text-2xl font-black text-white mb-1">Health screening</h1>
+      <p className="text-text-secondary text-sm mb-5">
+        Helps your coach train around any medical considerations, shared only with your coach.
+        <span className="text-text-tertiary"> (optional)</span>
+      </p>
+      <Card className="p-4 divide-y divide-white/5">
+        <YesNoField label="Do you practice sports/exercise?" value={data.practicesSports} onChange={(v) => onChange({ practicesSports: v })} detail={data.sportsDetail} onDetailChange={(v) => onChange({ sportsDetail: v })} detailPlaceholder="Which sport(s)?" />
+        <YesNoField label="Movement or coordination disorders?" value={data.movementDisorders} onChange={(v) => onChange({ movementDisorders: v })} detail={data.movementDisordersDetail} onDetailChange={(v) => onChange({ movementDisordersDetail: v })} />
+        <YesNoField label="Previous surgeries?" value={data.previousSurgeries} onChange={(v) => onChange({ previousSurgeries: v })} detail={data.previousSurgeriesDetail} onDetailChange={(v) => onChange({ previousSurgeriesDetail: v })} />
+        <YesNoField label="Sports injuries?" value={data.sportsInjuries} onChange={(v) => onChange({ sportsInjuries: v })} detail={data.sportsInjuriesDetail} onDetailChange={(v) => onChange({ sportsInjuriesDetail: v })} />
+        <YesNoField label="Other musculoskeletal problems?" value={data.musculoskeletalProblems} onChange={(v) => onChange({ musculoskeletalProblems: v })} detail={data.musculoskeletalProblemsDetail} onDetailChange={(v) => onChange({ musculoskeletalProblemsDetail: v })} />
+        <YesNoField label="Heart disease?" value={data.heartDisease} onChange={(v) => onChange({ heartDisease: v })} detail={data.heartDiseaseDetail} onDetailChange={(v) => onChange({ heartDiseaseDetail: v })} />
+        <YesNoField label="Other medical conditions?" value={data.otherMedicalConditions} onChange={(v) => onChange({ otherMedicalConditions: v })} detail={data.otherMedicalConditionsDetail} onDetailChange={(v) => onChange({ otherMedicalConditionsDetail: v })} />
+      </Card>
+      <div className="grid grid-cols-3 gap-3 mt-4">
+        <div>
+          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Body Fat %</label>
+          <input
+            type="number" inputMode="decimal"
+            value={data.bodyFatPercent ?? ''}
+            onChange={(e) => onChange({ bodyFatPercent: e.target.value ? Number(e.target.value) : undefined })}
+            placeholder="18"
+            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Blood Pressure</label>
+          <input
+            type="text"
+            value={data.bloodPressure ?? ''}
+            onChange={(e) => onChange({ bloodPressure: e.target.value })}
+            placeholder="120/80"
+            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Resting HR</label>
+          <input
+            type="number" inputMode="numeric"
+            value={data.restingHeartRate ?? ''}
+            onChange={(e) => onChange({ restingHeartRate: e.target.value ? Number(e.target.value) : undefined })}
+            placeholder="65"
+            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepLifestyleHabits({ data, onChange }: { data: MedicalHistoryAnswers; onChange: (patch: Partial<MedicalHistoryAnswers>) => void }) {
+  return (
+    <div>
+      <h1 className="text-2xl font-black text-white mb-1">Lifestyle habits</h1>
+      <p className="text-text-secondary text-sm mb-5">
+        Helps tailor your nutrition and recovery guidance.
+        <span className="text-text-tertiary"> (optional)</span>
+      </p>
+      <Card className="p-4 divide-y divide-white/5">
+        <YesNoField label="Do you smoke?" value={data.smokes} onChange={(v) => onChange({ smokes: v })} />
+        <YesNoField label="Drink alcohol regularly?" value={data.drinksAlcoholRegularly} onChange={(v) => onChange({ drinksAlcoholRegularly: v })} detail={data.alcoholFrequency} onDetailChange={(v) => onChange({ alcoholFrequency: v })} detailPlaceholder="How often?" />
+        <YesNoField label="Suffer from stress?" value={data.suffersFromStress} onChange={(v) => onChange({ suffersFromStress: v })} />
+        <YesNoField label="Sleeping pills or sedatives?" value={data.takesSleepingPills} onChange={(v) => onChange({ takesSleepingPills: v })} />
+        <YesNoField label="Pain medication?" value={data.takesPainMedication} onChange={(v) => onChange({ takesPainMedication: v })} />
+        <YesNoField label="Beta blockers?" value={data.takesBetaBlockers} onChange={(v) => onChange({ takesBetaBlockers: v })} />
+        <YesNoField label="Frequently eat very fatty/sweet foods?" value={data.eatsFattyOrSweetFoodsOften} onChange={(v) => onChange({ eatsFattyOrSweetFoodsOften: v })} />
+        <YesNoField label="Often experience food cravings?" value={data.experiencesFoodCravings} onChange={(v) => onChange({ experiencesFoodCravings: v })} />
+      </Card>
+      <div className="mt-4">
+        <label className="text-xs font-medium text-text-secondary mb-1.5 block">Daily fluid intake</label>
+        <input
+          type="text"
+          value={data.dailyFluidIntake ?? ''}
+          onChange={(e) => onChange({ dailyFluidIntake: e.target.value })}
+          placeholder="e.g. 2 liters"
+          className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+        />
+      </div>
     </div>
   );
 }

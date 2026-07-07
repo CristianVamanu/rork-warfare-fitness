@@ -8,7 +8,7 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2,
-  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket,
+  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -36,7 +36,7 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig } from '@/types';
+import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers } from '@/types';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'integrations' | 'settings';
@@ -134,6 +134,16 @@ interface UserData {
   activeProgram?: { programName?: string; completedWorkouts?: number; totalWorkouts?: number };
   createdAt?: unknown;
   lastLoginAt?: unknown;
+  fitnessGoal?: string;
+  experience?: string;
+  trainingDays?: number;
+  equipment?: string;
+  limitations?: string;
+  sex?: string;
+  age?: number;
+  heightCm?: number;
+  currentWeightKg?: number;
+  medicalHistory?: MedicalHistoryAnswers;
 }
 
 function formatLastLogin(ts: unknown): string {
@@ -256,6 +266,7 @@ export default function AdminPage() {
 
   // ── Nutrition plan (AI) state ─────────────────────────────────────────────
   const [nutritionModalUser, setNutritionModalUser] = useState<UserData | null>(null);
+  const [profileDetailUser, setProfileDetailUser] = useState<UserData | null>(null);
   const [nutritionTrainerNotes, setNutritionTrainerNotes] = useState('');
   const [nutritionDraft, setNutritionDraft] = useState<Omit<NutritionPlan, 'assignedAt' | 'assignedBy'> | null>(null);
   const [generatingNutrition, setGeneratingNutrition] = useState(false);
@@ -1180,6 +1191,13 @@ export default function AdminPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => setProfileDetailUser(u)}
+                        title="View Profile & Health Info"
+                        className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-secondary hover:text-white"
+                      >
+                        <User className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => startConversation(u)}
                         title="Message"
@@ -2642,6 +2660,93 @@ export default function AdminPage() {
           </Card>
         </div>
       )}
+
+      {/* ── Client Profile & Health Info Modal ───────────────────────────────── */}
+      <Modal
+        open={!!profileDetailUser}
+        onClose={() => setProfileDetailUser(null)}
+        title={profileDetailUser?.displayName || profileDetailUser?.email || 'Client Profile'}
+      >
+        {profileDetailUser && (
+          <div className="space-y-4">
+            <Card className="p-4 space-y-2">
+              <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wide">Onboarding</h3>
+              <div className="grid grid-cols-2 gap-y-1.5 text-xs">
+                <span className="text-text-tertiary">Goal</span><span className="text-white">{profileDetailUser.fitnessGoal || '—'}</span>
+                <span className="text-text-tertiary">Experience</span><span className="text-white">{profileDetailUser.experience || '—'}</span>
+                <span className="text-text-tertiary">Training Days</span><span className="text-white">{profileDetailUser.trainingDays ?? '—'}</span>
+                <span className="text-text-tertiary">Equipment</span><span className="text-white">{profileDetailUser.equipment || '—'}</span>
+                <span className="text-text-tertiary">Sex</span><span className="text-white">{profileDetailUser.sex || '—'}</span>
+                <span className="text-text-tertiary">Age</span><span className="text-white">{profileDetailUser.age ?? '—'}</span>
+                <span className="text-text-tertiary">Height</span><span className="text-white">{profileDetailUser.heightCm ? `${profileDetailUser.heightCm} cm` : '—'}</span>
+                <span className="text-text-tertiary">Weight</span><span className="text-white">{profileDetailUser.currentWeightKg ? `${profileDetailUser.currentWeightKg} kg` : '—'}</span>
+              </div>
+              {profileDetailUser.limitations && (
+                <div className="pt-1.5 border-t border-white/5">
+                  <p className="text-text-tertiary text-xs mb-0.5">Limitations</p>
+                  <p className="text-white text-xs">{profileDetailUser.limitations}</p>
+                </div>
+              )}
+            </Card>
+
+            {profileDetailUser.medicalHistory ? (
+              <Card className="p-4 space-y-2">
+                <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wide">Health Screening</h3>
+                {(() => {
+                  const m = profileDetailUser.medicalHistory;
+                  const rows: { label: string; value?: boolean; detail?: string }[] = [
+                    { label: 'Practices sports/exercise', value: m.practicesSports, detail: m.sportsDetail },
+                    { label: 'Movement/coordination disorders', value: m.movementDisorders, detail: m.movementDisordersDetail },
+                    { label: 'Previous surgeries', value: m.previousSurgeries, detail: m.previousSurgeriesDetail },
+                    { label: 'Sports injuries', value: m.sportsInjuries, detail: m.sportsInjuriesDetail },
+                    { label: 'Musculoskeletal problems', value: m.musculoskeletalProblems, detail: m.musculoskeletalProblemsDetail },
+                    { label: 'Heart disease', value: m.heartDisease, detail: m.heartDiseaseDetail },
+                    { label: 'Other medical conditions', value: m.otherMedicalConditions, detail: m.otherMedicalConditionsDetail },
+                    { label: 'Smokes', value: m.smokes },
+                    { label: 'Drinks alcohol regularly', value: m.drinksAlcoholRegularly, detail: m.alcoholFrequency },
+                    { label: 'Suffers from stress', value: m.suffersFromStress },
+                    { label: 'Sleeping pills/sedatives', value: m.takesSleepingPills },
+                    { label: 'Pain medication', value: m.takesPainMedication },
+                    { label: 'Beta blockers', value: m.takesBetaBlockers },
+                    { label: 'Eats fatty/sweet foods often', value: m.eatsFattyOrSweetFoodsOften },
+                    { label: 'Experiences food cravings', value: m.experiencesFoodCravings },
+                  ].filter((r) => r.value !== undefined);
+                  return (
+                    <>
+                      {(m.bodyFatPercent || m.bloodPressure || m.restingHeartRate || m.dailyFluidIntake) && (
+                        <div className="grid grid-cols-2 gap-y-1.5 text-xs pb-2 border-b border-white/5">
+                          {m.bodyFatPercent && (<><span className="text-text-tertiary">Body Fat</span><span className="text-white">{m.bodyFatPercent}%</span></>)}
+                          {m.bloodPressure && (<><span className="text-text-tertiary">Blood Pressure</span><span className="text-white">{m.bloodPressure}</span></>)}
+                          {m.restingHeartRate && (<><span className="text-text-tertiary">Resting HR</span><span className="text-white">{m.restingHeartRate} bpm</span></>)}
+                          {m.dailyFluidIntake && (<><span className="text-text-tertiary">Fluid Intake</span><span className="text-white">{m.dailyFluidIntake}</span></>)}
+                        </div>
+                      )}
+                      {rows.length === 0 ? (
+                        <p className="text-xs text-text-tertiary">No screening answers recorded.</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {rows.map((r) => (
+                            <div key={r.label} className="flex items-start justify-between gap-2 text-xs">
+                              <span className="text-text-secondary">{r.label}</span>
+                              <span className={`font-medium flex-shrink-0 ${r.value ? 'text-yellow-400' : 'text-text-tertiary'}`}>
+                                {r.value ? (r.detail ? r.detail : 'Yes') : 'No'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </Card>
+            ) : (
+              <Card className="p-4">
+                <p className="text-xs text-text-tertiary">No health screening submitted (onboarding predates this feature, or was skipped).</p>
+              </Card>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* ── AI Nutrition Plan Modal ──────────────────────────────────────────── */}
       <Modal

@@ -73,6 +73,40 @@ export interface OnboardingData {
   sex?: BiologicalSex;
   age?: number;
   heightCm?: number;
+  medicalHistory?: MedicalHistoryAnswers;
+}
+
+// From the trainer's fitness medical questionnaire — collected during
+// onboarding, visible to the trainer/admin on the client's profile, never
+// shown to other users.
+export interface MedicalHistoryAnswers {
+  bodyFatPercent?: number;
+  bloodPressure?: string;
+  restingHeartRate?: number;
+  practicesSports?: boolean;
+  sportsDetail?: string;
+  movementDisorders?: boolean;
+  movementDisordersDetail?: string;
+  previousSurgeries?: boolean;
+  previousSurgeriesDetail?: string;
+  sportsInjuries?: boolean;
+  sportsInjuriesDetail?: string;
+  musculoskeletalProblems?: boolean;
+  musculoskeletalProblemsDetail?: string;
+  heartDisease?: boolean;
+  heartDiseaseDetail?: string;
+  otherMedicalConditions?: boolean;
+  otherMedicalConditionsDetail?: string;
+  smokes?: boolean;
+  drinksAlcoholRegularly?: boolean;
+  alcoholFrequency?: string;
+  suffersFromStress?: boolean;
+  takesSleepingPills?: boolean;
+  takesPainMedication?: boolean;
+  takesBetaBlockers?: boolean;
+  eatsFattyOrSweetFoodsOften?: boolean;
+  experiencesFoodCravings?: boolean;
+  dailyFluidIntake?: string;
 }
 
 export interface UserProfile {
