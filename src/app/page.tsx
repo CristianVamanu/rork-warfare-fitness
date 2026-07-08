@@ -11,9 +11,11 @@ import {
   ArrowRight, CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { getSystemConfig } from '@/lib/firestore';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
 import type { LandingPageConfig } from '@/types';
 
@@ -33,6 +35,7 @@ const FEATURE_STYLES = [
 
 export default function LandingPage() {
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
   const [appName, setAppName] = useState('Warfare Fitness');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -68,9 +71,12 @@ export default function LandingPage() {
           </div>
           <span className="text-base font-black text-white tracking-tight">{appName}</span>
         </div>
-        <Link href="/login" className="text-sm font-medium text-text-secondary hover:text-white transition-colors">
-          Sign In
-        </Link>
+        <div className="flex items-center gap-1">
+          <LanguageSwitcher />
+          <Link href="/login" className="text-sm font-medium text-text-secondary hover:text-white transition-colors px-3 py-1.5">
+            {t('landing.signIn')}
+          </Link>
+        </div>
       </nav>
 
       {/* Hero */}
@@ -106,8 +112,8 @@ export default function LandingPage() {
       {/* Feature grid */}
       <section className="max-w-5xl mx-auto px-5 pb-16">
         <div className="text-center mb-8">
-          <h2 className="text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
-          <p className="text-text-secondary text-sm mt-2">One app for training, nutrition, accountability, and progress.</p>
+          <h2 className="text-2xl sm:text-3xl font-black text-white">{t('landing.featuresTitle')}</h2>
+          <p className="text-text-secondary text-sm mt-2">{t('landing.featuresSubtitle')}</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {landing.features.map((f, i) => {
@@ -158,10 +164,10 @@ export default function LandingPage() {
       </section>
 
       <footer className="max-w-5xl mx-auto px-5 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/8">
-        <p className="text-xs text-text-tertiary">&copy; {new Date().getFullYear()} {appName}. All rights reserved.</p>
+        <p className="text-xs text-text-tertiary">&copy; {new Date().getFullYear()} {appName}. {t('landing.rightsReserved')}</p>
         <div className="flex items-center gap-4">
-          <Link href="/privacy" className="text-xs text-text-tertiary hover:text-white transition-colors">Privacy</Link>
-          <Link href="/terms" className="text-xs text-text-tertiary hover:text-white transition-colors">Terms</Link>
+          <Link href="/privacy" className="text-xs text-text-tertiary hover:text-white transition-colors">{t('landing.privacy')}</Link>
+          <Link href="/terms" className="text-xs text-text-tertiary hover:text-white transition-colors">{t('landing.terms')}</Link>
         </div>
       </footer>
     </div>

@@ -95,5 +95,12 @@
   "onboarding.medical.subtitle": "Helps your coach train around any medical considerations, shared only with your coach.",
   "onboarding.lifestyle.title": "Lifestyle habits",
   "onboarding.lifestyle.subtitle": "Helps tailor your nutrition and recovery guidance.",
-  "onboarding.optional": "(optional)"
+  "onboarding.optional": "(optional)",
+
+  "landing.signIn": "Sign In",
+  "landing.featuresTitle": "Everything you need. Nothing you don't.",
+  "landing.featuresSubtitle": "One app for training, nutrition, accountability, and progress.",
+  "landing.privacy": "Privacy",
+  "landing.terms": "Terms",
+  "landing.rightsReserved": "All rights reserved."
 }

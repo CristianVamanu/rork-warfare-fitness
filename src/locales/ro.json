@@ -95,5 +95,12 @@
   "onboarding.medical.subtitle": "Ajută antrenorul să te antreneze ținând cont de aspecte medicale, partajat doar cu antrenorul tău.",
   "onboarding.lifestyle.title": "Obiceiuri de viață",
   "onboarding.lifestyle.subtitle": "Ajută la personalizarea recomandărilor de nutriție și recuperare.",
-  "onboarding.optional": "(opțional)"
+  "onboarding.optional": "(opțional)",
+
+  "landing.signIn": "Conectare",
+  "landing.featuresTitle": "Tot ce ai nevoie. Nimic în plus.",
+  "landing.featuresSubtitle": "O singură aplicație pentru antrenament, nutriție, responsabilizare și progres.",
+  "landing.privacy": "Confidențialitate",
+  "landing.terms": "Termeni",
+  "landing.rightsReserved": "Toate drepturile rezervate."
 }

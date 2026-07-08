@@ -41,14 +41,24 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Once the profile loads, its saved preference (synced across devices)
-  // wins over whatever was cached locally.
+  // wins over whatever was cached locally. But if the profile has never
+  // had a language set — e.g. someone picked Romanian on the public
+  // landing page before registering — carry that local choice over to
+  // their brand-new profile instead of silently reverting to English,
+  // so the choice they made before signing up actually sticks.
   useEffect(() => {
+    if (!profile) return;
     const profileLang = (profile as { language?: Language } | null)?.language;
     if (profileLang && DICTIONARIES[profileLang]) {
       setLanguageState(profileLang);
       localStorage.setItem(STORAGE_KEY, profileLang);
+    } else {
+      const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
+      if (stored && DICTIONARIES[stored] && user) {
+        updateUserDoc(user.uid, { language: stored }).catch(() => {});
+      }
     }
-  }, [profile]);
+  }, [profile, user]);
 
   const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);
