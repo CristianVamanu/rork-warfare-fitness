@@ -1,6 +1,9 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import {
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  type Firestore,
+} from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -46,7 +49,28 @@ let storage: FirebaseStorage;
 try {
   app = getApps().length ? getApp() : initializeApp(firebaseConfig as Record<string, string>);
   auth = getAuth(app);
-  db = getFirestore(app);
+  // Persistent (IndexedDB-backed) local cache — without this, every screen
+  // re-fetches everything from the network on every visit with nothing
+  // cached locally, which is exactly why a PWA meant to feel instant on
+  // repeat opens instead waits on a network round trip behind every single
+  // page's loading spinner. Only valid in a browser (IndexedDB doesn't
+  // exist in Node, where this module also gets evaluated during SSR for
+  // generateMetadata/manifest.ts) — falls back to the plain in-memory
+  // client there.
+  if (typeof window !== 'undefined') {
+    try {
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      });
+    } catch {
+      // Already initialized on this app instance (e.g. dev-mode hot reload
+      // re-running this module) — reuse the existing client instead of
+      // crashing the whole app.
+      db = getFirestore(app);
+    }
+  } else {
+    db = getFirestore(app);
+  }
   console.log('[Firebase] Auth + Firestore initialized. Project:', firebaseConfig.projectId);
 } catch (err: unknown) {
   const e = err as Error & { code?: string };

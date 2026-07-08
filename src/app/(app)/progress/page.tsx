@@ -2,9 +2,9 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
+import nextDynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar } from 'recharts';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserWorkouts } from '@/lib/firestore';
 import { recordWeight } from '@/lib/actions';
@@ -18,6 +18,15 @@ import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
+
+// recharts is a large dependency — load it only when this page actually
+// renders a chart, instead of bundling it into every visit to /progress
+// (it was the single heaviest chunk in the app, ~104kB, entirely from this
+// one bar chart).
+const WeeklyActivityChart = nextDynamic(() => import('@/components/progress/WeeklyActivityChart'), {
+  ssr: false,
+  loading: () => <div className="h-[120px]" />,
+});
 
 interface WorkoutEntry {
   id: string;
@@ -170,18 +179,7 @@ export default function ProgressPage() {
             {loading ? (
               <Skeleton className="h-28 rounded-xl" />
             ) : (
-              <ResponsiveContainer width="100%" height={120}>
-                <BarChart data={volumeData} barSize={20}>
-                  <XAxis dataKey="date" tick={{ fill: '#475569', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#475569', fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
-                  <Tooltip
-                    contentStyle={{ background: '#1A1A1A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }}
-                    labelStyle={{ color: '#94a3b8' }}
-                    formatter={(v: number) => [`${v} min`, 'Training']}
-                  />
-                  <Bar dataKey="minutes" fill="#F5A623" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <WeeklyActivityChart data={volumeData} />
             )}
           </Card>
         </motion.div>
