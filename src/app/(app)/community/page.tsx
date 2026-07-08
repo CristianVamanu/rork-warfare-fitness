@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { getChannels, subscribeLeaderboard, type LeaderboardEntry } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -14,6 +15,7 @@ import type { Channel } from '@/types';
 
 export default function CommunityPage() {
   const { trainerId, user, profile } = useAuth();
+  const { t } = useLanguage();
   // Trainer/admin users don't have trainerId on their own doc — use their uid as the tenant root
   const effectiveTrainerId = trainerId ?? ((profile?.role === 'admin' || profile?.role === 'trainer') ? user?.uid : null) ?? null;
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -46,7 +48,7 @@ export default function CommunityPage() {
 
   return (
     <div>
-      <Header title="Community" />
+      <Header title={t('pages.community')} />
       <div className="px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
         {/* Tab switcher */}
         <div className="grid grid-cols-2 gap-1 bg-surface rounded-xl p-1">

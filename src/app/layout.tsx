@@ -5,6 +5,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 import { Toaster } from 'react-hot-toast';
 import { getSystemConfig } from '@/lib/firestore';
+import { ServiceWorkerUpdater } from '@/components/ui/ServiceWorkerUpdater';
 
 export async function generateMetadata(): Promise<Metadata> {
   const cfg = await getSystemConfig().catch(() => null);
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
         <LanguageProvider>
           {children}
+          <ServiceWorkerUpdater />
           <Toaster
             position="top-center"
             toastOptions={{

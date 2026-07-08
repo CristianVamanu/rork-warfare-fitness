@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { getPrograms, getProgram, getHiddenMockIds } from '@/lib/firestore';
 import { MOCK_PROGRAMS, getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -33,6 +34,7 @@ const levelColors: Record<string, string> = {
 
 export default function TrainingPage() {
   const { profile } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +95,7 @@ export default function TrainingPage() {
 
   return (
     <div>
-      <Header title="Training" />
+      <Header title={t('pages.training')} />
       <div className="px-4 py-4 space-y-5">
         {/* Active Program Hero */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>

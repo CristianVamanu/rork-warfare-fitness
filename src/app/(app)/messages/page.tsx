@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { MessageSquare, Send, ChevronLeft, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { getUserConversations, getMessages, sendMessage, markConversationRead, deleteConversation } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -15,6 +16,7 @@ import type { Conversation, Message } from '@/types';
 
 export default function MessagesPage() {
   const { user, profile } = useAuth();
+  const { t } = useLanguage();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
@@ -81,7 +83,7 @@ export default function MessagesPage() {
 
   return (
     <div>
-      <Header title="Messages" />
+      <Header title={t('pages.messages')} />
       <div className="px-4 py-4">
         {activeConv ? (
           <div className="flex flex-col h-[75vh]">

@@ -11,6 +11,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Mail, Lock, User, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { signUp } from '@/lib/auth';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -31,6 +32,7 @@ type FormData = z.infer<typeof schema>;
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -76,21 +78,21 @@ export default function RegisterPage() {
         <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mb-4 shadow-glow-accent">
           <span className="text-2xl font-black text-black">W</span>
         </div>
-        <h1 className="text-2xl font-black text-white tracking-tight">Create Your Account</h1>
-        <p className="text-text-secondary text-sm mt-1">Start your fitness journey</p>
+        <h1 className="text-2xl font-black text-white tracking-tight">{t('auth.register.title')}</h1>
+        <p className="text-text-secondary text-sm mt-1">{t('auth.register.subtitle')}</p>
       </div>
 
       <Card glass className="p-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <Input
-            label="Full Name"
+            label={t('auth.register.fullName')}
             placeholder="John Doe"
             leftIcon={<User className="w-4 h-4" />}
             error={errors.name?.message}
             {...register('name')}
           />
           <Input
-            label="Email"
+            label={t('auth.register.email')}
             type="email"
             placeholder="you@example.com"
             leftIcon={<Mail className="w-4 h-4" />}
@@ -98,7 +100,7 @@ export default function RegisterPage() {
             {...register('email')}
           />
           <Input
-            label="Password"
+            label={t('auth.register.password')}
             type={showPassword ? 'text' : 'password'}
             placeholder="••••••••"
             leftIcon={<Lock className="w-4 h-4" />}
@@ -111,7 +113,7 @@ export default function RegisterPage() {
             {...register('password')}
           />
           <Input
-            label="Confirm Password"
+            label={t('auth.register.confirmPassword')}
             type={showPassword ? 'text' : 'password'}
             placeholder="••••••••"
             leftIcon={<Lock className="w-4 h-4" />}
@@ -121,7 +123,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="text-sm font-medium text-text-secondary block mb-2">
-              Weight Unit
+              {t('auth.register.weightUnit')}
             </label>
             <div className="grid grid-cols-2 gap-2">
               {(['kg', 'lbs'] as const).map((unit) => (
@@ -142,8 +144,8 @@ export default function RegisterPage() {
 
           {/* Disclaimer */}
           <div className="p-3 bg-yellow-400/5 border border-yellow-400/20 rounded-xl text-xs text-yellow-400/80 leading-relaxed">
-            <p className="font-bold mb-1 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Health Disclaimer</p>
-            By registering you acknowledge that all workouts and nutrition advice are for informational purposes only. Always consult a qualified physician before starting any exercise program. You use this platform entirely at your own risk. The trainer / platform owner accepts no liability for any injury, illness, or adverse outcome.
+            <p className="font-bold mb-1 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> {t('auth.register.disclaimer.title')}</p>
+            {t('auth.register.disclaimer.body')}
           </div>
 
           {/* Terms checkbox */}
@@ -154,11 +156,11 @@ export default function RegisterPage() {
               {...register('acceptedTerms')}
             />
             <span className="text-xs text-text-secondary leading-relaxed">
-              I have read and agree to the{' '}
-              <Link href="/terms" target="_blank" className="text-accent hover:underline">Terms & Conditions</Link>
-              {' '}and{' '}
-              <Link href="/privacy" target="_blank" className="text-accent hover:underline">Privacy Policy</Link>
-              , including the health disclaimer above.
+              {t('auth.register.termsAgree')}{' '}
+              <Link href="/terms" target="_blank" className="text-accent hover:underline">{t('auth.register.terms')}</Link>
+              {' '}{t('auth.register.termsAnd')}{' '}
+              <Link href="/privacy" target="_blank" className="text-accent hover:underline">{t('auth.register.privacy')}</Link>
+              {t('auth.register.termsSuffix')}
             </span>
           </label>
           {errors.acceptedTerms && (
@@ -166,15 +168,15 @@ export default function RegisterPage() {
           )}
 
           <Button type="submit" fullWidth loading={loading} size="lg">
-            Create Account
+            {t('auth.register.submit')}
           </Button>
         </form>
       </Card>
 
       <p className="text-center text-sm text-text-secondary mt-6">
-        Already have an account?{' '}
+        {t('auth.register.haveAccount')}{' '}
         <Link href="/login" className="text-accent font-medium hover:underline">
-          Sign in
+          {t('auth.register.signIn')}
         </Link>
       </p>
     </motion.div>

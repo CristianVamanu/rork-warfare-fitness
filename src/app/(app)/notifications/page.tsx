@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Bell, BellOff, CheckCheck, Zap, Dumbbell, Flame, Trophy, MessageSquare, Crown, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { getUserNotifications, markNotificationRead, markAllNotificationsRead } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -47,6 +48,7 @@ function timeAgo(ts: unknown): string {
 
 export default function NotificationsPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [notifs, setNotifs] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
@@ -77,7 +79,7 @@ export default function NotificationsPage() {
 
   return (
     <div>
-      <Header title="Notifications" />
+      <Header title={t('pages.notifications')} />
       <div className="px-4 py-4 space-y-4">
         {/* Actions bar */}
         {unreadCount > 0 && (

@@ -10,6 +10,7 @@ import {
   Home, Building2, Package, User, Users, AlertCircle, TrendingDown, TrendingUp, PartyPopper,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig } from '@/lib/firestore';
 import { estimateGoals, calculateBmi, estimateBmiTimeline } from '@/lib/tdee';
 import { MOCK_PROGRAMS } from '@/lib/programs';
@@ -52,6 +53,7 @@ const slideVariants = {
 
 export default function OnboardingPage() {
   const { user, trainerId, refreshProfile } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
 
   const [step, setStep] = useState(0);
@@ -203,7 +205,7 @@ export default function OnboardingPage() {
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="text-xs text-text-secondary">Step {step + 1} of {TOTAL_STEPS}</span>
+          <span className="text-xs text-text-secondary">{t('onboarding.step', { current: step + 1, total: TOTAL_STEPS })}</span>
           <div className="w-9" />
         </div>
         <ProgressBar value={step + 1} max={TOTAL_STEPS} color="accent" size="sm" />
@@ -273,7 +275,7 @@ export default function OnboardingPage() {
             disabled={!canAdvance}
             onClick={() => go(1)}
           >
-            Continue <ChevronRight className="w-4 h-4" />
+            {t('onboarding.continue')} <ChevronRight className="w-4 h-4" />
           </Button>
         ) : (
           <Button
@@ -285,12 +287,12 @@ export default function OnboardingPage() {
             {isGenerating ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {'Setting up your program…'}
+                {t('onboarding.settingUp')}
               </>
             ) : (
               <>
                 <CheckCircle className="w-4 h-4" />
-                Generate My Program
+                {t('onboarding.generateProgram')}
               </>
             )}
           </Button>
@@ -325,10 +327,11 @@ export default function OnboardingPage() {
 // ─── Step components ───────────────────────────────────────────────────────────
 
 function StepGoal({ selected, onSelect }: { selected: FitnessGoal | null; onSelect: (v: FitnessGoal) => void }) {
+  const { t } = useLanguage();
   return (
     <div>
-      <h1 className="text-2xl font-black text-white mb-1">What&apos;s your goal?</h1>
-      <p className="text-text-secondary text-sm mb-5">This determines your program structure and intensity.</p>
+      <h1 className="text-2xl font-black text-white mb-1">{t('onboarding.goal.title')}</h1>
+      <p className="text-text-secondary text-sm mb-5">{t('onboarding.goal.subtitle')}</p>
       <div className="space-y-3">
         {GOALS.map(({ value, label, sub, icon: Icon, color }) => (
           <button key={value} onClick={() => onSelect(value)} className="w-full text-left">
@@ -350,10 +353,11 @@ function StepGoal({ selected, onSelect }: { selected: FitnessGoal | null; onSele
 }
 
 function StepExperience({ selected, onSelect }: { selected: ExperienceLevel | null; onSelect: (v: ExperienceLevel) => void }) {
+  const { t } = useLanguage();
   return (
     <div>
-      <h1 className="text-2xl font-black text-white mb-1">Training experience</h1>
-      <p className="text-text-secondary text-sm mb-5">Be honest — this shapes your rep schemes and exercise complexity.</p>
+      <h1 className="text-2xl font-black text-white mb-1">{t('onboarding.experience.title')}</h1>
+      <p className="text-text-secondary text-sm mb-5">{t('onboarding.experience.subtitle')}</p>
       <div className="space-y-3">
         {EXPERIENCE.map(({ value, label, sub }) => (
           <button key={value} onClick={() => onSelect(value)} className="w-full text-left">
@@ -372,10 +376,11 @@ function StepExperience({ selected, onSelect }: { selected: ExperienceLevel | nu
 }
 
 function StepDays({ selected, onSelect }: { selected: number | null; onSelect: (v: number) => void }) {
+  const { t } = useLanguage();
   return (
     <div>
-      <h1 className="text-2xl font-black text-white mb-1">Days per week</h1>
-      <p className="text-text-secondary text-sm mb-5">How many days can you commit to training?</p>
+      <h1 className="text-2xl font-black text-white mb-1">{t('onboarding.days.title')}</h1>
+      <p className="text-text-secondary text-sm mb-5">{t('onboarding.days.subtitle')}</p>
       <div className="grid grid-cols-5 gap-2">
         {DAYS.map((d) => (
           <button
@@ -401,10 +406,11 @@ function StepDays({ selected, onSelect }: { selected: number | null; onSelect: (
 }
 
 function StepEquipment({ selected, onSelect }: { selected: EquipmentType | null; onSelect: (v: EquipmentType) => void }) {
+  const { t } = useLanguage();
   return (
     <div>
-      <h1 className="text-2xl font-black text-white mb-1">Equipment access</h1>
-      <p className="text-text-secondary text-sm mb-5">Your program will only use what you have available.</p>
+      <h1 className="text-2xl font-black text-white mb-1">{t('onboarding.equipment.title')}</h1>
+      <p className="text-text-secondary text-sm mb-5">{t('onboarding.equipment.subtitle')}</p>
       <div className="space-y-3">
         {EQUIPMENT.map(({ value, label, sub, icon: Icon }) => (
           <button key={value} onClick={() => onSelect(value)} className="w-full text-left">
@@ -426,12 +432,13 @@ function StepEquipment({ selected, onSelect }: { selected: EquipmentType | null;
 }
 
 function StepLimitations({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useLanguage();
   return (
     <div>
-      <h1 className="text-2xl font-black text-white mb-1">Any limitations?</h1>
+      <h1 className="text-2xl font-black text-white mb-1">{t('onboarding.limitations.title')}</h1>
       <p className="text-text-secondary text-sm mb-5">
-        Injuries, pain points, or exercises to avoid. Your AI coach will work around them.
-        <span className="text-text-tertiary"> (optional)</span>
+        {t('onboarding.limitations.subtitle')}
+        <span className="text-text-tertiary"> {t('onboarding.optional')}</span>
       </p>
       <textarea
         value={value}
@@ -489,12 +496,13 @@ function YesNoField({
 }
 
 function StepMedicalHistory({ data, onChange }: { data: MedicalHistoryAnswers; onChange: (patch: Partial<MedicalHistoryAnswers>) => void }) {
+  const { t } = useLanguage();
   return (
     <div>
-      <h1 className="text-2xl font-black text-white mb-1">Health screening</h1>
+      <h1 className="text-2xl font-black text-white mb-1">{t('onboarding.medical.title')}</h1>
       <p className="text-text-secondary text-sm mb-5">
-        Helps your coach train around any medical considerations, shared only with your coach.
-        <span className="text-text-tertiary"> (optional)</span>
+        {t('onboarding.medical.subtitle')}
+        <span className="text-text-tertiary"> {t('onboarding.optional')}</span>
       </p>
       <Card className="p-4 divide-y divide-white/5">
         <YesNoField label="Do you practice sports/exercise?" value={data.practicesSports} onChange={(v) => onChange({ practicesSports: v })} detail={data.sportsDetail} onDetailChange={(v) => onChange({ sportsDetail: v })} detailPlaceholder="Which sport(s)?" />
@@ -542,12 +550,13 @@ function StepMedicalHistory({ data, onChange }: { data: MedicalHistoryAnswers; o
 }
 
 function StepLifestyleHabits({ data, onChange }: { data: MedicalHistoryAnswers; onChange: (patch: Partial<MedicalHistoryAnswers>) => void }) {
+  const { t } = useLanguage();
   return (
     <div>
-      <h1 className="text-2xl font-black text-white mb-1">Lifestyle habits</h1>
+      <h1 className="text-2xl font-black text-white mb-1">{t('onboarding.lifestyle.title')}</h1>
       <p className="text-text-secondary text-sm mb-5">
-        Helps tailor your nutrition and recovery guidance.
-        <span className="text-text-tertiary"> (optional)</span>
+        {t('onboarding.lifestyle.subtitle')}
+        <span className="text-text-tertiary"> {t('onboarding.optional')}</span>
       </p>
       <Card className="p-4 divide-y divide-white/5">
         <YesNoField label="Do you smoke?" value={data.smokes} onChange={(v) => onChange({ smokes: v })} />
@@ -587,11 +596,12 @@ function StepBiometrics({
   heightCm: string; onHeight: (v: string) => void;
   weightKg: string; onWeight: (v: string) => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div>
-      <h1 className="text-2xl font-black text-white mb-1">About you</h1>
+      <h1 className="text-2xl font-black text-white mb-1">{t('onboarding.biometrics.title')}</h1>
       <p className="text-text-secondary text-sm mb-5">
-        Used to calculate your calorie needs accurately and calibrate your program — not shared with anyone.
+        {t('onboarding.biometrics.subtitle')}
       </p>
 
       <p className="text-xs font-medium text-text-secondary mb-2">Sex</p>
@@ -646,6 +656,7 @@ function StepBiometrics({
 }
 
 function StepBmiResult({ heightCm, weightKg }: { heightCm: number; weightKg: number }) {
+  const { t } = useLanguage();
   const { bmi, category, healthyWeightRangeKg } = calculateBmi(heightCm, weightKg);
   const { weeksToHealthy, weightChangeKg } = estimateBmiTimeline(heightCm, weightKg);
 
@@ -660,9 +671,9 @@ function StepBmiResult({ heightCm, weightKg }: { heightCm: number; weightKg: num
 
   return (
     <div>
-      <h1 className="text-2xl font-black text-white mb-1">Your BMI</h1>
+      <h1 className="text-2xl font-black text-white mb-1">{t('onboarding.bmi.title')}</h1>
       <p className="text-text-secondary text-sm mb-5">
-        A starting reference point — your program will track real progress from here.
+        {t('onboarding.bmi.subtitle')}
       </p>
 
       <Card className="p-6 text-center border-accent/20">

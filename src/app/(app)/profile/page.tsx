@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import {
   updateUserDoc, getUserConversations, getMembershipConfig, getCoachingPlans,
   submitCoachingApplication, getUserCoachingApplication,
@@ -42,6 +43,7 @@ function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
 
 export default function ProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
+  const { t } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const [editModal, setEditModal] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.displayName || '');
@@ -216,7 +218,7 @@ export default function ProfilePage() {
       <Suspense fallback={null}>
         <SubscribeSuccessHandler onSuccess={refreshProfile} />
       </Suspense>
-      <Header title="Profile" />
+      <Header title={t('pages.profile')} />
       <div className="px-4 py-4 space-y-5">
         {/* Profile Card */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
