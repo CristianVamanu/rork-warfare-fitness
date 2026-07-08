@@ -11,6 +11,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { signIn } from '@/lib/auth';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -24,6 +25,7 @@ type FormData = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -68,13 +70,13 @@ export default function LoginPage() {
           <span className="text-2xl font-black text-black">W</span>
         </div>
         <h1 className="text-2xl font-black text-white tracking-tight">Warfare Fitness</h1>
-        <p className="text-text-secondary text-sm mt-1">Welcome back</p>
+        <p className="text-text-secondary text-sm mt-1">{t('auth.login.title')}</p>
       </div>
 
       <Card glass className="p-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <Input
-            label="Email"
+            label={t('auth.login.email')}
             type="email"
             placeholder="you@example.com"
             leftIcon={<Mail className="w-4 h-4" />}
@@ -82,7 +84,7 @@ export default function LoginPage() {
             {...register('email')}
           />
           <Input
-            label="Password"
+            label={t('auth.login.password')}
             type={showPassword ? 'text' : 'password'}
             placeholder="••••••••"
             leftIcon={<Lock className="w-4 h-4" />}
@@ -97,20 +99,20 @@ export default function LoginPage() {
 
           <div className="flex justify-end">
             <Link href="/forgot-password" className="text-xs text-accent hover:underline">
-              Forgot password?
+              {t('auth.login.forgotPassword')}
             </Link>
           </div>
 
           <Button type="submit" fullWidth loading={loading} size="lg">
-            Sign In
+            {t('auth.login.submit')}
           </Button>
         </form>
       </Card>
 
       <p className="text-center text-sm text-text-secondary mt-6">
-        New here?{' '}
+        {t('auth.login.noAccount')}{' '}
         <Link href="/register" className="text-accent font-medium hover:underline">
-          Create account
+          {t('auth.login.createAccount')}
         </Link>
       </p>
     </motion.div>

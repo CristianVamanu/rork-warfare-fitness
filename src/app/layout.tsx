@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { LanguageProvider } from '@/contexts/LanguageContext';
 import { Toaster } from 'react-hot-toast';
 import { getSystemConfig } from '@/lib/firestore';
 
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeProvider>
         <AuthProvider>
+        <LanguageProvider>
           {children}
           <Toaster
             position="top-center"
@@ -68,6 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               },
             }}
           />
+        </LanguageProvider>
         </AuthProvider>
         </ThemeProvider>
       </body>
