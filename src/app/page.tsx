@@ -63,9 +63,25 @@ export default function LandingPage() {
   const primaryCtaLabel = trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : landing.ctaPrimaryLabel;
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
+    <div className="min-h-screen bg-background overflow-x-hidden relative">
+      {/* Ambient glow + grid texture, contained to the hero viewport so it
+          doesn't bleed color into the feature/social-proof sections below. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[640px] overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
+            backgroundSize: '48px 48px',
+            maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)',
+          }}
+        />
+        <div className="absolute left-1/2 top-[-120px] -translate-x-1/2 w-[700px] h-[700px] rounded-full bg-accent/20 blur-[120px]" />
+        <div className="absolute right-[-100px] top-[80px] w-[500px] h-[240px] rotate-[-20deg] bg-gradient-to-r from-transparent via-accent/25 to-transparent blur-3xl" />
+      </div>
+
       {/* Nav */}
-      <nav className="max-w-5xl mx-auto flex items-center justify-between px-5 py-5">
+      <nav className="relative max-w-5xl mx-auto flex items-center justify-between px-5 py-5">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center overflow-hidden flex-shrink-0">
             {logoUrl ? (
@@ -82,10 +98,17 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="max-w-3xl mx-auto px-5 pt-10 pb-16 text-center">
+      <section className="relative max-w-3xl mx-auto px-5 pt-10 pb-16 text-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+          {/* Glowing icon badge — the visual centerpiece, no image asset needed */}
+          <div className="relative w-16 h-16 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-2xl bg-accent/30 blur-xl" />
+            <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-b from-surface-elevated to-surface border border-accent/30 flex items-center justify-center shadow-glow-accent">
+              <Trophy className="w-7 h-7 text-accent" />
+            </div>
+          </div>
           {landing.badgeText && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-muted text-accent text-xs font-bold mb-5">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-muted text-accent text-xs font-bold mb-5 border border-accent/20">
               <Trophy className="w-3.5 h-3.5" /> {landing.badgeText}
             </div>
           )}
@@ -127,7 +150,7 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: (i % 4) * 0.05 }}
-                className="p-5 rounded-2xl border border-white/8 bg-surface"
+                className="p-5 rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors"
               >
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${style.bg}`}>
                   <style.icon className={`w-5 h-5 ${style.color}`} />
