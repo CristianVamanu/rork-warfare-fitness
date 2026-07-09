@@ -28,8 +28,13 @@ export function getAdminApp(): App | null {
     return null;
   }
 
+  const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+
   try {
-    _app = initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+    _app = initializeApp({
+      credential: cert({ projectId, clientEmail, privateKey }),
+      ...(storageBucket ? { storageBucket } : {}),
+    });
   } catch (err) {
     console.error('[firebase-admin] initializeApp failed:', err);
     return null;
