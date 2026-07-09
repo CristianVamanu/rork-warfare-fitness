@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, Utensils, Timer, CheckCircle2, TrendingUp, Trophy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, subscribeRecentActivity, getWeeklySummary, getPersonalBest, type ActivityItem, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import { getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
@@ -34,7 +33,6 @@ const DEFAULT_GOALS = { calories: 2200, water: 3000 };
 
 export default function DashboardPage() {
   const { user, profile } = useAuth();
-  const { t } = useLanguage();
   const router = useRouter();
   const [waterMl, setWaterMl] = useState<number | null>(null);
   const [calories, setCalories] = useState<number | null>(null);
@@ -392,12 +390,12 @@ export default function DashboardPage() {
 
         {/* Quick Actions */}
         <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-          <h2 className="text-base font-bold text-white mb-3">{t('dashboard.quickActions')}</h2>
+          <h2 className="text-base font-bold text-white mb-3">Quick Actions</h2>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { icon: Dumbbell, label: t('dashboard.quickActions.workout'), href: '/training', color: 'text-purple-400', bg: 'bg-purple-400/10' },
-              { icon: Apple, label: t('dashboard.quickActions.logFood'), href: '/nutrition/analyze', color: 'text-green-400', bg: 'bg-green-400/10' },
-              { icon: WaterIcon, label: t('dashboard.quickActions.water'), href: '/nutrition', color: 'text-blue-400', bg: 'bg-blue-400/10' },
+              { icon: Dumbbell, label: 'Workout', href: '/training', color: 'text-purple-400', bg: 'bg-purple-400/10' },
+              { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', color: 'text-green-400', bg: 'bg-green-400/10' },
+              { icon: WaterIcon, label: 'Water', href: '/nutrition', color: 'text-blue-400', bg: 'bg-blue-400/10' },
             ].map((action) => (
               <Link key={action.label} href={action.href}>
                 <motion.div
@@ -423,7 +421,7 @@ export default function DashboardPage() {
 
         {/* Recent Activity */}
         <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-          <h2 className="text-base font-bold text-white mb-3">{t('dashboard.recentActivity')}</h2>
+          <h2 className="text-base font-bold text-white mb-3">Recent Activity</h2>
           {loading && recentActivity.length === 0 ? (
             <div className="space-y-2">
               <Skeleton className="h-16 rounded-2xl" />
@@ -432,8 +430,8 @@ export default function DashboardPage() {
           ) : recentActivity.length === 0 ? (
             <Card className="p-6 text-center">
               <Dumbbell className="w-10 h-10 text-text-tertiary mx-auto mb-2" />
-              <p className="text-text-secondary text-sm">{t('dashboard.recentActivity.empty')}</p>
-              <p className="text-text-tertiary text-xs mt-1">{t('dashboard.recentActivity.emptyHint')}</p>
+              <p className="text-text-secondary text-sm">No recent activity</p>
+              <p className="text-text-tertiary text-xs mt-1">Log a meal, water, or complete a workout!</p>
             </Card>
           ) : (
             <div className="space-y-2">

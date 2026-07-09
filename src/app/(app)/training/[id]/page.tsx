@@ -12,7 +12,6 @@ import { getProgram } from '@/lib/firestore';
 import { enrollInProgram } from '@/lib/firestore';
 import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -41,7 +40,6 @@ export default function ProgramDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user, profile, refreshProfile } = useAuth();
-  const { t } = useLanguage();
   const id = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
 
   const [program, setProgram] = useState<Program | null>(null);
@@ -149,7 +147,7 @@ export default function ProgramDetailPage() {
   if (loading) {
     return (
       <div>
-        <Header title={t('pages.program')} showActions={false} rightElement={
+        <Header title="Program" showActions={false} rightElement={
           <button onClick={() => router.back()} className="p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -166,7 +164,7 @@ export default function ProgramDetailPage() {
   if (!program) {
     return (
       <div>
-        <Header title={t('pages.program')} showActions={false} />
+        <Header title="Program" showActions={false} />
         <div className="px-4 py-12 text-center">
           <p className="text-text-secondary">Program not found.</p>
           <Button className="mt-4" onClick={() => router.back()}>Go Back</Button>

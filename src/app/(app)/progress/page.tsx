@@ -6,7 +6,6 @@ import nextDynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { getUserWorkouts } from '@/lib/firestore';
 import { recordWeight } from '@/lib/actions';
 import { getLevelTier, xpToNextLevel } from '@/lib/xp';
@@ -38,7 +37,6 @@ interface WorkoutEntry {
 
 export default function ProgressPage() {
   const { user, profile, refreshProfile } = useAuth();
-  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [workouts, setWorkouts] = useState<WorkoutEntry[]>([]);
   const [weightModal, setWeightModal] = useState(false);
@@ -99,7 +97,7 @@ export default function ProgressPage() {
 
   return (
     <div>
-      <Header title={t('pages.progress')} />
+      <Header title="Progress" />
       <div className="px-4 py-4 space-y-5">
 
         {/* Power Level Hero */}

@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { getTodayMeals, getTodayWaterLogs, deleteWaterLog, deleteMeal, getUserGoals, updateUserGoals, getMealsForDate } from '@/lib/firestore';
 import { logWaterAction } from '@/lib/actions';
 import toast from 'react-hot-toast';
@@ -34,7 +33,6 @@ function formatDate(d: Date): string {
 
 function NutritionPageInner() {
   const { user, profile } = useAuth();
-  const { t } = useLanguage();
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [meals, setMeals] = useState<Meal[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
@@ -165,7 +163,7 @@ function NutritionPageInner() {
 
   return (
     <div>
-      <Header title={t('pages.nutrition')} rightElement={
+      <Header title="Nutrition" rightElement={
         <button onClick={() => { setEditGoals(goals); setShowGoalsModal(true); }} className="p-2 text-text-secondary hover:text-white">
           <Settings className="w-5 h-5" />
         </button>

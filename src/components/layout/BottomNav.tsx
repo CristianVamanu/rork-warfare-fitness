@@ -5,19 +5,17 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Home, Dumbbell, Apple, Users, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useLanguage } from '@/contexts/LanguageContext';
 
 const navItems = [
-  { href: '/dashboard', icon: Home, key: 'nav.home' },
-  { href: '/training', icon: Dumbbell, key: 'nav.training' },
-  { href: '/nutrition', icon: Apple, key: 'nav.nutrition' },
-  { href: '/community', icon: Users, key: 'nav.community' },
-  { href: '/profile', icon: User, key: 'nav.profile' },
+  { href: '/dashboard', icon: Home, label: 'Home' },
+  { href: '/training', icon: Dumbbell, label: 'Training' },
+  { href: '/nutrition', icon: Apple, label: 'Nutrition' },
+  { href: '/community', icon: Users, label: 'Community' },
+  { href: '/profile', icon: User, label: 'Profile' },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { t } = useLanguage();
 
   return (
     <nav
@@ -25,7 +23,7 @@ export function BottomNav() {
       className="fixed bottom-0 inset-x-0 z-40 backdrop-blur-xl border-t pb-safe"
     >
       <div className="flex items-center justify-around px-2 py-2 max-w-lg mx-auto">
-        {navItems.map(({ href, icon: Icon, key }) => {
+        {navItems.map(({ href, icon: Icon, label }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
           return (
             <Link
@@ -58,7 +56,7 @@ export function BottomNav() {
                   active ? 'text-accent' : 'text-text-tertiary'
                 )}
               >
-                {t(key)}
+                {label}
               </span>
             </Link>
           );
