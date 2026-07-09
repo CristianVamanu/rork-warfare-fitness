@@ -1,6 +1,10 @@
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminApp } from '@/lib/firebase-admin';
+import { checkAndIncrementUsage } from '@/lib/usageLimit';
+
+const DAILY_SCAN_LIMIT = 20;
 
 interface OpenFoodFactsResponse {
   status: number;
@@ -47,6 +51,18 @@ export async function GET(req: NextRequest) {
   try {
     const code = req.nextUrl.searchParams.get('code');
     if (!code) return NextResponse.json({ error: 'Barcode required' }, { status: 400 });
+
+    const uid = req.nextUrl.searchParams.get('uid');
+    if (!uid) return NextResponse.json({ error: 'Missing uid' }, { status: 400 });
+    const app = getAdminApp();
+    if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
+    const usage = await checkAndIncrementUsage(app, uid, 'barcode', DAILY_SCAN_LIMIT);
+    if (!usage.allowed) {
+      return NextResponse.json(
+        { error: `Daily scan limit reached (${DAILY_SCAN_LIMIT}/day). Try again tomorrow.` },
+        { status: 429 }
+      );
+    }
 
     // Product barcodes are numeric only (EAN-8/13, UPC-A/E). Reject anything
     // else before it reaches the external request — a malformed/non-numeric

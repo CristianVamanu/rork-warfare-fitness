@@ -95,13 +95,14 @@ export default function AnalyzeFoodPage() {
   }, []);
 
   const analyzeImage = async (base64Image: string) => {
+    if (!user) { toast.error('Not signed in'); return; }
     setAnalyzing(true);
     setResult(null);
     try {
       const res = await fetch('/api/ai/analyze-food', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64Image }),
+        body: JSON.stringify({ base64Image, uid: user.uid }),
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);

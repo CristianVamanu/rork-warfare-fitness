@@ -192,7 +192,8 @@ export default function BarcodePage() {
     setNutrientLevels(null);
     setLabels([]);
     try {
-      const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}`);
+      if (!user) throw new Error('Not signed in');
+      const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}&uid=${encodeURIComponent(user.uid)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Product not found');
       setResult(data.nutrition);

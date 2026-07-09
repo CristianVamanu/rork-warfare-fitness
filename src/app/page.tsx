@@ -11,7 +11,7 @@ import {
   ArrowRight, CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSystemConfig } from '@/lib/firestore';
+import { getSystemConfig, getMembershipConfig } from '@/lib/firestore';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
@@ -37,6 +37,7 @@ export default function LandingPage() {
   const [appName, setAppName] = useState('Warfare Fitness');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [landing, setLanding] = useState<LandingPageConfig>(DEFAULT_LANDING_CONFIG);
+  const [trialDays, setTrialDays] = useState(0);
 
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard');
@@ -48,11 +49,18 @@ export default function LandingPage() {
       if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string);
       if (cfg?.landingPage) setLanding({ ...DEFAULT_LANDING_CONFIG, ...(cfg.landingPage as LandingPageConfig) });
     }).catch(() => {});
+    getMembershipConfig().then((cfg) => {
+      if (cfg?.enabled && (cfg.trialDays ?? 0) > 0) setTrialDays(cfg.trialDays as number);
+    }).catch(() => {});
   }, []);
 
   if (loading || user) return <FullPageSpinner />;
 
   const subheadline = landing.subheadline.replace('{appName}', appName);
+  // Free trial needs no payment upfront — MembershipGuard grants access
+  // automatically for trialDays from account creation, so the CTA can lead
+  // straight to registration rather than a paid checkout.
+  const primaryCtaLabel = trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : landing.ctaPrimaryLabel;
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
@@ -91,7 +99,7 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
             <Link href="/register" className="w-full sm:w-auto">
               <Button size="lg" fullWidth className="sm:w-auto sm:px-8">
-                {landing.ctaPrimaryLabel} <ArrowRight className="w-4 h-4" />
+                {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
             <Link href="/login" className="w-full sm:w-auto">
@@ -152,7 +160,7 @@ export default function LandingPage() {
         <p className="text-text-secondary text-sm mt-2 mb-6">{landing.finalCtaSubtext}</p>
         <Link href="/register">
           <Button size="lg" className="px-10">
-            {landing.ctaPrimaryLabel} <ArrowRight className="w-4 h-4" />
+            {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
           </Button>
         </Link>
       </section>
