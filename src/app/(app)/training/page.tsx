@@ -196,6 +196,9 @@ export default function TrainingPage() {
                               </Badge>
                               {isActive && <Badge variant="success">Active</Badge>}
                               {(prog as { isPremium?: boolean }).isPremium && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
+                              {(prog as { targetGender?: string }).targetGender && (prog as { targetGender?: string }).targetGender !== 'anyone' && (
+                                <Badge variant="muted">{(prog as { targetGender?: string }).targetGender}</Badge>
+                              )}
                             </div>
                             <h3 className="font-bold text-white">{prog.name}</h3>
                             <p className="text-xs text-text-secondary mt-1 line-clamp-2">{prog.description}</p>

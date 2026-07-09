@@ -32,6 +32,7 @@ interface BEx {
   restSeconds: number;
   notes: string;
   videoUrl?: string;
+  isCardio?: boolean;
 }
 
 interface BDay {
@@ -49,6 +50,7 @@ interface BProg {
   weeks: number;
   daysPerWeek: number;
   visibility: 'public' | 'coaching';
+  targetGender: 'male' | 'female' | 'anyone';
   schedule: BDay[];
 }
 
@@ -72,7 +74,7 @@ function blankEx(): BEx {
 function emptyProg(): BProg {
   return {
     name: '', description: '', level: 'intermediate', goal: 'hypertrophy',
-    weeks: 8, daysPerWeek: 4, visibility: 'public',
+    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone',
     schedule: [blankDay('Push Day'), blankDay('Pull Day'), blankDay('Legs'), restDay(), blankDay('Upper Body'), restDay(), restDay()],
   };
 }
@@ -123,6 +125,7 @@ function BuilderInner() {
           weeks: program.weeks,
           daysPerWeek: program.daysPerWeek,
           visibility: (program.visibility as 'public' | 'coaching') ?? 'public',
+          targetGender: program.targetGender ?? 'anyone',
           schedule: program.schedule?.length === 7
             ? program.schedule.map(d => ({
                 ...d,
@@ -136,6 +139,7 @@ function BuilderInner() {
                   rpe: (e as BEx).rpe || 8,
                   restSeconds: e.restSeconds,
                   notes: e.notes || '',
+                  isCardio: (e as BEx).isCardio,
                 })),
               }))
             : emptyProg().schedule,
@@ -179,6 +183,7 @@ function BuilderInner() {
         weeks: p.weeks || 8,
         daysPerWeek: p.daysPerWeek || 4,
         visibility: 'public',
+        targetGender: (p.targetGender === 'male' || p.targetGender === 'female') ? p.targetGender : 'anyone',
         schedule: (p.schedule || []).map((d: BDay) => ({
           label: d.label || (d.isRest ? 'Rest' : 'Training Day'),
           isRest: !!d.isRest,
@@ -192,6 +197,7 @@ function BuilderInner() {
             rpe: Number(e.rpe) || 8,
             restSeconds: Number(e.restSeconds) || 90,
             notes: e.notes || '',
+            isCardio: !!e.isCardio,
             videoUrl: (videoMap as Record<string, string>)[e.name] ?? '',
           })),
         })),
@@ -423,6 +429,18 @@ function BuilderInner() {
             </select>
           </div>
           <div>
+            <label className="text-xs text-text-secondary mb-1 block">Recommended For</label>
+            <select
+              value={prog.targetGender}
+              onChange={e => setProg(s => ({ ...s, targetGender: e.target.value as BProg['targetGender'] }))}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+            >
+              <option value="anyone">Anyone</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+          <div>
             <label className="text-xs text-text-secondary mb-1 block">Duration (weeks)</label>
             <Input
               type="number"
@@ -639,6 +657,18 @@ function BuilderInner() {
                               onChange={e => updateEx(activeDay, ex.id, { restSeconds: Math.max(0, Number(e.target.value)) })}
                               min={0} max={600} step={15}
                             />
+                          </div>
+                          <div className="col-span-2 flex items-center justify-between p-2.5 bg-surface rounded-xl border border-white/10">
+                            <div>
+                              <p className="text-xs font-medium text-white">Cardio Exercise</p>
+                              <p className="text-[10px] text-text-tertiary">Shows a timer during the workout instead of sets/reps</p>
+                            </div>
+                            <button
+                              onClick={() => updateEx(activeDay, ex.id, { isCardio: !ex.isCardio })}
+                              className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 ${ex.isCardio ? 'bg-accent' : 'bg-surface-elevated'}`}
+                            >
+                              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${ex.isCardio ? 'left-[18px]' : 'left-0.5'}`} />
+                            </button>
                           </div>
                           <div className="col-span-2">
                             <label className="text-[10px] text-text-tertiary mb-1 block">Exercise Tip (shown to user during workout)</label>

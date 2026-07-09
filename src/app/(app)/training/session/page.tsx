@@ -53,17 +53,24 @@ const DEFAULT_EXERCISES: Exercise[] = [
   { id: 'e4', name: 'Leg Curl', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'hamstrings' },
 ];
 
+// Word-boundary matched, not substring — a plain .includes() check here
+// previously misclassified strength exercises like "Barbell Row", "Cable
+// Row", and "Farmer's Walk" as cardio (they contain "row"/"walk"), showing
+// a timer instead of sets/reps. Word boundaries stop that false match while
+// still catching "Rowing Machine" or "Brisk Walk". This is now only a
+// fallback for exercises the admin hasn't explicitly tagged — isCardio set
+// in the program builder always wins (checked first below).
 const CARDIO_KEYWORDS = [
   'run', 'running', 'jog', 'jogging', 'sprint', 'walk', 'walking',
-  'cardio', 'bike', 'biking', 'cycling', 'cycle', 'row', 'rowing',
-  'swim', 'swimming', 'elliptical', 'treadmill', 'stair', 'hiit',
+  'cardio', 'bike', 'biking', 'cycling', 'cycle', 'rowing',
+  'swim', 'swimming', 'elliptical', 'treadmill', 'stairmaster', 'hiit',
   'jump rope', 'skipping', 'rucking', 'ruck', 'hike', 'hiking',
 ];
 
 function isCardioExercise(ex: Exercise): boolean {
-  if (ex.isCardio) return true;
+  if (ex.isCardio !== undefined) return ex.isCardio;
   const nameLower = ex.name.toLowerCase();
-  return CARDIO_KEYWORDS.some((kw) => nameLower.includes(kw));
+  return CARDIO_KEYWORDS.some((kw) => new RegExp(`\\b${kw}\\b`).test(nameLower));
 }
 
 function buildExState(exercises: Exercise[]): ExState[] {

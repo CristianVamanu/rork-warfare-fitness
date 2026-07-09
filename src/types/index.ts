@@ -251,6 +251,7 @@ export interface Program {
   isPublic: boolean;
   isPremium?: boolean; // requires active membership to access
   price?: number;      // one-time USD price for individual purchase (alternative to membership gate)
+  targetGender?: 'male' | 'female' | 'anyone'; // display label; defaults to 'anyone' if unset
 }
 
 export interface Exercise {

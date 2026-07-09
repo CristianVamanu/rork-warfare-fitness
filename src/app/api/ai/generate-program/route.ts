@@ -10,6 +10,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no extra text):
   "description": "2-3 sentence description of the program philosophy and goals",
   "level": "beginner" | "intermediate" | "advanced",
   "goal": "strength" | "hypertrophy" | "endurance" | "weight-loss" | "general",
+  "targetGender": "male" | "female" | "anyone",
   "weeks": <number 4-16>,
   "daysPerWeek": <number 2-6>,
   "schedule": [
@@ -25,7 +26,8 @@ Return ONLY valid JSON with this exact structure (no markdown, no extra text):
           "reps": "e.g. 5 or 8-12 or 3-5",
           "rpe": <number 6-10>,
           "restSeconds": <number 30-300>,
-          "notes": "How-to-perform tip, max 12 words, e.g. 'Keep chest up, drive through heels'"
+          "notes": "How-to-perform tip, max 12 words, e.g. 'Keep chest up, drive through heels'",
+          "isCardio": <true only for running/cycling/rowing/elliptical/similar steady-state or interval cardio work, false for everything else>
         }
       ]
     }
@@ -41,7 +43,8 @@ RULES:
 - RPE 6-7 = easy/moderate, 8 = hard, 9 = very hard, 10 = max
 - Rest 60-90s for hypertrophy, 120-180s for strength, 30-60s for metabolic
 - Vary rep schemes based on goal (strength: 1-6 reps, hypertrophy: 8-15 reps, endurance: 15-25 reps)
-- Every exercise MUST include a short "notes" tip (max 12 words) on how to perform it correctly — this is shown to the user as an in-workout info tip, so keep it punchy and actionable, not generic`;
+- Every exercise MUST include a short "notes" tip (max 12 words) on how to perform it correctly — this is shown to the user as an in-workout info tip, so keep it punchy and actionable, not generic
+- "targetGender": set to "male" or "female" ONLY if the trainer's prompt explicitly says so (e.g. "female weight loss program", "program for men"); otherwise "anyone". When a gender is specified, this is the trainer's own explicit call for who they're building this specific program for — respect it, but never assume a compound lift (squat, deadlift, pull-up, bench, overhead press) is inappropriate for a stated gender. Instead adjust via standard programming levers: starting load/volume assumptions, exercise regressions for a beginner audience (e.g. banded/assisted pull-ups, goblet squat before barbell back squat) if the prompt implies a beginner population, and rep ranges — not by removing fundamental movement patterns based on gender alone.`;
 
 export async function POST(req: NextRequest) {
   try {

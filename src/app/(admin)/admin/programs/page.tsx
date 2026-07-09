@@ -149,6 +149,9 @@ export default function ProgramsPage() {
                   <div className="flex gap-2 flex-wrap">
                     <Badge variant={(goalColor[p.goal] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>{p.goal}</Badge>
                     <Badge variant="muted">{p.level}</Badge>
+                    {(p as { targetGender?: string }).targetGender && (p as { targetGender?: string }).targetGender !== 'anyone' && (
+                      <Badge variant="muted">{(p as { targetGender?: string }).targetGender}</Badge>
+                    )}
                     <span className="text-xs text-text-tertiary">{p.weeks}w · {p.daysPerWeek}d/wk</span>
                   </div>
                   {p.description && <p className="text-xs text-text-secondary mt-1.5 line-clamp-1">{p.description}</p>}
