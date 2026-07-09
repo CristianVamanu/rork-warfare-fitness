@@ -217,7 +217,10 @@ service cloud.firestore {
 
     // ── Config documents (membership, hiddenMocks, etc.) ─────────────────
     match /config/{configId} {
-      allow read: if isAuthed();
+      // membership + coachingPlans power the public pricing section on the
+      // logged-out landing page — everything else in this collection
+      // (notifications, hiddenMocks) stays authed-only.
+      allow read: if isAuthed() || configId in ['membership', 'coachingPlans'];
       allow write: if isAdmin();
     }
 

@@ -8,14 +8,21 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy,
-  ArrowRight, CheckCircle2,
+  ArrowRight, CheckCircle2, Crown, Check,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSystemConfig, getMembershipConfig } from '@/lib/firestore';
+import { getSystemConfig, getMembershipConfig, getCoachingPlans } from '@/lib/firestore';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
-import type { LandingPageConfig } from '@/types';
+import type { LandingPageConfig, MembershipConfig, CoachingPlan } from '@/types';
+
+const MEMBERSHIP_FEATURES = [
+  'Full access to all training programs',
+  'AI food analyzer & barcode scanner',
+  'Community & leaderboard access',
+  'Direct messaging with your coach',
+];
 
 // Icon + color stay fixed by position — only title/desc are admin-editable.
 // If a client adds more feature entries than this list has, extras fall
@@ -37,7 +44,8 @@ export default function LandingPage() {
   const [appName, setAppName] = useState('Warfare Fitness');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [landing, setLanding] = useState<LandingPageConfig>(DEFAULT_LANDING_CONFIG);
-  const [trialDays, setTrialDays] = useState(0);
+  const [membership, setMembership] = useState<MembershipConfig | null>(null);
+  const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
 
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard');
@@ -49,10 +57,11 @@ export default function LandingPage() {
       if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string);
       if (cfg?.landingPage) setLanding({ ...DEFAULT_LANDING_CONFIG, ...(cfg.landingPage as LandingPageConfig) });
     }).catch(() => {});
-    getMembershipConfig().then((cfg) => {
-      if (cfg?.enabled && (cfg.trialDays ?? 0) > 0) setTrialDays(cfg.trialDays as number);
-    }).catch(() => {});
+    getMembershipConfig().then(setMembership).catch(() => {});
+    getCoachingPlans().then((plans) => setCoachingPlans(plans.filter((p) => p.active))).catch(() => {});
   }, []);
+
+  const trialDays = membership?.enabled ? (membership.trialDays ?? 0) : 0;
 
   if (loading || user) return <FullPageSpinner />;
 
@@ -162,6 +171,82 @@ export default function LandingPage() {
           })}
         </div>
       </section>
+
+      {/* Pricing */}
+      {(membership?.enabled || coachingPlans.length > 0) && (
+        <section className="max-w-4xl mx-auto px-5 pb-16">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
+            <p className="text-text-secondary text-sm mt-2">
+              {trialDays > 0 ? `Start free — ${trialDays} days on us, no card required.` : 'Simple pricing. Cancel anytime.'}
+            </p>
+          </div>
+          <div className={`grid gap-5 ${coachingPlans.length > 0 ? 'sm:grid-cols-2' : 'max-w-sm mx-auto'}`}>
+            {membership?.enabled && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ duration: 0.35 }}
+                className="relative rounded-2xl border-2 border-accent bg-accent/[0.03] p-6"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Crown className="w-4 h-4 text-accent" />
+                  <p className="text-xs font-bold text-accent uppercase tracking-wide">{membership.planName?.trim() || 'Membership'}</p>
+                </div>
+                <div className="flex items-baseline gap-1 mt-2">
+                  <span className="text-4xl font-black text-white">${membership.fee?.toFixed(2)}</span>
+                  <span className="text-sm text-text-secondary">/month</span>
+                </div>
+                {trialDays > 0 && (
+                  <p className="text-xs text-accent mt-1 font-medium">{trialDays}-day free trial, no payment required</p>
+                )}
+                <ul className="mt-5 space-y-2.5">
+                  {MEMBERSHIP_FEATURES.map((f) => (
+                    <li key={f} className="flex items-center gap-2 text-sm text-text-secondary">
+                      <Check className="w-4 h-4 text-accent flex-shrink-0" /> {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/register" className="block mt-6">
+                  <Button fullWidth size="lg">
+                    {trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : 'Join Now'} <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </motion.div>
+            )}
+            {coachingPlans.map((plan) => (
+              <motion.div
+                key={plan.id}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ duration: 0.35, delay: 0.05 }}
+                className="rounded-2xl border border-white/10 bg-surface p-6"
+              >
+                <p className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-1">{plan.name}</p>
+                <div className="flex items-baseline gap-1 mt-2">
+                  <span className="text-4xl font-black text-white">${plan.priceMonthly?.toFixed(2)}</span>
+                  <span className="text-sm text-text-secondary">/month</span>
+                </div>
+                <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>
+                <ul className="mt-5 space-y-2.5">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-center gap-2 text-sm text-text-secondary">
+                      <Check className="w-4 h-4 text-accent flex-shrink-0" /> {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/register" className="block mt-6">
+                  <Button fullWidth size="lg" variant="secondary">
+                    Apply Now <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Social proof strip */}
       {landing.socialProof.length > 0 && (
