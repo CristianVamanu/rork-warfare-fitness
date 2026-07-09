@@ -24,16 +24,36 @@ function verifySignature(body, signature) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// Two pushes close together previously triggered two overlapping deploy.sh
+// runs writing into the same .next output directory at once, corrupting the
+// build (missing/partial build-manifest.json -> "entryCSSFiles" crash at
+// runtime). This lock makes a second trigger wait for the first to finish
+// instead of racing it; if one lands while another is running, it re-queues
+// once rather than dropping it, so the latest code still ends up deployed.
+let deploying = false;
+let queued = false;
+
 function runDeploy() {
+  if (deploying) {
+    console.log(`[${new Date().toISOString()}] Deploy already in progress — queuing.`);
+    queued = true;
+    return;
+  }
+  deploying = true;
   console.log(`[${new Date().toISOString()}] Deploying...`);
   exec('bash deploy.sh', { cwd: REPO_DIR, maxBuffer: 1024 * 1024 * 20 }, (err, stdout, stderr) => {
+    deploying = false;
     if (err) {
       console.error('Deploy failed:', err.message);
       console.error(stderr);
-      return;
+    } else {
+      console.log(stdout);
+      console.log('Deploy finished successfully.');
     }
-    console.log(stdout);
-    console.log('Deploy finished successfully.');
+    if (queued) {
+      queued = false;
+      runDeploy();
+    }
   });
 }
 

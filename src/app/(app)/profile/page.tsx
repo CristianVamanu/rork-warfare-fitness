@@ -262,7 +262,7 @@ export default function ProfilePage() {
                   )}
                   <div className="flex items-center gap-2 mb-1">
                     <Crown className="w-4 h-4 text-accent" />
-                    <p className="text-xs font-bold text-accent uppercase tracking-wide">Platform Membership</p>
+                    <p className="text-xs font-bold text-accent uppercase tracking-wide">{membershipConfig?.planName?.trim() || 'Platform Membership'}</p>
                   </div>
                   <div className="flex items-baseline gap-1 mt-2">
                     <span className="text-3xl font-black text-white">${membershipConfig?.fee?.toFixed(2) ?? '—'}</span>
