@@ -5,6 +5,12 @@ const withPWA = require('next-pwa')({
   register: true,
   skipWaiting: true,
   customWorkerDir: 'worker',
+  // app-build-manifest.json is an internal Next.js build artifact that's
+  // never actually served over HTTP under /_next/ with the App Router —
+  // next-pwa's auto-generated precache list includes it anyway, and the
+  // resulting 404 fails the whole precache install step, permanently
+  // stuck the service worker in "installing" and never activating.
+  buildExcludes: [/app-build-manifest\.json$/],
 });
 
 const nextConfig = {
