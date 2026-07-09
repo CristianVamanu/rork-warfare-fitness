@@ -16,8 +16,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: check.error }, { status: check.status });
     }
 
-    // Forward to the cron processor with the CRON_SECRET so it passes auth
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? `https://${req.headers.get('host')}`;
+    // Forward to the cron processor with the CRON_SECRET so it passes auth.
+    // Always call the app on localhost — this is a same-machine, same-process
+    // hop, so routing it out through the public domain (DNS -> Cloudflare ->
+    // back to this box) only adds points of failure for zero benefit, and
+    // breaks entirely if the server's own DNS resolver has a stale cache.
+    const baseUrl = process.env.INTERNAL_APP_URL ?? 'http://localhost:3000';
     const secret = process.env.CRON_SECRET;
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
