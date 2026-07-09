@@ -74,6 +74,9 @@ export interface OnboardingData {
   age?: number;
   heightCm?: number;
   medicalHistory?: MedicalHistoryAnswers;
+  targetFocus?: 'full-body' | 'upper-body' | 'lower-body' | 'core';
+  sessionMinutes?: 30 | 45 | 60 | 90;
+  trainingStyle?: 'free-weights' | 'machines' | 'bodyweight' | 'mixed';
 }
 
 // From the trainer's fitness medical questionnaire — collected during

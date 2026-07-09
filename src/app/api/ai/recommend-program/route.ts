@@ -15,13 +15,20 @@ interface AthleteBiometrics {
   bmi?: number;
 }
 
+interface RecommendationExtras {
+  targetFocus?: 'full-body' | 'upper-body' | 'lower-body' | 'core';
+  sessionMinutes?: number;
+  trainingStyle?: 'free-weights' | 'machines' | 'bodyweight' | 'mixed';
+}
+
 function buildUserPrompt(
   goal: string,
   experience: string,
   trainingDays: number,
   equipment: string,
   limitations: string,
-  biometrics?: AthleteBiometrics
+  biometrics?: AthleteBiometrics,
+  extras?: RecommendationExtras
 ): string {
   const goalMap: Record<string, string> = {
     'lose-fat': 'fat loss while preserving muscle mass',
@@ -45,9 +52,29 @@ function buildUserPrompt(
       `Every major compound lift (squat, deadlift, bench, overhead press, pull-up) is appropriate for any athlete regardless of sex; scale load and starting volume to experience level, not sex.\n`
     : '';
 
+  const focusMap: Record<string, string> = {
+    'upper-body': 'Prioritize upper body volume (chest, back, shoulders, arms) while still training legs enough to avoid imbalance.',
+    'lower-body': 'Prioritize lower body volume (quads, hamstrings, glutes, calves) while still training upper body enough to avoid imbalance.',
+    core: 'Include dedicated core/abdominal work in every training day in addition to the main goal-focused programming.',
+    'full-body': '',
+  };
+  const focusLine = extras?.targetFocus ? (focusMap[extras.targetFocus] ?? '') : '';
+
+  const styleMap: Record<string, string> = {
+    'free-weights': 'Prefer barbells and dumbbells over machines wherever equipment allows.',
+    machines: 'Prefer machines and cable stations over free weights wherever equipment allows — better for controlled, joint-friendly loading.',
+    bodyweight: 'Prefer bodyweight and calisthenics-style exercises over loaded equipment wherever possible.',
+    mixed: '',
+  };
+  const styleLine = extras?.trainingStyle ? (styleMap[extras.trainingStyle] ?? '') : '';
+
+  const sessionLine = extras?.sessionMinutes
+    ? `Each training day must fit within roughly ${extras.sessionMinutes} minutes including rest periods — ${extras.sessionMinutes <= 30 ? 'keep exercise count low (3-4) and rest periods short' : extras.sessionMinutes >= 75 ? 'more exercises and volume per day are appropriate' : 'a standard 4-6 exercise session fits well'}.`
+    : '';
+
   return `Design a complete ${trainingDays}-day-per-week training program for a ${experience}-level athlete with the primary goal of ${goalMap[goal] ?? goal}.
 ${athleteLine}Equipment available: ${equipMap[equipment] ?? equipment}.
-${limitations ? `Injury/limitations to work around: ${limitations}.` : ''}
+${focusLine ? `${focusLine}\n` : ''}${styleLine ? `${styleLine}\n` : ''}${sessionLine ? `${sessionLine}\n` : ''}${limitations ? `Injury/medical limitations to work around — this is important, adapt exercise selection accordingly rather than ignoring it: ${limitations}.` : ''}
 
 Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
 {
@@ -161,7 +188,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { goal, experience, trainingDays, equipment, limitations = '', trainerId = '', biometrics } = body as {
+    const { goal, experience, trainingDays, equipment, limitations = '', trainerId = '', biometrics, targetFocus, sessionMinutes, trainingStyle } = body as {
       goal: string;
       experience: string;
       trainingDays: number;
@@ -169,6 +196,9 @@ export async function POST(req: NextRequest) {
       limitations?: string;
       trainerId?: string;
       biometrics?: AthleteBiometrics;
+      targetFocus?: RecommendationExtras['targetFocus'];
+      sessionMinutes?: number;
+      trainingStyle?: RecommendationExtras['trainingStyle'];
     };
 
     if (!goal || !experience || !trainingDays || !equipment) {
@@ -184,7 +214,7 @@ export async function POST(req: NextRequest) {
       temperature: 0.7,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(goal, experience, trainingDays, equipment, limitations, biometrics) },
+        { role: 'user', content: buildUserPrompt(goal, experience, trainingDays, equipment, limitations, biometrics, { targetFocus, sessionMinutes, trainingStyle }) },
       ],
     });
 

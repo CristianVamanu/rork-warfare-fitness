@@ -10,7 +10,7 @@ import {
   Home, Building2, Package, User, Users, AlertCircle, TrendingDown, TrendingUp, PartyPopper,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig } from '@/lib/firestore';
+import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, createProgram } from '@/lib/firestore';
 import { estimateGoals, calculateBmi, estimateBmiTimeline } from '@/lib/tdee';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
@@ -66,16 +66,20 @@ export default function OnboardingPage() {
   const [heightCm, setHeightCm] = useState('');
   const [weightKg, setWeightKg] = useState('');
   const [medicalHistory, setMedicalHistory] = useState<MedicalHistoryAnswers>({});
+  const [targetFocus, setTargetFocus] = useState<OnboardingData['targetFocus'] | null>(null);
+  const [sessionMinutes, setSessionMinutes] = useState<OnboardingData['sessionMinutes'] | null>(null);
+  const [trainingStyle, setTrainingStyle] = useState<OnboardingData['trainingStyle'] | null>(null);
   const [status, setStatus] = useState<'idle' | 'generating' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [videoGreetingUrl, setVideoGreetingUrl] = useState<string | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
+  const [revealProgram, setRevealProgram] = useState<{ name: string; description: string; weeks: number; daysPerWeek: number } | null>(null);
 
   function updateMedical(patch: Partial<MedicalHistoryAnswers>) {
     setMedicalHistory((m) => ({ ...m, ...patch }));
   }
 
-  const TOTAL_STEPS = 9;
+  const TOTAL_STEPS = 10;
 
   const ageNum = parseInt(age, 10);
   const heightNum = parseFloat(heightCm);
@@ -92,6 +96,7 @@ export default function OnboardingPage() {
     true, // limitations is optional
     true, // medical history is optional
     true, // lifestyle habits is optional
+    true, // focus/session/style preferences are optional
   ][step];
 
   function go(delta: number) {
@@ -99,7 +104,28 @@ export default function OnboardingPage() {
     setStep((s) => Math.max(0, Math.min(TOTAL_STEPS - 1, s + delta)));
   }
 
-  function recommendProgram(): typeof MOCK_PROGRAMS[0] {
+  // Combines the free-text limitations field with any "Yes"-flagged medical
+  // history answers into one summary string for the AI prompt — the
+  // medical questionnaire was previously collected but never actually
+  // reached program generation.
+  function buildLimitationsSummary(): string {
+    const parts: string[] = [];
+    if (limitations.trim()) parts.push(limitations.trim());
+    const flags: [boolean | undefined, string, string | undefined][] = [
+      [medicalHistory.movementDisorders, 'movement disorder', medicalHistory.movementDisordersDetail],
+      [medicalHistory.previousSurgeries, 'previous surgery', medicalHistory.previousSurgeriesDetail],
+      [medicalHistory.sportsInjuries, 'sports injury', medicalHistory.sportsInjuriesDetail],
+      [medicalHistory.musculoskeletalProblems, 'musculoskeletal problem', medicalHistory.musculoskeletalProblemsDetail],
+      [medicalHistory.heartDisease, 'heart condition', medicalHistory.heartDiseaseDetail],
+      [medicalHistory.otherMedicalConditions, 'other medical condition', medicalHistory.otherMedicalConditionsDetail],
+    ];
+    for (const [flag, label, detail] of flags) {
+      if (flag) parts.push(detail ? `${label} (${detail})` : label);
+    }
+    return parts.join('; ');
+  }
+
+  function fallbackRecommendProgram(): typeof MOCK_PROGRAMS[0] {
     // Goal → program goal mapping
     const goalMap: Record<FitnessGoal, string> = {
       'lose-fat': 'weight-loss',
@@ -129,10 +155,35 @@ export default function OnboardingPage() {
     setStatus('generating');
 
     try {
-      setStatus('saving');
+      // 1. Try a real AI-generated program tailored to everything collected
+      // above; if OpenAI isn't configured or the call fails for any reason,
+      // fall back to matching against the built-in program library so
+      // onboarding never blocks a new user from finishing.
+      let program: { id: string; name: string; description: string; weeks: number; daysPerWeek: number };
+      try {
+        const res = await fetch('/api/ai/recommend-program', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            goal, experience, trainingDays, equipment,
+            limitations: buildLimitationsSummary(),
+            trainerId: trainerId ?? '',
+            targetFocus: targetFocus ?? undefined,
+            sessionMinutes: sessionMinutes ?? undefined,
+            trainingStyle: trainingStyle ?? undefined,
+            biometrics: biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, weightKg: weightNum } : undefined,
+          }),
+        });
+        if (!res.ok) throw new Error('AI recommendation unavailable');
+        const { program: aiProgram } = await res.json();
+        const ref = await createProgram(aiProgram);
+        program = { id: ref.id, name: aiProgram.name, description: aiProgram.description, weeks: aiProgram.weeks, daysPerWeek: aiProgram.daysPerWeek };
+      } catch {
+        const fallback = fallbackRecommendProgram();
+        program = fallback;
+      }
 
-      // 1. Pick the best matching existing program
-      const program = recommendProgram();
+      setStatus('saving');
 
       // 2. Enroll user in the program
       await enrollInProgram(user.uid, {
@@ -141,6 +192,7 @@ export default function OnboardingPage() {
         weeks: program.weeks,
         daysPerWeek: program.daysPerWeek,
       });
+      setRevealProgram(program);
 
       // 3. Auto-set nutrition goals from TDEE estimate (uses real biometrics when available)
       const estimatedGoals = estimateGoals(
@@ -161,27 +213,20 @@ export default function OnboardingPage() {
         ...(limitations.trim() ? { limitations: limitations.trim() } : {}),
         ...(biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum } : {}),
         ...(Object.keys(cleanedMedicalHistory).length > 0 ? { medicalHistory: cleanedMedicalHistory } : {}),
+        ...(targetFocus ? { targetFocus } : {}),
+        ...(sessionMinutes ? { sessionMinutes } : {}),
+        ...(trainingStyle ? { trainingStyle } : {}),
       };
       await saveOnboardingData(user.uid, { ...onboardingData, onboardingComplete: true });
       if (biometricsValid) {
         await updateUserDoc(user.uid, { currentWeightKg: weightNum });
       }
 
-      // 5. Refresh profile so layout no longer redirects here
+      // 5. Refresh profile so layout no longer redirects here, then show
+      // the plan reveal — proceedToApp() (triggered by its "Let's Go"
+      // button) handles the video-greeting check and final navigation.
       setStatus('done');
       await refreshProfile();
-
-      // 6. Check for video greeting
-      try {
-        const cfg = await getSystemConfig();
-        if (cfg?.videoGreetingUrl) {
-          setVideoGreetingUrl(cfg.videoGreetingUrl as string);
-          setShowVideoModal(true);
-          return; // navigation happens when user dismisses video
-        }
-      } catch { /* ignore */ }
-
-      router.replace('/dashboard');
     } catch (err) {
       console.error('[Onboarding] failed:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -189,7 +234,48 @@ export default function OnboardingPage() {
     }
   }
 
+  async function proceedToApp() {
+    try {
+      const cfg = await getSystemConfig();
+      if (cfg?.videoGreetingUrl) {
+        setVideoGreetingUrl(cfg.videoGreetingUrl as string);
+        setShowVideoModal(true);
+        return; // navigation happens when user dismisses video
+      }
+    } catch { /* ignore */ }
+    router.replace('/dashboard');
+  }
+
   const isGenerating = status === 'generating' || status === 'saving';
+
+  if (status === 'done' && revealProgram && !showVideoModal) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 text-center">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="max-w-sm w-full">
+          <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-5">
+            <PartyPopper className="w-8 h-8 text-accent" />
+          </div>
+          <p className="text-xs font-bold text-accent uppercase tracking-wide mb-2">Your Personalized Plan</p>
+          <h1 className="text-2xl font-black text-white mb-2">{revealProgram.name}</h1>
+          <p className="text-text-secondary text-sm mb-5 leading-relaxed">{revealProgram.description}</p>
+          <div className="flex items-center justify-center gap-6 mb-8">
+            <div>
+              <p className="text-2xl font-black text-white">{revealProgram.weeks}</p>
+              <p className="text-xs text-text-secondary">weeks</p>
+            </div>
+            <div className="w-px h-8 bg-white/10" />
+            <div>
+              <p className="text-2xl font-black text-white">{revealProgram.daysPerWeek}</p>
+              <p className="text-xs text-text-secondary">days/week</p>
+            </div>
+          </div>
+          <Button fullWidth size="lg" onClick={proceedToApp}>
+            Let&apos;s Go <ChevronRight className="w-4 h-4" />
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -252,6 +338,13 @@ export default function OnboardingPage() {
             )}
             {step === 8 && (
               <StepLifestyleHabits data={medicalHistory} onChange={updateMedical} />
+            )}
+            {step === 9 && (
+              <StepPreferences
+                targetFocus={targetFocus} onTargetFocus={setTargetFocus}
+                sessionMinutes={sessionMinutes} onSessionMinutes={setSessionMinutes}
+                trainingStyle={trainingStyle} onTrainingStyle={setTrainingStyle}
+              />
             )}
           </motion.div>
         </AnimatePresence>
@@ -568,6 +661,85 @@ function StepLifestyleHabits({ data, onChange }: { data: MedicalHistoryAnswers; 
           placeholder="e.g. 2 liters"
           className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
         />
+      </div>
+    </div>
+  );
+}
+
+const TARGET_FOCUS: { value: NonNullable<OnboardingData['targetFocus']>; label: string }[] = [
+  { value: 'full-body', label: 'Full Body' },
+  { value: 'upper-body', label: 'Upper Body' },
+  { value: 'lower-body', label: 'Lower Body' },
+  { value: 'core', label: 'Core Focus' },
+];
+
+const SESSION_MINUTES: NonNullable<OnboardingData['sessionMinutes']>[] = [30, 45, 60, 90];
+
+const TRAINING_STYLE: { value: NonNullable<OnboardingData['trainingStyle']>; label: string; sub: string }[] = [
+  { value: 'free-weights', label: 'Free Weights', sub: 'Barbells & dumbbells' },
+  { value: 'machines', label: 'Machines', sub: 'Guided, joint-friendly' },
+  { value: 'bodyweight', label: 'Bodyweight', sub: 'Calisthenics-style' },
+  { value: 'mixed', label: 'No Preference', sub: 'Whatever fits the program' },
+];
+
+function StepPreferences({
+  targetFocus, onTargetFocus, sessionMinutes, onSessionMinutes, trainingStyle, onTrainingStyle,
+}: {
+  targetFocus: OnboardingData['targetFocus'] | null;
+  onTargetFocus: (v: NonNullable<OnboardingData['targetFocus']>) => void;
+  sessionMinutes: OnboardingData['sessionMinutes'] | null;
+  onSessionMinutes: (v: NonNullable<OnboardingData['sessionMinutes']>) => void;
+  trainingStyle: OnboardingData['trainingStyle'] | null;
+  onTrainingStyle: (v: NonNullable<OnboardingData['trainingStyle']>) => void;
+}) {
+  return (
+    <div>
+      <h1 className="text-2xl font-black text-white mb-1">Dial it in</h1>
+      <p className="text-text-secondary text-sm mb-5">A few more details so your AI-generated program fits exactly how you train.</p>
+
+      <p className="text-xs font-medium text-text-secondary mb-2">Focus area</p>
+      <div className="grid grid-cols-2 gap-2 mb-5">
+        {TARGET_FOCUS.map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => onTargetFocus(value)}
+            className={`py-3 rounded-xl text-sm font-bold transition-all border ${
+              targetFocus === value ? 'bg-accent text-black border-accent' : 'border-white/10 text-white bg-surface-elevated hover:border-accent/40'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs font-medium text-text-secondary mb-2">Time per session</p>
+      <div className="grid grid-cols-4 gap-2 mb-5">
+        {SESSION_MINUTES.map((m) => (
+          <button
+            key={m}
+            onClick={() => onSessionMinutes(m)}
+            className={`py-3 rounded-xl text-sm font-bold transition-all border ${
+              sessionMinutes === m ? 'bg-accent text-black border-accent' : 'border-white/10 text-white bg-surface-elevated hover:border-accent/40'
+            }`}
+          >
+            {m}m
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs font-medium text-text-secondary mb-2">Training style</p>
+      <div className="space-y-2">
+        {TRAINING_STYLE.map(({ value, label, sub }) => (
+          <button key={value} onClick={() => onTrainingStyle(value)} className="w-full text-left">
+            <Card className={`p-3.5 flex items-center gap-3 transition-colors ${trainingStyle === value ? 'border-accent bg-accent/5' : ''}`}>
+              <div>
+                <p className="font-bold text-white text-sm">{label}</p>
+                <p className="text-xs text-text-secondary">{sub}</p>
+              </div>
+              {trainingStyle === value && <CheckCircle className="w-4 h-4 text-accent ml-auto flex-shrink-0" />}
+            </Card>
+          </button>
+        ))}
       </div>
     </div>
   );
