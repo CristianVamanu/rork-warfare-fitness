@@ -14,6 +14,15 @@ export function ServiceWorkerUpdater() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
 
+    // next-pwa's script-injection only targets the Pages Router's
+    // _document.js — this project uses the App Router, which it never
+    // patches, so nothing else in the app calls register(). Without this,
+    // /sw.js is built and served but never installed, and anything that
+    // awaits navigator.serviceWorker.ready (e.g. push subscribe) hangs forever.
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.error('[ServiceWorker] registration failed:', err);
+    });
+
     let refreshing = false;
     const onControllerChange = () => {
       if (refreshing) return;
