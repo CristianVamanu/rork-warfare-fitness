@@ -65,6 +65,7 @@ function LockedScreen({ config, trialDays }: { config: MembershipConfig; trialDa
   const [subscribing, setSubscribing] = useState(false);
   const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
   const price = config.fee > 0 ? `$${config.fee.toFixed(2)}/mo${trialLabel}` : 'Members only';
+  const planName = config.planName?.trim() || 'Membership';
 
   async function handleSubscribe() {
     if (!user) return;
@@ -83,13 +84,13 @@ function LockedScreen({ config, trialDays }: { config: MembershipConfig; trialDa
           <Star className="w-4 h-4 text-accent" fill="currentColor" />
           <span className="text-xs font-bold text-accent uppercase tracking-wide">Members Only</span>
         </div>
-        <h3 className="text-xl font-black text-white mb-2">Membership Required</h3>
+        <h3 className="text-xl font-black text-white mb-2">{planName} Required</h3>
         <p className="text-text-secondary text-sm mb-5">
           This platform is for active members. Subscribe below to unlock full access.
         </p>
         <div className="p-4 bg-surface-elevated rounded-xl mb-4">
           <p className="text-3xl font-black text-white">{price}</p>
-          <p className="text-xs text-text-secondary mt-0.5">membership plan</p>
+          <p className="text-xs text-text-secondary mt-0.5">{planName.toLowerCase()} plan</p>
         </div>
         {config.fee > 0 ? (
           <Button fullWidth onClick={handleSubscribe} loading={subscribing}>

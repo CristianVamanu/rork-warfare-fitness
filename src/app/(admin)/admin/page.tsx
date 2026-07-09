@@ -1644,6 +1644,17 @@ export default function AdminPage() {
                 {membership.enabled && (
                   <>
                     <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
+                      <input
+                        type="text"
+                        placeholder="Membership"
+                        value={membership.planName ?? ''}
+                        onChange={e => setMembership(m => ({ ...m, planName: e.target.value }))}
+                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                      />
+                      <p className="text-xs text-text-tertiary mt-1">Shown to users on the paywall screen, e.g. &quot;Warfare Elite&quot;. Leave blank for &quot;Membership&quot;.</p>
+                    </div>
+                    <div>
                       <label className="text-xs text-text-secondary mb-1 block">Monthly Fee (USD)</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>

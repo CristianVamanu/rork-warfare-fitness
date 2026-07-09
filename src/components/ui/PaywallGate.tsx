@@ -61,6 +61,7 @@ export function PaywallGate({ feature, programId, children }: Props) {
 
   const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
   const price = config.fee > 0 ? `$${config.fee.toFixed(2)}/mo${trialLabel}` : 'Premium';
+  const planName = config.planName?.trim() || 'Membership';
 
   return (
     <div className="px-4 py-12 flex flex-col items-center justify-center min-h-[40vh]">
@@ -78,7 +79,7 @@ export function PaywallGate({ feature, programId, children }: Props) {
         </p>
         <div className="p-3 bg-surface-elevated rounded-xl mb-4">
           <p className="text-2xl font-black text-white">{price}</p>
-          <p className="text-xs text-text-secondary mt-0.5">membership</p>
+          <p className="text-xs text-text-secondary mt-0.5">{planName.toLowerCase()}</p>
         </div>
         {config.fee > 0 && (
           <Button fullWidth onClick={handleSubscribe} loading={subscribing}>
