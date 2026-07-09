@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, onSnapshot, runTransaction } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { getUserDoc } from '@/lib/firestore';
 import { getTenant } from '@/lib/tenants';
@@ -29,14 +29,23 @@ const AuthContext = createContext<AuthContextValue>({
 
 // Create a default user doc when one is missing (e.g. OAuth sign-in,
 // or a user whose Firestore doc was never written due to rules errors).
+//
+// This used to read-then-write as two separate calls (getUserDoc, then a
+// merge setDoc). A transient false negative on the read — observed after
+// clearing browser storage, where the very first Firestore read can race
+// with Auth's ID token propagating — made it treat an EXISTING doc as
+// missing and overwrite role/createdAt/onboardingComplete/stats via merge,
+// silently demoting an admin account back to 'user'. A transaction makes
+// the check-and-create atomic against Firestore's own view of the
+// document, not a separate client-side read that can go stale.
 async function ensureUserDoc(firebaseUser: User): Promise<void> {
-  const existing = await getUserDoc(firebaseUser.uid);
-  if (existing) return;
+  const ref = doc(db, 'users', firebaseUser.uid);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.exists()) return;
 
-  console.info('[Auth] Creating missing Firestore doc for', firebaseUser.uid);
-  await setDoc(
-    doc(db, 'users', firebaseUser.uid),
-    {
+    console.info('[Auth] Creating missing Firestore doc for', firebaseUser.uid);
+    tx.set(ref, {
       id: firebaseUser.uid,
       displayName: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'User',
       email: firebaseUser.email ?? '',
@@ -52,9 +61,8 @@ async function ensureUserDoc(firebaseUser: User): Promise<void> {
         totalWorkouts: 0,
         totalWeightLifted: 0,
       },
-    },
-    { merge: true } // safe even if doc partially exists
-  );
+    });
+  });
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
