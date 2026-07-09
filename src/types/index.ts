@@ -175,6 +175,8 @@ export interface SystemConfig {
   pwaInstallBannerEnabled?: boolean; // admin can disable the install banner
   vapidPublicKey?: string; // stored in Firestore so client can subscribe
   landingPage?: LandingPageConfig;
+  barcodeScanDailyLimit?: number; // default 20 if unset
+  foodAnalysisDailyLimit?: number; // default 20 if unset
 }
 
 export interface LandingFeature {

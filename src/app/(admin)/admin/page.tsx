@@ -194,7 +194,7 @@ export default function AdminPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ── Settings state ─────────────────────────────────────────────────────────
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '' });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20 });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '' });
@@ -318,6 +318,8 @@ export default function AdminPage() {
           logoUrl: cfg.logoUrl || '',
           pwaInstallBannerEnabled: cfg.pwaInstallBannerEnabled !== false as unknown,
           vapidPublicKey: cfg.vapidPublicKey || '',
+          barcodeScanDailyLimit: Number(cfg.barcodeScanDailyLimit) || 20,
+          foodAnalysisDailyLimit: Number(cfg.foodAnalysisDailyLimit) || 20,
         });
         setStorageProvider((cfg.storageProvider as StorageProvider) || 'firebase');
         setLegalForm({
@@ -2504,6 +2506,29 @@ export default function AdminPage() {
                   <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.pwaInstallBannerEnabled ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-text-secondary mb-1 block">Barcode Scans / Day</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={settingsForm.barcodeScanDailyLimit}
+                    onChange={e => setSettingsForm(s => ({ ...s, barcodeScanDailyLimit: parseInt(e.target.value) || 20 }))}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-text-secondary mb-1 block">Food Analyses / Day</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={settingsForm.foodAnalysisDailyLimit}
+                    onChange={e => setSettingsForm(s => ({ ...s, foodAnalysisDailyLimit: parseInt(e.target.value) || 20 }))}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-text-tertiary -mt-2">Per-user daily caps to prevent abuse of paid API usage (OpenAI, OpenFoodFacts).</p>
             </div>
             <Button onClick={handleSaveSettings} loading={savingSettings} fullWidth>Save Configuration</Button>
           </Card>
