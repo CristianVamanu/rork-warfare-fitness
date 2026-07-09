@@ -75,7 +75,12 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .filter((u: any) => u.role !== 'admin' && !u.banned);
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? `https://${req.headers.get('host')}`;
+    // Same-machine, same-process call to /api/push/send — route it through
+    // localhost, not the public domain. Going out through DNS -> Cloudflare
+    // -> back to this box only adds failure points, and breaks outright if
+    // this server's own DNS resolver has a stale cache (this exact bug hit
+    // the sibling /api/admin/run-notifications route earlier).
+    const baseUrl = process.env.INTERNAL_APP_URL ?? 'http://localhost:3000';
     const cronSecret = process.env.CRON_SECRET;
 
     const sendPush = async (userId: string, title: string, body: string) => {
