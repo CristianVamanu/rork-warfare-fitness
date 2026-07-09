@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown, Megaphone } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
+import { compressImage } from '@/lib/imageCompress';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -113,7 +114,7 @@ function PostCard({
       </div>
       <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{post.content}</p>
       {post.imageURL && (
-        <img src={post.imageURL} alt="post" className="mt-3 rounded-xl w-full object-cover max-h-64" />
+        <img src={post.imageURL} alt="post" loading="lazy" decoding="async" className="mt-3 rounded-xl w-full object-cover max-h-64" />
       )}
       <div className="flex items-center gap-4 mt-4">
         <button
@@ -235,8 +236,9 @@ export default function ChannelPage() {
     if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5 MB'); return; }
     setUploadingImage(true);
     try {
-      const storageRef = ref(storage, `community/${channelId}/${user.uid}_${Date.now()}_${file.name}`);
-      await uploadBytes(storageRef, file);
+      const compressed = await compressImage(file);
+      const storageRef = ref(storage, `community/${channelId}/${user.uid}_${Date.now()}_${compressed.name}`);
+      await uploadBytes(storageRef, compressed);
       const url = await getDownloadURL(storageRef);
       setPendingImageURL(url);
       toast.success('Image ready — tap send to post');
@@ -411,7 +413,7 @@ export default function ChannelPage() {
                 <p className="text-sm text-white font-bold">{pinnedPost.userDisplayName}</p>
                 <p className="text-sm text-text-secondary mt-0.5 whitespace-pre-wrap">{pinnedPost.content}</p>
                 {pinnedPost.imageURL && (
-                  <img src={pinnedPost.imageURL} alt="pinned" className="mt-2 rounded-lg w-full object-cover max-h-32" />
+                  <img src={pinnedPost.imageURL} alt="pinned" loading="lazy" decoding="async" className="mt-2 rounded-lg w-full object-cover max-h-32" />
                 )}
               </div>
             </div>
