@@ -248,5 +248,19 @@ service cloud.firestore {
       allow read:  if isAuthed();
       allow write: if isAdmin();
     }
+
+    // ── PR Wall — community-posted personal records (trust/verification) ──
+    match /prPosts/{postId} {
+      allow read:   if isAuthed();
+      allow create: if isAuthed() && request.resource.data.userId == uid();
+      // Anyone signed in can bump likeCount; only the author or an admin can
+      // edit/delete their own post otherwise.
+      allow update: if isAuthed() && (
+        resource.data.userId == uid() ||
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
+      );
+      allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
+    }
   }
 }

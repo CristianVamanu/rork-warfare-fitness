@@ -41,30 +41,9 @@ export default function DashboardPage() {
   const [myRank, setMyRank] = useState<number | null>(null);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
-  const [dailyTip, setDailyTip] = useState<string>('');
+  const [coachBriefing, setCoachBriefing] = useState<string>('');
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
-
-  // Fetch daily AI fitness tip (changes every day, cached server-side)
-  useEffect(() => {
-    const today = new Date().toLocaleDateString('sv-SE');
-    const cached = sessionStorage.getItem('dailyTip');
-    const cachedDate = sessionStorage.getItem('dailyTipDate');
-    if (cached && cachedDate === today) {
-      setDailyTip(cached);
-      return;
-    }
-    fetch('/api/ai/tip')
-      .then(r => r.json())
-      .then((d: { tip?: string }) => {
-        if (d.tip) {
-          setDailyTip(d.tip);
-          sessionStorage.setItem('dailyTip', d.tip);
-          sessionStorage.setItem('dailyTipDate', today);
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   // Sync calories + water from profile.statsCache whenever it updates (real-time via AuthContext)
   useEffect(() => {
@@ -154,6 +133,32 @@ export default function DashboardPage() {
     getPersonalBest(user.uid, firstExerciseName).then(setPersonalBest).catch(() => setPersonalBest(null));
   }, [user, firstExerciseName]);
 
+  // AI Coach briefing — cached server-side once per user per day, so this
+  // fetch is cheap on repeat visits within the same day.
+  useEffect(() => {
+    if (!user || loading) return;
+    const lastLoginTs = profile?.lastLoginAt as { toDate?: () => Date } | undefined;
+    const lastLoginDate = lastLoginTs?.toDate?.();
+    const hoursSinceLastLogin = lastLoginDate ? (Date.now() - lastLoginDate.getTime()) / 3_600_000 : null;
+
+    fetch('/api/ai/coach-briefing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uid: user.uid,
+        name: firstName,
+        hoursSinceLastLogin,
+        todayLabel: todayDay?.label ?? null,
+        isRestDay: !!todayDay?.isRest,
+        streak,
+      }),
+    })
+      .then((r) => r.json())
+      .then((d: { briefing?: string }) => { if (d.briefing) setCoachBriefing(d.briefing); })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, loading]);
+
   const stats = [
     {
       icon: Flame,
@@ -225,6 +230,32 @@ export default function DashboardPage() {
             </Badge>
           </div>
         </motion.div>
+
+        {/* AI Coach — the "opens to a coach, not a menu" moment */}
+        {coachBriefing && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+            <Card glass className="p-4 border-accent/20">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0">
+                  <span className="text-base">🤖</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-bold text-accent uppercase tracking-widest mb-1">Your Coach</p>
+                  <p className="text-sm text-white leading-relaxed">{coachBriefing}</p>
+                  {activeProgram && !todayDay?.isRest && (
+                    <Button
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}
+                    >
+                      <Play className="w-3.5 h-3.5" /> Ready
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Stats Grid */}
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-3 gap-3">
@@ -400,25 +431,25 @@ export default function DashboardPage() {
         {/* Quick Actions */}
         <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
           <h2 className="text-base font-bold text-white mb-3">Quick Actions</h2>
-          <div className="flex gap-4 overflow-x-auto pb-1 -mx-4 px-4 quick-actions-scroll">
+          <div className="grid grid-cols-4 gap-3">
             {[
-              { icon: Dumbbell, label: 'Workout', href: '/training', color: 'text-purple-400', bg: 'bg-purple-400/10' },
-              { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', color: 'text-green-400', bg: 'bg-green-400/10' },
-              { icon: WaterIcon, label: 'Water', href: '/nutrition', color: 'text-blue-400', bg: 'bg-blue-400/10' },
-              { icon: CheckSquare, label: 'Habits', href: '/habits', color: 'text-accent', bg: 'bg-accent-muted' },
-              { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner', color: 'text-orange-400', bg: 'bg-orange-400/10' },
-              { icon: TrendingUp, label: 'Progress', href: '/progress', color: 'text-teal-400', bg: 'bg-teal-400/10' },
-              { icon: Trophy, label: 'Achievements', href: '/achievements', color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-              { icon: Swords, label: 'Quests', href: '/quests', color: 'text-pink-400', bg: 'bg-pink-400/10' },
+              { icon: Dumbbell, label: 'Workout', href: '/training' },
+              { icon: Apple, label: 'Log Food', href: '/nutrition/analyze' },
+              { icon: WaterIcon, label: 'Water', href: '/nutrition' },
+              { icon: CheckSquare, label: 'Habits', href: '/habits' },
+              { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner' },
+              { icon: TrendingUp, label: 'Progress', href: '/progress' },
+              { icon: Trophy, label: 'Achievements', href: '/achievements' },
+              { icon: Swords, label: 'Quests', href: '/quests' },
             ].map((action) => (
-              <Link key={action.label} href={action.href} className="flex-shrink-0">
+              <Link key={action.label} href={action.href}>
                 <motion.div
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  className="flex flex-col items-center gap-2 w-16"
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex flex-col items-center gap-2 py-3 px-1 rounded-2xl bg-surface border border-white/8 shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
                 >
-                  <div className={`w-14 h-14 rounded-full flex items-center justify-center ${action.bg}`}>
-                    <action.icon className={`w-6 h-6 ${action.color}`} strokeWidth={2.25} />
+                  <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center">
+                    <action.icon className="w-5 h-5 text-accent" strokeWidth={2.25} />
                   </div>
                   <span className="text-[10px] text-text-secondary text-center leading-tight">{action.label}</span>
                 </motion.div>
@@ -479,18 +510,6 @@ export default function DashboardPage() {
           </Link>
         </motion.div>
 
-        {/* AI Tip */}
-        {dailyTip && (
-          <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-            <Card glass className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-lg">🤖</span>
-                <span className="text-xs font-medium text-accent">AI TIP OF THE DAY</span>
-              </div>
-              <p className="text-sm text-text-secondary leading-relaxed">{dailyTip}</p>
-            </Card>
-          </motion.div>
-        )}
       </div>
     </div>
   );

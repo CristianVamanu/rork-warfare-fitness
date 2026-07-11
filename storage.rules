@@ -29,6 +29,12 @@ service firebase.storage {
       allow write: if isAuthed();
     }
 
+    // PR Wall — user-uploaded PR photos/videos, visible to the whole community
+    match /prPosts/{userId}/{allPaths=**} {
+      allow read: if isAuthed();
+      allow write: if isAuthed() && request.auth.uid == userId;
+    }
+
     // App branding (logo) — must be publicly readable since it shows on
     // login/register pages before the visitor is authenticated
     match /branding/{allPaths=**} {

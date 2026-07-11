@@ -1115,6 +1115,7 @@ export interface LeaderboardEntry {
   totalWorkouts: number;
   totalWeightLifted: number;
   questsCompleted: string[];
+  verificationLevel: VerificationLevel;
 }
 
 function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): LeaderboardEntry {
@@ -1127,6 +1128,7 @@ function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): Leade
     totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? (data.stats as Record<string, number> | undefined)?.totalWorkouts ?? 0,
     totalWeightLifted: (data.stats as Record<string, number> | undefined)?.totalWeightLifted ?? 0,
     questsCompleted: (data.questsCompleted as string[]) ?? [],
+    verificationLevel: (data.verificationLevel as VerificationLevel) ?? 'unverified',
   };
 }
 
@@ -1150,6 +1152,46 @@ export function subscribeLeaderboard(
     const entries = snap.docs.map((d) => mapToLeaderboardEntry(d.id, d.data())).filter((e) => e.totalWorkouts > 0);
     onUpdate(entries.sort((a, b) => b.xp - a.xp).slice(0, limitCount));
   }, (err) => console.error('[Firestore] subscribeLeaderboard error:', err));
+}
+
+// ── PR Wall — community-posted personal records with a trust/verification badge ──
+import type { VerificationLevel, PRPost } from '@/types';
+
+export async function createPRPost(input: {
+  userId: string;
+  displayName: string;
+  photoURL: string | null;
+  exerciseName: string;
+  weightKg: number;
+  reps: number;
+  note?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
+  verificationLevel: VerificationLevel;
+}): Promise<string> {
+  const ref = await addDoc(collection(db, 'prPosts'), {
+    ...input,
+    likeCount: 0,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getPRFeed(limitCount = 30): Promise<PRPost[]> {
+  const q = query(collection(db, 'prPosts'), orderBy('createdAt', 'desc'), limit(limitCount));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PRPost, 'id'>) }));
+}
+
+export function subscribePRFeed(onUpdate: (posts: PRPost[]) => void, limitCount = 30): () => void {
+  const q = query(collection(db, 'prPosts'), orderBy('createdAt', 'desc'), limit(limitCount));
+  return onSnapshot(q, (snap) => {
+    onUpdate(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PRPost, 'id'>) })));
+  }, (err) => console.error('[Firestore] subscribePRFeed error:', err));
+}
+
+export async function likePRPost(postId: string) {
+  await updateDoc(doc(db, 'prPosts', postId), { likeCount: increment(1) });
 }
 
 // ---------------------------------------------------------------------------

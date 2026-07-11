@@ -125,6 +125,24 @@ export interface MedicalHistoryAnswers {
   dailyFluidIntake?: string;
 }
 
+export type VerificationLevel = 'unverified' | 'trusted' | 'video_verified' | 'coach_verified' | 'competition_verified';
+
+export interface PRPost {
+  id: string;
+  userId: string;
+  displayName: string;
+  photoURL: string | null;
+  exerciseName: string;
+  weightKg: number;
+  reps: number;
+  note?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
+  verificationLevel: VerificationLevel;
+  likeCount: number;
+  createdAt: unknown;
+}
+
 export interface UserProfile {
   id: string;
   displayName: string;
@@ -144,6 +162,7 @@ export interface UserProfile {
   assignedNutritionPlan?: NutritionPlan;
   achievements?: string[];
   questsCompleted?: string[];
+  verificationLevel?: VerificationLevel;
   xp?: number;
   powerLevel?: number;
   currentWeightKg?: number;

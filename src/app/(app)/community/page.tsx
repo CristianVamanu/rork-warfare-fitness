@@ -4,15 +4,16 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame } from 'lucide-react';
+import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame, Medal } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getChannels, subscribeLeaderboard, type LeaderboardEntry } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
+import { VerificationBadge } from '@/components/ui/VerificationBadge';
 import Link from 'next/link';
-import type { Channel } from '@/types';
+import type { Channel, VerificationLevel } from '@/types';
 
 export default function CommunityPage() {
   const { trainerId, user, profile } = useAuth();
@@ -26,6 +27,13 @@ export default function CommunityPage() {
   const [tab, setTab] = useState<'channels' | 'leaderboard'>(
     searchParams.get('tab') === 'leaderboard' ? 'leaderboard' : 'channels'
   );
+  const [lbFilter, setLbFilter] = useState<'everyone' | 'trusted' | 'verified'>('everyone');
+  const VERIFIED_LEVELS: VerificationLevel[] = ['video_verified', 'coach_verified', 'competition_verified'];
+  const filteredLeaderboard = leaderboard.filter((e) => {
+    if (lbFilter === 'everyone') return true;
+    if (lbFilter === 'trusted') return e.verificationLevel !== 'unverified';
+    return VERIFIED_LEVELS.includes(e.verificationLevel);
+  });
 
   useEffect(() => {
     getChannels(effectiveTrainerId ?? undefined)
@@ -67,6 +75,19 @@ export default function CommunityPage() {
             </button>
           ))}
         </div>
+
+        <Link href="/community/prs">
+          <Card className="p-3.5 flex items-center gap-3 hover:border-accent/30 transition-colors">
+            <div className="w-9 h-9 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
+              <Medal className="w-4.5 h-4.5 text-accent" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">PR Wall</p>
+              <p className="text-xs text-text-secondary">Post proof of your lifts, get verified</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+          </Card>
+        </Link>
 
         {/* Channels tab */}
         {tab === 'channels' && (
@@ -124,15 +145,33 @@ export default function CommunityPage() {
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             </div>
 
+            <div className="flex gap-1.5">
+              {([
+                { key: 'everyone', label: 'Everyone' },
+                { key: 'trusted', label: 'Trusted Athletes' },
+                { key: 'verified', label: 'Verified Lifts Only' },
+              ] as const).map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setLbFilter(f.key)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${
+                    lbFilter === f.key ? 'bg-accent text-black' : 'bg-surface text-text-secondary'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
             {lbLoading ? (
               <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-16 rounded-2xl" />)}</div>
-            ) : leaderboard.length === 0 ? (
+            ) : filteredLeaderboard.length === 0 ? (
               <Card className="p-10 text-center">
                 <Trophy className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
                 <p className="text-white font-bold">No data yet</p>
                 <p className="text-text-secondary text-sm mt-1">Complete workouts to appear on the leaderboard.</p>
               </Card>
-            ) : leaderboard.map((entry, i) => {
+            ) : filteredLeaderboard.map((entry, i) => {
               const isMe = entry.id === user?.uid;
               return (
                 <motion.div key={entry.id} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
@@ -150,6 +189,7 @@ export default function CommunityPage() {
                         <div className="flex items-center gap-1.5">
                           <p className="text-sm font-bold text-white truncate">{entry.displayName}</p>
                           {isMe && <span className="text-xs text-accent font-medium">(you)</span>}
+                          <VerificationBadge level={entry.verificationLevel} />
                           <QuestBadgeRow questIds={entry.questsCompleted} />
                         </div>
                         <div className="flex items-center gap-3 mt-0.5">
