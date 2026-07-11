@@ -83,7 +83,7 @@ export const QUEST_DEFS: QuestDef[] = [
     title: 'Titan',
     tagline: 'The absolute pinnacle. Very few reach this.',
     requirements: [
-      { kind: 'totalWeightLifted', target: 20000, label: 'Lift 20,000kg total volume' },
+      { kind: 'totalWeightLifted', target: 100000, label: 'Lift 100,000kg total volume' },
       { kind: 'totalWorkouts', target: 100, label: 'Complete 100 workouts' },
       { kind: 'powerLevel', target: 100, label: 'Reach Power Level 100' },
     ],
