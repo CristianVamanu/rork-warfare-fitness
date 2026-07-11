@@ -46,7 +46,7 @@ export function BottomNav() {
                 <Icon
                   className={cn(
                     'w-5 h-5 transition-colors',
-                    active ? 'text-accent' : 'text-text-tertiary'
+                    active ? 'text-accent' : 'text-foreground'
                   )}
                 />
               </motion.div>
