@@ -412,15 +412,15 @@ export default function DashboardPage() {
             ].map((action) => (
               <Link key={action.label} href={action.href}>
                 <motion.div
-                  whileHover={{ scale: 1.04 }}
+                  whileHover={{ scale: 1.06, y: -2 }}
                   whileTap={{ scale: 0.96 }}
-                  className="flex flex-col items-center gap-2 p-3 bg-surface border border-white/8 rounded-2xl"
+                  className="flex flex-col items-center gap-2 p-3 rounded-2xl"
                 >
                   <div
                     className="relative w-14 h-14 rounded-full flex items-center justify-center"
                     style={{
                       background: `linear-gradient(135deg, ${action.from}, ${action.to})`,
-                      boxShadow: `0 4px 16px -2px ${action.from}66, inset 0 1px 1px rgba(255,255,255,0.35)`,
+                      boxShadow: `0 8px 20px -4px ${action.from}80, 0 2px 6px -1px ${action.to}66, inset 0 1px 1px rgba(255,255,255,0.35)`,
                     }}
                   >
                     <div
