@@ -229,33 +229,19 @@ export default function DashboardPage() {
               <span className={tier.color}>⚡</span> Lvl {powerLevel} · {tier.title}
             </Badge>
           </div>
+          {coachBriefing && (
+            <p className="text-sm text-text-secondary leading-relaxed mt-2.5">{coachBriefing}</p>
+          )}
+          {coachBriefing && activeProgram && !todayDay?.isRest && (
+            <Button
+              size="sm"
+              className="mt-3"
+              onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}
+            >
+              <Play className="w-3.5 h-3.5" /> Ready
+            </Button>
+          )}
         </motion.div>
-
-        {/* AI Coach — the "opens to a coach, not a menu" moment */}
-        {coachBriefing && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-            <Card glass className="p-4 border-accent/20">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0">
-                  <span className="text-base">🤖</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold text-accent uppercase tracking-widest mb-1">Your Coach</p>
-                  <p className="text-sm text-white leading-relaxed">{coachBriefing}</p>
-                  {activeProgram && !todayDay?.isRest && (
-                    <Button
-                      size="sm"
-                      className="mt-3"
-                      onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}
-                    >
-                      <Play className="w-3.5 h-3.5" /> Ready
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-        )}
 
         {/* Stats Grid */}
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-3 gap-3">

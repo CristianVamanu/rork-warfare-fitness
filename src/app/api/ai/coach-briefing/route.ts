@@ -2,8 +2,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Personalized daily coach briefing — the "AI Personal Coach" home-screen
- * greeting. Cached once per user per day (on the user doc itself) so it
+ * Personalized daily status line shown under the dashboard greeting — not
+ * framed as an AI coach persona (the app's differentiator is real human
+ * trainers). Cached once per user per day (on the user doc itself) so it
  * only ever calls OpenAI once per person per day, not on every dashboard
  * load. No real sleep tracker exists, so "hours since last login" is used
  * as an honest proxy for rest/gap since they were last active — the
@@ -55,10 +56,10 @@ export async function POST(req: NextRequest) {
       : todayLabel ? `Today's scheduled session is "${todayLabel}".` : 'They have no active program scheduled.';
 
     const fallback = isRestDay
-      ? `Morning ${name}. Today's a rest day — recovery is part of the work. See you tomorrow.`
+      ? `Rest day today — recovery is part of the work.`
       : todayLabel
-        ? `Morning ${name}. Today is ${todayLabel}. Show up and give it your best. Ready?`
-        : `Morning ${name}. No program scheduled yet — pick one and let's get moving.`;
+        ? `${todayLabel} today. Show up and give it your best.`
+        : `No program scheduled yet — pick one and let's get moving.`;
 
     if (!apiKey) {
       return NextResponse.json({ briefing: fallback });
@@ -67,16 +68,16 @@ export async function POST(req: NextRequest) {
     const openai = new OpenAI({ apiKey });
     const res = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-      max_tokens: 90,
+      max_tokens: 50,
       temperature: 0.8,
       messages: [
         {
           role: 'system',
-          content: 'You are a sharp, concise AI personal trainer writing a short morning briefing for one specific athlete. 2-3 short sentences, direct and motivating, no fluff or hashtags. Reference their rest gap and today\'s session naturally, give one specific actionable coaching note (intensity, focus cue, or encouragement), end with a short "Ready?"-style prompt. Never claim to have real sleep-tracking data — the "last active" gap is just that, a gap since they opened the app.',
+          content: 'Write a single short personalized status line (1-2 sentences max) for the top of a fitness app dashboard. Direct and motivating, no fluff, no hashtags, no emoji, no greeting like "Morning" or "Hey" — the app already shows a greeting separately, right above this line. Do NOT refer to yourself as a coach or AI, and do not use first person — this app prides itself on real human trainers, so this is just a personalized status note, not a persona talking to the athlete. Reference their rest gap and today\'s session naturally and give one specific actionable cue (intensity, focus, or encouragement). Never claim to have real sleep-tracking data — the "last active" gap is just that, a gap since they opened the app.',
         },
         {
           role: 'user',
-          content: `Athlete name: ${name}. ${gapLine} ${workoutLine} Current streak: ${streak} days.`,
+          content: `${gapLine} ${workoutLine} Current streak: ${streak} days.`,
         },
       ],
     });

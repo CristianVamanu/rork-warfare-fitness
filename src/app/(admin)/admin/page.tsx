@@ -1356,6 +1356,19 @@ export default function AdminPage() {
       {/* ── Community ────────────────────────────────────────────────────────── */}
       {tab === 'community' && (
         <div className="space-y-4">
+          <Card
+            className="p-4 flex items-center gap-3 hover:border-accent/30 transition-colors cursor-pointer"
+            onClick={() => router.push('/admin/pr-review')}
+          >
+            <div className="w-9 h-9 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
+              <Trophy className="w-4 h-4 text-accent" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">PR Wall Review</p>
+              <p className="text-xs text-text-secondary">Verify submitted PRs and assign trust badges</p>
+            </div>
+          </Card>
+
           <div className="flex items-center justify-between">
             <p className="text-text-secondary text-sm">{channels.length} channel{channels.length !== 1 ? 's' : ''}</p>
             <Button size="sm" onClick={() => { setEditingChannel(null); setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0, allowUserPosts: true }); setShowChannelForm(true); }}>
