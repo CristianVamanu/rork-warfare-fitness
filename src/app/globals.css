@@ -183,3 +183,25 @@ html.light .bg-accent.text-black { color: #ffffff !important; }
 
 /* Gradient text (stays white on gradient) */
 html.light .bg-gradient-to-r.text-transparent { -webkit-text-fill-color: transparent !important; }
+
+/* ── Streak card flame animation ── */
+@keyframes flame-flicker {
+  0%, 100% { transform: scale(1) rotate(-2deg); opacity: 0.9; }
+  25%      { transform: scale(1.06) rotate(1deg); opacity: 1; }
+  50%      { transform: scale(0.97) rotate(-1deg); opacity: 0.85; }
+  75%      { transform: scale(1.04) rotate(2deg); opacity: 0.95; }
+}
+@keyframes flame-glow {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(1.12); }
+}
+.flame-flicker {
+  animation: flame-flicker 2.4s ease-in-out infinite;
+  transform-origin: 50% 85%;
+}
+.flame-glow {
+  animation: flame-glow 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flame-flicker, .flame-glow { animation: none; }
+}

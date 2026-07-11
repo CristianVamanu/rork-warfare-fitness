@@ -176,12 +176,23 @@ export default function DashboardPage() {
 
           {/* Streak — hero tile */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-2">
-            <Card className="p-4 h-full flex flex-col justify-between bg-gradient-to-br from-surface-elevated to-surface">
-              <div className="flex items-center justify-between">
+            <Card className="p-4 h-full flex flex-col justify-between bg-gradient-to-br from-surface-elevated to-surface relative overflow-hidden">
+              {streak > 0 && (
+                <>
+                  <div
+                    className="flame-glow absolute left-1/2 bottom-2 -translate-x-1/2 w-28 h-28 rounded-full pointer-events-none"
+                    style={{ background: 'radial-gradient(circle, rgba(245,166,35,0.55) 0%, rgba(245,166,35,0) 70%)' }}
+                  />
+                  <span className="flame-flicker absolute left-1/2 bottom-0 -translate-x-1/2 text-[92px] leading-none opacity-20 pointer-events-none select-none">
+                    🔥
+                  </span>
+                </>
+              )}
+              <div className="flex items-center justify-between relative">
                 <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Streak</span>
-                <span className="text-xl">🔥</span>
+                <span className="flame-flicker text-xl inline-block">🔥</span>
               </div>
-              <div>
+              <div className="relative">
                 <p className="text-3xl font-black text-white leading-none">{streak}<span className="text-base font-bold text-text-secondary ml-0.5">d</span></p>
                 {activeMock?.daysPerWeek ? (
                   <div className="flex gap-1 mt-2.5">
