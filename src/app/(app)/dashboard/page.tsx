@@ -174,37 +174,38 @@ export default function DashboardPage() {
         {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
 
-          {/* Streak — hero tile */}
+          {/* Streak — hero tile, flame centered behind the number */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-2">
-            <Card className="p-4 h-full flex flex-col justify-between bg-gradient-to-br from-surface-elevated to-surface relative overflow-hidden">
-              {streak > 0 && (
-                <>
-                  <div
-                    className="flame-glow absolute left-1/2 bottom-2 -translate-x-1/2 w-28 h-28 rounded-full pointer-events-none"
-                    style={{ background: 'radial-gradient(circle, rgba(245,166,35,0.55) 0%, rgba(245,166,35,0) 70%)' }}
-                  />
-                  <span className="flame-flicker absolute left-1/2 bottom-0 -translate-x-1/2 text-[92px] leading-none opacity-20 pointer-events-none select-none">
-                    🔥
-                  </span>
-                </>
-              )}
-              <div className="flex items-center justify-between relative">
-                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Streak</span>
-                <span className="flame-flicker text-xl inline-block">🔥</span>
+            <Card className="p-4 h-full flex flex-col bg-gradient-to-br from-surface-elevated to-surface relative overflow-hidden">
+              <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide relative">Streak</span>
+
+              <div className="flex-1 flex items-center justify-center relative">
+                {streak > 0 && (
+                  <>
+                    <div
+                      className="flame-glow absolute w-32 h-32 rounded-full pointer-events-none"
+                      style={{ background: 'radial-gradient(circle, rgba(245,166,35,0.55) 0%, rgba(245,166,35,0) 70%)' }}
+                    />
+                    <span className="flame-flicker absolute text-[104px] leading-none opacity-25 pointer-events-none select-none">
+                      🔥
+                    </span>
+                  </>
+                )}
+                <p className="text-4xl font-black text-white leading-none relative drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
+                  {streak}<span className="text-lg font-bold text-text-secondary ml-0.5">d</span>
+                </p>
               </div>
-              <div className="relative">
-                <p className="text-3xl font-black text-white leading-none">{streak}<span className="text-base font-bold text-text-secondary ml-0.5">d</span></p>
-                {activeMock?.daysPerWeek ? (
-                  <div className="flex gap-1 mt-2.5">
-                    {Array.from({ length: activeMock.daysPerWeek }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`flex-1 h-1.5 rounded-full ${i < (weeklySummary?.workoutsCompleted ?? 0) ? 'bg-accent' : 'bg-white/8'}`}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              </div>
+
+              {activeMock?.daysPerWeek ? (
+                <div className="flex gap-1 relative">
+                  {Array.from({ length: activeMock.daysPerWeek }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`flex-1 h-1.5 rounded-full ${i < (weeklySummary?.workoutsCompleted ?? 0) ? 'bg-accent' : 'bg-white/8'}`}
+                    />
+                  ))}
+                </div>
+              ) : null}
             </Card>
           </motion.div>
 
