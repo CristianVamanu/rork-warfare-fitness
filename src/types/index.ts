@@ -193,6 +193,7 @@ export interface SystemConfig {
   landingPage?: LandingPageConfig;
   barcodeScanDailyLimit?: number; // default 20 if unset
   foodAnalysisDailyLimit?: number; // default 20 if unset
+  mealIdeasDailyLimit?: number; // default 15 if unset
 }
 
 export interface LandingFeature {

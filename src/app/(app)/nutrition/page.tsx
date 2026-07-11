@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayMeals, getTodayWaterLogs, deleteWaterLog, deleteMeal, getUserGoals, updateUserGoals, getMealsForDate } from '@/lib/firestore';
@@ -321,29 +321,38 @@ function NutritionPageInner() {
         </motion.div>
 
         {/* Quick Add Buttons — today only */}
-        {isToday && <div className="grid grid-cols-2 gap-3">
+        {isToday && <div className="grid grid-cols-3 gap-2.5">
           <Link href="/nutrition/analyze">
             <motion.div
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="p-4 bg-surface border border-white/8 rounded-2xl flex flex-col items-center gap-2"
+              className="p-3 bg-surface border border-white/8 rounded-2xl flex flex-col items-center gap-2"
             >
-              <div className="p-3 bg-green-400/10 rounded-xl">
-                <Camera className="w-5 h-5 text-green-400" />
+              <div className="p-2.5 bg-green-400/10 rounded-xl">
+                <Camera className="w-4.5 h-4.5 text-green-400" />
               </div>
-              <span className="text-sm font-medium text-white">AI Analyze</span>
-              <span className="text-xs text-text-secondary text-center">Snap a photo</span>
+              <span className="text-xs font-medium text-white text-center">AI Analyze</span>
             </motion.div>
           </Link>
           <Link href="/nutrition/barcode">
             <motion.div
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="p-4 bg-surface border border-white/8 rounded-2xl flex flex-col items-center gap-2"
+              className="p-3 bg-surface border border-white/8 rounded-2xl flex flex-col items-center gap-2"
             >
-              <div className="p-3 bg-purple-400/10 rounded-xl">
-                <Barcode className="w-5 h-5 text-purple-400" />
+              <div className="p-2.5 bg-purple-400/10 rounded-xl">
+                <Barcode className="w-4.5 h-4.5 text-purple-400" />
               </div>
-              <span className="text-sm font-medium text-white">Scan Barcode</span>
-              <span className="text-xs text-text-secondary text-center">Scan product</span>
+              <span className="text-xs font-medium text-white text-center">Scan Barcode</span>
+            </motion.div>
+          </Link>
+          <Link href="/nutrition/meal-planner">
+            <motion.div
+              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              className="p-3 bg-surface border border-white/8 rounded-2xl flex flex-col items-center gap-2"
+            >
+              <div className="p-2.5 bg-accent-muted rounded-xl">
+                <Sparkles className="w-4.5 h-4.5 text-accent" />
+              </div>
+              <span className="text-xs font-medium text-white text-center">Meal Ideas</span>
             </motion.div>
           </Link>
         </div>}

@@ -194,7 +194,7 @@ export default function AdminPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ── Settings state ─────────────────────────────────────────────────────────
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20 });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '' });
@@ -320,6 +320,7 @@ export default function AdminPage() {
           vapidPublicKey: cfg.vapidPublicKey || '',
           barcodeScanDailyLimit: Number(cfg.barcodeScanDailyLimit) || 20,
           foodAnalysisDailyLimit: Number(cfg.foodAnalysisDailyLimit) || 20,
+          mealIdeasDailyLimit: Number(cfg.mealIdeasDailyLimit) || 15,
         });
         setStorageProvider((cfg.storageProvider as StorageProvider) || 'firebase');
         setLegalForm({
@@ -2506,7 +2507,7 @@ export default function AdminPage() {
                   <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.pwaInstallBannerEnabled ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs text-text-secondary mb-1 block">Barcode Scans / Day</label>
                   <input
@@ -2524,6 +2525,16 @@ export default function AdminPage() {
                     min="1"
                     value={settingsForm.foodAnalysisDailyLimit}
                     onChange={e => setSettingsForm(s => ({ ...s, foodAnalysisDailyLimit: parseInt(e.target.value) || 20 }))}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-text-secondary mb-1 block">Meal Ideas / Day</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={settingsForm.mealIdeasDailyLimit}
+                    onChange={e => setSettingsForm(s => ({ ...s, mealIdeasDailyLimit: parseInt(e.target.value) || 15 }))}
                     className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
                   />
                 </div>
