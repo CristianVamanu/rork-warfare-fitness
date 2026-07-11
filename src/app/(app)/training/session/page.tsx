@@ -1142,6 +1142,9 @@ export default function WorkoutSessionPage() {
 
   const skipSet = useCallback(
     (exIdx: number, setIdx: number) => {
+      stopRest();
+      clearTimeout((window as Window & { __advanceTimer?: NodeJS.Timeout }).__advanceTimer);
+
       setExStates((prev) => {
         const next = [...prev];
         const ex = { ...next[exIdx], sets: [...next[exIdx].sets] };
@@ -1153,8 +1156,33 @@ export default function WorkoutSessionPage() {
         next[exIdx] = ex;
         return next;
       });
+
+      // Skipping the last remaining set of an exercise (e.g. the single HIIT
+      // block, or the last set of the last exercise) needs the same
+      // advance-to-next / finish-workout handling completeSet does — without
+      // this, the session just sits there with nothing left to interact
+      // with, since the auto-advance in completeSet never fires on a skip.
+      const ex = exStates[exIdx];
+      const allDone = ex.sets.every((s, i) => (i === setIdx ? true : s.status === 'completed' || s.status === 'skipped'));
+      if (allDone) {
+        const isLastEx = exIdx === exStates.length - 1;
+        if (isLastEx) {
+          setCompleteModal(true);
+        } else {
+          setCurrentExIdx(exIdx + 1);
+          setExStates((prev) => {
+            const next = [...prev];
+            const nextEx = { ...next[exIdx + 1], sets: [...next[exIdx + 1].sets] };
+            if (nextEx.sets[0].status === 'pending') {
+              nextEx.sets[0] = { ...nextEx.sets[0], status: 'active' };
+            }
+            next[exIdx + 1] = nextEx;
+            return next;
+          });
+        }
+      }
     },
-    [],
+    [exStates, stopRest],
   );
 
   const duplicatePrevSet = useCallback(
