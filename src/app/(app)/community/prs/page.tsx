@@ -10,8 +10,8 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
-import { subscribePRFeed, createPRPost, likePRPost } from '@/lib/firestore';
-import { uploadVideo } from '@/lib/uploadVideo';
+import { subscribePRFeed, createPRPost, likePRPost, getSystemConfig } from '@/lib/firestore';
+import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import type { PRPost } from '@/types';
 
 export default function PRWallPage() {
@@ -131,7 +131,9 @@ function PRForm({ userId, displayName, photoURL, onDone }: { userId: string; dis
       let mediaType: 'image' | 'video' | undefined;
       if (file) {
         mediaType = file.type.startsWith('video') ? 'video' : 'image';
-        mediaUrl = await uploadVideo('firebase', user, file, `prPosts/${userId}`, setProgress);
+        const cfg = await getSystemConfig().catch(() => null);
+        const provider = ((cfg?.storageProvider as StorageProvider) || 'firebase');
+        mediaUrl = await uploadUserContent(provider, user, file, 'prPosts', setProgress);
       }
       await createPRPost({
         userId,

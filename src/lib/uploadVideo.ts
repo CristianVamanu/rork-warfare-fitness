@@ -4,18 +4,23 @@ import { storage } from '@/lib/firebase';
 
 export type StorageProvider = 'firebase' | 'r2';
 
-/** Uploads a file to R2 via a presigned PUT URL issued by the admin-only API route. */
+/** Uploads a file to R2 via a presigned PUT URL. `presignEndpoint` defaults to
+ * the admin-only route (exercise library / branding); pass the user-scoped
+ * `/api/uploads/presign` route (with a `root`) for content any signed-in
+ * user posts themselves, e.g. the PR wall. */
 async function uploadToR2(
   user: User,
   file: File,
   folder: string,
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
+  presignEndpoint: string = '/api/admin/r2-presign',
+  extraBody: Record<string, string> = {}
 ): Promise<string> {
   const token = await getIdToken(user);
-  const presignRes = await fetch('/api/admin/r2-presign', {
+  const presignRes = await fetch(presignEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ filename: file.name, contentType: file.type, folder }),
+    body: JSON.stringify({ filename: file.name, contentType: file.type, folder, ...extraBody }),
   });
   if (!presignRes.ok) {
     const data = await presignRes.json().catch(() => ({}));
@@ -70,4 +75,18 @@ export async function uploadVideo(
   return provider === 'r2'
     ? uploadToR2(user, file, folder, onProgress)
     : uploadToFirebaseStorage(file, folder, onProgress);
+}
+
+/** Uploads user-generated content (e.g. PR wall posts) via the user-scoped
+ * presign route when R2 is configured, falling back to Firebase Storage. */
+export async function uploadUserContent(
+  provider: StorageProvider,
+  user: User,
+  file: File,
+  root: 'prPosts',
+  onProgress?: (pct: number) => void
+): Promise<string> {
+  return provider === 'r2'
+    ? uploadToR2(user, file, root, onProgress, '/api/uploads/presign', { root })
+    : uploadToFirebaseStorage(file, `${root}/${user.uid}`, onProgress);
 }
