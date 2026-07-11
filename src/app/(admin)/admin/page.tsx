@@ -14,6 +14,7 @@ import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/
 import { db } from '@/lib/firebase';
 import { getIdToken } from 'firebase/auth';
 import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
+import { extractVideoThumbnail } from '@/lib/videoThumbnail';
 import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS } from '@/lib/legalDefaults';
 import {
   getSystemConfig, setSystemConfig,
@@ -873,8 +874,14 @@ export default function AdminPage() {
     setSavingEx(true);
     try {
       let videoUrl = editingEx?.videoUrl ?? '';
+      let thumbnailUrl = editingEx?.thumbnailUrl;
       if (exFile) {
         videoUrl = await uploadVideo(storageProvider, user, exFile, 'exerciseLibrary', setExUploadProgress);
+        const thumbBlob = await extractVideoThumbnail(exFile).catch(() => null);
+        if (thumbBlob) {
+          const thumbFile = new File([thumbBlob], 'thumb.jpg', { type: 'image/jpeg' });
+          thumbnailUrl = await uploadVideo(storageProvider, user, thumbFile, 'exerciseLibrary').catch(() => thumbnailUrl);
+        }
       }
       const payload = {
         name: exForm.name.trim(),
@@ -882,6 +889,7 @@ export default function AdminPage() {
         muscleGroups: exForm.muscleGroups.split(',').map(s => s.trim()).filter(Boolean),
         equipment: exForm.equipment.split(',').map(s => s.trim()).filter(Boolean),
         videoUrl,
+        ...(thumbnailUrl ? { thumbnailUrl } : {}),
         uploadedBy: user.uid,
       };
       await saveExerciseVideo(payload, editingEx?.id);
@@ -943,12 +951,17 @@ export default function AdminPage() {
         const videoUrl = await uploadVideo(storageProvider, user, item.file, 'exerciseLibrary', (pct) => {
           setBulkProgress(prev => ({ ...prev, [item.id]: pct }));
         });
+        const thumbBlob = await extractVideoThumbnail(item.file).catch(() => null);
+        const thumbnailUrl = thumbBlob
+          ? await uploadVideo(storageProvider, user, new File([thumbBlob], 'thumb.jpg', { type: 'image/jpeg' }), 'exerciseLibrary').catch(() => undefined)
+          : undefined;
         await saveExerciseVideo({
           name: item.name.trim(),
           aliases: item.aliases.split(',').map(s => s.trim()).filter(Boolean),
           muscleGroups: [bulkCategory],
           equipment: [bulkEquipment],
           videoUrl,
+          ...(thumbnailUrl ? { thumbnailUrl } : {}),
           uploadedBy: user.uid,
         });
         setBulkFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'done' } : f));
