@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon } from 'lucide-react';
+import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -442,6 +442,22 @@ export default function ProfilePage() {
               Complete workouts to increase your power level
             </p>
           </Card>
+        </motion.div>
+
+        {/* Achievements */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.17 }}>
+          <Link href="/achievements">
+            <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+              <div className="p-2 bg-accent-muted rounded-lg">
+                <Trophy className="w-4 h-4 text-accent" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-white">Achievements</p>
+                <p className="text-xs text-text-secondary">{(profile?.achievements?.length ?? 0)} unlocked</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-tertiary" />
+            </Card>
+          </Link>
         </motion.div>
 
         {/* Messages from Coach */}
