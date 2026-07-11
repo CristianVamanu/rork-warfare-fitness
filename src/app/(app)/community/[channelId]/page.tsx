@@ -21,16 +21,35 @@ import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import type { Channel, ChannelPost } from '@/types';
 
-function timeAgo(ts: unknown): string {
-  if (!ts) return 'just now';
+function toDate(ts: unknown): Date | null {
+  if (!ts) return null;
   const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as string);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Relative for anything recent ("2h ago"), falls back to an actual date
+// once it's more than a week old — "8d ago" stops being a useful timestamp
+// fast, but "Jul 3" (or "Jul 3, 2025" across a year boundary) doesn't.
+function timeAgo(ts: unknown): string {
+  const d = toDate(ts);
+  if (!d) return 'just now';
   const diff = Date.now() - d.getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return 'just now';
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  const days = Math.floor(h / 24);
+  if (days < 7) return `${days}d ago`;
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString('en-US', sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Full precise timestamp for a hover tooltip, regardless of which format
+// the visible label above is using.
+function fullTimestamp(ts: unknown): string | undefined {
+  const d = toDate(ts);
+  return d?.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function PostCard({
@@ -72,7 +91,7 @@ function PostCard({
         <Avatar name={post.userDisplayName} src={post.userPhotoURL} size="md" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-white">{post.userDisplayName}</p>
-          <p className="text-xs text-text-tertiary">{timeAgo(post.createdAt)}</p>
+          <p className="text-xs text-text-tertiary" title={fullTimestamp(post.createdAt)}>{timeAgo(post.createdAt)}</p>
         </div>
         <div className="flex items-center gap-1">
           {isPinned && <Pin className="w-3.5 h-3.5 text-accent flex-shrink-0" />}
@@ -150,7 +169,7 @@ function PostCard({
               <div className="flex-1 bg-surface-elevated rounded-xl px-3 py-2">
                 <div className="flex items-center gap-2">
                   <p className="text-xs font-bold text-white">{r.userDisplayName}</p>
-                  <span className="text-xs text-text-tertiary">{timeAgo(r.createdAt)}</span>
+                  <span className="text-xs text-text-tertiary" title={fullTimestamp(r.createdAt)}>{timeAgo(r.createdAt)}</span>
                 </div>
                 <p className="text-sm text-white mt-0.5">{r.content}</p>
               </div>
