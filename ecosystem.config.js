@@ -12,6 +12,12 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
       },
+      // deploy.sh runs `pm2 reload ecosystem.config.js --env production`,
+      // which looks for this exact key — without it pm2 warns "Environment
+      // [production] is not defined in process file" on every reload.
+      env_production: {
+        NODE_ENV: 'production',
+      },
     },
   ],
 };
