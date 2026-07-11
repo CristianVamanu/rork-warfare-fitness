@@ -31,7 +31,6 @@ export async function POST(req: NextRequest) {
 
     const stripe = await getStripe();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
-    const trialDays = Number(cfg.trialDays ?? 0);
 
     // Active time-limited discount, if the admin has set one
     let discounts: { coupon: string }[] | undefined;
@@ -59,9 +58,13 @@ export async function POST(req: NextRequest) {
       ],
       ...(discounts ? { discounts } : { allow_promotion_codes: true }),
       subscription_data: {
-        // Pass userId so the webhook knows which user to activate
+        // Pass userId so the webhook knows which user to activate. No
+        // trial_period_days here — the app already grants trialDays of
+        // free access from account creation (MembershipGuard), independent
+        // of Stripe. Adding a second trial here meant anyone who checked
+        // out after their app-level trial started got a second full trial
+        // stacked on top, doubling the free period.
         metadata: { userId },
-        ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
       },
       metadata: { userId },
       success_url: `${appUrl}/profile?subscribed=1`,
