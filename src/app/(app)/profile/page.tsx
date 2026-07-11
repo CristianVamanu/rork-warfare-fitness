@@ -257,7 +257,7 @@ export default function ProfilePage() {
                 <div className={`relative rounded-2xl border-2 p-5 ${isActive || inTrial ? 'border-accent bg-accent/[0.03]' : 'border-white/10 bg-surface'}`}>
                   {(isActive || inTrial) && (
                     <div className="absolute -top-3 left-4 px-2.5 py-0.5 bg-accent rounded-full">
-                      <span className="text-[10px] font-bold text-black">{inTrial ? 'TRIAL ACTIVE' : 'YOUR PLAN'}</span>
+                      <span className="text-[10px] font-bold text-black">{isActive ? 'YOUR PLAN' : 'TRIAL ACTIVE'}</span>
                     </div>
                   )}
                   <div className="flex items-center gap-2 mb-1">
