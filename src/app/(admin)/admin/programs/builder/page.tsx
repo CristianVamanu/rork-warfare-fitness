@@ -75,6 +75,24 @@ function blankEx(): BEx {
   return { id: Math.random().toString(36).slice(2), name: '', muscleGroup: 'Chest', sets: 3, reps: '8-12', rpe: 8, restSeconds: 90, notes: '' };
 }
 
+// Firestore rejects any field whose value is `undefined`, even nested deep
+// inside arrays/objects (e.g. a HIIT-less exercise carrying `isHiit:
+// undefined`) — strip those out recursively right before a write instead of
+// tracking every call site that could introduce one.
+function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map(stripUndefinedDeep) as unknown as T;
+  }
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) out[k] = stripUndefinedDeep(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
 function emptyProg(): BProg {
   return {
     name: '', description: '', level: 'intermediate', goal: 'hypertrophy',
@@ -228,14 +246,14 @@ function BuilderInner() {
     try {
       const exercises = prog.schedule.flatMap(d => d.exercises);
       const unique = exercises.filter((e, i, arr) => arr.findIndex(x => x.name === e.name) === i);
-      const data = {
+      const data = stripUndefinedDeep({
         ...prog,
         isPublic: publish || prog.visibility === 'public',
         exercises: unique.map(e => ({ ...e, reps: e.reps })),
         createdBy: user.uid,
         trainerId: user.uid,
         status: publish ? 'published' : 'draft',
-      };
+      });
       if (savedId) {
         await updateProgram(savedId, data);
         toast.success(publish ? 'Program published!' : 'Changes saved');
@@ -244,7 +262,10 @@ function BuilderInner() {
         setSavedId(ref.id);
         toast.success(publish ? 'Program published!' : 'Draft saved');
       }
-    } catch { toast.error('Failed to save'); }
+    } catch (err) {
+      console.error('[ProgramBuilder] save failed:', err);
+      toast.error(`Failed to save: ${err instanceof Error ? err.message : String(err)}`, { duration: 6000 });
+    }
     finally { setSaving(false); }
   }
 
