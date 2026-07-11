@@ -18,6 +18,7 @@ import { createEvent } from './events';
 import { incrementProgramWorkouts } from './firestore';
 import { calcWorkoutXP, xpToPowerLevel } from './xp';
 import { checkAndAwardAchievements } from './achievements';
+import { checkAndAwardQuests } from './quests';
 import type { EventType } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -49,6 +50,7 @@ export interface WorkoutResult {
   xpEarned: number;
   newAchievements: string[];
   newPowerLevel: number;
+  newQuests: string[];
 }
 
 export async function completeWorkout(
@@ -93,6 +95,7 @@ export async function completeWorkout(
   // Update XP + powerLevel
   let newPowerLevel = 0;
   let newAchievements: string[] = [];
+  let newQuests: string[] = [];
 
   try {
     const snap = await getDoc(doc(db, 'users', userId));
@@ -144,11 +147,19 @@ export async function completeWorkout(
       powerLevel: newPowerLevel,
       workoutHour,
     });
+
+    const prevTotalWeightLifted = (data.stats as Record<string, number> | undefined)?.totalWeightLifted ?? 0;
+    newQuests = await checkAndAwardQuests(userId, {
+      totalWorkouts,
+      streak,
+      powerLevel: newPowerLevel,
+      totalWeightLifted: prevTotalWeightLifted + totalWeightLifted,
+    });
   } catch (err) {
     console.error('[Actions] XP/Achievement update failed:', err);
   }
 
-  return { xpEarned, newAchievements, newPowerLevel };
+  return { xpEarned, newAchievements, newPowerLevel, newQuests };
 }
 
 // ---------------------------------------------------------------------------

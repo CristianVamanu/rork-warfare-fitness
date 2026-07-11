@@ -143,6 +143,7 @@ export interface UserProfile {
   onboarding?: OnboardingData;
   assignedNutritionPlan?: NutritionPlan;
   achievements?: string[];
+  questsCompleted?: string[];
   xp?: number;
   powerLevel?: number;
   currentWeightKg?: number;

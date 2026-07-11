@@ -5,6 +5,7 @@ import { Share2, ArrowRight, Zap, Flame, Star } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { getLevelTitle } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
+import { QUEST_DEFS } from '@/lib/quests';
 
 interface Props {
   duration: number;
@@ -14,6 +15,7 @@ interface Props {
   newPowerLevel: number;
   streak: number;
   newAchievements: string[];
+  newQuests?: string[];
   onContinue: () => void;
 }
 
@@ -25,6 +27,7 @@ export function WorkoutShareCard({
   newPowerLevel,
   streak,
   newAchievements,
+  newQuests = [],
   onContinue,
 }: Props) {
   const levelTitle = getLevelTitle(newPowerLevel);
@@ -118,6 +121,33 @@ export function WorkoutShareCard({
                   <p className="text-xs text-text-secondary">{def.desc}</p>
                 </div>
                 <Star className="w-4 h-4 text-yellow-400 ml-auto flex-shrink-0" />
+              </div>
+            );
+          })}
+        </motion.div>
+      )}
+
+      {/* New quests completed */}
+      {newQuests.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+          className="space-y-2"
+        >
+          <p className="text-xs font-bold text-purple-400 tracking-wider uppercase">
+            ⚔️ Quest{newQuests.length > 1 ? 's' : ''} Complete
+          </p>
+          {newQuests.map((id) => {
+            const quest = QUEST_DEFS.find((q) => q.id === id);
+            if (!quest) return null;
+            return (
+              <div key={id} className="flex items-center gap-3 p-3 bg-purple-400/10 border border-purple-400/20 rounded-xl">
+                <span className="text-2xl">{quest.rewardIcon}</span>
+                <div>
+                  <p className="text-sm font-bold text-white">{quest.title}</p>
+                  <p className="text-xs text-text-secondary">{quest.rewardTitle} earned</p>
+                </div>
               </div>
             );
           })}

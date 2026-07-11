@@ -476,6 +476,22 @@ export default function ProfilePage() {
           </Link>
         </motion.div>
 
+        {/* Quests */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.175 }}>
+          <Link href="/quests">
+            <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+              <div className="p-2 bg-purple-400/10 rounded-lg">
+                <span className="text-base">🏛️</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-white">Quests</p>
+                <p className="text-xs text-text-secondary">{(profile?.questsCompleted?.length ?? 0)} missions completed</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-tertiary" />
+            </Card>
+          </Link>
+        </motion.div>
+
         {/* Messages from Coach */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
           <Link href="/messages">

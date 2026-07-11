@@ -665,7 +665,7 @@ export default function WorkoutSessionPage() {
   const [saved, setSaved] = useState(false);
   const [startTime] = useState(Date.now());
   const [workoutResult, setWorkoutResult] = useState<{
-    duration: number; xpEarned: number; newPowerLevel: number; newAchievements: string[];
+    duration: number; xpEarned: number; newPowerLevel: number; newAchievements: string[]; newQuests: string[];
   } | null>(null);
 
   // ── Load program ────────────────────────────────────────────────────────
@@ -1183,6 +1183,7 @@ export default function WorkoutSessionPage() {
             newPowerLevel={workoutResult.newPowerLevel}
             streak={profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0}
             newAchievements={workoutResult.newAchievements}
+            newQuests={workoutResult.newQuests}
             onContinue={() => { refreshProfile().catch(() => {}); router.replace('/dashboard'); }}
           />
         ) : (
