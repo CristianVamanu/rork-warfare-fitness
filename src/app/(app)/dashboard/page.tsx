@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
 import Link from 'next/link';
 
 const stagger = {
@@ -465,8 +466,11 @@ export default function DashboardPage() {
                       <span className={`text-sm font-black w-5 flex-shrink-0 ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-gray-300' : 'text-orange-400'}`}>
                         {i + 1}
                       </span>
-                      <span className="text-sm text-white flex-1 truncate">{entry.displayName}</span>
-                      <span className="text-xs text-text-tertiary flex-shrink-0">{entry.xp} XP</span>
+                      <span className="text-sm text-white flex-1 truncate flex items-center gap-1">
+                        {entry.displayName}
+                        <QuestBadgeRow questIds={entry.questsCompleted} max={2} />
+                      </span>
+                      <span className="text-xs text-text-tertiary flex-shrink-0">Lvl {entry.powerLevel} · {entry.xp} XP</span>
                     </div>
                   ))}
                 </div>

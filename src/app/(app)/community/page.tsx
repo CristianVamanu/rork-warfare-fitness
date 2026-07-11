@@ -10,6 +10,7 @@ import { getChannels, subscribeLeaderboard, type LeaderboardEntry } from '@/lib/
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
 import Link from 'next/link';
 import type { Channel } from '@/types';
 
@@ -149,6 +150,7 @@ export default function CommunityPage() {
                         <div className="flex items-center gap-1.5">
                           <p className="text-sm font-bold text-white truncate">{entry.displayName}</p>
                           {isMe && <span className="text-xs text-accent font-medium">(you)</span>}
+                          <QuestBadgeRow questIds={entry.questsCompleted} />
                         </div>
                         <div className="flex items-center gap-3 mt-0.5">
                           {entry.streak > 0 && (
@@ -158,6 +160,9 @@ export default function CommunityPage() {
                           )}
                           <span className="flex items-center gap-1 text-xs text-text-tertiary">
                             <Dumbbell className="w-3 h-3 text-purple-400" /> {entry.totalWorkouts} workouts
+                          </span>
+                          <span className="flex items-center gap-1 text-xs text-text-tertiary">
+                            {entry.totalWeightLifted.toLocaleString()}kg
                           </span>
                         </div>
                       </div>

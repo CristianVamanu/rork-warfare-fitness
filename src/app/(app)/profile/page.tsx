@@ -20,6 +20,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
+import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
 import { Modal } from '@/components/ui/Modal';
 import type { MembershipConfig, CoachingPlan, CoachingApplication } from '@/types';
 
@@ -250,13 +251,17 @@ export default function ProfilePage() {
                 <Edit2 className="w-3.5 h-3.5 text-black" />
               </button>
             </div>
-            <h2 className="text-xl font-black text-white">{profile?.displayName || 'Athlete'}</h2>
+            <div className="flex items-center justify-center gap-1.5">
+              <h2 className="text-xl font-black text-white">{profile?.displayName || 'Athlete'}</h2>
+              <QuestBadgeRow questIds={profile?.questsCompleted ?? []} />
+            </div>
             <p className="text-text-secondary text-sm mt-0.5">{user?.email}</p>
             <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
               <Badge variant={profile?.role === 'admin' ? 'danger' : profile?.role === 'trainer' ? 'accent' : 'muted'}>
                 {profile?.role || 'user'}
               </Badge>
-              <Badge variant="muted">{profile?.weightUnit || 'kg'}</Badge>
+              <Badge variant="muted">Lvl {powerLevel}</Badge>
+              <Badge variant="muted">{(profile?.stats?.totalWeightLifted ?? 0).toLocaleString()}kg lifted</Badge>
               {(isActive || inTrial) && (
                 <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />{inTrial && !isActive ? 'Trial' : 'Member'}</Badge>
               )}

@@ -1113,6 +1113,8 @@ export interface LeaderboardEntry {
   powerLevel: number;
   streak: number;
   totalWorkouts: number;
+  totalWeightLifted: number;
+  questsCompleted: string[];
 }
 
 function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): LeaderboardEntry {
@@ -1123,6 +1125,8 @@ function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): Leade
     powerLevel: (data.powerLevel as number) ?? 0,
     streak: (data.statsCache as Record<string, number> | undefined)?.streak ?? (data.stats as Record<string, number> | undefined)?.streak ?? 0,
     totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? (data.stats as Record<string, number> | undefined)?.totalWorkouts ?? 0,
+    totalWeightLifted: (data.stats as Record<string, number> | undefined)?.totalWeightLifted ?? 0,
+    questsCompleted: (data.questsCompleted as string[]) ?? [],
   };
 }
 
