@@ -120,7 +120,7 @@ export default function SettingsPage() {
           label: 'Version',
           description: 'Warfare Fitness PWA',
           action: null,
-          rightLabel: 'v1.0.0',
+          rightLabel: `v${process.env.NEXT_PUBLIC_APP_VERSION ?? '1.0.0'}`,
         },
       ],
     },
