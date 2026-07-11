@@ -13,6 +13,14 @@ function getAdminDb() {
   return getDb(app);
 }
 
+// current_period_end moved off the top-level Subscription object onto its
+// line items in API versions from late 2024 onward — check both.
+function subscriptionPeriodEnd(sub: Stripe.Subscription): Date | undefined {
+  const periodEnd = sub.current_period_end
+    ?? (sub.items?.data?.[0] as { current_period_end?: number } | undefined)?.current_period_end;
+  return periodEnd ? new Date(periodEnd * 1000) : undefined;
+}
+
 async function setMembershipStatus(
   userId: string,
   status: 'active' | 'none',
@@ -80,7 +88,7 @@ export async function POST(req: NextRequest) {
           let expiresAt: Date | undefined;
           if (subId) {
             const sub = await stripe.subscriptions.retrieve(subId);
-            expiresAt = new Date(sub.current_period_end * 1000);
+            expiresAt = subscriptionPeriodEnd(sub);
           }
           const planId = session.metadata?.planId;
           const planName = session.metadata?.planName;
@@ -97,7 +105,7 @@ export async function POST(req: NextRequest) {
         if (!userId) { console.warn('[Stripe webhook] subscription event: no userId in metadata'); break; }
 
         const active = sub.status === 'active' || sub.status === 'trialing';
-        const expiresAt = new Date(sub.current_period_end * 1000);
+        const expiresAt = subscriptionPeriodEnd(sub);
         const planId = sub.metadata?.planId;
         const planName = sub.metadata?.planName;
         await setMembershipStatus(userId, active ? 'active' : 'none', expiresAt, planId, planName, sub.id, sub.cancel_at_period_end);
