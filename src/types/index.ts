@@ -164,6 +164,11 @@ export interface UserProfile {
   activeProgram?: ActiveProgram;
   onboardingComplete?: boolean;
   onboarding?: OnboardingData;
+  // One-time flag — the streak flame's "ignition" welcome animation on the
+  // dashboard fires once, right after onboarding, then never again. Stored
+  // in Firestore (not localStorage) so it's a true once-ever moment across
+  // every device, not just the one they onboarded on.
+  flameIgnited?: boolean;
   assignedNutritionPlan?: NutritionPlan;
   achievements?: string[];
   questsCompleted?: string[];

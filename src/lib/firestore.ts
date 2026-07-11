@@ -776,6 +776,10 @@ export async function unbanUser(userId: string) {
   await updateDoc(doc(db, 'users', userId), { banned: false });
 }
 
+export async function markFlameIgnited(userId: string) {
+  await updateDoc(doc(db, 'users', userId), { flameIgnited: true });
+}
+
 export async function getAllUsers() {
   const snap = await getDocs(collection(db, 'users'));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));

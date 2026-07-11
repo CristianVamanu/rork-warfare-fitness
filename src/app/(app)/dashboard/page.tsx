@@ -1,11 +1,11 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getWeeklySummary, getPersonalBest, getLeaderboard, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
+import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
 import { getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
@@ -128,22 +128,23 @@ export default function DashboardPage() {
   };
 
   // One-time "ignition" moment — the ember flaring up into a real flame the
-  // very first time someone finishes a workout. Tracked in localStorage
-  // (per-device, keyed to uid) rather than Firestore since it's a pure UI
-  // flourish, not data anything else needs to read.
+  // first time a brand-new user lands on the dashboard right after
+  // onboarding. `flameIgnited` is a real Firestore flag (not localStorage)
+  // so it fires exactly once ever, on whichever device they finish
+  // onboarding on, and never replays on a second device.
   const [igniting, setIgniting] = useState(false);
-  const totalWorkouts = profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0;
+  const ignitedRef = useRef(false);
   useEffect(() => {
-    if (!user || loading) return;
-    if (totalWorkouts !== 1 || !workedOutToday) return;
-    const key = `wf-flame-ignited-${user.uid}`;
-    if (localStorage.getItem(key)) return;
-    localStorage.setItem(key, '1');
+    if (!user || loading || !profile) return;
+    if (!profile.onboardingComplete || profile.flameIgnited) return;
+    if (ignitedRef.current) return;
+    ignitedRef.current = true;
     setIgniting(true);
     toast.success('🔥 Your flame is lit — keep it burning!', { duration: 4500 });
+    markFlameIgnited(user.uid).catch(() => {});
     const t = setTimeout(() => setIgniting(false), 2200);
     return () => clearTimeout(t);
-  }, [user, loading, totalWorkouts, workedOutToday]);
+  }, [user, loading, profile]);
 
   // Active program data — single source of truth: lastCompletedDayIndex
   const activeProgram = profile?.activeProgram;
