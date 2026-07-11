@@ -148,6 +148,26 @@ export default function ProfilePage() {
     }
   };
 
+  const [openingPortal, setOpeningPortal] = useState(false);
+  const handleManageBilling = async () => {
+    if (!user) return;
+    setOpeningPortal(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/stripe/create-portal-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json() as { url?: string; error?: string };
+      if (data.url) window.location.href = data.url;
+      else toast.error(data.error ?? 'Failed to open billing portal');
+    } catch {
+      toast.error('Failed to open billing portal');
+    } finally {
+      setOpeningPortal(false);
+    }
+  };
+
   const handleCancelMembership = async () => {
     if (!user) return;
     if (!confirm('Cancel your membership? You will keep access until the end of your current billing period.')) return;
@@ -484,14 +504,13 @@ export default function ProfilePage() {
               </p>
             </div>
             {isActive && (
-              <a
-                href="https://billing.stripe.com/p/login/test_00g00000000000000"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs text-accent hover:underline"
+              <button
+                onClick={handleManageBilling}
+                disabled={openingPortal}
+                className="flex items-center gap-1 text-xs text-accent hover:underline disabled:opacity-50"
               >
-                Manage billing <ExternalLink className="w-3 h-3" />
-              </a>
+                {openingPortal ? 'Opening…' : 'Manage billing'} <ExternalLink className="w-3 h-3" />
+              </button>
             )}
           </Card>
         </motion.div>

@@ -115,6 +115,37 @@ button, a { touch-action: manipulation; }
 /* Hide scrollbar inside weight wheel */
 .weight-wheel-scroll::-webkit-scrollbar { display: none; }
 
+/* ── Weight slider — bigger thumb than the browser default for easier
+   touch dragging, and a taller/rounder track. ── */
+.weight-slider-input {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border-subtle);
+  outline: none;
+}
+.weight-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #F5A623;
+  border: 3px solid var(--surface);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  cursor: pointer;
+}
+.weight-slider-input::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #F5A623;
+  border: 3px solid var(--surface);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  cursor: pointer;
+}
+
 /* ── Light-mode overrides for Tailwind utilities that can't use CSS vars ── */
 /* These cover page-level usages of raw Tailwind color classes */
 

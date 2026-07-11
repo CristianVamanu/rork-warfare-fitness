@@ -17,7 +17,7 @@ import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { WeightWheel } from '@/components/workout/WeightWheel';
+import { WeightSlider } from '@/components/workout/WeightSlider';
 import type { Exercise } from '@/types';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -500,12 +500,9 @@ function SetRow({
         </div>
       </div>
 
-      {/* Weight wheel */}
+      {/* Weight slider */}
       <div className="px-4 pt-4 pb-2">
-        <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-widest text-center mb-2">
-          Weight ({weightUnit.toUpperCase()})
-        </p>
-        <WeightWheel
+        <WeightSlider
           value={state.weight}
           onChange={onWeightChange}
           step={weightUnit === 'lbs' ? 5 : 2.5}
