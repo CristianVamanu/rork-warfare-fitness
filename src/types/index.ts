@@ -1,3 +1,16 @@
+export const HABIT_KEYS = [
+  'water', 'sleep', 'meditation', 'stretching', 'creatine', 'vitaminD', 'reading',
+] as const;
+export type HabitKey = typeof HABIT_KEYS[number];
+
+export interface HabitLog {
+  id: string;          // `${userId}_${date}`
+  userId: string;
+  date: string;         // YYYY-MM-DD, local
+  habits: Partial<Record<HabitKey, boolean>>;
+  updatedAt: unknown;
+}
+
 export interface UserGoals {
   calories: number;
   protein: number;

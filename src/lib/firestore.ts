@@ -157,6 +157,37 @@ export async function updateUserDoc(uid: string, data: Record<string, unknown>) 
 }
 
 // ---------------------------------------------------------------------------
+// Habit tracker
+// ---------------------------------------------------------------------------
+import type { HabitKey, HabitLog } from '@/types';
+
+export async function toggleHabit(userId: string, date: string, habit: HabitKey, done: boolean): Promise<void> {
+  const id = `${userId}_${date}`;
+  await setDoc(
+    doc(db, 'habitLogs', id),
+    { userId, date, habits: { [habit]: done }, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+}
+
+/** Last `days` habit logs for a user, most recent first (missing days simply absent). */
+export async function getRecentHabitLogs(userId: string, days: number): Promise<HabitLog[]> {
+  const today = new Date();
+  const dates: string[] = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  const snaps = await Promise.all(
+    dates.map((date) => getDoc(doc(db, 'habitLogs', `${userId}_${date}`)))
+  );
+  return snaps
+    .filter((s) => s.exists())
+    .map((s) => ({ id: s.id, ...s.data() } as HabitLog));
+}
+
+// ---------------------------------------------------------------------------
 // Fasting timer
 // ---------------------------------------------------------------------------
 import type { FastingSession, DaysWithoutGoal } from '@/types';
