@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 
 const stagger = {
   container: { animate: { transition: { staggerChildren: 0.06 } } },
@@ -126,6 +127,24 @@ export default function DashboardPage() {
     out: "Flame's out — start a new streak today",
   };
 
+  // One-time "ignition" moment — the ember flaring up into a real flame the
+  // very first time someone finishes a workout. Tracked in localStorage
+  // (per-device, keyed to uid) rather than Firestore since it's a pure UI
+  // flourish, not data anything else needs to read.
+  const [igniting, setIgniting] = useState(false);
+  const totalWorkouts = profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0;
+  useEffect(() => {
+    if (!user || loading) return;
+    if (totalWorkouts !== 1 || !workedOutToday) return;
+    const key = `wf-flame-ignited-${user.uid}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+    setIgniting(true);
+    toast.success('🔥 Your flame is lit — keep it burning!', { duration: 4500 });
+    const t = setTimeout(() => setIgniting(false), 2200);
+    return () => clearTimeout(t);
+  }, [user, loading, totalWorkouts, workedOutToday]);
+
   // Active program data — single source of truth: lastCompletedDayIndex
   const activeProgram = profile?.activeProgram;
   const completedWorkouts = activeProgram?.completedWorkouts ?? 0;
@@ -202,6 +221,12 @@ export default function DashboardPage() {
               <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide relative">Streak</span>
 
               <div className="flex-1 flex items-center justify-center relative">
+                {igniting && (
+                  <div
+                    className="ignite-flash absolute w-36 h-36 rounded-full pointer-events-none"
+                    style={{ background: 'radial-gradient(circle, rgba(255,214,140,0.9) 0%, rgba(245,166,35,0) 70%)' }}
+                  />
+                )}
                 {(() => {
                   const cfg = {
                     blazing:    { glow: 'rgba(245,166,35,0.55)', size: 104, opacity: 0.25, anim: 'flame-glow flame-flicker',      gray: false },
@@ -216,8 +241,9 @@ export default function DashboardPage() {
                         style={{ width: cfg.size * 1.3, height: cfg.size * 1.3, background: `radial-gradient(circle, ${cfg.glow} 0%, rgba(0,0,0,0) 70%)` }}
                       />
                       <span
-                        className={`${cfg.anim} absolute leading-none pointer-events-none select-none`}
-                        style={{ fontSize: cfg.size, opacity: cfg.opacity, filter: cfg.gray ? 'grayscale(0.75) brightness(0.85)' : undefined }}
+                        key={igniting ? 'igniting' : 'settled'}
+                        className={`${igniting ? 'flame-ignite' : cfg.anim} absolute leading-none pointer-events-none select-none`}
+                        style={{ fontSize: cfg.size, opacity: igniting ? 1 : cfg.opacity, filter: !igniting && cfg.gray ? 'grayscale(0.75) brightness(0.85)' : undefined }}
                       >
                         🔥
                       </span>
@@ -229,7 +255,11 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              {FLAME_COPY[flameState] && (
+              {igniting ? (
+                <p className="text-[9px] text-center text-accent font-bold mb-1.5 relative">
+                  Your flame is lit 🔥
+                </p>
+              ) : FLAME_COPY[flameState] && (
                 <p className="text-[9px] text-center text-amber-400/80 font-medium mb-1.5 relative">
                   {FLAME_COPY[flameState]}
                 </p>
