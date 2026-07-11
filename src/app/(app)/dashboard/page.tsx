@@ -197,26 +197,44 @@ export default function DashboardPage() {
             </Card>
           </motion.div>
 
-          {/* Rank */}
+          {/* Calories */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-1">
-            <Link href="/community?tab=leaderboard" className="block h-full">
-              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors">
-                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Leaderboard</span>
-                <p className="text-xl font-black text-accent leading-tight mt-0.5">{myRank ? `#${myRank}` : '—'}</p>
-                <p className="text-[10px] text-text-tertiary mt-0.5">Lvl {powerLevel} · {profile?.xp ?? 0} XP</p>
-              </Card>
-            </Link>
+            <Card className="p-3.5 h-full flex flex-col justify-between">
+              {loading && calories === null ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <Flame className="w-3.5 h-3.5 text-orange-400" />
+                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Calories</span>
+                  </div>
+                  <p className="text-lg font-black text-white">
+                    {calories ?? 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.calories}</span>
+                  </p>
+                  <ProgressBar value={calories ?? 0} max={goals.calories} color="danger" size="sm" />
+                </>
+              )}
+            </Card>
           </motion.div>
 
-          {/* PR Wall teaser */}
+          {/* Water */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-1">
-            <Link href="/community/prs" className="block h-full">
-              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors">
-                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR Wall</span>
-                <span className="text-lg mt-0.5">🏅</span>
-                <p className="text-[10px] text-text-tertiary mt-0.5">Post a lift, get verified</p>
-              </Card>
-            </Link>
+            <Card className="p-3.5 h-full flex flex-col justify-between">
+              {loading && waterMl === null ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <Droplets className="w-3.5 h-3.5 text-blue-400" />
+                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Water</span>
+                  </div>
+                  <p className="text-lg font-black text-white">
+                    {waterMl ? Math.round(waterMl / 100) / 10 : 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.water / 1000}L</span>
+                  </p>
+                  <ProgressBar value={waterMl ?? 0} max={goals.water} color="info" size="sm" />
+                </>
+              )}
+            </Card>
           </motion.div>
 
           {/* Today's Workout — hero */}
@@ -316,44 +334,26 @@ export default function DashboardPage() {
             )}
           </motion.div>
 
-          {/* Calories */}
+          {/* Rank */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-1">
-            <Card className="p-3.5 h-full flex flex-col justify-between">
-              {loading && calories === null ? (
-                <Skeleton className="h-10 w-full" />
-              ) : (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <Flame className="w-3.5 h-3.5 text-orange-400" />
-                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Calories</span>
-                  </div>
-                  <p className="text-lg font-black text-white">
-                    {calories ?? 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.calories}</span>
-                  </p>
-                  <ProgressBar value={calories ?? 0} max={goals.calories} color="danger" size="sm" />
-                </>
-              )}
-            </Card>
+            <Link href="/community?tab=leaderboard" className="block h-full">
+              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors">
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Leaderboard</span>
+                <p className="text-xl font-black text-accent leading-tight mt-0.5">{myRank ? `#${myRank}` : '—'}</p>
+                <p className="text-[10px] text-text-tertiary mt-0.5">Lvl {powerLevel} · {profile?.xp ?? 0} XP</p>
+              </Card>
+            </Link>
           </motion.div>
 
-          {/* Water */}
+          {/* PR Wall teaser */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-1">
-            <Card className="p-3.5 h-full flex flex-col justify-between">
-              {loading && waterMl === null ? (
-                <Skeleton className="h-10 w-full" />
-              ) : (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <Droplets className="w-3.5 h-3.5 text-blue-400" />
-                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Water</span>
-                  </div>
-                  <p className="text-lg font-black text-white">
-                    {waterMl ? Math.round(waterMl / 100) / 10 : 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.water / 1000}L</span>
-                  </p>
-                  <ProgressBar value={waterMl ?? 0} max={goals.water} color="info" size="sm" />
-                </>
-              )}
-            </Card>
+            <Link href="/community/prs" className="block h-full">
+              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors">
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR Wall</span>
+                <span className="text-lg mt-0.5">🏅</span>
+                <p className="text-[10px] text-text-tertiary mt-0.5">Post a lift, get verified</p>
+              </Card>
+            </Link>
           </motion.div>
 
           {/* Weekly volume — real numbers only, no invented daily breakdown */}
