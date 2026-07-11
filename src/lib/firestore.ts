@@ -1169,8 +1169,11 @@ export async function createPRPost(input: {
   mediaType?: 'image' | 'video';
   verificationLevel: VerificationLevel;
 }): Promise<string> {
+  // addDoc rejects `undefined` field values outright — strip optional fields
+  // the caller left unset (no note, no media) instead of writing undefined.
+  const clean = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
   const ref = await addDoc(collection(db, 'prPosts'), {
-    ...input,
+    ...clean,
     likeCount: 0,
     createdAt: serverTimestamp(),
   });
