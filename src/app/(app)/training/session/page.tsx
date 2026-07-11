@@ -419,9 +419,16 @@ function HiitTimerRow({
   setNum, workSeconds, restSeconds, rounds, isActive, isPending, isCompleted, isSkipped,
   onActivate, onComplete, onSkip,
 }: HiitTimerRowProps) {
-  const [round, setRound] = useState(1);
-  const [phase, setPhase] = useState<'work' | 'rest'>('work');
-  const [remaining, setRemaining] = useState(workSeconds);
+  // Timer state lives in a ref, not useState — `tick` is handed to
+  // setInterval once per `toggle()` call and keeps running every second
+  // after that. If phase/round were plain state, `tick`'s closure would
+  // capture whatever their values were at the moment the interval was
+  // created and never see later updates (a classic stale-closure bug),
+  // which is what made this get stuck re-running the rest phase forever
+  // instead of flipping back to work. `renderTick` just forces a re-render
+  // so the JSX below (which reads straight from the ref) reflects it.
+  const state = useRef({ round: 1, phase: 'work' as 'work' | 'rest', remaining: workSeconds });
+  const [, renderTick] = useState(0);
   const [running, setRunning] = useState(false);
   const tickRef = useRef<NodeJS.Timeout>();
 
@@ -429,6 +436,7 @@ function HiitTimerRow({
     return () => clearInterval(tickRef.current);
   }, []);
 
+  const { round, phase, remaining } = state.current;
   const phaseTotal = phase === 'work' ? workSeconds : restSeconds;
   const pct = 1 - remaining / phaseTotal;
   const circumference = 2 * Math.PI * 30;
@@ -437,41 +445,47 @@ function HiitTimerRow({
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(ms);
   }
 
+  function finish() {
+    clearInterval(tickRef.current);
+    setRunning(false);
+    vibrate([150, 80, 150]);
+    onComplete();
+  }
+
   function tick() {
-    setRemaining((prev) => {
-      if (prev > 1) return prev - 1;
-      // Phase boundary — flip work<->rest, or advance/finish rounds
-      if (phase === 'work') {
-        if (restSeconds > 0) {
-          vibrate(150);
-          setPhase('rest');
-          return restSeconds;
-        }
-        // No rest configured — go straight to the next round
-        if (round >= rounds) {
-          clearInterval(tickRef.current);
-          setRunning(false);
-          vibrate([150, 80, 150]);
-          onComplete();
-          return 0;
-        }
+    const s = state.current;
+    if (s.remaining > 1) {
+      s.remaining -= 1;
+      renderTick((n) => n + 1);
+      return;
+    }
+    // Phase boundary — flip work<->rest, or advance/finish rounds
+    if (s.phase === 'work') {
+      if (restSeconds > 0) {
         vibrate(150);
-        setRound((r) => r + 1);
-        return workSeconds;
+        s.phase = 'rest';
+        s.remaining = restSeconds;
+      } else if (s.round >= rounds) {
+        s.remaining = 0;
+        finish();
+      } else {
+        vibrate(150);
+        s.round += 1;
+        s.remaining = workSeconds;
       }
+    } else {
       // End of a rest phase
-      if (round >= rounds) {
-        clearInterval(tickRef.current);
-        setRunning(false);
-        vibrate([150, 80, 150]);
-        onComplete();
-        return 0;
+      if (s.round >= rounds) {
+        s.remaining = 0;
+        finish();
+      } else {
+        vibrate(150);
+        s.round += 1;
+        s.phase = 'work';
+        s.remaining = workSeconds;
       }
-      vibrate(150);
-      setRound((r) => r + 1);
-      setPhase('work');
-      return workSeconds;
-    });
+    }
+    renderTick((n) => n + 1);
   }
 
   function toggle() {
@@ -487,9 +501,8 @@ function HiitTimerRow({
   function reset() {
     clearInterval(tickRef.current);
     setRunning(false);
-    setRound(1);
-    setPhase('work');
-    setRemaining(workSeconds);
+    state.current = { round: 1, phase: 'work', remaining: workSeconds };
+    renderTick((n) => n + 1);
   }
 
   if (isCompleted || isSkipped) {
