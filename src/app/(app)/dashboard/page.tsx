@@ -41,7 +41,6 @@ export default function DashboardPage() {
   const [myRank, setMyRank] = useState<number | null>(null);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
-  const [coachBriefing, setCoachBriefing] = useState<string>('');
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
 
@@ -133,32 +132,6 @@ export default function DashboardPage() {
     getPersonalBest(user.uid, firstExerciseName).then(setPersonalBest).catch(() => setPersonalBest(null));
   }, [user, firstExerciseName]);
 
-  // AI Coach briefing — cached server-side once per user per day, so this
-  // fetch is cheap on repeat visits within the same day.
-  useEffect(() => {
-    if (!user || loading) return;
-    const lastLoginTs = profile?.lastLoginAt as { toDate?: () => Date } | undefined;
-    const lastLoginDate = lastLoginTs?.toDate?.();
-    const hoursSinceLastLogin = lastLoginDate ? (Date.now() - lastLoginDate.getTime()) / 3_600_000 : null;
-
-    fetch('/api/ai/coach-briefing', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        uid: user.uid,
-        name: firstName,
-        hoursSinceLastLogin,
-        todayLabel: todayDay?.label ?? null,
-        isRestDay: !!todayDay?.isRest,
-        streak,
-      }),
-    })
-      .then((r) => r.json())
-      .then((d: { briefing?: string }) => { if (d.briefing) setCoachBriefing(d.briefing); })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, loading]);
-
   const stats = [
     {
       icon: Flame,
@@ -229,18 +202,6 @@ export default function DashboardPage() {
               <span className={tier.color}>⚡</span> Lvl {powerLevel} · {tier.title}
             </Badge>
           </div>
-          {coachBriefing && (
-            <p className="text-sm text-text-secondary leading-relaxed mt-2.5">{coachBriefing}</p>
-          )}
-          {coachBriefing && activeProgram && !todayDay?.isRest && (
-            <Button
-              size="sm"
-              className="mt-3"
-              onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}
-            >
-              <Play className="w-3.5 h-3.5" /> Ready
-            </Button>
-          )}
         </motion.div>
 
         {/* Stats Grid */}
