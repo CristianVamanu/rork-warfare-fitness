@@ -23,7 +23,7 @@ export default function QuestsPage() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <Header title="Quests" />
+      <Header title="Quests" showBack />
       <div className="px-4 pt-4 max-w-lg mx-auto space-y-4">
         <Card className="p-4 flex items-center justify-between">
           <div>

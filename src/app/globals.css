@@ -115,6 +115,10 @@ button, a { touch-action: manipulation; }
 /* Hide scrollbar inside weight wheel */
 .weight-wheel-scroll::-webkit-scrollbar { display: none; }
 
+/* Hide scrollbar on the dashboard Quick Actions row */
+.quick-actions-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.quick-actions-scroll::-webkit-scrollbar { display: none; }
+
 /* ── Weight slider — bigger thumb than the browser default for easier
    touch dragging, and a taller/rounder track. ── */
 .weight-slider-input {

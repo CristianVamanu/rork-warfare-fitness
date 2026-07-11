@@ -400,7 +400,7 @@ export default function DashboardPage() {
         {/* Quick Actions */}
         <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
           <h2 className="text-base font-bold text-white mb-3">Quick Actions</h2>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="flex gap-4 overflow-x-auto pb-1 -mx-4 px-4 quick-actions-scroll">
             {[
               { icon: Dumbbell, label: 'Workout', href: '/training', color: 'text-purple-400', bg: 'bg-purple-400/10' },
               { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', color: 'text-green-400', bg: 'bg-green-400/10' },
@@ -411,14 +411,14 @@ export default function DashboardPage() {
               { icon: Trophy, label: 'Achievements', href: '/achievements', color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
               { icon: Swords, label: 'Quests', href: '/quests', color: 'text-pink-400', bg: 'bg-pink-400/10' },
             ].map((action) => (
-              <Link key={action.label} href={action.href}>
+              <Link key={action.label} href={action.href} className="flex-shrink-0">
                 <motion.div
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.96 }}
-                  className="flex flex-col items-center gap-2 p-3 bg-surface border border-white/8 rounded-2xl"
+                  className="flex flex-col items-center gap-2 w-16"
                 >
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${action.bg}`}>
-                    <action.icon className={`w-5 h-5 ${action.color}`} strokeWidth={2.25} />
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center ${action.bg}`}>
+                    <action.icon className={`w-6 h-6 ${action.color}`} strokeWidth={2.25} />
                   </div>
                   <span className="text-[10px] text-text-secondary text-center leading-tight">{action.label}</span>
                 </motion.div>

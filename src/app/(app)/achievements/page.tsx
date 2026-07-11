@@ -24,7 +24,7 @@ export default function AchievementsPage() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <Header title="Achievements" />
+      <Header title="Achievements" showBack />
       <div className="px-4 pt-4 max-w-lg mx-auto space-y-5">
         <Card className="p-4 flex items-center justify-between">
           <div>

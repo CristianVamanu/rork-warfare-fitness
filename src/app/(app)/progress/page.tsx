@@ -103,7 +103,7 @@ export default function ProgressPage() {
 
   return (
     <div>
-      <Header title="Progress" />
+      <Header title="Progress" showBack />
       <div className="px-4 py-4 space-y-5">
 
         {/* Power Level Hero */}

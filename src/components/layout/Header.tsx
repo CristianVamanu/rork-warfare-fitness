@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Bell, MessageCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Bell, MessageCircle, ChevronLeft } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,10 +13,12 @@ interface HeaderProps {
   title?: string;
   showActions?: boolean;
   rightElement?: React.ReactNode;
+  showBack?: boolean;
 }
 
-export function Header({ title, showActions = true, rightElement }: HeaderProps) {
+export function Header({ title, showActions = true, rightElement, showBack = false }: HeaderProps) {
   const { user, profile } = useAuth();
+  const router = useRouter();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -58,7 +61,18 @@ export function Header({ title, showActions = true, rightElement }: HeaderProps)
     >
       <div className="flex items-center justify-between px-4 py-3 max-w-lg mx-auto">
         {title ? (
-          <h1 className="text-lg font-bold text-foreground">{title}</h1>
+          <div className="flex items-center gap-1">
+            {showBack && (
+              <button
+                onClick={() => router.back()}
+                className="p-1.5 -ml-1.5 rounded-xl text-text-secondary hover:text-foreground transition-colors"
+                aria-label="Back"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            <h1 className="text-lg font-bold text-foreground">{title}</h1>
+          </div>
         ) : (
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center overflow-hidden">
