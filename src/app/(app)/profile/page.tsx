@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
+import { VerificationBadge } from '@/components/ui/VerificationBadge';
 import { Modal } from '@/components/ui/Modal';
 import type { MembershipConfig, CoachingPlan, CoachingApplication } from '@/types';
 
@@ -253,6 +254,7 @@ export default function ProfilePage() {
             </div>
             <div className="flex items-center justify-center gap-1.5">
               <h2 className="text-xl font-black text-white">{profile?.displayName || 'Athlete'}</h2>
+              <VerificationBadge level={profile?.verificationLevel ?? 'unverified'} />
               <QuestBadgeRow questIds={profile?.questsCompleted ?? []} />
             </div>
             <p className="text-text-secondary text-sm mt-0.5">{user?.email}</p>

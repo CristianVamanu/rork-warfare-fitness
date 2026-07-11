@@ -125,7 +125,7 @@ export interface MedicalHistoryAnswers {
   dailyFluidIntake?: string;
 }
 
-export type VerificationLevel = 'unverified' | 'trusted' | 'video_verified' | 'coach_verified' | 'competition_verified';
+export type VerificationLevel = 'unverified' | 'verified';
 
 export interface PRPost {
   id: string;

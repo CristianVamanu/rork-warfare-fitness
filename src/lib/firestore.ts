@@ -1216,31 +1216,20 @@ export async function likePRPost(postId: string) {
   await updateDoc(doc(db, 'prPosts', postId), { likeCount: increment(1) });
 }
 
-const VERIFICATION_RANK: Record<VerificationLevel, number> = {
-  unverified: 0,
-  trusted: 1,
-  video_verified: 2,
-  coach_verified: 3,
-  competition_verified: 4,
-};
-
-/** Admin review action — sets a specific PR post's verification level, and
- * raises the poster's overall profile badge to match if this is higher than
- * what they already have (never downgrades their existing badge). */
-export async function setPRPostVerification(postId: string, userId: string, level: VerificationLevel) {
-  await updateDoc(doc(db, 'prPosts', postId), { verificationLevel: level });
-
-  const userRef = doc(db, 'users', userId);
-  const userSnap = await getDoc(userRef);
-  const current = (userSnap.data()?.verificationLevel as VerificationLevel) ?? 'unverified';
-  if (VERIFICATION_RANK[level] > VERIFICATION_RANK[current]) {
-    await updateDoc(userRef, { verificationLevel: level });
+/** Admin approve/reject — a post only reaches the public feed once approved.
+ * Approving a post is also what verifies it (there's no separate review
+ * step): it marks the post `verified` and raises the poster's own profile
+ * badge to `verified` too, so it shows next to their name everywhere, not
+ * just on this one post. Rejecting just hides it; it never un-verifies a
+ * user's other already-approved posts. */
+export async function setPRPostModeration(postId: string, userId: string, status: 'pending' | 'approved' | 'rejected') {
+  await updateDoc(doc(db, 'prPosts', postId), {
+    moderationStatus: status,
+    verificationLevel: status === 'approved' ? 'verified' : 'unverified',
+  });
+  if (status === 'approved') {
+    await updateDoc(doc(db, 'users', userId), { verificationLevel: 'verified' });
   }
-}
-
-/** Admin approve/reject — a post only reaches the public feed once approved. */
-export async function setPRPostModeration(postId: string, status: 'pending' | 'approved' | 'rejected') {
-  await updateDoc(doc(db, 'prPosts', postId), { moderationStatus: status });
 }
 
 export async function deletePRPost(postId: string) {

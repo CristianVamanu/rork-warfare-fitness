@@ -6,22 +6,14 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, Trash2, Ban, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
-  subscribeAllPRPosts, setPRPostVerification, setPRPostModeration, deletePRPost,
+  subscribeAllPRPosts, setPRPostModeration, deletePRPost,
   banUserFromPRWall, unbanUserFromPRWall,
 } from '@/lib/firestore';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
 import toast from 'react-hot-toast';
-import type { PRPost, VerificationLevel } from '@/types';
-
-const LEVELS: { value: VerificationLevel; label: string }[] = [
-  { value: 'unverified', label: 'Unverified' },
-  { value: 'trusted', label: 'Trusted' },
-  { value: 'video_verified', label: 'Video Verified' },
-  { value: 'coach_verified', label: 'Coach Verified' },
-  { value: 'competition_verified', label: 'Competition Verified' },
-];
+import type { PRPost } from '@/types';
 
 const BAN_OPTIONS: { label: string; days: number | null }[] = [
   { label: '7 days', days: 7 },
@@ -58,14 +50,12 @@ export default function PRReviewPage() {
     }
   };
 
-  const approve = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, 'approved'), 'Post approved — now visible on the PR Wall');
-  const reject = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, 'rejected'), 'Post rejected — hidden from the PR Wall');
+  const approve = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, post.userId, 'approved'), `Approved — ${post.displayName} is now Verified`);
+  const reject = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, post.userId, 'rejected'), 'Post rejected — hidden from the PR Wall');
   const removePost = (post: PRPost) => {
     if (!confirm(`Permanently delete ${post.displayName}'s "${post.exerciseName}" post?`)) return;
     withBusy(post.id, () => deletePRPost(post.id), 'Post deleted');
   };
-  const setLevel = (post: PRPost, level: VerificationLevel) =>
-    withBusy(post.id, () => setPRPostVerification(post.id, post.userId, level), `Marked ${post.displayName}'s PR as ${LEVELS.find((l) => l.value === level)?.label}`);
   const ban = (post: PRPost, days: number | null) => {
     setBanMenuFor(null);
     withBusy(post.id, () => banUserFromPRWall(post.userId, days), `${post.displayName} banned from the PR Wall${days ? ` for ${days} days` : ' indefinitely'}`);
@@ -80,7 +70,7 @@ export default function PRReviewPage() {
         </button>
         <h1 className="text-xl font-black text-white mb-1">PR Wall Review</h1>
         <p className="text-sm text-text-secondary mb-4">
-          Approve or reject submissions before they reach the public wall, assign trust badges, and manage posting bans.
+          Approve a post to make it visible on the PR Wall and mark that athlete as Verified. Reject to hide it. Manage posting bans below.
         </p>
 
         <div className="flex gap-1.5 mb-4">
@@ -197,22 +187,6 @@ export default function PRReviewPage() {
                         </div>
                       )}
                     </div>
-                  </div>
-
-                  {/* Trust badge — separate from moderation */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {LEVELS.map((l) => (
-                      <button
-                        key={l.value}
-                        disabled={busyId === post.id}
-                        onClick={() => setLevel(post, l.value)}
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 ${
-                          post.verificationLevel === l.value ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'
-                        }`}
-                      >
-                        {l.label}
-                      </button>
-                    ))}
                   </div>
                 </Card>
               </motion.div>

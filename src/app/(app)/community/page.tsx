@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
 import Link from 'next/link';
-import type { Channel, VerificationLevel } from '@/types';
+import type { Channel } from '@/types';
 
 export default function CommunityPage() {
   const { trainerId, user, profile } = useAuth();
@@ -27,13 +27,8 @@ export default function CommunityPage() {
   const [tab, setTab] = useState<'channels' | 'leaderboard'>(
     searchParams.get('tab') === 'leaderboard' ? 'leaderboard' : 'channels'
   );
-  const [lbFilter, setLbFilter] = useState<'everyone' | 'trusted' | 'verified'>('everyone');
-  const VERIFIED_LEVELS: VerificationLevel[] = ['video_verified', 'coach_verified', 'competition_verified'];
-  const filteredLeaderboard = leaderboard.filter((e) => {
-    if (lbFilter === 'everyone') return true;
-    if (lbFilter === 'trusted') return e.verificationLevel !== 'unverified';
-    return VERIFIED_LEVELS.includes(e.verificationLevel);
-  });
+  const [lbFilter, setLbFilter] = useState<'everyone' | 'verified'>('everyone');
+  const filteredLeaderboard = leaderboard.filter((e) => lbFilter === 'everyone' || e.verificationLevel === 'verified');
 
   useEffect(() => {
     getChannels(effectiveTrainerId ?? undefined)
@@ -148,7 +143,6 @@ export default function CommunityPage() {
             <div className="flex gap-1.5">
               {([
                 { key: 'everyone', label: 'Everyone' },
-                { key: 'trusted', label: 'Trusted Athletes' },
                 { key: 'verified', label: 'Verified Lifts Only' },
               ] as const).map((f) => (
                 <button
