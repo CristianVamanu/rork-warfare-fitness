@@ -53,7 +53,7 @@ export function BottomNav() {
               <span
                 className={cn(
                   'text-[10px] font-medium transition-colors',
-                  active ? 'text-accent' : 'text-text-tertiary'
+                  active ? 'text-accent' : 'text-foreground'
                 )}
               >
                 {label}
