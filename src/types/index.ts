@@ -305,6 +305,10 @@ export interface Exercise {
   muscleGroup?: string;
   isCardio?: boolean;
   cardioDurationSeconds?: number; // duration per set for cardio exercises
+  isHiit?: boolean;               // interval-style cardio — work/rest rounds instead of one flat timer
+  hiitWorkSeconds?: number;
+  hiitRestSeconds?: number;
+  hiitRounds?: number;
   videoUrl?: string;             // Firebase Storage download URL from exercise library
 }
 

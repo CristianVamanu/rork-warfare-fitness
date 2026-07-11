@@ -33,6 +33,10 @@ interface BEx {
   notes: string;
   videoUrl?: string;
   isCardio?: boolean;
+  isHiit?: boolean;
+  hiitWorkSeconds?: number;
+  hiitRestSeconds?: number;
+  hiitRounds?: number;
 }
 
 interface BDay {
@@ -140,6 +144,11 @@ function BuilderInner() {
                   restSeconds: e.restSeconds,
                   notes: e.notes || '',
                   isCardio: (e as BEx).isCardio,
+                  isHiit: (e as BEx).isHiit,
+                  hiitWorkSeconds: (e as BEx).hiitWorkSeconds,
+                  hiitRestSeconds: (e as BEx).hiitRestSeconds,
+                  hiitRounds: (e as BEx).hiitRounds,
+                  videoUrl: (e as BEx).videoUrl,
                 })),
               }))
             : emptyProg().schedule,
@@ -664,12 +673,65 @@ function BuilderInner() {
                               <p className="text-[10px] text-text-tertiary">Shows a timer during the workout instead of sets/reps</p>
                             </div>
                             <button
-                              onClick={() => updateEx(activeDay, ex.id, { isCardio: !ex.isCardio })}
+                              onClick={() => updateEx(activeDay, ex.id, { isCardio: !ex.isCardio, ...(ex.isCardio ? { isHiit: false } : {}) })}
                               className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 ${ex.isCardio ? 'bg-accent' : 'bg-surface-elevated'}`}
                             >
                               <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${ex.isCardio ? 'left-[18px]' : 'left-0.5'}`} />
                             </button>
                           </div>
+                          {ex.isCardio && (
+                            <div className="col-span-2 flex items-center justify-between p-2.5 bg-surface rounded-xl border border-white/10">
+                              <div>
+                                <p className="text-xs font-medium text-white">HIIT Intervals</p>
+                                <p className="text-[10px] text-text-tertiary">Alternate work/rest rounds instead of one flat timer</p>
+                              </div>
+                              <button
+                                onClick={() => updateEx(activeDay, ex.id, {
+                                  isHiit: !ex.isHiit,
+                                  hiitWorkSeconds: ex.hiitWorkSeconds || 30,
+                                  hiitRestSeconds: ex.hiitRestSeconds || 30,
+                                  hiitRounds: ex.hiitRounds || 8,
+                                  // A HIIT block is one continuous interval session, not
+                                  // several — force sets to 1 so it doesn't render 3 stacked timers.
+                                  ...(!ex.isHiit ? { sets: 1 } : {}),
+                                })}
+                                className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 ${ex.isHiit ? 'bg-accent' : 'bg-surface-elevated'}`}
+                              >
+                                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${ex.isHiit ? 'left-[18px]' : 'left-0.5'}`} />
+                              </button>
+                            </div>
+                          )}
+                          {ex.isCardio && ex.isHiit && (
+                            <div className="col-span-2 grid grid-cols-3 gap-2 p-2.5 bg-surface rounded-xl border border-white/10">
+                              <div>
+                                <label className="text-[10px] text-text-tertiary mb-1 block">Work (sec)</label>
+                                <Input
+                                  type="number" min={5} max={600} step={5}
+                                  value={ex.hiitWorkSeconds ?? 30}
+                                  onChange={e => updateEx(activeDay, ex.id, { hiitWorkSeconds: Math.max(5, Number(e.target.value)) })}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-text-tertiary mb-1 block">Rest (sec)</label>
+                                <Input
+                                  type="number" min={0} max={600} step={5}
+                                  value={ex.hiitRestSeconds ?? 30}
+                                  onChange={e => updateEx(activeDay, ex.id, { hiitRestSeconds: Math.max(0, Number(e.target.value)) })}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-text-tertiary mb-1 block">Rounds</label>
+                                <Input
+                                  type="number" min={1} max={50} step={1}
+                                  value={ex.hiitRounds ?? 8}
+                                  onChange={e => updateEx(activeDay, ex.id, { hiitRounds: Math.max(1, Number(e.target.value)) })}
+                                />
+                              </div>
+                              <p className="col-span-3 text-[10px] text-text-tertiary">
+                                e.g. 30 sec on / 30 sec off × 8 rounds = 8 min total
+                              </p>
+                            </div>
+                          )}
                           <div className="col-span-2">
                             <label className="text-[10px] text-text-tertiary mb-1 block">Exercise Tip (shown to user during workout)</label>
                             <Input

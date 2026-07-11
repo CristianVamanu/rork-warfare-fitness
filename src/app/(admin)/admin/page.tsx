@@ -14,7 +14,7 @@ import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/
 import { db } from '@/lib/firebase';
 import { getIdToken } from 'firebase/auth';
 import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
-import { extractVideoThumbnail } from '@/lib/videoThumbnail';
+import { extractVideoThumbnail, extractVideoThumbnailFromUrl } from '@/lib/videoThumbnail';
 import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS } from '@/lib/legalDefaults';
 import {
   getSystemConfig, setSystemConfig,
@@ -25,7 +25,7 @@ import {
   getChannels, createChannel, updateChannel, deleteChannel,
   deleteUserAccount,
   getCoachingPlans, saveCoachingPlans, assignCoachingPlan, revokeCoachingPlan,
-  getExerciseVideos, saveExerciseVideo, deleteExerciseVideo,
+  getExerciseVideos, saveExerciseVideo, deleteExerciseVideo, updateExerciseVideoThumbnail,
   assignNutritionPlan,
   getCoachingApplications, approveCoachingApplication, rejectCoachingApplication,
 } from '@/lib/firestore';
@@ -247,6 +247,8 @@ export default function AdminPage() {
   const [exUploadProgress, setExUploadProgress] = useState(0);
   const [savingEx, setSavingEx] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<string | null>(null);
+  const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState({ done: 0, total: 0, failed: 0 });
   // Bulk upload
   const [bulkCategory, setBulkCategory] = useState('Abs');
   const [bulkEquipment, setBulkEquipment] = useState('Bodyweight');
@@ -913,6 +915,36 @@ export default function AdminPage() {
       setExerciseLibrary(prev => prev.filter(e => e.id !== id));
       toast.success('Deleted');
     } catch { toast.error('Failed to delete'); }
+  }
+
+  // One-time cleanup for videos uploaded before thumbnails were generated —
+  // pulls a frame straight off each hosted video URL and saves it back.
+  async function handleBackfillThumbnails() {
+    if (!user) return;
+    const missing = exerciseLibrary.filter(e => !e.thumbnailUrl && e.videoUrl);
+    if (missing.length === 0) { toast('Every exercise already has a thumbnail'); return; }
+    setBackfillRunning(true);
+    setBackfillProgress({ done: 0, total: missing.length, failed: 0 });
+    let failed = 0;
+    for (const ex of missing) {
+      try {
+        const blob = await extractVideoThumbnailFromUrl(ex.videoUrl);
+        if (!blob) throw new Error('no frame');
+        const thumbFile = new File([blob], 'thumb.jpg', { type: 'image/jpeg' });
+        const thumbnailUrl = await uploadVideo(storageProvider, user, thumbFile, 'exerciseLibrary');
+        await updateExerciseVideoThumbnail(ex.id, thumbnailUrl);
+        setExerciseLibrary(prev => prev.map(e => e.id === ex.id ? { ...e, thumbnailUrl } : e));
+      } catch {
+        failed++;
+      }
+      setBackfillProgress(prev => ({ ...prev, done: prev.done + 1, failed }));
+    }
+    setBackfillRunning(false);
+    if (failed > 0) {
+      toast.error(`Backfilled ${missing.length - failed} of ${missing.length} — ${failed} couldn't be read (likely a CORS-blocked host)`, { duration: 6000 });
+    } else {
+      toast.success(`Generated thumbnails for ${missing.length} exercise${missing.length !== 1 ? 's' : ''}`);
+    }
   }
 
   // ── Bulk upload ──────────────────────────────────────────────────────────────
@@ -2249,11 +2281,20 @@ export default function AdminPage() {
           </Card>
 
           {/* ── Single add / edit form ────────────────────────────────────────── */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-xs text-text-secondary">Library ({exerciseLibrary.length})</p>
-            <Button size="sm" variant="ghost" onClick={() => startEditEx()}>
-              <Plus className="w-4 h-4" /> Add Single
-            </Button>
+            <div className="flex items-center gap-2">
+              {exerciseLibrary.some(e => !e.thumbnailUrl) && (
+                <Button size="sm" variant="ghost" onClick={handleBackfillThumbnails} loading={backfillRunning}>
+                  {backfillRunning
+                    ? `Generating ${backfillProgress.done}/${backfillProgress.total}…`
+                    : `Backfill Thumbnails (${exerciseLibrary.filter(e => !e.thumbnailUrl).length})`}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => startEditEx()}>
+                <Plus className="w-4 h-4" /> Add Single
+              </Button>
+            </div>
           </div>
 
           {showExForm && (

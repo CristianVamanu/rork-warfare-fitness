@@ -39,6 +39,10 @@ interface ExState {
   muscleGroup?: string;
   isCardio: boolean;
   cardioDurationSeconds: number;
+  isHiit: boolean;
+  hiitWorkSeconds: number;
+  hiitRestSeconds: number;
+  hiitRounds: number;
   sets: SetState[];
   notes?: string;
   videoUrl?: string;
@@ -93,6 +97,10 @@ function buildExState(exercises: Exercise[]): ExState[] {
       muscleGroup: ex.muscleGroup,
       isCardio: cardio,
       cardioDurationSeconds: cardioDuration,
+      isHiit: !!ex.isHiit,
+      hiitWorkSeconds: ex.hiitWorkSeconds ?? 30,
+      hiitRestSeconds: ex.hiitRestSeconds ?? 30,
+      hiitRounds: ex.hiitRounds ?? 8,
       sets,
       notes: ex.notes,
       videoUrl: ex.videoUrl,
@@ -374,6 +382,230 @@ function CardioTimerRow({
       </div>
 
       {/* Complete button — always visible */}
+      <div className="px-4 pb-4">
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={onComplete}
+          className="w-full py-3.5 rounded-xl bg-accent text-black font-bold text-sm flex items-center justify-center gap-2 shadow-glow-sm hover:bg-amber-400 transition-colors"
+        >
+          <CheckCircle className="w-4 h-4" />
+          Done — Mark Complete
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── HIIT Interval Timer Row ─────────────────────────────────────────────────
+// Cycles work/rest phases for a fixed number of rounds instead of one flat
+// countdown — e.g. 30s on / 30s off × 8 rounds. Auto-advances phases and
+// haptic-buzzes on every transition; marks complete once all rounds finish.
+
+interface HiitTimerRowProps {
+  setNum: number;
+  workSeconds: number;
+  restSeconds: number;
+  rounds: number;
+  isActive: boolean;
+  isPending: boolean;
+  isCompleted: boolean;
+  isSkipped: boolean;
+  onActivate: () => void;
+  onComplete: () => void;
+  onSkip: () => void;
+}
+
+function HiitTimerRow({
+  setNum, workSeconds, restSeconds, rounds, isActive, isPending, isCompleted, isSkipped,
+  onActivate, onComplete, onSkip,
+}: HiitTimerRowProps) {
+  const [round, setRound] = useState(1);
+  const [phase, setPhase] = useState<'work' | 'rest'>('work');
+  const [remaining, setRemaining] = useState(workSeconds);
+  const [running, setRunning] = useState(false);
+  const tickRef = useRef<NodeJS.Timeout>();
+
+  useEffect(() => {
+    return () => clearInterval(tickRef.current);
+  }, []);
+
+  const phaseTotal = phase === 'work' ? workSeconds : restSeconds;
+  const pct = 1 - remaining / phaseTotal;
+  const circumference = 2 * Math.PI * 30;
+
+  function vibrate(ms: number | number[]) {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(ms);
+  }
+
+  function tick() {
+    setRemaining((prev) => {
+      if (prev > 1) return prev - 1;
+      // Phase boundary — flip work<->rest, or advance/finish rounds
+      if (phase === 'work') {
+        if (restSeconds > 0) {
+          vibrate(150);
+          setPhase('rest');
+          return restSeconds;
+        }
+        // No rest configured — go straight to the next round
+        if (round >= rounds) {
+          clearInterval(tickRef.current);
+          setRunning(false);
+          vibrate([150, 80, 150]);
+          onComplete();
+          return 0;
+        }
+        vibrate(150);
+        setRound((r) => r + 1);
+        return workSeconds;
+      }
+      // End of a rest phase
+      if (round >= rounds) {
+        clearInterval(tickRef.current);
+        setRunning(false);
+        vibrate([150, 80, 150]);
+        onComplete();
+        return 0;
+      }
+      vibrate(150);
+      setRound((r) => r + 1);
+      setPhase('work');
+      return workSeconds;
+    });
+  }
+
+  function toggle() {
+    if (running) {
+      clearInterval(tickRef.current);
+      setRunning(false);
+    } else {
+      setRunning(true);
+      tickRef.current = setInterval(tick, 1000);
+    }
+  }
+
+  function reset() {
+    clearInterval(tickRef.current);
+    setRunning(false);
+    setRound(1);
+    setPhase('work');
+    setRemaining(workSeconds);
+  }
+
+  if (isCompleted || isSkipped) {
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, x: -16 }}
+        animate={{ opacity: 1, x: 0 }}
+        className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+          isCompleted ? 'bg-success/5 border-success/20' : 'bg-white/3 border-white/6 opacity-40'
+        }`}
+      >
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+          isCompleted ? 'bg-success/20' : 'bg-white/8'
+        }`}>
+          {isCompleted ? <CheckCircle className="w-4 h-4 text-success" /> : <span className="text-xs text-text-tertiary">{setNum}</span>}
+        </div>
+        <div className="flex-1">
+          <span className="text-sm text-text-secondary">{rounds} rounds — {workSeconds}s on / {restSeconds}s off</span>
+        </div>
+        {isCompleted && <Timer className="w-4 h-4 text-success" />}
+        {isSkipped && <span className="text-xs text-text-tertiary">Skipped</span>}
+      </motion.div>
+    );
+  }
+
+  if (isPending) {
+    return (
+      <motion.button
+        layout
+        onClick={onActivate}
+        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-surface hover:bg-surface-elevated transition-colors text-left"
+      >
+        <div className="w-7 h-7 rounded-lg bg-white/8 flex items-center justify-center flex-shrink-0">
+          <Zap className="w-3.5 h-3.5 text-text-tertiary" />
+        </div>
+        <span className="text-sm text-text-secondary flex-1">{rounds} rounds — {workSeconds}s on / {restSeconds}s off</span>
+        <span className="text-xs text-text-tertiary">tap to activate</span>
+      </motion.button>
+    );
+  }
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className={`rounded-2xl border ${phase === 'work' ? 'border-accent/40 bg-accent/5' : 'border-blue-400/30 bg-blue-400/5'}`}
+    >
+      <div className={`flex items-center justify-between px-4 py-3 border-b ${phase === 'work' ? 'border-accent/15' : 'border-blue-400/15'}`}>
+        <div className="flex items-center gap-2">
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${phase === 'work' ? 'bg-accent/20' : 'bg-blue-400/20'}`}>
+            <span className={`text-xs font-black ${phase === 'work' ? 'text-accent' : 'text-blue-400'}`}>{round}/{rounds}</span>
+          </div>
+          <span className="text-sm font-semibold text-foreground">{phase === 'work' ? 'Work' : 'Rest'}</span>
+        </div>
+        <button
+          onClick={onSkip}
+          className="px-2.5 py-1.5 rounded-lg text-xs text-text-tertiary hover:text-white hover:bg-white/8 transition-colors"
+        >
+          Skip
+        </button>
+      </div>
+
+      <div className="flex items-center gap-4 px-4 py-4">
+        <div className="relative flex-shrink-0">
+          <svg width={72} height={72} className="-rotate-90">
+            <circle cx={36} cy={36} r={30} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={5} />
+            <motion.circle
+              cx={36} cy={36} r={30} fill="none"
+              stroke={phase === 'work' ? '#F5A623' : '#60A5FA'} strokeWidth={5}
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - pct)}
+              transition={{ duration: 0.5 }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Timer className={`w-3.5 h-3.5 ${phase === 'work' ? 'text-accent' : 'text-blue-400'}`} />
+          </div>
+        </div>
+
+        <div className="flex-1">
+          <motion.p
+            key={remaining}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            className="text-3xl font-black text-foreground leading-none tabular-nums"
+          >
+            {remaining}s
+          </motion.p>
+          <p className="text-xs text-text-tertiary mt-1">
+            {running ? `Round ${round} of ${rounds}` : 'Tap ▶ to start'}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={reset}
+            className="w-9 h-9 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-text-secondary hover:text-foreground transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={toggle}
+            className="w-12 h-12 rounded-full bg-accent flex items-center justify-center shadow-glow-sm active:scale-95 transition-all"
+          >
+            {running
+              ? <Pause className="w-5 h-5 text-black" />
+              : <Play className="w-5 h-5 text-black ml-0.5" />
+            }
+          </button>
+        </div>
+      </div>
+
       <div className="px-4 pb-4">
         <motion.button
           whileTap={{ scale: 0.97 }}
@@ -1042,7 +1274,9 @@ export default function WorkoutSessionPage() {
                 <div className="flex-1 min-w-0">
                   <h2 className="text-lg font-black text-white leading-tight">{currentEx.name}</h2>
                   <p className="text-xs text-text-secondary">
-                    {currentEx.isCardio
+                    {currentEx.isHiit
+                      ? `HIIT · ${currentEx.hiitRounds} rounds · ${currentEx.hiitWorkSeconds}s on / ${currentEx.hiitRestSeconds}s off`
+                      : currentEx.isCardio
                       ? `${currentEx.targetSets} sets · ${Math.floor(currentEx.cardioDurationSeconds / 60)}:${String(currentEx.cardioDurationSeconds % 60).padStart(2, '0')} each`
                       : `${currentEx.targetSets} sets × ${currentEx.targetReps} reps${currentEx.restSeconds > 0 ? ` · ${currentEx.restSeconds}s rest` : ''}`
                     }
@@ -1054,7 +1288,22 @@ export default function WorkoutSessionPage() {
               {/* Set rows */}
               <div className="space-y-2 mt-3">
                 {currentEx.sets.map((setState, si) => (
-                  currentEx.isCardio ? (
+                  currentEx.isHiit ? (
+                    <HiitTimerRow
+                      key={si}
+                      setNum={si + 1}
+                      workSeconds={currentEx.hiitWorkSeconds}
+                      restSeconds={currentEx.hiitRestSeconds}
+                      rounds={currentEx.hiitRounds}
+                      isActive={setState.status === 'active'}
+                      isPending={setState.status === 'pending'}
+                      isCompleted={setState.status === 'completed'}
+                      isSkipped={setState.status === 'skipped'}
+                      onActivate={() => activateSet(currentExIdx, si)}
+                      onComplete={() => completeSet(currentExIdx, si)}
+                      onSkip={() => skipSet(currentExIdx, si)}
+                    />
+                  ) : currentEx.isCardio ? (
                     <CardioTimerRow
                       key={si}
                       setNum={si + 1}

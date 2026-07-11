@@ -1516,6 +1516,10 @@ export async function deleteExerciseVideo(id: string): Promise<void> {
   await deleteDoc(doc(db, 'exerciseLibrary', id));
 }
 
+export async function updateExerciseVideoThumbnail(id: string, thumbnailUrl: string): Promise<void> {
+  await updateDoc(doc(db, 'exerciseLibrary', id), { thumbnailUrl });
+}
+
 /**
  * Given a list of exercise names (from AI-generated program), return a map of
  * name → videoUrl for any exercises that exist in the library.
