@@ -3,14 +3,14 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, Upload, X, Video, Image as ImageIcon } from 'lucide-react';
+import { Heart, Upload, X, Video, Image as ImageIcon, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
-import { subscribePRFeed, createPRPost, likePRPost, getSystemConfig } from '@/lib/firestore';
+import { subscribePRFeed, createPRPost, likePRPost, deletePRPost, getSystemConfig } from '@/lib/firestore';
 import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import type { PRPost } from '@/types';
 
@@ -33,6 +33,13 @@ export default function PRWallPage() {
     if (liked.has(id)) return;
     setLiked((prev) => new Set(prev).add(id));
     likePRPost(id).catch(() => {});
+  };
+
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'trainer';
+
+  const handleDelete = (post: PRPost) => {
+    if (!confirm(`Delete this "${post.exerciseName}" post?`)) return;
+    deletePRPost(post.id).catch(() => alert('Failed to delete — try again.'));
   };
 
   return (
@@ -76,54 +83,100 @@ export default function PRWallPage() {
           </Card>
         ) : (
           posts.map((post, i) => (
-            <motion.div key={post.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
-              <Card className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0 text-xs font-bold text-accent">
-                    {post.displayName.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="text-sm font-bold text-white truncate">{post.displayName}</p>
-                      <VerificationBadge level={post.verificationLevel} showLabel />
-                      {post.moderationStatus === 'pending' && (
-                        <span className="text-[10px] text-amber-400 font-medium">· Pending review</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-text-tertiary">{post.exerciseName}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-black text-accent">{post.weightKg}kg</p>
-                    <p className="text-[10px] text-text-tertiary">× {post.reps}</p>
-                  </div>
-                </div>
-
-                {post.mediaUrl && (
-                  <div className="rounded-xl overflow-hidden mb-3 bg-black">
-                    {post.mediaType === 'video' ? (
-                      <video src={post.mediaUrl} controls className="w-full max-h-80" />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={post.mediaUrl} alt={post.exerciseName} className="w-full max-h-80 object-cover" />
-                    )}
-                  </div>
-                )}
-
-                {post.note && <p className="text-sm text-text-secondary mb-3">{post.note}</p>}
-
-                <button
-                  onClick={() => handleLike(post.id)}
-                  className={`flex items-center gap-1.5 text-xs font-medium ${liked.has(post.id) ? 'text-danger' : 'text-text-tertiary'}`}
-                >
-                  <Heart className={`w-4 h-4 ${liked.has(post.id) ? 'fill-danger' : ''}`} />
-                  {post.likeCount + (liked.has(post.id) ? 1 : 0)}
-                </button>
-              </Card>
-            </motion.div>
+            <PRCard
+              key={post.id}
+              post={post}
+              index={i}
+              liked={liked.has(post.id)}
+              canDelete={isAdmin || post.userId === user?.uid}
+              onLike={() => handleLike(post.id)}
+              onDelete={() => handleDelete(post)}
+            />
           ))
         )}
       </div>
     </div>
+  );
+}
+
+function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
+  post: PRPost;
+  index: number;
+  liked: boolean;
+  canDelete: boolean;
+  onLike: () => void;
+  onDelete: () => void;
+}) {
+  const [showMenu, setShowMenu] = useState(false);
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
+      <Card className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0 text-xs font-bold text-accent">
+            {post.displayName.charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <p className="text-sm font-bold text-white truncate">{post.displayName}</p>
+              <VerificationBadge level={post.verificationLevel} showLabel />
+              {post.moderationStatus === 'pending' && (
+                <span className="text-[10px] text-amber-400 font-medium">· Pending review</span>
+              )}
+            </div>
+            <p className="text-xs text-text-tertiary">{post.exerciseName}</p>
+          </div>
+          <div className="text-right flex-shrink-0">
+            <p className="text-sm font-black text-accent">{post.weightKg}kg</p>
+            <p className="text-[10px] text-text-tertiary">× {post.reps}</p>
+          </div>
+          {canDelete && (
+            <div className="relative flex-shrink-0">
+              <button
+                onClick={() => setShowMenu((v) => !v)}
+                className="p-1.5 rounded-lg text-text-tertiary hover:text-white hover:bg-white/8 transition-colors"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+              {showMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                  <div className="absolute right-0 top-8 z-20 bg-surface-elevated border border-white/10 rounded-xl shadow-xl min-w-[120px]">
+                    <button
+                      onClick={() => { setShowMenu(false); onDelete(); }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors rounded-xl"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {post.mediaUrl && (
+          <div className="rounded-xl overflow-hidden mb-3 bg-black">
+            {post.mediaType === 'video' ? (
+              <video src={post.mediaUrl} controls className="w-full max-h-80" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={post.mediaUrl} alt={post.exerciseName} className="w-full max-h-80 object-cover" />
+            )}
+          </div>
+        )}
+
+        {post.note && <p className="text-sm text-text-secondary mb-3">{post.note}</p>}
+
+        <button
+          onClick={onLike}
+          className={`flex items-center gap-1.5 text-xs font-medium ${liked ? 'text-danger' : 'text-text-tertiary'}`}
+        >
+          <Heart className={`w-4 h-4 ${liked ? 'fill-danger' : ''}`} />
+          {post.likeCount + (liked ? 1 : 0)}
+        </button>
+      </Card>
+    </motion.div>
   );
 }
 
