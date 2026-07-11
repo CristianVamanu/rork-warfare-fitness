@@ -250,9 +250,19 @@ service cloud.firestore {
     }
 
     // ── PR Wall — community-posted personal records (trust/verification) ──
+    // Read is authed-only here; the public/pending split (only approved
+    // posts + your own pending one) is filtered client-side, not by rule.
+    function prBanActive() {
+      let ban = get(/databases/$(database)/documents/users/$(uid())).data.get('prBan', null);
+      return ban != null && (ban.until == null || ban.until > request.time);
+    }
+
     match /prPosts/{postId} {
       allow read:   if isAuthed();
-      allow create: if isAuthed() && request.resource.data.userId == uid();
+      allow create: if isAuthed()
+        && request.resource.data.userId == uid()
+        && request.resource.data.moderationStatus == 'pending'
+        && !prBanActive();
       // Anyone signed in can bump likeCount; only the author or an admin can
       // edit/delete their own post otherwise.
       allow update: if isAuthed() && (

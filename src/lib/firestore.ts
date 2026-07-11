@@ -1174,22 +1174,41 @@ export async function createPRPost(input: {
   const clean = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
   const ref = await addDoc(collection(db, 'prPosts'), {
     ...clean,
+    moderationStatus: 'pending',
     likeCount: 0,
     createdAt: serverTimestamp(),
   });
   return ref.id;
 }
 
-export async function getPRFeed(limitCount = 30): Promise<PRPost[]> {
+/** All PRs, unfiltered — for the admin review queue. */
+export async function getAllPRPosts(limitCount = 100): Promise<PRPost[]> {
   const q = query(collection(db, 'prPosts'), orderBy('createdAt', 'desc'), limit(limitCount));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PRPost, 'id'>) }));
 }
 
-export function subscribePRFeed(onUpdate: (posts: PRPost[]) => void, limitCount = 30): () => void {
+export function subscribeAllPRPosts(onUpdate: (posts: PRPost[]) => void, limitCount = 100): () => void {
   const q = query(collection(db, 'prPosts'), orderBy('createdAt', 'desc'), limit(limitCount));
   return onSnapshot(q, (snap) => {
     onUpdate(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PRPost, 'id'>) })));
+  }, (err) => console.error('[Firestore] subscribeAllPRPosts error:', err));
+}
+
+/** Public feed for the PR Wall — a post only shows to the whole community
+ * once an admin has approved it. Filtered client-side (not with a Firestore
+ * `where`) so this doesn't need a composite index provisioned. `viewerId`
+ * lets a user see their own still-pending post so uploading doesn't feel
+ * like it silently vanished. */
+export function subscribePRFeed(
+  onUpdate: (posts: PRPost[]) => void,
+  viewerId: string | null,
+  limitCount = 30,
+): () => void {
+  const q = query(collection(db, 'prPosts'), orderBy('createdAt', 'desc'), limit(limitCount));
+  return onSnapshot(q, (snap) => {
+    const all = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PRPost, 'id'>) }));
+    onUpdate(all.filter((p) => p.moderationStatus === 'approved' || p.userId === viewerId));
   }, (err) => console.error('[Firestore] subscribePRFeed error:', err));
 }
 
@@ -1217,6 +1236,25 @@ export async function setPRPostVerification(postId: string, userId: string, leve
   if (VERIFICATION_RANK[level] > VERIFICATION_RANK[current]) {
     await updateDoc(userRef, { verificationLevel: level });
   }
+}
+
+/** Admin approve/reject — a post only reaches the public feed once approved. */
+export async function setPRPostModeration(postId: string, status: 'pending' | 'approved' | 'rejected') {
+  await updateDoc(doc(db, 'prPosts', postId), { moderationStatus: status });
+}
+
+export async function deletePRPost(postId: string) {
+  await deleteDoc(doc(db, 'prPosts', postId));
+}
+
+/** Bans a user from posting to the PR Wall. `days: null` bans indefinitely. */
+export async function banUserFromPRWall(userId: string, days: number | null) {
+  const until = days === null ? null : Timestamp.fromMillis(Date.now() + days * 86_400_000);
+  await updateDoc(doc(db, 'users', userId), { prBan: { until, bannedAt: serverTimestamp() } });
+}
+
+export async function unbanUserFromPRWall(userId: string) {
+  await updateDoc(doc(db, 'users', userId), { prBan: deleteField() });
 }
 
 // ---------------------------------------------------------------------------

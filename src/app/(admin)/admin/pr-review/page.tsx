@@ -3,9 +3,12 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Trash2, Ban, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { subscribePRFeed, setPRPostVerification } from '@/lib/firestore';
+import {
+  subscribeAllPRPosts, setPRPostVerification, setPRPostModeration, deletePRPost,
+  banUserFromPRWall, unbanUserFromPRWall,
+} from '@/lib/firestore';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
@@ -20,32 +23,54 @@ const LEVELS: { value: VerificationLevel; label: string }[] = [
   { value: 'competition_verified', label: 'Competition Verified' },
 ];
 
+const BAN_OPTIONS: { label: string; days: number | null }[] = [
+  { label: '7 days', days: 7 },
+  { label: '21 days', days: 21 },
+  { label: '30 days', days: 30 },
+  { label: 'Forever', days: null },
+];
+
 export default function PRReviewPage() {
   const router = useRouter();
   const [posts, setPosts] = useState<PRPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [banMenuFor, setBanMenuFor] = useState<string | null>(null);
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
 
   useEffect(() => {
-    const unsub = subscribePRFeed((p) => { setPosts(p); setLoading(false); }, 100);
+    const unsub = subscribeAllPRPosts((p) => { setPosts(p); setLoading(false); }, 100);
     return unsub;
   }, []);
 
-  const shown = filter === 'pending' ? posts.filter((p) => p.verificationLevel === 'unverified') : posts;
+  const shown = filter === 'pending' ? posts.filter((p) => p.moderationStatus === 'pending') : posts;
 
-  const setLevel = async (post: PRPost, level: VerificationLevel) => {
-    setSavingId(post.id);
+  const withBusy = async (id: string, fn: () => Promise<void>, successMsg: string) => {
+    setBusyId(id);
     try {
-      await setPRPostVerification(post.id, post.userId, level);
-      toast.success(`Marked ${post.displayName}'s PR as ${LEVELS.find((l) => l.value === level)?.label}`);
+      await fn();
+      toast.success(successMsg);
     } catch (err) {
-      toast.error('Failed to update — try again');
-      console.error('[PRReview] setLevel failed:', err);
+      toast.error('Action failed — try again');
+      console.error('[PRReview] action failed:', err);
     } finally {
-      setSavingId(null);
+      setBusyId(null);
     }
   };
+
+  const approve = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, 'approved'), 'Post approved — now visible on the PR Wall');
+  const reject = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, 'rejected'), 'Post rejected — hidden from the PR Wall');
+  const removePost = (post: PRPost) => {
+    if (!confirm(`Permanently delete ${post.displayName}'s "${post.exerciseName}" post?`)) return;
+    withBusy(post.id, () => deletePRPost(post.id), 'Post deleted');
+  };
+  const setLevel = (post: PRPost, level: VerificationLevel) =>
+    withBusy(post.id, () => setPRPostVerification(post.id, post.userId, level), `Marked ${post.displayName}'s PR as ${LEVELS.find((l) => l.value === level)?.label}`);
+  const ban = (post: PRPost, days: number | null) => {
+    setBanMenuFor(null);
+    withBusy(post.id, () => banUserFromPRWall(post.userId, days), `${post.displayName} banned from the PR Wall${days ? ` for ${days} days` : ' indefinitely'}`);
+  };
+  const unban = (post: PRPost) => withBusy(post.id, () => unbanUserFromPRWall(post.userId), `${post.displayName} unbanned`);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -55,7 +80,7 @@ export default function PRReviewPage() {
         </button>
         <h1 className="text-xl font-black text-white mb-1">PR Wall Review</h1>
         <p className="text-sm text-text-secondary mb-4">
-          Review PR submissions and assign a trust badge. Bumping a post also raises that athlete&apos;s overall badge on the leaderboard.
+          Approve or reject submissions before they reach the public wall, assign trust badges, and manage posting bans.
         </p>
 
         <div className="flex gap-1.5 mb-4">
@@ -65,7 +90,7 @@ export default function PRReviewPage() {
               onClick={() => setFilter(f)}
               className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize ${filter === f ? 'bg-accent text-black' : 'bg-surface text-text-secondary'}`}
             >
-              {f === 'pending' ? `Pending (${posts.filter((p) => p.verificationLevel === 'unverified').length})` : 'All'}
+              {f === 'pending' ? `Pending (${posts.filter((p) => p.moderationStatus === 'pending').length})` : 'All'}
             </button>
           ))}
         </div>
@@ -87,9 +112,14 @@ export default function PRReviewPage() {
                       {post.displayName.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="text-sm font-bold text-white truncate">{post.displayName}</p>
                         <VerificationBadge level={post.verificationLevel} showLabel />
+                        <span className={`text-[10px] font-medium ${
+                          post.moderationStatus === 'approved' ? 'text-green-400' : post.moderationStatus === 'rejected' ? 'text-danger' : 'text-amber-400'
+                        }`}>
+                          · {post.moderationStatus === 'approved' ? 'Live' : post.moderationStatus === 'rejected' ? 'Rejected' : 'Pending'}
+                        </span>
                       </div>
                       <p className="text-xs text-text-tertiary">{post.exerciseName}</p>
                     </div>
@@ -114,11 +144,67 @@ export default function PRReviewPage() {
                   )}
                   {post.note && <p className="text-sm text-text-secondary mb-3">{post.note}</p>}
 
+                  {/* Moderation — approve/reject gate visibility on the public wall */}
+                  <div className="flex gap-1.5 mb-2">
+                    <button
+                      disabled={busyId === post.id}
+                      onClick={() => approve(post)}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50 ${post.moderationStatus === 'approved' ? 'bg-green-500 text-black' : 'bg-surface-elevated text-white'}`}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      disabled={busyId === post.id}
+                      onClick={() => reject(post)}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50 ${post.moderationStatus === 'rejected' ? 'bg-danger text-white' : 'bg-surface-elevated text-white'}`}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      disabled={busyId === post.id}
+                      onClick={() => removePost(post)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-elevated text-danger disabled:opacity-50"
+                      title="Delete permanently"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="relative">
+                      <button
+                        disabled={busyId === post.id}
+                        onClick={() => setBanMenuFor(banMenuFor === post.id ? null : post.id)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-elevated text-amber-400 disabled:opacity-50"
+                        title="Ban user from posting"
+                      >
+                        <Ban className="w-3.5 h-3.5" />
+                      </button>
+                      {banMenuFor === post.id && (
+                        <div className="absolute right-0 top-full mt-1 z-10 bg-surface-elevated border border-white/10 rounded-lg overflow-hidden shadow-lg w-32">
+                          {BAN_OPTIONS.map((opt) => (
+                            <button
+                              key={opt.label}
+                              onClick={() => ban(post, opt.days)}
+                              className="w-full text-left px-3 py-2 text-xs text-white hover:bg-white/5"
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => { setBanMenuFor(null); unban(post); }}
+                            className="w-full text-left px-3 py-2 text-xs text-green-400 hover:bg-white/5 border-t border-white/10 flex items-center gap-1.5"
+                          >
+                            <ShieldCheck className="w-3 h-3" /> Unban
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Trust badge — separate from moderation */}
                   <div className="flex flex-wrap gap-1.5">
                     {LEVELS.map((l) => (
                       <button
                         key={l.value}
-                        disabled={savingId === post.id}
+                        disabled={busyId === post.id}
                         onClick={() => setLevel(post, l.value)}
                         className={`px-2.5 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 ${
                           post.verificationLevel === l.value ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'

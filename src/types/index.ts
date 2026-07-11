@@ -139,6 +139,11 @@ export interface PRPost {
   mediaUrl?: string;
   mediaType?: 'image' | 'video';
   verificationLevel: VerificationLevel;
+  // Content moderation gate, separate from the trust badge above: a post
+  // stays hidden from the public feed (visible only to its own author)
+  // until an admin approves it — so uploaded media can't go straight to
+  // the whole community before anyone's looked at it.
+  moderationStatus: 'pending' | 'approved' | 'rejected';
   likeCount: number;
   createdAt: unknown;
 }
@@ -163,6 +168,7 @@ export interface UserProfile {
   achievements?: string[];
   questsCompleted?: string[];
   verificationLevel?: VerificationLevel;
+  prBan?: { until: unknown /* Timestamp | null; null = indefinite */; bannedAt: unknown };
   xp?: number;
   powerLevel?: number;
   currentWeightKg?: number;

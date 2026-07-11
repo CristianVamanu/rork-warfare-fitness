@@ -22,9 +22,12 @@ export default function PRWallPage() {
   const [liked, setLiked] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const unsub = subscribePRFeed((p) => { setPosts(p); setLoading(false); });
+    const unsub = subscribePRFeed((p) => { setPosts(p); setLoading(false); }, user?.uid ?? null);
     return unsub;
-  }, []);
+  }, [user?.uid]);
+
+  const banUntil = profile?.prBan?.until as { toDate?: () => Date } | null | undefined;
+  const isBanned = !!profile?.prBan && (banUntil === null || (banUntil?.toDate?.() ?? new Date(0)) > new Date());
 
   const handleLike = (id: string) => {
     if (liked.has(id)) return;
@@ -36,17 +39,26 @@ export default function PRWallPage() {
     <div className="min-h-screen bg-background pb-24">
       <Header title="PR Wall" showBack />
       <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
-        <Card className="p-4">
-          <p className="text-sm text-white font-bold mb-1">Post a PR, get it verified</p>
-          <p className="text-xs text-text-secondary leading-relaxed mb-3">
-            Upload a video or photo of your lift. Verified PRs stand out on the leaderboard and prove it&apos;s real.
-          </p>
-          <Button size="sm" onClick={() => setShowForm(true)}>
-            <Upload className="w-3.5 h-3.5" /> Post a PR
-          </Button>
-        </Card>
+        {isBanned ? (
+          <Card className="p-4 border-danger/30">
+            <p className="text-sm text-danger font-bold mb-1">You can&apos;t post to the PR Wall</p>
+            <p className="text-xs text-text-secondary leading-relaxed">
+              An admin has restricted your posting access{banUntil?.toDate ? ` until ${banUntil.toDate().toLocaleDateString()}` : ' indefinitely'}.
+            </p>
+          </Card>
+        ) : (
+          <Card className="p-4">
+            <p className="text-sm text-white font-bold mb-1">Post a PR, get it verified</p>
+            <p className="text-xs text-text-secondary leading-relaxed mb-3">
+              Upload a video or photo of your lift. New posts are reviewed by an admin before showing to everyone. Verified PRs stand out on the leaderboard.
+            </p>
+            <Button size="sm" onClick={() => setShowForm(true)}>
+              <Upload className="w-3.5 h-3.5" /> Post a PR
+            </Button>
+          </Card>
+        )}
 
-        {showForm && user && (
+        {showForm && user && !isBanned && (
           <PRForm
             userId={user.uid}
             displayName={profile?.displayName || 'Athlete'}
@@ -71,9 +83,12 @@ export default function PRWallPage() {
                     {post.displayName.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="text-sm font-bold text-white truncate">{post.displayName}</p>
-                      <VerificationBadge level={post.verificationLevel} />
+                      <VerificationBadge level={post.verificationLevel} showLabel />
+                      {post.moderationStatus === 'pending' && (
+                        <span className="text-[10px] text-amber-400 font-medium">· Pending review</span>
+                      )}
                     </div>
                     <p className="text-xs text-text-tertiary">{post.exerciseName}</p>
                   </div>
