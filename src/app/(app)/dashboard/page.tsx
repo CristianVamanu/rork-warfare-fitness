@@ -104,6 +104,28 @@ export default function DashboardPage() {
   const workedOutToday = profile?.statsCache?.lastWorkoutDate === localDateStr;
   const streakAtRisk = !loading && streak > 0 && !workedOutToday;
 
+  // Flame state on the streak card — derived from data we already have, no
+  // new tracking needed: never-trained users get an unlit ember to invite
+  // their first workout; a live streak with today's session done blazes;
+  // a live streak with today's session still pending (same "at risk" window
+  // as the banner above) flickers as a warning; a broken streak (0, but
+  // they've trained before) goes fully out until they start a new one.
+  type FlameState = 'unlit' | 'blazing' | 'flickering' | 'out';
+  const neverWorkedOut = !profile?.statsCache?.lastWorkoutDate;
+  const flameState: FlameState = neverWorkedOut
+    ? 'unlit'
+    : workedOutToday
+    ? 'blazing'
+    : streak > 0
+    ? 'flickering'
+    : 'out';
+  const FLAME_COPY: Record<FlameState, string> = {
+    unlit: 'Light it — finish your first workout',
+    blazing: '',
+    flickering: 'Flickering — train today to keep it lit',
+    out: "Flame's out — start a new streak today",
+  };
+
   // Active program data — single source of truth: lastCompletedDayIndex
   const activeProgram = profile?.activeProgram;
   const completedWorkouts = activeProgram?.completedWorkouts ?? 0;
@@ -180,21 +202,38 @@ export default function DashboardPage() {
               <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide relative">Streak</span>
 
               <div className="flex-1 flex items-center justify-center relative">
-                {streak > 0 && (
-                  <>
-                    <div
-                      className="flame-glow absolute w-32 h-32 rounded-full pointer-events-none"
-                      style={{ background: 'radial-gradient(circle, rgba(245,166,35,0.55) 0%, rgba(245,166,35,0) 70%)' }}
-                    />
-                    <span className="flame-flicker absolute text-[104px] leading-none opacity-25 pointer-events-none select-none">
-                      🔥
-                    </span>
-                  </>
-                )}
+                {(() => {
+                  const cfg = {
+                    blazing:    { glow: 'rgba(245,166,35,0.55)', size: 104, opacity: 0.25, anim: 'flame-glow flame-flicker',      gray: false },
+                    flickering: { glow: 'rgba(245,166,35,0.35)', size: 76,  opacity: 0.22, anim: 'flame-glow flame-flicker-weak', gray: false },
+                    out:        { glow: 'rgba(120,113,108,0.4)', size: 60,  opacity: 0.20, anim: 'ember-pulse',                   gray: true },
+                    unlit:      { glow: 'rgba(120,113,108,0.4)', size: 56,  opacity: 0.18, anim: 'ember-pulse',                   gray: true },
+                  }[flameState];
+                  return (
+                    <>
+                      <div
+                        className="absolute rounded-full pointer-events-none"
+                        style={{ width: cfg.size * 1.3, height: cfg.size * 1.3, background: `radial-gradient(circle, ${cfg.glow} 0%, rgba(0,0,0,0) 70%)` }}
+                      />
+                      <span
+                        className={`${cfg.anim} absolute leading-none pointer-events-none select-none`}
+                        style={{ fontSize: cfg.size, opacity: cfg.opacity, filter: cfg.gray ? 'grayscale(0.75) brightness(0.85)' : undefined }}
+                      >
+                        🔥
+                      </span>
+                    </>
+                  );
+                })()}
                 <p className="text-4xl font-black text-white leading-none relative drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
                   {streak}<span className="text-lg font-bold text-text-secondary ml-0.5">d</span>
                 </p>
               </div>
+
+              {FLAME_COPY[flameState] && (
+                <p className="text-[9px] text-center text-amber-400/80 font-medium mb-1.5 relative">
+                  {FLAME_COPY[flameState]}
+                </p>
+              )}
 
               {activeMock?.daysPerWeek ? (
                 <div className="flex gap-1 relative">

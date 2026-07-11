@@ -205,3 +205,29 @@ html.light .bg-gradient-to-r.text-transparent { -webkit-text-fill-color: transpa
 @media (prefers-reduced-motion: reduce) {
   .flame-flicker, .flame-glow { animation: none; }
 }
+
+/* Slower, weaker flicker for a dying/flickering streak — same motion
+   language as flame-flicker but with a smaller range, so it visibly reads
+   as "struggling" rather than "burning strong". */
+@keyframes flame-flicker-weak {
+  0%, 100% { transform: scale(0.94) rotate(-1deg); opacity: 0.5; }
+  50%      { transform: scale(1) rotate(1deg); opacity: 0.7; }
+}
+.flame-flicker-weak {
+  animation: flame-flicker-weak 3.2s ease-in-out infinite;
+  transform-origin: 50% 85%;
+}
+
+/* Gentle ember glow — used both for an unlit first-time ember (inviting a
+   first workout) and a burned-out streak (inviting a restart). Slower and
+   dimmer than the live flame states. */
+@keyframes ember-pulse {
+  0%, 100% { opacity: 0.25; transform: scale(0.96); }
+  50%      { opacity: 0.45; transform: scale(1.04); }
+}
+.ember-pulse {
+  animation: ember-pulse 3.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flame-flicker-weak, .ember-pulse { animation: none; }
+}
