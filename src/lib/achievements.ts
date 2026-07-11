@@ -38,6 +38,7 @@ export const ACHIEVEMENT_DEFS: AchievementDef[] = [
   { id: 'early_bird',     icon: '🌅', title: 'Early Bird',        desc: 'Complete a workout before 7am',  category: 'time'     },
   { id: 'night_owl',      icon: '🦉', title: 'Night Owl',         desc: 'Complete a workout after 9pm',   category: 'time'     },
   { id: 'graveyard_shift',icon: '🕛', title: 'Graveyard Shift',   desc: 'Complete a workout between midnight and 4am', category: 'time' },
+  { id: 'weekend_warrior',icon: '🌆', title: 'Weekend Warrior',   desc: 'Complete a workout on a Saturday or Sunday', category: 'time' },
   // Nutrition
   { id: 'log_meal',       icon: '🥗', title: 'Fuel Up',           desc: 'Log your first meal',            category: 'nutrition'},
   { id: 'meals_10',       icon: '🍽️', title: 'Meal Prep Pro',     desc: 'Log 30 meals',                   category: 'nutrition'},
@@ -50,6 +51,7 @@ interface CheckParams {
   streak: number;
   powerLevel: number;
   workoutHour?: number;
+  isWeekend?: boolean;
   hasLoggedMeal?: boolean;
   totalMealsLogged?: number;
 }
@@ -79,6 +81,7 @@ function isEarned(id: string, p: CheckParams): boolean {
     case 'early_bird':     return (p.workoutHour ?? 12) < 7;
     case 'night_owl':      return (p.workoutHour ?? 12) >= 21;
     case 'graveyard_shift':return (p.workoutHour ?? 12) < 4;
+    case 'weekend_warrior':return !!p.isWeekend;
     case 'log_meal':       return !!p.hasLoggedMeal;
     case 'meals_10':       return (p.totalMealsLogged ?? 0) >= 30;
     case 'meals_100':      return (p.totalMealsLogged ?? 0) >= 100;

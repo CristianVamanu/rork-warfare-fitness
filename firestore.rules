@@ -218,7 +218,7 @@ service cloud.firestore {
     match /notifications/{notifId} {
       allow read, update: if isAuthed() && resource.data.userId == uid();
       allow create: if isAdmin();
-      allow delete: if isAdmin();
+      allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }
 
     // ── 1:1 Coaching applications (intake form → admin review) ───────────

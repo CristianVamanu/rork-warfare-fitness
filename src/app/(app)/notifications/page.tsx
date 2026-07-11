@@ -3,10 +3,13 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, BellOff, CheckCheck, Zap, Dumbbell, Flame, Trophy, MessageSquare, Crown, XCircle } from 'lucide-react';
+import { Bell, BellOff, CheckCheck, Zap, Dumbbell, Flame, Trophy, MessageSquare, Crown, XCircle, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserNotifications, markNotificationRead, markAllNotificationsRead } from '@/lib/firestore';
+import {
+  getUserNotifications, markNotificationRead, markAllNotificationsRead,
+  deleteNotification, deleteAllReadNotifications,
+} from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -50,6 +53,8 @@ export default function NotificationsPage() {
   const [notifs, setNotifs] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
+  const [clearingRead, setClearingRead] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
   useEffect(() => {
     if (!user) return;
@@ -73,19 +78,59 @@ export default function NotificationsPage() {
     setMarkingAll(false);
   }
 
+  async function handleDelete(n: AppNotification, e: React.MouseEvent) {
+    e.stopPropagation();
+    setNotifs(prev => prev.filter(x => x.id !== n.id));
+    await deleteNotification(n.id).catch(() => {});
+  }
+
+  async function handleClearRead() {
+    if (!user) return;
+    setClearingRead(true);
+    await deleteAllReadNotifications(user.uid).catch(() => {});
+    setNotifs(prev => prev.filter(n => !n.read));
+    setClearingRead(false);
+  }
+
   const unreadCount = notifs.filter(n => !n.read).length;
+  const readCount = notifs.length - unreadCount;
+  const visibleNotifs = filter === 'unread' ? notifs.filter(n => !n.read) : notifs;
 
   return (
     <div>
       <Header title="Notifications" />
       <div className="px-4 py-4 space-y-4">
-        {/* Actions bar */}
-        {unreadCount > 0 && (
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-text-secondary">{unreadCount} unread</span>
-            <Button size="sm" variant="ghost" onClick={handleMarkAllRead} loading={markingAll}>
-              <CheckCheck className="w-4 h-4" /> Mark all read
-            </Button>
+        {/* Filter + actions bar */}
+        {notifs.length > 0 && (
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex gap-1.5">
+              {([
+                { key: 'all' as const, label: `All (${notifs.length})` },
+                { key: 'unread' as const, label: `Unread (${unreadCount})` },
+              ]).map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${
+                    filter === f.key ? 'bg-accent text-black' : 'bg-surface text-text-secondary'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              {readCount > 0 && (
+                <Button size="sm" variant="ghost" onClick={handleClearRead} loading={clearingRead}>
+                  <Trash2 className="w-3.5 h-3.5" /> Clear read
+                </Button>
+              )}
+              {unreadCount > 0 && (
+                <Button size="sm" variant="ghost" onClick={handleMarkAllRead} loading={markingAll}>
+                  <CheckCheck className="w-4 h-4" /> Mark all read
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
@@ -99,9 +144,15 @@ export default function NotificationsPage() {
             <p className="text-white font-bold">No notifications yet</p>
             <p className="text-text-secondary text-sm mt-1">Your coach's updates will appear here.</p>
           </div>
+        ) : visibleNotifs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <CheckCheck className="w-12 h-12 text-text-tertiary mb-4" />
+            <p className="text-white font-bold">All caught up</p>
+            <p className="text-text-secondary text-sm mt-1">No unread notifications.</p>
+          </div>
         ) : (
           <div className="space-y-2">
-            {notifs.map((n, i) => {
+            {visibleNotifs.map((n, i) => {
               const Icon = TYPE_ICON[n.type] ?? Bell;
               const colorClass = TYPE_COLOR[n.type] ?? 'text-text-secondary bg-surface-elevated';
               return (
@@ -121,8 +172,15 @@ export default function NotificationsPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-bold text-white">{n.title}</p>
+                          <p className="text-sm font-bold text-white flex-1">{n.title}</p>
                           {!n.read && <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
+                          <button
+                            onClick={(e) => handleDelete(n, e)}
+                            className="p-1 -m-1 text-text-tertiary hover:text-danger transition-colors flex-shrink-0"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                         <p className="text-sm text-text-secondary mt-0.5 leading-relaxed">{n.body}</p>
                         <p className="text-xs text-text-tertiary mt-1">{timeAgo(n.createdAt)}</p>

@@ -990,6 +990,17 @@ export async function markAllNotificationsRead(userId: string) {
   await Promise.all(snap.docs.map((d) => updateDoc(d.ref, { read: true })));
 }
 
+export async function deleteNotification(notifId: string) {
+  await deleteDoc(doc(db, 'notifications', notifId));
+}
+
+export async function deleteAllReadNotifications(userId: string) {
+  const snap = await getDocs(
+    query(collection(db, 'notifications'), where('userId', '==', userId), where('read', '==', true))
+  );
+  await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+}
+
 export async function getUnreadNotificationCount(userId: string): Promise<number> {
   const snap = await getDocs(
     query(collection(db, 'notifications'), where('userId', '==', userId), where('read', '==', false))
@@ -1115,7 +1126,6 @@ export interface LeaderboardEntry {
   totalWorkouts: number;
   totalWeightLifted: number;
   questsCompleted: string[];
-  verificationLevel: VerificationLevel;
 }
 
 function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): LeaderboardEntry {
@@ -1128,7 +1138,6 @@ function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): Leade
     totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? (data.stats as Record<string, number> | undefined)?.totalWorkouts ?? 0,
     totalWeightLifted: (data.stats as Record<string, number> | undefined)?.totalWeightLifted ?? 0,
     questsCompleted: (data.questsCompleted as string[]) ?? [],
-    verificationLevel: (data.verificationLevel as VerificationLevel) ?? 'unverified',
   };
 }
 
@@ -1217,19 +1226,15 @@ export async function likePRPost(postId: string) {
 }
 
 /** Admin approve/reject — a post only reaches the public feed once approved.
- * Approving a post is also what verifies it (there's no separate review
- * step): it marks the post `verified` and raises the poster's own profile
- * badge to `verified` too, so it shows next to their name everywhere, not
- * just on this one post. Rejecting just hides it; it never un-verifies a
- * user's other already-approved posts. */
-export async function setPRPostModeration(postId: string, userId: string, status: 'pending' | 'approved' | 'rejected') {
+ * Approving is also what verifies it — the badge lives on this specific
+ * post only, not on the athlete's profile as a whole. Proving one lift is
+ * real doesn't vouch for every future post, so nothing here touches the
+ * user's own profile. */
+export async function setPRPostModeration(postId: string, status: 'pending' | 'approved' | 'rejected') {
   await updateDoc(doc(db, 'prPosts', postId), {
     moderationStatus: status,
     verificationLevel: status === 'approved' ? 'verified' : 'unverified',
   });
-  if (status === 'approved') {
-    await updateDoc(doc(db, 'users', userId), { verificationLevel: 'verified' });
-  }
 }
 
 export async function deletePRPost(postId: string) {

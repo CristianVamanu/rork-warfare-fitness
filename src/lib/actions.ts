@@ -108,7 +108,9 @@ export async function completeWorkout(
     const totalWorkouts = (statsCache?.totalWorkouts ?? (data.stats as Record<string, number>)?.totalWorkouts ?? 0) + 1;
     const streak = statsCache?.streak ?? (data.stats as Record<string, number>)?.streak ?? 0;
 
-    const workoutHour = new Date().getHours();
+    const now = new Date();
+    const workoutHour = now.getHours();
+    const isWeekend = now.getDay() === 0 || now.getDay() === 6;
 
     await setDoc(doc(db, 'users', userId), {
       xp: totalXP,
@@ -146,6 +148,7 @@ export async function completeWorkout(
       streak,
       powerLevel: newPowerLevel,
       workoutHour,
+      isWeekend,
     });
 
     const prevTotalWeightLifted = (data.stats as Record<string, number> | undefined)?.totalWeightLifted ?? 0;

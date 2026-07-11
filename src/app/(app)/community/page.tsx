@@ -11,7 +11,6 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
-import { VerificationBadge } from '@/components/ui/VerificationBadge';
 import Link from 'next/link';
 import type { Channel } from '@/types';
 
@@ -27,9 +26,6 @@ export default function CommunityPage() {
   const [tab, setTab] = useState<'channels' | 'leaderboard'>(
     searchParams.get('tab') === 'leaderboard' ? 'leaderboard' : 'channels'
   );
-  const [lbFilter, setLbFilter] = useState<'everyone' | 'verified'>('everyone');
-  const filteredLeaderboard = leaderboard.filter((e) => lbFilter === 'everyone' || e.verificationLevel === 'verified');
-
   useEffect(() => {
     getChannels(effectiveTrainerId ?? undefined)
       .then(setChannels)
@@ -140,32 +136,15 @@ export default function CommunityPage() {
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             </div>
 
-            <div className="flex gap-1.5">
-              {([
-                { key: 'everyone', label: 'Everyone' },
-                { key: 'verified', label: 'Verified Lifts Only' },
-              ] as const).map((f) => (
-                <button
-                  key={f.key}
-                  onClick={() => setLbFilter(f.key)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${
-                    lbFilter === f.key ? 'bg-accent text-black' : 'bg-surface text-text-secondary'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-
             {lbLoading ? (
               <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-16 rounded-2xl" />)}</div>
-            ) : filteredLeaderboard.length === 0 ? (
+            ) : leaderboard.length === 0 ? (
               <Card className="p-10 text-center">
                 <Trophy className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
                 <p className="text-white font-bold">No data yet</p>
                 <p className="text-text-secondary text-sm mt-1">Complete workouts to appear on the leaderboard.</p>
               </Card>
-            ) : filteredLeaderboard.map((entry, i) => {
+            ) : leaderboard.map((entry, i) => {
               const isMe = entry.id === user?.uid;
               return (
                 <motion.div key={entry.id} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
@@ -183,7 +162,6 @@ export default function CommunityPage() {
                         <div className="flex items-center gap-1.5">
                           <p className="text-sm font-bold text-white truncate">{entry.displayName}</p>
                           {isMe && <span className="text-xs text-accent font-medium">(you)</span>}
-                          <VerificationBadge level={entry.verificationLevel} />
                           <QuestBadgeRow questIds={entry.questsCompleted} />
                         </div>
                         <div className="flex items-center gap-3 mt-0.5">

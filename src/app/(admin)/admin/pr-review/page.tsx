@@ -50,8 +50,8 @@ export default function PRReviewPage() {
     }
   };
 
-  const approve = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, post.userId, 'approved'), `Approved — ${post.displayName} is now Verified`);
-  const reject = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, post.userId, 'rejected'), 'Post rejected — hidden from the PR Wall');
+  const approve = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, 'approved'), 'Approved — visible on the PR Wall with a Verified badge');
+  const reject = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, 'rejected'), 'Post rejected — hidden from the PR Wall');
   const removePost = (post: PRPost) => {
     if (!confirm(`Permanently delete ${post.displayName}'s "${post.exerciseName}" post?`)) return;
     withBusy(post.id, () => deletePRPost(post.id), 'Post deleted');
@@ -70,7 +70,7 @@ export default function PRReviewPage() {
         </button>
         <h1 className="text-xl font-black text-white mb-1">PR Wall Review</h1>
         <p className="text-sm text-text-secondary mb-4">
-          Approve a post to make it visible on the PR Wall and mark that athlete as Verified. Reject to hide it. Manage posting bans below.
+          Approve a post to make it visible on the PR Wall with a Verified badge on that lift. Reject to hide it. Manage posting bans below.
         </p>
 
         <div className="flex gap-1.5 mb-4">

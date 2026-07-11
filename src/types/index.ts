@@ -167,7 +167,6 @@ export interface UserProfile {
   assignedNutritionPlan?: NutritionPlan;
   achievements?: string[];
   questsCompleted?: string[];
-  verificationLevel?: VerificationLevel;
   prBan?: { until: unknown /* Timestamp | null; null = indefinite */; bannedAt: unknown };
   xp?: number;
   powerLevel?: number;
