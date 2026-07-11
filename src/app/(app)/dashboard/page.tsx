@@ -433,23 +433,23 @@ export default function DashboardPage() {
           <h2 className="text-base font-bold text-white mb-3">Quick Actions</h2>
           <div className="grid grid-cols-4 gap-3">
             {[
-              { icon: Dumbbell, label: 'Workout', href: '/training' },
-              { icon: Apple, label: 'Log Food', href: '/nutrition/analyze' },
-              { icon: WaterIcon, label: 'Water', href: '/nutrition' },
-              { icon: CheckSquare, label: 'Habits', href: '/habits' },
-              { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner' },
-              { icon: TrendingUp, label: 'Progress', href: '/progress' },
-              { icon: Trophy, label: 'Achievements', href: '/achievements' },
-              { icon: Swords, label: 'Quests', href: '/quests' },
+              { icon: Dumbbell, label: 'Workout', href: '/training', bg: 'bg-purple-400/15', color: 'text-purple-300' },
+              { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', bg: 'bg-green-400/15', color: 'text-green-300' },
+              { icon: WaterIcon, label: 'Water', href: '/nutrition', bg: 'bg-blue-400/15', color: 'text-blue-300' },
+              { icon: CheckSquare, label: 'Habits', href: '/habits', bg: 'bg-accent/15', color: 'text-accent' },
+              { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner', bg: 'bg-orange-400/15', color: 'text-orange-300' },
+              { icon: TrendingUp, label: 'Progress', href: '/progress', bg: 'bg-teal-400/15', color: 'text-teal-300' },
+              { icon: Trophy, label: 'Achievements', href: '/achievements', bg: 'bg-yellow-400/15', color: 'text-yellow-300' },
+              { icon: Swords, label: 'Quests', href: '/quests', bg: 'bg-pink-400/15', color: 'text-pink-300' },
             ].map((action) => (
               <Link key={action.label} href={action.href}>
                 <motion.div
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.95 }}
-                  className="flex flex-col items-center gap-2 py-3 px-1 rounded-2xl bg-surface border border-white/8 shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
+                  className="flex flex-col items-center gap-2 py-3.5 px-1 rounded-2xl bg-surface shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center">
-                    <action.icon className="w-5 h-5 text-accent" strokeWidth={2.25} />
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${action.bg}`}>
+                    <action.icon className={`w-7 h-7 ${action.color}`} strokeWidth={2.25} />
                   </div>
                   <span className="text-[10px] text-text-secondary text-center leading-tight">{action.label}</span>
                 </motion.div>
