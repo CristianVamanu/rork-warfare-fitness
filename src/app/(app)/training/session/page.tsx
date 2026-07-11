@@ -568,7 +568,11 @@ function SetRow({
 
 function ExerciseInfoButton({ videoUrl, tip, name }: { videoUrl?: string; tip?: string; name: string }) {
   const [expanded, setExpanded] = useState(false);
-  if (!videoUrl && !tip) return null;
+  // Exercises without a demo video always show the "i" button — even with
+  // no tip text, tapping it still confirms there's nothing more to show
+  // rather than the button silently not existing (previously: no video AND
+  // no tip meant nothing rendered at all, which looked like a missing
+  // feature rather than "this exercise has no extra notes").
 
   return (
     <>
@@ -616,10 +620,12 @@ function ExerciseInfoButton({ videoUrl, tip, name }: { videoUrl?: string; tip?: 
                 className="w-full rounded-2xl bg-black"
               />
             )}
-            {tip && (
+            {(tip || !videoUrl) && (
               <div className={`bg-surface-elevated rounded-2xl p-4 border border-white/10 ${videoUrl ? 'mt-3' : ''}`}>
                 <p className="text-sm font-bold text-white mb-1.5">{name}</p>
-                <p className="text-sm text-text-secondary leading-relaxed">{tip}</p>
+                <p className="text-sm text-text-secondary leading-relaxed">
+                  {tip || 'No extra notes for this exercise — focus on good form and control.'}
+                </p>
               </div>
             )}
             <button
