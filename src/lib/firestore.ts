@@ -448,6 +448,26 @@ export async function getUserWorkouts(userId: string, limitCount = 10) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Weight history — recordWeight() emits a WEIGHT_RECORDED event on every
+// log, this just reads them back oldest-first for a trend chart.
+// ---------------------------------------------------------------------------
+
+export async function getWeightHistory(userId: string, limitCount = 30): Promise<{ date: string; weightKg: number }[]> {
+  const snap = await safeGetEvents(userId, 'WEIGHT_RECORDED', undefined, undefined, limitCount);
+  return snap.docs
+    .map((d) => {
+      const payload = d.data().payload as Record<string, unknown>;
+      const ts = d.data().createdAt as Timestamp | null;
+      return {
+        date: ts?.toDate?.().toISOString().slice(0, 10) ?? '',
+        weightKg: Number(payload.weightKg ?? 0),
+      };
+    })
+    .filter((e) => e.date && e.weightKg > 0)
+    .reverse(); // safeGetEvents returns newest-first; chart wants oldest-first
+}
+
 interface WorkoutSetLog {
   weight: number;
   reps: number;

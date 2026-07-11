@@ -6,7 +6,7 @@ import nextDynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserWorkouts } from '@/lib/firestore';
+import { getUserWorkouts, getWeightHistory } from '@/lib/firestore';
 import { recordWeight } from '@/lib/actions';
 import { getLevelTier, xpToNextLevel } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
@@ -27,6 +27,10 @@ const WeeklyActivityChart = nextDynamic(() => import('@/components/progress/Week
   ssr: false,
   loading: () => <div className="h-[120px]" />,
 });
+const WeightHistoryChart = nextDynamic(() => import('@/components/progress/WeightHistoryChart'), {
+  ssr: false,
+  loading: () => <div className="h-[140px]" />,
+});
 
 interface WorkoutEntry {
   id: string;
@@ -39,6 +43,7 @@ export default function ProgressPage() {
   const { user, profile, refreshProfile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [workouts, setWorkouts] = useState<WorkoutEntry[]>([]);
+  const [weightHistory, setWeightHistory] = useState<{ date: string; weightKg: number }[]>([]);
   const [weightModal, setWeightModal] = useState(false);
   const [weightInput, setWeightInput] = useState('');
   const [savingWeight, setSavingWeight] = useState(false);
@@ -56,6 +61,7 @@ export default function ProgressPage() {
     getUserWorkouts(user.uid, 30)
       .then((w) => setWorkouts(w as WorkoutEntry[]))
       .finally(() => setLoading(false));
+    getWeightHistory(user.uid, 30).then(setWeightHistory).catch(() => {});
   }, [user]);
 
   // Build weekly volume chart from real workouts
@@ -152,15 +158,22 @@ export default function ProgressPage() {
           </div>
           <Card className="p-4">
             {profile?.currentWeightKg ? (
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-green-400/10 rounded-xl">
-                  <Scale className="w-5 h-5 text-green-400" />
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-green-400/10 rounded-xl">
+                    <Scale className="w-5 h-5 text-green-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-black text-white">{profile.currentWeightKg} <span className="text-sm text-text-secondary">kg</span></p>
+                    <p className="text-xs text-text-tertiary">Last logged weight</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-black text-white">{profile.currentWeightKg} <span className="text-sm text-text-secondary">kg</span></p>
-                  <p className="text-xs text-text-tertiary">Last logged weight</p>
-                </div>
-              </div>
+                {weightHistory.length >= 2 && (
+                  <div className="mt-3">
+                    <WeightHistoryChart data={weightHistory} unit={(profile?.weightUnit as 'kg' | 'lbs') ?? 'kg'} />
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-4">
                 <Scale className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
