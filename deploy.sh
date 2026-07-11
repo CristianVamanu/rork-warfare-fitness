@@ -12,7 +12,7 @@ npm install
 echo "==> Building"
 npm run build
 
-echo "==> Restarting app"
-pm2 restart warfare-fitness
+echo "==> Reloading app (zero-downtime — restarts cluster workers one at a time)"
+pm2 reload ecosystem.config.js --env production
 
 echo "==> Deploy complete"
