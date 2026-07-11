@@ -1,7 +1,7 @@
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
-export type QuestRequirementKind = 'totalWorkouts' | 'streak' | 'powerLevel' | 'totalWeightLifted';
+export type QuestRequirementKind = 'totalWorkouts' | 'streak' | 'powerLevel' | 'totalWeightLifted' | 'totalMealsLogged';
 
 export interface QuestRequirement {
   kind: QuestRequirementKind;
@@ -55,6 +55,41 @@ export const QUEST_DEFS: QuestDef[] = [
     rewardIcon: '🔥',
     rewardTitle: 'Phoenix Badge',
   },
+  {
+    id: 'first_blood',
+    title: 'First Blood',
+    tagline: 'Everyone starts somewhere. This is where you begin.',
+    requirements: [
+      { kind: 'totalWorkouts', target: 5, label: 'Complete 5 workouts' },
+      { kind: 'streak', target: 3, label: 'Reach a 3-day streak' },
+    ],
+    rewardIcon: '🗡️',
+    rewardTitle: 'First Blood Badge',
+  },
+  {
+    id: 'total_warrior',
+    title: 'Total Warrior',
+    tagline: 'Fuel matches effort. Master both.',
+    requirements: [
+      { kind: 'totalWorkouts', target: 15, label: 'Complete 15 workouts' },
+      { kind: 'totalMealsLogged', target: 30, label: 'Log 30 meals' },
+      { kind: 'powerLevel', target: 20, label: 'Reach Power Level 20' },
+    ],
+    rewardIcon: '⚡',
+    rewardTitle: 'Total Warrior Badge',
+  },
+  {
+    id: 'titan',
+    title: 'Titan',
+    tagline: 'The absolute pinnacle. Very few reach this.',
+    requirements: [
+      { kind: 'totalWeightLifted', target: 20000, label: 'Lift 20,000kg total volume' },
+      { kind: 'totalWorkouts', target: 100, label: 'Complete 100 workouts' },
+      { kind: 'powerLevel', target: 100, label: 'Reach Power Level 100' },
+    ],
+    rewardIcon: '🌋',
+    rewardTitle: 'Titan Badge',
+  },
 ];
 
 export interface QuestProgressInput {
@@ -62,6 +97,7 @@ export interface QuestProgressInput {
   streak: number;
   powerLevel: number;
   totalWeightLifted: number;
+  totalMealsLogged?: number;
 }
 
 export function requirementProgress(req: QuestRequirement, stats: QuestProgressInput): number {

@@ -18,6 +18,7 @@ export default function QuestsPage() {
     streak: profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0,
     powerLevel: profile?.powerLevel ?? 0,
     totalWeightLifted: profile?.stats?.totalWeightLifted ?? 0,
+    totalMealsLogged: profile?.stats?.totalMealsLogged ?? 0,
   };
 
   return (

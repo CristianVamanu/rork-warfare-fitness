@@ -149,11 +149,13 @@ export async function completeWorkout(
     });
 
     const prevTotalWeightLifted = (data.stats as Record<string, number> | undefined)?.totalWeightLifted ?? 0;
+    const totalMealsLogged = (data.stats as Record<string, number> | undefined)?.totalMealsLogged ?? 0;
     newQuests = await checkAndAwardQuests(userId, {
       totalWorkouts,
       streak,
       powerLevel: newPowerLevel,
       totalWeightLifted: prevTotalWeightLifted + totalWeightLifted,
+      totalMealsLogged,
     });
   } catch (err) {
     console.error('[Actions] XP/Achievement update failed:', err);
@@ -181,14 +183,24 @@ export async function logMealAction(
   await emit('MEAL_LOGGED', userId, trainerId, { ...meal });
 
   const snap = await getDoc(doc(db, 'users', userId));
-  const totalMealsLogged = ((snap.data()?.stats as Record<string, number> | undefined)?.totalMealsLogged ?? 0) + 1;
+  const data = snap.data() ?? {};
+  const prevStats = data.stats as Record<string, number> | undefined;
+  const totalMealsLogged = (prevStats?.totalMealsLogged ?? 0) + 1;
 
-  // Award meal achievements non-blocking
+  // Award meal achievements + check quests non-blocking
   checkAndAwardAchievements(userId, {
     totalWorkouts: 0,
     streak: 0,
     powerLevel: 0,
     hasLoggedMeal: true,
+    totalMealsLogged,
+  }).catch(console.error);
+
+  checkAndAwardQuests(userId, {
+    totalWorkouts: prevStats?.totalWorkouts ?? 0,
+    streak: (data.statsCache as Record<string, number> | undefined)?.streak ?? prevStats?.streak ?? 0,
+    powerLevel: (data.powerLevel as number) ?? 0,
+    totalWeightLifted: prevStats?.totalWeightLifted ?? 0,
     totalMealsLogged,
   }).catch(console.error);
 

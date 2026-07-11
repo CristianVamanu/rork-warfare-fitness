@@ -3,9 +3,9 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, Utensils, Timer, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords } from 'lucide-react';
+import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, Utensils, Timer, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, subscribeRecentActivity, getWeeklySummary, getPersonalBest, type ActivityItem, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
+import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getWeeklySummary, getPersonalBest, getLeaderboard, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
 import { getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
@@ -36,7 +36,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const [waterMl, setWaterMl] = useState<number | null>(null);
   const [calories, setCalories] = useState<number | null>(null);
-  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [leaderboardTop, setLeaderboardTop] = useState<LeaderboardEntry[]>([]);
+  const [myRank, setMyRank] = useState<number | null>(null);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
   const [dailyTip, setDailyTip] = useState<string>('');
@@ -97,13 +98,20 @@ export default function DashboardPage() {
     // Real-time listeners — update immediately on any new write
     const unsubCal = subscribeTodayCalories(user.uid, localDateStr, setCalories);
     const unsubWater = subscribeTodayWater(user.uid, localDateStr, setWaterMl);
-    const unsubActivity = subscribeRecentActivity(user.uid, setRecentActivity, 5);
 
     return () => {
       unsubCal();
       unsubWater();
-      unsubActivity();
     };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    getLeaderboard(200).then((entries) => {
+      setLeaderboardTop(entries.slice(0, 3));
+      const myIdx = entries.findIndex((e) => e.id === user.uid);
+      setMyRank(myIdx === -1 ? null : myIdx + 1);
+    }).catch(() => {});
   }, [user]);
 
   const greeting = getGreeting();
@@ -397,6 +405,7 @@ export default function DashboardPage() {
               { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', color: 'text-green-400', bg: 'bg-green-400/10' },
               { icon: WaterIcon, label: 'Water', href: '/nutrition', color: 'text-blue-400', bg: 'bg-blue-400/10' },
               { icon: CheckSquare, label: 'Habits', href: '/habits', color: 'text-accent', bg: 'bg-accent-muted' },
+              { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner', color: 'text-orange-400', bg: 'bg-orange-400/10' },
               { icon: TrendingUp, label: 'Progress', href: '/progress', color: 'text-teal-400', bg: 'bg-teal-400/10' },
               { icon: Trophy, label: 'Achievements', href: '/achievements', color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
               { icon: Swords, label: 'Quests', href: '/quests', color: 'text-pink-400', bg: 'bg-pink-400/10' },
@@ -423,62 +432,47 @@ export default function DashboardPage() {
           <DaysWithoutWidget />
         </motion.div>
 
-        {/* Recent Activity */}
+        {/* Leaderboard Rank */}
         <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-          <h2 className="text-base font-bold text-white mb-3">Recent Activity</h2>
-          {loading && recentActivity.length === 0 ? (
-            <div className="space-y-2">
-              <Skeleton className="h-16 rounded-2xl" />
-              <Skeleton className="h-16 rounded-2xl" />
-            </div>
-          ) : recentActivity.length === 0 ? (
-            <Card className="p-6 text-center">
-              <Dumbbell className="w-10 h-10 text-text-tertiary mx-auto mb-2" />
-              <p className="text-text-secondary text-sm">No recent activity</p>
-              <p className="text-text-tertiary text-xs mt-1">Log a meal, water, or complete a workout!</p>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-white">Leaderboard</h2>
+            <Link href="/community" className="text-xs text-accent flex items-center gap-0.5">
+              Full board <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <Link href="/community">
+            <Card className="p-4 relative overflow-hidden hover:border-accent/20 transition-colors">
+              <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
+                <Trophy className="w-28 h-28 text-accent" />
+              </div>
+              {myRank && (
+                <div className="flex items-center gap-3 mb-3 pb-3 border-b border-white/8">
+                  <div className="w-9 h-9 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-black text-accent">#{myRank}</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white">Your Rank</p>
+                    <p className="text-xs text-text-secondary">Out of {leaderboardTop.length > 0 ? 'active athletes' : '—'}</p>
+                  </div>
+                </div>
+              )}
+              {leaderboardTop.length === 0 ? (
+                <p className="text-text-secondary text-sm text-center py-2">Complete a workout to join the leaderboard</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {leaderboardTop.map((entry, i) => (
+                    <div key={entry.id} className="flex items-center gap-3">
+                      <span className={`text-sm font-black w-5 flex-shrink-0 ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-gray-300' : 'text-orange-400'}`}>
+                        {i + 1}
+                      </span>
+                      <span className="text-sm text-white flex-1 truncate">{entry.displayName}</span>
+                      <span className="text-xs text-text-tertiary flex-shrink-0">{entry.xp} XP</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
-          ) : (
-            <div className="space-y-2">
-              {recentActivity.map((item) => {
-                const date = item.createdAt?.toDate?.() ?? null;
-                const now = new Date();
-                let dateStr = '';
-                if (date) {
-                  const diffMs = now.getTime() - date.getTime();
-                  const diffMins = Math.floor(diffMs / 60000);
-                  if (diffMins < 60) dateStr = diffMins <= 1 ? 'Just now' : `${diffMins}m ago`;
-                  else if (diffMins < 1440) dateStr = `${Math.floor(diffMins / 60)}h ago`;
-                  else dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                }
-
-                const iconConfig = {
-                  WORKOUT_COMPLETED: { icon: Dumbbell, color: 'text-accent', bg: 'bg-accent-muted' },
-                  MEAL_LOGGED:       { icon: Utensils, color: 'text-green-400', bg: 'bg-green-400/10' },
-                  WATER_LOGGED:      { icon: Droplets, color: 'text-blue-400', bg: 'bg-blue-400/10' },
-                  WEIGHT_RECORDED:   { icon: Timer,    color: 'text-purple-400', bg: 'bg-purple-400/10' },
-                }[item.type] ?? { icon: Zap, color: 'text-accent', bg: 'bg-accent-muted' };
-
-                const Icon = iconConfig.icon;
-
-                return (
-                  <Card key={item.id} className="p-4 flex items-center gap-3">
-                    <div className={`p-2 rounded-xl flex-shrink-0 ${iconConfig.bg}`}>
-                      <Icon className={`w-4 h-4 ${iconConfig.color}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{item.label}</p>
-                      {item.sub && (
-                        <p className="text-xs text-text-secondary truncate capitalize">{item.sub}</p>
-                      )}
-                    </div>
-                    {dateStr && (
-                      <span className="text-xs text-text-tertiary flex-shrink-0">{dateStr}</span>
-                    )}
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+          </Link>
         </motion.div>
 
         {/* AI Tip */}
