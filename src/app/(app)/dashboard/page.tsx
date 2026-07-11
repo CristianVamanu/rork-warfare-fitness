@@ -401,33 +401,23 @@ export default function DashboardPage() {
           <h2 className="text-base font-bold text-white mb-3">Quick Actions</h2>
           <div className="grid grid-cols-4 gap-2">
             {[
-              { icon: Dumbbell, label: 'Workout', href: '/training', from: '#A855F7', to: '#7C3AED' },
-              { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', from: '#22C55E', to: '#16A34A' },
-              { icon: WaterIcon, label: 'Water', href: '/nutrition', from: '#3B82F6', to: '#2563EB' },
-              { icon: CheckSquare, label: 'Habits', href: '/habits', from: '#FBBF24', to: '#F59E0B' },
-              { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner', from: '#FB923C', to: '#EA580C' },
-              { icon: TrendingUp, label: 'Progress', href: '/progress', from: '#2DD4BF', to: '#0D9488' },
-              { icon: Trophy, label: 'Achievements', href: '/achievements', from: '#FDE047', to: '#EAB308' },
-              { icon: Swords, label: 'Quests', href: '/quests', from: '#F472B6', to: '#DB2777' },
+              { icon: Dumbbell, label: 'Workout', href: '/training', color: 'text-purple-400', bg: 'bg-purple-400/10' },
+              { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', color: 'text-green-400', bg: 'bg-green-400/10' },
+              { icon: WaterIcon, label: 'Water', href: '/nutrition', color: 'text-blue-400', bg: 'bg-blue-400/10' },
+              { icon: CheckSquare, label: 'Habits', href: '/habits', color: 'text-accent', bg: 'bg-accent-muted' },
+              { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner', color: 'text-orange-400', bg: 'bg-orange-400/10' },
+              { icon: TrendingUp, label: 'Progress', href: '/progress', color: 'text-teal-400', bg: 'bg-teal-400/10' },
+              { icon: Trophy, label: 'Achievements', href: '/achievements', color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+              { icon: Swords, label: 'Quests', href: '/quests', color: 'text-pink-400', bg: 'bg-pink-400/10' },
             ].map((action) => (
               <Link key={action.label} href={action.href}>
                 <motion.div
-                  whileHover={{ scale: 1.06, y: -2 }}
+                  whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.96 }}
-                  className="flex flex-col items-center gap-2 p-3 rounded-2xl"
+                  className="flex flex-col items-center gap-2 p-3 bg-surface border border-white/8 rounded-2xl"
                 >
-                  <div
-                    className="relative w-14 h-14 rounded-full flex items-center justify-center"
-                    style={{
-                      background: `linear-gradient(135deg, ${action.from}, ${action.to})`,
-                      boxShadow: `0 8px 20px -4px ${action.from}80, 0 2px 6px -1px ${action.to}66, inset 0 1px 1px rgba(255,255,255,0.35)`,
-                    }}
-                  >
-                    <div
-                      className="absolute inset-0 rounded-full pointer-events-none"
-                      style={{ background: 'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.45), transparent 55%)' }}
-                    />
-                    <action.icon className="w-6 h-6 text-white relative" strokeWidth={2.5} />
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${action.bg}`}>
+                    <action.icon className={`w-5 h-5 ${action.color}`} strokeWidth={2.25} />
                   </div>
                   <span className="text-[10px] text-text-secondary text-center leading-tight">{action.label}</span>
                 </motion.div>
