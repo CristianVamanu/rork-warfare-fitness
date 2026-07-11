@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,7 +21,10 @@ export default function CommunityPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [lbLoading, setLbLoading] = useState(true);
-  const [tab, setTab] = useState<'channels' | 'leaderboard'>('channels');
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<'channels' | 'leaderboard'>(
+    searchParams.get('tab') === 'leaderboard' ? 'leaderboard' : 'channels'
+  );
 
   useEffect(() => {
     getChannels(effectiveTrainerId ?? undefined)

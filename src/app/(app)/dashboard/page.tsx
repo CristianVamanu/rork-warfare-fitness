@@ -446,11 +446,11 @@ export default function DashboardPage() {
         <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-bold text-white">Leaderboard</h2>
-            <Link href="/community" className="text-xs text-accent flex items-center gap-0.5">
+            <Link href="/community?tab=leaderboard" className="text-xs text-accent flex items-center gap-0.5">
               Full board <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
-          <Link href="/community">
+          <Link href="/community?tab=leaderboard">
             <Card className="p-4 relative overflow-hidden hover:border-accent/20 transition-colors">
               <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
                 <Trophy className="w-28 h-28 text-accent" />
