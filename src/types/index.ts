@@ -163,6 +163,7 @@ export interface UserProfile {
     powerLevel: number;
     totalWorkouts: number;
     totalWeightLifted: number;
+    totalMealsLogged?: number;
   };
   fasting?: FastingSession | null;
   daysWithoutGoals?: DaysWithoutGoal[];

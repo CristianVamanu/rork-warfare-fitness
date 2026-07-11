@@ -26,11 +26,13 @@ export const ACHIEVEMENT_DEFS: AchievementDef[] = [
   { id: 'power_10',       icon: '🚀', title: 'Power Rising',      desc: 'Reach Power Level 10',           category: 'power'    },
   { id: 'power_50',       icon: '⭐', title: 'Peak Performance',  desc: 'Reach Power Level 50',           category: 'power'    },
   { id: 'power_100',      icon: '🌊', title: 'High Achiever',     desc: 'Reach Power Level 100',          category: 'power'    },
+  { id: 'power_150',      icon: '🏆', title: 'Champion',          desc: 'Reach Power Level 150',          category: 'power'    },
   // Time of day
   { id: 'early_bird',     icon: '🌅', title: 'Early Bird',        desc: 'Complete a workout before 7am',  category: 'time'     },
   { id: 'night_owl',      icon: '🦉', title: 'Night Owl',         desc: 'Complete a workout after 9pm',   category: 'time'     },
   // Nutrition
   { id: 'log_meal',       icon: '🥗', title: 'Fuel Up',           desc: 'Log your first meal',            category: 'nutrition'},
+  { id: 'meals_10',       icon: '🍽️', title: 'Meal Prep Pro',     desc: 'Log 10 meals',                   category: 'nutrition'},
 ];
 
 interface CheckParams {
@@ -39,6 +41,7 @@ interface CheckParams {
   powerLevel: number;
   workoutHour?: number;
   hasLoggedMeal?: boolean;
+  totalMealsLogged?: number;
 }
 
 function isEarned(id: string, p: CheckParams): boolean {
@@ -56,9 +59,11 @@ function isEarned(id: string, p: CheckParams): boolean {
     case 'power_10':       return p.powerLevel >= 10;
     case 'power_50':       return p.powerLevel >= 50;
     case 'power_100':      return p.powerLevel >= 100;
+    case 'power_150':      return p.powerLevel >= 150;
     case 'early_bird':     return (p.workoutHour ?? 12) < 7;
     case 'night_owl':      return (p.workoutHour ?? 12) >= 21;
     case 'log_meal':       return !!p.hasLoggedMeal;
+    case 'meals_10':       return (p.totalMealsLogged ?? 0) >= 10;
     default:               return false;
   }
 }

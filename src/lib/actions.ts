@@ -180,15 +180,26 @@ export async function logMealAction(
   const trainerId = await getTrainerId(userId);
   await emit('MEAL_LOGGED', userId, trainerId, { ...meal });
 
-  // Award meal achievement non-blocking
+  const snap = await getDoc(doc(db, 'users', userId));
+  const totalMealsLogged = ((snap.data()?.stats as Record<string, number> | undefined)?.totalMealsLogged ?? 0) + 1;
+
+  // Award meal achievements non-blocking
   checkAndAwardAchievements(userId, {
     totalWorkouts: 0,
     streak: 0,
     powerLevel: 0,
     hasLoggedMeal: true,
+    totalMealsLogged,
   }).catch(console.error);
 
-  setDoc(doc(db, 'users', userId), { lastActive: serverTimestamp() }, { merge: true }).catch(console.error);
+  // updateDoc (not setDoc+merge) — setDoc+merge treats a dotted string key
+  // like 'stats.totalMealsLogged' as a literal field name rather than a
+  // nested path, silently writing to the wrong place. Only updateDoc
+  // reliably resolves dotted paths to nested fields.
+  updateDoc(doc(db, 'users', userId), {
+    lastActive: serverTimestamp(),
+    'stats.totalMealsLogged': totalMealsLogged,
+  }).catch(console.error);
 }
 
 // ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, Utensils, Timer, CheckCircle2, TrendingUp, Trophy, CheckSquare } from 'lucide-react';
+import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, Utensils, Timer, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, subscribeRecentActivity, getWeeklySummary, getPersonalBest, type ActivityItem, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import { getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
@@ -397,6 +397,9 @@ export default function DashboardPage() {
               { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', color: 'text-green-400', bg: 'bg-green-400/10' },
               { icon: WaterIcon, label: 'Water', href: '/nutrition', color: 'text-blue-400', bg: 'bg-blue-400/10' },
               { icon: CheckSquare, label: 'Habits', href: '/habits', color: 'text-accent', bg: 'bg-accent-muted' },
+              { icon: TrendingUp, label: 'Progress', href: '/progress', color: 'text-teal-400', bg: 'bg-teal-400/10' },
+              { icon: Trophy, label: 'Achievements', href: '/achievements', color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+              { icon: Swords, label: 'Quests', href: '/quests', color: 'text-pink-400', bg: 'bg-pink-400/10' },
             ].map((action) => (
               <Link key={action.label} href={action.href}>
                 <motion.div
