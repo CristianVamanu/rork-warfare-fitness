@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Zap, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, Utensils, Timer, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles } from 'lucide-react';
+import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getWeeklySummary, getPersonalBest, getLeaderboard, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
 import { getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
@@ -132,39 +132,6 @@ export default function DashboardPage() {
     getPersonalBest(user.uid, firstExerciseName).then(setPersonalBest).catch(() => setPersonalBest(null));
   }, [user, firstExerciseName]);
 
-  const stats = [
-    {
-      icon: Flame,
-      label: 'Calories',
-      value: calories ?? 0,
-      unit: 'kcal',
-      max: goals.calories,
-      color: 'text-orange-400',
-      bg: 'bg-orange-400/10',
-      barColor: 'danger' as const,
-    },
-    {
-      icon: Droplets,
-      label: 'Water',
-      value: waterMl ? Math.round(waterMl / 100) / 10 : 0,
-      unit: 'L',
-      max: goals.water / 1000,
-      color: 'text-blue-400',
-      bg: 'bg-blue-400/10',
-      barColor: 'info' as const,
-    },
-    {
-      icon: Zap,
-      label: 'Streak',
-      value: streak,
-      unit: 'd',
-      max: Math.max(streak, 7),
-      color: 'text-accent',
-      bg: 'bg-accent-muted',
-      barColor: 'accent' as const,
-    },
-  ];
-
   return (
     <div>
       <Header />
@@ -204,214 +171,250 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* Stats Grid */}
-        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-3 gap-3">
-          {stats.map((stat) => (
-            <motion.div key={stat.label} variants={stagger.item}>
-              <Card className="p-4">
-                {loading && calories === null ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-1/2" />
-                    <Skeleton className="h-6 w-3/4" />
+        {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
+        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
+
+          {/* Streak — hero tile */}
+          <motion.div variants={stagger.item} className="col-span-2 row-span-2">
+            <Card className="p-4 h-full flex flex-col justify-between bg-gradient-to-br from-surface-elevated to-surface">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Streak</span>
+                <span className="text-xl">🔥</span>
+              </div>
+              <div>
+                <p className="text-3xl font-black text-white leading-none">{streak}<span className="text-base font-bold text-text-secondary ml-0.5">d</span></p>
+                {activeMock?.daysPerWeek ? (
+                  <div className="flex gap-1 mt-2.5">
+                    {Array.from({ length: activeMock.daysPerWeek }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`flex-1 h-1.5 rounded-full ${i < (weeklySummary?.workoutsCompleted ?? 0) ? 'bg-accent' : 'bg-white/8'}`}
+                      />
+                    ))}
                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className={`p-1.5 rounded-lg ${stat.bg}`}>
-                        <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                      </div>
-                      <span className="text-xs text-text-secondary">{stat.label}</span>
-                    </div>
-                    <p className="text-xl font-black text-white">
-                      {stat.value}
-                      <span className="text-sm font-medium text-text-secondary ml-1">{stat.unit}</span>
-                    </p>
-                    <ProgressBar
-                      value={stat.value}
-                      max={stat.max}
-                      color={stat.barColor}
-                      size="sm"
-                      className="mt-2"
-                    />
-                  </>
-                )}
+                ) : null}
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Rank */}
+          <motion.div variants={stagger.item} className="col-span-2 row-span-1">
+            <Link href="/community?tab=leaderboard" className="block h-full">
+              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors">
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Leaderboard</span>
+                <p className="text-xl font-black text-accent leading-tight mt-0.5">{myRank ? `#${myRank}` : '—'}</p>
+                <p className="text-[10px] text-text-tertiary mt-0.5">Lvl {powerLevel} · {profile?.xp ?? 0} XP</p>
               </Card>
+            </Link>
+          </motion.div>
+
+          {/* PR Wall teaser */}
+          <motion.div variants={stagger.item} className="col-span-2 row-span-1">
+            <Link href="/community/prs" className="block h-full">
+              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors">
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR Wall</span>
+                <span className="text-lg mt-0.5">🏅</span>
+                <p className="text-[10px] text-text-tertiary mt-0.5">Post a lift, get verified</p>
+              </Card>
+            </Link>
+          </motion.div>
+
+          {/* Today's Workout — hero */}
+          <motion.div variants={stagger.item} className="col-span-4 row-span-2">
+            {activeProgram ? (
+              <Card className={`p-4 h-full relative overflow-hidden flex flex-col justify-between ${workedOutToday ? 'border-success/30' : 'border-accent/25'}`}>
+                <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
+                  <Dumbbell className="w-28 h-28 text-accent" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    {workedOutToday && completedWorkouts > 0 ? (
+                      <Badge variant="success">
+                        <CheckCircle2 className="w-3 h-3 mr-1" />
+                        Day {lastCompleted + 1} Complete
+                      </Badge>
+                    ) : (
+                      <Badge variant="accent">
+                        Day {lastCompleted + 2} of {activeProgram.totalWorkouts}
+                      </Badge>
+                    )}
+                  </div>
+                  <h3 className="text-base font-bold text-white">{activeProgram.programName}</h3>
+                  {workedOutToday && completedWorkouts > 0 ? (
+                    <p className="text-sm text-success mt-0.5">
+                      🎉 Great work! Come back tomorrow for Day {lastCompleted + 2}.
+                      {activeProgram.totalWorkouts - completedWorkouts > 0 &&
+                        ` ${activeProgram.totalWorkouts - completedWorkouts} session${activeProgram.totalWorkouts - completedWorkouts !== 1 ? 's' : ''} remaining.`
+                      }
+                    </p>
+                  ) : todayDay ? (
+                    <p className="text-sm text-text-secondary mt-0.5">
+                      {todayDay.isRest ? '😴 Rest Day — recover well' : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
+                    </p>
+                  ) : null}
+                  {!workedOutToday && !todayDay?.isRest && firstExerciseName && (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-text-tertiary">
+                      <Dumbbell className="w-3 h-3" />
+                      Target: {firstExerciseName}
+                      {todayDay?.exercises?.[0] && (
+                        <span> — {todayDay.exercises[0].sets}×{todayDay.exercises[0].reps}</span>
+                      )}
+                    </div>
+                  )}
+                  {!workedOutToday && !todayDay?.isRest && personalBest && (
+                    <div className="mt-2 flex items-center gap-1.5 p-2 bg-accent/5 border border-accent/20 rounded-lg">
+                      <Trophy className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                      <p className="text-xs text-accent">
+                        Your best: {personalBest.weight}{profile?.weightUnit ?? 'kg'} × {personalBest.reps}. Beat it today.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="mb-3">
+                    <ProgressBar value={completedWorkouts} max={activeProgram.totalWorkouts} color={workedOutToday ? 'success' : 'accent'} size="sm" />
+                    <p className="text-xs text-text-tertiary mt-1">
+                      {programPct}% complete · {activeProgram.totalWorkouts - completedWorkouts} sessions remaining
+                    </p>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {todayDay?.isRest ? (
+                      <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                        <Moon className="w-3.5 h-3.5" /> Rest day
+                      </div>
+                    ) : workedOutToday && completedWorkouts > 0 ? (
+                      <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
+                        <RefreshCw className="w-3.5 h-3.5" /> Repeat Day
+                      </Button>
+                    ) : (
+                      <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
+                        <Play className="w-4 h-4" /> Start Workout
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
+                      View <ChevronRight className="w-3 h-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => router.push('/training')}>
+                      <RefreshCw className="w-3 h-3" /> Switch
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ) : (
+              <Link href="/training" className="block h-full">
+                <Card className="p-4 h-full relative overflow-hidden hover:border-accent/20 transition-colors flex flex-col justify-center">
+                  <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
+                    <Dumbbell className="w-28 h-28 text-accent" />
+                  </div>
+                  <Badge variant="muted" className="mb-2 self-start">No active program</Badge>
+                  <h3 className="text-base font-bold text-white">Choose a Program</h3>
+                  <p className="text-sm text-text-secondary mt-1">Pick a training program to get started</p>
+                  <Button variant="primary" size="sm" className="mt-3 self-start">Browse Programs</Button>
+                </Card>
+              </Link>
+            )}
+          </motion.div>
+
+          {/* Calories */}
+          <motion.div variants={stagger.item} className="col-span-2 row-span-1">
+            <Card className="p-3.5 h-full flex flex-col justify-between">
+              {loading && calories === null ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <Flame className="w-3.5 h-3.5 text-orange-400" />
+                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Calories</span>
+                  </div>
+                  <p className="text-lg font-black text-white">
+                    {calories ?? 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.calories}</span>
+                  </p>
+                  <ProgressBar value={calories ?? 0} max={goals.calories} color="danger" size="sm" />
+                </>
+              )}
+            </Card>
+          </motion.div>
+
+          {/* Water */}
+          <motion.div variants={stagger.item} className="col-span-2 row-span-1">
+            <Card className="p-3.5 h-full flex flex-col justify-between">
+              {loading && waterMl === null ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <Droplets className="w-3.5 h-3.5 text-blue-400" />
+                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Water</span>
+                  </div>
+                  <p className="text-lg font-black text-white">
+                    {waterMl ? Math.round(waterMl / 100) / 10 : 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.water / 1000}L</span>
+                  </p>
+                  <ProgressBar value={waterMl ?? 0} max={goals.water} color="info" size="sm" />
+                </>
+              )}
+            </Card>
+          </motion.div>
+
+          {/* Weekly volume — real numbers only, no invented daily breakdown */}
+          {weeklySummary && (weeklySummary.workoutsCompleted > 0 || weeklySummary.volumeKg > 0) && (
+            <motion.div variants={stagger.item} className="col-span-4 row-span-1">
+              <Card className="p-3.5 h-full flex items-center justify-between relative overflow-hidden">
+                <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
+                  <TrendingUp className="w-20 h-20 text-accent" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-accent-muted">
+                    <TrendingUp className="w-4 h-4 text-accent" />
+                  </div>
+                  <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-wide">This Week</span>
+                </div>
+                <div className="flex items-center gap-5">
+                  <div className="text-right">
+                    <p className="text-base font-black text-white leading-none">
+                      {weeklySummary.volumeKg.toLocaleString()}<span className="text-xs font-medium text-text-secondary ml-1">{profile?.weightUnit ?? 'kg'}</span>
+                    </p>
+                    <p className="text-[10px] text-text-tertiary mt-0.5">volume</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-base font-black text-white leading-none">
+                      {weeklySummary.workoutsCompleted}{activeMock?.daysPerWeek ? <span className="text-xs font-medium text-text-secondary ml-1">/{activeMock.daysPerWeek}</span> : null}
+                    </p>
+                    <p className="text-[10px] text-text-tertiary mt-0.5">workouts</p>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Quick Actions — single-purpose squares */}
+          {[
+            { icon: Dumbbell, label: 'Workout', href: '/training', bg: 'bg-purple-400/15', color: 'text-purple-300' },
+            { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', bg: 'bg-green-400/15', color: 'text-green-300' },
+            { icon: WaterIcon, label: 'Water', href: '/nutrition', bg: 'bg-blue-400/15', color: 'text-blue-300' },
+            { icon: CheckSquare, label: 'Habits', href: '/habits', bg: 'bg-accent/15', color: 'text-accent' },
+            { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner', bg: 'bg-orange-400/15', color: 'text-orange-300' },
+            { icon: TrendingUp, label: 'Progress', href: '/progress', bg: 'bg-teal-400/15', color: 'text-teal-300' },
+            { icon: Trophy, label: 'Achievements', href: '/achievements', bg: 'bg-yellow-400/15', color: 'text-yellow-300' },
+            { icon: Swords, label: 'Quests', href: '/quests', bg: 'bg-pink-400/15', color: 'text-pink-300' },
+          ].map((action) => (
+            <motion.div key={action.label} variants={stagger.item} className="col-span-1 row-span-1">
+              <Link href={action.href} className="block h-full">
+                <motion.div
+                  whileTap={{ scale: 0.95 }}
+                  className="h-full flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-surface shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
+                >
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${action.bg}`}>
+                    <action.icon className={`w-4.5 h-4.5 ${action.color}`} strokeWidth={2.25} />
+                  </div>
+                  <span className="text-[9px] text-text-secondary text-center leading-tight">{action.label}</span>
+                </motion.div>
+              </Link>
             </motion.div>
           ))}
         </motion.div>
 
-        {/* Active Program Card */}
-        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-          <h2 className="text-base font-bold text-white mb-3">Today&apos;s Workout</h2>
-          {activeProgram ? (
-            <Card className={`p-4 relative overflow-hidden ${workedOutToday ? 'border-success/30' : 'border-accent/20'}`}>
-              <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
-                <Dumbbell className="w-28 h-28 text-accent" />
-              </div>
-
-              {/* Badge row */}
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                {workedOutToday && completedWorkouts > 0 ? (
-                  <Badge variant="success">
-                    <CheckCircle2 className="w-3 h-3 mr-1" />
-                    Day {lastCompleted + 1} Complete
-                  </Badge>
-                ) : (
-                  <Badge variant="accent">
-                    Day {lastCompleted + 2} of {activeProgram.totalWorkouts}
-                  </Badge>
-                )}
-              </div>
-
-              <h3 className="text-base font-bold text-white">{activeProgram.programName}</h3>
-
-              {/* Status line */}
-              {workedOutToday && completedWorkouts > 0 ? (
-                <p className="text-sm text-success mt-0.5">
-                  🎉 Great work! Come back tomorrow for Day {lastCompleted + 2}.
-                  {activeProgram.totalWorkouts - completedWorkouts > 0 &&
-                    ` ${activeProgram.totalWorkouts - completedWorkouts} session${activeProgram.totalWorkouts - completedWorkouts !== 1 ? 's' : ''} remaining.`
-                  }
-                </p>
-              ) : todayDay ? (
-                <p className="text-sm text-text-secondary mt-0.5">
-                  {todayDay.isRest ? '😴 Rest Day — recover well' : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
-                </p>
-              ) : null}
-
-              {!workedOutToday && !todayDay?.isRest && firstExerciseName && (
-                <div className="mt-2 flex items-center gap-1.5 text-xs text-text-tertiary">
-                  <Dumbbell className="w-3 h-3" />
-                  Target: {firstExerciseName}
-                  {todayDay?.exercises?.[0] && (
-                    <span> — {todayDay.exercises[0].sets}×{todayDay.exercises[0].reps}</span>
-                  )}
-                </div>
-              )}
-
-              {!workedOutToday && !todayDay?.isRest && personalBest && (
-                <div className="mt-2 flex items-center gap-1.5 p-2 bg-accent/5 border border-accent/20 rounded-lg">
-                  <Trophy className="w-3.5 h-3.5 text-accent flex-shrink-0" />
-                  <p className="text-xs text-accent">
-                    Your best: {personalBest.weight}{profile?.weightUnit ?? 'kg'} × {personalBest.reps}. Beat it today.
-                  </p>
-                </div>
-              )}
-
-              <div className="mt-3 mb-3">
-                <ProgressBar value={completedWorkouts} max={activeProgram.totalWorkouts} color={workedOutToday ? 'success' : 'accent'} size="sm" />
-                <p className="text-xs text-text-tertiary mt-1">
-                  {programPct}% complete · {activeProgram.totalWorkouts - completedWorkouts} sessions remaining
-                </p>
-              </div>
-
-              <div className="flex gap-2 flex-wrap">
-                {todayDay?.isRest ? (
-                  <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-                    <Moon className="w-3.5 h-3.5" /> Rest day
-                  </div>
-                ) : workedOutToday && completedWorkouts > 0 ? (
-                  <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                    <RefreshCw className="w-3.5 h-3.5" /> Repeat Day
-                  </Button>
-                ) : (
-                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                    <Play className="w-4 h-4" /> Start Workout
-                  </Button>
-                )}
-                <Button size="sm" variant="ghost" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
-                  View <ChevronRight className="w-3 h-3" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => router.push('/training')}>
-                  <RefreshCw className="w-3 h-3" /> Switch
-                </Button>
-              </div>
-            </Card>
-          ) : (
-            <Link href="/training">
-              <Card className="p-4 relative overflow-hidden hover:border-accent/20 transition-colors">
-                <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
-                  <Dumbbell className="w-28 h-28 text-accent" />
-                </div>
-                <Badge variant="muted" className="mb-2">No active program</Badge>
-                <h3 className="text-base font-bold text-white">Choose a Program</h3>
-                <p className="text-sm text-text-secondary mt-1">Pick a training program to get started</p>
-                <Button variant="primary" size="sm" className="mt-3">Browse Programs</Button>
-              </Card>
-            </Link>
-          )}
-        </motion.div>
-
-        {/* Weekly Momentum — real, computed from logged sets this week */}
-        {weeklySummary && (weeklySummary.workoutsCompleted > 0 || weeklySummary.volumeKg > 0) && (
-          <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-            <Card className="p-4 relative overflow-hidden">
-              <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
-                <TrendingUp className="w-24 h-24 text-accent" />
-              </div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-1.5 rounded-lg bg-accent-muted">
-                  <TrendingUp className="w-4 h-4 text-accent" />
-                </div>
-                <span className="text-xs text-text-secondary font-medium">THIS WEEK</span>
-              </div>
-              <div className="flex items-end gap-6">
-                <div>
-                  <p className="text-2xl font-black text-white">
-                    {weeklySummary.volumeKg.toLocaleString()}
-                    <span className="text-sm font-medium text-text-secondary ml-1">{profile?.weightUnit ?? 'kg'}</span>
-                  </p>
-                  <p className="text-xs text-text-tertiary mt-0.5">total volume lifted</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-black text-white">
-                    {weeklySummary.workoutsCompleted}
-                    {activeMock?.daysPerWeek ? <span className="text-sm font-medium text-text-secondary ml-1">/{activeMock.daysPerWeek}</span> : null}
-                  </p>
-                  <p className="text-xs text-text-tertiary mt-0.5">workouts done</p>
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-        )}
-
-        {/* Quick Actions */}
-        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-          <h2 className="text-base font-bold text-white mb-3">Quick Actions</h2>
-          <div className="grid grid-cols-4 gap-3">
-            {[
-              { icon: Dumbbell, label: 'Workout', href: '/training', bg: 'bg-purple-400/15', color: 'text-purple-300' },
-              { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', bg: 'bg-green-400/15', color: 'text-green-300' },
-              { icon: WaterIcon, label: 'Water', href: '/nutrition', bg: 'bg-blue-400/15', color: 'text-blue-300' },
-              { icon: CheckSquare, label: 'Habits', href: '/habits', bg: 'bg-accent/15', color: 'text-accent' },
-              { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner', bg: 'bg-orange-400/15', color: 'text-orange-300' },
-              { icon: TrendingUp, label: 'Progress', href: '/progress', bg: 'bg-teal-400/15', color: 'text-teal-300' },
-              { icon: Trophy, label: 'Achievements', href: '/achievements', bg: 'bg-yellow-400/15', color: 'text-yellow-300' },
-              { icon: Swords, label: 'Quests', href: '/quests', bg: 'bg-pink-400/15', color: 'text-pink-300' },
-            ].map((action) => (
-              <Link key={action.label} href={action.href}>
-                <motion.div
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="flex flex-col items-center gap-2 py-3.5 px-1 rounded-2xl bg-surface shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
-                >
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${action.bg}`}>
-                    <action.icon className={`w-7 h-7 ${action.color}`} strokeWidth={2.25} />
-                  </div>
-                  <span className="text-[10px] text-text-secondary text-center leading-tight">{action.label}</span>
-                </motion.div>
-              </Link>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Personal Trackers — fasting timer + custom "days without" streaks */}
-        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate} className="space-y-3">
-          <FastingWidget />
-          <DaysWithoutWidget />
-        </motion.div>
-
-        {/* Leaderboard Rank */}
+        {/* Leaderboard preview — kept full-width; ranked list doesn't compress into a tile */}
         <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-bold text-white">Leaderboard</h2>
@@ -455,6 +458,14 @@ export default function DashboardPage() {
               )}
             </Card>
           </Link>
+        </motion.div>
+
+        {/* Personal Trackers — fasting timer + custom "days without" streaks; kept
+            full-width since both have their own multi-step modals (presets, custom
+            goals, reset/delete) that a bento tile is too small to host. */}
+        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate} className="space-y-3">
+          <FastingWidget />
+          <DaysWithoutWidget />
         </motion.div>
 
       </div>
