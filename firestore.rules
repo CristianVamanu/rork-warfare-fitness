@@ -243,6 +243,11 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
 
+    // ── User preferences (theme, etc.) ────────────────────────────────────
+    match /userPreferences/{userId} {
+      allow read, write: if isAuthed() && uid() == userId;
+    }
+
     // ── Exercise video library ────────────────────────────────────────────
     match /exerciseLibrary/{videoId} {
       allow read:  if isAuthed();
@@ -263,10 +268,12 @@ service cloud.firestore {
         && request.resource.data.userId == uid()
         && request.resource.data.moderationStatus == 'pending'
         && !prBanActive();
-      // Anyone signed in can bump likeCount; only the author or an admin can
-      // edit/delete their own post otherwise.
+      // Only admins can touch moderation/verification state (that's the
+      // whole point of the review gate) — the app never lets a post's own
+      // author edit it, only delete it, so there's no legitimate case for
+      // an author-owns-it update clause here. Anyone signed in can still
+      // bump likeCount.
       allow update: if isAuthed() && (
-        resource.data.userId == uid() ||
         isAdmin() ||
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
       );

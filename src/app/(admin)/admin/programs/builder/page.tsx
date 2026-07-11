@@ -19,6 +19,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import type { Program, ExerciseVideo } from '@/types';
+import { stripUndefinedDeep } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,24 +74,6 @@ function restDay(): BDay {
 
 function blankEx(): BEx {
   return { id: Math.random().toString(36).slice(2), name: '', muscleGroup: 'Chest', sets: 3, reps: '8-12', rpe: 8, restSeconds: 90, notes: '' };
-}
-
-// Firestore rejects any field whose value is `undefined`, even nested deep
-// inside arrays/objects (e.g. a HIIT-less exercise carrying `isHiit:
-// undefined`) — strip those out recursively right before a write instead of
-// tracking every call site that could introduce one.
-function stripUndefinedDeep<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value.map(stripUndefinedDeep) as unknown as T;
-  }
-  if (value !== null && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (v !== undefined) out[k] = stripUndefinedDeep(v);
-    }
-    return out as T;
-  }
-  return value;
 }
 
 function emptyProg(): BProg {

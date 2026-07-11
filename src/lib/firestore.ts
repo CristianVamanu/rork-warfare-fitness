@@ -30,6 +30,7 @@ import {
   deleteField,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { stripUndefinedDeep } from './utils';
 import type { UserGoals, CoachingPlan, ExerciseVideo, NutritionPlan } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -550,11 +551,11 @@ export async function getProgram(id: string) {
 }
 
 export async function createProgram(data: Record<string, unknown>) {
-  return addDoc(collection(db, 'programs'), { ...data, createdAt: serverTimestamp() });
+  return addDoc(collection(db, 'programs'), { ...stripUndefinedDeep(data), createdAt: serverTimestamp() });
 }
 
 export async function updateProgram(id: string, data: Record<string, unknown>) {
-  await updateDoc(doc(db, 'programs', id), { ...data, updatedAt: serverTimestamp() });
+  await updateDoc(doc(db, 'programs', id), { ...stripUndefinedDeep(data), updatedAt: serverTimestamp() });
 }
 
 export async function deleteProgram(id: string) {
