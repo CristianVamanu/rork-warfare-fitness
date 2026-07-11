@@ -42,7 +42,8 @@ export default function HabitsPage() {
     try {
       const recent = await getRecentHabitLogs(user.uid, HISTORY_DAYS);
       setLogs(recent);
-    } catch {
+    } catch (err) {
+      console.error('[Habits] load failed:', err);
       toast.error('Failed to load habits');
     } finally {
       setLoading(false);
