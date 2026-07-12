@@ -2688,6 +2688,24 @@ export default function AdminPage() {
               </div>
             </div>
 
+            <div>
+              <label className="text-xs text-text-secondary mb-2 block">Motivational Quote</label>
+              <div className="space-y-2">
+                <textarea
+                  value={landingForm.quoteText}
+                  onChange={e => setLandingForm(f => ({ ...f, quoteText: e.target.value }))}
+                  rows={2}
+                  placeholder="The only bad workout is the one that didn't happen."
+                  className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                />
+                <Input
+                  value={landingForm.quoteAuthor}
+                  onChange={e => setLandingForm(f => ({ ...f, quoteAuthor: e.target.value }))}
+                  placeholder="Attribution (optional, e.g. a name or leave generic)"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-text-secondary mb-1 block">Final CTA Headline</label>

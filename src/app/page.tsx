@@ -153,15 +153,31 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
-      {/* Feature grid */}
+      {/* Feature grid — bento layout. Sizes are hand-placed by position so
+          the first feature reads as the hero, the next two as mid-weight,
+          the middle four as a compact row, and the last spans full-width
+          as a closer — same visual language as the in-app dashboard bento
+          grid. If an admin adds/removes features, extra ones fall back to
+          plain 1x1 tiles rather than breaking the layout. */}
       <section className="max-w-5xl mx-auto px-5 pb-16">
         <div className="text-center mb-8">
           <h2 className="text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
           <p className="text-text-secondary text-sm mt-2">One app for training, nutrition, accountability, and progress.</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 auto-rows-[120px] sm:auto-rows-[130px] gap-4">
           {landing.features.map((f, i) => {
             const style = FEATURE_STYLES[i] ?? FEATURE_STYLES[FEATURE_STYLES.length - 1];
+            const span = [
+              'col-span-2 row-span-2',
+              'col-span-2 row-span-1',
+              'col-span-2 row-span-1',
+              'col-span-1 row-span-1',
+              'col-span-1 row-span-1',
+              'col-span-1 row-span-1',
+              'col-span-1 row-span-1',
+              'col-span-2 sm:col-span-4 row-span-1',
+            ][i] ?? 'col-span-2 sm:col-span-1 row-span-1';
+            const isHero = i === 0;
             return (
               <motion.div
                 key={`${f.title}-${i}`}
@@ -169,18 +185,41 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: (i % 4) * 0.05 }}
-                className="p-5 rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors"
+                className={`${span} p-5 rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors flex flex-col ${isHero ? 'justify-between' : 'justify-center'}`}
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${style.bg}`}>
-                  <style.icon className={`w-5 h-5 ${style.color}`} />
+                <div className={`${isHero ? 'w-12 h-12' : 'w-10 h-10'} rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
+                  <style.icon className={`${isHero ? 'w-6 h-6' : 'w-5 h-5'} ${style.color}`} />
                 </div>
-                <h3 className="text-sm font-bold text-white">{f.title}</h3>
-                <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">{f.desc}</p>
+                <div>
+                  <h3 className={`font-bold text-white ${isHero ? 'text-base' : 'text-sm'}`}>{f.title}</h3>
+                  <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">{f.desc}</p>
+                </div>
               </motion.div>
             );
           })}
         </div>
       </section>
+
+      {/* Motivational quote — admin-editable, full-bleed accent treatment */}
+      {landing.quoteText && (
+        <section className="max-w-4xl mx-auto px-5 pb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-40px' }}
+            transition={{ duration: 0.4 }}
+            className="relative rounded-3xl border border-accent/20 bg-gradient-to-br from-accent/[0.08] to-surface p-8 sm:p-12 text-center overflow-hidden"
+          >
+            <span className="absolute top-3 left-5 text-[90px] leading-none font-black text-accent/10 select-none pointer-events-none">&ldquo;</span>
+            <p className="relative text-xl sm:text-2xl font-bold text-white leading-snug max-w-2xl mx-auto">
+              {landing.quoteText}
+            </p>
+            {landing.quoteAuthor && (
+              <p className="relative text-sm text-accent font-medium mt-4">— {landing.quoteAuthor}</p>
+            )}
+          </motion.div>
+        </section>
+      )}
 
       {/* Pricing */}
       {(membership?.enabled || coachingPlans.length > 0) && (

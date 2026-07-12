@@ -18,6 +18,8 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     { title: 'A Real Community', desc: 'Train alongside people on the same journey — share wins, ask questions, stay motivated together.' },
   ],
   socialProof: ['No fads. Just results.', 'Real coaching, not a chatbot.', 'Built for consistency.'],
+  quoteText: "The only bad workout is the one that didn't happen.",
+  quoteAuthor: 'Every athlete who showed up anyway',
   finalCtaHeadline: 'Ready to stop starting over?',
   finalCtaSubtext: 'Create your account and get your first plan in minutes.',
 };

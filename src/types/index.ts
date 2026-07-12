@@ -241,6 +241,8 @@ export interface LandingPageConfig {
   ctaSecondaryLabel: string;
   features: LandingFeature[];       // title/desc editable; icon/color stay fixed by position
   socialProof: string[];
+  quoteText: string;
+  quoteAuthor: string;
   finalCtaHeadline: string;
   finalCtaSubtext: string;
 }
