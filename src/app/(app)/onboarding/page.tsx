@@ -19,6 +19,21 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Modal } from '@/components/ui/Modal';
 import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex, MedicalHistoryAnswers } from '@/types';
 
+// A plain <video> tag can only play a direct file (mp4/webm/etc) — a
+// youtube.com/youtu.be URL isn't one, so it fails to load silently with no
+// error the admin or user would ever see. Detect those and embed via
+// iframe instead so pasting a YouTube link actually works.
+function getYouTubeEmbedUrl(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtu\.be\/)([\w-]{11})/,
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return `https://www.youtube.com/embed/${m[1]}?autoplay=1&playsinline=1`;
+  }
+  return null;
+}
+
 // ─── Step data ────────────────────────────────────────────────────────────────
 
 const GOALS: { value: FitnessGoal; label: string; sub: string; icon: React.ElementType; color: string }[] = [
@@ -395,14 +410,26 @@ export default function OnboardingPage() {
         <div className="space-y-4">
           {videoGreetingUrl && (
             <div className="rounded-xl overflow-hidden bg-black aspect-video">
-              <video
-                src={videoGreetingUrl}
-                controls
-                autoPlay
-                playsInline
-                webkit-playsinline="true"
-                className="w-full h-full object-contain"
-              />
+              {(() => {
+                const embedUrl = getYouTubeEmbedUrl(videoGreetingUrl);
+                return embedUrl ? (
+                  <iframe
+                    src={embedUrl}
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video
+                    src={videoGreetingUrl}
+                    controls
+                    autoPlay
+                    playsInline
+                    webkit-playsinline="true"
+                    className="w-full h-full object-contain"
+                  />
+                );
+              })()}
             </div>
           )}
           <p className="text-sm text-text-secondary text-center">A personal welcome from your coach.</p>

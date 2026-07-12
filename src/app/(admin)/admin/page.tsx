@@ -2539,8 +2539,8 @@ export default function AdminPage() {
               </div>
               <div>
                 <label className="text-xs text-text-secondary mb-1 block">Video Greeting URL</label>
-                <Input value={settingsForm.videoGreetingUrl} onChange={e => setSettingsForm(s => ({ ...s, videoGreetingUrl: e.target.value }))} placeholder="https://… (MP4 or hosted video link)" />
-                <p className="text-xs text-text-tertiary mt-1">Plays automatically after a new user completes onboarding. Leave blank to skip.</p>
+                <Input value={settingsForm.videoGreetingUrl} onChange={e => setSettingsForm(s => ({ ...s, videoGreetingUrl: e.target.value }))} placeholder="https://… (YouTube link, or an MP4 / hosted video URL)" />
+                <p className="text-xs text-text-tertiary mt-1">Plays automatically after a new user completes onboarding. YouTube links and direct video files both work. Leave blank to skip.</p>
               </div>
               <div>
                 <label className="text-xs text-text-secondary mb-1 block">Logo / Brand Image</label>
