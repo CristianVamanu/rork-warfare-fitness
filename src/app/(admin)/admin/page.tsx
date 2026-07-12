@@ -1716,6 +1716,16 @@ export default function AdminPage() {
                       <p className="text-xs text-text-tertiary mt-1">Shown to users on the paywall screen, e.g. &quot;Warfare Elite&quot;. Leave blank for &quot;Membership&quot;.</p>
                     </div>
                     <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Plan Description</label>
+                      <textarea
+                        value={membership.description ?? ''}
+                        onChange={e => setMembership(m => ({ ...m, description: e.target.value }))}
+                        rows={2}
+                        placeholder="One-sentence pitch shown under the plan name, e.g. &quot;Everything you need to train, eat, and stay accountable.&quot;"
+                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                      />
+                    </div>
+                    <div>
                       <label className="text-xs text-text-secondary mb-2 block">Plan Features (shown on the pricing card)</label>
                       <div className="space-y-2">
                         {(membership.features?.length ? membership.features : DEFAULT_MEMBERSHIP_FEATURES).map((f, i) => (

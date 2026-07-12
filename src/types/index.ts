@@ -452,6 +452,7 @@ export interface NutritionPlan {
 export interface MembershipConfig {
   enabled: boolean;
   planName?: string; // display name shown to users, e.g. "Warfare Elite" — defaults to "Membership"
+  description?: string; // one-line pitch shown under the plan name, same spot as CoachingPlan.description
   features?: string[]; // bullet list shown on the pricing card (landing page + profile) — falls back to a sensible default if unset
   fee: number; // monthly in USD (e.g. 29.99)
   currency: string; // e.g. 'USD'

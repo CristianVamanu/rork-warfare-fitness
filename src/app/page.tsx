@@ -251,6 +251,9 @@ export default function LandingPage() {
                 {trialDays > 0 && (
                   <p className="text-xs text-accent mt-1 font-medium">{trialDays}-day free trial, no payment required</p>
                 )}
+                {membership.description && (
+                  <p className="text-xs text-text-secondary mt-2 leading-relaxed">{membership.description}</p>
+                )}
                 <ul className="mt-5 space-y-2.5">
                   {(membership.features?.length ? membership.features : DEFAULT_MEMBERSHIP_FEATURES).map((f) => (
                     <li key={f} className="flex items-center gap-2 text-sm text-text-secondary">

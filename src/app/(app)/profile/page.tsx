@@ -297,6 +297,9 @@ export default function ProfilePage() {
                   {trialDays > 0 && !isActive && !inTrial && (
                     <p className="text-xs text-accent mt-1">{trialDays}-day free trial included</p>
                   )}
+                  {membershipConfig?.description && (
+                    <p className="text-xs text-text-secondary mt-2 leading-relaxed">{membershipConfig.description}</p>
+                  )}
 
                   <ul className="mt-4 space-y-2">
                     {(membershipConfig?.features?.length ? membershipConfig.features : DEFAULT_MEMBERSHIP_FEATURES).map((f) => (
