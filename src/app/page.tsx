@@ -109,12 +109,22 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="relative max-w-3xl mx-auto px-5 pt-10 pb-16 text-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          {/* Glowing icon badge — the visual centerpiece, no image asset needed */}
-          <div className="relative w-16 h-16 mx-auto mb-6">
-            <div className="absolute inset-0 rounded-2xl bg-accent/30 blur-xl" />
-            <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-b from-surface-elevated to-surface border border-accent/30 flex items-center justify-center shadow-glow-accent">
-              <Trophy className="w-7 h-7 text-accent" />
-            </div>
+          {/* Animated brand mark — logo emerging through smoke into flame.
+              Muted/looped/inline so it autoplays everywhere including iOS
+              Safari; the poster frame paints instantly so there's no blank
+              gap while the ~900KB clip loads. */}
+          <div className="relative w-32 h-32 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full bg-accent/25 blur-2xl" />
+            <video
+              className="relative w-full h-full rounded-2xl object-cover shadow-glow-accent"
+              src="/videos/hero-logo.mp4"
+              poster="/videos/hero-logo-poster.jpg"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+            />
           </div>
           {landing.badgeText && (
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-muted text-accent text-xs font-bold mb-5 border border-accent/20">
