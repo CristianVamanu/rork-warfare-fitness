@@ -701,25 +701,69 @@ export async function getMealsForDate(userId: string, date: Date): Promise<Norma
 // Real-time listeners for today's nutrition (used by dashboard widget)
 // ---------------------------------------------------------------------------
 
+// Real-time totals for events of one `type` today, for one user. Prefers
+// the compound (userId, type, createdAt) index — but composite indexes
+// have to be deployed separately from security rules (`firebase deploy
+// --only firestore:indexes`), so a fresh environment that never ran that
+// can be missing them even though firestore.indexes.json lists them. If
+// the compound query errors as missing-index, this falls back to a
+// userId-only live listener (always auto-indexed, no deploy needed) and
+// filters/sums client-side instead — same fallback shape as
+// `safeGetEvents`, just live instead of one-shot.
+function subscribeTodayEventsTotal(
+  userId: string,
+  localDateStr: string,
+  eventType: string,
+  sumField: string,
+  onUpdate: (total: number) => void,
+): () => void {
+  const todayTs = Timestamp.fromDate(new Date(localDateStr));
+  const compoundQ = query(
+    collection(db, 'events'),
+    where('userId', '==', userId),
+    where('type', '==', eventType),
+    where('createdAt', '>=', todayTs),
+  );
+
+  let fallbackUnsub: (() => void) | null = null;
+  const unsub = onSnapshot(
+    compoundQ,
+    (snap) => {
+      const total = snap.docs.reduce(
+        (sum, d) => sum + (((d.data().payload) as Record<string, number>)?.[sumField] ?? 0),
+        0,
+      );
+      onUpdate(total);
+    },
+    (err) => {
+      if (err.code !== 'failed-precondition') {
+        console.error(`[Firestore] subscribeTodayEventsTotal(${eventType}) error:`, err);
+        return;
+      }
+      console.warn(`[Firestore] Missing index for live events type=${eventType} — using client-side filter fallback.`);
+      const fallbackQ = query(collection(db, 'events'), where('userId', '==', userId));
+      fallbackUnsub = onSnapshot(fallbackQ, (snap) => {
+        const total = snap.docs.reduce((sum, d) => {
+          const data = d.data();
+          if (data.type !== eventType) return sum;
+          const ts = data.createdAt as Timestamp | null;
+          if (!ts || ts.toMillis() < todayTs.toMillis()) return sum;
+          return sum + ((data.payload as Record<string, number>)?.[sumField] ?? 0);
+        }, 0);
+        onUpdate(total);
+      }, (fallbackErr) => console.error(`[Firestore] subscribeTodayEventsTotal(${eventType}) fallback error:`, fallbackErr));
+    },
+  );
+
+  return () => { unsub(); fallbackUnsub?.(); };
+}
+
 export function subscribeTodayCalories(
   userId: string,
   localDateStr: string,
   onUpdate: (calories: number) => void,
 ): () => void {
-  const todayTs = Timestamp.fromDate(new Date(localDateStr));
-  const q = query(
-    collection(db, 'events'),
-    where('userId', '==', userId),
-    where('type', '==', 'MEAL_LOGGED'),
-    where('createdAt', '>=', todayTs),
-  );
-  return onSnapshot(q, (snap) => {
-    const total = snap.docs.reduce(
-      (sum, d) => sum + (((d.data().payload) as Record<string, number>)?.calories ?? 0),
-      0,
-    );
-    onUpdate(total);
-  });
+  return subscribeTodayEventsTotal(userId, localDateStr, 'MEAL_LOGGED', 'calories', onUpdate);
 }
 
 export function subscribeTodayWater(
@@ -727,20 +771,7 @@ export function subscribeTodayWater(
   localDateStr: string,
   onUpdate: (ml: number) => void,
 ): () => void {
-  const todayTs = Timestamp.fromDate(new Date(localDateStr));
-  const q = query(
-    collection(db, 'events'),
-    where('userId', '==', userId),
-    where('type', '==', 'WATER_LOGGED'),
-    where('createdAt', '>=', todayTs),
-  );
-  return onSnapshot(q, (snap) => {
-    const total = snap.docs.reduce(
-      (sum, d) => sum + (((d.data().payload) as Record<string, number>)?.amountMl ?? 0),
-      0,
-    );
-    onUpdate(total);
-  });
+  return subscribeTodayEventsTotal(userId, localDateStr, 'WATER_LOGGED', 'amountMl', onUpdate);
 }
 
 // ---------------------------------------------------------------------------
