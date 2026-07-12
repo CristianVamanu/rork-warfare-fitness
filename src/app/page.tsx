@@ -153,30 +153,30 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
-      {/* Feature grid — bento layout. Sizes are hand-placed by position so
-          the first feature reads as the hero, the next two as mid-weight,
-          the middle four as a compact row, and the last spans full-width
-          as a closer — same visual language as the in-app dashboard bento
-          grid. If an admin adds/removes features, extra ones fall back to
-          plain 1x1 tiles rather than breaking the layout. */}
+      {/* Feature grid — bento layout. Width varies by position (wide hero,
+          narrower supporting cards, full-width closer) but height is never
+          forced — each row's cards stretch to match whichever card in that
+          row has the most text, so nothing overflows past its border and
+          nothing is left with an oddly empty middle. If an admin adds/
+          removes features, extras fall back to a plain 1-column width. */}
       <section className="max-w-5xl mx-auto px-5 pb-16">
         <div className="text-center mb-8">
           <h2 className="text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
           <p className="text-text-secondary text-sm mt-2">One app for training, nutrition, accountability, and progress.</p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 auto-rows-[120px] sm:auto-rows-[130px] gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 items-stretch">
           {landing.features.map((f, i) => {
             const style = FEATURE_STYLES[i] ?? FEATURE_STYLES[FEATURE_STYLES.length - 1];
-            const span = [
-              'col-span-2 row-span-2',
-              'col-span-2 row-span-1',
-              'col-span-2 row-span-1',
-              'col-span-1 row-span-1',
-              'col-span-1 row-span-1',
-              'col-span-1 row-span-1',
-              'col-span-1 row-span-1',
-              'col-span-2 sm:col-span-4 row-span-1',
-            ][i] ?? 'col-span-2 sm:col-span-1 row-span-1';
+            const colSpan = [
+              'col-span-2 sm:col-span-2',
+              'col-span-2 sm:col-span-1',
+              'col-span-2 sm:col-span-1',
+              'col-span-1',
+              'col-span-1',
+              'col-span-1',
+              'col-span-1',
+              'col-span-2 sm:col-span-4',
+            ][i] ?? 'col-span-2 sm:col-span-1';
             const isHero = i === 0;
             return (
               <motion.div
@@ -185,15 +185,18 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: (i % 4) * 0.05 }}
-                className={`${span} p-5 rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors flex flex-col ${isHero ? 'justify-between' : 'justify-center'}`}
+                className={`${colSpan} p-5 rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors flex flex-col items-start relative overflow-hidden`}
               >
-                <div className={`${isHero ? 'w-12 h-12' : 'w-10 h-10'} rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
+                {/* Large faint watermark icon — fills a wide hero tile's
+                    extra space without inventing fake content per feature. */}
+                {isHero && (
+                  <style.icon className="absolute -right-4 -bottom-4 w-28 h-28 text-white/[0.03] pointer-events-none" />
+                )}
+                <div className={`relative ${isHero ? 'w-12 h-12' : 'w-10 h-10'} rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
                   <style.icon className={`${isHero ? 'w-6 h-6' : 'w-5 h-5'} ${style.color}`} />
                 </div>
-                <div>
-                  <h3 className={`font-bold text-white ${isHero ? 'text-base' : 'text-sm'}`}>{f.title}</h3>
-                  <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">{f.desc}</p>
-                </div>
+                <h3 className={`relative font-bold text-white ${isHero ? 'text-base' : 'text-sm'}`}>{f.title}</h3>
+                <p className="relative text-xs text-text-secondary mt-1.5 leading-relaxed">{f.desc}</p>
               </motion.div>
             );
           })}
