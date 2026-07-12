@@ -1234,12 +1234,30 @@ export async function likePRPost(postId: string) {
  * Approving is also what verifies it — the badge lives on this specific
  * post only, not on the athlete's profile as a whole. Proving one lift is
  * real doesn't vouch for every future post, so nothing here touches the
- * user's own profile. */
-export async function setPRPostModeration(postId: string, status: 'pending' | 'approved' | 'rejected') {
+ * user's own profile. Also notifies the poster of the decision (skipped
+ * for a reset back to 'pending', which isn't a real decision). */
+export async function setPRPostModeration(
+  postId: string,
+  status: 'pending' | 'approved' | 'rejected',
+  post?: { userId: string; exerciseName: string },
+) {
   await updateDoc(doc(db, 'prPosts', postId), {
     moderationStatus: status,
     verificationLevel: status === 'approved' ? 'verified' : 'unverified',
   });
+
+  if (post && (status === 'approved' || status === 'rejected')) {
+    await sendNotification({
+      userId: post.userId,
+      title: status === 'approved' ? '🏅 Your PR was verified!' : 'Your PR submission was rejected',
+      body: status === 'approved'
+        ? `Your "${post.exerciseName}" PR is now live on the PR Wall with a Verified badge.`
+        : `Your "${post.exerciseName}" PR wasn't approved for the PR Wall. You can post a new one anytime.`,
+      type: status === 'approved' ? 'pr_approved' : 'pr_rejected',
+      actionLabel: 'View PR Wall',
+      actionUrl: '/community/prs',
+    }).catch(() => {});
+  }
 }
 
 export async function deletePRPost(postId: string) {

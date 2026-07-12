@@ -50,8 +50,8 @@ export default function PRReviewPage() {
     }
   };
 
-  const approve = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, 'approved'), 'Approved — visible on the PR Wall with a Verified badge');
-  const reject = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, 'rejected'), 'Post rejected — hidden from the PR Wall');
+  const approve = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, 'approved', post), 'Approved — visible on the PR Wall with a Verified badge');
+  const reject = (post: PRPost) => withBusy(post.id, () => setPRPostModeration(post.id, 'rejected', post), 'Post rejected — hidden from the PR Wall');
   const removePost = (post: PRPost) => {
     if (!confirm(`Permanently delete ${post.displayName}'s "${post.exerciseName}" post?`)) return;
     withBusy(post.id, () => deletePRPost(post.id), 'Post deleted');
