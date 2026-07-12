@@ -14,6 +14,7 @@ import {
 } from '@/lib/firestore';
 import { startCoachingCheckout } from '@/lib/checkout';
 import { DEFAULT_MEMBERSHIP_FEATURES } from '@/lib/landingDefaults';
+import { getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -211,6 +212,7 @@ export default function ProfilePage() {
 
   // Check free trial
   const trialDays = (membershipConfig as (MembershipConfig & { trialDays?: number }) | null)?.trialDays ?? 0;
+  const discountPercent = getActiveDiscountPercent(membershipConfig);
   const inTrial = (() => {
     if (!trialDays || !profile?.createdAt) return false;
     const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
@@ -286,12 +288,24 @@ export default function ProfilePage() {
                       <span className="text-[10px] font-bold text-black">{isActive ? 'YOUR PLAN' : 'TRIAL ACTIVE'}</span>
                     </div>
                   )}
+                  {discountPercent > 0 && !isActive && !inTrial && (
+                    <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
+                      <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 mb-1">
                     <Crown className="w-4 h-4 text-accent" />
                     <p className="text-xs font-bold text-accent uppercase tracking-wide">{membershipConfig?.planName?.trim() || 'Platform Membership'}</p>
                   </div>
-                  <div className="flex items-baseline gap-1 mt-2">
-                    <span className="text-3xl font-black text-white">${membershipConfig?.fee?.toFixed(2) ?? '—'}</span>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    {discountPercent > 0 && !isActive && !inTrial && membershipConfig?.fee ? (
+                      <>
+                        <span className="text-3xl font-black text-white">${applyDiscount(membershipConfig.fee, discountPercent).toFixed(2)}</span>
+                        <span className="text-sm text-text-tertiary line-through">${membershipConfig.fee.toFixed(2)}</span>
+                      </>
+                    ) : (
+                      <span className="text-3xl font-black text-white">${membershipConfig?.fee?.toFixed(2) ?? '—'}</span>
+                    )}
                     <span className="text-sm text-text-secondary">/month</span>
                   </div>
                   {trialDays > 0 && !isActive && !inTrial && (
@@ -355,12 +369,24 @@ export default function ProfilePage() {
                         <span className="text-[10px] font-bold text-black">YOUR PLAN</span>
                       </div>
                     )}
+                    {discountPercent > 0 && !isCurrentPlan && (
+                      <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
+                        <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 mb-1">
                       <Trophy className="w-4 h-4 text-accent" />
                       <p className="text-xs font-bold text-accent uppercase tracking-wide">{plan.name}</p>
                     </div>
-                    <div className="flex items-baseline gap-1 mt-2">
-                      <span className="text-3xl font-black text-white">${plan.priceMonthly.toFixed(2)}</span>
+                    <div className="flex items-baseline gap-2 mt-2">
+                      {discountPercent > 0 && !isCurrentPlan ? (
+                        <>
+                          <span className="text-3xl font-black text-white">${applyDiscount(plan.priceMonthly, discountPercent).toFixed(2)}</span>
+                          <span className="text-sm text-text-tertiary line-through">${plan.priceMonthly.toFixed(2)}</span>
+                        </>
+                      ) : (
+                        <span className="text-3xl font-black text-white">${plan.priceMonthly.toFixed(2)}</span>
+                      )}
                       <span className="text-sm text-text-secondary">/month</span>
                     </div>
                     {plan.description && <p className="text-xs text-text-secondary mt-2">{plan.description}</p>}

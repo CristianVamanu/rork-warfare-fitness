@@ -38,6 +38,20 @@ export function formatWeight(value: number, unit: 'kg' | 'lbs'): string {
   return `${value}${unit}`;
 }
 
+/** Returns the live discount percent (0 if none/expired) for a config that
+ * carries `discountPercent` + `discountExpiresAt` — the same rule the
+ * Stripe checkout routes already apply server-side, so the UI can show the
+ * exact same "is it active right now" state instead of just trusting
+ * whatever percent is stored regardless of expiry. */
+export function getActiveDiscountPercent(cfg: { discountPercent?: number; discountExpiresAt?: string } | null | undefined): number {
+  if (!cfg?.discountPercent || cfg.discountPercent <= 0 || !cfg.discountExpiresAt) return 0;
+  return new Date(cfg.discountExpiresAt).getTime() > Date.now() ? cfg.discountPercent : 0;
+}
+
+export function applyDiscount(price: number, percent: number): number {
+  return Math.round(price * (1 - percent / 100) * 100) / 100;
+}
+
 export function kgToLbs(kg: number): number {
   return Math.round(kg * 2.20462 * 10) / 10;
 }

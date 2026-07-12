@@ -15,6 +15,7 @@ import { getSystemConfig, getMembershipConfig, getCoachingPlans } from '@/lib/fi
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_MEMBERSHIP_FEATURES } from '@/lib/landingDefaults';
+import { getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import type { LandingPageConfig, MembershipConfig, CoachingPlan } from '@/types';
 
 // Icon + color stay fixed by position — only title/desc are admin-editable.
@@ -55,6 +56,7 @@ export default function LandingPage() {
   }, []);
 
   const trialDays = membership?.enabled ? (membership.trialDays ?? 0) : 0;
+  const discountPercent = getActiveDiscountPercent(membership);
 
   if (loading || user) return <FullPageSpinner />;
 
@@ -240,12 +242,24 @@ export default function LandingPage() {
                 transition={{ duration: 0.35 }}
                 className="relative rounded-2xl border-2 border-accent bg-accent/[0.03] p-6"
               >
+                {discountPercent > 0 && (
+                  <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
+                    <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 mb-1">
                   <Crown className="w-4 h-4 text-accent" />
                   <p className="text-xs font-bold text-accent uppercase tracking-wide">{membership.planName?.trim() || 'Membership'}</p>
                 </div>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-4xl font-black text-white">${membership.fee?.toFixed(2)}</span>
+                <div className="flex items-baseline gap-2 mt-2">
+                  {discountPercent > 0 ? (
+                    <>
+                      <span className="text-4xl font-black text-white">${applyDiscount(membership.fee, discountPercent).toFixed(2)}</span>
+                      <span className="text-base text-text-tertiary line-through">${membership.fee?.toFixed(2)}</span>
+                    </>
+                  ) : (
+                    <span className="text-4xl font-black text-white">${membership.fee?.toFixed(2)}</span>
+                  )}
                   <span className="text-sm text-text-secondary">/month</span>
                 </div>
                 {trialDays > 0 && (
@@ -275,11 +289,23 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: 0.05 }}
-                className="rounded-2xl border border-white/10 bg-surface p-6"
+                className="relative rounded-2xl border border-white/10 bg-surface p-6"
               >
+                {discountPercent > 0 && (
+                  <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
+                    <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
+                  </div>
+                )}
                 <p className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-1">{plan.name}</p>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-4xl font-black text-white">${plan.priceMonthly?.toFixed(2)}</span>
+                <div className="flex items-baseline gap-2 mt-2">
+                  {discountPercent > 0 ? (
+                    <>
+                      <span className="text-4xl font-black text-white">${applyDiscount(plan.priceMonthly, discountPercent).toFixed(2)}</span>
+                      <span className="text-base text-text-tertiary line-through">${plan.priceMonthly?.toFixed(2)}</span>
+                    </>
+                  ) : (
+                    <span className="text-4xl font-black text-white">${plan.priceMonthly?.toFixed(2)}</span>
+                  )}
                   <span className="text-sm text-text-secondary">/month</span>
                 </div>
                 <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>
