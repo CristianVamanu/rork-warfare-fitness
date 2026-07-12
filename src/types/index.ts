@@ -452,6 +452,7 @@ export interface NutritionPlan {
 export interface MembershipConfig {
   enabled: boolean;
   planName?: string; // display name shown to users, e.g. "Warfare Elite" — defaults to "Membership"
+  features?: string[]; // bullet list shown on the pricing card (landing page + profile) — falls back to a sensible default if unset
   fee: number; // monthly in USD (e.g. 29.99)
   currency: string; // e.g. 'USD'
   fullLock: boolean; // lock entire app for non-members

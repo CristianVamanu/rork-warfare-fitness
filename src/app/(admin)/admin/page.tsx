@@ -38,7 +38,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
 import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers } from '@/types';
-import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
+import { DEFAULT_LANDING_CONFIG, DEFAULT_MEMBERSHIP_FEATURES } from '@/lib/landingDefaults';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'integrations' | 'settings';
 
@@ -1714,6 +1714,43 @@ export default function AdminPage() {
                         className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
                       />
                       <p className="text-xs text-text-tertiary mt-1">Shown to users on the paywall screen, e.g. &quot;Warfare Elite&quot;. Leave blank for &quot;Membership&quot;.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-2 block">Plan Features (shown on the pricing card)</label>
+                      <div className="space-y-2">
+                        {(membership.features?.length ? membership.features : DEFAULT_MEMBERSHIP_FEATURES).map((f, i) => (
+                          <div key={i} className="flex gap-2">
+                            <input
+                              type="text"
+                              value={f}
+                              onChange={e => setMembership(m => {
+                                const next = [...(m.features?.length ? m.features : DEFAULT_MEMBERSHIP_FEATURES)];
+                                next[i] = e.target.value;
+                                return { ...m, features: next };
+                              })}
+                              className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                            />
+                            <button
+                              onClick={() => setMembership(m => {
+                                const base = m.features?.length ? m.features : DEFAULT_MEMBERSHIP_FEATURES;
+                                return { ...m, features: base.filter((_, idx) => idx !== i) };
+                              })}
+                              className="px-3 rounded-xl border border-white/10 text-text-tertiary hover:text-danger hover:border-danger/30 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => setMembership(m => ({
+                            ...m,
+                            features: [...(m.features?.length ? m.features : DEFAULT_MEMBERSHIP_FEATURES), 'New feature'],
+                          }))}
+                          className="flex items-center gap-1.5 text-xs text-accent hover:underline"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add feature
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <label className="text-xs text-text-secondary mb-1 block">Monthly Fee (USD)</label>

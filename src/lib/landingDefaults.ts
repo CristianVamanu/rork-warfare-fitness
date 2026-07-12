@@ -1,5 +1,14 @@
 import type { LandingPageConfig } from '@/types';
 
+// Fallback bullet list for the standard membership pricing card (landing
+// page + profile), used only until an admin sets MembershipConfig.features.
+export const DEFAULT_MEMBERSHIP_FEATURES = [
+  'Full access to all training programs',
+  'AI food analyzer & barcode scanner',
+  'Community & leaderboard access',
+  'Direct messaging with your coach',
+];
+
 export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   badgeText: 'Your coach. Your plan. Your results.',
   headlineLine1: 'Train harder. Eat smarter.',

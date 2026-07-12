@@ -13,6 +13,7 @@ import {
   submitCoachingApplication, getUserCoachingApplication,
 } from '@/lib/firestore';
 import { startCoachingCheckout } from '@/lib/checkout';
+import { DEFAULT_MEMBERSHIP_FEATURES } from '@/lib/landingDefaults';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -298,7 +299,7 @@ export default function ProfilePage() {
                   )}
 
                   <ul className="mt-4 space-y-2">
-                    {['Full access to all training programs', 'AI food analyzer & barcode scanner', 'Community & leaderboard access', 'Direct messaging with your coach'].map((f) => (
+                    {(membershipConfig?.features?.length ? membershipConfig.features : DEFAULT_MEMBERSHIP_FEATURES).map((f) => (
                       <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
                         <CheckCircle className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {f}
                       </li>

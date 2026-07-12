@@ -14,15 +14,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getSystemConfig, getMembershipConfig, getCoachingPlans } from '@/lib/firestore';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
-import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
+import { DEFAULT_LANDING_CONFIG, DEFAULT_MEMBERSHIP_FEATURES } from '@/lib/landingDefaults';
 import type { LandingPageConfig, MembershipConfig, CoachingPlan } from '@/types';
-
-const MEMBERSHIP_FEATURES = [
-  'Full access to all training programs',
-  'AI food analyzer & barcode scanner',
-  'Community & leaderboard access',
-  'Direct messaging with your coach',
-];
 
 // Icon + color stay fixed by position — only title/desc are admin-editable.
 // If a client adds more feature entries than this list has, extras fall
@@ -259,7 +252,7 @@ export default function LandingPage() {
                   <p className="text-xs text-accent mt-1 font-medium">{trialDays}-day free trial, no payment required</p>
                 )}
                 <ul className="mt-5 space-y-2.5">
-                  {MEMBERSHIP_FEATURES.map((f) => (
+                  {(membership.features?.length ? membership.features : DEFAULT_MEMBERSHIP_FEATURES).map((f) => (
                     <li key={f} className="flex items-center gap-2 text-sm text-text-secondary">
                       <Check className="w-4 h-4 text-accent flex-shrink-0" /> {f}
                     </li>
