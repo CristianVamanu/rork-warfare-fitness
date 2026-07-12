@@ -128,15 +128,20 @@ export default function DashboardPage() {
   };
 
   // One-time "ignition" moment — the ember flaring up into a real flame the
-  // first time a brand-new user lands on the dashboard right after
-  // onboarding. `flameIgnited` is a real Firestore flag (not localStorage)
-  // so it fires exactly once ever, on whichever device they finish
-  // onboarding on, and never replays on a second device.
+  // first time someone actually completes a workout. Deliberately NOT tied
+  // to onboarding: firing it before any real progress exists would tell the
+  // user "your flame is lit" one second and show an unlit ember with "light
+  // it" copy the next — an earned reward that fires before anything's been
+  // earned reads as hollow (and confusing). `flameIgnited` is a real
+  // Firestore flag (not localStorage) so it fires exactly once ever, on
+  // whichever device they finish that first workout on.
   const [igniting, setIgniting] = useState(false);
   const ignitedRef = useRef(false);
+  const totalWorkouts = profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0;
   useEffect(() => {
     if (!user || loading || !profile) return;
-    if (!profile.onboardingComplete || profile.flameIgnited) return;
+    if (profile.flameIgnited) return;
+    if (!(totalWorkouts >= 1 && workedOutToday)) return;
     if (ignitedRef.current) return;
     ignitedRef.current = true;
     setIgniting(true);
@@ -144,7 +149,7 @@ export default function DashboardPage() {
     markFlameIgnited(user.uid).catch(() => {});
     const t = setTimeout(() => setIgniting(false), 2200);
     return () => clearTimeout(t);
-  }, [user, loading, profile]);
+  }, [user, loading, profile, totalWorkouts, workedOutToday]);
 
   // Active program data — single source of truth: lastCompletedDayIndex
   const activeProgram = profile?.activeProgram;
