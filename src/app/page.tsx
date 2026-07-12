@@ -213,8 +213,13 @@ export default function LandingPage() {
             transition={{ duration: 0.4 }}
             className="relative rounded-3xl border border-accent/20 bg-gradient-to-br from-accent/[0.08] to-surface p-8 sm:p-12 text-center overflow-hidden"
           >
-            <span className="absolute top-3 left-5 text-[90px] leading-none font-black text-accent/10 select-none pointer-events-none">&ldquo;</span>
-            <p className="relative text-xl sm:text-2xl font-bold text-white leading-snug max-w-2xl mx-auto">
+            {/* Fixed-size badge instead of a giant absolutely-positioned glyph
+                behind the text — the old version overlapped the quote on
+                narrow screens since it never adapted to width or copy length. */}
+            <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-accent-muted text-accent text-lg font-black mb-4">
+              &ldquo;
+            </span>
+            <p className="text-xl sm:text-2xl font-bold text-white leading-snug max-w-2xl mx-auto text-balance">
               {landing.quoteText}
             </p>
             {landing.quoteAuthor && (
