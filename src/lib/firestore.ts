@@ -1322,16 +1322,29 @@ export async function createProgressPhoto(input: {
   return ref.id;
 }
 
+// Sorted client-side, not with a Firestore `orderBy`, so this stays an
+// equality-only query and never needs a manually-deployed composite index
+// (the same class of bug that silently broke the calories/water listeners
+// earlier — a where()+orderBy() combo needs an index that's easy to forget
+// to actually deploy, and the failure is silent unless you check the console).
+function sortByCreatedAtDesc(photos: ProgressPhoto[]): ProgressPhoto[] {
+  return [...photos].sort((a, b) => {
+    const am = (a.createdAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+    const bm = (b.createdAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+    return bm - am;
+  });
+}
+
 export async function getProgressPhotos(userId: string): Promise<ProgressPhoto[]> {
-  const q = query(collection(db, 'progressPhotos'), where('userId', '==', userId), orderBy('createdAt', 'desc'));
+  const q = query(collection(db, 'progressPhotos'), where('userId', '==', userId));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ProgressPhoto, 'id'>) }));
+  return sortByCreatedAtDesc(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ProgressPhoto, 'id'>) })));
 }
 
 export function subscribeProgressPhotos(userId: string, onUpdate: (photos: ProgressPhoto[]) => void): () => void {
-  const q = query(collection(db, 'progressPhotos'), where('userId', '==', userId), orderBy('createdAt', 'desc'));
+  const q = query(collection(db, 'progressPhotos'), where('userId', '==', userId));
   return onSnapshot(q, (snap) => {
-    onUpdate(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ProgressPhoto, 'id'>) })));
+    onUpdate(sortByCreatedAtDesc(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ProgressPhoto, 'id'>) }))));
   }, (err) => console.error('[Firestore] subscribeProgressPhotos error:', err));
 }
 
