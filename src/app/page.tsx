@@ -8,7 +8,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy,
-  ArrowRight, CheckCircle2, Crown, Check,
+  ArrowRight, CheckCircle2, Crown, Check, Flame, Zap,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSystemConfig, getMembershipConfig, getCoachingPlans } from '@/lib/firestore';
@@ -40,6 +40,7 @@ export default function LandingPage() {
   const [landing, setLanding] = useState<LandingPageConfig>(DEFAULT_LANDING_CONFIG);
   const [membership, setMembership] = useState<MembershipConfig | null>(null);
   const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
+  const [leaderboard, setLeaderboard] = useState<{ displayName: string; powerLevel: number; streak: number; totalWorkouts: number }[]>([]);
 
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard');
@@ -53,6 +54,7 @@ export default function LandingPage() {
     }).catch(() => {});
     getMembershipConfig().then(setMembership).catch(() => {});
     getCoachingPlans().then((plans) => setCoachingPlans(plans.filter((p) => p.active))).catch(() => {});
+    fetch('/api/public/leaderboard').then((r) => r.json()).then((d) => setLeaderboard(d.entries ?? [])).catch(() => {});
   }, []);
 
   const trialDays = membership?.enabled ? (membership.trialDays ?? 0) : 0;
@@ -338,6 +340,40 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+        </section>
+      )}
+
+      {/* Public leaderboard — social proof; only names + level/streak, never email or PII */}
+      {landing.showPublicLeaderboard !== false && leaderboard.length > 0 && (
+        <section className="max-w-2xl mx-auto px-5 pb-16">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl sm:text-3xl font-black text-white">Top Athletes This Season</h2>
+            <p className="text-text-secondary text-sm mt-2">Real members. Real progress.</p>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-40px' }}
+            transition={{ duration: 0.4 }}
+            className="rounded-2xl border border-white/8 bg-surface divide-y divide-white/5 overflow-hidden"
+          >
+            {leaderboard.map((entry, i) => (
+              <div key={entry.displayName + i} className="flex items-center gap-3 px-4 py-3">
+                <span className={`w-6 text-sm font-black flex-shrink-0 ${i === 0 ? 'text-accent' : 'text-text-tertiary'}`}>
+                  {i + 1}
+                </span>
+                <span className="flex-1 text-sm font-medium text-white truncate">{entry.displayName}</span>
+                <span className="flex items-center gap-1 text-xs text-purple-400 flex-shrink-0">
+                  <Zap className="w-3.5 h-3.5" /> Lvl {entry.powerLevel}
+                </span>
+                {entry.streak > 0 && (
+                  <span className="flex items-center gap-1 text-xs text-orange-400 flex-shrink-0">
+                    <Flame className="w-3.5 h-3.5" /> {entry.streak}d
+                  </span>
+                )}
+              </div>
+            ))}
+          </motion.div>
         </section>
       )}
 

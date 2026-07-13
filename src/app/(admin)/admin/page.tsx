@@ -2895,6 +2895,19 @@ export default function AdminPage() {
               </div>
             </div>
 
+            <label className="flex items-center gap-3 p-3 bg-surface border border-white/10 rounded-xl cursor-pointer">
+              <input
+                type="checkbox"
+                checked={landingForm.showPublicLeaderboard !== false}
+                onChange={e => setLandingForm(f => ({ ...f, showPublicLeaderboard: e.target.checked }))}
+                className="w-4 h-4 accent-accent"
+              />
+              <div>
+                <p className="text-sm font-medium text-white">Show public leaderboard</p>
+                <p className="text-xs text-text-tertiary">Displays top athletes (name, level, streak — no email or private data) to logged-out visitors as social proof.</p>
+              </div>
+            </label>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-text-secondary mb-1 block">Final CTA Headline</label>

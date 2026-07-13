@@ -31,4 +31,5 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   quoteAuthor: 'Every athlete who showed up anyway',
   finalCtaHeadline: 'Ready to stop starting over?',
   finalCtaSubtext: 'Create your account and get your first plan in minutes.',
+  showPublicLeaderboard: true,
 };

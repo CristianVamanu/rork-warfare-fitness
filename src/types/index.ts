@@ -256,6 +256,7 @@ export interface LandingPageConfig {
   quoteAuthor: string;
   finalCtaHeadline: string;
   finalCtaSubtext: string;
+  showPublicLeaderboard?: boolean; // opt-in — shows top athletes (name, level, streak only) on the logged-out landing page
 }
 
 export interface Channel {
