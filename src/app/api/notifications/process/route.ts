@@ -13,6 +13,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
+import { sendEmail, trialEndingEmailHtml } from '@/lib/email';
 
 async function generateMotivation(userName: string, streak: number): Promise<{ title: string; body: string }> {
   const apiKey = await getSecret('OPENAI_API_KEY');
@@ -67,6 +68,13 @@ export async function POST(req: NextRequest) {
     const config = configSnap.data() ?? {};
     const rules: Record<string, boolean> = config.rules ?? {};
     const aiEnabled: boolean = config.aiMotivationEnabled ?? false;
+
+    // Load membership config (trial length) + system config (app name) for the trial-ending email
+    const membershipCfgSnap = await db.doc('config/membership').get();
+    const trialDays: number = membershipCfgSnap.data()?.trialDays ?? 0;
+    const systemCfgSnap = await db.doc('system/config').get();
+    const appName = (systemCfgSnap.data()?.appName as string) || 'Warfare Fitness';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
 
     // Load all non-admin users
     const usersSnap = await db.collection('users').get();
@@ -158,6 +166,27 @@ export async function POST(req: NextRequest) {
           });
           await sendPush(u.id, msg.title, msg.body);
           sent.push(`ai_motivation:${u.id}`);
+        }
+
+        // Trial-ending email — fires once, exactly 2 days before the free trial expires
+        if (trialDays > 0 && u.membership?.status !== 'active' && u.email && u.createdAt) {
+          const createdAtMs = (u.createdAt as FirebaseFirestore.Timestamp).toMillis();
+          const trialEndsMs = createdAtMs + trialDays * 24 * 60 * 60 * 1000;
+          const daysLeft = Math.ceil((trialEndsMs - Date.now()) / (24 * 60 * 60 * 1000));
+          if (daysLeft === 2) {
+            const sentFlag = 'trialEndingEmailSent';
+            if (!u[sentFlag]) {
+              const ok = await sendEmail({
+                to: u.email,
+                subject: `Your free trial ends in ${daysLeft} days`,
+                html: trialEndingEmailHtml(u.displayName?.split(' ')[0] || 'there', daysLeft, appName, appUrl),
+              });
+              if (ok) {
+                await db.collection('users').doc(u.id).update({ [sentFlag]: true });
+                sent.push(`trial_ending:${u.id}`);
+              }
+            }
+          }
         }
       } catch (err) {
         // Non-fatal per-user — one bad doc/user shouldn't abort the whole batch

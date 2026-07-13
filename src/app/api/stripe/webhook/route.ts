@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
+import { sendEmail, paymentFailedEmailHtml } from '@/lib/email';
 import type Stripe from 'stripe';
 
 function getAdminDb() {
@@ -129,7 +130,26 @@ export async function POST(req: NextRequest) {
           const stripe = await getStripe();
           const sub = await stripe.subscriptions.retrieve(subId);
           const userId = sub.metadata?.userId;
-          if (userId) console.warn(`[Stripe webhook] Payment failed for user ${userId} — subscription status: ${sub.status}`);
+          if (userId) {
+            console.warn(`[Stripe webhook] Payment failed for user ${userId} — subscription status: ${sub.status}`);
+            const db = getAdminDb();
+            if (db) {
+              const [userSnap, cfgSnap] = await Promise.all([
+                db.collection('users').doc(userId).get(),
+                db.collection('system').doc('config').get(),
+              ]);
+              const userEmail = userSnap.data()?.email as string | undefined;
+              if (userEmail) {
+                const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
+                const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
+                await sendEmail({
+                  to: userEmail,
+                  subject: 'Payment failed — please update your billing info',
+                  html: paymentFailedEmailHtml(userSnap.data()?.displayName?.split(' ')[0] || 'there', appName, appUrl),
+                });
+              }
+            }
+          }
         }
         break;
       }

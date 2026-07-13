@@ -22,6 +22,8 @@ export const SECRET_KEYS = [
   'R2_PUBLIC_URL',
   'CLOUDFLARE_API_TOKEN',
   'CLOUDFLARE_ZONE_ID',
+  'RESEND_API_KEY',
+  'RESEND_FROM_EMAIL',
 ] as const;
 
 export type SecretKey = typeof SECRET_KEYS[number];

@@ -51,6 +51,17 @@ export async function signUp(
   await setDoc(doc(db, 'users', credential.user.uid), userData);
   console.log('[Auth] Firestore user doc written successfully');
 
+  credential.user.getIdToken().then((token) => {
+    fetch('/api/email/welcome', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {
+      // Non-fatal — welcome email is best-effort
+    });
+  }).catch(() => {
+    // Non-fatal
+  });
+
   return credential.user;
 }
 

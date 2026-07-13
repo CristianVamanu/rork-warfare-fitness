@@ -1,0 +1,106 @@
+import { Resend } from 'resend';
+import { getSecret } from './secrets';
+
+/** Resolves a Resend client from the admin-configured API key. Returns null
+ * (rather than throwing) when unset, so every email call site can just
+ * no-op gracefully instead of every caller needing its own guard. */
+async function getResendClient(): Promise<Resend | null> {
+  const apiKey = await getSecret('RESEND_API_KEY');
+  if (!apiKey) return null;
+  return new Resend(apiKey);
+}
+
+export async function sendEmail(opts: { to: string; subject: string; html: string }): Promise<boolean> {
+  if (!opts.to) return false;
+  const client = await getResendClient();
+  if (!client) {
+    console.warn(`[email] RESEND_API_KEY not configured — skipped "${opts.subject}" to ${opts.to}`);
+    return false;
+  }
+  const from = (await getSecret('RESEND_FROM_EMAIL')) || 'Warfare Fitness <onboarding@resend.dev>';
+  try {
+    await client.emails.send({ from, to: opts.to, subject: opts.subject, html: opts.html });
+    return true;
+  } catch (err) {
+    console.error('[email] Send failed:', err);
+    return false;
+  }
+}
+
+// ── Shared shell — same dark/gold treatment as the app, kept deliberately
+// simple (table-based-ish single column) since email clients strip most CSS. ──
+function shell(appName: string, bodyHtml: string): string {
+  return `
+    <div style="background:#0a0a0a;padding:32px 16px;font-family:-apple-system,Segoe UI,sans-serif;">
+      <div style="max-width:480px;margin:0 auto;background:#111111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px;">
+        <p style="margin:0 0 24px;font-size:13px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#F5A623;">${appName}</p>
+        ${bodyHtml}
+        <p style="margin:32px 0 0;font-size:11px;color:#666;">You're receiving this because you have an account with ${appName}.</p>
+      </div>
+    </div>
+  `;
+}
+
+function button(label: string, url: string): string {
+  return `<a href="${url}" style="display:inline-block;margin-top:20px;background:#F5A623;color:#000;font-weight:800;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none;">${label}</a>`;
+}
+
+export function welcomeEmailHtml(name: string, appName: string, appUrl: string): string {
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Welcome, ${name}. 💪</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      Your account is live. Time to pick a training program, log your first meal, and start your streak.
+    </p>
+    ${button('Open ' + appName, appUrl)}
+  `);
+}
+
+export function achievementEmailHtml(name: string, titles: string[], appName: string, appUrl: string): string {
+  const list = titles.map((t) => `<li style="margin:4px 0;">🏆 ${t}</li>`).join('');
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">New achievement${titles.length > 1 ? 's' : ''}, ${name}!</h1>
+    <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.7;color:#bbb;">${list}</ul>
+    ${button('View Achievements', `${appUrl}/achievements`)}
+  `);
+}
+
+export function coachingApplicationEmailHtml(
+  name: string, status: 'approved' | 'rejected', planName: string, reason: string | undefined, appName: string, appUrl: string,
+): string {
+  if (status === 'approved') {
+    return shell(appName, `
+      <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">You're approved for 1:1 Coaching!</h1>
+      <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+        Great news, ${name} — your application for &quot;${planName}&quot; has been approved. Complete your payment to get started.
+      </p>
+      ${button('Complete Payment', `${appUrl}/profile`)}
+    `);
+  }
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">1:1 Coaching Application Update</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      Thanks for applying, ${name}. We're not able to take you on for 1:1 coaching right now${reason ? `: ${reason}` : '.'}
+      Keep crushing your training — you're welcome to re-apply later.
+    </p>
+  `);
+}
+
+export function trialEndingEmailHtml(name: string, daysLeft: number, appName: string, appUrl: string): string {
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Your trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      Hey ${name}, just a heads up — your free trial wraps up soon. Keep your progress, streak, and programs going without interruption.
+    </p>
+    ${button('Manage Membership', `${appUrl}/profile`)}
+  `);
+}
+
+export function paymentFailedEmailHtml(name: string, appName: string, appUrl: string): string {
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Your last payment didn't go through</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      Hey ${name}, we couldn't process your most recent membership payment. Update your billing details to keep your access uninterrupted.
+    </p>
+    ${button('Update Billing', `${appUrl}/profile`)}
+  `);
+}

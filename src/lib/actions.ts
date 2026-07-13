@@ -13,11 +13,11 @@ import {
   increment,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import { createEvent } from './events';
 import { incrementProgramWorkouts } from './firestore';
 import { calcWorkoutXP, xpToPowerLevel } from './xp';
-import { checkAndAwardAchievements } from './achievements';
+import { checkAndAwardAchievements, ACHIEVEMENT_DEFS } from './achievements';
 import { checkAndAwardQuests } from './quests';
 import type { EventType } from '@/types';
 
@@ -28,6 +28,25 @@ import type { EventType } from '@/types';
 async function getTrainerId(userId: string): Promise<string> {
   const snap = await getDoc(doc(db, 'users', userId));
   return (snap.data()?.trainerId as string) ?? 'unknown';
+}
+
+function sendAchievementEmail(achievementIds: string[]): void {
+  if (achievementIds.length === 0 || !auth.currentUser) return;
+  const titles = achievementIds
+    .map((id) => ACHIEVEMENT_DEFS.find((d) => d.id === id)?.title)
+    .filter((t): t is string => !!t);
+  if (titles.length === 0) return;
+  auth.currentUser.getIdToken().then((token) => {
+    fetch('/api/email/achievement', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ titles }),
+    }).catch(() => {
+      // Non-fatal — achievement email is best-effort
+    });
+  }).catch(() => {
+    // Non-fatal
+  });
 }
 
 async function emit(
@@ -150,6 +169,7 @@ export async function completeWorkout(
       workoutHour,
       isWeekend,
     });
+    sendAchievementEmail(newAchievements);
 
     const prevTotalWeightLifted = (data.stats as Record<string, number> | undefined)?.totalWeightLifted ?? 0;
     const totalMealsLogged = (data.stats as Record<string, number> | undefined)?.totalMealsLogged ?? 0;
@@ -197,7 +217,7 @@ export async function logMealAction(
     powerLevel: 0,
     hasLoggedMeal: true,
     totalMealsLogged,
-  }).catch(console.error);
+  }).then(sendAchievementEmail).catch(console.error);
 
   checkAndAwardQuests(userId, {
     totalWorkouts: prevStats?.totalWorkouts ?? 0,

@@ -86,6 +86,12 @@ const SECRET_GROUPS: { title: string; service: string; keys: { key: string; labe
       { key: 'CLOUDFLARE_ZONE_ID', label: 'Zone ID', placeholder: 'Found on your domain\'s Overview page in Cloudflare, right sidebar' },
     ],
   },
+  {
+    title: 'Resend (Transactional Email)', service: 'resend', keys: [
+      { key: 'RESEND_API_KEY', label: 'API Key', placeholder: 're_...' },
+      { key: 'RESEND_FROM_EMAIL', label: 'From Address', placeholder: 'Warfare Fitness <noreply@yourdomain.com>' },
+    ],
+  },
 ];
 
 interface BulkFile {
@@ -692,6 +698,7 @@ export default function AdminPage() {
       await approveCoachingApplication(app, user.uid);
       toast.success(`${app.userName} approved — they've been notified to pay`);
       setCoachingApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'approved' } : a));
+      notifyCoachingStatusEmail(app.id);
     } catch { toast.error('Failed to approve application'); }
     finally { setReviewingApp(null); }
   }
@@ -703,10 +710,25 @@ export default function AdminPage() {
       await rejectCoachingApplication(rejectingApp, user.uid, rejectReason.trim() || undefined);
       toast.success(`${rejectingApp.userName}'s application rejected`);
       setCoachingApplications(prev => prev.map(a => a.id === rejectingApp.id ? { ...a, status: 'rejected' } : a));
+      notifyCoachingStatusEmail(rejectingApp.id);
       setRejectingApp(null);
       setRejectReason('');
     } catch { toast.error('Failed to reject application'); }
     finally { setReviewingApp(null); }
+  }
+
+  async function notifyCoachingStatusEmail(applicationId: string) {
+    if (!user) return;
+    try {
+      const token = await getIdToken(user);
+      await fetch('/api/email/coaching-status', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId }),
+      });
+    } catch {
+      // Non-fatal — coaching status email is best-effort
+    }
   }
 
   async function handleToggleMember(u: UserData) {

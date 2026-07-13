@@ -8,7 +8,7 @@ import { verifyAdmin } from '@/lib/verifyAdmin';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp } from '@/lib/firebase-admin';
 
-type Service = 'openai' | 'stripe' | 'r2' | 'vapid' | 'firebase-storage' | 'cloudflare-analytics';
+type Service = 'openai' | 'stripe' | 'r2' | 'vapid' | 'firebase-storage' | 'cloudflare-analytics' | 'resend';
 
 async function testOpenAI(): Promise<string> {
   const key = await getSecret('OPENAI_API_KEY');
@@ -73,6 +73,16 @@ async function testFirebaseStorage(): Promise<string> {
   return `Connected to Firebase Storage bucket "${bucket.name}"`;
 }
 
+async function testResend(): Promise<string> {
+  const key = await getSecret('RESEND_API_KEY');
+  if (!key) throw new Error('RESEND_API_KEY not configured');
+  const res = await fetch('https://api.resend.com/domains', {
+    headers: { Authorization: `Bearer ${key}` },
+  });
+  if (!res.ok) throw new Error(`Resend responded ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return 'Connected to Resend';
+}
+
 async function testCloudflareAnalytics(): Promise<string> {
   const [token, zoneId] = await Promise.all([
     getSecret('CLOUDFLARE_API_TOKEN'),
@@ -103,6 +113,7 @@ export async function POST(req: NextRequest) {
       case 'vapid': message = await testVapid(); break;
       case 'firebase-storage': message = await testFirebaseStorage(); break;
       case 'cloudflare-analytics': message = await testCloudflareAnalytics(); break;
+      case 'resend': message = await testResend(); break;
       default: return NextResponse.json({ error: 'Unknown service' }, { status: 400 });
     }
     return NextResponse.json({ ok: true, message });
