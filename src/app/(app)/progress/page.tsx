@@ -1,15 +1,17 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import nextDynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
-import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target } from 'lucide-react';
+import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target, Camera, Lock, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserWorkouts, getWeightHistory } from '@/lib/firestore';
+import { getUserWorkouts, getWeightHistory, getSystemConfig, subscribeProgressPhotos, createProgressPhoto, deleteProgressPhoto } from '@/lib/firestore';
 import { recordWeight } from '@/lib/actions';
+import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import { getLevelTier, xpToNextLevel } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
+import type { ProgressPhoto } from '@/types';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -47,6 +49,10 @@ export default function ProgressPage() {
   const [weightModal, setWeightModal] = useState(false);
   const [weightInput, setWeightInput] = useState('');
   const [savingWeight, setSavingWeight] = useState(false);
+  const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoViewer, setPhotoViewer] = useState<ProgressPhoto | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const powerLevel = profile?.powerLevel ?? 0;
   const totalXP = profile?.xp ?? 0;
@@ -62,7 +68,45 @@ export default function ProgressPage() {
       .then((w) => setWorkouts(w as WorkoutEntry[]))
       .finally(() => setLoading(false));
     getWeightHistory(user.uid, 30).then(setWeightHistory).catch(() => {});
+    const unsub = subscribeProgressPhotos(user.uid, setPhotos);
+    return unsub;
   }, [user]);
+
+  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !user) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file');
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const cfg = await getSystemConfig().catch(() => null);
+      const provider = ((cfg?.storageProvider as StorageProvider) || 'firebase');
+      const photoUrl = await uploadUserContent(provider, user, file, 'progressPhotos');
+      await createProgressPhoto({
+        userId: user.uid,
+        photoUrl,
+        weightKg: profile?.currentWeightKg,
+      });
+      toast.success('Progress photo saved');
+    } catch {
+      toast.error('Failed to upload photo');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photo: ProgressPhoto) => {
+    try {
+      await deleteProgressPhoto(photo.id);
+      setPhotoViewer(null);
+      toast.success('Photo deleted');
+    } catch {
+      toast.error('Failed to delete photo');
+    }
+  };
 
   // Build weekly volume chart from real workouts
   const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -184,6 +228,47 @@ export default function ProgressPage() {
           </Card>
         </motion.div>
 
+        {/* Body Progress Photos — private, only visible to this user and admin/trainer */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.09 }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-base font-bold text-white">Body Photos</h2>
+              <Lock className="w-3 h-3 text-text-tertiary" />
+            </div>
+            <Button size="sm" variant="ghost" loading={uploadingPhoto} onClick={() => photoInputRef.current?.click()}>
+              <Plus className="w-3.5 h-3.5" /> Add Photo
+            </Button>
+            <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelected} />
+          </div>
+          <Card className="p-4">
+            <p className="text-xs text-text-tertiary mb-3 flex items-center gap-1.5">
+              <Lock className="w-3 h-3" /> Private — only visible to you and your coach
+            </p>
+            {photos.length === 0 ? (
+              <div className="text-center py-4">
+                <Camera className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
+                <p className="text-text-secondary text-sm">No progress photos yet</p>
+                <Button size="sm" className="mt-3" loading={uploadingPhoto} onClick={() => photoInputRef.current?.click()}>
+                  Add Your First Photo
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {photos.map((p) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={p.id}
+                    src={p.photoUrl}
+                    alt="Progress"
+                    className="w-full aspect-square object-cover rounded-lg cursor-pointer"
+                    onClick={() => setPhotoViewer(p)}
+                  />
+                ))}
+              </div>
+            )}
+          </Card>
+        </motion.div>
+
         {/* Weekly Activity Chart */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <h2 className="text-base font-bold text-white mb-3">Weekly Activity</h2>
@@ -285,6 +370,19 @@ export default function ProgressPage() {
             Save Weight
           </Button>
         </div>
+      </Modal>
+
+      {/* Photo Viewer Modal */}
+      <Modal open={!!photoViewer} onClose={() => setPhotoViewer(null)} title="Progress Photo">
+        {photoViewer && (
+          <div className="space-y-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoViewer.photoUrl} alt="Progress" className="w-full rounded-xl" />
+            <Button fullWidth variant="ghost" className="text-red-400" onClick={() => handleDeletePhoto(photoViewer)}>
+              <Trash2 className="w-4 h-4" /> Delete Photo
+            </Button>
+          </div>
+        )}
       </Modal>
     </div>
   );

@@ -83,7 +83,7 @@ export async function uploadUserContent(
   provider: StorageProvider,
   user: User,
   file: File,
-  root: 'prPosts',
+  root: 'prPosts' | 'progressPhotos',
   onProgress?: (pct: number) => void
 ): Promise<string> {
   return provider === 'r2'

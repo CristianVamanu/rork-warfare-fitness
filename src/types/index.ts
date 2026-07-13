@@ -148,6 +148,17 @@ export interface PRPost {
   createdAt: unknown;
 }
 
+// Private body-progress photo — visible only to its owner and staff (admin/trainer),
+// enforced by firestore.rules, never surfaced anywhere public.
+export interface ProgressPhoto {
+  id: string;
+  userId: string;
+  photoUrl: string;
+  note?: string;
+  weightKg?: number;
+  createdAt: unknown;
+}
+
 export interface UserProfile {
   id: string;
   displayName: string;

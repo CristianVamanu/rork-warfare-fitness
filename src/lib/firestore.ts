@@ -1305,6 +1305,40 @@ export async function unbanUserFromPRWall(userId: string) {
   await updateDoc(doc(db, 'users', userId), { prBan: deleteField() });
 }
 
+// ── Body progress photos — private to the owner + admin/trainer, never public ──
+import type { ProgressPhoto } from '@/types';
+
+export async function createProgressPhoto(input: {
+  userId: string;
+  photoUrl: string;
+  note?: string;
+  weightKg?: number;
+}): Promise<string> {
+  const clean = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
+  const ref = await addDoc(collection(db, 'progressPhotos'), {
+    ...clean,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getProgressPhotos(userId: string): Promise<ProgressPhoto[]> {
+  const q = query(collection(db, 'progressPhotos'), where('userId', '==', userId), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ProgressPhoto, 'id'>) }));
+}
+
+export function subscribeProgressPhotos(userId: string, onUpdate: (photos: ProgressPhoto[]) => void): () => void {
+  const q = query(collection(db, 'progressPhotos'), where('userId', '==', userId), orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snap) => {
+    onUpdate(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ProgressPhoto, 'id'>) })));
+  }, (err) => console.error('[Firestore] subscribeProgressPhotos error:', err));
+}
+
+export async function deleteProgressPhoto(photoId: string) {
+  await deleteDoc(doc(db, 'progressPhotos', photoId));
+}
+
 // ---------------------------------------------------------------------------
 // Coaching Plans
 // ---------------------------------------------------------------------------

@@ -28,6 +28,7 @@ import {
   getExerciseVideos, saveExerciseVideo, deleteExerciseVideo, updateExerciseVideoThumbnail,
   assignNutritionPlan,
   getCoachingApplications, approveCoachingApplication, rejectCoachingApplication,
+  getProgressPhotos,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -37,7 +38,7 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers } from '@/types';
+import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_MEMBERSHIP_FEATURES } from '@/lib/landingDefaults';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'settings';
@@ -291,6 +292,7 @@ export default function AdminPage() {
   // ── Nutrition plan (AI) state ─────────────────────────────────────────────
   const [nutritionModalUser, setNutritionModalUser] = useState<UserData | null>(null);
   const [profileDetailUser, setProfileDetailUser] = useState<UserData | null>(null);
+  const [profileDetailPhotos, setProfileDetailPhotos] = useState<ProgressPhoto[]>([]);
   const [nutritionTrainerNotes, setNutritionTrainerNotes] = useState('');
   const [nutritionDraft, setNutritionDraft] = useState<Omit<NutritionPlan, 'assignedAt' | 'assignedBy'> | null>(null);
   const [generatingNutrition, setGeneratingNutrition] = useState(false);
@@ -364,6 +366,12 @@ export default function AdminPage() {
     if (user) loadSecretStatuses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Load this client's private progress photos whenever the profile modal opens
+  useEffect(() => {
+    if (!profileDetailUser) { setProfileDetailPhotos([]); return; }
+    getProgressPhotos(profileDetailUser.id).then(setProfileDetailPhotos).catch(() => setProfileDetailPhotos([]));
+  }, [profileDetailUser]);
 
   // ── Tab loaders ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -3057,6 +3065,20 @@ export default function AdminPage() {
                 <p className="text-xs text-text-tertiary">No health screening submitted (onboarding predates this feature, or was skipped).</p>
               </Card>
             )}
+
+            <Card className="p-4 space-y-2">
+              <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wide">Body Progress Photos</h3>
+              {profileDetailPhotos.length === 0 ? (
+                <p className="text-xs text-text-tertiary">No progress photos uploaded yet.</p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {profileDetailPhotos.map((p) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={p.id} src={p.photoUrl} alt="Progress" className="w-full aspect-square object-cover rounded-lg" />
+                  ))}
+                </div>
+              )}
+            </Card>
           </div>
         )}
       </Modal>
