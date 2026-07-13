@@ -8,7 +8,7 @@ import { verifyAdmin } from '@/lib/verifyAdmin';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp } from '@/lib/firebase-admin';
 
-type Service = 'openai' | 'stripe' | 'r2' | 'vapid' | 'firebase-storage';
+type Service = 'openai' | 'stripe' | 'r2' | 'vapid' | 'firebase-storage' | 'cloudflare-analytics';
 
 async function testOpenAI(): Promise<string> {
   const key = await getSecret('OPENAI_API_KEY');
@@ -73,6 +73,22 @@ async function testFirebaseStorage(): Promise<string> {
   return `Connected to Firebase Storage bucket "${bucket.name}"`;
 }
 
+async function testCloudflareAnalytics(): Promise<string> {
+  const [token, zoneId] = await Promise.all([
+    getSecret('CLOUDFLARE_API_TOKEN'),
+    getSecret('CLOUDFLARE_ZONE_ID'),
+  ]);
+  if (!token || !zoneId) throw new Error('Cloudflare API token or Zone ID not configured');
+  const res = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.errors?.[0]?.message || `Cloudflare responded ${res.status}`);
+  }
+  return `Connected to Cloudflare zone "${data.result?.name}"`;
+}
+
 export async function POST(req: NextRequest) {
   const check = await verifyAdmin(req);
   if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
@@ -86,6 +102,7 @@ export async function POST(req: NextRequest) {
       case 'r2': message = await testR2(); break;
       case 'vapid': message = await testVapid(); break;
       case 'firebase-storage': message = await testFirebaseStorage(); break;
+      case 'cloudflare-analytics': message = await testCloudflareAnalytics(); break;
       default: return NextResponse.json({ error: 'Unknown service' }, { status: 400 });
     }
     return NextResponse.json({ ok: true, message });

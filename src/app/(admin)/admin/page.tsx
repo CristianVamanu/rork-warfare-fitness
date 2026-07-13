@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
-  Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2,
+  Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
   Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
@@ -40,7 +40,7 @@ import toast from 'react-hot-toast';
 import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_MEMBERSHIP_FEATURES } from '@/lib/landingDefaults';
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'integrations' | 'settings';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'settings';
 
 interface SecretStatusUI {
   key: string;
@@ -79,6 +79,12 @@ const SECRET_GROUPS: { title: string; service: string; keys: { key: string; labe
   },
   {
     title: 'Firebase Storage', service: 'firebase-storage', keys: [],
+  },
+  {
+    title: 'Cloudflare Analytics', service: 'cloudflare-analytics', keys: [
+      { key: 'CLOUDFLARE_API_TOKEN', label: 'API Token', placeholder: 'Create at dash.cloudflare.com/profile/api-tokens with "Zone Analytics: Read" permission' },
+      { key: 'CLOUDFLARE_ZONE_ID', label: 'Zone ID', placeholder: 'Found on your domain\'s Overview page in Cloudflare, right sidebar' },
+    ],
   },
 ];
 
@@ -208,6 +214,15 @@ export default function AdminPage() {
   const [membershipLoading, setMembershipLoading] = useState(false);
   const [savingMembership, setSavingMembership] = useState(false);
   const [togglingMember, setTogglingMember] = useState<string | null>(null);
+
+  // ── Analytics state (real visitor data pulled from Cloudflare's edge) ──────
+  const [analytics, setAnalytics] = useState<{
+    rangeDays: number;
+    totals: { requests: number; pageViews: number; uniques: number; threats: number };
+    daily: { date: string; requests: number; pageViews: number; uniques: number }[];
+  } | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
   // ── Notifications state ────────────────────────────────────────────────────
   const DEFAULT_NOTIF_CONFIG: NotificationConfig = {
@@ -354,7 +369,23 @@ export default function AdminPage() {
     if (tab === 'community') loadChannels();
     if (tab === 'library' && exerciseLibrary.length === 0) loadExerciseLibrary();
     if (tab === 'integrations') loadSecretStatuses();
+    if (tab === 'analytics') loadAnalytics();
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function loadAnalytics() {
+    if (!user) return;
+    setAnalyticsLoading(true);
+    setAnalyticsError(null);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/analytics', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Request failed (status ${res.status})`);
+      setAnalytics(data);
+    } catch (err) {
+      setAnalyticsError(err instanceof Error ? err.message : String(err));
+    } finally { setAnalyticsLoading(false); }
+  }
 
   async function loadSecretStatuses() {
     if (!user) return;
@@ -1092,6 +1123,7 @@ export default function AdminPage() {
     { id: 'membership', label: 'Membership', icon: CreditCard },
     { id: 'coaching', label: 'Coaching Apps', icon: UserCheck },
     { id: 'library', label: 'Library', icon: Video },
+    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     { id: 'integrations', label: 'Integrations', icon: Key },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -2442,6 +2474,86 @@ export default function AdminPage() {
               </div>
             </div>
           </Card>
+        </div>
+      )}
+
+      {/* ── Analytics — real visitor data from Cloudflare's edge ────────────── */}
+      {tab === 'analytics' && (
+        <div className="space-y-5">
+          <Card className="p-4 border border-blue-400/20 bg-blue-400/5">
+            <p className="text-xs text-text-secondary">
+              Pulled directly from Cloudflare, which sits in front of every request to your site — this counts real
+              server-side traffic, not client-side JavaScript that ad-blockers or privacy tools can suppress. Requires
+              a Cloudflare API token + Zone ID set in <span className="text-white font-medium">Integrations</span>.
+            </p>
+          </Card>
+
+          {analyticsLoading ? (
+            <div className="grid grid-cols-2 gap-3">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
+          ) : analyticsError ? (
+            <Card className="p-6 text-center">
+              <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+              <p className="text-sm text-white font-bold">Couldn&apos;t load analytics</p>
+              <p className="text-xs text-text-secondary mt-1">{analyticsError}</p>
+              <Button size="sm" variant="ghost" className="mt-3" onClick={loadAnalytics}>
+                <RefreshCw className="w-3.5 h-3.5" /> Retry
+              </Button>
+            </Card>
+          ) : analytics ? (
+            <>
+              <p className="text-xs text-text-tertiary">Last {analytics.rangeDays} days</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Card className="p-4">
+                  <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Unique Visits</p>
+                  <p className="text-2xl font-black text-white mt-1">{analytics.totals.uniques.toLocaleString()}</p>
+                  <p className="text-[10px] text-text-tertiary mt-0.5">summed across days — a returning visitor counts once per day</p>
+                </Card>
+                <Card className="p-4">
+                  <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Page Views</p>
+                  <p className="text-2xl font-black text-white mt-1">{analytics.totals.pageViews.toLocaleString()}</p>
+                </Card>
+                <Card className="p-4">
+                  <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Total Requests</p>
+                  <p className="text-2xl font-black text-white mt-1">{analytics.totals.requests.toLocaleString()}</p>
+                  <p className="text-[10px] text-text-tertiary mt-0.5">includes images, scripts, API calls, etc.</p>
+                </Card>
+                <Card className="p-4">
+                  <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Threats Blocked</p>
+                  <p className="text-2xl font-black text-white mt-1">{analytics.totals.threats.toLocaleString()}</p>
+                </Card>
+              </div>
+
+              {analytics.daily.length > 0 && (
+                <Card className="p-4">
+                  <p className="text-xs font-bold text-white mb-3">Daily Page Views</p>
+                  <div className="flex items-end gap-1 h-32">
+                    {analytics.daily.map((d) => {
+                      const max = Math.max(...analytics.daily.map(x => x.pageViews), 1);
+                      const pct = Math.max(2, Math.round((d.pageViews / max) * 100));
+                      return (
+                        <div key={d.date} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                          <div className="w-full bg-accent/70 group-hover:bg-accent rounded-t transition-colors" style={{ height: `${pct}%` }} />
+                          <div className="absolute -top-8 hidden group-hover:block bg-black text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
+                            {d.date}: {d.pageViews.toLocaleString()} views
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between mt-2 text-[10px] text-text-tertiary">
+                    <span>{analytics.daily[0]?.date}</span>
+                    <span>{analytics.daily[analytics.daily.length - 1]?.date}</span>
+                  </div>
+                </Card>
+              )}
+            </>
+          ) : (
+            <Card className="p-10 text-center">
+              <TrendingUp className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
+              <p className="text-white font-bold">No analytics yet</p>
+              <p className="text-text-secondary text-sm mt-1">Set up a Cloudflare API token and Zone ID in Integrations to see visitor data here.</p>
+            </Card>
+          )}
         </div>
       )}
 
