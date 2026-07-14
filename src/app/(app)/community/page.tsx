@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame, Medal } from 'lucide-react';
+import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame, Medal, Swords } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getChannels, subscribeLeaderboard, type LeaderboardEntry } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
@@ -75,6 +75,32 @@ export default function CommunityPage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-white">PR Wall</p>
               <p className="text-xs text-text-secondary">Post proof of your lifts, get verified</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+          </Card>
+        </Link>
+
+        <Link href="/community/squads">
+          <Card className="p-3.5 flex items-center gap-3 hover:border-accent/30 transition-colors">
+            <div className="w-9 h-9 rounded-xl bg-orange-400/10 flex items-center justify-center flex-shrink-0">
+              <Users className="w-4.5 h-4.5 text-orange-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">Squads</p>
+              <p className="text-xs text-text-secondary">Duo, Trio, or Squad up — keep your team streak alive</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+          </Card>
+        </Link>
+
+        <Link href="/community/challenges">
+          <Card className="p-3.5 flex items-center gap-3 hover:border-accent/30 transition-colors">
+            <div className="w-9 h-9 rounded-xl bg-purple-400/10 flex items-center justify-center flex-shrink-0">
+              <Swords className="w-4.5 h-4.5 text-purple-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">Challenges</p>
+              <p className="text-xs text-text-secondary">Time-boxed contests — compete for the win</p>
             </div>
             <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
           </Card>

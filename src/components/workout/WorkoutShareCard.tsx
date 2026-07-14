@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Share2, ArrowRight, Zap, Flame, Star } from 'lucide-react';
+import { toBlob } from 'html-to-image';
 import { Button } from '@/components/ui/Button';
 import { getLevelTitle } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
@@ -34,6 +35,7 @@ export function WorkoutShareCard({
 }: Props) {
   const levelTitle = getLevelTitle(newPowerLevel);
   const [sharing, setSharing] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const shareText =
     `💪 Just finished a ${duration}-min workout!\n` +
@@ -46,12 +48,21 @@ export function WorkoutShareCard({
     if (sharing) return;
     setSharing(true);
     try {
+      // Render the branded card itself to an image — a real image is what
+      // actually gets reposted to a story/feed, unlike a plain text blob.
+      const blob = cardRef.current ? await toBlob(cardRef.current, { pixelRatio: 2 }).catch(() => null) : null;
+      const file = blob ? new File([blob], 'warfare-fitness-workout.png', { type: 'image/png' }) : null;
+
       // navigator.share exists in some in-app/PWA webviews but throws
       // synchronously (not just rejects) when the platform doesn't actually
-      // support sharing text — wrap the whole thing, not just the promise.
+      // support sharing — wrap the whole thing, not just the promise.
       if (typeof navigator !== 'undefined' && navigator.share) {
         try {
-          await navigator.share({ text: shareText });
+          if (file && navigator.canShare?.({ files: [file] })) {
+            await navigator.share({ files: [file], text: shareText });
+          } else {
+            await navigator.share({ text: shareText });
+          }
           return;
         } catch (err) {
           // User cancelling the native share sheet throws AbortError — not a
@@ -59,6 +70,21 @@ export function WorkoutShareCard({
           if (err instanceof Error && err.name === 'AbortError') return;
         }
       }
+
+      // No native share sheet (most desktop browsers) — download the image
+      // so the user can still post it manually, since a plain-text clipboard
+      // paste doesn't carry the branded card.
+      if (file) {
+        const url = URL.createObjectURL(file);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('Image saved — share it anywhere!');
+        return;
+      }
+
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareText);
         toast.success('Copied to clipboard!');
@@ -76,6 +102,7 @@ export function WorkoutShareCard({
     <div className="space-y-4">
       {/* Card */}
       <motion.div
+        ref={cardRef}
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', bounce: 0.4 }}
