@@ -39,7 +39,7 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, Challenge } from '@/types';
+import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, Challenge, ChallengeMetricType } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_MEMBERSHIP_FEATURES } from '@/lib/landingDefaults';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'settings';
@@ -311,7 +311,9 @@ export default function AdminPage() {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [challengesLoading, setChallengesLoading] = useState(false);
   const [showChallengeForm, setShowChallengeForm] = useState(false);
-  const [challengeForm, setChallengeForm] = useState({ title: '', description: '', startDate: '', endDate: '' });
+  const [challengeForm, setChallengeForm] = useState<{ title: string; description: string; startDate: string; endDate: string; metricType: ChallengeMetricType; metricLabel: string }>({
+    title: '', description: '', startDate: '', endDate: '', metricType: 'workouts', metricLabel: '',
+  });
   const [savingChallenge, setSavingChallenge] = useState(false);
 
   async function loadChallenges() {
@@ -324,12 +326,23 @@ export default function AdminPage() {
     if (!user || !challengeForm.title.trim() || !challengeForm.startDate || !challengeForm.endDate) {
       toast.error('Fill in title, start date, and end date'); return;
     }
+    if (challengeForm.metricType === 'score' && !challengeForm.metricLabel.trim()) {
+      toast.error('Give the score a label, e.g. "pushups"'); return;
+    }
     setSavingChallenge(true);
     try {
-      await createChallenge({ ...challengeForm, createdBy: user.uid });
+      await createChallenge({
+        title: challengeForm.title,
+        description: challengeForm.description,
+        startDate: challengeForm.startDate,
+        endDate: challengeForm.endDate,
+        metricType: challengeForm.metricType,
+        metricLabel: challengeForm.metricType === 'score' ? challengeForm.metricLabel.trim() : undefined,
+        createdBy: user.uid,
+      });
       toast.success('Challenge created!');
       setShowChallengeForm(false);
-      setChallengeForm({ title: '', description: '', startDate: '', endDate: '' });
+      setChallengeForm({ title: '', description: '', startDate: '', endDate: '', metricType: 'workouts', metricLabel: '' });
       await loadChallenges();
     } catch { toast.error('Failed to create challenge'); }
     finally { setSavingChallenge(false); }
@@ -1538,6 +1551,42 @@ export default function AdminPage() {
                   <input type="date" value={challengeForm.endDate} onChange={e => setChallengeForm(f => ({ ...f, endDate: e.target.value }))} className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50" />
                 </div>
               </div>
+
+              <div>
+                <label className="text-xs text-text-secondary mb-1.5 block">How is this ranked?</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { value: 'workouts' as ChallengeMetricType, label: 'Workout Count', desc: 'Who trains the most' },
+                    { value: 'score' as ChallengeMetricType, label: 'Best Score', desc: 'e.g. most pushups in 1 min' },
+                  ]).map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setChallengeForm(f => ({ ...f, metricType: opt.value }))}
+                      className={`p-3 rounded-xl border text-left transition-colors ${
+                        challengeForm.metricType === opt.value ? 'border-accent bg-accent/10' : 'border-white/10 bg-surface'
+                      }`}
+                    >
+                      <p className="text-sm font-bold text-white">{opt.label}</p>
+                      <p className="text-[10px] text-text-tertiary">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {challengeForm.metricType === 'score' && (
+                <div>
+                  <label className="text-xs text-text-secondary mb-1 block">Score Label</label>
+                  <Input
+                    value={challengeForm.metricLabel}
+                    onChange={e => setChallengeForm(f => ({ ...f, metricLabel: e.target.value }))}
+                    placeholder="e.g. pushups, seconds held, reps"
+                  />
+                  <p className="text-[10px] text-text-tertiary mt-1">
+                    Participants self-report their best number under this label — there's no automatic tracking, so treat this as an honor-system leaderboard.
+                  </p>
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <Button fullWidth variant="ghost" onClick={() => setShowChallengeForm(false)}>Cancel</Button>
                 <Button fullWidth loading={savingChallenge} onClick={handleCreateChallenge}>Create</Button>

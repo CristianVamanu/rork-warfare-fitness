@@ -3,13 +3,14 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Swords, Trophy, Calendar } from 'lucide-react';
+import { Swords, Trophy, Calendar, Pencil } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getActiveChallenges, joinChallenge, getChallengeLeaderboard } from '@/lib/firestore';
+import { getActiveChallenges, joinChallenge, getChallengeLeaderboard, submitChallengeScore } from '@/lib/firestore';
 import type { Challenge } from '@/types';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import toast from 'react-hot-toast';
 
@@ -21,8 +22,10 @@ export default function ChallengesPage() {
   const { user, profile } = useAuth();
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [loading, setLoading] = useState(true);
-  const [leaderboards, setLeaderboards] = useState<Record<string, { userId: string; displayName: string; workoutsDuring: number }[]>>({});
+  const [leaderboards, setLeaderboards] = useState<Record<string, { userId: string; displayName: string; workoutsDuring: number; score: number }[]>>({});
   const [joining, setJoining] = useState<string | null>(null);
+  const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({});
+  const [submittingScore, setSubmittingScore] = useState<string | null>(null);
 
   const totalWorkouts = profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0;
 
@@ -52,6 +55,24 @@ export default function ChallengesPage() {
     }
   };
 
+  const handleSubmitScore = async (challenge: Challenge) => {
+    if (!user) return;
+    const raw = scoreInputs[challenge.id];
+    const value = Number(raw);
+    if (!raw || isNaN(value) || value < 0) { toast.error('Enter a valid number'); return; }
+    setSubmittingScore(challenge.id);
+    try {
+      await submitChallengeScore(challenge.id, user.uid, value);
+      toast.success('Score submitted!');
+      setScoreInputs((prev) => ({ ...prev, [challenge.id]: '' }));
+      load();
+    } catch {
+      toast.error('Failed to submit score');
+    } finally {
+      setSubmittingScore(null);
+    }
+  };
+
   return (
     <div>
       <Header title="Challenges" showBack />
@@ -75,6 +96,8 @@ export default function ChallengesPage() {
           challenges.map((c) => {
             const joined = !!user && c.participantIds.includes(user.uid);
             const board = leaderboards[c.id] ?? [];
+            const isScoreType = c.metricType === 'score';
+            const myScore = !!user && c.scores?.[user.uid];
             return (
               <motion.div key={c.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
                 <Card className="p-5">
@@ -93,21 +116,47 @@ export default function ChallengesPage() {
                       Join Challenge
                     </Button>
                   ) : (
-                    <div className="mt-3 space-y-1.5">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <Trophy className="w-3.5 h-3.5 text-accent" />
-                        <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide">Leaderboard</p>
-                      </div>
-                      {board.slice(0, 5).map((entry, i) => (
-                        <div
-                          key={entry.userId}
-                          className={`flex items-center gap-3 px-3 py-2 rounded-lg ${entry.userId === user?.uid ? 'bg-accent/10 border border-accent/20' : 'bg-white/5'}`}
-                        >
-                          <span className={`w-5 text-xs font-black ${i === 0 ? 'text-accent' : 'text-text-tertiary'}`}>{i + 1}</span>
-                          <span className="flex-1 text-sm text-white truncate">{entry.displayName}</span>
-                          <span className="text-xs text-text-secondary">{entry.workoutsDuring} workouts</span>
+                    <div className="mt-3 space-y-3">
+                      {isScoreType && (
+                        <div>
+                          <p className="text-xs text-text-tertiary mb-1.5">
+                            Self-reported — honor system, no automatic tracking. {myScore ? `Your best: ${myScore} ${c.metricLabel}.` : `Enter your best number of ${c.metricLabel ?? 'reps'}.`}
+                          </p>
+                          <div className="flex gap-2">
+                            <Input
+                              type="number"
+                              value={scoreInputs[c.id] ?? ''}
+                              onChange={(e) => setScoreInputs((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                              placeholder={myScore ? `Beat ${myScore}` : `Your ${c.metricLabel ?? 'score'}`}
+                              className="flex-1"
+                            />
+                            <Button size="sm" loading={submittingScore === c.id} onClick={() => handleSubmitScore(c)}>
+                              <Pencil className="w-3.5 h-3.5" /> Submit
+                            </Button>
+                          </div>
                         </div>
-                      ))}
+                      )}
+
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Trophy className="w-3.5 h-3.5 text-accent" />
+                          <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide">Leaderboard</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          {board.slice(0, 5).map((entry, i) => (
+                            <div
+                              key={entry.userId}
+                              className={`flex items-center gap-3 px-3 py-2 rounded-lg ${entry.userId === user?.uid ? 'bg-accent/10 border border-accent/20' : 'bg-white/5'}`}
+                            >
+                              <span className={`w-5 text-xs font-black ${i === 0 ? 'text-accent' : 'text-text-tertiary'}`}>{i + 1}</span>
+                              <span className="flex-1 text-sm text-white truncate">{entry.displayName}</span>
+                              <span className="text-xs text-text-secondary">
+                                {isScoreType ? `${entry.score} ${c.metricLabel ?? ''}` : `${entry.workoutsDuring} workouts`}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </Card>

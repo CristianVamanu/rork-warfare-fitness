@@ -1355,7 +1355,7 @@ export async function deleteProgressPhoto(photoId: string) {
 }
 
 // ── Squads — Fortnite-style Duo/Trio/Squad team streaks ───────────────────
-import type { Squad, SquadTier, Challenge } from '@/types';
+import type { Squad, SquadTier, Challenge, ChallengeMetricType } from '@/types';
 import { SQUAD_TIER_SIZE } from '@/types';
 
 function generateInviteCode(): string {
@@ -1427,12 +1427,16 @@ export async function createChallenge(input: {
   startDate: string;
   endDate: string;
   createdBy: string;
+  metricType: ChallengeMetricType;
+  metricLabel?: string;
 }): Promise<string> {
+  const clean = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
   const ref = await addDoc(collection(db, 'challenges'), {
-    ...input,
+    ...clean,
     active: true,
     participantIds: [],
     startingWorkouts: {},
+    scores: {},
     createdAt: serverTimestamp(),
   });
   return ref.id;
@@ -1463,8 +1467,20 @@ export async function deleteChallenge(challengeId: string): Promise<void> {
   await deleteDoc(doc(db, 'challenges', challengeId));
 }
 
-/** Ranks a challenge's participants by workouts completed since they joined. */
-export async function getChallengeLeaderboard(challenge: Challenge): Promise<{ userId: string; displayName: string; workoutsDuring: number }[]> {
+/** Self-reported best score for a 'score'-type challenge (e.g. "42 pushups").
+ * Only overwrites if it's an improvement, so a worse re-submission can't
+ * accidentally erase a genuine personal best. */
+export async function submitChallengeScore(challengeId: string, userId: string, score: number): Promise<void> {
+  const snap = await getDoc(doc(db, 'challenges', challengeId));
+  const existing = (snap.data()?.scores as Record<string, number> | undefined)?.[userId] ?? 0;
+  if (score <= existing) return;
+  await updateDoc(doc(db, 'challenges', challengeId), { [`scores.${userId}`]: score });
+}
+
+/** Ranks a challenge's participants — by submitted score for 'score'-type
+ * challenges (e.g. most pushups), or by workouts completed since joining
+ * for the generic 'workouts'-type challenges. */
+export async function getChallengeLeaderboard(challenge: Challenge): Promise<{ userId: string; displayName: string; workoutsDuring: number; score: number }[]> {
   if (challenge.participantIds.length === 0) return [];
   const results = await Promise.all(challenge.participantIds.map(async (uid) => {
     const snap = await getDoc(doc(db, 'users', uid));
@@ -1475,9 +1491,12 @@ export async function getChallengeLeaderboard(challenge: Challenge): Promise<{ u
       userId: uid,
       displayName: (u?.displayName as string) || 'Athlete',
       workoutsDuring: Math.max(0, total - starting),
+      score: challenge.scores?.[uid] ?? 0,
     };
   }));
-  return results.sort((a, b) => b.workoutsDuring - a.workoutsDuring);
+  return challenge.metricType === 'score'
+    ? results.sort((a, b) => b.score - a.score)
+    : results.sort((a, b) => b.workoutsDuring - a.workoutsDuring);
 }
 
 // ---------------------------------------------------------------------------

@@ -180,6 +180,14 @@ export interface Squad {
 }
 
 // ── Challenges — time-boxed contests, admin-created, opt-in ──────────────
+// 'workouts'  — ranked by workouts logged during the window (the original,
+//               generic "who trains the most" contest).
+// 'score'     — for a specific feat (e.g. "most pushups in 1 minute"); each
+//               participant self-reports their own best number under
+//               `metricLabel` (e.g. "pushups", "seconds", "reps") and the
+//               leaderboard ranks by that submitted score.
+export type ChallengeMetricType = 'workouts' | 'score';
+
 export interface Challenge {
   id: string;
   title: string;
@@ -192,6 +200,9 @@ export interface Challenge {
   // in-challenge leaderboard measures workouts done *during* the window,
   // not lifetime totals (which would favor whoever joined the app earliest).
   startingWorkouts: Record<string, number>;
+  metricType: ChallengeMetricType;
+  metricLabel?: string;               // e.g. "pushups" — only used when metricType === 'score'
+  scores?: Record<string, number>;    // userId -> self-reported best score
   createdBy: string;
   createdAt: unknown;
 }
