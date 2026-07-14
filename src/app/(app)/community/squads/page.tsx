@@ -3,12 +3,12 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Flame, Copy, LogOut, Trophy, Plus } from 'lucide-react';
+import { Users, Flame, Copy, LogOut, Trophy, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
-  createSquad, subscribeMySquad, joinSquadByCode, leaveSquad, getSquadLeaderboard,
+  createSquad, subscribeMySquad, joinSquadByCode, leaveSquad, deleteSquad, getSquadLeaderboard,
 } from '@/lib/firestore';
 import type { Squad, SquadTier } from '@/types';
 import { SQUAD_TIER_SIZE } from '@/types';
@@ -38,6 +38,8 @@ export default function SquadsPage() {
   const [tier, setTier] = useState<SquadTier>('duo');
   const [joinCode, setJoinCode] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -102,6 +104,22 @@ export default function SquadsPage() {
     navigator.clipboard?.writeText(squad.inviteCode).then(() => toast.success('Invite code copied!')).catch(() => {});
   };
 
+  const handleDelete = async () => {
+    if (!squad) return;
+    setDeleting(true);
+    try {
+      await deleteSquad(squad.id);
+      toast.success('Squad disbanded');
+      setDeleteModal(false);
+    } catch {
+      toast.error('Failed to disband squad');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const isOwner = !!user && squad?.ownerId === user.uid;
+
   return (
     <div>
       <Header title="Squads" showBack />
@@ -141,9 +159,15 @@ export default function SquadsPage() {
                 <Button size="sm" variant="secondary" fullWidth onClick={handleCopyCode}>
                   <Copy className="w-3.5 h-3.5" /> Invite Code: {squad.inviteCode}
                 </Button>
-                <Button size="sm" variant="ghost" className="text-red-400" onClick={handleLeave}>
-                  <LogOut className="w-3.5 h-3.5" />
-                </Button>
+                {isOwner ? (
+                  <Button size="sm" variant="ghost" className="text-red-400" onClick={() => setDeleteModal(true)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="ghost" className="text-red-400" onClick={handleLeave}>
+                    <LogOut className="w-3.5 h-3.5" />
+                  </Button>
+                )}
               </div>
               {squad.bestStreak > squad.combinedStreak && (
                 <p className="text-[11px] text-text-tertiary mt-2">Best ever: {squad.bestStreak} days</p>
@@ -223,6 +247,21 @@ export default function SquadsPage() {
             autoFocus
           />
           <Button fullWidth loading={saving} onClick={handleJoin}>Join Squad</Button>
+        </div>
+      </Modal>
+
+      {/* Disband Squad Confirmation */}
+      <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Disband Squad?">
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            This permanently deletes &ldquo;{squad?.name}&rdquo; for every member, including its combined streak history. This can&rsquo;t be undone.
+          </p>
+          <div className="flex gap-2">
+            <Button fullWidth variant="ghost" onClick={() => setDeleteModal(false)}>Cancel</Button>
+            <Button fullWidth loading={deleting} className="bg-red-500 hover:bg-red-600" onClick={handleDelete}>
+              Disband
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

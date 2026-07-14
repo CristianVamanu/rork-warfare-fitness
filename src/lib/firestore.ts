@@ -1408,6 +1408,11 @@ export async function leaveSquad(squadId: string, userId: string): Promise<void>
   await updateDoc(doc(db, 'squads', squadId), { memberIds: arrayRemove(userId) });
 }
 
+/** Owner-only (enforced by firestore.rules) — disbands the squad entirely. */
+export async function deleteSquad(squadId: string): Promise<void> {
+  await deleteDoc(doc(db, 'squads', squadId));
+}
+
 /** Top squads by combined streak — for the in-app squad leaderboard. */
 export async function getSquadLeaderboard(limitCount = 20): Promise<Squad[]> {
   const snap = await getDocs(query(collection(db, 'squads'), limit(200)));
