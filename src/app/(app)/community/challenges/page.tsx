@@ -56,6 +56,10 @@ export default function ChallengesPage() {
     <div>
       <Header title="Challenges" showBack />
       <div className="px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
+        <p className="text-xs text-text-tertiary">
+          Time-boxed contests you opt into — workout with your friends, compete for the top spot, and see who shows up the most before the clock runs out. Rankings are based on workouts logged <span className="text-white font-medium">during</span> the challenge window, so joining late doesn&rsquo;t put you at a disadvantage.
+        </p>
+
         {loading ? (
           <>
             <Skeleton className="h-40 rounded-2xl" />
