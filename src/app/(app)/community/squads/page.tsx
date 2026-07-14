@@ -38,7 +38,7 @@ export default function SquadsPage() {
   const [tier, setTier] = useState<SquadTier>('duo');
   const [joinCode, setJoinCode] = useState('');
   const [saving, setSaving] = useState(false);
-  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Squad | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -105,12 +105,15 @@ export default function SquadsPage() {
   };
 
   const handleDelete = async () => {
-    if (!squad) return;
+    if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await deleteSquad(squad.id);
+      await deleteSquad(deleteTarget.id);
       toast.success('Squad disbanded');
-      setDeleteModal(false);
+      setDeleteTarget(null);
+      // Refresh the leaderboard immediately so the deleted squad
+      // disappears without waiting for the next load/subscription tick.
+      getSquadLeaderboard(10).then(setLeaderboard).catch(() => {});
     } catch {
       toast.error('Failed to disband squad');
     } finally {
@@ -160,7 +163,7 @@ export default function SquadsPage() {
                   <Copy className="w-3.5 h-3.5" /> Invite Code: {squad.inviteCode}
                 </Button>
                 {isOwner ? (
-                  <Button size="sm" variant="ghost" className="text-red-400" onClick={() => setDeleteModal(true)}>
+                  <Button size="sm" variant="ghost" className="text-red-400" onClick={() => setDeleteTarget(squad)}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 ) : (
@@ -207,6 +210,14 @@ export default function SquadsPage() {
                   <div className="flex items-center gap-1 text-orange-400 flex-shrink-0">
                     <Flame className="w-3.5 h-3.5" /> <span className="text-sm font-bold">{s.combinedStreak}</span>
                   </div>
+                  {/* Lets an owner clean up a squad they've since left (0 members
+                      left behind) — the "my squad" card above only shows the
+                      disband option while you're still a current member. */}
+                  {!!user && s.ownerId === user.uid && (
+                    <Button size="sm" variant="ghost" className="text-red-400 flex-shrink-0 !p-1.5" onClick={() => setDeleteTarget(s)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
                 </Card>
               ))}
             </div>
@@ -251,13 +262,13 @@ export default function SquadsPage() {
       </Modal>
 
       {/* Disband Squad Confirmation */}
-      <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Disband Squad?">
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Disband Squad?">
         <div className="space-y-4">
           <p className="text-sm text-text-secondary">
-            This permanently deletes &ldquo;{squad?.name}&rdquo; for every member, including its combined streak history. This can&rsquo;t be undone.
+            This permanently deletes &ldquo;{deleteTarget?.name}&rdquo; for every member, including its combined streak history. This can&rsquo;t be undone.
           </p>
           <div className="flex gap-2">
-            <Button fullWidth variant="ghost" onClick={() => setDeleteModal(false)}>Cancel</Button>
+            <Button fullWidth variant="ghost" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             <Button fullWidth loading={deleting} className="bg-red-500 hover:bg-red-600" onClick={handleDelete}>
               Disband
             </Button>
