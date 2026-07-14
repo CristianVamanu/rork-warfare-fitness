@@ -1,11 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Share2, ArrowRight, Zap, Flame, Star } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { getLevelTitle } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
 import { QUEST_DEFS } from '@/lib/quests';
+import toast from 'react-hot-toast';
 
 interface Props {
   duration: number;
@@ -31,6 +33,7 @@ export function WorkoutShareCard({
   onContinue,
 }: Props) {
   const levelTitle = getLevelTitle(newPowerLevel);
+  const [sharing, setSharing] = useState(false);
 
   const shareText =
     `💪 Just finished a ${duration}-min workout!\n` +
@@ -40,10 +43,32 @@ export function WorkoutShareCard({
     `Join me on Warfare Fitness → warfare.fit`;
 
   const handleShare = async () => {
-    if (navigator.share) {
-      await navigator.share({ text: shareText }).catch(() => {});
-    } else {
-      await navigator.clipboard.writeText(shareText).catch(() => {});
+    if (sharing) return;
+    setSharing(true);
+    try {
+      // navigator.share exists in some in-app/PWA webviews but throws
+      // synchronously (not just rejects) when the platform doesn't actually
+      // support sharing text — wrap the whole thing, not just the promise.
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({ text: shareText });
+          return;
+        } catch (err) {
+          // User cancelling the native share sheet throws AbortError — not a
+          // real failure, so don't fall through to the clipboard/error path.
+          if (err instanceof Error && err.name === 'AbortError') return;
+        }
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareText);
+        toast.success('Copied to clipboard!');
+        return;
+      }
+      throw new Error('Sharing not supported on this device');
+    } catch {
+      toast.error("Couldn't share — try copying manually");
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -156,7 +181,7 @@ export function WorkoutShareCard({
 
       {/* Actions */}
       <div className="flex gap-3">
-        <Button variant="secondary" fullWidth onClick={handleShare}>
+        <Button variant="secondary" fullWidth loading={sharing} onClick={handleShare}>
           <Share2 className="w-4 h-4" /> Share
         </Button>
         <Button fullWidth onClick={onContinue}>
