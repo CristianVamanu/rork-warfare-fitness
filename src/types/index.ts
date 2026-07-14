@@ -284,6 +284,7 @@ export interface SystemConfig {
   barcodeScanDailyLimit?: number; // default 20 if unset
   foodAnalysisDailyLimit?: number; // default 20 if unset
   mealIdeasDailyLimit?: number; // default 15 if unset
+  challengesEnabled?: boolean; // hides the Challenges entry point + page from regular users when false; default true
 }
 
 export interface LandingFeature {

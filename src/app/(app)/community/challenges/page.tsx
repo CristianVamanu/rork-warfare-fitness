@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Swords, Trophy, Calendar, Pencil } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getActiveChallenges, joinChallenge, getChallengeLeaderboard, submitChallengeScore } from '@/lib/firestore';
+import { getActiveChallenges, joinChallenge, getChallengeLeaderboard, submitChallengeScore, getSystemConfig } from '@/lib/firestore';
 import type { Challenge } from '@/types';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -26,8 +26,14 @@ export default function ChallengesPage() {
   const [joining, setJoining] = useState<string | null>(null);
   const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({});
   const [submittingScore, setSubmittingScore] = useState<string | null>(null);
+  const [challengesEnabled, setChallengesEnabled] = useState(true);
+  const isStaff = profile?.role === 'admin' || profile?.role === 'trainer';
 
   const totalWorkouts = profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0;
+
+  useEffect(() => {
+    getSystemConfig().then((cfg) => setChallengesEnabled(cfg?.challengesEnabled !== false)).catch(() => {});
+  }, []);
 
   const load = () => {
     getActiveChallenges()
@@ -73,10 +79,30 @@ export default function ChallengesPage() {
     }
   };
 
+  if (!challengesEnabled && !isStaff) {
+    return (
+      <div>
+        <Header title="Challenges" showBack />
+        <div className="px-4 py-4 max-w-2xl mx-auto w-full">
+          <Card className="p-6 text-center">
+            <Swords className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
+            <p className="text-text-secondary text-sm">Challenges aren&rsquo;t open right now</p>
+            <p className="text-text-tertiary text-xs mt-1">Check back soon.</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <Header title="Challenges" showBack />
       <div className="px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
+        {!challengesEnabled && isStaff && (
+          <Card className="p-3 border-yellow-400/30 bg-yellow-400/5">
+            <p className="text-xs text-yellow-400">Hidden from regular users right now — only staff can see this page. Toggle it back on in Admin → Settings.</p>
+          </Card>
+        )}
         <p className="text-xs text-text-tertiary">
           Time-boxed contests you opt into — workout with your friends, compete for the top spot, and see who shows up the most before the clock runs out. Rankings are based on workouts logged <span className="text-white font-medium">during</span> the challenge window, so joining late doesn&rsquo;t put you at a disadvantage.
         </p>

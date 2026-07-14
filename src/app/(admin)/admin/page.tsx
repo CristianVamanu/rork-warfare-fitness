@@ -209,7 +209,7 @@ export default function AdminPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ── Settings state ─────────────────────────────────────────────────────────
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, challengesEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '' });
@@ -395,6 +395,7 @@ export default function AdminPage() {
           stripePublishableKey: cfg.stripePublishableKey || '',
           logoUrl: cfg.logoUrl || '',
           pwaInstallBannerEnabled: cfg.pwaInstallBannerEnabled !== false as unknown,
+          challengesEnabled: cfg.challengesEnabled !== false as unknown,
           vapidPublicKey: cfg.vapidPublicKey || '',
           barcodeScanDailyLimit: Number(cfg.barcodeScanDailyLimit) || 20,
           foodAnalysisDailyLimit: Number(cfg.foodAnalysisDailyLimit) || 20,
@@ -2905,6 +2906,18 @@ export default function AdminPage() {
                   className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${settingsForm.pwaInstallBannerEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
                 >
                   <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.pwaInstallBannerEnabled ? 'left-6' : 'left-1'}`} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">Challenges (User-Facing)</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Show the Challenges entry point and page to regular users. Turn off between contests to avoid a stale/empty screen.</p>
+                </div>
+                <button
+                  onClick={() => setSettingsForm(s => ({ ...s, challengesEnabled: !s.challengesEnabled }))}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${settingsForm.challengesEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.challengesEnabled ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-3">
