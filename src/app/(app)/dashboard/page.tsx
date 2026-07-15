@@ -3,9 +3,10 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles } from 'lucide-react';
+import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
+import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
+import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
@@ -44,6 +45,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
+  const [adjustingWater, setAdjustingWater] = useState(false);
 
   // Sync calories + water from profile.statsCache whenever it updates (real-time via AuthContext)
   useEffect(() => {
@@ -104,6 +106,39 @@ export default function DashboardPage() {
   const localDateStr = new Date().toLocaleDateString('sv-SE');
   const workedOutToday = profile?.statsCache?.lastWorkoutDate === localDateStr;
   const streakAtRisk = !loading && streak > 0 && !workedOutToday;
+
+  const WATER_STEP_ML = 250;
+
+  const handleAddWater = async () => {
+    if (!user || adjustingWater) return;
+    setAdjustingWater(true);
+    try {
+      await logWaterAction(user.uid, WATER_STEP_ML);
+    } catch {
+      toast.error('Failed to log water');
+    } finally {
+      setAdjustingWater(false);
+    }
+  };
+
+  const handleRemoveWater = async () => {
+    if (!user || adjustingWater || !waterMl) return;
+    setAdjustingWater(true);
+    try {
+      const logs = await getTodayWaterLogs(user.uid, localDateStr);
+      if (logs.length === 0) return;
+      const mostRecent = logs.reduce((a, b) => {
+        const aMs = (a.loggedAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+        const bMs = (b.loggedAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+        return bMs > aMs ? b : a;
+      });
+      await deleteWaterLog(mostRecent.id);
+    } catch {
+      toast.error('Failed to remove water log');
+    } finally {
+      setAdjustingWater(false);
+    }
+  };
 
   // Flame state on the streak card — derived from data we already have, no
   // new tracking needed: never-trained users get an unlit ember to invite
@@ -311,9 +346,29 @@ export default function DashboardPage() {
                 <Skeleton className="h-10 w-full" />
               ) : (
                 <>
-                  <div className="flex items-center gap-1.5">
-                    <Droplets className="w-3.5 h-3.5 text-blue-400" />
-                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Water</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Droplets className="w-3.5 h-3.5 text-blue-400" />
+                      <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Water</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={handleRemoveWater}
+                        disabled={adjustingWater || !waterMl}
+                        aria-label="Remove 250ml"
+                        className="w-5 h-5 rounded-full bg-blue-400/10 text-blue-400 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={handleAddWater}
+                        disabled={adjustingWater}
+                        aria-label="Add 250ml"
+                        className="w-5 h-5 rounded-full bg-blue-400/10 text-blue-400 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-lg font-black text-white">
                     {waterMl ? Math.round(waterMl / 100) / 10 : 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.water / 1000}L</span>
