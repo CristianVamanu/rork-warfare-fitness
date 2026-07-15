@@ -371,7 +371,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <p className="text-lg font-black text-white">
-                    {waterMl ? Math.round(waterMl / 100) / 10 : 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.water / 1000}L</span>
+                    {waterMl ? +(waterMl / 1000).toFixed(2) : 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.water / 1000}L</span>
                   </p>
                   <ProgressBar value={waterMl ?? 0} max={goals.water} color="info" size="sm" />
                 </>
