@@ -159,54 +159,6 @@ export interface ProgressPhoto {
   createdAt: unknown;
 }
 
-// ── Squads — Fortnite-style Duo/Trio/Squad team streaks ──────────────────
-// "Solo" isn't a squad at all — that's just the existing individual
-// leaderboard, so it needs no team doc.
-export type SquadTier = 'duo' | 'trio' | 'squad';
-export const SQUAD_TIER_SIZE: Record<SquadTier, number> = { duo: 2, trio: 3, squad: 5 };
-
-export interface Squad {
-  id: string;
-  name: string;
-  tier: SquadTier;
-  maxMembers: number;
-  memberIds: string[];
-  ownerId: string;
-  inviteCode: string;
-  combinedStreak: number;   // consecutive days every member has worked out
-  bestStreak: number;
-  lastAllCompletedDate?: string; // YYYY-MM-DD, last day the whole squad hit a workout
-  createdAt: unknown;
-}
-
-// ── Challenges — time-boxed contests, admin-created, opt-in ──────────────
-// 'workouts'  — ranked by workouts logged during the window (the original,
-//               generic "who trains the most" contest).
-// 'score'     — for a specific feat (e.g. "most pushups in 1 minute"); each
-//               participant self-reports their own best number under
-//               `metricLabel` (e.g. "pushups", "seconds", "reps") and the
-//               leaderboard ranks by that submitted score.
-export type ChallengeMetricType = 'workouts' | 'score';
-
-export interface Challenge {
-  id: string;
-  title: string;
-  description: string;
-  startDate: string;   // YYYY-MM-DD
-  endDate: string;     // YYYY-MM-DD
-  active: boolean;
-  participantIds: string[];
-  // Snapshot of each participant's totalWorkouts at join time, so the
-  // in-challenge leaderboard measures workouts done *during* the window,
-  // not lifetime totals (which would favor whoever joined the app earliest).
-  startingWorkouts: Record<string, number>;
-  metricType: ChallengeMetricType;
-  metricLabel?: string;               // e.g. "pushups" — only used when metricType === 'score'
-  scores?: Record<string, number>;    // userId -> self-reported best score
-  createdBy: string;
-  createdAt: unknown;
-}
-
 export interface UserProfile {
   id: string;
   displayName: string;
@@ -284,7 +236,6 @@ export interface SystemConfig {
   barcodeScanDailyLimit?: number; // default 20 if unset
   foodAnalysisDailyLimit?: number; // default 20 if unset
   mealIdeasDailyLimit?: number; // default 15 if unset
-  challengesEnabled?: boolean; // hides the Challenges entry point + page from regular users when false; default true
 }
 
 export interface LandingFeature {

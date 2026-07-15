@@ -194,44 +194,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Squad combined streaks — every member must have worked out "today"
-    // (local calendar day, matching the same 'sv-SE' YYYY-MM-DD format the
-    // client stamps onto statsCache.lastWorkoutDate on workout completion)
-    // for the squad's combined streak to extend; otherwise it resets to 0.
-    const today = new Date().toLocaleDateString('sv-SE');
-    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('sv-SE');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const lastWorkoutDateByUser = new Map<string, string | undefined>(
-      users.map((u) => [(u as any).id, (u as any).statsCache?.lastWorkoutDate])
-    );
-    try {
-      const squadsSnap = await db.collection('squads').get();
-      for (const squadDoc of squadsSnap.docs) {
-        const squad = squadDoc.data() as { memberIds?: string[]; combinedStreak?: number; bestStreak?: number; lastAllCompletedDate?: string };
-        const memberIds: string[] = squad.memberIds ?? [];
-        if (memberIds.length === 0) continue;
-        // Already counted for today (e.g. a re-run) — don't double-increment.
-        if (squad.lastAllCompletedDate === today) continue;
-
-        const allWorkedOutToday = memberIds.every((uid) => lastWorkoutDateByUser.get(uid) === today);
-        if (allWorkedOutToday) {
-          const wasConsecutive = squad.lastAllCompletedDate === yesterday;
-          const newStreak = wasConsecutive ? (squad.combinedStreak ?? 0) + 1 : 1;
-          await squadDoc.ref.update({
-            combinedStreak: newStreak,
-            bestStreak: Math.max(newStreak, squad.bestStreak ?? 0),
-            lastAllCompletedDate: today,
-          });
-          sent.push(`squad_streak:${squadDoc.id}`);
-        } else if ((squad.combinedStreak ?? 0) > 0) {
-          // Not everyone worked out today — the streak breaks.
-          await squadDoc.ref.update({ combinedStreak: 0 });
-        }
-      }
-    } catch (err) {
-      console.error('[notifications/process] Squad streak update failed:', err);
-    }
-
     return NextResponse.json({
       ok: true,
       sent,

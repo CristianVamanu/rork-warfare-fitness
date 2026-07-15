@@ -29,7 +29,6 @@ import {
   assignNutritionPlan,
   getCoachingApplications, approveCoachingApplication, rejectCoachingApplication,
   getProgressPhotos,
-  getAllChallenges, createChallenge, endChallenge, deleteChallenge,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -39,7 +38,7 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, Challenge, ChallengeMetricType } from '@/types';
+import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_MEMBERSHIP_FEATURES } from '@/lib/landingDefaults';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'settings';
@@ -209,7 +208,7 @@ export default function AdminPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ── Settings state ─────────────────────────────────────────────────────────
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, challengesEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '' });
@@ -307,57 +306,6 @@ export default function AdminPage() {
   const [showChannelForm, setShowChannelForm] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
 
-  // ── Challenges (time-boxed contests) state ─────────────────────────────────
-  const [challenges, setChallenges] = useState<Challenge[]>([]);
-  const [challengesLoading, setChallengesLoading] = useState(false);
-  const [showChallengeForm, setShowChallengeForm] = useState(false);
-  const [challengeForm, setChallengeForm] = useState<{ title: string; description: string; startDate: string; endDate: string; metricType: ChallengeMetricType; metricLabel: string }>({
-    title: '', description: '', startDate: '', endDate: '', metricType: 'workouts', metricLabel: '',
-  });
-  const [savingChallenge, setSavingChallenge] = useState(false);
-
-  async function loadChallenges() {
-    setChallengesLoading(true);
-    try { setChallenges(await getAllChallenges()); } catch { toast.error('Failed to load challenges'); }
-    finally { setChallengesLoading(false); }
-  }
-
-  async function handleCreateChallenge() {
-    if (!user || !challengeForm.title.trim() || !challengeForm.startDate || !challengeForm.endDate) {
-      toast.error('Fill in title, start date, and end date'); return;
-    }
-    if (challengeForm.metricType === 'score' && !challengeForm.metricLabel.trim()) {
-      toast.error('Give the score a label, e.g. "pushups"'); return;
-    }
-    setSavingChallenge(true);
-    try {
-      await createChallenge({
-        title: challengeForm.title,
-        description: challengeForm.description,
-        startDate: challengeForm.startDate,
-        endDate: challengeForm.endDate,
-        metricType: challengeForm.metricType,
-        metricLabel: challengeForm.metricType === 'score' ? challengeForm.metricLabel.trim() : undefined,
-        createdBy: user.uid,
-      });
-      toast.success('Challenge created!');
-      setShowChallengeForm(false);
-      setChallengeForm({ title: '', description: '', startDate: '', endDate: '', metricType: 'workouts', metricLabel: '' });
-      await loadChallenges();
-    } catch { toast.error('Failed to create challenge'); }
-    finally { setSavingChallenge(false); }
-  }
-
-  async function handleEndChallenge(id: string) {
-    try { await endChallenge(id); toast.success('Challenge ended'); await loadChallenges(); }
-    catch { toast.error('Failed to end challenge'); }
-  }
-
-  async function handleDeleteChallenge(id: string) {
-    try { await deleteChallenge(id); toast.success('Challenge deleted'); await loadChallenges(); }
-    catch { toast.error('Failed to delete challenge'); }
-  }
-
   // ── Landing page state ─────────────────────────────────────────────────────
   const [landingForm, setLandingForm] = useState<LandingPageConfig>(DEFAULT_LANDING_CONFIG);
   const [savingLanding, setSavingLanding] = useState(false);
@@ -395,7 +343,6 @@ export default function AdminPage() {
           stripePublishableKey: cfg.stripePublishableKey || '',
           logoUrl: cfg.logoUrl || '',
           pwaInstallBannerEnabled: cfg.pwaInstallBannerEnabled !== false as unknown,
-          challengesEnabled: cfg.challengesEnabled !== false as unknown,
           vapidPublicKey: cfg.vapidPublicKey || '',
           barcodeScanDailyLimit: Number(cfg.barcodeScanDailyLimit) || 20,
           foodAnalysisDailyLimit: Number(cfg.foodAnalysisDailyLimit) || 20,
@@ -433,7 +380,7 @@ export default function AdminPage() {
     if (tab === 'membership') { loadMembership(); loadCoachingPlans(); }
     if (tab === 'coaching') loadCoachingApplications();
     if (tab === 'notifications') loadNotifConfig();
-    if (tab === 'community') { loadChannels(); loadChallenges(); }
+    if (tab === 'community') loadChannels();
     if (tab === 'library' && exerciseLibrary.length === 0) loadExerciseLibrary();
     if (tab === 'integrations') loadSecretStatuses();
     if (tab === 'analytics') loadAnalytics();
@@ -1528,98 +1475,6 @@ export default function AdminPage() {
               <p className="text-xs text-text-secondary">Verify submitted PRs and assign trust badges</p>
             </div>
           </Card>
-
-          {/* ── Challenges (time-boxed contests) ────────────────────────────── */}
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white">Challenges</h3>
-            <Button size="sm" onClick={() => setShowChallengeForm(true)}>
-              <Plus className="w-4 h-4" /> New Challenge
-            </Button>
-          </div>
-
-          {showChallengeForm && (
-            <Card className="p-5 space-y-3 border-accent/30">
-              <h3 className="text-sm font-bold text-white">Create Challenge</h3>
-              <Input value={challengeForm.title} onChange={e => setChallengeForm(f => ({ ...f, title: e.target.value }))} placeholder="Challenge title (e.g. 30-Day Warfare Challenge)" />
-              <Input value={challengeForm.description} onChange={e => setChallengeForm(f => ({ ...f, description: e.target.value }))} placeholder="Short description" />
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs text-text-secondary mb-1 block">Start Date</label>
-                  <input type="date" value={challengeForm.startDate} onChange={e => setChallengeForm(f => ({ ...f, startDate: e.target.value }))} className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50" />
-                </div>
-                <div>
-                  <label className="text-xs text-text-secondary mb-1 block">End Date</label>
-                  <input type="date" value={challengeForm.endDate} onChange={e => setChallengeForm(f => ({ ...f, endDate: e.target.value }))} className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50" />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-text-secondary mb-1.5 block">How is this ranked?</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {([
-                    { value: 'workouts' as ChallengeMetricType, label: 'Workout Count', desc: 'Who trains the most' },
-                    { value: 'score' as ChallengeMetricType, label: 'Best Score', desc: 'e.g. most pushups in 1 min' },
-                  ]).map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setChallengeForm(f => ({ ...f, metricType: opt.value }))}
-                      className={`p-3 rounded-xl border text-left transition-colors ${
-                        challengeForm.metricType === opt.value ? 'border-accent bg-accent/10' : 'border-white/10 bg-surface'
-                      }`}
-                    >
-                      <p className="text-sm font-bold text-white">{opt.label}</p>
-                      <p className="text-[10px] text-text-tertiary">{opt.desc}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {challengeForm.metricType === 'score' && (
-                <div>
-                  <label className="text-xs text-text-secondary mb-1 block">Score Label</label>
-                  <Input
-                    value={challengeForm.metricLabel}
-                    onChange={e => setChallengeForm(f => ({ ...f, metricLabel: e.target.value }))}
-                    placeholder="e.g. pushups, seconds held, reps"
-                  />
-                  <p className="text-[10px] text-text-tertiary mt-1">
-                    Participants self-report their best number under this label — there's no automatic tracking, so treat this as an honor-system leaderboard.
-                  </p>
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <Button fullWidth variant="ghost" onClick={() => setShowChallengeForm(false)}>Cancel</Button>
-                <Button fullWidth loading={savingChallenge} onClick={handleCreateChallenge}>Create</Button>
-              </div>
-            </Card>
-          )}
-
-          {challengesLoading ? (
-            <Skeleton className="h-20 rounded-2xl" />
-          ) : challenges.length === 0 ? (
-            <p className="text-xs text-text-tertiary">No challenges created yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {challenges.map((c) => (
-                <Card key={c.id} className="p-3.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-white truncate">{c.title}</p>
-                      <p className="text-xs text-text-secondary">{c.startDate} → {c.endDate} · {c.participantIds.length} joined</p>
-                    </div>
-                    <Badge variant={c.active ? 'success' : 'default'}>{c.active ? 'Active' : 'Ended'}</Badge>
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    {c.active && (
-                      <Button size="sm" variant="ghost" onClick={() => handleEndChallenge(c.id)}>End Now</Button>
-                    )}
-                    <Button size="sm" variant="ghost" className="text-red-400" onClick={() => handleDeleteChallenge(c.id)}>Delete</Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
 
           <div className="flex items-center justify-between pt-2 border-t border-white/5">
             <p className="text-text-secondary text-sm">{channels.length} channel{channels.length !== 1 ? 's' : ''}</p>
@@ -2906,18 +2761,6 @@ export default function AdminPage() {
                   className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${settingsForm.pwaInstallBannerEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
                 >
                   <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.pwaInstallBannerEnabled ? 'left-6' : 'left-1'}`} />
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-white">Challenges (User-Facing)</p>
-                  <p className="text-xs text-text-secondary mt-0.5">Show the Challenges entry point and page to regular users. Turn off between contests to avoid a stale/empty screen.</p>
-                </div>
-                <button
-                  onClick={() => setSettingsForm(s => ({ ...s, challengesEnabled: !s.challengesEnabled }))}
-                  className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${settingsForm.challengesEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
-                >
-                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.challengesEnabled ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-3">
