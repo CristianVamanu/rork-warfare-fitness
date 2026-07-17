@@ -106,6 +106,8 @@ export async function POST(req: NextRequest) {
     };
 
     const oneDayAgo = Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
+    const today = new Date().toLocaleDateString('sv-SE');
+    const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString('sv-SE');
     const sent: string[] = [];
 
     for (const user of users) {
@@ -142,9 +144,16 @@ export async function POST(req: NextRequest) {
         }
 
         // Rule: streak_reminder
+        // `stats.streak` only updates when a workout is completed, so a
+        // user who stopped training days ago still has a stale positive
+        // number sitting in the cache — gate this on their last workout
+        // actually being today or yesterday, or this congratulates people
+        // on a streak that's already dead.
         if (rules['streak_reminder']) {
           const streak = u.statsCache?.streak ?? u.stats?.streak ?? 0;
-          if (streak > 0) {
+          const lastWorkoutDate = u.statsCache?.lastWorkoutDate as string | undefined;
+          const streakLive = lastWorkoutDate === today || lastWorkoutDate === yesterday;
+          if (streak > 0 && streakLive) {
             const title = `🔥 ${streak}-day streak!`;
             const body = `You're on a roll, ${u.displayName ?? 'champ'}! Keep showing up every day.`;
             await db.collection('notifications').add({

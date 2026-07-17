@@ -98,13 +98,26 @@ export default function DashboardPage() {
 
   const greeting = getGreeting();
   const firstName = profile?.displayName?.split(' ')[0] || 'Athlete';
-  const streak = profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0;
   const powerLevel = profile?.powerLevel ?? 0;
   const tier = getLevelTier(powerLevel);
 
-  // Streak urgency: streak > 0 but user hasn't worked out today yet
   const localDateStr = new Date().toLocaleDateString('sv-SE');
   const workedOutToday = profile?.statsCache?.lastWorkoutDate === localDateStr;
+
+  // `stats.streak` is only recomputed when a workout is completed (see
+  // completeWorkout() in actions.ts) — there's no daily job that decays it,
+  // so it stays stuck at its last value for however many days the user
+  // stays away, showing a stale "lit" streak long after it's actually
+  // broken. Derive the *real* state here from the day-gap instead of
+  // trusting the cached number on its own: 0 days = trained today, 1 day =
+  // still salvageable today (the one grace day), 2+ days = the streak is
+  // dead until a fresh workout starts a new one.
+  const lastWorkoutDateStr = profile?.statsCache?.lastWorkoutDate as string | undefined;
+  const daysSinceLastWorkout = lastWorkoutDateStr
+    ? Math.round((new Date(localDateStr + 'T00:00:00').getTime() - new Date(lastWorkoutDateStr + 'T00:00:00').getTime()) / 86_400_000)
+    : null;
+  const streakBroken = daysSinceLastWorkout !== null && daysSinceLastWorkout >= 2;
+  const streak = streakBroken ? 0 : (profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0);
   const streakAtRisk = !loading && streak > 0 && !workedOutToday;
 
   const WATER_STEP_ML = 250;
