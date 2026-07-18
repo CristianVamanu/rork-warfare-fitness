@@ -9,7 +9,7 @@ import {
   Copy, SkipForward, Plus, Minus, Dumbbell, Zap, Play, Pause, RotateCcw, Info,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getProgram } from '@/lib/firestore';
+import { getProgram, getLastExercisePerformance } from '@/lib/firestore';
 import { getMockProgram, getProgramDayForDow } from '@/lib/programs';
 import { completeWorkout } from '@/lib/actions';
 import { WorkoutShareCard } from '@/components/workout/WorkoutShareCard';
@@ -28,6 +28,12 @@ interface SetState {
   weight: number;
   reps: number;
   status: SetStatus;
+  // Progressive-overload hint from the user's last logged performance of
+  // this exercise/set — display-only, never auto-applied, so it can't
+  // silently change what actually gets saved. `lastWeight`/`lastReps` are
+  // what was actually logged last time; `weight`/`reps` are the suggested
+  // next attempt (bumped up if the target reps were hit last time).
+  suggestion?: { weight: number; reps: number; lastWeight: number; lastReps: number };
 }
 
 interface ExState {
@@ -643,6 +649,7 @@ interface SetRowProps {
   onActivate: () => void;
   onWeightChange: (v: number) => void;
   onRepsChange: (delta: number) => void;
+  onApplySuggestion: (weight: number, reps: number) => void;
   onComplete: () => void;
   onSkip: () => void;
   onDuplicate: () => void;
@@ -650,7 +657,7 @@ interface SetRowProps {
 
 function SetRow({
   setNum, state, isActive, weightUnit,
-  onActivate, onWeightChange, onRepsChange, onComplete, onSkip, onDuplicate,
+  onActivate, onWeightChange, onRepsChange, onApplySuggestion, onComplete, onSkip, onDuplicate,
 }: SetRowProps) {
   const isCompleted = state.status === 'completed';
   const isSkipped = state.status === 'skipped';
@@ -744,6 +751,24 @@ function SetRow({
           </button>
         </div>
       </div>
+
+      {/* Progressive-overload suggestion — only shown while the weight is
+          still untouched; tapping it fills the slider, it never fills itself. */}
+      {state.suggestion && state.weight === 0 && (
+        <div className="mx-4 mt-3 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-accent/10 border border-accent/20">
+          <p className="text-xs text-text-secondary">
+            Last time: <span className="text-white font-semibold">{state.suggestion.lastWeight}{weightUnit} × {state.suggestion.lastReps}</span>
+            {' → '}
+            <span className="text-accent font-bold">Try {state.suggestion.weight}{weightUnit} × {state.suggestion.reps}</span>
+          </p>
+          <button
+            onClick={() => onApplySuggestion(state.suggestion!.weight, state.suggestion!.reps)}
+            className="flex-shrink-0 px-2.5 py-1 rounded-lg bg-accent text-black text-xs font-bold hover:bg-amber-400 transition-colors"
+          >
+            Use
+          </button>
+        </div>
+      )}
 
       {/* Weight slider */}
       <div className="px-4 pt-4 pb-2">
@@ -981,6 +1006,51 @@ export default function WorkoutSessionPage() {
 
     resolveExercises();
   }, [programId, dow, sessionKey]);
+
+  // ── Progressive-overload suggestions ────────────────────────────────────
+  // Fetched once per fresh session (skipped on sessionStorage restore, since
+  // suggestions were already attached the first time). Purely additive —
+  // only fills in `suggestion` on sets still at their default weight of 0,
+  // never touches weight/reps a user (or a restored session) has already set.
+  const suggestionsFetched = useRef(false);
+  useEffect(() => {
+    if (!user || exStates.length === 0 || suggestionsFetched.current) return;
+    suggestionsFetched.current = true;
+
+    const weightIncrement = weightUnit === 'lbs' ? 5 : 2.5;
+
+    (async () => {
+      const names = Array.from(new Set(
+        exStates.filter((ex) => !ex.isCardio && !ex.isHiit).map((ex) => ex.name)
+      ));
+      const entries = await Promise.all(
+        names.map(async (name) => [name, await getLastExercisePerformance(user.uid, name).catch(() => null)] as const)
+      );
+      const perfByName = new Map(entries);
+
+      setExStates((prev) => prev.map((ex) => {
+        const lastSets = perfByName.get(ex.name);
+        if (!lastSets || lastSets.length === 0) return ex;
+        return {
+          ...ex,
+          sets: ex.sets.map((s, i) => {
+            if (s.weight !== 0) return s; // already has a value — don't override
+            const last = lastSets[Math.min(i, lastSets.length - 1)];
+            const hitTarget = last.reps >= ex.targetReps;
+            return {
+              ...s,
+              suggestion: {
+                weight: hitTarget ? Math.round((last.weight + weightIncrement) * 2) / 2 : last.weight,
+                reps: ex.targetReps,
+                lastWeight: last.weight,
+                lastReps: last.reps,
+              },
+            };
+          }),
+        };
+      }));
+    })();
+  }, [user, exStates, weightUnit]);
 
   // ── Persist session to sessionStorage ───────────────────────────────────
 
@@ -1371,6 +1441,7 @@ export default function WorkoutSessionPage() {
                           reps: Math.max(1, setState.reps + delta),
                         })
                       }
+                      onApplySuggestion={(weight, reps) => updateSet(currentExIdx, si, { weight, reps })}
                       onComplete={() => completeSet(currentExIdx, si)}
                       onSkip={() => skipSet(currentExIdx, si)}
                       onDuplicate={() => duplicatePrevSet(currentExIdx, si)}

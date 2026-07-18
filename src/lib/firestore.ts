@@ -529,6 +529,25 @@ export async function getPersonalBest(userId: string, exerciseName: string): Pro
   return best;
 }
 
+/**
+ * Per-set weight/reps from the most recent workout that included this
+ * exercise (skipped sets excluded) — used to suggest next weight/reps at
+ * the start of a set rather than always starting from zero. Returns null
+ * if the exercise has never been logged before.
+ */
+export async function getLastExercisePerformance(userId: string, exerciseName: string): Promise<{ weight: number; reps: number }[] | null> {
+  const target = exerciseName.trim().toLowerCase();
+  if (!target) return null;
+  const workouts = await getUserWorkouts(userId, 15) as unknown as UserWorkoutRecord[];
+  for (const w of workouts) {
+    const match = (w.exercises ?? []).find((ex) => String(ex.name ?? '').trim().toLowerCase() === target);
+    if (!match) continue;
+    const completedSets = (match.sets ?? []).filter((s) => s.completed && s.weight > 0);
+    if (completedSets.length > 0) return completedSets.map((s) => ({ weight: s.weight, reps: s.reps }));
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Programs — scoped by trainerId when provided
 // ---------------------------------------------------------------------------
