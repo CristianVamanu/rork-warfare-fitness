@@ -1,12 +1,22 @@
 import type { FitnessGoal, ExperienceLevel, BiologicalSex } from '@/types';
 import type { UserGoals } from '@/types';
 
+// Training days per week is a proxy for activity level, not a direct
+// measurement of it — the classic 1.375/1.55/1.725/1.9 textbook scale
+// assumes that multiplier reflects the person's *entire* day, which only
+// holds for someone with a physically demanding lifestyle outside the gym
+// too. Someone training 5x/week for an hour but sitting at a desk the
+// other 23 hours isn't "active" all day the way 1.725 assumes — that
+// systematically overestimates maintenance for the typical user here (an
+// office worker who lifts), leading to a maintenance number that feels
+// implausibly high. These are recalibrated more conservatively so the
+// baseline defaults toward slightly under- rather than over-estimating.
 const ACTIVITY_MULTIPLIER: Record<number, number> = {
-  2: 1.375,
-  3: 1.375,
-  4: 1.55,
-  5: 1.725,
-  6: 1.9,
+  2: 1.30,
+  3: 1.40,
+  4: 1.475,
+  5: 1.55,
+  6: 1.65,
 };
 
 const GOAL_ADJUSTMENT: Record<FitnessGoal, number> = {
