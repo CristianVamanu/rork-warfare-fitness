@@ -31,18 +31,21 @@ const withPWA = require('next-pwa')({
   ],
 });
 
-// Auto-incrementing version — "1.0.<commit count>" — so the version shown
-// in Settings actually changes on every deploy instead of a hardcoded
-// string nobody remembers to bump. Falls back to package.json's version
-// if git isn't available (e.g. a source zip without .git).
+// Build-timestamp version — "YYYY.MM.DD.HHmm" (UTC) — so the version shown
+// in Settings always tells you exactly when this build was produced,
+// instead of a raw git commit count (which used to read differently on
+// different hosts depending on how deep their git clone was — a shallow
+// clone undercounts commits, making the "version" look stale even on a
+// perfectly up-to-date deploy). The time component means multiple deploys
+// on the same day still get distinct, naturally-ordered version strings.
 function getAppVersion() {
-  try {
-    const { execSync } = require('child_process');
-    const commitCount = execSync('git rev-list --count HEAD').toString().trim();
-    return `1.0.${commitCount}`;
-  } catch {
-    return require('./package.json').version ?? '1.0.0';
-  }
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const y = now.getUTCFullYear();
+  const m = pad(now.getUTCMonth() + 1);
+  const d = pad(now.getUTCDate());
+  const hm = pad(now.getUTCHours()) + pad(now.getUTCMinutes());
+  return `${y}.${m}.${d}.${hm}`;
 }
 
 const nextConfig = {
