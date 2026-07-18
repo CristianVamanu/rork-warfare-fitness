@@ -8,7 +8,7 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
-  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User,
+  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -1143,6 +1143,39 @@ export default function AdminPage() {
   const stripeConfigured = secretStatuses.find(s => s.key === 'STRIPE_SECRET_KEY')?.configured ?? false;
   const clients = users.filter(u => u.role !== 'admin');
 
+  // Exports the currently-loaded client list as a CSV — client-side only,
+  // no new API surface, since the admin panel already has this exact data
+  // loaded for the Clients tab. Quotes every field and escapes embedded
+  // quotes so a comma or quote in someone's name can't corrupt the file.
+  function handleExportClientsCsv() {
+    const csvField = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = [
+      ['Name', 'Email', 'Fitness Goal', 'Experience', 'Membership Status', 'Total Workouts', 'Streak', 'Joined'],
+      ...clients.map((u) => {
+        const uu = u as UserData & { membership?: { status?: string } };
+        const joined = (u.createdAt as { toDate?: () => Date } | undefined)?.toDate?.();
+        return [
+          u.displayName || '',
+          u.email || '',
+          u.fitnessGoal || '',
+          u.experience || '',
+          uu.membership?.status || 'none',
+          u.statsCache?.totalWorkouts ?? u.stats?.totalWorkouts ?? 0,
+          u.statsCache?.streak ?? 0,
+          joined ? joined.toLocaleDateString('en-US') : '',
+        ];
+      }),
+    ];
+    const csv = rows.map((row) => row.map(csvField).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `clients-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'overview', label: 'Overview', icon: Activity },
     { id: 'programs', label: 'Programs', icon: Dumbbell },
@@ -1271,7 +1304,14 @@ export default function AdminPage() {
       {/* ── Clients ───────────────────────────────────────────────────────────── */}
       {tab === 'clients' && (
         <div className="space-y-3">
-          <p className="text-text-secondary text-sm">{clients.length} client{clients.length !== 1 ? 's' : ''}</p>
+          <div className="flex items-center justify-between">
+            <p className="text-text-secondary text-sm">{clients.length} client{clients.length !== 1 ? 's' : ''}</p>
+            {clients.length > 0 && (
+              <Button size="sm" variant="ghost" onClick={handleExportClientsCsv}>
+                <Download className="w-3.5 h-3.5" /> Export CSV
+              </Button>
+            )}
+          </div>
           {clientsLoading ? (
             <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
           ) : clients.length === 0 ? (
