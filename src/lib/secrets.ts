@@ -20,6 +20,12 @@ export const SECRET_KEYS = [
   'R2_SECRET_ACCESS_KEY',
   'R2_BUCKET_NAME',
   'R2_PUBLIC_URL',
+  // Separate from R2_BUCKET_NAME on purpose — that bucket is public (it
+  // serves exercise videos, PR Wall photos), and full-database backups
+  // must never live somewhere with public read access. Falls back to
+  // R2_BUCKET_NAME with a loud warning if left unset, so backups don't
+  // silently fail, but a dedicated private bucket is what this is for.
+  'R2_BACKUP_BUCKET_NAME',
   'CLOUDFLARE_API_TOKEN',
   'CLOUDFLARE_ZONE_ID',
   'RESEND_API_KEY',

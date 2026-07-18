@@ -67,8 +67,9 @@ const SECRET_GROUPS: { title: string; service: string; keys: { key: string; labe
       { key: 'R2_ACCOUNT_ID', label: 'Account ID', placeholder: 'a589823...' },
       { key: 'R2_ACCESS_KEY_ID', label: 'Access Key ID', placeholder: '' },
       { key: 'R2_SECRET_ACCESS_KEY', label: 'Secret Access Key', placeholder: '' },
-      { key: 'R2_BUCKET_NAME', label: 'Bucket Name', placeholder: 'warfare-fitness-storage' },
+      { key: 'R2_BUCKET_NAME', label: 'Bucket Name (public content)', placeholder: 'warfare-fitness-storage' },
       { key: 'R2_PUBLIC_URL', label: 'Public URL', placeholder: 'https://pub-xxxx.r2.dev' },
+      { key: 'R2_BACKUP_BUCKET_NAME', label: 'Backup Bucket Name (must be PRIVATE, no public access)', placeholder: 'warfare-fitness-backups' },
     ],
   },
   {
