@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, createProgram } from '@/lib/firestore';
+import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig } from '@/lib/firestore';
 import { estimateNutritionTargets, calculateBmi, estimateBmiTimeline, type NutritionTargets } from '@/lib/tdee';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
@@ -67,7 +67,7 @@ const slideVariants = {
 };
 
 export default function OnboardingPage() {
-  const { user, trainerId, refreshProfile } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState(0);
@@ -183,9 +183,10 @@ export default function OnboardingPage() {
       // seconds: network + LLM latency stacking up serially instead of
       // overlapping.
 
-      // Program: try a real AI-generated program tailored to everything
-      // collected above; if OpenAI isn't configured or the call fails,
-      // fall back to matching against the built-in program library so
+      // Program: assign the best-fit existing program (admin-created, or
+      // the seed library if none exist yet) rather than generating one from
+      // scratch — see /api/ai/recommend-program. Falls back to a local
+      // match against the seed library if the request itself fails, so
       // onboarding never blocks a new user from finishing.
       const programTask = (async () => {
         let program: { id: string; name: string; description: string; weeks: number; daysPerWeek: number };
@@ -193,20 +194,11 @@ export default function OnboardingPage() {
           const res = await fetch('/api/ai/recommend-program', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-            body: JSON.stringify({
-              goal, experience, trainingDays, equipment,
-              limitations: buildLimitationsSummary(),
-              trainerId: trainerId ?? '',
-              targetFocus: targetFocus ?? undefined,
-              sessionMinutes: sessionMinutes ?? undefined,
-              trainingStyle: trainingStyle ?? undefined,
-              biometrics: biometricsPayload,
-            }),
+            body: JSON.stringify({ goal, experience, trainingDays }),
           });
-          if (!res.ok) throw new Error('AI recommendation unavailable');
-          const { program: aiProgram } = await res.json();
-          const ref = await createProgram(aiProgram);
-          program = { id: ref.id, name: aiProgram.name, description: aiProgram.description, weeks: aiProgram.weeks, daysPerWeek: aiProgram.daysPerWeek };
+          if (!res.ok) throw new Error('Program assignment unavailable');
+          const { program: matched } = await res.json();
+          program = matched;
         } catch {
           program = fallbackRecommendProgram();
         }

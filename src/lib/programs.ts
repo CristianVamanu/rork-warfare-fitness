@@ -287,6 +287,52 @@ export function getMockProgram(id: string): Program | null {
   return MOCK_PROGRAMS.find((p) => p.id === id) ?? null;
 }
 
+// ---------------------------------------------------------------------------
+// Program matching — onboarding assigns a user into an existing plan from
+// the library (admin-created programs in Firestore, or these seed programs
+// as a fallback) rather than having AI invent a new one from scratch. This
+// keeps quality consistent (a human designed every plan) and cuts an entire
+// OpenAI round-trip out of onboarding.
+// ---------------------------------------------------------------------------
+
+const GOAL_TO_PROGRAM_GOAL: Record<string, Program['goal']> = {
+  'lose-fat': 'weight-loss',
+  'build-muscle': 'hypertrophy',
+  recomposition: 'hypertrophy',
+  strength: 'strength',
+};
+
+/**
+ * Scores every candidate program against the user's onboarding answers and
+ * returns the best fit. Sex/height/weight are deliberately NOT used to
+ * include/exclude programs — every program is appropriate for any athlete;
+ * biometrics only matter for calorie targets (handled separately) and for
+ * calibrating starting loads once training, not for which plan gets picked.
+ */
+export function pickBestProgram(
+  pool: Program[],
+  goal: string,
+  experience: string,
+  trainingDays: number
+): Program | null {
+  if (pool.length === 0) return null;
+  const targetGoal = GOAL_TO_PROGRAM_GOAL[goal] ?? goal;
+  const levelRank: Record<string, number> = { beginner: 0, intermediate: 1, advanced: 2 };
+
+  const scored = pool.map((p) => {
+    let score = 0;
+    if (p.goal === targetGoal) score += 10;
+    else if (p.goal === 'general') score += 4; // general programs are a reasonable fallback for any goal
+    const levelGap = Math.abs((levelRank[p.level] ?? 1) - (levelRank[experience] ?? 1));
+    score += levelGap === 0 ? 6 : levelGap === 1 ? 2 : 0;
+    score -= Math.abs(p.daysPerWeek - trainingDays);
+    return { p, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0].p;
+}
+
 const WEEKDAY_PREFIX = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*[-–—]?\s*/i;
 
 /**

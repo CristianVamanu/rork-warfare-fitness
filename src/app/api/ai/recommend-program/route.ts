@@ -1,249 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { getSecret } from '@/lib/secrets';
 import { verifyAuthed } from '@/lib/verifyAdmin';
-import { getAdminApp } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage } from '@/lib/usageLimit';
+import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
+import { MOCK_PROGRAMS, pickBestProgram } from '@/lib/programs';
+import type { Program } from '@/types';
 
-const SYSTEM_PROMPT = `You are an elite strength and conditioning coach with 20+ years of experience.
-Your job is to design precise, periodized weekly training programs tailored to the individual.
-Programs must be scientifically sound, progressive, and specific to the user's goal, experience, and equipment.
-Never give generic advice. Every exercise selection, set/rep scheme, and rest period must be intentional.`;
-
-interface AthleteBiometrics {
-  sex?: 'male' | 'female' | 'prefer-not-to-say';
-  age?: number;
-  heightCm?: number;
-  weightKg?: number;
-  bmi?: number;
-}
-
-interface RecommendationExtras {
-  targetFocus?: 'full-body' | 'upper-body' | 'lower-body' | 'core';
-  sessionMinutes?: number;
-  trainingStyle?: 'free-weights' | 'machines' | 'bodyweight' | 'mixed';
-}
-
-function buildUserPrompt(
-  goal: string,
-  experience: string,
-  trainingDays: number,
-  equipment: string,
-  limitations: string,
-  biometrics?: AthleteBiometrics,
-  extras?: RecommendationExtras
-): string {
-  const goalMap: Record<string, string> = {
-    'lose-fat': 'fat loss while preserving muscle mass',
-    'build-muscle': 'maximum hypertrophy and muscle building',
-    recomposition: 'body recomposition — simultaneously building muscle and losing fat',
-    strength: 'maximal strength development using progressive overload',
-  };
-  const equipMap: Record<string, string> = {
-    'full-gym': 'a full commercial gym with barbells, dumbbells, cables, and machines',
-    home: 'home equipment only — dumbbells, resistance bands, bodyweight',
-    minimal: 'minimal equipment — bodyweight, one set of dumbbells, pull-up bar',
-  };
-
-  const athleteLine = biometrics && (biometrics.sex || biometrics.age || biometrics.heightCm)
-    ? `Athlete profile: ${biometrics.sex && biometrics.sex !== 'prefer-not-to-say' ? biometrics.sex : 'unspecified sex'}` +
-      `${biometrics.age ? `, ${biometrics.age} years old` : ''}` +
-      `${biometrics.heightCm ? `, ${biometrics.heightCm}cm` : ''}` +
-      `${biometrics.weightKg ? `, ${biometrics.weightKg}kg` : ''}` +
-      `${biometrics.bmi ? ` (BMI ${biometrics.bmi})` : ''}. ` +
-      `Use this only to calibrate realistic starting loads, volume tolerance, and recovery — never exclude or substitute an exercise based on sex alone. ` +
-      `Every major compound lift (squat, deadlift, bench, overhead press, pull-up) is appropriate for any athlete regardless of sex; scale load and starting volume to experience level, not sex.\n`
-    : '';
-
-  const focusMap: Record<string, string> = {
-    'upper-body': 'Prioritize upper body volume (chest, back, shoulders, arms) while still training legs enough to avoid imbalance.',
-    'lower-body': 'Prioritize lower body volume (quads, hamstrings, glutes, calves) while still training upper body enough to avoid imbalance.',
-    core: 'Include dedicated core/abdominal work in every training day in addition to the main goal-focused programming.',
-    'full-body': '',
-  };
-  const focusLine = extras?.targetFocus ? (focusMap[extras.targetFocus] ?? '') : '';
-
-  const styleMap: Record<string, string> = {
-    'free-weights': 'Prefer barbells and dumbbells over machines wherever equipment allows.',
-    machines: 'Prefer machines and cable stations over free weights wherever equipment allows — better for controlled, joint-friendly loading.',
-    bodyweight: 'Prefer bodyweight and calisthenics-style exercises over loaded equipment wherever possible.',
-    mixed: '',
-  };
-  const styleLine = extras?.trainingStyle ? (styleMap[extras.trainingStyle] ?? '') : '';
-
-  const sessionLine = extras?.sessionMinutes
-    ? `Each training day must fit within roughly ${extras.sessionMinutes} minutes including rest periods — ${extras.sessionMinutes <= 30 ? 'keep exercise count low (3-4) and rest periods short' : extras.sessionMinutes >= 75 ? 'more exercises and volume per day are appropriate' : 'a standard 4-6 exercise session fits well'}.`
-    : '';
-
-  return `Design a complete ${trainingDays}-day-per-week training program for a ${experience}-level athlete with the primary goal of ${goalMap[goal] ?? goal}.
-${athleteLine}Equipment available: ${equipMap[equipment] ?? equipment}.
-${focusLine ? `${focusLine}\n` : ''}${styleLine ? `${styleLine}\n` : ''}${sessionLine ? `${sessionLine}\n` : ''}${limitations ? `Injury/medical limitations to work around — this is important, adapt exercise selection accordingly rather than ignoring it: ${limitations}.` : ''}
-
-Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
-{
-  "name": "program name (concise, goal-specific)",
-  "description": "2-3 sentence description explaining the program's structure, methodology, and expected outcomes",
-  "weeks": 8,
-  "daysPerWeek": ${trainingDays},
-  "schedule": [
-    {
-      "label": "Day label e.g. Push Day / Pull Day / Rest",
-      "isRest": false,
-      "exercises": [
-        {
-          "name": "Exercise name",
-          "sets": 4,
-          "reps": "8-10",
-          "restSeconds": 90,
-          "muscleGroup": "chest"
-        }
-      ]
-    }
-  ]
-}
-
-Rules:
-- "schedule" must have EXACTLY 7 items (Day 1 through Day 7); labels must NOT use weekday names — use theme names like "Push Day", "Pull Day", "Leg Day", "Rest"
-- Distribute ${trainingDays} training days and ${7 - trainingDays} rest days optimally across the week
-- Rest day items must have "isRest": true and "exercises": []
-- Each training day must have 4-7 exercises appropriate for the goal and experience level
-- For ${experience} level: ${experience === 'beginner' ? 'use compound movements, 3 sets, higher reps (10-15), longer rest (90-120s)' : experience === 'intermediate' ? 'mix compound and isolation, 3-4 sets, moderate reps (8-12), standard rest (60-90s)' : 'advanced periodization, 4-5 sets, varied rep ranges, strategic deload structure'}
-- "reps" can be a number or string (e.g. "8-10", "AMRAP", "30s")
-- "restSeconds" is a number (seconds)
-- Exercise names must be specific and standard (e.g. "Barbell Back Squat", not "Squats")`;
-}
-
-function normalizeProgram(
-  raw: Record<string, unknown>,
-  goal: string,
-  experience: string,
-  trainingDays: number,
-  trainerId: string
-) {
-  const levelMap: Record<string, 'beginner' | 'intermediate' | 'advanced'> = {
-    beginner: 'beginner',
-    intermediate: 'intermediate',
-    advanced: 'advanced',
-  };
-  const goalMap: Record<string, 'strength' | 'hypertrophy' | 'endurance' | 'weight-loss' | 'general'> = {
-    strength: 'strength',
-    'build-muscle': 'hypertrophy',
-    recomposition: 'general',
-    'lose-fat': 'weight-loss',
-  };
-
-  const schedule = (raw.schedule as unknown[]) ?? [];
-
-  // Ensure exactly 7 days
-  while (schedule.length < 7) {
-    schedule.push({ label: 'Rest', isRest: true, exercises: [] });
-  }
-
-  const normalizedSchedule = schedule.slice(0, 7).map((day: unknown, i: number) => {
-    const d = day as Record<string, unknown>;
-    const exercises = ((d.exercises as unknown[]) ?? []).map((ex: unknown, j: number) => {
-      const e = ex as Record<string, unknown>;
-      return {
-        id: `ex-${i}-${j}`,
-        name: String(e.name ?? 'Exercise'),
-        sets: Number(e.sets ?? 3),
-        reps: e.reps ?? 10,
-        restSeconds: Number(e.restSeconds ?? 60),
-        muscleGroup: String(e.muscleGroup ?? ''),
-      };
-    });
-    return {
-      label: String(d.label ?? (d.isRest ? 'Rest' : `Day ${i + 1}`)),
-      isRest: Boolean(d.isRest),
-      exercises,
-    };
-  });
-
-  // Flat exercise list for session page compatibility
-  const allExercises = normalizedSchedule
-    .filter((d) => !d.isRest)
-    .flatMap((d) => d.exercises);
-
-  return {
-    name: String(raw.name ?? 'Custom AI Program'),
-    description: String(raw.description ?? ''),
-    level: levelMap[experience] ?? 'intermediate',
-    goal: goalMap[goal] ?? 'general',
-    weeks: Number(raw.weeks ?? 8),
-    daysPerWeek: trainingDays,
-    exercises: allExercises,
-    schedule: normalizedSchedule,
-    createdBy: trainerId,
-    trainerId,
-    isPublic: false,
-    aiGenerated: true,
-  };
-}
-
+/**
+ * Assigns a user into the best-fit existing program rather than generating
+ * one from scratch with AI. Pulls the pool from admin-created public
+ * programs (Firestore `programs` collection, isPublic: true) first, falling
+ * back to the built-in seed library if the admin hasn't created any yet.
+ * Deterministic and instant — no OpenAI call, no per-user program-quality
+ * variance, and every plan a real human actually designed.
+ */
 export async function POST(req: NextRequest) {
   const check = await verifyAuthed(req);
   if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
 
   const app = getAdminApp();
   if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
-  // Generous — this is a core onboarding step, but still bounded so a
-  // scripted loop can't rack up unlimited OpenAI cost against one account.
-  const usage = await checkAndIncrementUsage(app, check.uid, 'recommend-program', 15);
-  if (!usage.allowed) {
-    return NextResponse.json({ error: 'Daily limit reached. Try again tomorrow.' }, { status: 429 });
-  }
-
-  const apiKey = await getSecret('OPENAI_API_KEY');
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: 'OpenAI API key not configured. Set OPENAI_API_KEY environment variable.' },
-      { status: 500 }
-    );
-  }
 
   try {
     const body = await req.json();
-    const { goal, experience, trainingDays, equipment, limitations = '', trainerId = '', biometrics, targetFocus, sessionMinutes, trainingStyle } = body as {
+    const { goal, experience, trainingDays } = body as {
       goal: string;
       experience: string;
       trainingDays: number;
-      equipment: string;
-      limitations?: string;
-      trainerId?: string;
-      biometrics?: AthleteBiometrics;
-      targetFocus?: RecommendationExtras['targetFocus'];
-      sessionMinutes?: number;
-      trainingStyle?: RecommendationExtras['trainingStyle'];
     };
 
-    if (!goal || !experience || !trainingDays || !equipment) {
-      return NextResponse.json({ error: 'Missing required fields: goal, experience, trainingDays, equipment' }, { status: 400 });
+    if (!goal || !experience || !trainingDays) {
+      return NextResponse.json({ error: 'Missing required fields: goal, experience, trainingDays' }, { status: 400 });
     }
 
-    const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
-    const openai = new OpenAI({ apiKey });
+    const db = getAdminDb(app);
+    const snap = await db.collection('programs').where('isPublic', '==', true).get();
+    const adminPrograms = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Program);
 
-    const response = await openai.chat.completions.create({
-      model,
-      max_tokens: 3000,
-      temperature: 0.7,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(goal, experience, trainingDays, equipment, limitations, biometrics, { targetFocus, sessionMinutes, trainingStyle }) },
-      ],
+    const pool = adminPrograms.length > 0 ? adminPrograms : MOCK_PROGRAMS;
+    const program = pickBestProgram(pool, goal, experience, trainingDays);
+
+    if (!program) {
+      return NextResponse.json({ error: 'No programs available' }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      program: {
+        id: program.id,
+        name: program.name,
+        description: program.description,
+        weeks: program.weeks,
+        daysPerWeek: program.daysPerWeek,
+      },
     });
-
-    const content = response.choices[0]?.message?.content?.trim() ?? '{}';
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('AI returned invalid format');
-
-    const raw = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
-    const program = normalizeProgram(raw, goal, experience, trainingDays, trainerId);
-
-    return NextResponse.json({ program });
   } catch (err: unknown) {
     console.error('[recommend-program] Error:', err);
-    const message = err instanceof Error ? err.message : 'Program generation failed';
+    const message = err instanceof Error ? err.message : 'Program assignment failed';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
