@@ -72,4 +72,20 @@ const nextConfig = {
   },
 };
 
-module.exports = withPWA(nextConfig);
+const { withSentryConfig } = require('@sentry/nextjs');
+
+// Wrapping with Sentry is safe even when it isn't configured — with no
+// NEXT_PUBLIC_SENTRY_DSN set, Sentry.init() (in the sentry.*.config.ts
+// files) never fires, so this only adds a no-op build step. Source-map
+// upload (for readable stack traces instead of minified ones) additionally
+// needs SENTRY_AUTH_TOKEN/ORG/PROJECT — without those it just skips that
+// step with a build-time warning rather than failing.
+module.exports = withSentryConfig(withPWA(nextConfig), {
+  silent: true,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  widenClientFileUpload: true,
+  disableLogger: true,
+  automaticVercelMonitors: false,
+});
