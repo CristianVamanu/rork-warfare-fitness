@@ -170,7 +170,7 @@ export default function DashboardPage() {
     : 'out';
   const FLAME_COPY: Record<FlameState, string> = {
     unlit: 'Light it — finish your first workout',
-    blazing: '',
+    blazing: 'Blazing — keep it going',
     flickering: 'Flickering — train today to keep it lit',
     out: "Flame's out — start a new streak today",
   };
