@@ -7,16 +7,16 @@ export const dynamic = 'force-dynamic';
  * The numbers themselves (BMR, maintenance, target, macros) are computed
  * deterministically in tdee.ts via Mifflin-St Jeor — arithmetic like this
  * needs to be exactly right every time, and an LLM asked to "calculate"
- * calories is liable to hallucinate plausible-looking wrong numbers. What
- * OpenAI actually adds here is the short, personalized coaching note
- * explaining *why* those numbers are the target — that's a writing task,
- * not a math one. If OpenAI isn't configured, a solid template sentence
- * fills in instead so onboarding never blocks on this.
+ * calories is liable to hallucinate plausible-looking wrong numbers. The
+ * short rationale sentence is a template, not an OpenAI call — onboarding
+ * already makes one AI call (program generation) on this same critical
+ * path, and a second sequential LLM round-trip just for one sentence of
+ * flavor text was adding several extra seconds to a screen a brand-new
+ * user is sitting and waiting on. This route is now pure computation, no
+ * network call, so it resolves near-instantly.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { getSecret } from '@/lib/secrets';
 import { estimateNutritionTargets, type Biometrics } from '@/lib/tdee';
 import type { FitnessGoal, ExperienceLevel } from '@/types';
 
@@ -55,34 +55,7 @@ export async function POST(req: NextRequest) {
       ? `your stats (${biometrics.sex !== 'prefer-not-to-say' ? biometrics.sex + ', ' : ''}${biometrics.age}yo, ${biometrics.heightCm}cm, ${biometrics.weightKg}kg) and training ${trainingDays}x/week`
       : `your training frequency (${trainingDays}x/week) and experience level`;
 
-    let rationale = templateRationale(goal, targets.calorieAdjustment, biometricsDescription);
-
-    const apiKey = await getSecret('OPENAI_API_KEY');
-    if (apiKey) {
-      try {
-        const openai = new OpenAI({ apiKey });
-        const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
-        const res = await openai.chat.completions.create({
-          model,
-          max_tokens: 90,
-          temperature: 0.7,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a sports nutrition coach. Write exactly one encouraging, specific sentence (max 32 words) explaining an athlete\'s calorie target. State the deficit/surplus/maintenance number and why it fits their goal. No greetings, no disclaimers, no markdown — plain text only.',
-            },
-            {
-              role: 'user',
-              content: `Goal: ${GOAL_LABEL[goal]}. Maintenance calories: ${targets.maintenanceCalories}. Target calories: ${targets.calories} (${targets.calorieAdjustment >= 0 ? '+' : ''}${targets.calorieAdjustment} vs maintenance). Based on ${biometricsDescription}.`,
-            },
-          ],
-        });
-        const text = res.choices[0]?.message?.content?.trim();
-        if (text) rationale = text;
-      } catch (err) {
-        console.error('[nutrition-targets] OpenAI rationale failed, using template:', err);
-      }
-    }
+    const rationale = templateRationale(goal, targets.calorieAdjustment, biometricsDescription);
 
     return NextResponse.json({
       ...targets,

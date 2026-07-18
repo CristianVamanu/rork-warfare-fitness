@@ -171,76 +171,81 @@ export default function OnboardingPage() {
     setStatus('generating');
 
     try {
-      // 1. Try a real AI-generated program tailored to everything collected
-      // above; if OpenAI isn't configured or the call fails for any reason,
+      const biometricsPayload = biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, weightKg: weightNum } : undefined;
+
+      // Everything below is independent — none of these depend on each
+      // other's result — so they run concurrently instead of one after
+      // another. The old sequential version (AI program call, then wait,
+      // then a second AI call for nutrition, then wait, then save, then
+      // wait...) is exactly what made onboarding feel like it took 30
+      // seconds: network + LLM latency stacking up serially instead of
+      // overlapping.
+
+      // Program: try a real AI-generated program tailored to everything
+      // collected above; if OpenAI isn't configured or the call fails,
       // fall back to matching against the built-in program library so
       // onboarding never blocks a new user from finishing.
-      let program: { id: string; name: string; description: string; weeks: number; daysPerWeek: number };
-      try {
-        const res = await fetch('/api/ai/recommend-program', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            goal, experience, trainingDays, equipment,
-            limitations: buildLimitationsSummary(),
-            trainerId: trainerId ?? '',
-            targetFocus: targetFocus ?? undefined,
-            sessionMinutes: sessionMinutes ?? undefined,
-            trainingStyle: trainingStyle ?? undefined,
-            biometrics: biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, weightKg: weightNum } : undefined,
-          }),
+      const programTask = (async () => {
+        let program: { id: string; name: string; description: string; weeks: number; daysPerWeek: number };
+        try {
+          const res = await fetch('/api/ai/recommend-program', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              goal, experience, trainingDays, equipment,
+              limitations: buildLimitationsSummary(),
+              trainerId: trainerId ?? '',
+              targetFocus: targetFocus ?? undefined,
+              sessionMinutes: sessionMinutes ?? undefined,
+              trainingStyle: trainingStyle ?? undefined,
+              biometrics: biometricsPayload,
+            }),
+          });
+          if (!res.ok) throw new Error('AI recommendation unavailable');
+          const { program: aiProgram } = await res.json();
+          const ref = await createProgram(aiProgram);
+          program = { id: ref.id, name: aiProgram.name, description: aiProgram.description, weeks: aiProgram.weeks, daysPerWeek: aiProgram.daysPerWeek };
+        } catch {
+          program = fallbackRecommendProgram();
+        }
+        await enrollInProgram(user.uid, {
+          id: program.id, name: program.name, weeks: program.weeks, daysPerWeek: program.daysPerWeek,
         });
-        if (!res.ok) throw new Error('AI recommendation unavailable');
-        const { program: aiProgram } = await res.json();
-        const ref = await createProgram(aiProgram);
-        program = { id: ref.id, name: aiProgram.name, description: aiProgram.description, weeks: aiProgram.weeks, daysPerWeek: aiProgram.daysPerWeek };
-      } catch {
-        const fallback = fallbackRecommendProgram();
-        program = fallback;
-      }
+        setRevealProgram(program);
+      })();
 
-      setStatus('saving');
-
-      // 2. Enroll user in the program
-      await enrollInProgram(user.uid, {
-        id: program.id,
-        name: program.name,
-        weeks: program.weeks,
-        daysPerWeek: program.daysPerWeek,
-      });
-      setRevealProgram(program);
-
-      // 3. Auto-set nutrition goals — try the AI-backed endpoint first (real
-      // Mifflin-St Jeor math server-side, plus a personalized rationale);
-      // fall back to the same calculation done locally if the request fails,
-      // so onboarding never blocks on this like the program step above.
-      const biometricsPayload = biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, weightKg: weightNum } : undefined;
-      let nutritionTargets: NutritionTargets & { goalLabel: string; rationale: string };
-      try {
-        const res = await fetch('/api/ai/nutrition-targets', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ goal, experience, trainingDays, biometrics: biometricsPayload }),
+      // Nutrition targets: deterministic math server-side (near-instant,
+      // no AI call), falling back to the same calculation done locally if
+      // the request itself fails for any reason.
+      const nutritionTask = (async () => {
+        let nutritionTargets: NutritionTargets & { goalLabel: string; rationale: string };
+        try {
+          const res = await fetch('/api/ai/nutrition-targets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ goal, experience, trainingDays, biometrics: biometricsPayload }),
+          });
+          if (!res.ok) throw new Error('Nutrition target calculation unavailable');
+          nutritionTargets = await res.json();
+        } catch {
+          const local = estimateNutritionTargets(goal, experience, trainingDays, biometricsPayload);
+          const goalLabels: Record<FitnessGoal, string> = {
+            'lose-fat': 'Fat Loss', 'build-muscle': 'Muscle Gain', recomposition: 'Body Recomposition', strength: 'Strength',
+          };
+          nutritionTargets = { ...local, goalLabel: goalLabels[goal], rationale: '' };
+        }
+        await updateUserGoals(user.uid, {
+          calories: nutritionTargets.calories,
+          protein: nutritionTargets.protein,
+          carbs: nutritionTargets.carbs,
+          fat: nutritionTargets.fat,
+          water: nutritionTargets.water,
         });
-        if (!res.ok) throw new Error('Nutrition target calculation unavailable');
-        nutritionTargets = await res.json();
-      } catch {
-        const local = estimateNutritionTargets(goal, experience, trainingDays, biometricsPayload);
-        const goalLabels: Record<FitnessGoal, string> = {
-          'lose-fat': 'Fat Loss', 'build-muscle': 'Muscle Gain', recomposition: 'Body Recomposition', strength: 'Strength',
-        };
-        nutritionTargets = { ...local, goalLabel: goalLabels[goal], rationale: '' };
-      }
-      await updateUserGoals(user.uid, {
-        calories: nutritionTargets.calories,
-        protein: nutritionTargets.protein,
-        carbs: nutritionTargets.carbs,
-        fat: nutritionTargets.fat,
-        water: nutritionTargets.water,
-      });
-      setRevealNutrition(nutritionTargets);
+        setRevealNutrition(nutritionTargets);
+      })();
 
-      // 4. Save onboarding answers + mark complete
+      // Save onboarding answers + mark complete — doesn't depend on either
+      // AI call above, so it doesn't need to wait for them either.
       const cleanedMedicalHistory = Object.fromEntries(
         Object.entries(medicalHistory).filter(([, v]) => v !== undefined && v !== '')
       ) as MedicalHistoryAnswers;
@@ -256,14 +261,15 @@ export default function OnboardingPage() {
         ...(sessionMinutes ? { sessionMinutes } : {}),
         ...(trainingStyle ? { trainingStyle } : {}),
       };
-      await saveOnboardingData(user.uid, { ...onboardingData, onboardingComplete: true });
-      if (biometricsValid) {
-        await updateUserDoc(user.uid, { currentWeightKg: weightNum });
-      }
+      const saveTask = saveOnboardingData(user.uid, { ...onboardingData, onboardingComplete: true });
+      const weightTask = biometricsValid ? updateUserDoc(user.uid, { currentWeightKg: weightNum }) : Promise.resolve();
 
-      // 5. Refresh profile so layout no longer redirects here, then show
-      // the plan reveal — proceedToApp() (triggered by its "Let's Go"
-      // button) handles the video-greeting check and final navigation.
+      setStatus('saving');
+      await Promise.all([programTask, nutritionTask, saveTask, weightTask]);
+
+      // Refresh profile so layout no longer redirects here, then show the
+      // plan reveal — proceedToApp() (triggered by its "Let's Go" button)
+      // handles the video-greeting check and final navigation.
       setStatus('done');
       await refreshProfile();
     } catch (err) {
