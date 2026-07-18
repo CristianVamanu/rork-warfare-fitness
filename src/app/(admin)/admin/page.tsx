@@ -214,7 +214,7 @@ export default function AdminPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ── Settings state ─────────────────────────────────────────────────────────
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, whoopEnabled: true });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '' });
@@ -355,6 +355,7 @@ export default function AdminPage() {
           barcodeScanDailyLimit: Number(cfg.barcodeScanDailyLimit) || 20,
           foodAnalysisDailyLimit: Number(cfg.foodAnalysisDailyLimit) || 20,
           mealIdeasDailyLimit: Number(cfg.mealIdeasDailyLimit) || 15,
+          whoopEnabled: cfg.whoopEnabled !== false as unknown,
         });
         setStorageProvider((cfg.storageProvider as StorageProvider) || 'firebase');
         setLegalForm({
@@ -2836,6 +2837,18 @@ export default function AdminPage() {
                   className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${settingsForm.pwaInstallBannerEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
                 >
                   <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.pwaInstallBannerEnabled ? 'left-6' : 'left-1'}`} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">WHOOP Wearable Sync</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Lets users connect WHOOP and see recovery/sleep/strain. Turn off to hide it app-wide without disconnecting existing users.</p>
+                </div>
+                <button
+                  onClick={() => setSettingsForm(s => ({ ...s, whoopEnabled: !s.whoopEnabled }))}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${settingsForm.whoopEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.whoopEnabled ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-3">

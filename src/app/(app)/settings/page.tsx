@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff, Download, Trash2, Activity, RefreshCw, Unlink } from 'lucide-react';
+import { recoveryColorClass, recoveryLabel } from '@/lib/whoopUi';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
@@ -22,6 +23,7 @@ interface WhoopSummary {
   hrvMs?: number;
   restingHeartRate?: number;
   sleepPerformancePercent?: number;
+  respiratoryRate?: number;
   dayStrain?: number;
   syncedAt: string;
 }
@@ -45,6 +47,7 @@ export default function SettingsPage() {
   const [whoopLoading, setWhoopLoading] = useState(false);
   const [whoopSyncing, setWhoopSyncing] = useState(false);
   const [showOnDashboard, setShowOnDashboard] = useState(true);
+  const [whoopFeatureDisabled, setWhoopFeatureDisabled] = useState(false);
 
   useEffect(() => {
     if (profile?.whoopDashboardVisible !== undefined) {
@@ -67,6 +70,7 @@ export default function SettingsPage() {
         const res = await fetch('/api/whoop/status', { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) return;
         const data = await res.json();
+        setWhoopFeatureDisabled(!!data.disabled);
         setWhoopConnected(!!data.connected);
         setWhoopSummary(data.summary ?? null);
       } catch { /* ignore */ }
@@ -340,6 +344,7 @@ export default function SettingsPage() {
         ) : null}
 
         {/* Connected Devices — WHOOP recovery/sleep/strain sync */}
+        {!whoopFeatureDisabled && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Connected Devices</h2>
           <Card className="p-4">
@@ -392,11 +397,12 @@ export default function SettingsPage() {
             )}
 
             {whoopConnected && whoopSummary && (
-              <div className="grid grid-cols-3 gap-2 mt-4">
+              <div className="grid grid-cols-4 gap-2 mt-4">
                 {whoopSummary.recoveryScore !== undefined && (
                   <div className="bg-surface rounded-xl py-2.5 text-center">
-                    <p className="text-base font-black text-success">{whoopSummary.recoveryScore}%</p>
+                    <p className={`text-base font-black ${recoveryColorClass(whoopSummary.recoveryScore)}`}>{whoopSummary.recoveryScore}%</p>
                     <p className="text-[10px] text-text-tertiary">Recovery</p>
+                    <p className={`text-[9px] font-medium mt-0.5 ${recoveryColorClass(whoopSummary.recoveryScore)}`}>{recoveryLabel(whoopSummary.recoveryScore)}</p>
                   </div>
                 )}
                 {whoopSummary.sleepPerformancePercent !== undefined && (
@@ -411,10 +417,17 @@ export default function SettingsPage() {
                     <p className="text-[10px] text-text-tertiary">Strain</p>
                   </div>
                 )}
+                {whoopSummary.restingHeartRate !== undefined && (
+                  <div className="bg-surface rounded-xl py-2.5 text-center">
+                    <p className="text-base font-black text-red-400">{whoopSummary.restingHeartRate}</p>
+                    <p className="text-[10px] text-text-tertiary">RHR bpm</p>
+                  </div>
+                )}
               </div>
             )}
           </Card>
         </motion.div>
+        )}
 
         {/* Privacy & Data — self-service GDPR export/delete */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>

@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Activity } from 'lucide-react';
 import { getIdToken } from 'firebase/auth';
+import { recoveryColorClass } from '@/lib/whoopUi';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
 import { logWaterAction } from '@/lib/actions';
@@ -47,7 +48,7 @@ export default function DashboardPage() {
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
   const [adjustingWater, setAdjustingWater] = useState(false);
-  const [whoop, setWhoop] = useState<{ recoveryScore?: number; sleepPerformancePercent?: number; dayStrain?: number } | null>(null);
+  const [whoop, setWhoop] = useState<{ recoveryScore?: number; sleepPerformancePercent?: number; dayStrain?: number; restingHeartRate?: number } | null>(null);
 
   // WHOOP recovery/sleep/strain — only fetched (and shown) if the user has
   // connected a wearable and hasn't hidden it from Settings.
@@ -418,10 +419,10 @@ export default function DashboardPage() {
                   <Activity className="w-3.5 h-3.5 text-accent" />
                   <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">WHOOP</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {whoop.recoveryScore !== undefined && (
                     <div className="text-center">
-                      <p className="text-lg font-black text-success">{whoop.recoveryScore}%</p>
+                      <p className={`text-lg font-black ${recoveryColorClass(whoop.recoveryScore)}`}>{whoop.recoveryScore}%</p>
                       <p className="text-[10px] text-text-tertiary">Recovery</p>
                     </div>
                   )}
@@ -435,6 +436,12 @@ export default function DashboardPage() {
                     <div className="text-center">
                       <p className="text-lg font-black text-accent">{whoop.dayStrain.toFixed(1)}</p>
                       <p className="text-[10px] text-text-tertiary">Strain</p>
+                    </div>
+                  )}
+                  {whoop.restingHeartRate !== undefined && (
+                    <div className="text-center">
+                      <p className="text-lg font-black text-red-400">{whoop.restingHeartRate}</p>
+                      <p className="text-[10px] text-text-tertiary">RHR</p>
                     </div>
                   )}
                 </div>

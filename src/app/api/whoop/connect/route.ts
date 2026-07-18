@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
-import { buildAuthorizeUrl } from '@/lib/whoop';
+import { buildAuthorizeUrl, isWhoopEnabled } from '@/lib/whoop';
 
 /**
  * Starts the WHOOP OAuth flow. Called via fetch (not a direct browser
@@ -21,8 +21,12 @@ export async function POST(req: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (!appUrl) return NextResponse.json({ error: 'NEXT_PUBLIC_APP_URL is not configured' }, { status: 500 });
 
-  const state = randomBytes(24).toString('hex');
   const db = getAdminDb(app);
+  if (!(await isWhoopEnabled(db))) {
+    return NextResponse.json({ error: 'WHOOP sync is currently disabled' }, { status: 403 });
+  }
+
+  const state = randomBytes(24).toString('hex');
   await db.collection('whoopOAuthState').doc(state).set({ uid: check.uid, createdAt: Date.now() });
 
   const redirectUri = `${appUrl}/api/whoop/callback`;

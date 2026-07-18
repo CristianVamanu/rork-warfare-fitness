@@ -1,4 +1,5 @@
 import { getSecret } from '@/lib/secrets';
+import type { Firestore } from 'firebase-admin/firestore';
 
 /**
  * WHOOP OAuth2 + data API — https://developer.whoop.com
@@ -12,6 +13,12 @@ const TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
 const API_BASE = 'https://api.prod.whoop.com/developer/v2';
 
 const SCOPES = ['read:recovery', 'read:cycles', 'read:sleep', 'read:workout', 'read:profile', 'offline'].join(' ');
+
+/** Admin-panel "WHOOP Wearable Sync" toggle — defaults on until explicitly turned off. */
+export async function isWhoopEnabled(db: Firestore): Promise<boolean> {
+  const snap = await db.collection('system').doc('config').get();
+  return snap.data()?.whoopEnabled !== false;
+}
 
 export interface WhoopTokens {
   accessToken: string;
@@ -72,6 +79,7 @@ export interface WhoopSummary {
   hrvMs?: number;
   restingHeartRate?: number;
   sleepPerformancePercent?: number;
+  respiratoryRate?: number;
   dayStrain?: number;
   syncedAt: string;
 }
@@ -95,7 +103,10 @@ export async function fetchLatestSummary(accessToken: string): Promise<WhoopSumm
   try {
     const sleep = await whoopGet(accessToken, '/activity/sleep?limit=1');
     const sleepScore = sleep?.records?.[0]?.score;
-    if (sleepScore) summary.sleepPerformancePercent = sleepScore.sleep_performance_percentage;
+    if (sleepScore) {
+      summary.sleepPerformancePercent = sleepScore.sleep_performance_percentage;
+      summary.respiratoryRate = sleepScore.respiratory_rate;
+    }
   } catch (err) {
     console.warn('[whoop] sleep fetch failed:', err);
   }
