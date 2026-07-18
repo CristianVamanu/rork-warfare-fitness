@@ -93,6 +93,12 @@ const SECRET_GROUPS: { title: string; service: string; keys: { key: string; labe
       { key: 'RESEND_FROM_EMAIL', label: 'From Address', placeholder: 'Warfare Fitness <noreply@yourdomain.com>' },
     ],
   },
+  {
+    title: 'WHOOP (Wearable Sync)', service: 'whoop', keys: [
+      { key: 'WHOOP_CLIENT_ID', label: 'Client ID', placeholder: 'From developer.whoop.com — set redirect URI to {yourdomain}/api/whoop/callback' },
+      { key: 'WHOOP_CLIENT_SECRET', label: 'Client Secret', placeholder: '' },
+    ],
+  },
 ];
 
 interface BulkFile {

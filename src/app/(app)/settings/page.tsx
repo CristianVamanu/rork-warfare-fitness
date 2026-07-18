@@ -2,9 +2,9 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff, Download, Trash2 } from 'lucide-react';
+import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff, Download, Trash2, Activity, RefreshCw, Unlink } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
@@ -17,8 +17,18 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 
+interface WhoopSummary {
+  recoveryScore?: number;
+  hrvMs?: number;
+  restingHeartRate?: number;
+  sleepPerformancePercent?: number;
+  dayStrain?: number;
+  syncedAt: string;
+}
+
 export default function SettingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, profile, refreshProfile } = useAuth();
   const [signOutModal, setSignOutModal] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -30,6 +40,10 @@ export default function SettingsPage() {
   const [deleteAccountModal, setDeleteAccountModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [whoopConnected, setWhoopConnected] = useState(false);
+  const [whoopSummary, setWhoopSummary] = useState<WhoopSummary | null>(null);
+  const [whoopLoading, setWhoopLoading] = useState(false);
+  const [whoopSyncing, setWhoopSyncing] = useState(false);
 
   useEffect(() => {
     getCurrentSubscription().then(sub => setPushSubscribed(!!sub));
@@ -37,6 +51,78 @@ export default function SettingsPage() {
       if (cfg?.vapidPublicKey) setVapidKey(cfg.vapidPublicKey as string);
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const token = await getIdToken(user);
+        const res = await fetch('/api/whoop/status', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+        setWhoopConnected(!!data.connected);
+        setWhoopSummary(data.summary ?? null);
+      } catch { /* ignore */ }
+    })();
+  }, [user]);
+
+  useEffect(() => {
+    const whoopParam = searchParams.get('whoop');
+    if (!whoopParam) return;
+    if (whoopParam === 'connected') toast.success('WHOOP connected!');
+    else if (whoopParam === 'denied') toast.error('WHOOP connection was cancelled');
+    else if (whoopParam === 'expired') toast.error('That connection attempt expired — try again');
+    else toast.error('Failed to connect WHOOP');
+    router.replace('/settings');
+  }, [searchParams, router]);
+
+  async function handleWhoopConnect() {
+    if (!user) return;
+    setWhoopLoading(true);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/whoop/connect', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || 'Failed to start WHOOP connection');
+      window.location.href = data.url;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to connect WHOOP');
+      setWhoopLoading(false);
+    }
+  }
+
+  async function handleWhoopDisconnect() {
+    if (!user) return;
+    setWhoopLoading(true);
+    try {
+      const token = await getIdToken(user);
+      await fetch('/api/whoop/disconnect', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      setWhoopConnected(false);
+      setWhoopSummary(null);
+      toast.success('WHOOP disconnected');
+    } catch {
+      toast.error('Failed to disconnect WHOOP');
+    } finally {
+      setWhoopLoading(false);
+    }
+  }
+
+  async function handleWhoopSync() {
+    if (!user) return;
+    setWhoopSyncing(true);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/whoop/sync', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Sync failed');
+      setWhoopSummary(data.summary);
+      toast.success('WHOOP data synced');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to sync WHOOP');
+    } finally {
+      setWhoopSyncing(false);
+    }
+  }
 
   async function handlePushToggle() {
     if (!user) return;
@@ -232,6 +318,71 @@ export default function SettingsPage() {
             </Card>
           </motion.div>
         ) : null}
+
+        {/* Connected Devices — WHOOP recovery/sleep/strain sync */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+          <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Connected Devices</h2>
+          <Card className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-surface-elevated rounded-lg">
+                <Activity className="w-4 h-4 text-accent" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white">WHOOP</p>
+                <p className="text-xs text-text-secondary">
+                  {whoopConnected ? 'Connected — recovery, sleep & strain sync automatically' : 'Sync your recovery, sleep & strain data'}
+                </p>
+              </div>
+              {whoopConnected ? (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={handleWhoopSync}
+                    disabled={whoopSyncing}
+                    title="Sync now"
+                    className="p-2 rounded-lg text-text-secondary hover:text-white hover:bg-white/8 transition-colors"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${whoopSyncing ? 'animate-spin' : ''}`} />
+                  </button>
+                  <button
+                    onClick={handleWhoopDisconnect}
+                    disabled={whoopLoading}
+                    title="Disconnect"
+                    className="p-2 rounded-lg text-text-secondary hover:text-danger hover:bg-danger/10 transition-colors"
+                  >
+                    <Unlink className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <Button size="sm" variant="ghost" loading={whoopLoading} onClick={handleWhoopConnect}>
+                  Connect
+                </Button>
+              )}
+            </div>
+
+            {whoopConnected && whoopSummary && (
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                {whoopSummary.recoveryScore !== undefined && (
+                  <div className="bg-surface rounded-xl py-2.5 text-center">
+                    <p className="text-base font-black text-success">{whoopSummary.recoveryScore}%</p>
+                    <p className="text-[10px] text-text-tertiary">Recovery</p>
+                  </div>
+                )}
+                {whoopSummary.sleepPerformancePercent !== undefined && (
+                  <div className="bg-surface rounded-xl py-2.5 text-center">
+                    <p className="text-base font-black text-blue-400">{whoopSummary.sleepPerformancePercent}%</p>
+                    <p className="text-[10px] text-text-tertiary">Sleep</p>
+                  </div>
+                )}
+                {whoopSummary.dayStrain !== undefined && (
+                  <div className="bg-surface rounded-xl py-2.5 text-center">
+                    <p className="text-base font-black text-accent">{whoopSummary.dayStrain.toFixed(1)}</p>
+                    <p className="text-[10px] text-text-tertiary">Strain</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+        </motion.div>
 
         {/* Privacy & Data — self-service GDPR export/delete */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
