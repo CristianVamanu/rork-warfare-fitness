@@ -4,9 +4,10 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff } from 'lucide-react';
+import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff, Download, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { getIdToken } from 'firebase/auth';
 import { signOut } from '@/lib/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { updateUserDoc, getSystemConfig } from '@/lib/firestore';
@@ -25,6 +26,10 @@ export default function SettingsPage() {
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
   const [vapidKey, setVapidKey] = useState<string | null>(null);
+  const [exportingData, setExportingData] = useState(false);
+  const [deleteAccountModal, setDeleteAccountModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     getCurrentSubscription().then(sub => setPushSubscribed(!!sub));
@@ -53,6 +58,47 @@ export default function SettingsPage() {
     } catch { toast.error('Failed to update push settings'); }
     finally { setPushLoading(false); }
   }
+
+  const handleExportData = async () => {
+    if (!user) return;
+    setExportingData(true);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/account/export', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `warfare-fitness-data-${user.uid}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Your data has been downloaded');
+    } catch {
+      toast.error('Failed to export your data');
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user || deleteConfirmText !== 'DELETE') return;
+    setDeletingAccount(true);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/account/delete', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      toast.success('Your account has been deleted');
+      await signOut();
+      router.replace('/login');
+    } catch {
+      toast.error('Failed to delete your account — please try again or contact support');
+      setDeletingAccount(false);
+    }
+  };
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -187,6 +233,39 @@ export default function SettingsPage() {
           </motion.div>
         ) : null}
 
+        {/* Privacy & Data — self-service GDPR export/delete */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+          <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Privacy &amp; Data</h2>
+          <Card className="overflow-hidden">
+            <button
+              onClick={handleExportData}
+              disabled={exportingData}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors text-left border-b border-white/8"
+            >
+              <div className="p-2 bg-surface-elevated rounded-lg">
+                <Download className="w-4 h-4 text-text-secondary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white">Export My Data</p>
+                <p className="text-xs text-text-secondary">Download everything we have on your account as a file</p>
+              </div>
+              {exportingData && <span className="text-xs text-text-tertiary">Preparing…</span>}
+            </button>
+            <button
+              onClick={() => setDeleteAccountModal(true)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-danger/5 transition-colors text-left"
+            >
+              <div className="p-2 bg-danger/10 rounded-lg">
+                <Trash2 className="w-4 h-4 text-danger" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-danger">Delete My Account</p>
+                <p className="text-xs text-text-secondary">Permanently erase your account and all your data</p>
+              </div>
+            </button>
+          </Card>
+        </motion.div>
+
         {/* Admin Panel link — only visible to admins */}
         {profile?.role === 'admin' && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
@@ -229,6 +308,36 @@ export default function SettingsPage() {
             <Button variant="ghost" fullWidth onClick={() => setSignOutModal(false)}>Cancel</Button>
             <Button variant="danger" fullWidth loading={signingOut} onClick={handleSignOut}>
               Sign Out
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={deleteAccountModal} onClose={() => { setDeleteAccountModal(false); setDeleteConfirmText(''); }} title="Delete Your Account?">
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            This permanently deletes your account, every workout, meal, weight entry, message, and photo you've logged, and cannot be undone.
+          </p>
+          <div>
+            <label className="text-xs text-text-secondary mb-1.5 block">Type <span className="font-bold text-white">DELETE</span> to confirm</label>
+            <input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="DELETE"
+              className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-danger/50"
+              autoFocus
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button variant="ghost" fullWidth onClick={() => { setDeleteAccountModal(false); setDeleteConfirmText(''); }}>Cancel</Button>
+            <Button
+              variant="danger"
+              fullWidth
+              loading={deletingAccount}
+              disabled={deleteConfirmText !== 'DELETE'}
+              onClick={handleDeleteAccount}
+            >
+              Delete Forever
             </Button>
           </div>
         </div>

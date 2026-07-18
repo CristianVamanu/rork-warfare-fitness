@@ -1077,10 +1077,6 @@ export async function updateChannel(id: string, data: Partial<Channel>) {
   await updateDoc(doc(db, 'channels', id), clean);
 }
 
-export async function deleteUserAccount(userId: string) {
-  await deleteDoc(doc(db, 'users', userId));
-}
-
 export async function deleteChannel(id: string) {
   await deleteDoc(doc(db, 'channels', id));
 }

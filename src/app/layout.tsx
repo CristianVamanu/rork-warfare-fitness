@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import { getSystemConfig } from '@/lib/firestore';
 import { ServiceWorkerUpdater } from '@/components/ui/ServiceWorkerUpdater';
 import { ChunkErrorReloader } from '@/components/ui/ChunkErrorReloader';
+import { CookieConsent } from '@/components/ui/CookieConsent';
 
 export async function generateMetadata(): Promise<Metadata> {
   const cfg = await getSystemConfig().catch(() => null);
@@ -30,8 +31,10 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Pinch-to-zoom was disabled entirely (maximumScale: 1, userScalable:
+  // false) — a common but real accessibility failure that blocks
+  // low-vision users from zooming in on any page. Allow zoom up to 5x.
+  maximumScale: 5,
   themeColor: '#F5A623',
 };
 
@@ -54,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <ServiceWorkerUpdater />
           <ChunkErrorReloader />
+          <CookieConsent />
           <Toaster
             position="top-center"
             toastOptions={{

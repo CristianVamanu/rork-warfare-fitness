@@ -23,7 +23,6 @@ import {
   getMembershipConfig, saveMembershipConfig, setUserMembership,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
   getChannels, createChannel, updateChannel, deleteChannel,
-  deleteUserAccount,
   getCoachingPlans, saveCoachingPlans, assignCoachingPlan, revokeCoachingPlan,
   getExerciseVideos, saveExerciseVideo, deleteExerciseVideo, updateExerciseVideoThumbnail,
   assignNutritionPlan,
@@ -545,12 +544,22 @@ export default function AdminPage() {
   }
 
   async function handleDeleteUser(u: UserData) {
-    if (!confirm(`Permanently delete ${u.displayName || u.email}? This cannot be undone.`)) return;
+    if (!confirm(`Permanently delete ${u.displayName || u.email}? This removes their account and every workout, meal, message, and photo they've logged. This cannot be undone.`)) return;
+    if (!user) return;
     try {
-      await deleteUserAccount(u.id);
-      toast.success(`${u.displayName || 'User'} deleted`);
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId: u.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete user');
+      toast.success(`${u.displayName || 'User'} and all their data deleted`);
       await loadUsers();
-    } catch { toast.error('Failed to delete user'); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete user');
+    }
   }
 
   function openNutritionModal(u: UserData) {
