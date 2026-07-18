@@ -180,6 +180,9 @@ export interface UserProfile {
   // in Firestore (not localStorage) so it's a true once-ever moment across
   // every device, not just the one they onboarded on.
   flameIgnited?: boolean;
+  // Whether recovery/sleep/strain shows on the dashboard once WHOOP is
+  // connected (Settings toggle). Undefined defaults to shown.
+  whoopDashboardVisible?: boolean;
   assignedNutritionPlan?: NutritionPlan;
   achievements?: string[];
   questsCompleted?: string[];

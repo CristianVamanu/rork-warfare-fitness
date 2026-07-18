@@ -44,6 +44,13 @@ export default function SettingsPage() {
   const [whoopSummary, setWhoopSummary] = useState<WhoopSummary | null>(null);
   const [whoopLoading, setWhoopLoading] = useState(false);
   const [whoopSyncing, setWhoopSyncing] = useState(false);
+  const [showOnDashboard, setShowOnDashboard] = useState(true);
+
+  useEffect(() => {
+    if (profile?.whoopDashboardVisible !== undefined) {
+      setShowOnDashboard(!!profile.whoopDashboardVisible);
+    }
+  }, [profile]);
 
   useEffect(() => {
     getCurrentSubscription().then(sub => setPushSubscribed(!!sub));
@@ -104,6 +111,19 @@ export default function SettingsPage() {
       toast.error('Failed to disconnect WHOOP');
     } finally {
       setWhoopLoading(false);
+    }
+  }
+
+  async function handleToggleShowOnDashboard() {
+    if (!user) return;
+    const next = !showOnDashboard;
+    setShowOnDashboard(next);
+    try {
+      await updateUserDoc(user.uid, { whoopDashboardVisible: next });
+      refreshProfile().catch(() => {});
+    } catch {
+      setShowOnDashboard(!next);
+      toast.error('Failed to update preference');
     }
   }
 
@@ -358,6 +378,18 @@ export default function SettingsPage() {
                 </Button>
               )}
             </div>
+
+            {whoopConnected && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/8">
+                <p className="text-xs text-text-secondary">Show recovery, sleep &amp; strain on your Home screen</p>
+                <button
+                  onClick={handleToggleShowOnDashboard}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${showOnDashboard ? 'bg-accent' : 'bg-surface-elevated'}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${showOnDashboard ? 'left-6' : 'left-1'}`} />
+                </button>
+              </div>
+            )}
 
             {whoopConnected && whoopSummary && (
               <div className="grid grid-cols-3 gap-2 mt-4">

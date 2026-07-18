@@ -8,7 +8,7 @@ import { verifyAdmin } from '@/lib/verifyAdmin';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp } from '@/lib/firebase-admin';
 
-type Service = 'openai' | 'stripe' | 'r2' | 'vapid' | 'firebase-storage' | 'cloudflare-analytics' | 'resend';
+type Service = 'openai' | 'stripe' | 'r2' | 'vapid' | 'firebase-storage' | 'cloudflare-analytics' | 'resend' | 'whoop';
 
 async function testOpenAI(): Promise<string> {
   const key = await getSecret('OPENAI_API_KEY');
@@ -99,6 +99,22 @@ async function testCloudflareAnalytics(): Promise<string> {
   return `Connected to Cloudflare zone "${data.result?.name}"`;
 }
 
+// WHOOP's OAuth app doesn't support a client-credentials grant, so there's
+// no server-to-server call that proves the id/secret pair actually works —
+// WHOOP only validates them the moment a real user completes the consent
+// screen. This just confirms both values were saved and the auth endpoint
+// itself is reachable, and says so plainly rather than claiming a full test.
+async function testWhoop(): Promise<string> {
+  const [clientId, clientSecret] = await Promise.all([
+    getSecret('WHOOP_CLIENT_ID'),
+    getSecret('WHOOP_CLIENT_SECRET'),
+  ]);
+  if (!clientId || !clientSecret) throw new Error('WHOOP_CLIENT_ID or WHOOP_CLIENT_SECRET not configured');
+  const res = await fetch('https://api.prod.whoop.com/oauth/oauth2/auth', { method: 'HEAD' }).catch(() => null);
+  if (!res) throw new Error('Could not reach WHOOP — check your network/firewall');
+  return 'Client ID/Secret saved. WHOOP has no server-side test — full validation happens the first time a user connects via Settings.';
+}
+
 export async function POST(req: NextRequest) {
   const check = await verifyAdmin(req);
   if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
@@ -114,6 +130,7 @@ export async function POST(req: NextRequest) {
       case 'firebase-storage': message = await testFirebaseStorage(); break;
       case 'cloudflare-analytics': message = await testCloudflareAnalytics(); break;
       case 'resend': message = await testResend(); break;
+      case 'whoop': message = await testWhoop(); break;
       default: return NextResponse.json({ error: 'Unknown service' }, { status: 400 });
     }
     return NextResponse.json({ ok: true, message });
