@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
+import { verifyAdmin } from '@/lib/verifyAdmin';
 
 const SYSTEM_PROMPT = `You are an elite strength and conditioning coach with 20+ years of experience. Generate a detailed, periodized workout program based on the trainer's description.
 
@@ -47,6 +48,9 @@ RULES:
 - "targetGender": set to "male" or "female" ONLY if the trainer's prompt explicitly says so (e.g. "female weight loss program", "program for men"); otherwise "anyone". When a gender is specified, this is the trainer's own explicit call for who they're building this specific program for — respect it, but never assume a compound lift (squat, deadlift, pull-up, bench, overhead press) is inappropriate for a stated gender. Instead adjust via standard programming levers: starting load/volume assumptions, exercise regressions for a beginner audience (e.g. banded/assisted pull-ups, goblet squat before barbell back squat) if the prompt implies a beginner population, and rep ranges — not by removing fundamental movement patterns based on gender alone.`;
 
 export async function POST(req: NextRequest) {
+  const authCheck = await verifyAdmin(req);
+  if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
+
   try {
     const { prompt } = await req.json();
     if (!prompt) return NextResponse.json({ error: 'Prompt required' }, { status: 400 });

@@ -12,10 +12,18 @@ export async function generateMetadata(): Promise<Metadata> {
   const cfg = await getSystemConfig().catch(() => null);
   const name = (cfg?.appName as string) || 'Warfare Fitness';
   const logoUrl = cfg?.logoUrl as string | undefined;
+  const description = 'Premium fitness tracking and AI-powered coaching';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
+  // Falls back to the app icon for social previews when no dedicated
+  // share image has been set — better than no image at all, which is what
+  // "no OG tags" previously meant (a bare, imageless link card everywhere
+  // this URL got shared: iMessage, Slack, Twitter/X, Discord, etc).
+  const ogImage = logoUrl || `${appUrl}/icons/icon-512x512.png`;
 
   return {
+    metadataBase: new URL(appUrl),
     title: name,
-    description: 'Premium fitness tracking and AI-powered coaching',
+    description,
     // No explicit `manifest` field — Next's file convention auto-serves
     // src/app/manifest.ts at /manifest.webmanifest and links it for us.
     appleWebApp: {
@@ -25,6 +33,20 @@ export async function generateMetadata(): Promise<Metadata> {
     icons: logoUrl
       ? { icon: logoUrl, apple: logoUrl }
       : { icon: '/icons/icon-192x192.png', apple: '/icons/icon-192x192.png' },
+    openGraph: {
+      title: name,
+      description,
+      url: appUrl,
+      siteName: name,
+      images: [{ url: ogImage, width: 512, height: 512 }],
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary',
+      title: name,
+      description,
+      images: [ogImage],
+    },
   };
 }
 

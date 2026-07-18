@@ -12,6 +12,7 @@ import {
   getProgram, createProgram, updateProgram, getAllUsers, enrollInProgram,
   matchExercisesToVideos, getExerciseVideos,
 } from '@/lib/firestore';
+import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -167,12 +168,13 @@ function BuilderInner() {
   }, []);
 
   async function generateWithAI() {
-    if (!aiPrompt.trim()) return;
+    if (!aiPrompt.trim() || !user) return;
     setAiLoading(true);
     try {
+      const token = await getIdToken(user);
       const res = await fetch('/api/ai/generate-program', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ prompt: aiPrompt }),
       });
       const data = await res.json();

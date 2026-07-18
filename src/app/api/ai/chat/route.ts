@@ -9,8 +9,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
+import { verifyAuthed } from '@/lib/verifyAdmin';
+import { getAdminApp } from '@/lib/firebase-admin';
+import { checkAndIncrementUsage } from '@/lib/usageLimit';
 
 export async function POST(req: NextRequest) {
+  // No current caller in the app uses this route, but it was reachable by
+  // anyone with zero auth and zero rate-limiting — an open tap on the
+  // OpenAI bill for whoever found the URL. Locked down even though it's
+  // currently unused, on the assumption an unauthenticated AI endpoint is
+  // never intentional.
+  const authCheck = await verifyAuthed(req);
+  if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
+
+  const app = getAdminApp();
+  if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
+  const usage = await checkAndIncrementUsage(app, authCheck.uid, 'ai-chat', 30);
+  if (!usage.allowed) {
+    return NextResponse.json({ error: 'Daily limit reached. Try again tomorrow.' }, { status: 429 });
+  }
+
   try {
     const { message, systemPrompt } = await req.json();
     if (!message) return NextResponse.json({ error: 'Message required' }, { status: 400 });

@@ -46,3 +46,7 @@ android/
 .env
 rork-eslint.config.js
 .claude/
+
+# Local Firestore backup dumps (only written when R2 isn't configured — see
+# /api/admin/backup) — full user data, never belongs in git.
+/backups/

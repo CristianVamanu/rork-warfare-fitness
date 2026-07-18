@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
+import { verifyAuthed } from '@/lib/verifyAdmin';
+import { getAdminApp } from '@/lib/firebase-admin';
+import { checkAndIncrementUsage } from '@/lib/usageLimit';
 
 const SYSTEM_PROMPT = `You are an elite strength and conditioning coach with 20+ years of experience.
 Your job is to design precise, periodized weekly training programs tailored to the individual.
@@ -178,6 +181,18 @@ function normalizeProgram(
 }
 
 export async function POST(req: NextRequest) {
+  const check = await verifyAuthed(req);
+  if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
+
+  const app = getAdminApp();
+  if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
+  // Generous — this is a core onboarding step, but still bounded so a
+  // scripted loop can't rack up unlimited OpenAI cost against one account.
+  const usage = await checkAndIncrementUsage(app, check.uid, 'recommend-program', 15);
+  if (!usage.allowed) {
+    return NextResponse.json({ error: 'Daily limit reached. Try again tomorrow.' }, { status: 429 });
+  }
+
   const apiKey = await getSecret('OPENAI_API_KEY');
   if (!apiKey) {
     return NextResponse.json(

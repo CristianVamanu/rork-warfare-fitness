@@ -212,6 +212,8 @@ export default function AdminPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '' });
   const [savingLegal, setSavingLegal] = useState(false);
+  const [runningBackup, setRunningBackup] = useState(false);
+  const [lastBackupResult, setLastBackupResult] = useState<{ collections: number; sizeBytes: number; location: string } | null>(null);
 
   // ── Membership state ───────────────────────────────────────────────────────
   const [membership, setMembership] = useState<MembershipConfig>({
@@ -1147,6 +1149,23 @@ export default function AdminPage() {
       toast.success('Legal pages saved');
     } catch { toast.error('Failed to save legal pages'); }
     finally { setSavingLegal(false); }
+  }
+
+  async function handleRunBackup() {
+    if (!user) return;
+    setRunningBackup(true);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/backup', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Backup failed');
+      setLastBackupResult(data);
+      toast.success('Backup complete');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Backup failed');
+    } finally {
+      setRunningBackup(false);
+    }
   }
 
   const stripeConfigured = secretStatuses.find(s => s.key === 'STRIPE_SECRET_KEY')?.configured ?? false;
@@ -2847,6 +2866,28 @@ export default function AdminPage() {
               <p className="text-xs text-text-tertiary -mt-2">Per-user daily caps to prevent abuse of paid API usage (OpenAI, OpenFoodFacts).</p>
             </div>
             <Button onClick={handleSaveSettings} loading={savingSettings} fullWidth>Save Configuration</Button>
+          </Card>
+
+          {/* Backups */}
+          <Card className="p-5 space-y-3">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Shield className="w-4 h-4 text-accent" /> Backups
+            </h2>
+            <p className="text-xs text-text-secondary">
+              Exports every collection (users, workouts, meals, messages, PR posts, progress photos, and more) to a single JSON file.
+              {' '}Uploaded to Cloudflare R2 if configured under Integrations — otherwise saved locally on this server, which protects against a bad deploy or an accidental deletion, but <strong className="text-white">not</strong> against losing the server itself. Configure R2 for real off-server disaster recovery.
+            </p>
+            <Button onClick={handleRunBackup} loading={runningBackup} variant="secondary" fullWidth>
+              <Download className="w-4 h-4" /> Run Backup Now
+            </Button>
+            {lastBackupResult && (
+              <p className="text-xs text-text-tertiary">
+                Last backup: {lastBackupResult.collections} collections, {(lastBackupResult.sizeBytes / 1024).toFixed(0)}KB → {lastBackupResult.location}
+              </p>
+            )}
+            <p className="text-[11px] text-text-tertiary">
+              To automate daily backups, add a cron job on the server: <code className="bg-surface px-1 py-0.5 rounded">curl -X POST https://yourdomain.com/api/admin/backup -H &quot;Authorization: Bearer $CRON_SECRET&quot;</code>
+            </p>
           </Card>
 
           {/* Landing Page */}

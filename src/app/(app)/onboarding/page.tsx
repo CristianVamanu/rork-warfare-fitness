@@ -9,6 +9,7 @@ import {
   ChevronRight, ChevronLeft, Loader2, CheckCircle,
   Home, Building2, Package, User, Users, AlertCircle, TrendingDown, TrendingUp, PartyPopper,
 } from 'lucide-react';
+import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, createProgram } from '@/lib/firestore';
 import { estimateNutritionTargets, calculateBmi, estimateBmiTimeline, type NutritionTargets } from '@/lib/tdee';
@@ -172,6 +173,7 @@ export default function OnboardingPage() {
 
     try {
       const biometricsPayload = biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, weightKg: weightNum } : undefined;
+      const authToken = await getIdToken(user);
 
       // Everything below is independent — none of these depend on each
       // other's result — so they run concurrently instead of one after
@@ -190,7 +192,7 @@ export default function OnboardingPage() {
         try {
           const res = await fetch('/api/ai/recommend-program', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
             body: JSON.stringify({
               goal, experience, trainingDays, equipment,
               limitations: buildLimitationsSummary(),
