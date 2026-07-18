@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, createProgram } from '@/lib/firestore';
-import { estimateGoals, calculateBmi, estimateBmiTimeline } from '@/lib/tdee';
+import { estimateNutritionTargets, calculateBmi, estimateBmiTimeline, type NutritionTargets } from '@/lib/tdee';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -89,6 +89,7 @@ export default function OnboardingPage() {
   const [videoGreetingUrl, setVideoGreetingUrl] = useState<string | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [revealProgram, setRevealProgram] = useState<{ name: string; description: string; weeks: number; daysPerWeek: number } | null>(null);
+  const [revealNutrition, setRevealNutrition] = useState<(NutritionTargets & { goalLabel: string; rationale: string }) | null>(null);
 
   function updateMedical(patch: Partial<MedicalHistoryAnswers>) {
     setMedicalHistory((m) => ({ ...m, ...patch }));
@@ -209,12 +210,35 @@ export default function OnboardingPage() {
       });
       setRevealProgram(program);
 
-      // 3. Auto-set nutrition goals from TDEE estimate (uses real biometrics when available)
-      const estimatedGoals = estimateGoals(
-        goal, experience, trainingDays,
-        biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, weightKg: weightNum } : undefined
-      );
-      await updateUserGoals(user.uid, estimatedGoals);
+      // 3. Auto-set nutrition goals — try the AI-backed endpoint first (real
+      // Mifflin-St Jeor math server-side, plus a personalized rationale);
+      // fall back to the same calculation done locally if the request fails,
+      // so onboarding never blocks on this like the program step above.
+      const biometricsPayload = biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, weightKg: weightNum } : undefined;
+      let nutritionTargets: NutritionTargets & { goalLabel: string; rationale: string };
+      try {
+        const res = await fetch('/api/ai/nutrition-targets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ goal, experience, trainingDays, biometrics: biometricsPayload }),
+        });
+        if (!res.ok) throw new Error('Nutrition target calculation unavailable');
+        nutritionTargets = await res.json();
+      } catch {
+        const local = estimateNutritionTargets(goal, experience, trainingDays, biometricsPayload);
+        const goalLabels: Record<FitnessGoal, string> = {
+          'lose-fat': 'Fat Loss', 'build-muscle': 'Muscle Gain', recomposition: 'Body Recomposition', strength: 'Strength',
+        };
+        nutritionTargets = { ...local, goalLabel: goalLabels[goal], rationale: '' };
+      }
+      await updateUserGoals(user.uid, {
+        calories: nutritionTargets.calories,
+        protein: nutritionTargets.protein,
+        carbs: nutritionTargets.carbs,
+        fat: nutritionTargets.fat,
+        water: nutritionTargets.water,
+      });
+      setRevealNutrition(nutritionTargets);
 
       // 4. Save onboarding answers + mark complete
       const cleanedMedicalHistory = Object.fromEntries(
@@ -273,7 +297,7 @@ export default function OnboardingPage() {
           <p className="text-xs font-bold text-accent uppercase tracking-wide mb-2">Your Personalized Plan</p>
           <h1 className="text-2xl font-black text-white mb-2">{revealProgram.name}</h1>
           <p className="text-text-secondary text-sm mb-5 leading-relaxed">{revealProgram.description}</p>
-          <div className="flex items-center justify-center gap-6 mb-8">
+          <div className="flex items-center justify-center gap-6 mb-6">
             <div>
               <p className="text-2xl font-black text-white">{revealProgram.weeks}</p>
               <p className="text-xs text-text-secondary">weeks</p>
@@ -284,6 +308,44 @@ export default function OnboardingPage() {
               <p className="text-xs text-text-secondary">days/week</p>
             </div>
           </div>
+
+          {revealNutrition && (
+            <Card className="p-5 mb-6 text-left">
+              <p className="text-xs font-bold text-accent uppercase tracking-wide mb-3 text-center">Your Nutrition Targets</p>
+              <div className="flex items-end justify-center gap-2 mb-1">
+                <p className="text-3xl font-black text-white leading-none">{revealNutrition.calories.toLocaleString()}</p>
+                <p className="text-sm text-text-secondary mb-0.5">cal / day</p>
+              </div>
+              <p className="text-xs text-text-tertiary text-center mb-4">
+                {revealNutrition.calorieAdjustment === 0
+                  ? `Maintenance (${revealNutrition.maintenanceCalories.toLocaleString()} cal)`
+                  : `${revealNutrition.maintenanceCalories.toLocaleString()} cal maintenance ${revealNutrition.calorieAdjustment > 0 ? '+' : '−'} ${Math.abs(revealNutrition.calorieAdjustment)} for ${revealNutrition.goalLabel}`}
+              </p>
+
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                {[
+                  { label: 'Protein', value: revealNutrition.protein, color: 'text-red-400' },
+                  { label: 'Carbs', value: revealNutrition.carbs, color: 'text-blue-400' },
+                  { label: 'Fat', value: revealNutrition.fat, color: 'text-yellow-400' },
+                ].map((m) => (
+                  <div key={m.label} className="bg-surface rounded-xl py-2.5 text-center">
+                    <p className={`text-base font-black ${m.color}`}>{m.value}g</p>
+                    <p className="text-[10px] text-text-tertiary">{m.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {revealNutrition.rationale && (
+                <p className="text-xs text-text-secondary leading-relaxed">{revealNutrition.rationale}</p>
+              )}
+              {!revealNutrition.usedRealBiometrics && (
+                <p className="text-[10px] text-text-tertiary mt-2">
+                  Estimated from your training frequency — add your height/weight in Profile for a more precise target.
+                </p>
+              )}
+            </Card>
+          )}
+
           <Button fullWidth size="lg" onClick={proceedToApp}>
             Let&apos;s Go <ChevronRight className="w-4 h-4" />
           </Button>

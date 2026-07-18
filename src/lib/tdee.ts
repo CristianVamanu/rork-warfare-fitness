@@ -29,40 +29,54 @@ export interface Biometrics {
   weightKg: number;
 }
 
+export interface NutritionTargets extends UserGoals {
+  /** Estimated Basal Metabolic Rate — calories burned at total rest. */
+  bmr: number;
+  /** Total Daily Energy Expenditure at maintenance — the "eat this to stay the same weight" number. */
+  maintenanceCalories: number;
+  /** Positive = surplus (bulking), negative = deficit (cutting), 0 = at maintenance. */
+  calorieAdjustment: number;
+  usedRealBiometrics: boolean;
+}
+
 /**
- * Estimate daily calorie target from onboarding answers.
- * When biometrics (sex/age/height/weight) are available, uses the
- * Mifflin-St Jeor equation for a real BMR instead of a flat per-level guess.
- * Falls back to the flat guess when biometrics are missing (e.g. skipped step).
+ * Core calorie/macro math — deterministic, not left to an LLM, because
+ * arithmetic like this needs to be exactly right every time, not
+ * approximately right most of the time. Mifflin-St Jeor for BMR (the
+ * modern standard, more accurate than the older Harris-Benedict equation),
+ * an activity multiplier from training frequency, then a goal-based
+ * adjustment off that maintenance number.
  */
-export function estimateGoals(
+export function estimateNutritionTargets(
   goal: FitnessGoal,
   experience: ExperienceLevel,
   trainingDays: number,
   biometrics?: Biometrics
-): UserGoals {
+): NutritionTargets {
   const activityMult = ACTIVITY_MULTIPLIER[trainingDays] ?? 1.55;
+  const usedRealBiometrics = !!biometrics;
 
-  let tdee: number;
+  let bmr: number;
   if (biometrics && biometrics.sex !== 'prefer-not-to-say') {
     const { sex, age, heightCm, weightKg } = biometrics;
-    // Mifflin-St Jeor BMR
-    const bmr = sex === 'male'
+    bmr = sex === 'male'
       ? 10 * weightKg + 6.25 * heightCm - 5 * age + 5
       : 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
-    tdee = Math.round(bmr * activityMult);
   } else if (biometrics) {
     // Sex not disclosed — average the male/female BMR formulas
     const { age, heightCm, weightKg } = biometrics;
     const bmrMale = 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
     const bmrFemale = 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
-    tdee = Math.round(((bmrMale + bmrFemale) / 2) * activityMult);
+    bmr = (bmrMale + bmrFemale) / 2;
   } else {
-    const base = BASE_CALORIES[experience] ?? 2200;
-    tdee = Math.round(base * activityMult);
+    // No biometrics at all (step skipped) — flat per-experience-level guess
+    bmr = BASE_CALORIES[experience] ?? 2200;
   }
+  bmr = Math.round(bmr);
 
-  const calories = Math.max(1400, tdee + (GOAL_ADJUSTMENT[goal] ?? 0));
+  const maintenanceCalories = Math.round(bmr * activityMult);
+  const calorieAdjustment = GOAL_ADJUSTMENT[goal] ?? 0;
+  const calories = Math.max(1400, maintenanceCalories + calorieAdjustment);
 
   // Macro splits per goal (protein-first approach)
   let proteinRatio: number;
@@ -81,12 +95,27 @@ export function estimateGoals(
   const carbRatio = 1 - proteinRatio - fatRatio;
 
   return {
+    bmr,
+    maintenanceCalories,
+    calorieAdjustment,
+    usedRealBiometrics,
     calories,
     protein: Math.round((calories * proteinRatio) / 4),
     carbs:   Math.round((calories * carbRatio) / 4),
     fat:     Math.round((calories * fatRatio) / 9),
     water:   Math.round(trainingDays >= 5 ? 3500 : trainingDays >= 3 ? 3000 : 2500),
   };
+}
+
+/** Backwards-compatible wrapper — just the four goal numbers, no breakdown. */
+export function estimateGoals(
+  goal: FitnessGoal,
+  experience: ExperienceLevel,
+  trainingDays: number,
+  biometrics?: Biometrics
+): UserGoals {
+  const { calories, protein, carbs, fat, water } = estimateNutritionTargets(goal, experience, trainingDays, biometrics);
+  return { calories, protein, carbs, fat, water };
 }
 
 export interface BmiResult {
