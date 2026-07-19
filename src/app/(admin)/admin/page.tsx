@@ -24,6 +24,7 @@ import {
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
   getChannels, createChannel, updateChannel, deleteChannel,
   getCoachingPlans, saveCoachingPlans, assignCoachingPlan, revokeCoachingPlan,
+  getMembershipPlans, saveMembershipPlans,
   getExerciseVideos, saveExerciseVideo, deleteExerciseVideo, updateExerciseVideoThumbnail,
   assignNutritionPlan,
   getCoachingApplications, approveCoachingApplication, rejectCoachingApplication,
@@ -37,8 +38,8 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto } from '@/types';
-import { DEFAULT_LANDING_CONFIG, DEFAULT_MEMBERSHIP_FEATURES } from '@/lib/landingDefaults';
+import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto } from '@/types';
+import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'settings';
 
@@ -226,11 +227,18 @@ function AdminPageInner() {
 
   // ── Membership state ───────────────────────────────────────────────────────
   const [membership, setMembership] = useState<MembershipConfig>({
-    enabled: false, fee: 0, currency: 'USD', fullLock: false, lockedFeatures: [], lockedProgramIds: [], trialDays: 0,
+    enabled: false, fullLock: false, lockedFeatures: [], lockedProgramIds: [], trialDays: 0,
   });
   const [membershipLoading, setMembershipLoading] = useState(false);
   const [savingMembership, setSavingMembership] = useState(false);
   const [togglingMember, setTogglingMember] = useState<string | null>(null);
+
+  // ── Membership plans state (multiple, fully admin-editable pricing tiers) ──
+  const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
+  const [savingMembershipPlans, setSavingMembershipPlans] = useState(false);
+  const [showMembershipPlanForm, setShowMembershipPlanForm] = useState(false);
+  const [editingMembershipPlan, setEditingMembershipPlan] = useState<MembershipPlan | null>(null);
+  const [membershipPlanForm, setMembershipPlanForm] = useState<{ name: string; description: string; priceMonthly: string; currency: string; features: string; active: boolean; featureAccess: string[] }>({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] });
 
   // ── Analytics state (real visitor data pulled from Cloudflare's edge) ──────
   const [analytics, setAnalytics] = useState<{
@@ -387,7 +395,7 @@ function AdminPageInner() {
   useEffect(() => {
     if (tab === 'clients' && users.length === 0) loadUsers();
     if (tab === 'messages' && conversations.length === 0) loadConversations();
-    if (tab === 'membership') { loadMembership(); loadCoachingPlans(); }
+    if (tab === 'membership') { loadMembership(); loadCoachingPlans(); loadMembershipPlans(); }
     if (tab === 'coaching') loadCoachingApplications();
     if (tab === 'notifications') loadNotifConfig();
     if (tab === 'community') loadChannels();
@@ -700,6 +708,71 @@ function AdminPageInner() {
     }));
   }
 
+  async function loadMembershipPlans() {
+    try { setMembershipPlans(await getMembershipPlans()); } catch { /* noop */ }
+  }
+
+  async function handleSaveMembershipPlan() {
+    const price = parseFloat(membershipPlanForm.priceMonthly);
+    if (!membershipPlanForm.name.trim() || isNaN(price) || price <= 0) {
+      toast.error('Name and a valid price are required'); return;
+    }
+    setSavingMembershipPlans(true);
+    try {
+      const plan: MembershipPlan = {
+        id: editingMembershipPlan?.id ?? `mplan_${Date.now()}`,
+        name: membershipPlanForm.name.trim(),
+        description: membershipPlanForm.description.trim(),
+        priceMonthly: price,
+        currency: membershipPlanForm.currency,
+        features: membershipPlanForm.features.split('\n').map(f => f.trim()).filter(Boolean),
+        active: membershipPlanForm.active,
+        featureAccess: membershipPlanForm.featureAccess,
+      };
+      const updated = editingMembershipPlan
+        ? membershipPlans.map(p => p.id === plan.id ? plan : p)
+        : [...membershipPlans, plan];
+      await saveMembershipPlans(updated);
+      setMembershipPlans(updated);
+      setShowMembershipPlanForm(false);
+      setEditingMembershipPlan(null);
+      setMembershipPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] });
+      toast.success(editingMembershipPlan ? 'Plan updated' : 'Plan created');
+    } catch { toast.error('Failed to save plan'); }
+    finally { setSavingMembershipPlans(false); }
+  }
+
+  async function handleDeleteMembershipPlan(plan: MembershipPlan) {
+    if (!confirm(`Delete the "${plan.name}" plan? This cannot be undone.`)) return;
+    try {
+      const updated = membershipPlans.filter(p => p.id !== plan.id);
+      await saveMembershipPlans(updated);
+      setMembershipPlans(updated);
+      toast.success('Plan deleted');
+    } catch { toast.error('Failed to delete plan'); }
+  }
+
+  function startEditMembershipPlan(plan: MembershipPlan) {
+    setEditingMembershipPlan(plan);
+    setMembershipPlanForm({
+      name: plan.name,
+      description: plan.description,
+      priceMonthly: String(plan.priceMonthly),
+      currency: plan.currency,
+      features: plan.features.join('\n'),
+      active: plan.active,
+      featureAccess: plan.featureAccess ?? [],
+    });
+    setShowMembershipPlanForm(true);
+  }
+
+  function toggleMembershipPlanFeatureAccess(id: string) {
+    setMembershipPlanForm(f => ({
+      ...f,
+      featureAccess: f.featureAccess.includes(id) ? f.featureAccess.filter(x => x !== id) : [...f.featureAccess, id],
+    }));
+  }
+
   async function handleAssignPlan(u: UserData, planId: string, planName: string) {
     setAssigningPlan(u.id);
     try {
@@ -783,7 +856,7 @@ function AdminPageInner() {
   function toggleLockedFeature(f: string) {
     setMembership(m => ({
       ...m,
-      lockedFeatures: m.lockedFeatures.includes(f) ? m.lockedFeatures.filter(x => x !== f) : [...m.lockedFeatures, f],
+      lockedFeatures: (m.lockedFeatures ?? []).includes(f) ? (m.lockedFeatures ?? []).filter(x => x !== f) : [...(m.lockedFeatures ?? []), f],
     }));
   }
 
@@ -1867,78 +1940,9 @@ function AdminPageInner() {
                 </div>
                 {membership.enabled && (
                   <>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
-                      <input
-                        type="text"
-                        placeholder="Membership"
-                        value={membership.planName ?? ''}
-                        onChange={e => setMembership(m => ({ ...m, planName: e.target.value }))}
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                      />
-                      <p className="text-xs text-text-tertiary mt-1">Shown to users on the paywall screen, e.g. &quot;Warfare Elite&quot;. Leave blank for &quot;Membership&quot;.</p>
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Plan Description</label>
-                      <textarea
-                        value={membership.description ?? ''}
-                        onChange={e => setMembership(m => ({ ...m, description: e.target.value }))}
-                        rows={2}
-                        placeholder="One-sentence pitch shown under the plan name, e.g. &quot;Everything you need to train, eat, and stay accountable.&quot;"
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-2 block">Plan Features (shown on the pricing card)</label>
-                      <div className="space-y-2">
-                        {(membership.features?.length ? membership.features : DEFAULT_MEMBERSHIP_FEATURES).map((f, i) => (
-                          <div key={i} className="flex gap-2">
-                            <input
-                              type="text"
-                              value={f}
-                              onChange={e => setMembership(m => {
-                                const next = [...(m.features?.length ? m.features : DEFAULT_MEMBERSHIP_FEATURES)];
-                                next[i] = e.target.value;
-                                return { ...m, features: next };
-                              })}
-                              className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                            />
-                            <button
-                              onClick={() => setMembership(m => {
-                                const base = m.features?.length ? m.features : DEFAULT_MEMBERSHIP_FEATURES;
-                                return { ...m, features: base.filter((_, idx) => idx !== i) };
-                              })}
-                              className="px-3 rounded-xl border border-white/10 text-text-tertiary hover:text-danger hover:border-danger/30 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          onClick={() => setMembership(m => ({
-                            ...m,
-                            features: [...(m.features?.length ? m.features : DEFAULT_MEMBERSHIP_FEATURES), 'New feature'],
-                          }))}
-                          className="flex items-center gap-1.5 text-xs text-accent hover:underline"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Add feature
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Monthly Fee (USD)</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={membership.fee}
-                          onChange={e => setMembership(m => ({ ...m, fee: parseFloat(e.target.value) || 0 }))}
-                          className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                        />
-                      </div>
-                    </div>
+                    <p className="text-xs text-text-tertiary -mt-1">
+                      Pricing, descriptions, and per-plan feature access now live in <span className="text-white font-medium">Membership Plans</span> below — create as many tiers as you want. These settings apply globally, across every plan.
+                    </p>
                     <div>
                       <label className="text-xs text-text-secondary mb-2 block">Free Trial Period</label>
                       <div className="grid grid-cols-4 gap-2">
@@ -2029,9 +2033,9 @@ function AdminPageInner() {
                       </div>
                       <button
                         onClick={() => toggleLockedFeature(id)}
-                        className={`w-11 h-6 rounded-full transition-colors relative ${membership.lockedFeatures.includes(id) ? 'bg-accent' : 'bg-surface-elevated'}`}
+                        className={`w-11 h-6 rounded-full transition-colors relative ${(membership.lockedFeatures ?? []).includes(id) ? 'bg-accent' : 'bg-surface-elevated'}`}
                       >
-                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membership.lockedFeatures.includes(id) ? 'left-6' : 'left-1'}`} />
+                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${(membership.lockedFeatures ?? []).includes(id) ? 'left-6' : 'left-1'}`} />
                       </button>
                     </div>
                   ))}
@@ -2042,17 +2046,179 @@ function AdminPageInner() {
                 Save Membership Settings
               </Button>
 
+              {/* ── Membership Plans (instant self-serve tiers) ── */}
+              {membership.enabled && (
+              <Card className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-accent" /> Membership Plans
+                  </h2>
+                  <Button size="sm" onClick={() => { setEditingMembershipPlan(null); setMembershipPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] }); setShowMembershipPlanForm(true); }}>
+                    <Plus className="w-3.5 h-3.5" /> New Plan
+                  </Button>
+                </div>
+                <p className="text-xs text-text-secondary">
+                  Create as many pricing tiers as you want — users pick one and pay instantly. Each plan controls its own price and which tools it unlocks (Tool Access below). Leave Tool Access unchecked to grant every feature.
+                </p>
+
+                {showMembershipPlanForm && (
+                  <div className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+                    <p className="text-sm font-bold text-white">{editingMembershipPlan ? 'Edit Plan' : 'New Membership Plan'}</p>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
+                      <input
+                        value={membershipPlanForm.name}
+                        onChange={e => setMembershipPlanForm(f => ({ ...f, name: e.target.value }))}
+                        placeholder="e.g. Conquer"
+                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Description</label>
+                      <textarea
+                        value={membershipPlanForm.description}
+                        onChange={e => setMembershipPlanForm(f => ({ ...f, description: e.target.value }))}
+                        placeholder="What members get with this plan…"
+                        rows={2}
+                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-text-secondary mb-1 block">Price / Month</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={membershipPlanForm.priceMonthly}
+                            onChange={e => setMembershipPlanForm(f => ({ ...f, priceMonthly: e.target.value }))}
+                            placeholder="49.00"
+                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-text-secondary mb-1 block">Currency</label>
+                        <select
+                          value={membershipPlanForm.currency}
+                          onChange={e => setMembershipPlanForm(f => ({ ...f, currency: e.target.value }))}
+                          className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        >
+                          <option value="USD">USD</option>
+                          <option value="EUR">EUR</option>
+                          <option value="GBP">GBP</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Features (one per line, shown on the pricing card)</label>
+                      <textarea
+                        value={membershipPlanForm.features}
+                        onChange={e => setMembershipPlanForm(f => ({ ...f, features: e.target.value }))}
+                        placeholder={"Full access to all training programs\nAI food analyzer\nCommunity & leaderboard access"}
+                        rows={4}
+                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Tool Access</label>
+                      <p className="text-xs text-text-tertiary mb-2">
+                        Leave all unchecked to grant every feature (default). Check specific ones to restrict this plan to only those.
+                      </p>
+                      <div className="space-y-1.5">
+                        {[
+                          { id: 'barcode', label: 'Barcode Scanner' },
+                          { id: 'nutrition-ai', label: 'AI Food Analyzer' },
+                          { id: 'meal-planner', label: 'AI Meal Planner' },
+                          { id: 'premium-programs', label: 'Premium Training Plans' },
+                        ].map(({ id, label }) => (
+                          <label key={id} className="flex items-center gap-2.5 py-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={membershipPlanForm.featureAccess.includes(id)}
+                              onChange={() => toggleMembershipPlanFeatureAccess(id)}
+                              className="w-4 h-4 accent-accent"
+                            />
+                            <span className="text-sm text-white">{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-white">Active</p>
+                        <p className="text-xs text-text-secondary">Visible to non-members for purchase</p>
+                      </div>
+                      <button
+                        onClick={() => setMembershipPlanForm(f => ({ ...f, active: !f.active }))}
+                        className={`w-11 h-6 rounded-full transition-colors relative ${membershipPlanForm.active ? 'bg-accent' : 'bg-surface-elevated'}`}
+                      >
+                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membershipPlanForm.active ? 'left-6' : 'left-1'}`} />
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" fullWidth onClick={() => { setShowMembershipPlanForm(false); setEditingMembershipPlan(null); }}>Cancel</Button>
+                      <Button fullWidth loading={savingMembershipPlans} disabled={!membershipPlanForm.name.trim() || !membershipPlanForm.priceMonthly} onClick={handleSaveMembershipPlan}>
+                        {editingMembershipPlan ? 'Save' : 'Create'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {membershipPlans.length === 0 && !showMembershipPlanForm ? (
+                  <p className="text-text-tertiary text-sm text-center py-3">No membership plans yet. Create one above.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {membershipPlans.map((plan) => (
+                      <div key={plan.id} className={`p-4 rounded-2xl border ${plan.active ? 'border-accent/20 bg-accent/5' : 'border-white/8 opacity-60'}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-bold text-white">{plan.name}</p>
+                              {plan.active ? <Badge variant="success">Active</Badge> : <Badge variant="muted">Inactive</Badge>}
+                            </div>
+                            <p className="text-sm font-black text-accent mt-0.5">{plan.currency} {plan.priceMonthly.toFixed(2)}/mo</p>
+                            {plan.description && <p className="text-xs text-text-secondary mt-1">{plan.description}</p>}
+                            {plan.features.length > 0 && (
+                              <ul className="mt-2 space-y-0.5">
+                                {plan.features.map((f, i) => (
+                                  <li key={i} className="text-xs text-text-secondary flex items-center gap-1.5">
+                                    <CheckCircle className="w-3 h-3 text-accent flex-shrink-0" />{f}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {(plan.featureAccess?.length ?? 0) > 0 && (
+                              <p className="text-[10px] text-accent mt-2">🔒 Restricted to: {plan.featureAccess.join(', ')}</p>
+                            )}
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button onClick={() => startEditMembershipPlan(plan)} className="p-1.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteMembershipPlan(plan)} className="p-1.5 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+              )}
+
               {/* ── Coaching Plans ── */}
               <Card className="p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
-                    <Trophy className="w-4 h-4 text-accent" /> Coaching Plans
+                    <Trophy className="w-4 h-4 text-accent" /> Coaching Plans <span className="text-xs font-normal text-text-tertiary">(1:1 application)</span>
                   </h2>
                   <Button size="sm" onClick={() => { setEditingPlan(null); setPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] }); setShowPlanForm(true); }}>
                     <Plus className="w-3.5 h-3.5" /> New Plan
                   </Button>
                 </div>
-                <p className="text-xs text-text-secondary">Create tiered coaching plans that clients can subscribe to. Coaching programs (marked 1:1) are unlocked by any active plan.</p>
+                <p className="text-xs text-text-secondary">Separate from Membership Plans above — these are reviewed manually via a coaching application, not purchased instantly. Coaching programs (marked 1:1) are unlocked by any active plan.</p>
 
                 {showPlanForm && (
                   <div className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
@@ -2238,7 +2404,7 @@ function AdminPageInner() {
                           )}
                         </div>
                       </div>
-                      {coachingPlans.filter(p => p.active).length > 0 && (
+                      {(membershipPlans.filter(p => p.active).length > 0 || coachingPlans.filter(p => p.active).length > 0) && (
                         <div className="flex items-center gap-2 pl-11">
                           <select
                             className="flex-1 bg-surface border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent/50"
@@ -2246,15 +2412,26 @@ function AdminPageInner() {
                             onChange={async (e) => {
                               const pid = e.target.value;
                               if (!pid) return;
-                              const plan = coachingPlans.find(p => p.id === pid);
+                              const plan = membershipPlans.find(p => p.id === pid) ?? coachingPlans.find(p => p.id === pid);
                               if (plan) await handleAssignPlan(u, plan.id, plan.name);
                               e.target.value = '';
                             }}
                           >
-                            <option value="">Assign coaching plan…</option>
-                            {coachingPlans.filter(p => p.active).map(p => (
-                              <option key={p.id} value={p.id}>{p.name} — {p.currency} {p.priceMonthly}/mo</option>
-                            ))}
+                            <option value="">Assign plan…</option>
+                            {membershipPlans.filter(p => p.active).length > 0 && (
+                              <optgroup label="Membership Plans">
+                                {membershipPlans.filter(p => p.active).map(p => (
+                                  <option key={p.id} value={p.id}>{p.name} — {p.currency} {p.priceMonthly}/mo</option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {coachingPlans.filter(p => p.active).length > 0 && (
+                              <optgroup label="Coaching Plans">
+                                {coachingPlans.filter(p => p.active).map(p => (
+                                  <option key={p.id} value={p.id}>{p.name} — {p.currency} {p.priceMonthly}/mo</option>
+                                ))}
+                              </optgroup>
+                            )}
                           </select>
                           {currentPlanId && (
                             <button

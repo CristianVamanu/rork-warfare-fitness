@@ -859,7 +859,7 @@ export async function hideMockProgram(id: string) {
 // ---------------------------------------------------------------------------
 // Membership configuration — stored at config/membership
 // ---------------------------------------------------------------------------
-import type { MembershipConfig } from '@/types';
+import type { MembershipConfig, MembershipPlan } from '@/types';
 
 export async function getMembershipConfig(): Promise<MembershipConfig | null> {
   const snap = await getDoc(doc(db, 'config', 'membership'));
@@ -869,6 +869,22 @@ export async function getMembershipConfig(): Promise<MembershipConfig | null> {
 
 export async function saveMembershipConfig(data: Partial<MembershipConfig>) {
   await setDoc(doc(db, 'config', 'membership'), data, { merge: true });
+}
+
+// ---------------------------------------------------------------------------
+// Membership plans — multiple, fully admin-editable pricing tiers, each with
+// its own feature access. Stored at config/membershipPlans, same shape as
+// coachingPlans but intentionally a separate collection: coaching plans are
+// a 1:1 coaching application (manually reviewed), these are instant
+// self-serve subscriptions.
+// ---------------------------------------------------------------------------
+export async function getMembershipPlans(): Promise<MembershipPlan[]> {
+  const snap = await getDoc(doc(db, 'config', 'membershipPlans'));
+  return (snap.data()?.plans as MembershipPlan[]) ?? [];
+}
+
+export async function saveMembershipPlans(plans: MembershipPlan[]): Promise<void> {
+  await setDoc(doc(db, 'config', 'membershipPlans'), { plans });
 }
 
 export async function setUserMembership(userId: string, status: 'active' | 'none') {

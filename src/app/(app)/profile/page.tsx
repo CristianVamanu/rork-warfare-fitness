@@ -9,11 +9,10 @@ import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  updateUserDoc, getUserConversations, getMembershipConfig, getCoachingPlans,
+  updateUserDoc, getUserConversations, getMembershipConfig, getCoachingPlans, getMembershipPlans,
   submitCoachingApplication, getUserCoachingApplication,
 } from '@/lib/firestore';
-import { startCoachingCheckout } from '@/lib/checkout';
-import { DEFAULT_MEMBERSHIP_FEATURES } from '@/lib/landingDefaults';
+import { startCoachingCheckout, startPlanCheckout } from '@/lib/checkout';
 import { getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Header } from '@/components/layout/Header';
@@ -24,7 +23,7 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
 import { Modal } from '@/components/ui/Modal';
-import type { MembershipConfig, CoachingPlan, CoachingApplication } from '@/types';
+import type { MembershipConfig, MembershipPlan, CoachingPlan, CoachingApplication } from '@/types';
 
 // Separate component so useSearchParams doesn't block the page render
 function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
@@ -51,7 +50,8 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [membershipConfig, setMembershipConfig] = useState<MembershipConfig | null>(null);
-  const [subscribing, setSubscribing] = useState(false);
+  const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
+  const [subscribingMembershipPlanId, setSubscribingMembershipPlanId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
   const [subscribingPlanId, setSubscribingPlanId] = useState<string | null>(null);
@@ -72,6 +72,7 @@ export default function ProfilePage() {
       .catch(() => {});
     getMembershipConfig().then(setMembershipConfig).catch(() => {});
     getCoachingPlans().then(plans => setCoachingPlans(plans.filter(p => p.active))).catch((err) => console.error('[Profile] Failed to load coaching plans:', err));
+    getMembershipPlans().then(plans => setMembershipPlans(plans.filter(p => p.active))).catch((err) => console.error('[Profile] Failed to load membership plans:', err));
     refreshCoachingApplication();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -129,26 +130,11 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSubscribe = async () => {
+  const handleSubscribeMembershipPlan = async (planId: string) => {
     if (!user) return;
-    setSubscribing(true);
-    try {
-      const res = await fetch('/api/stripe/member-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.uid, userEmail: user.email }),
-      });
-      const data = await res.json() as { url?: string; error?: string };
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        toast.error(data.error ?? 'Failed to open checkout');
-      }
-    } catch {
-      toast.error('Failed to start checkout');
-    } finally {
-      setSubscribing(false);
-    }
+    setSubscribingMembershipPlanId(planId);
+    const err = await startPlanCheckout(user, planId);
+    if (err) { toast.error(err); setSubscribingMembershipPlanId(null); }
   };
 
   const [openingPortal, setOpeningPortal] = useState(false);
@@ -233,7 +219,7 @@ export default function ProfilePage() {
   ];
 
   // Show membership to all non-admin/trainer users, and also to admin so they can see what users see
-  const showMembershipSection = !!membershipConfig?.enabled;
+  const showMembershipSection = !!membershipConfig?.enabled && membershipPlans.length > 0;
 
   return (
     <div>
@@ -281,84 +267,94 @@ export default function ProfilePage() {
             </div>
 
             <div className="space-y-4">
-              {showMembershipSection && (
-                <div className={`relative rounded-2xl border-2 p-5 ${isActive || inTrial ? 'border-accent bg-accent/[0.03]' : 'border-white/10 bg-surface'}`}>
-                  {(isActive || inTrial) && (
-                    <div className="absolute -top-3 left-4 px-2.5 py-0.5 bg-accent rounded-full">
-                      <span className="text-[10px] font-bold text-black">{isActive ? 'YOUR PLAN' : 'TRIAL ACTIVE'}</span>
-                    </div>
-                  )}
-                  {discountPercent > 0 && !isActive && !inTrial && (
-                    <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
-                      <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 mb-1">
-                    <Crown className="w-4 h-4 text-accent" />
-                    <p className="text-xs font-bold text-accent uppercase tracking-wide">{membershipConfig?.planName?.trim() || 'Platform Membership'}</p>
-                  </div>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    {discountPercent > 0 && !isActive && !inTrial && membershipConfig?.fee ? (
-                      <>
-                        <span className="text-3xl font-black text-white">${applyDiscount(membershipConfig.fee, discountPercent).toFixed(2)}</span>
-                        <span className="text-sm text-text-tertiary line-through">${membershipConfig.fee.toFixed(2)}</span>
-                      </>
-                    ) : (
-                      <span className="text-3xl font-black text-white">${membershipConfig?.fee?.toFixed(2) ?? '—'}</span>
-                    )}
-                    <span className="text-sm text-text-secondary">/month</span>
-                  </div>
-                  {trialDays > 0 && !isActive && !inTrial && (
-                    <p className="text-xs text-accent mt-1">{trialDays}-day free trial included</p>
-                  )}
-                  {membershipConfig?.description && (
-                    <p className="text-xs text-text-secondary mt-2 leading-relaxed">{membershipConfig.description}</p>
-                  )}
-
-                  <ul className="mt-4 space-y-2">
-                    {(membershipConfig?.features?.length ? membershipConfig.features : DEFAULT_MEMBERSHIP_FEATURES).map((f) => (
-                      <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
-                        <CheckCircle className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {f}
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="mt-5">
-                    {isActive ? (
-                      profile?.membership?.cancelAtPeriodEnd ? (
-                        <p className="text-xs text-text-tertiary text-center py-2">
-                          Cancelled — access continues until {expiresAt ? expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'the end of your billing period'}.
-                        </p>
-                      ) : (
-                        <>
-                          <div className="text-center py-2 mb-2 bg-success/10 border border-success/20 rounded-xl">
-                            <p className="text-xs text-success font-medium">
-                              {expiresAt ? `Renews ${expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Active'}
-                            </p>
-                          </div>
-                          <Button size="sm" variant="ghost" fullWidth onClick={handleCancelMembership} loading={cancelling}>
-                            Cancel Membership
-                          </Button>
-                        </>
-                      )
-                    ) : inTrial ? (
-                      <div className="p-3 bg-accent/5 border border-accent/20 rounded-xl">
-                        <p className="text-xs text-text-secondary mb-2">
-                          {trialEndsAt ? `Trial ends ${trialEndsAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Trial active'} — add a payment method to continue after.
-                        </p>
-                        <Button size="sm" fullWidth onClick={handleSubscribe} loading={subscribing}>Add Payment Method</Button>
-                      </div>
-                    ) : (
-                      <>
-                        <Button fullWidth onClick={handleSubscribe} loading={subscribing}>
-                          <Crown className="w-4 h-4" /> {subscribing ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
-                        </Button>
-                        <p className="text-[10px] text-text-tertiary text-center mt-2">Secure payment via Stripe. Cancel anytime.</p>
-                      </>
-                    )}
-                  </div>
+              {inTrial && (
+                <div className="p-3 bg-accent/5 border border-accent/20 rounded-xl text-center">
+                  <p className="text-xs text-accent font-medium">
+                    {trialEndsAt ? `Free trial — ends ${trialEndsAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Free trial active'}. Pick a plan below to continue after.
+                  </p>
                 </div>
               )}
+
+              {showMembershipSection && membershipPlans.map((plan) => {
+                const isCurrentPlan = isActive && profile?.membership?.planId === plan.id;
+                return (
+                  <div key={plan.id} className={`relative rounded-2xl border-2 p-5 ${isCurrentPlan ? 'border-accent bg-accent/[0.03]' : 'border-white/10 bg-surface'}`}>
+                    {isCurrentPlan && (
+                      <div className="absolute -top-3 left-4 px-2.5 py-0.5 bg-accent rounded-full">
+                        <span className="text-[10px] font-bold text-black">YOUR PLAN</span>
+                      </div>
+                    )}
+                    {discountPercent > 0 && !isCurrentPlan && (
+                      <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
+                        <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 mb-1">
+                      <Crown className="w-4 h-4 text-accent" />
+                      <p className="text-xs font-bold text-accent uppercase tracking-wide">{plan.name}</p>
+                    </div>
+                    <div className="flex items-baseline gap-2 mt-2">
+                      {discountPercent > 0 && !isCurrentPlan ? (
+                        <>
+                          <span className="text-3xl font-black text-white">${applyDiscount(plan.priceMonthly, discountPercent).toFixed(2)}</span>
+                          <span className="text-sm text-text-tertiary line-through">${plan.priceMonthly.toFixed(2)}</span>
+                        </>
+                      ) : (
+                        <span className="text-3xl font-black text-white">${plan.priceMonthly.toFixed(2)}</span>
+                      )}
+                      <span className="text-sm text-text-secondary">/month</span>
+                    </div>
+                    {trialDays > 0 && !isCurrentPlan && !inTrial && (
+                      <p className="text-xs text-accent mt-1">{trialDays}-day free trial included</p>
+                    )}
+                    {plan.description && (
+                      <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>
+                    )}
+
+                    {plan.features.length > 0 && (
+                      <ul className="mt-4 space-y-2">
+                        {plan.features.map((f) => (
+                          <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
+                            <CheckCircle className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {f}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    <div className="mt-5">
+                      {isCurrentPlan ? (
+                        profile?.membership?.cancelAtPeriodEnd ? (
+                          <p className="text-xs text-text-tertiary text-center py-2">
+                            Cancelled — access continues until {expiresAt ? expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'the end of your billing period'}.
+                          </p>
+                        ) : (
+                          <>
+                            <div className="text-center py-2 mb-2 bg-success/10 border border-success/20 rounded-xl">
+                              <p className="text-xs text-success font-medium">
+                                {expiresAt ? `Renews ${expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Active'}
+                              </p>
+                            </div>
+                            <Button size="sm" variant="ghost" fullWidth onClick={handleCancelMembership} loading={cancelling}>
+                              Cancel Membership
+                            </Button>
+                          </>
+                        )
+                      ) : (
+                        <>
+                          <Button
+                            fullWidth
+                            onClick={() => handleSubscribeMembershipPlan(plan.id)}
+                            loading={subscribingMembershipPlanId === plan.id}
+                          >
+                            <Crown className="w-4 h-4" /> {subscribingMembershipPlanId === plan.id ? 'Opening Checkout…' : (trialDays > 0 && !inTrial ? 'Start Free Trial' : isActive ? 'Switch to This Plan' : 'Subscribe Now')}
+                          </Button>
+                          <p className="text-[10px] text-text-tertiary text-center mt-2">Secure payment via Stripe. Cancel anytime.</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
 
               {coachingPlans.map((plan) => {
                 const isCurrentPlan = profile?.membership?.status === 'active' && profile?.membership?.planId === plan.id;

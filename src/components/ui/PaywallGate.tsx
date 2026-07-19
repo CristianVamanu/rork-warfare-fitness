@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { Lock, Star, Crown } from 'lucide-react';
-import { getMembershipConfig, getCoachingPlans } from '@/lib/firestore';
-import { startMembershipCheckout } from '@/lib/checkout';
+import { getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
+import { startPlanCheckout } from '@/lib/checkout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from './Card';
 import { Button } from './Button';
-import type { MembershipConfig, CoachingPlan } from '@/types';
+import type { MembershipConfig, MembershipPlan } from '@/types';
 
 interface Props {
   feature?: string; // 'barcode' | 'nutrition-ai' | 'meal-planner' | undefined (means fullLock check only)
@@ -15,19 +15,29 @@ interface Props {
   children: React.ReactNode;
 }
 
+/**
+ * Two layers of gating, in order:
+ *  1. MembershipConfig.lockedFeatures — does this tool require ANY paid
+ *     plan at all? (global, admin toggles per feature)
+ *  2. MembershipPlan.featureAccess — for an actual paying member, does
+ *     their SPECIFIC plan include this tool? Empty list = every tool.
+ * A non-member hitting a locked feature sees every active plan to choose
+ * from; a member whose plan doesn't cover it sees an upgrade prompt
+ * instead of a duplicate "subscribe" flow.
+ */
 export function PaywallGate({ feature, programId, children }: Props) {
   const { user, profile } = useAuth();
   const [config, setConfig] = useState<MembershipConfig | null>(null);
-  const [plans, setPlans] = useState<CoachingPlan[]>([]);
+  const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [subscribing, setSubscribing] = useState(false);
+  const [subscribingId, setSubscribingId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
       getMembershipConfig().catch(() => null),
-      getCoachingPlans().catch(() => []),
+      getMembershipPlans().catch(() => []),
     ])
-      .then(([cfg, cp]) => { setConfig(cfg); setPlans(cp); })
+      .then(([cfg, mp]) => { setConfig(cfg); setPlans(mp); })
       .finally(() => setLoaded(true));
   }, []);
 
@@ -35,8 +45,9 @@ export function PaywallGate({ feature, programId, children }: Props) {
 
   const hasMembership = profile?.membership?.status === 'active';
 
-  // Check free trial: if user joined within trialDays, treat as member
-  const trialDays = (config as MembershipConfig & { trialDays?: number })?.trialDays ?? 0;
+  // Check free trial: if user joined within trialDays, treat as member —
+  // full access to every feature regardless of plan, no exceptions.
+  const trialDays = config?.trialDays ?? 0;
   const inTrial = (() => {
     if (!trialDays || !profile?.createdAt) return false;
     const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
@@ -48,47 +59,42 @@ export function PaywallGate({ feature, programId, children }: Props) {
     return <>{children}</>;
   }
 
-  // A member on a specific coaching plan only gets what that plan's
-  // featureAccess actually lists — an empty/unset list means "no specific
-  // restriction configured" and keeps the old behavior (full access), so
-  // existing plans created before this feature aren't retroactively locked.
-  const activePlan = hasMembership && profile?.membership?.planId
-    ? plans.find((p) => p.id === profile.membership!.planId) ?? null
-    : null;
-  const planRestricts = !!activePlan?.featureAccess && activePlan.featureAccess.length > 0;
+  // Paying member — check their specific plan's feature access
+  if (hasMembership) {
+    const activePlan = profile?.membership?.planId
+      ? plans.find((p) => p.id === profile.membership!.planId) ?? null
+      : null;
+    const planRestricts = !!activePlan?.featureAccess && activePlan.featureAccess.length > 0;
 
-  if (hasMembership && !planRestricts) {
-    return <>{children}</>;
-  }
+    if (!planRestricts) return <>{children}</>; // no plan on file, or plan grants everything
 
-  if (hasMembership && planRestricts) {
-    const featureAllowed = !feature || activePlan!.featureAccess!.includes(feature);
-    const programAllowed = !programId || activePlan!.featureAccess!.includes('premium-programs');
+    const featureAllowed = !feature || activePlan!.featureAccess.includes(feature);
+    const programAllowed = !programId || activePlan!.featureAccess.includes('premium-programs');
     if (featureAllowed && programAllowed) return <>{children}</>;
     return <PlanUpgradeScreen planName={activePlan!.name} />;
   }
 
+  // Non-member — does this specific tool require a paid plan at all?
   const isLocked =
     config.fullLock ||
-    (feature && config.lockedFeatures.includes(feature)) ||
-    (programId && config.lockedProgramIds.includes(programId));
+    (feature && (config.lockedFeatures ?? []).includes(feature)) ||
+    (programId && (config.lockedProgramIds ?? []).includes(programId));
 
   if (!isLocked) return <>{children}</>;
 
-  async function handleSubscribe() {
+  async function handleSubscribe(planId: string) {
     if (!user) return;
-    setSubscribing(true);
-    const err = await startMembershipCheckout(user);
-    if (err) setSubscribing(false);
+    setSubscribingId(planId);
+    const err = await startPlanCheckout(user, planId);
+    if (err) setSubscribingId(null);
   }
 
+  const activePlans = plans.filter((p) => p.active && p.priceMonthly > 0);
   const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
-  const price = config.fee > 0 ? `$${config.fee.toFixed(2)}/mo${trialLabel}` : 'Premium';
-  const planName = config.planName?.trim() || 'Membership';
 
   return (
     <div className="px-4 py-12 flex flex-col items-center justify-center min-h-[40vh]">
-      <Card className="p-8 text-center max-w-sm w-full border-accent/30">
+      <div className="text-center max-w-sm w-full mb-5">
         <div className="w-14 h-14 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-4">
           <Lock className="w-7 h-7 text-accent" />
         </div>
@@ -97,19 +103,35 @@ export function PaywallGate({ feature, programId, children }: Props) {
           <span className="text-xs font-bold text-accent uppercase tracking-wide">Premium Feature</span>
         </div>
         <h3 className="text-lg font-black text-white mb-2">Members Only</h3>
-        <p className="text-text-secondary text-sm mb-4">
-          This feature is available to active members. Subscribe below to unlock it.
+        <p className="text-text-secondary text-sm">
+          This feature is available on select plans{trialLabel}. Choose one below to unlock it.
         </p>
-        <div className="p-3 bg-surface-elevated rounded-xl mb-4">
-          <p className="text-2xl font-black text-white">{price}</p>
-          <p className="text-xs text-text-secondary mt-0.5">{planName.toLowerCase()}</p>
+      </div>
+
+      {activePlans.length === 0 ? (
+        <Card className="p-6 text-center max-w-sm w-full">
+          <p className="text-sm text-text-secondary">No plans are available to purchase right now — check back soon.</p>
+        </Card>
+      ) : (
+        <div className="space-y-3 max-w-sm w-full">
+          {activePlans.map((plan) => {
+            const includesThis = plan.featureAccess.length === 0
+              || (!feature || plan.featureAccess.includes(feature))
+              && (!programId || plan.featureAccess.includes('premium-programs'));
+            if (!includesThis) return null;
+            return (
+              <Card key={plan.id} className="p-5 border-accent/20">
+                <p className="text-sm font-bold text-white">{plan.name}</p>
+                <p className="text-2xl font-black text-white mt-1">${plan.priceMonthly.toFixed(2)}<span className="text-sm font-medium text-text-secondary">/mo</span></p>
+                {plan.description && <p className="text-xs text-text-secondary mt-1.5">{plan.description}</p>}
+                <Button fullWidth className="mt-4" onClick={() => handleSubscribe(plan.id)} loading={subscribingId === plan.id}>
+                  <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
+                </Button>
+              </Card>
+            );
+          })}
         </div>
-        {config.fee > 0 && (
-          <Button fullWidth onClick={handleSubscribe} loading={subscribing}>
-            <Crown className="w-4 h-4" /> {subscribing ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
-          </Button>
-        )}
-      </Card>
+      )}
     </div>
   );
 }
@@ -127,7 +149,7 @@ function PlanUpgradeScreen({ planName }: { planName: string }) {
         </div>
         <h3 className="text-lg font-black text-white mb-2">Upgrade Needed</h3>
         <p className="text-text-secondary text-sm">
-          Your current <span className="text-white font-medium">{planName}</span> plan doesn&apos;t include this feature. Message your coach about upgrading.
+          Your current <span className="text-white font-medium">{planName}</span> plan doesn&apos;t include this feature. Upgrade your plan from your profile to unlock it.
         </p>
       </Card>
     </div>

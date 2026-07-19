@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { Lock, Star, Crown } from 'lucide-react';
-import { getMembershipConfig } from '@/lib/firestore';
-import { startMembershipCheckout } from '@/lib/checkout';
+import { getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
+import { startPlanCheckout } from '@/lib/checkout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from './Card';
 import { Button } from './Button';
-import type { MembershipConfig } from '@/types';
+import type { MembershipConfig, MembershipPlan } from '@/types';
 
 // Pages that are always accessible regardless of membership
 const FREE_PATHS = ['/dashboard', '/settings', '/messages', '/notifications', '/profile', '/banned', '/onboarding'];
@@ -42,7 +42,7 @@ export function MembershipGuard({ pathname, children }: Props) {
   const hasMembership = profile?.membership?.status === 'active';
 
   // Check free trial
-  const trialDays = (config as MembershipConfig & { trialDays?: number })?.trialDays ?? 0;
+  const trialDays = config?.trialDays ?? 0;
   const inTrial = (() => {
     if (!trialDays || !profile?.createdAt) return false;
     const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
@@ -54,29 +54,32 @@ export function MembershipGuard({ pathname, children }: Props) {
   // Full lock — block everything except safe paths
   if (config.fullLock) {
     const isFree = FREE_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'));
-    if (!isFree) return <LockedScreen config={config} trialDays={trialDays} />;
+    if (!isFree) return <LockedScreen trialDays={trialDays} />;
   }
 
   return <>{children}</>;
 }
 
-function LockedScreen({ config, trialDays }: { config: MembershipConfig; trialDays: number }) {
+function LockedScreen({ trialDays }: { trialDays: number }) {
   const { user } = useAuth();
-  const [subscribing, setSubscribing] = useState(false);
+  const [plans, setPlans] = useState<MembershipPlan[]>([]);
+  const [subscribingId, setSubscribingId] = useState<string | null>(null);
   const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
-  const price = config.fee > 0 ? `$${config.fee.toFixed(2)}/mo${trialLabel}` : 'Members only';
-  const planName = config.planName?.trim() || 'Membership';
 
-  async function handleSubscribe() {
+  useEffect(() => {
+    getMembershipPlans().then((p) => setPlans(p.filter((x) => x.active && x.priceMonthly > 0))).catch(() => {});
+  }, []);
+
+  async function handleSubscribe(planId: string) {
     if (!user) return;
-    setSubscribing(true);
-    const err = await startMembershipCheckout(user);
-    if (err) setSubscribing(false);
+    setSubscribingId(planId);
+    const err = await startPlanCheckout(user, planId);
+    if (err) setSubscribingId(null);
   }
 
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center px-4">
-      <Card className="p-8 text-center max-w-sm w-full border-accent/30">
+      <div className="text-center max-w-sm w-full mb-5">
         <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-4">
           <Lock className="w-8 h-8 text-accent" />
         </div>
@@ -84,24 +87,30 @@ function LockedScreen({ config, trialDays }: { config: MembershipConfig; trialDa
           <Star className="w-4 h-4 text-accent" fill="currentColor" />
           <span className="text-xs font-bold text-accent uppercase tracking-wide">Members Only</span>
         </div>
-        <h3 className="text-xl font-black text-white mb-2">{planName} Required</h3>
-        <p className="text-text-secondary text-sm mb-5">
-          This platform is for active members. Subscribe below to unlock full access.
+        <h3 className="text-xl font-black text-white mb-2">Choose a Plan</h3>
+        <p className="text-text-secondary text-sm">
+          This platform is for active members{trialLabel}. Subscribe below to unlock full access.
         </p>
-        <div className="p-4 bg-surface-elevated rounded-xl mb-4">
-          <p className="text-3xl font-black text-white">{price}</p>
-          <p className="text-xs text-text-secondary mt-0.5">{planName.toLowerCase()} plan</p>
+      </div>
+
+      {plans.length === 0 ? (
+        <Card className="p-6 text-center max-w-sm w-full">
+          <p className="text-xs text-text-tertiary">Already a member? Ask your coach to grant you access.</p>
+        </Card>
+      ) : (
+        <div className="space-y-3 max-w-sm w-full">
+          {plans.map((plan) => (
+            <Card key={plan.id} className="p-5 border-accent/20">
+              <p className="text-sm font-bold text-white">{plan.name}</p>
+              <p className="text-2xl font-black text-white mt-1">${plan.priceMonthly.toFixed(2)}<span className="text-sm font-medium text-text-secondary">/mo</span></p>
+              {plan.description && <p className="text-xs text-text-secondary mt-1.5">{plan.description}</p>}
+              <Button fullWidth className="mt-4" onClick={() => handleSubscribe(plan.id)} loading={subscribingId === plan.id}>
+                <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
+              </Button>
+            </Card>
+          ))}
         </div>
-        {config.fee > 0 ? (
-          <Button fullWidth onClick={handleSubscribe} loading={subscribing}>
-            <Crown className="w-4 h-4" /> {subscribing ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
-          </Button>
-        ) : (
-          <p className="text-xs text-text-tertiary">
-            Already a member? Ask your coach to grant you access.
-          </p>
-        )}
-      </Card>
+      )}
     </div>
   );
 }

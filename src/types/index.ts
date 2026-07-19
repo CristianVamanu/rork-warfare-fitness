@@ -472,17 +472,36 @@ export interface NutritionPlan {
 
 export interface MembershipConfig {
   enabled: boolean;
-  planName?: string; // display name shown to users, e.g. "Warfare Elite" — defaults to "Membership"
-  description?: string; // one-line pitch shown under the plan name, same spot as CoachingPlan.description
-  features?: string[]; // bullet list shown on the pricing card (landing page + profile) — falls back to a sensible default if unset
-  fee: number; // monthly in USD (e.g. 29.99)
-  currency: string; // e.g. 'USD'
-  fullLock: boolean; // lock entire app for non-members
-  lockedFeatures: string[]; // 'barcode' | 'nutrition-ai' | 'premium-programs'
-  lockedProgramIds: string[]; // specific program IDs that require membership
-  trialDays: 0 | 7 | 14 | 30; // free trial length; 0 = no trial
+  // Deprecated single-tier fields — kept optional so old installs that
+  // still have this data don't error, but the admin UI no longer edits
+  // these. Replaced by MembershipPlan[] (multiple, fully admin-editable
+  // tiers, each with its own price and feature access).
+  planName?: string;
+  description?: string;
+  features?: string[];
+  fee?: number;
+  currency?: string;
+  lockedFeatures?: string[];
+  lockedProgramIds?: string[];
+  fullLock: boolean; // lock entire app for non-members/non-trial users
+  trialDays: 0 | 7 | 14 | 30; // free trial length; grants full access to every feature regardless of plan
   discountPercent?: number;   // 1-100, applied to new checkouts while active
   discountExpiresAt?: string; // ISO datetime; discount inactive after this
+}
+
+export interface MembershipPlan {
+  id: string;
+  name: string;
+  description: string;
+  priceMonthly: number;
+  currency: string; // e.g. 'USD'
+  features: string[]; // bullet points shown on the pricing card
+  // Which gated tools this plan unlocks — 'barcode' | 'nutrition-ai' |
+  // 'meal-planner' | 'premium-programs'. Empty = every feature (the
+  // default — a plan only restricts once an admin explicitly picks a
+  // subset).
+  featureAccess: string[];
+  active: boolean;
 }
 
 export interface Conversation {

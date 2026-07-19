@@ -11,12 +11,12 @@ import {
   ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSystemConfig, getMembershipConfig, getCoachingPlans } from '@/lib/firestore';
+import { getSystemConfig, getMembershipConfig, getCoachingPlans, getMembershipPlans } from '@/lib/firestore';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
-import { DEFAULT_LANDING_CONFIG, DEFAULT_MEMBERSHIP_FEATURES } from '@/lib/landingDefaults';
+import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
 import { getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
-import type { LandingPageConfig, MembershipConfig, CoachingPlan } from '@/types';
+import type { LandingPageConfig, MembershipConfig, CoachingPlan, MembershipPlan } from '@/types';
 
 // Icon + color stay fixed by position — only title/desc are admin-editable.
 // If a client adds more feature entries than this list has, extras fall
@@ -79,6 +79,7 @@ export default function LandingPage() {
   const [landing, setLanding] = useState<LandingPageConfig>(DEFAULT_LANDING_CONFIG);
   const [membership, setMembership] = useState<MembershipConfig | null>(null);
   const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
+  const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
   const [leaderboard, setLeaderboard] = useState<{ displayName: string; powerLevel: number; streak: number; totalWorkouts: number }[]>([]);
   const [stats, setStats] = useState<{ totalUsers: number; totalWorkouts: number } | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -97,6 +98,7 @@ export default function LandingPage() {
     }).catch(() => {});
     getMembershipConfig().then(setMembership).catch(() => {});
     getCoachingPlans().then((plans) => setCoachingPlans(plans.filter((p) => p.active))).catch(() => {});
+    getMembershipPlans().then((plans) => setMembershipPlans(plans.filter((p) => p.active))).catch(() => {});
     fetch('/api/public/leaderboard').then((r) => r.json()).then((d) => setLeaderboard(d.entries ?? [])).catch(() => {});
     fetch('/api/public/stats').then((r) => r.json()).then(setStats).catch(() => {});
   }, []);
@@ -345,7 +347,7 @@ export default function LandingPage() {
       )}
 
       {/* Pricing */}
-      {(membership?.enabled || coachingPlans.length > 0) && (
+      {(membershipPlans.length > 0 || coachingPlans.length > 0) && (
         <section className="max-w-4xl mx-auto px-5 pb-16">
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
@@ -353,14 +355,15 @@ export default function LandingPage() {
               {trialDays > 0 ? `Start free — ${trialDays} days on us, no card required.` : 'Simple pricing. Cancel anytime.'}
             </p>
           </div>
-          <div className={`grid gap-5 ${coachingPlans.length > 0 ? 'sm:grid-cols-2' : 'max-w-sm mx-auto'}`}>
-            {membership?.enabled && (
+          <div className={`grid gap-5 ${(membershipPlans.length + coachingPlans.length) > 1 ? 'sm:grid-cols-2' : 'max-w-sm mx-auto'}`}>
+            {membershipPlans.map((plan, i) => (
               <motion.div
+                key={plan.id}
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.35 }}
-                className="relative rounded-2xl border-2 border-accent bg-accent/[0.03] p-6"
+                transition={{ duration: 0.35, delay: i * 0.05 }}
+                className={`relative rounded-2xl p-6 ${i === 0 ? 'border-2 border-accent bg-accent/[0.03]' : 'border border-white/10 bg-surface'}`}
               >
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
@@ -369,39 +372,39 @@ export default function LandingPage() {
                 )}
                 <div className="flex items-center gap-2 mb-1">
                   <Crown className="w-4 h-4 text-accent" />
-                  <p className="text-xs font-bold text-accent uppercase tracking-wide">{membership.planName?.trim() || 'Membership'}</p>
+                  <p className="text-xs font-bold text-accent uppercase tracking-wide">{plan.name}</p>
                 </div>
                 <div className="flex items-baseline gap-2 mt-2">
                   {discountPercent > 0 ? (
                     <>
-                      <span className="text-4xl font-black text-white">${applyDiscount(membership.fee, discountPercent).toFixed(2)}</span>
-                      <span className="text-base text-text-tertiary line-through">${membership.fee?.toFixed(2)}</span>
+                      <span className="text-4xl font-black text-white">${applyDiscount(plan.priceMonthly, discountPercent).toFixed(2)}</span>
+                      <span className="text-base text-text-tertiary line-through">${plan.priceMonthly.toFixed(2)}</span>
                     </>
                   ) : (
-                    <span className="text-4xl font-black text-white">${membership.fee?.toFixed(2)}</span>
+                    <span className="text-4xl font-black text-white">${plan.priceMonthly.toFixed(2)}</span>
                   )}
                   <span className="text-sm text-text-secondary">/month</span>
                 </div>
                 {trialDays > 0 && (
                   <p className="text-xs text-accent mt-1 font-medium">{trialDays}-day free trial, no payment required</p>
                 )}
-                {membership.description && (
-                  <p className="text-xs text-text-secondary mt-2 leading-relaxed">{membership.description}</p>
+                {plan.description && (
+                  <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>
                 )}
                 <ul className="mt-5 space-y-2.5">
-                  {(membership.features?.length ? membership.features : DEFAULT_MEMBERSHIP_FEATURES).map((f) => (
+                  {plan.features.map((f) => (
                     <li key={f} className="flex items-center gap-2 text-sm text-text-secondary">
                       <Check className="w-4 h-4 text-accent flex-shrink-0" /> {f}
                     </li>
                   ))}
                 </ul>
                 <Link href="/onboarding" className="block mt-6">
-                  <Button fullWidth size="lg">
+                  <Button fullWidth size="lg" variant={i === 0 ? 'primary' : 'secondary'}>
                     {trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : 'Join Now'} <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
               </motion.div>
-            )}
+            ))}
             {coachingPlans.map((plan) => (
               <motion.div
                 key={plan.id}
