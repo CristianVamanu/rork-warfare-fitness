@@ -3,10 +3,11 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, useAnimationControls, AnimatePresence } from 'framer-motion';
-import { Wind, Play, Pause, X, CheckCircle } from 'lucide-react';
+import { Wind, Play, Pause, X, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 
 // ─── Breathing methods ──────────────────────────────────────────────────────
 // Each phase drives both the visual guide's scale target and its duration —
@@ -92,11 +93,13 @@ const PHASE_LABEL: Record<PhaseType, string> = {
   'hold-out': 'Hold',
 };
 
+// Base circle is 220px inside a 384px (w-96) container — 1.75x fills it
+// all the way to the outer bound on a full inhale.
 const PHASE_SCALE: Record<PhaseType, number> = {
-  'inhale': 1.5,
-  'hold-in': 1.5,
-  'exhale': 0.7,
-  'hold-out': 0.7,
+  'inhale': 1.75,
+  'hold-in': 1.75,
+  'exhale': 0.55,
+  'hold-out': 0.55,
 };
 
 const DURATIONS = [
@@ -113,6 +116,7 @@ export default function BreathingPage() {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [quitConfirmOpen, setQuitConfirmOpen] = useState(false);
 
   const controls = useAnimationControls();
   const pausedRef = useRef(paused);
@@ -204,6 +208,21 @@ export default function BreathingPage() {
     setMethod(null);
   }
 
+  function requestQuit() {
+    setPaused(true);
+    setQuitConfirmOpen(true);
+  }
+
+  function cancelQuit() {
+    setQuitConfirmOpen(false);
+    setPaused(false);
+  }
+
+  function confirmQuit() {
+    setQuitConfirmOpen(false);
+    endSession();
+  }
+
   const mins = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
   const currentPhase = method?.phases[phaseIdx]?.type ?? 'inhale';
@@ -261,7 +280,7 @@ export default function BreathingPage() {
       {step === 'session' && method && (
         <div className="min-h-screen bg-background flex flex-col items-center justify-between py-8 px-4">
           <div className="w-full max-w-lg flex items-center justify-between">
-            <button onClick={endSession} className="p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/8 transition-colors" aria-label="End session">
+            <button onClick={requestQuit} className="p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/8 transition-colors" aria-label="End session">
               <X className="w-5 h-5" />
             </button>
             <div className="text-center">
@@ -309,6 +328,21 @@ export default function BreathingPage() {
           <p className="text-text-tertiary text-xs text-center max-w-xs">
             Follow the circle — breathe in as it grows, breathe out as it shrinks.
           </p>
+
+          <Modal open={quitConfirmOpen} onClose={cancelQuit} title="End this session?">
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 p-3 bg-amber-400/10 border border-amber-400/20 rounded-xl">
+                <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-text-secondary">
+                  You&apos;re {Math.round(((durationMinutes * 60 - secondsLeft) / (durationMinutes * 60)) * 100)}% through this {durationMinutes}-minute session. Quit now?
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="ghost" fullWidth onClick={cancelQuit}>Keep Going</Button>
+                <Button variant="danger" fullWidth onClick={confirmQuit}>End Session</Button>
+              </div>
+            </div>
+          </Modal>
         </div>
       )}
 
