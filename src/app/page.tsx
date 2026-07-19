@@ -355,7 +355,7 @@ export default function LandingPage() {
               {trialDays > 0 ? `Start free — ${trialDays} days on us, no card required.` : 'Simple pricing. Cancel anytime.'}
             </p>
           </div>
-          <div className={`grid gap-4 ${
+          <div className={`grid gap-4 items-stretch ${
             (membershipPlans.length + coachingPlans.length) >= 3 ? 'sm:grid-cols-2 lg:grid-cols-3'
             : (membershipPlans.length + coachingPlans.length) === 2 ? 'sm:grid-cols-2 max-w-2xl mx-auto'
             : 'max-w-sm mx-auto'
@@ -367,7 +367,7 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: i * 0.05 }}
-                className={`relative rounded-2xl p-5 ${i === 0 ? 'border-2 border-accent bg-accent/[0.03]' : 'border border-white/10 bg-surface'}`}
+                className={`relative rounded-2xl p-5 h-full flex flex-col ${i === 0 ? 'border-2 border-accent bg-accent/[0.03]' : 'border border-white/10 bg-surface'}`}
               >
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
@@ -402,7 +402,7 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/onboarding" className="block mt-5">
+                <Link href="/onboarding" className="block pt-5 mt-auto">
                   <Button fullWidth size="md" variant={i === 0 ? 'primary' : 'secondary'}>
                     {trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : 'Join Now'} <ArrowRight className="w-4 h-4" />
                   </Button>
@@ -416,7 +416,7 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: 0.05 }}
-                className="relative rounded-2xl border border-white/10 bg-surface p-5"
+                className="relative rounded-2xl border border-white/10 bg-surface p-5 h-full flex flex-col"
               >
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
@@ -443,7 +443,7 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/onboarding" className="block mt-5">
+                <Link href="/onboarding" className="block pt-5 mt-auto">
                   <Button fullWidth size="md" variant="secondary">
                     Apply Now <ArrowRight className="w-4 h-4" />
                   </Button>
