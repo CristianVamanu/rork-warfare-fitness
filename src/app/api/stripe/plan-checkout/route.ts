@@ -50,6 +50,23 @@ export async function POST(req: NextRequest) {
       discounts = [{ coupon: coupon.id }];
     }
 
+    // If the user is still inside the app-level free trial, tell Stripe to
+    // defer the first charge until the trial actually ends — otherwise
+    // "subscribing" during a free trial charges the card immediately.
+    let trialEnd: number | undefined;
+    const trialDays = Number(membershipCfg.trialDays ?? 0);
+    if (trialDays > 0) {
+      const userSnap = await db.collection('users').doc(userId).get();
+      const createdAtRaw = userSnap.data()?.createdAt as { toDate?: () => Date } | string | undefined;
+      const createdAt = typeof createdAtRaw === 'object' && createdAtRaw?.toDate ? createdAtRaw.toDate() : (createdAtRaw ? new Date(createdAtRaw as string) : null);
+      if (createdAt) {
+        const trialEndMs = createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000;
+        if (trialEndMs > Date.now() + 60 * 1000) {
+          trialEnd = Math.floor(trialEndMs / 1000);
+        }
+      }
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
@@ -66,12 +83,8 @@ export async function POST(req: NextRequest) {
         },
       ],
       ...(discounts ? { discounts } : { allow_promotion_codes: true }),
-      // No trial_period_days here — the app-level free trial (Admin ->
-      // Membership Settings -> Free Trial Period) already grants full
-      // access from account creation, independent of which plan someone
-      // eventually checks out with. A second Stripe-side trial would stack
-      // on top and double the free period.
       subscription_data: {
+        ...(trialEnd ? { trial_end: trialEnd } : {}),
         metadata: { userId, planId, planName: plan.name },
       },
       metadata: { userId, planId, planName: plan.name },
