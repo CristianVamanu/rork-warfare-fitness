@@ -139,30 +139,45 @@ export default function BreathingPage() {
     return () => clearInterval(interval);
   }, [step, controls]);
 
-  // Phase cycle — an imperative async loop rather than a fixed CSS animation,
-  // since each method has a different number of phases with different
-  // durations that need to keep repeating until the countdown above ends it.
+  // Phase cycle — timing is driven by a plain millisecond countdown, NOT by
+  // awaiting the animation. Framer Motion resolves an animation immediately
+  // if the target value already equals the current one — which is exactly
+  // what happens on a "hold" phase, since the circle isn't supposed to move.
+  // Awaiting `controls.start()` for a hold made it resolve almost instantly
+  // instead of actually waiting out the hold's duration. Driving time
+  // separately (and firing the animation without awaiting it) fixes that,
+  // and also lets pause freeze the circle mid-phase rather than only
+  // freezing the countdown display.
   useEffect(() => {
     if (step !== 'session' || !method) return;
     cancelledRef.current = false;
-
-    async function waitWhilePaused() {
-      while (pausedRef.current && !cancelledRef.current) {
-        await new Promise((r) => setTimeout(r, 200));
-      }
-    }
 
     async function runCycle() {
       let i = 0;
       while (!cancelledRef.current) {
         const phase = method!.phases[i % method!.phases.length];
         setPhaseIdx(i % method!.phases.length);
-        await waitWhilePaused();
-        if (cancelledRef.current) return;
-        await controls.start({
-          scale: PHASE_SCALE[phase.type],
-          transition: { duration: phase.seconds, ease: 'easeInOut' },
-        });
+
+        let remainingMs = phase.seconds * 1000;
+        let animating = false;
+
+        while (remainingMs > 0 && !cancelledRef.current) {
+          if (pausedRef.current) {
+            if (animating) { controls.stop(); animating = false; }
+            await new Promise((r) => setTimeout(r, 150));
+            continue;
+          }
+          if (!animating) {
+            controls.start({
+              scale: PHASE_SCALE[phase.type],
+              transition: { duration: remainingMs / 1000, ease: 'easeInOut' },
+            });
+            animating = true;
+          }
+          const tick = Math.min(150, remainingMs);
+          await new Promise((r) => setTimeout(r, tick));
+          remainingMs -= tick;
+        }
         i++;
       }
     }
