@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { logMealAction } from '@/lib/actions';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 
 interface MealIdea {
   name: string;
@@ -75,6 +76,7 @@ export default function MealPlannerPage() {
   }
 
   return (
+    <PaywallGate feature="meal-planner">
     <div className="min-h-screen bg-background pb-24">
       <div className="px-4 pt-12 pb-4 max-w-lg mx-auto">
         <button onClick={() => router.back()} className="p-2 -ml-2 rounded-xl text-text-secondary hover:text-white transition-colors">
@@ -191,5 +193,6 @@ export default function MealPlannerPage() {
         )}
       </div>
     </div>
+    </PaywallGate>
   );
 }

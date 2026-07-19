@@ -1,8 +1,8 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Flame, Dumbbell, RefreshCw, Zap,
@@ -71,6 +71,7 @@ const slideVariants = {
 export default function OnboardingPage() {
   const { user, loading: authLoading, refreshProfile } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
@@ -101,6 +102,17 @@ export default function OnboardingPage() {
   function updateMedical(patch: Partial<MedicalHistoryAnswers>) {
     setMedicalHistory((m) => ({ ...m, ...patch }));
   }
+
+  // Pre-fills sex/age from the landing page's quick-start selector, if the
+  // visitor used it — pure head start, every field here is still editable
+  // on the biometrics step like normal.
+  useEffect(() => {
+    const qSex = searchParams.get('sex');
+    const qAge = searchParams.get('age');
+    if (qSex === 'male' || qSex === 'female') setSex(qSex);
+    if (qAge && /^\d+$/.test(qAge)) setAge(qAge);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Quiz runs fully anonymously — no account required to start. The account
   // is only created at the very last step, once someone has already
@@ -314,7 +326,15 @@ export default function OnboardingPage() {
     }
   }
 
+  // Guards against a fast double-tap on "Let's Go" firing this twice — on
+  // touch devices a quick double-press can fire two click events before the
+  // first async fetch resolves, which was opening the video modal twice in
+  // a row and made the greeting look like it restarted/played twice.
+  const proceedingRef = useRef(false);
+
   async function proceedToApp() {
+    if (proceedingRef.current) return;
+    proceedingRef.current = true;
     try {
       const cfg = await getSystemConfig();
       if (cfg?.videoGreetingUrl) {

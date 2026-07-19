@@ -251,7 +251,7 @@ export default function AdminPage() {
   const [savingPlans, setSavingPlans] = useState(false);
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [editingPlan, setEditingPlan] = useState<CoachingPlan | null>(null);
-  const [planForm, setPlanForm] = useState({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true });
+  const [planForm, setPlanForm] = useState<{ name: string; description: string; priceMonthly: string; currency: string; features: string; active: boolean; featureAccess: string[] }>({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] });
   const [assigningPlan, setAssigningPlan] = useState<string | null>(null);
 
   // ── Coaching applications state ────────────────────────────────────────────
@@ -646,6 +646,7 @@ export default function AdminPage() {
         currency: planForm.currency,
         features: planForm.features.split('\n').map(f => f.trim()).filter(Boolean),
         active: planForm.active,
+        featureAccess: planForm.featureAccess,
       };
       const updated = editingPlan
         ? coachingPlans.map(p => p.id === plan.id ? plan : p)
@@ -654,7 +655,7 @@ export default function AdminPage() {
       setCoachingPlans(updated);
       setShowPlanForm(false);
       setEditingPlan(null);
-      setPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true });
+      setPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] });
       toast.success(editingPlan ? 'Plan updated' : 'Plan created');
     } catch { toast.error('Failed to save plan'); }
     finally { setSavingPlans(false); }
@@ -679,8 +680,16 @@ export default function AdminPage() {
       currency: plan.currency,
       features: plan.features.join('\n'),
       active: plan.active,
+      featureAccess: plan.featureAccess ?? [],
     });
     setShowPlanForm(true);
+  }
+
+  function togglePlanFeatureAccess(id: string) {
+    setPlanForm(f => ({
+      ...f,
+      featureAccess: f.featureAccess.includes(id) ? f.featureAccess.filter(x => x !== id) : [...f.featureAccess, id],
+    }));
   }
 
   async function handleAssignPlan(u: UserData, planId: string, planName: string) {
@@ -2002,6 +2011,7 @@ export default function AdminPage() {
                   {[
                     { id: 'barcode', label: 'Barcode Scanner', desc: 'Nutrition lookup via product barcode' },
                     { id: 'nutrition-ai', label: 'AI Food Analyzer', desc: 'Photo-based nutrition analysis' },
+                    { id: 'meal-planner', label: 'AI Meal Planner', desc: 'Generates a full daily meal plan' },
                     { id: 'premium-programs', label: 'Premium Training Plans', desc: 'Programs marked as Premium require membership' },
                   ].map(({ id, label, desc }) => (
                     <div key={id} className="flex items-center justify-between py-1">
@@ -2030,7 +2040,7 @@ export default function AdminPage() {
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
                     <Trophy className="w-4 h-4 text-accent" /> Coaching Plans
                   </h2>
-                  <Button size="sm" onClick={() => { setEditingPlan(null); setPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true }); setShowPlanForm(true); }}>
+                  <Button size="sm" onClick={() => { setEditingPlan(null); setPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] }); setShowPlanForm(true); }}>
                     <Plus className="w-3.5 h-3.5" /> New Plan
                   </Button>
                 </div>
@@ -2094,6 +2104,30 @@ export default function AdminPage() {
                         rows={4}
                         className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none font-mono"
                       />
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Tool Access</label>
+                      <p className="text-xs text-text-tertiary mb-2">
+                        Leave all unchecked to grant every feature (default). Check specific ones to restrict this plan to only those.
+                      </p>
+                      <div className="space-y-1.5">
+                        {[
+                          { id: 'barcode', label: 'Barcode Scanner' },
+                          { id: 'nutrition-ai', label: 'AI Food Analyzer' },
+                          { id: 'meal-planner', label: 'AI Meal Planner' },
+                          { id: 'premium-programs', label: 'Premium Training Plans' },
+                        ].map(({ id, label }) => (
+                          <label key={id} className="flex items-center gap-2.5 py-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={planForm.featureAccess.includes(id)}
+                              onChange={() => togglePlanFeatureAccess(id)}
+                              className="w-4 h-4 accent-accent"
+                            />
+                            <span className="text-sm text-white">{label}</span>
+                          </label>
+                        ))}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <div>

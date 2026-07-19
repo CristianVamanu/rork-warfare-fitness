@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { Lock, Star, Crown } from 'lucide-react';
-import { getMembershipConfig } from '@/lib/firestore';
+import { getMembershipConfig, getCoachingPlans } from '@/lib/firestore';
 import { startMembershipCheckout } from '@/lib/checkout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from './Card';
 import { Button } from './Button';
-import type { MembershipConfig } from '@/types';
+import type { MembershipConfig, CoachingPlan } from '@/types';
 
 interface Props {
-  feature?: string; // 'barcode' | 'nutrition-ai' | undefined (means fullLock check only)
+  feature?: string; // 'barcode' | 'nutrition-ai' | 'meal-planner' | undefined (means fullLock check only)
   programId?: string;
   children: React.ReactNode;
 }
@@ -18,13 +18,16 @@ interface Props {
 export function PaywallGate({ feature, programId, children }: Props) {
   const { user, profile } = useAuth();
   const [config, setConfig] = useState<MembershipConfig | null>(null);
+  const [plans, setPlans] = useState<CoachingPlan[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
 
   useEffect(() => {
-    getMembershipConfig()
-      .then(setConfig)
-      .catch(() => setConfig(null))
+    Promise.all([
+      getMembershipConfig().catch(() => null),
+      getCoachingPlans().catch(() => []),
+    ])
+      .then(([cfg, cp]) => { setConfig(cfg); setPlans(cp); })
       .finally(() => setLoaded(true));
   }, []);
 
@@ -41,8 +44,28 @@ export function PaywallGate({ feature, programId, children }: Props) {
     return ms < trialDays * 24 * 60 * 60 * 1000;
   })();
 
-  if (!config || !config.enabled || hasMembership || inTrial) {
+  if (!config || !config.enabled || inTrial) {
     return <>{children}</>;
+  }
+
+  // A member on a specific coaching plan only gets what that plan's
+  // featureAccess actually lists — an empty/unset list means "no specific
+  // restriction configured" and keeps the old behavior (full access), so
+  // existing plans created before this feature aren't retroactively locked.
+  const activePlan = hasMembership && profile?.membership?.planId
+    ? plans.find((p) => p.id === profile.membership!.planId) ?? null
+    : null;
+  const planRestricts = !!activePlan?.featureAccess && activePlan.featureAccess.length > 0;
+
+  if (hasMembership && !planRestricts) {
+    return <>{children}</>;
+  }
+
+  if (hasMembership && planRestricts) {
+    const featureAllowed = !feature || activePlan!.featureAccess!.includes(feature);
+    const programAllowed = !programId || activePlan!.featureAccess!.includes('premium-programs');
+    if (featureAllowed && programAllowed) return <>{children}</>;
+    return <PlanUpgradeScreen planName={activePlan!.name} />;
   }
 
   const isLocked =
@@ -86,6 +109,26 @@ export function PaywallGate({ feature, programId, children }: Props) {
             <Crown className="w-4 h-4" /> {subscribing ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
           </Button>
         )}
+      </Card>
+    </div>
+  );
+}
+
+function PlanUpgradeScreen({ planName }: { planName: string }) {
+  return (
+    <div className="px-4 py-12 flex flex-col items-center justify-center min-h-[40vh]">
+      <Card className="p-8 text-center max-w-sm w-full border-accent/30">
+        <div className="w-14 h-14 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-4">
+          <Lock className="w-7 h-7 text-accent" />
+        </div>
+        <div className="flex items-center justify-center gap-1 mb-2">
+          <Star className="w-4 h-4 text-accent" fill="currentColor" />
+          <span className="text-xs font-bold text-accent uppercase tracking-wide">Not Included In Your Plan</span>
+        </div>
+        <h3 className="text-lg font-black text-white mb-2">Upgrade Needed</h3>
+        <p className="text-text-secondary text-sm">
+          Your current <span className="text-white font-medium">{planName}</span> plan doesn&apos;t include this feature. Message your coach about upgrading.
+        </p>
       </Card>
     </div>
   );

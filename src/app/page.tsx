@@ -8,7 +8,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy,
-  ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown,
+  ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSystemConfig, getMembershipConfig, getCoachingPlans } from '@/lib/firestore';
@@ -82,6 +82,8 @@ export default function LandingPage() {
   const [leaderboard, setLeaderboard] = useState<{ displayName: string; powerLevel: number; streak: number; totalWorkouts: number }[]>([]);
   const [stats, setStats] = useState<{ totalUsers: number; totalWorkouts: number } | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [quickSex, setQuickSex] = useState<'male' | 'female' | null>(null);
+  const [quickAge, setQuickAge] = useState('');
 
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard');
@@ -177,19 +179,51 @@ export default function LandingPage() {
           <p className="text-text-secondary text-base sm:text-lg mt-5 max-w-xl mx-auto leading-relaxed">
             {subheadline}
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
-            <Link href="/onboarding" className="w-full sm:w-auto">
-              <Button size="lg" fullWidth className="sm:w-auto sm:px-8">
+          {/* Quick-start selector — getting a visitor to make one small,
+              personal choice (their sex, their age) before they even leave
+              the landing page builds investment in the result, the same
+              trick quiz-funnel apps use. Answers ride along as query params
+              and simply pre-fill the same fields on the biometrics step —
+              nothing here is saved or required, it's just a head start. */}
+          <div className="max-w-md mx-auto mt-8 p-5 rounded-2xl border border-white/8 bg-surface/60 backdrop-blur-sm">
+            <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-3">Start building your program</p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {(['male', 'female'] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setQuickSex(s)}
+                  className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border transition-colors ${quickSex === s ? 'border-accent bg-accent/10' : 'border-white/10 hover:border-white/20'}`}
+                >
+                  <User className={`w-6 h-6 ${quickSex === s ? 'text-accent' : 'text-text-secondary'}`} />
+                  <span className={`text-xs font-semibold ${quickSex === s ? 'text-white' : 'text-text-secondary'}`}>{s === 'male' ? 'Male' : 'Female'}</span>
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={quickAge}
+              onChange={(e) => setQuickAge(e.target.value)}
+              placeholder="Your age"
+              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm text-center placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 mb-3"
+            />
+            <Link
+              href={`/onboarding${quickSex ? `?sex=${quickSex}` : ''}${quickAge ? `${quickSex ? '&' : '?'}age=${quickAge}` : ''}`}
+              className="block"
+            >
+              <Button size="lg" fullWidth>
                 {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
-            <Link href="/login" className="w-full sm:w-auto">
-              <Button size="lg" variant="secondary" fullWidth className="sm:w-auto sm:px-8">
-                {landing.ctaSecondaryLabel}
-              </Button>
+          </div>
+
+          <div className="flex items-center justify-center gap-4 mt-5">
+            <p className="text-xs text-text-tertiary">No credit card required</p>
+            <span className="text-text-tertiary">·</span>
+            <Link href="/login" className="text-xs text-accent font-medium hover:underline">
+              {landing.ctaSecondaryLabel}
             </Link>
           </div>
-          <p className="text-xs text-text-tertiary mt-4">No credit card required to start</p>
 
           {/* Real usage numbers only — hidden below a threshold so a brand
               new install never shows an awkwardly small count. */}

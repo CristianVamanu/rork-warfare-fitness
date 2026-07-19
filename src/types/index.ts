@@ -447,6 +447,10 @@ export interface CoachingPlan {
   currency: string;       // 'USD' | 'EUR' | 'GBP'
   features: string[];     // bullet points shown to users
   active: boolean;
+  // Which gated tools this specific plan unlocks — 'barcode' | 'nutrition-ai'
+  // | 'meal-planner' | 'premium-programs'. Undefined/empty means "every
+  // feature" (matches pre-existing plans, which had no restriction at all).
+  featureAccess?: string[];
 }
 
 export interface NutritionPlanMeal {
