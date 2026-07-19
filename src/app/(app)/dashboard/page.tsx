@@ -3,9 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Activity } from 'lucide-react';
-import { getIdToken } from 'firebase/auth';
-import { recoveryColorClass } from '@/lib/whoopUi';
+import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
 import { logWaterAction } from '@/lib/actions';
@@ -48,23 +46,6 @@ export default function DashboardPage() {
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
   const [adjustingWater, setAdjustingWater] = useState(false);
-  const [whoop, setWhoop] = useState<{ recoveryScore?: number; sleepPerformancePercent?: number; dayStrain?: number; restingHeartRate?: number } | null>(null);
-
-  // WHOOP recovery/sleep/strain — only fetched (and shown) if the user has
-  // connected a wearable and hasn't hidden it from Settings.
-  useEffect(() => {
-    const dashboardVisible = profile?.whoopDashboardVisible;
-    if (!user || dashboardVisible === false) { setWhoop(null); return; }
-    (async () => {
-      try {
-        const token = await getIdToken(user);
-        const res = await fetch('/api/whoop/status', { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.connected && data.summary) setWhoop(data.summary);
-      } catch { /* ignore — optional widget */ }
-    })();
-  }, [user, profile]);
 
   // Sync calories + water from profile.statsCache whenever it updates (real-time via AuthContext)
   useEffect(() => {
@@ -411,44 +392,6 @@ export default function DashboardPage() {
             </Card>
           </motion.div>
 
-          {/* WHOOP recovery/sleep/strain — only shown once connected in Settings */}
-          {whoop && (
-            <motion.div variants={stagger.item} className="col-span-4 row-span-1">
-              <Card className="p-3.5 h-full">
-                <div className="flex items-center gap-1.5 mb-2.5">
-                  <Activity className="w-3.5 h-3.5 text-accent" />
-                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">WHOOP</span>
-                </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {whoop.recoveryScore !== undefined && (
-                    <div className="text-center">
-                      <p className={`text-lg font-black ${recoveryColorClass(whoop.recoveryScore)}`}>{whoop.recoveryScore}%</p>
-                      <p className="text-[10px] text-text-tertiary">Recovery</p>
-                    </div>
-                  )}
-                  {whoop.sleepPerformancePercent !== undefined && (
-                    <div className="text-center">
-                      <p className="text-lg font-black text-blue-400">{whoop.sleepPerformancePercent}%</p>
-                      <p className="text-[10px] text-text-tertiary">Sleep</p>
-                    </div>
-                  )}
-                  {whoop.dayStrain !== undefined && (
-                    <div className="text-center">
-                      <p className="text-lg font-black text-accent">{whoop.dayStrain.toFixed(1)}</p>
-                      <p className="text-[10px] text-text-tertiary">Strain</p>
-                    </div>
-                  )}
-                  {whoop.restingHeartRate !== undefined && (
-                    <div className="text-center">
-                      <p className="text-lg font-black text-red-400">{whoop.restingHeartRate}</p>
-                      <p className="text-[10px] text-text-tertiary">RHR</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            </motion.div>
-          )}
-
   {/* Today's Workout — hero */}
           <motion.div variants={stagger.item} className="col-span-4 row-span-2">
             {activeProgram ? (
@@ -564,6 +507,17 @@ export default function DashboardPage() {
                 <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR Wall</span>
                 <span className="text-lg mt-0.5">🏅</span>
                 <p className="text-[10px] text-text-tertiary mt-0.5">Post a lift, get verified</p>
+              </Card>
+            </Link>
+          </motion.div>
+
+          {/* Breathing / meditation widget */}
+          <motion.div variants={stagger.item} className="col-span-2 row-span-1">
+            <Link href="/breathing" className="block h-full">
+              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors">
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Breathing</span>
+                <span className="text-lg mt-0.5">🌬️</span>
+                <p className="text-[10px] text-text-tertiary mt-0.5">Relax in 5 or 10 min</p>
               </Card>
             </Link>
           </motion.div>

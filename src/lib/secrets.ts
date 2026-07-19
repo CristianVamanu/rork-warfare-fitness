@@ -30,12 +30,6 @@ export const SECRET_KEYS = [
   'CLOUDFLARE_ZONE_ID',
   'RESEND_API_KEY',
   'RESEND_FROM_EMAIL',
-  // WHOOP OAuth app credentials — register a developer app at
-  // developer.whoop.com, set its redirect URI to
-  // {NEXT_PUBLIC_APP_URL}/api/whoop/callback, and paste the client
-  // id/secret here.
-  'WHOOP_CLIENT_ID',
-  'WHOOP_CLIENT_SECRET',
 ] as const;
 
 export type SecretKey = typeof SECRET_KEYS[number];
