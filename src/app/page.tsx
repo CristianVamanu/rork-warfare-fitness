@@ -132,6 +132,22 @@ export default function LandingPage() {
         <div className="absolute right-[-100px] top-[80px] w-[500px] h-[240px] rotate-[-20deg] bg-gradient-to-r from-transparent via-accent/25 to-transparent blur-3xl" />
       </div>
 
+      {/* Hero background image — full-bleed behind the entire hero, not
+          confined to the narrow text column, so it actually reads as a
+          background rather than a sliver hidden behind the copy. */}
+      {landing.heroImageUrl && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[820px] overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={landing.heroImageUrl}
+            alt=""
+            className="w-full h-full object-cover object-top sm:object-center opacity-40 sm:opacity-45"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/75 to-background" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
+        </div>
+      )}
+
       {/* Nav */}
       <nav className="relative max-w-5xl mx-auto flex items-center justify-between px-5 py-5">
         <div className="flex items-center gap-2">
@@ -150,26 +166,8 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="relative max-w-3xl mx-auto px-5 pt-10 pb-16 text-center overflow-hidden">
-        {landing.heroImageUrl && (
-          <div className="pointer-events-none absolute inset-0 z-0">
-            <Image
-              src={landing.heroImageUrl}
-              alt=""
-              fill
-              priority
-              quality={85}
-              sizes="100vw"
-              className="object-cover object-top sm:object-center opacity-40 sm:opacity-45"
-            />
-            {/* Fade the photo into the page background on every edge so it
-                reads as "blended in" rather than a pasted-on rectangle, and
-                stays legible behind text on both narrow and wide viewports. */}
-            <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/80 to-background" />
-            <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
-          </div>
-        )}
-        <motion.div className="relative z-10" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+      <section className="relative max-w-3xl mx-auto px-5 pt-10 pb-16 text-center">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           {/* Animated brand mark — logo emerging through smoke into flame.
               Muted/looped/inline so it autoplays everywhere including iOS
               Safari; the poster frame paints instantly so there's no blank
