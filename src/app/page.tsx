@@ -348,14 +348,18 @@ export default function LandingPage() {
 
       {/* Pricing */}
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && (
-        <section className="max-w-4xl mx-auto px-5 pb-16">
+        <section className="max-w-5xl mx-auto px-5 pb-16">
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
             <p className="text-text-secondary text-sm mt-2">
               {trialDays > 0 ? `Start free — ${trialDays} days on us, no card required.` : 'Simple pricing. Cancel anytime.'}
             </p>
           </div>
-          <div className={`grid gap-5 ${(membershipPlans.length + coachingPlans.length) > 1 ? 'sm:grid-cols-2' : 'max-w-sm mx-auto'}`}>
+          <div className={`grid gap-4 ${
+            (membershipPlans.length + coachingPlans.length) >= 3 ? 'sm:grid-cols-2 lg:grid-cols-3'
+            : (membershipPlans.length + coachingPlans.length) === 2 ? 'sm:grid-cols-2 max-w-2xl mx-auto'
+            : 'max-w-sm mx-auto'
+          }`}>
             {membershipPlans.map((plan, i) => (
               <motion.div
                 key={plan.id}
@@ -363,7 +367,7 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: i * 0.05 }}
-                className={`relative rounded-2xl p-6 ${i === 0 ? 'border-2 border-accent bg-accent/[0.03]' : 'border border-white/10 bg-surface'}`}
+                className={`relative rounded-2xl p-5 ${i === 0 ? 'border-2 border-accent bg-accent/[0.03]' : 'border border-white/10 bg-surface'}`}
               >
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
@@ -371,35 +375,35 @@ export default function LandingPage() {
                   </div>
                 )}
                 <div className="flex items-center gap-2 mb-1">
-                  <Crown className="w-4 h-4 text-accent" />
+                  <Crown className="w-3.5 h-3.5 text-accent" />
                   <p className="text-xs font-bold text-accent uppercase tracking-wide">{plan.name}</p>
                 </div>
-                <div className="flex items-baseline gap-2 mt-2">
+                <div className="flex items-baseline gap-1.5 mt-2">
                   {discountPercent > 0 ? (
                     <>
-                      <span className="text-4xl font-black text-white">${applyDiscount(plan.priceMonthly, discountPercent).toFixed(2)}</span>
-                      <span className="text-base text-text-tertiary line-through">${plan.priceMonthly.toFixed(2)}</span>
+                      <span className="text-3xl font-black text-white">${applyDiscount(plan.priceMonthly, discountPercent).toFixed(2)}</span>
+                      <span className="text-sm text-text-tertiary line-through">${plan.priceMonthly.toFixed(2)}</span>
                     </>
                   ) : (
-                    <span className="text-4xl font-black text-white">${plan.priceMonthly.toFixed(2)}</span>
+                    <span className="text-3xl font-black text-white">${plan.priceMonthly.toFixed(2)}</span>
                   )}
-                  <span className="text-sm text-text-secondary">/month</span>
+                  <span className="text-xs text-text-secondary">/month</span>
                 </div>
                 {trialDays > 0 && (
-                  <p className="text-xs text-accent mt-1 font-medium">{trialDays}-day free trial, no payment required</p>
+                  <p className="text-[11px] text-accent mt-1 font-medium">{trialDays}-day free trial, no payment required</p>
                 )}
                 {plan.description && (
                   <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>
                 )}
-                <ul className="mt-5 space-y-2.5">
+                <ul className="mt-4 space-y-2">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-text-secondary">
-                      <Check className="w-4 h-4 text-accent flex-shrink-0" /> {f}
+                    <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
+                      <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {f}
                     </li>
                   ))}
                 </ul>
-                <Link href="/onboarding" className="block mt-6">
-                  <Button fullWidth size="lg" variant={i === 0 ? 'primary' : 'secondary'}>
+                <Link href="/onboarding" className="block mt-5">
+                  <Button fullWidth size="md" variant={i === 0 ? 'primary' : 'secondary'}>
                     {trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : 'Join Now'} <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
@@ -412,7 +416,7 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: 0.05 }}
-                className="relative rounded-2xl border border-white/10 bg-surface p-6"
+                className="relative rounded-2xl border border-white/10 bg-surface p-5"
               >
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
@@ -420,27 +424,27 @@ export default function LandingPage() {
                   </div>
                 )}
                 <p className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-1">{plan.name}</p>
-                <div className="flex items-baseline gap-2 mt-2">
+                <div className="flex items-baseline gap-1.5 mt-2">
                   {discountPercent > 0 ? (
                     <>
-                      <span className="text-4xl font-black text-white">${applyDiscount(plan.priceMonthly, discountPercent).toFixed(2)}</span>
-                      <span className="text-base text-text-tertiary line-through">${plan.priceMonthly?.toFixed(2)}</span>
+                      <span className="text-3xl font-black text-white">${applyDiscount(plan.priceMonthly, discountPercent).toFixed(2)}</span>
+                      <span className="text-sm text-text-tertiary line-through">${plan.priceMonthly?.toFixed(2)}</span>
                     </>
                   ) : (
-                    <span className="text-4xl font-black text-white">${plan.priceMonthly?.toFixed(2)}</span>
+                    <span className="text-3xl font-black text-white">${plan.priceMonthly?.toFixed(2)}</span>
                   )}
-                  <span className="text-sm text-text-secondary">/month</span>
+                  <span className="text-xs text-text-secondary">/month</span>
                 </div>
                 <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>
-                <ul className="mt-5 space-y-2.5">
+                <ul className="mt-4 space-y-2">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-text-secondary">
-                      <Check className="w-4 h-4 text-accent flex-shrink-0" /> {f}
+                    <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
+                      <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {f}
                     </li>
                   ))}
                 </ul>
-                <Link href="/onboarding" className="block mt-6">
-                  <Button fullWidth size="lg" variant="secondary">
+                <Link href="/onboarding" className="block mt-5">
+                  <Button fullWidth size="md" variant="secondary">
                     Apply Now <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
