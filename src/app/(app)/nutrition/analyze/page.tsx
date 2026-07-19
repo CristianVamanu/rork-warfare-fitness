@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Camera, Upload, Flame, Beef, Wheat, AlertCircle, AlertTriangle } from 'lucide-react';
@@ -54,6 +54,14 @@ function resizeImage(dataUrl: string, maxDimension: number, quality: number): Pr
 }
 
 export default function AnalyzeFoodPage() {
+  return (
+    <Suspense fallback={null}>
+      <AnalyzeFoodPageInner />
+    </Suspense>
+  );
+}
+
+function AnalyzeFoodPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();

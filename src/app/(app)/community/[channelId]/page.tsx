@@ -200,6 +200,8 @@ export default function ChannelPage() {
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const resumedRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -223,24 +225,53 @@ export default function ChannelPage() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, [channelId, trainerId, user]);
 
-  // Scroll to bottom when posts first load
+  // Resume where the user left off instead of always jumping to the very
+  // bottom: the last post they had scrolled to is remembered per-channel in
+  // localStorage. If there's nothing saved (first visit) or the saved post
+  // has since been deleted, falls back to the old behavior (bottom/newest).
+  const lastReadKey = `community_lastread_${channelId}`;
   useEffect(() => {
-    if (!loading && posts.length > 0) {
-      setTimeout(() => postsEndRef.current?.scrollIntoView({ behavior: 'instant' }), 50);
-    }
-  }, [loading]); // only on initial load
+    if (loading || posts.length === 0 || resumedRef.current) return;
+    resumedRef.current = true;
+    const savedId = localStorage.getItem(lastReadKey);
+    const idx = savedId ? posts.findIndex((p) => p.id === savedId) : -1;
+    setTimeout(() => {
+      if (idx !== -1 && idx < posts.length - 1) {
+        document.getElementById(`post-${savedId}`)?.scrollIntoView({ behavior: 'instant', block: 'start' });
+        setUnreadCount(posts.length - 1 - idx);
+      } else {
+        postsEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      }
+    }, 50);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, posts.length]);
 
-  // Show "Jump to latest" when user scrolls away from bottom
+  // Show "Jump to latest" when user scrolls away from bottom, and keep
+  // remembering the topmost visible post so a return visit can resume here.
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
+    let saveTimer: ReturnType<typeof setTimeout>;
     const handleScroll = () => {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
       setShowJumpToLatest(distanceFromBottom > 200);
+      if (distanceFromBottom <= 200) setUnreadCount(0);
+
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        const containerTop = el.getBoundingClientRect().top;
+        const postEls = el.querySelectorAll<HTMLElement>('[data-post-id]');
+        for (const postEl of Array.from(postEls)) {
+          if (postEl.getBoundingClientRect().top - containerTop >= -20) {
+            localStorage.setItem(lastReadKey, postEl.dataset.postId!);
+            break;
+          }
+        }
+      }, 400);
     };
     el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
-  }, [loading]);
+    return () => { el.removeEventListener('scroll', handleScroll); clearTimeout(saveTimer); };
+  }, [loading, lastReadKey]);
 
   // Focus reply textarea when sheet opens
   useEffect(() => {
@@ -296,6 +327,9 @@ export default function ChannelPage() {
       setTimeout(() => {
         postsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         setShowJumpToLatest(false);
+        setUnreadCount(0);
+        const newest = updated[updated.length - 1];
+        if (newest) localStorage.setItem(lastReadKey, newest.id);
       }, 100);
     } catch { toast.error('Failed to post'); }
     finally { setPosting(false); }
@@ -445,7 +479,7 @@ export default function ChannelPage() {
               <p className="text-text-secondary text-sm mt-1">Be the first to post!</p>
             </Card>
           ) : posts.map((post, i) => (
-            <motion.div key={post.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+            <motion.div key={post.id} id={`post-${post.id}`} data-post-id={post.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
               <PostCard
                 post={post}
                 userId={user?.uid ?? ''}
@@ -470,12 +504,12 @@ export default function ChannelPage() {
             initial={{ opacity: 0, scale: 0.8, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 8 }}
-            onClick={() => postsEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+            onClick={() => { postsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); setUnreadCount(0); }}
             className="fixed z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-accent text-black text-xs font-bold shadow-lg"
             style={{ bottom: `${COMPOSE_HEIGHT + 64 + 12}px`, left: '50%', transform: 'translateX(-50%)' }}
           >
             <ChevronsDown className="w-3.5 h-3.5" />
-            Jump to latest
+            Jump to latest{unreadCount > 0 ? ` · ${unreadCount} new` : ''}
           </motion.button>
         )}
       </AnimatePresence>

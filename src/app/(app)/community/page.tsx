@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame, Medal } from 'lucide-react';
@@ -15,6 +15,14 @@ import Link from 'next/link';
 import type { Channel } from '@/types';
 
 export default function CommunityPage() {
+  return (
+    <Suspense fallback={null}>
+      <CommunityPageInner />
+    </Suspense>
+  );
+}
+
+function CommunityPageInner() {
   const { trainerId, user, profile } = useAuth();
   // Trainer/admin users don't have trainerId on their own doc — use their uid as the tenant root
   const effectiveTrainerId = trainerId ?? ((profile?.role === 'admin' || profile?.role === 'trainer') ? user?.uid : null) ?? null;
