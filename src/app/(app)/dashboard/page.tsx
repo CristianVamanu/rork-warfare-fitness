@@ -3,9 +3,9 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus } from 'lucide-react';
+import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
+import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
 import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
@@ -46,6 +46,14 @@ export default function DashboardPage() {
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
   const [adjustingWater, setAdjustingWater] = useState(false);
+  const [activeGoalCount, setActiveGoalCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    getClientGoals(user.uid)
+      .then((goals) => setActiveGoalCount(goals.filter((g) => g.status === 'active').length))
+      .catch(() => {});
+  }, [user]);
 
   // Sync calories + water from profile.statsCache whenever it updates (real-time via AuthContext)
   useEffect(() => {
@@ -537,6 +545,25 @@ export default function DashboardPage() {
               </Card>
             </Link>
           </motion.div>
+
+          {/* Goals — only shown once the coach has actually set one */}
+          {activeGoalCount > 0 && (
+            <motion.div variants={stagger.item} className="col-span-4 row-span-1">
+              <Link href="/goals" className="block h-full">
+                <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors">
+                  <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
+                    <Target className="w-5 h-5 text-accent" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Goals</span>
+                    <p className="text-sm font-bold text-white">{activeGoalCount} active {activeGoalCount === 1 ? 'goal' : 'goals'} from your coach</p>
+                    <p className="text-[10px] text-text-tertiary mt-0.5">Tap to check in on your progress</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+                </Card>
+              </Link>
+            </motion.div>
+          )}
 
           {/* Weekly volume — real numbers only, no invented daily breakdown */}
           {weeklySummary && (weeklySummary.workoutsCompleted > 0 || weeklySummary.volumeKg > 0) && (

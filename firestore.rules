@@ -284,6 +284,20 @@ service cloud.firestore {
       allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }
 
+    // ── Client goals (trainer/admin sets, client checks in on progress) ───
+    match /goals/{goalId} {
+      allow read: if isAuthed() && (resource.data.userId == uid() || isStaff());
+      allow create: if isStaff();
+      // Client can only touch currentValue on their own goal (status is
+      // still coach-controlled — e.g. marking it missed); staff can edit
+      // anything.
+      allow update: if isAuthed() && (
+        isStaff() ||
+        (resource.data.userId == uid() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentValue']))
+      );
+      allow delete: if isStaff();
+    }
+
     // Body progress photos — private to the owning user and staff (admin/trainer) only.
     match /progressPhotos/{photoId} {
       allow read:   if isAuthed() && (resource.data.userId == uid() || isStaff());

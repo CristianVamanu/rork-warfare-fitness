@@ -1422,6 +1422,44 @@ export async function revokeCoachingPlan(userId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Client Goals — trainer/admin sets a target for a specific client, client
+// checks in on their own progress. Top-level collection (like prPosts/
+// progressPhotos) rather than a user subcollection so admin can list/manage
+// across clients without per-user subcollection queries.
+// ---------------------------------------------------------------------------
+import type { ClientGoal } from '@/types';
+
+export async function createGoal(data: Omit<ClientGoal, 'id' | 'createdAt' | 'status'>): Promise<string> {
+  const ref = await addDoc(collection(db, 'goals'), {
+    ...data,
+    status: 'active',
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getClientGoals(userId: string): Promise<ClientGoal[]> {
+  const snap = await getDocs(query(collection(db, 'goals'), where('userId', '==', userId), limit(100)));
+  const goals = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ClientGoal);
+  return goals.sort((a, b) => ((b.createdAt as Timestamp)?.toMillis() ?? 0) - ((a.createdAt as Timestamp)?.toMillis() ?? 0));
+}
+
+export async function updateGoalProgress(goalId: string, currentValue: number): Promise<void> {
+  await updateDoc(doc(db, 'goals', goalId), { currentValue });
+}
+
+export async function setGoalStatus(goalId: string, status: ClientGoal['status']): Promise<void> {
+  await updateDoc(doc(db, 'goals', goalId), {
+    status,
+    ...(status === 'completed' ? { completedAt: serverTimestamp() } : {}),
+  });
+}
+
+export async function deleteGoal(goalId: string): Promise<void> {
+  await deleteDoc(doc(db, 'goals', goalId));
+}
+
+// ---------------------------------------------------------------------------
 // Coaching Applications (intake form → admin review → pay/reject)
 // ---------------------------------------------------------------------------
 import type { CoachingApplication } from '@/types';

@@ -8,7 +8,7 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
-  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download,
+  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -29,6 +29,7 @@ import {
   assignNutritionPlan,
   getCoachingApplications, approveCoachingApplication, rejectCoachingApplication,
   getProgressPhotos,
+  createGoal, getClientGoals, setGoalStatus, deleteGoal,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -38,7 +39,7 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto } from '@/types';
+import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory } from '@/types';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'settings';
@@ -316,6 +317,15 @@ function AdminPageInner() {
   const [generatingNutrition, setGeneratingNutrition] = useState(false);
   const [assigningNutrition, setAssigningNutrition] = useState(false);
 
+  // ── Client goals state ──────────────────────────────────────────────────────
+  const [goalModalUser, setGoalModalUser] = useState<UserData | null>(null);
+  const [clientGoals, setClientGoals] = useState<ClientGoal[]>([]);
+  const [loadingGoals, setLoadingGoals] = useState(false);
+  const [goalForm, setGoalForm] = useState<{ title: string; description: string; category: GoalCategory; targetValue: string; currentValue: string; unit: string; targetDate: string; alsoMessage: boolean }>({
+    title: '', description: '', category: 'strength', targetValue: '', currentValue: '', unit: '', targetDate: '', alsoMessage: true,
+  });
+  const [savingGoal, setSavingGoal] = useState(false);
+
   // ── Community channels state ───────────────────────────────────────────────
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
@@ -585,6 +595,77 @@ function AdminPageInner() {
     setNutritionModalUser(u);
     setNutritionDraft(null);
     setNutritionTrainerNotes('');
+  }
+
+  async function openGoalModal(u: UserData) {
+    setGoalModalUser(u);
+    setGoalForm({ title: '', description: '', category: 'strength', targetValue: '', currentValue: '', unit: '', targetDate: '', alsoMessage: true });
+    setLoadingGoals(true);
+    try { setClientGoals(await getClientGoals(u.id)); } catch { /* noop */ }
+    finally { setLoadingGoals(false); }
+  }
+
+  async function handleCreateGoal() {
+    if (!user || !profile || !goalModalUser || !goalForm.title.trim()) return;
+    setSavingGoal(true);
+    try {
+      await createGoal({
+        userId: goalModalUser.id,
+        title: goalForm.title.trim(),
+        ...(goalForm.description.trim() ? { description: goalForm.description.trim() } : {}),
+        category: goalForm.category,
+        ...(goalForm.targetValue ? { targetValue: parseFloat(goalForm.targetValue) } : {}),
+        ...(goalForm.currentValue ? { currentValue: parseFloat(goalForm.currentValue) } : {}),
+        ...(goalForm.unit.trim() ? { unit: goalForm.unit.trim() } : {}),
+        ...(goalForm.targetDate ? { targetDate: goalForm.targetDate } : {}),
+        createdBy: user.uid,
+      });
+
+      // Notification always fires — it's the primary, low-friction way a
+      // client finds out a goal was set. The coach message is optional
+      // (checked by default) since it also opens a real conversation
+      // thread they can reply in, not just a one-way alert.
+      await sendNotification({
+        userId: goalModalUser.id,
+        title: 'New goal from your coach',
+        body: goalForm.targetValue
+          ? `${goalForm.title} — target: ${goalForm.targetValue}${goalForm.unit ? ` ${goalForm.unit}` : ''}`
+          : goalForm.title,
+        type: 'goal_assigned',
+        actionUrl: '/goals',
+        actionLabel: 'View Goal',
+      });
+
+      if (goalForm.alsoMessage) {
+        const convId = await getOrCreateConversation(user.uid, goalModalUser.id, goalModalUser.displayName || 'User', goalModalUser.email || '');
+        const messageBody = `🎯 New goal: ${goalForm.title}${goalForm.targetValue ? ` — target ${goalForm.targetValue}${goalForm.unit ? ` ${goalForm.unit}` : ''}` : ''}${goalForm.targetDate ? ` by ${new Date(goalForm.targetDate).toLocaleDateString()}` : ''}${goalForm.description.trim() ? `\n\n${goalForm.description.trim()}` : ''}`;
+        await sendMessage(convId, user.uid, profile.displayName, messageBody, true);
+      }
+
+      toast.success(`Goal set for ${goalModalUser.displayName || 'client'}`);
+      setGoalForm({ title: '', description: '', category: 'strength', targetValue: '', currentValue: '', unit: '', targetDate: '', alsoMessage: true });
+      setClientGoals(await getClientGoals(goalModalUser.id));
+    } catch {
+      toast.error('Failed to set goal');
+    } finally {
+      setSavingGoal(false);
+    }
+  }
+
+  async function handleGoalStatusChange(goal: ClientGoal, status: ClientGoal['status']) {
+    try {
+      await setGoalStatus(goal.id, status);
+      setClientGoals(prev => prev.map(g => g.id === goal.id ? { ...g, status } : g));
+    } catch { toast.error('Failed to update goal'); }
+  }
+
+  async function handleDeleteGoal(goal: ClientGoal) {
+    if (!confirm(`Delete the goal "${goal.title}"?`)) return;
+    try {
+      await deleteGoal(goal.id);
+      setClientGoals(prev => prev.filter(g => g.id !== goal.id));
+      toast.success('Goal deleted');
+    } catch { toast.error('Failed to delete goal'); }
   }
 
   async function handleGenerateNutrition() {
@@ -1502,6 +1583,13 @@ function AdminPageInner() {
                         className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-secondary hover:text-green-400"
                       >
                         <Apple className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => openGoalModal(u)}
+                        title="Set Goal"
+                        className="p-2 rounded-lg hover:bg-white/5 transition-colors text-text-secondary hover:text-accent"
+                      >
+                        <Target className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleBanToggle(u)}
@@ -3547,6 +3635,146 @@ function AdminPageInner() {
               </div>
             </>
           )}
+        </div>
+      </Modal>
+
+      {/* ── Client Goal Modal ────────────────────────────────────────────────── */}
+      <Modal
+        open={!!goalModalUser}
+        onClose={() => setGoalModalUser(null)}
+        title={`Goals — ${goalModalUser?.displayName || goalModalUser?.email || ''}`}
+      >
+        <div className="space-y-4">
+          <div className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+            <p className="text-sm font-bold text-white">New Goal</p>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Title</label>
+              <input
+                value={goalForm.title}
+                onChange={e => setGoalForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="e.g. Bench press 100kg"
+                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Notes (optional)</label>
+              <textarea
+                value={goalForm.description}
+                onChange={e => setGoalForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Any context or instructions for the client…"
+                rows={2}
+                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Category</label>
+              <select
+                value={goalForm.category}
+                onChange={e => setGoalForm(f => ({ ...f, category: e.target.value as GoalCategory }))}
+                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+              >
+                <option value="strength">Strength</option>
+                <option value="weight">Weight</option>
+                <option value="workouts">Workouts</option>
+                <option value="nutrition">Nutrition</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Target</label>
+                <input
+                  type="number" step="any"
+                  value={goalForm.targetValue}
+                  onChange={e => setGoalForm(f => ({ ...f, targetValue: e.target.value }))}
+                  placeholder="100"
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Starting</label>
+                <input
+                  type="number" step="any"
+                  value={goalForm.currentValue}
+                  onChange={e => setGoalForm(f => ({ ...f, currentValue: e.target.value }))}
+                  placeholder="80"
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Unit</label>
+                <input
+                  value={goalForm.unit}
+                  onChange={e => setGoalForm(f => ({ ...f, unit: e.target.value }))}
+                  placeholder="kg"
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Target Date (optional)</label>
+              <input
+                type="date"
+                value={goalForm.targetDate}
+                onChange={e => setGoalForm(f => ({ ...f, targetDate: e.target.value }))}
+                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+              />
+            </div>
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={goalForm.alsoMessage}
+                onChange={e => setGoalForm(f => ({ ...f, alsoMessage: e.target.checked }))}
+                className="w-4 h-4 accent-accent"
+              />
+              <span className="text-sm text-white">Also send as a coach message</span>
+            </label>
+            <Button fullWidth loading={savingGoal} disabled={!goalForm.title.trim()} onClick={handleCreateGoal}>
+              <Target className="w-4 h-4" /> Set Goal &amp; Notify Client
+            </Button>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-text-secondary mb-2">Existing Goals</p>
+            {loadingGoals ? (
+              <Skeleton className="h-16 rounded-xl" />
+            ) : clientGoals.length === 0 ? (
+              <p className="text-text-tertiary text-sm text-center py-3">No goals set yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {clientGoals.map((goal) => (
+                  <div key={goal.id} className="p-3 bg-surface-elevated rounded-xl">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-bold text-white">{goal.title}</p>
+                          <Badge variant={goal.status === 'completed' ? 'success' : goal.status === 'missed' ? 'danger' : 'muted'}>
+                            {goal.status}
+                          </Badge>
+                        </div>
+                        {goal.targetValue !== undefined && (
+                          <p className="text-xs text-text-secondary mt-0.5">
+                            {goal.currentValue ?? 0}{goal.unit ?? ''} → {goal.targetValue}{goal.unit ?? ''}
+                          </p>
+                        )}
+                        {goal.targetDate && <p className="text-[10px] text-text-tertiary mt-0.5">Due {new Date(goal.targetDate).toLocaleDateString()}</p>}
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        {goal.status === 'active' && (
+                          <button onClick={() => handleGoalStatusChange(goal, 'completed')} title="Mark complete" className="p-1.5 rounded-lg hover:bg-success/10 text-text-secondary hover:text-success transition-colors">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button onClick={() => handleDeleteGoal(goal)} className="p-1.5 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </Modal>
 

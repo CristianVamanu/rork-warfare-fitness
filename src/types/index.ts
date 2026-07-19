@@ -389,7 +389,7 @@ export interface Post {
 
 export type NotificationType =
   | 'manual' | 'auto_missed_workout' | 'auto_streak' | 'auto_milestone' | 'ai_motivation'
-  | 'coaching_approved' | 'coaching_rejected' | 'pr_approved' | 'pr_rejected';
+  | 'coaching_approved' | 'coaching_rejected' | 'pr_approved' | 'pr_rejected' | 'goal_assigned';
 
 export interface AppNotification {
   id: string;
@@ -402,6 +402,33 @@ export interface AppNotification {
   createdAt: unknown;
   actionLabel?: string;  // e.g. "Pay for 1:1 Coaching"
   actionUrl?: string;    // e.g. "/profile?coachingPlanId=xxx"
+}
+
+export type GoalCategory = 'strength' | 'weight' | 'workouts' | 'nutrition' | 'custom';
+export type GoalStatus = 'active' | 'completed' | 'missed';
+
+// Trainer/admin-assigned goal for a specific client — a target the coach
+// sets (e.g. "Bench 100kg", "Lose 5kg", "20 workouts this month"), which
+// the client can then check in on themselves. Progress is a plain number
+// the client updates manually rather than auto-derived from workoutLogs/
+// weightLogs, since a goal can be anything (including non-numeric-feeling
+// things like "run a 5k") and forcing every goal through one auto-tracked
+// metric would make most goal types impossible to represent.
+export interface ClientGoal {
+  id: string;
+  userId: string;
+  trainerId?: string;
+  title: string;
+  description?: string;
+  category: GoalCategory;
+  targetValue?: number;
+  currentValue?: number;
+  unit?: string; // e.g. 'kg', 'workouts', 'reps' — freeform, blank for non-numeric goals
+  targetDate?: string; // ISO date
+  status: GoalStatus;
+  createdBy: string; // trainer/admin uid
+  createdAt: unknown;
+  completedAt?: unknown;
 }
 
 export type CoachingApplicationStatus = 'pending' | 'approved' | 'rejected';

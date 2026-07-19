@@ -10,7 +10,7 @@ import { Button } from './Button';
 import type { MembershipConfig, MembershipPlan } from '@/types';
 
 // Pages that are always accessible regardless of membership
-const FREE_PATHS = ['/dashboard', '/settings', '/messages', '/notifications', '/profile', '/banned', '/onboarding'];
+const FREE_PATHS = ['/dashboard', '/settings', '/messages', '/notifications', '/profile', '/banned', '/onboarding', '/goals'];
 
 interface Props {
   pathname: string;
