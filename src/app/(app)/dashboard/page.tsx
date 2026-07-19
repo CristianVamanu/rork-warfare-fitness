@@ -512,12 +512,28 @@ export default function DashboardPage() {
           </motion.div>
 
           {/* Breathing / meditation widget */}
-          <motion.div variants={stagger.item} className="col-span-2 row-span-1">
+          <motion.div variants={stagger.item} className="col-span-4 row-span-1">
             <Link href="/breathing" className="block h-full">
-              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors">
-                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Breathing</span>
-                <span className="text-lg mt-0.5">🌬️</span>
-                <p className="text-[10px] text-text-tertiary mt-0.5">Relax in 5 or 10 min</p>
+              <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors relative overflow-hidden">
+                <div className="relative w-11 h-11 flex-shrink-0 flex items-center justify-center">
+                  <motion.div
+                    animate={{ scale: [0.6, 1, 0.6], opacity: [0.5, 0.9, 0.5] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                    className="absolute w-11 h-11 rounded-full"
+                    style={{ background: 'radial-gradient(circle, #F5A623 0%, rgba(245,166,35,0) 72%)' }}
+                  />
+                  <motion.div
+                    animate={{ scale: [0.6, 1, 0.6] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                    className="w-5 h-5 rounded-full bg-accent"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Breathing</span>
+                  <p className="text-sm font-bold text-white">Reset in 5 or 10 minutes</p>
+                  <p className="text-[10px] text-text-tertiary mt-0.5">5 guided techniques to relax and refocus</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
               </Card>
             </Link>
           </motion.div>

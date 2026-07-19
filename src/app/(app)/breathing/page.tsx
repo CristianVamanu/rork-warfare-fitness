@@ -263,17 +263,18 @@ export default function BreathingPage() {
           </div>
 
           <div className="flex-1 flex items-center justify-center relative w-full">
-            <div className="relative w-64 h-64 flex items-center justify-center">
-              <div className="absolute w-full h-full rounded-full bg-accent/5" />
+            <div className="relative w-96 h-96 flex items-center justify-center">
+              {/* Faint outer bound so the circle always has room to grow into */}
+              <div className="absolute w-full h-full rounded-full border border-accent/15" />
               <motion.div
                 animate={controls}
-                initial={{ scale: 0.7 }}
+                initial={{ scale: 0.75 }}
                 className="absolute rounded-full"
                 style={{
-                  width: 160,
-                  height: 160,
-                  background: 'radial-gradient(circle, rgba(245,166,35,0.45) 0%, rgba(245,166,35,0.08) 70%)',
-                  boxShadow: '0 0 60px rgba(245,166,35,0.25)',
+                  width: 220,
+                  height: 220,
+                  background: 'radial-gradient(circle at 35% 30%, #FFD68C 0%, #F5A623 55%, #C97F0F 100%)',
+                  boxShadow: '0 0 90px 20px rgba(245,166,35,0.55), 0 0 30px rgba(245,166,35,0.8)',
                 }}
               />
               <AnimatePresence mode="wait">
@@ -282,7 +283,7 @@ export default function BreathingPage() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="relative text-xl font-black text-white text-center px-4"
+                  className="relative text-2xl font-black text-black text-center px-4 drop-shadow-sm"
                 >
                   {paused ? 'Paused' : PHASE_LABEL[currentPhase]}
                 </motion.p>
