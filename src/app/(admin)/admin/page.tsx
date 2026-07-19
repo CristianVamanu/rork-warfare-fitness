@@ -221,6 +221,7 @@ function AdminPageInner() {
   const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '' });
   const [savingLegal, setSavingLegal] = useState(false);
   const [runningBackup, setRunningBackup] = useState(false);
@@ -1325,6 +1326,23 @@ function AdminPageInner() {
       toast.error(`Failed to upload logo: ${msg}`, { duration: 6000 });
     } finally {
       setUploadingLogo(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleHeroImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingHeroImage(true);
+    try {
+      const url = await uploadVideo(storageProvider, user, file, 'branding');
+      setLandingForm(f => ({ ...f, heroImageUrl: url }));
+      toast.success('Hero image uploaded — click Save Landing Page below to publish it');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to upload hero image: ${msg}`, { duration: 6000 });
+    } finally {
+      setUploadingHeroImage(false);
       e.target.value = '';
     }
   }
@@ -3225,6 +3243,30 @@ function AdminPageInner() {
               Customize your public homepage — this stays exactly as you set it across every app update, since it&apos;s stored here, not in code. Use <code className="bg-black/30 px-1 rounded">{'{appName}'}</code> in the subheadline to insert your app name automatically.
             </p>
 
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Hero Background Image (optional)</label>
+              <p className="text-[11px] text-text-tertiary mb-2">Shows behind the headline, blended into the dark background. Best results: a tall portrait-orientation photo with the subject roughly centered — it gets cropped differently on mobile vs desktop.</p>
+              <div className="flex items-center gap-3">
+                {landingForm.heroImageUrl && (
+                  <img src={landingForm.heroImageUrl} alt="Hero preview" className="w-16 h-20 rounded-xl object-cover border border-white/10 flex-shrink-0" />
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-white/10 text-xs font-bold text-white cursor-pointer hover:border-accent/40 transition-colors">
+                    <input type="file" accept="image/*" className="hidden" onChange={handleHeroImageUpload} disabled={uploadingHeroImage} />
+                    <Upload className="w-4 h-4" /> {uploadingHeroImage ? 'Uploading…' : landingForm.heroImageUrl ? 'Change Image' : 'Upload Image'}
+                  </label>
+                  {landingForm.heroImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setLandingForm(f => ({ ...f, heroImageUrl: '' }))}
+                      className="text-[11px] text-danger hover:underline text-left"
+                    >
+                      Remove image
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
             <div>
               <label className="text-xs text-text-secondary mb-1 block">Badge Text (above headline)</label>
               <Input value={landingForm.badgeText} onChange={e => setLandingForm(f => ({ ...f, badgeText: e.target.value }))} placeholder="Your coach. Your plan. Your results." />

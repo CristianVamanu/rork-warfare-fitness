@@ -262,6 +262,7 @@ export interface LandingPageConfig {
   // marketing regardless of which app it's on, so this only ever shows
   // whatever a real admin actually typed in.
   testimonials?: { name: string; quote: string }[];
+  heroImageUrl?: string; // optional background image behind the hero section
 }
 
 export interface Channel {

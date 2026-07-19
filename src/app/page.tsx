@@ -150,7 +150,25 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="relative max-w-3xl mx-auto px-5 pt-10 pb-16 text-center">
+      <section className="relative max-w-3xl mx-auto px-5 pt-10 pb-16 text-center overflow-hidden">
+        {landing.heroImageUrl && (
+          <div className="pointer-events-none absolute inset-0 -z-10">
+            <Image
+              src={landing.heroImageUrl}
+              alt=""
+              fill
+              priority
+              quality={85}
+              sizes="100vw"
+              className="object-cover object-top sm:object-center opacity-25 sm:opacity-30"
+            />
+            {/* Fade the photo into the page background on every edge so it
+                reads as "blended in" rather than a pasted-on rectangle, and
+                stays legible behind text on both narrow and wide viewports. */}
+            <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/80 to-background" />
+            <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
+          </div>
+        )}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           {/* Animated brand mark — logo emerging through smoke into flame.
               Muted/looped/inline so it autoplays everywhere including iOS
