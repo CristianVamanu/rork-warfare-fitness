@@ -8,7 +8,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy,
-  ArrowRight, CheckCircle2, Crown, Check, Flame, Zap,
+  ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSystemConfig, getMembershipConfig, getCoachingPlans } from '@/lib/firestore';
@@ -32,6 +32,45 @@ const FEATURE_STYLES = [
   { icon: Users, color: 'text-orange-400', bg: 'bg-orange-400/10' },
 ];
 
+const FAQ_ITEMS = [
+  {
+    q: 'Do I need a gym or special equipment?',
+    a: 'No — during the quiz you tell us what you have access to (full gym, home dumbbells, or just bodyweight), and your program is built around exactly that.',
+  },
+  {
+    q: "I've never trained before. Is this still for me?",
+    a: 'Yes. Your experience level shapes everything — exercise selection, volume, and rep ranges are all calibrated for beginners if that\'s where you are.',
+  },
+  {
+    q: 'How is this different from a generic workout app?',
+    a: 'Your program is matched to your specific goal, experience, equipment, and schedule instead of a one-size-fits-all plan — and it adjusts weight/rep suggestions based on your own logged performance as you go.',
+  },
+  {
+    q: 'Can I cancel anytime?',
+    a: 'Yes, no lock-in contracts — manage or cancel your membership at any time from your account settings.',
+  },
+];
+
+function FaqItem({ q, a, open, onToggle }: { q: string; a: string; open: boolean; onToggle: () => void }) {
+  return (
+    <div className="border-b border-white/8 last:border-b-0">
+      <button onClick={onToggle} className="w-full flex items-center justify-between gap-4 py-4 text-left">
+        <span className="text-sm font-semibold text-white">{q}</span>
+        <ChevronDown className={`w-4 h-4 text-text-tertiary flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <motion.p
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="text-sm text-text-secondary leading-relaxed pb-4 pr-8"
+        >
+          {a}
+        </motion.p>
+      )}
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -41,6 +80,8 @@ export default function LandingPage() {
   const [membership, setMembership] = useState<MembershipConfig | null>(null);
   const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
   const [leaderboard, setLeaderboard] = useState<{ displayName: string; powerLevel: number; streak: number; totalWorkouts: number }[]>([]);
+  const [stats, setStats] = useState<{ totalUsers: number; totalWorkouts: number } | null>(null);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard');
@@ -55,6 +96,7 @@ export default function LandingPage() {
     getMembershipConfig().then(setMembership).catch(() => {});
     getCoachingPlans().then((plans) => setCoachingPlans(plans.filter((p) => p.active))).catch(() => {});
     fetch('/api/public/leaderboard').then((r) => r.json()).then((d) => setLeaderboard(d.entries ?? [])).catch(() => {});
+    fetch('/api/public/stats').then((r) => r.json()).then(setStats).catch(() => {});
   }, []);
 
   const trialDays = membership?.enabled ? (membership.trialDays ?? 0) : 0;
@@ -136,7 +178,7 @@ export default function LandingPage() {
             {subheadline}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
-            <Link href="/register" className="w-full sm:w-auto">
+            <Link href="/onboarding" className="w-full sm:w-auto">
               <Button size="lg" fullWidth className="sm:w-auto sm:px-8">
                 {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
               </Button>
@@ -147,6 +189,23 @@ export default function LandingPage() {
               </Button>
             </Link>
           </div>
+          <p className="text-xs text-text-tertiary mt-4">No credit card required to start</p>
+
+          {/* Real usage numbers only — hidden below a threshold so a brand
+              new install never shows an awkwardly small count. */}
+          {stats && stats.totalUsers >= 15 && (
+            <div className="flex items-center justify-center gap-6 mt-8 text-sm">
+              <div className="text-center">
+                <p className="text-xl font-black text-white">{stats.totalUsers.toLocaleString()}+</p>
+                <p className="text-xs text-text-tertiary">athletes</p>
+              </div>
+              <div className="w-px h-8 bg-white/10" />
+              <div className="text-center">
+                <p className="text-xl font-black text-white">{stats.totalWorkouts.toLocaleString()}+</p>
+                <p className="text-xs text-text-tertiary">workouts logged</p>
+              </div>
+            </div>
+          )}
         </motion.div>
       </section>
 
@@ -226,6 +285,31 @@ export default function LandingPage() {
         </section>
       )}
 
+      {/* Testimonials — admin-editable only, never fabricated. Hidden
+          entirely until real ones are added in Admin -> Landing Page. */}
+      {landing.testimonials && landing.testimonials.length > 0 && (
+        <section className="max-w-5xl mx-auto px-5 pb-16">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl sm:text-3xl font-black text-white">What Members Are Saying</h2>
+          </div>
+          <div className={`grid gap-4 ${landing.testimonials.length > 1 ? 'sm:grid-cols-2 lg:grid-cols-3' : 'max-w-lg mx-auto'}`}>
+            {landing.testimonials.map((t, i) => (
+              <motion.div
+                key={`${t.name}-${i}`}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ duration: 0.35, delay: (i % 3) * 0.05 }}
+                className="rounded-2xl border border-white/8 bg-surface p-5"
+              >
+                <p className="text-sm text-text-secondary leading-relaxed">&ldquo;{t.quote}&rdquo;</p>
+                <p className="text-sm font-bold text-white mt-3">{t.name}</p>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Pricing */}
       {(membership?.enabled || coachingPlans.length > 0) && (
         <section className="max-w-4xl mx-auto px-5 pb-16">
@@ -277,7 +361,7 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/register" className="block mt-6">
+                <Link href="/onboarding" className="block mt-6">
                   <Button fullWidth size="lg">
                     {trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : 'Join Now'} <ArrowRight className="w-4 h-4" />
                   </Button>
@@ -318,7 +402,7 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/register" className="block mt-6">
+                <Link href="/onboarding" className="block mt-6">
                   <Button fullWidth size="lg" variant="secondary">
                     Apply Now <ArrowRight className="w-4 h-4" />
                   </Button>
@@ -377,15 +461,46 @@ export default function LandingPage() {
         </section>
       )}
 
+      {/* FAQ — kills objections right before the final ask */}
+      <section className="max-w-2xl mx-auto px-5 pb-16">
+        <div className="text-center mb-6">
+          <h2 className="text-2xl sm:text-3xl font-black text-white">Questions? Answered.</h2>
+        </div>
+        <div className="rounded-2xl border border-white/8 bg-surface px-5">
+          {FAQ_ITEMS.map((item, i) => (
+            <FaqItem
+              key={item.q}
+              q={item.q}
+              a={item.a}
+              open={openFaq === i}
+              onToggle={() => setOpenFaq(openFaq === i ? null : i)}
+            />
+          ))}
+        </div>
+      </section>
+
       {/* Final CTA */}
       <section className="max-w-2xl mx-auto px-5 pb-20 text-center">
         <h2 className="text-2xl sm:text-3xl font-black text-white">{landing.finalCtaHeadline}</h2>
         <p className="text-text-secondary text-sm mt-2 mb-6">{landing.finalCtaSubtext}</p>
-        <Link href="/register">
+        <Link href="/onboarding">
           <Button size="lg" className="px-10">
             {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
           </Button>
         </Link>
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mt-5">
+          <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+            <ShieldCheck className="w-3.5 h-3.5 text-accent" /> Secure checkout
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+            <XCircle className="w-3.5 h-3.5 text-accent" /> Cancel anytime
+          </div>
+          {trialDays > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+              <CheckCircle2 className="w-3.5 h-3.5 text-accent" /> No card required for trial
+            </div>
+          )}
+        </div>
       </section>
 
       <footer className="max-w-5xl mx-auto px-5 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/8">

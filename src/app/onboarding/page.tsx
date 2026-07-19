@@ -9,8 +9,9 @@ import {
   ChevronRight, ChevronLeft, Loader2, CheckCircle,
   Home, Building2, Package, User, Users, AlertCircle, TrendingDown, TrendingUp, PartyPopper,
 } from 'lucide-react';
-import { getIdToken } from 'firebase/auth';
+import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
+import { signUp } from '@/lib/auth';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig } from '@/lib/firestore';
 import { estimateNutritionTargets, calculateBmi, estimateBmiTimeline, type NutritionTargets } from '@/lib/tdee';
 import { MOCK_PROGRAMS } from '@/lib/programs';
@@ -18,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Modal } from '@/components/ui/Modal';
+import { FullPageSpinner } from '@/components/ui/Spinner';
 import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex, MedicalHistoryAnswers } from '@/types';
 
 // A plain <video> tag can only play a direct file (mp4/webm/etc) — a
@@ -67,7 +69,7 @@ const slideVariants = {
 };
 
 export default function OnboardingPage() {
-  const { user, refreshProfile } = useAuth();
+  const { user, loading: authLoading, refreshProfile } = useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState(0);
@@ -85,6 +87,10 @@ export default function OnboardingPage() {
   const [targetFocus, setTargetFocus] = useState<OnboardingData['targetFocus'] | null>(null);
   const [sessionMinutes, setSessionMinutes] = useState<OnboardingData['sessionMinutes'] | null>(null);
   const [trainingStyle, setTrainingStyle] = useState<OnboardingData['trainingStyle'] | null>(null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'generating' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [videoGreetingUrl, setVideoGreetingUrl] = useState<string | null>(null);
@@ -96,12 +102,23 @@ export default function OnboardingPage() {
     setMedicalHistory((m) => ({ ...m, ...patch }));
   }
 
-  const TOTAL_STEPS = 10;
+  // Quiz runs fully anonymously — no account required to start. The account
+  // is only created at the very last step, once someone has already
+  // invested the time answering everything else (the same order most
+  // high-converting fitness quiz funnels use, since asking for an email
+  // after real engagement converts far better than gating the quiz behind
+  // signup). If someone arrives here already logged in (e.g. redirected by
+  // the app because their onboarding was left incomplete), the account step
+  // is skipped entirely since there's nothing left to create.
+  const needsAccount = !user;
+  const TOTAL_STEPS = needsAccount ? 11 : 10;
+  const ACCOUNT_STEP = 10;
 
   const ageNum = parseInt(age, 10);
   const heightNum = parseFloat(heightCm);
   const weightNum = parseFloat(weightKg);
   const biometricsValid = !!sex && ageNum >= 13 && ageNum <= 100 && heightNum >= 100 && heightNum <= 250 && weightNum >= 30 && weightNum <= 300;
+  const accountValid = name.trim().length >= 2 && /^\S+@\S+\.\S+$/.test(email) && password.length >= 6 && password === confirmPassword;
 
   const canAdvance = [
     !!goal,
@@ -114,6 +131,7 @@ export default function OnboardingPage() {
     true, // medical history is optional
     true, // lifestyle habits is optional
     true, // focus/session/style preferences are optional
+    accountValid, // only reached when needsAccount is true
   ][step];
 
   function go(delta: number) {
@@ -167,13 +185,26 @@ export default function OnboardingPage() {
   }
 
   async function handleFinish() {
-    if (!user || !goal || !experience || !trainingDays || !equipment) return;
+    if (!goal || !experience || !trainingDays || !equipment) return;
+    if (needsAccount && !accountValid) return;
     setError(null);
     setStatus('generating');
 
     try {
+      // Account is created right here — the last possible moment — so
+      // nothing above this point has ever required signing up. If this
+      // throws (e.g. email already registered), status resets to idle and
+      // the user lands back on the account step with every other answer
+      // still intact, not a blank quiz.
+      let activeUser: FirebaseUser;
+      if (needsAccount) {
+        activeUser = await signUp(email.trim(), password, name.trim(), 'kg');
+      } else {
+        activeUser = user!;
+      }
+
       const biometricsPayload = biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, weightKg: weightNum } : undefined;
-      const authToken = await getIdToken(user);
+      const authToken = await getIdToken(activeUser);
 
       // Everything below is independent — none of these depend on each
       // other's result — so they run concurrently instead of one after
@@ -202,7 +233,7 @@ export default function OnboardingPage() {
         } catch {
           program = fallbackRecommendProgram();
         }
-        await enrollInProgram(user.uid, {
+        await enrollInProgram(activeUser.uid, {
           id: program.id, name: program.name, weeks: program.weeks, daysPerWeek: program.daysPerWeek,
         });
         setRevealProgram(program);
@@ -228,7 +259,7 @@ export default function OnboardingPage() {
           };
           nutritionTargets = { ...local, goalLabel: goalLabels[goal], rationale: '' };
         }
-        await updateUserGoals(user.uid, {
+        await updateUserGoals(activeUser.uid, {
           calories: nutritionTargets.calories,
           protein: nutritionTargets.protein,
           carbs: nutritionTargets.carbs,
@@ -255,8 +286,8 @@ export default function OnboardingPage() {
         ...(sessionMinutes ? { sessionMinutes } : {}),
         ...(trainingStyle ? { trainingStyle } : {}),
       };
-      const saveTask = saveOnboardingData(user.uid, { ...onboardingData, onboardingComplete: true });
-      const weightTask = biometricsValid ? updateUserDoc(user.uid, { currentWeightKg: weightNum }) : Promise.resolve();
+      const saveTask = saveOnboardingData(activeUser.uid, { ...onboardingData, onboardingComplete: true });
+      const weightTask = biometricsValid ? updateUserDoc(activeUser.uid, { currentWeightKg: weightNum }) : Promise.resolve();
 
       setStatus('saving');
       await Promise.all([programTask, nutritionTask, saveTask, weightTask]);
@@ -266,9 +297,19 @@ export default function OnboardingPage() {
       // handles the video-greeting check and final navigation.
       setStatus('done');
       await refreshProfile();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('[Onboarding] failed:', err);
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      const code = (err as { code?: string })?.code;
+      const FRIENDLY: Record<string, string> = {
+        'auth/email-already-in-use': 'That email already has an account — sign in instead.',
+        'auth/weak-password': 'Password is too weak — use at least 6 characters.',
+        'auth/invalid-email': 'That email address looks invalid.',
+      };
+      setError(code && FRIENDLY[code] ? FRIENDLY[code] : (err instanceof Error ? err.message : 'Something went wrong. Please try again.'));
+      // If account creation itself failed, jump back to the account step so
+      // the error is visible right next to the field that needs fixing
+      // rather than wherever the user happened to be scrolled to.
+      if (code?.startsWith('auth/')) { setStep(ACCOUNT_STEP); setDir(-1); }
       setStatus('idle');
     }
   }
@@ -354,6 +395,8 @@ export default function OnboardingPage() {
     );
   }
 
+  if (authLoading) return <FullPageSpinner />;
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
@@ -423,6 +466,14 @@ export default function OnboardingPage() {
                 trainingStyle={trainingStyle} onTrainingStyle={setTrainingStyle}
               />
             )}
+            {step === ACCOUNT_STEP && needsAccount && (
+              <StepAccount
+                name={name} onName={setName}
+                email={email} onEmail={setEmail}
+                password={password} onPassword={setPassword}
+                confirmPassword={confirmPassword} onConfirmPassword={setConfirmPassword}
+              />
+            )}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -455,12 +506,12 @@ export default function OnboardingPage() {
             {isGenerating ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {'Setting up your program…'}
+                {needsAccount ? 'Creating your account…' : 'Setting up your program…'}
               </>
             ) : (
               <>
                 <CheckCircle className="w-4 h-4" />
-                Generate My Program
+                {needsAccount ? 'Create Account & Get My Plan' : 'Generate My Program'}
               </>
             )}
           </Button>
@@ -902,6 +953,76 @@ function StepBiometrics({
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+function StepAccount({
+  name, onName, email, onEmail, password, onPassword, confirmPassword, onConfirmPassword,
+}: {
+  name: string; onName: (v: string) => void;
+  email: string; onEmail: (v: string) => void;
+  password: string; onPassword: (v: string) => void;
+  confirmPassword: string; onConfirmPassword: (v: string) => void;
+}) {
+  const passwordsMismatch = confirmPassword.length > 0 && password !== confirmPassword;
+  return (
+    <div>
+      <h1 className="text-2xl font-black text-white mb-1">Almost there</h1>
+      <p className="text-text-secondary text-sm mb-5">
+        Create your account to save this plan and get your dashboard.
+      </p>
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => onName(e.target.value)}
+            placeholder="Your name"
+            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => onEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium text-text-secondary mb-1.5 block">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => onPassword(e.target.value)}
+              placeholder="6+ characters"
+              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-text-secondary mb-1.5 block">Confirm</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => onConfirmPassword(e.target.value)}
+              placeholder="Repeat password"
+              className={`w-full bg-surface border rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none ${passwordsMismatch ? 'border-danger/60' : 'border-white/10 focus:border-accent/50'}`}
+            />
+          </div>
+        </div>
+        {passwordsMismatch && <p className="text-xs text-danger">Passwords don&apos;t match.</p>}
+      </div>
+      <p className="text-xs text-text-tertiary mt-4 text-center">
+        By continuing you agree to our{' '}
+        <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-accent underline">Terms</a>
+        {' '}and{' '}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-accent underline">Privacy Policy</a>.
+      </p>
     </div>
   );
 }

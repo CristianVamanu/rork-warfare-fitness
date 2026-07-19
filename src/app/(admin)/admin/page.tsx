@@ -1111,6 +1111,21 @@ export default function AdminPage() {
     }));
   }
 
+  function addTestimonial() {
+    setLandingForm(f => ({ ...f, testimonials: [...(f.testimonials ?? []), { name: '', quote: '' }] }));
+  }
+
+  function updateTestimonial(i: number, patch: Partial<{ name: string; quote: string }>) {
+    setLandingForm(f => ({
+      ...f,
+      testimonials: (f.testimonials ?? []).map((t, idx) => idx === i ? { ...t, ...patch } : t),
+    }));
+  }
+
+  function removeTestimonial(i: number) {
+    setLandingForm(f => ({ ...f, testimonials: (f.testimonials ?? []).filter((_, idx) => idx !== i) }));
+  }
+
   async function handleSaveLanding() {
     setSavingLanding(true);
     try {
@@ -2983,6 +2998,42 @@ export default function AdminPage() {
                   onChange={e => setLandingForm(f => ({ ...f, quoteAuthor: e.target.value }))}
                   placeholder="Attribution (optional, e.g. a name or leave generic)"
                 />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs text-text-secondary block">Testimonials</label>
+                <button onClick={addTestimonial} className="flex items-center gap-1 text-xs text-accent font-medium">
+                  <Plus className="w-3.5 h-3.5" /> Add
+                </button>
+              </div>
+              <p className="text-xs text-text-tertiary mb-2">
+                Real quotes only — this section stays hidden on the landing page until at least one is added here.
+              </p>
+              <div className="space-y-2">
+                {(landingForm.testimonials ?? []).map((t, i) => (
+                  <div key={i} className="p-3 bg-surface-elevated rounded-xl space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={t.name}
+                        onChange={e => updateTestimonial(i, { name: e.target.value })}
+                        placeholder="Member name"
+                        className="flex-1"
+                      />
+                      <button onClick={() => removeTestimonial(i)} className="p-2 text-text-tertiary hover:text-danger transition-colors flex-shrink-0">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <textarea
+                      value={t.quote}
+                      onChange={e => updateTestimonial(i, { quote: e.target.value })}
+                      rows={2}
+                      placeholder="What they actually said"
+                      className="w-full bg-surface border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 

@@ -32,4 +32,5 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   finalCtaHeadline: 'Ready to stop starting over?',
   finalCtaSubtext: 'Create your account and get your first plan in minutes.',
   showPublicLeaderboard: true,
+  testimonials: [],
 };

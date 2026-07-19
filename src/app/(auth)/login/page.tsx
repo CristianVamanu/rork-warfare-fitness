@@ -109,7 +109,7 @@ export default function LoginPage() {
 
       <p className="text-center text-sm text-text-secondary mt-6">
         New here?{' '}
-        <Link href="/register" className="text-accent font-medium hover:underline">
+        <Link href="/onboarding" className="text-accent font-medium hover:underline">
           Create account
         </Link>
       </p>

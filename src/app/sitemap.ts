@@ -9,7 +9,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: appUrl, lastModified: now, changeFrequency: 'weekly', priority: 1 },
     { url: `${appUrl}/login`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
-    { url: `${appUrl}/register`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${appUrl}/onboarding`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${appUrl}/terms`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${appUrl}/privacy`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
   ];

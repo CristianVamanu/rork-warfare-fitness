@@ -20,7 +20,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.replace('/login');
       return;
     }
-    // Redirect new users to onboarding when flag is explicitly false.
+    // Redirect new users to onboarding when flag is explicitly false. /onboarding
+    // lives outside this route group entirely (it's reachable before signup),
+    // so landing here always means leaving this layout, not looping within it.
     // Admins and trainers skip onboarding — they manage the platform.
     // undefined = existing user created before this feature → skip gate.
     if (profile?.banned && pathname !== '/banned') {
@@ -31,8 +33,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       profile &&
       profile.role !== 'admin' &&
       profile.role !== 'trainer' &&
-      profile.onboardingComplete === false &&
-      pathname !== '/onboarding'
+      profile.onboardingComplete === false
     ) {
       router.replace('/onboarding');
     }
@@ -41,9 +42,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (loading) return <FullPageSpinner />;
   if (!user) return null;
 
-  if (profile === null && pathname !== '/onboarding') return <FullPageSpinner />;
+  if (profile === null) return <FullPageSpinner />;
 
-  const hideNav = pathname === '/onboarding' || pathname === '/banned';
+  const hideNav = pathname === '/banned';
 
   return (
     <div className="min-h-screen bg-background">
