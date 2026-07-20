@@ -190,8 +190,8 @@ export default function LandingPage() {
               <Trophy className="w-3.5 h-3.5" /> {landing.badgeText}
             </div>
           )}
-          <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight leading-[1.1]">
-            {landing.headlineLine1}<br />
+          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.15] sm:leading-[1.1] text-balance">
+            {landing.headlineLine1}<br className="hidden sm:block" />{' '}
             <span className="text-accent">{landing.headlineLine2}</span>
           </h1>
           <p className="text-text-secondary text-base sm:text-lg mt-5 max-w-xl mx-auto leading-relaxed">
