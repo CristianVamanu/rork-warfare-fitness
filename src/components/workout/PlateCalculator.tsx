@@ -4,8 +4,15 @@ import { useState } from 'react';
 import { Calculator, X } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 
-const PLATES_KG = [25, 20, 15, 10, 5, 2.5, 1.25];
-const PLATES_LBS = [45, 35, 25, 10, 5, 2.5];
+// 15kg/35lb and 25kg/25lb plates are excluded by default — most gyms and
+// home setups have far fewer pairs of those than the round, standard
+// denominations, so a mathematically-optimal-but-uncommon combo (e.g. 25+15
+// for 40kg/side) isn't actually what most people can rack. Common plates
+// only by default; the odd ones are opt-in via "I also have odd plates".
+const PLATES_KG_COMMON = [20, 10, 5, 2.5, 1.25];
+const PLATES_KG_ALL = [25, 20, 15, 10, 5, 2.5, 1.25];
+const PLATES_LBS_COMMON = [45, 10, 5, 2.5];
+const PLATES_LBS_ALL = [45, 35, 25, 10, 5, 2.5];
 const PLATE_COLOR_KG: Record<number, string> = {
   25: 'bg-red-500',
   20: 'bg-blue-500',
@@ -44,10 +51,14 @@ interface Props {
 export function PlateCalculatorButton({ targetWeight, unit }: Props) {
   const [open, setOpen] = useState(false);
   const [barWeight, setBarWeight] = useState(unit === 'lbs' ? 45 : 20);
+  const [includeOddPlates, setIncludeOddPlates] = useState(false);
 
   const perSide = Math.max(0, (targetWeight - barWeight) / 2);
   const plateColor = unit === 'lbs' ? PLATE_COLOR_LBS : PLATE_COLOR_KG;
-  const plates = calculatePlates(perSide, unit === 'lbs' ? PLATES_LBS : PLATES_KG);
+  const availablePlates = unit === 'lbs'
+    ? (includeOddPlates ? PLATES_LBS_ALL : PLATES_LBS_COMMON)
+    : (includeOddPlates ? PLATES_KG_ALL : PLATES_KG_COMMON);
+  const plates = calculatePlates(perSide, availablePlates);
   const usedWeight = plates.reduce((s, p) => s + p, 0) * 2 + barWeight;
   const shortBy = targetWeight - usedWeight;
 
@@ -82,6 +93,16 @@ export function PlateCalculatorButton({ targetWeight, unit }: Props) {
             <p className="text-xs text-text-tertiary">Target weight</p>
             <p className="text-3xl font-black text-white">{targetWeight}{unit}</p>
           </div>
+
+          <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeOddPlates}
+              onChange={(e) => setIncludeOddPlates(e.target.checked)}
+              className="w-4 h-4 rounded accent-accent"
+            />
+            I also have {unit === 'lbs' ? '25lb/35lb' : '15kg/25kg'} plates
+          </label>
 
           {perSide <= 0 ? (
             <p className="text-center text-sm text-text-secondary py-4">Target weight is at or below the bar — no plates needed.</p>
