@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
 import nextDynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
-import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target, Camera, Lock, Trash2 } from 'lucide-react';
+import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target, Camera, Lock, Trash2, GitCompare } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserWorkouts, getWeightHistory, getSystemConfig, subscribeProgressPhotos, createProgressPhoto, deleteProgressPhoto } from '@/lib/firestore';
 import { recordWeight } from '@/lib/actions';
@@ -52,6 +52,8 @@ export default function ProgressPage() {
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoViewer, setPhotoViewer] = useState<ProgressPhoto | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const powerLevel = profile?.powerLevel ?? 0;
@@ -97,6 +99,24 @@ export default function ProgressPage() {
       setUploadingPhoto(false);
     }
   };
+
+  function photoDate(p: ProgressPhoto): Date | null {
+    const ts = p.createdAt as { toDate?: () => Date } | null;
+    return ts?.toDate?.() ?? null;
+  }
+
+  function togglePhotoSelect(id: string) {
+    setCompareIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= 2) return [prev[1], id];
+      return [...prev, id];
+    });
+  }
+
+  const comparePhotos = compareIds
+    .map((id) => photos.find((p) => p.id === id))
+    .filter((p): p is ProgressPhoto => !!p)
+    .sort((a, b) => (photoDate(a)?.getTime() ?? 0) - (photoDate(b)?.getTime() ?? 0));
 
   const handleDeletePhoto = async (photo: ProgressPhoto) => {
     try {
@@ -235,15 +255,33 @@ export default function ProgressPage() {
               <h2 className="text-base font-bold text-white">Body Photos</h2>
               <Lock className="w-3 h-3 text-text-tertiary" />
             </div>
-            <Button size="sm" variant="ghost" loading={uploadingPhoto} onClick={() => photoInputRef.current?.click()}>
-              <Plus className="w-3.5 h-3.5" /> Add Photo
-            </Button>
+            <div className="flex items-center gap-2">
+              {photos.length >= 2 && (
+                <Button
+                  size="sm"
+                  variant={compareMode ? 'primary' : 'ghost'}
+                  onClick={() => { setCompareMode((v) => !v); setCompareIds([]); }}
+                >
+                  <GitCompare className="w-3.5 h-3.5" /> Compare
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" loading={uploadingPhoto} onClick={() => photoInputRef.current?.click()}>
+                <Plus className="w-3.5 h-3.5" /> Add Photo
+              </Button>
+            </div>
             <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelected} />
           </div>
           <Card className="p-4">
             <p className="text-xs text-text-tertiary mb-3 flex items-center gap-1.5">
               <Lock className="w-3 h-3" /> Private — only visible to you and your coach
             </p>
+            {compareMode && (
+              <p className="text-xs text-accent mb-3">
+                {compareIds.length === 0 && 'Pick two photos to compare.'}
+                {compareIds.length === 1 && 'Pick one more photo.'}
+                {compareIds.length === 2 && 'Ready — tap "View Comparison" below.'}
+              </p>
+            )}
             {photos.length === 0 ? (
               <div className="text-center py-4">
                 <Camera className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
@@ -254,19 +292,71 @@ export default function ProgressPage() {
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-2">
-                {photos.map((p) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={p.id}
-                    src={p.photoUrl}
-                    alt="Progress"
-                    className="w-full aspect-square object-cover rounded-lg cursor-pointer"
-                    onClick={() => setPhotoViewer(p)}
-                  />
-                ))}
+                {photos.map((p) => {
+                  const date = photoDate(p);
+                  const selected = compareIds.includes(p.id);
+                  return (
+                    <div
+                      key={p.id}
+                      className="relative cursor-pointer"
+                      onClick={() => compareMode ? togglePhotoSelect(p.id) : setPhotoViewer(p)}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={p.photoUrl}
+                        alt="Progress"
+                        className={`w-full aspect-square object-cover rounded-lg ${selected ? 'ring-2 ring-accent' : ''}`}
+                      />
+                      {date && (
+                        <div className="absolute inset-x-0 bottom-0 rounded-b-lg bg-gradient-to-t from-black/80 to-transparent px-1.5 pt-3 pb-1">
+                          <p className="text-[10px] font-bold text-white leading-none">
+                            {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </p>
+                          {p.weightKg && <p className="text-[9px] text-white/70 leading-none mt-0.5">{p.weightKg}kg</p>}
+                        </div>
+                      )}
+                      {compareMode && (
+                        <div className={`absolute top-1 right-1 w-4 h-4 rounded-full border flex items-center justify-center ${selected ? 'bg-accent border-accent' : 'border-white/50 bg-black/30'}`}>
+                          {selected && <span className="text-[9px] font-bold text-black">{compareIds.indexOf(p.id) + 1}</span>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </Card>
+          {compareMode && comparePhotos.length === 2 && (
+            <Card className="p-4 mt-3">
+              <div className="grid grid-cols-2 gap-2">
+                {comparePhotos.map((p, i) => {
+                  const date = photoDate(p);
+                  return (
+                    <div key={p.id}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={p.photoUrl} alt={i === 0 ? 'Before' : 'After'} className="w-full rounded-xl object-cover" />
+                      <p className="text-xs text-text-secondary text-center mt-1.5">
+                        {date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                        {p.weightKg && ` · ${p.weightKg}kg`}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              {(() => {
+                const [a, b] = comparePhotos;
+                const dA = photoDate(a), dB = photoDate(b);
+                const days = dA && dB ? Math.round((dB.getTime() - dA.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                const weightDelta = a.weightKg && b.weightKg ? +(b.weightKg - a.weightKg).toFixed(1) : null;
+                return (days !== null || weightDelta !== null) && (
+                  <p className="text-center text-sm font-bold text-accent mt-3">
+                    {days !== null && `${days} day${days === 1 ? '' : 's'} apart`}
+                    {weightDelta !== null && ` · ${weightDelta > 0 ? '+' : ''}${weightDelta}kg`}
+                  </p>
+                );
+              })()}
+            </Card>
+          )}
         </motion.div>
 
         {/* Weekly Activity Chart */}

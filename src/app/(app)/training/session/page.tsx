@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { WeightSlider } from '@/components/workout/WeightSlider';
+import { PlateCalculatorButton } from '@/components/workout/PlateCalculator';
 import type { Exercise } from '@/types';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -743,6 +744,7 @@ function SetRow({
             <Copy className="w-3 h-3" />
             Copy
           </button>
+          {state.weight > 0 && <PlateCalculatorButton targetWeight={state.weight} unit={weightUnit} />}
           <button
             onClick={onSkip}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-text-tertiary hover:text-white hover:bg-white/8 transition-colors"

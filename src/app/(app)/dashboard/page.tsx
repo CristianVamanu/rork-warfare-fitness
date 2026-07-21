@@ -5,7 +5,8 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
+import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, getProgressPhotos, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
+import type { ProgressPhoto } from '@/types';
 import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
@@ -47,12 +48,14 @@ export default function DashboardPage() {
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
   const [adjustingWater, setAdjustingWater] = useState(false);
   const [activeGoalCount, setActiveGoalCount] = useState(0);
+  const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
 
   useEffect(() => {
     if (!user) return;
     getClientGoals(user.uid)
       .then((goals) => setActiveGoalCount(goals.filter((g) => g.status === 'active').length))
       .catch(() => {});
+    getProgressPhotos(user.uid).then(setProgressPhotos).catch(() => {});
   }, [user]);
 
   // Sync calories + water from profile.statsCache whenever it updates (real-time via AuthContext)
@@ -558,6 +561,24 @@ export default function DashboardPage() {
                     <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Goals</span>
                     <p className="text-sm font-bold text-white">{activeGoalCount} active {activeGoalCount === 1 ? 'goal' : 'goals'} from your coach</p>
                     <p className="text-[10px] text-text-tertiary mt-0.5">Tap to check in on your progress</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+                </Card>
+              </Link>
+            </motion.div>
+          )}
+
+          {/* Progress photos — only shown once the user has actually taken one */}
+          {progressPhotos.length > 0 && (
+            <motion.div variants={stagger.item} className="col-span-4 row-span-1">
+              <Link href="/progress" className="block h-full">
+                <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={progressPhotos[0].photoUrl} alt="" className="w-11 h-11 rounded-xl object-cover flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Progress Photos</span>
+                    <p className="text-sm font-bold text-white">{progressPhotos.length} photo{progressPhotos.length === 1 ? '' : 's'} tracked</p>
+                    <p className="text-[10px] text-text-tertiary mt-0.5">Tap to view your timeline & compare</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
                 </Card>
