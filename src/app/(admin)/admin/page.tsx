@@ -1556,24 +1556,26 @@ function AdminPageInner() {
             <div className="space-y-2">
               {clients.map((u) => (
                 <Card key={u.id} className={`p-4 ${u.banned ? 'border-danger/30 opacity-70' : ''}`}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-accent-muted flex items-center justify-center text-accent text-sm font-bold flex-shrink-0">
-                      {u.displayName?.[0]?.toUpperCase() || '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-white truncate">{u.displayName || 'Unknown'}</p>
-                        {u.banned && <Badge variant="danger">Banned</Badge>}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-accent-muted flex items-center justify-center text-accent text-sm font-bold flex-shrink-0">
+                        {u.displayName?.[0]?.toUpperCase() || '?'}
                       </div>
-                      <p className="text-xs text-text-secondary truncate">{u.email}</p>
-                      <p className="text-xs text-text-tertiary mt-0.5">Last login: {formatLastLogin(u.lastLoginAt)}</p>
-                      {u.activeProgram && (
-                        <p className="text-xs text-text-tertiary mt-0.5">
-                          {u.activeProgram.programName} · {u.activeProgram.completedWorkouts}/{u.activeProgram.totalWorkouts} sessions
-                        </p>
-                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-white truncate">{u.displayName || 'Unknown'}</p>
+                          {u.banned && <Badge variant="danger">Banned</Badge>}
+                        </div>
+                        <p className="text-xs text-text-secondary truncate">{u.email}</p>
+                        <p className="text-xs text-text-tertiary mt-0.5">Last login: {formatLastLogin(u.lastLoginAt)}</p>
+                        {u.activeProgram && (
+                          <p className="text-xs text-text-tertiary mt-0.5">
+                            {u.activeProgram.programName} · {u.activeProgram.completedWorkouts}/{u.activeProgram.totalWorkouts} sessions
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-1 flex-wrap justify-end border-t border-white/5 pt-2 sm:border-0 sm:pt-0 flex-shrink-0">
                       <button
                         onClick={() => setProfileDetailUser(u)}
                         title="View Profile & Health Info"
