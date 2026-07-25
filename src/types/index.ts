@@ -433,6 +433,27 @@ export interface ClientGoal {
   completedAt?: unknown;
 }
 
+// Simplified PT (physical training) test result — modeled on the classic
+// 3-event military fitness test format (max push-ups, max sit-ups, timed
+// run), scored on a generic 0-100-per-event benchmark scale. This is
+// deliberately NOT presented as an official/classified Army ACFT or Marine
+// PFT score (those are age/sex-banded and far more precise) — just a
+// reasonable approximation for training purposes, clearly labeled as such.
+export interface PtTestResult {
+  id: string;
+  userId: string;
+  pushups: number;
+  situps: number;
+  runMinutes: number; // total run time in minutes (decimal), e.g. 11.5 = 11:30
+  runDistanceMiles: 1.5 | 2;
+  pushupsScore: number; // 0-100
+  situpsScore: number; // 0-100
+  runScore: number; // 0-100
+  totalScore: number; // 0-300
+  tier: 'needs-work' | 'solid' | 'strong' | 'elite';
+  createdAt: unknown;
+}
+
 export type CoachingApplicationStatus = 'pending' | 'approved' | 'rejected';
 
 export interface CoachingApplication {

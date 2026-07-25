@@ -35,6 +35,12 @@ interface SetState {
   // what was actually logged last time; `weight`/`reps` are the suggested
   // next attempt (bumped up if the target reps were hit last time).
   suggestion?: { weight: number; reps: number; lastWeight: number; lastReps: number };
+  // Distance-mode logging (ruck marches, timed runs) — the actual distance
+  // covered (defaults to the exercise's target, editable) and the elapsed
+  // time from the in-session stopwatch. Pace is derived from these, never
+  // stored separately, so it can't drift out of sync.
+  distanceValue?: number;
+  elapsedSeconds?: number;
 }
 
 interface ExState {
@@ -46,6 +52,9 @@ interface ExState {
   muscleGroup?: string;
   isCardio: boolean;
   cardioDurationSeconds: number;
+  isDistance: boolean;
+  targetDistanceValue: number;
+  targetDistanceUnit: 'mi' | 'km';
   isHiit: boolean;
   hiitWorkSeconds: number;
   hiitRestSeconds: number;
@@ -53,6 +62,21 @@ interface ExState {
   sets: SetState[];
   notes?: string;
   videoUrl?: string;
+}
+
+// Parses a distance target out of a reps string like "5 miles", "3km",
+// "10 km" — used to detect ruck marches / timed runs that should get the
+// distance+stopwatch logging UI instead of a fixed-duration countdown.
+// Returns null for anything that isn't phrased as a distance (e.g. "20 min",
+// a plain rep count), so those keep using the existing duration timer.
+function parseDistance(reps: number | string): { value: number; unit: 'mi' | 'km' } | null {
+  const str = String(reps).toLowerCase();
+  const match = str.match(/([\d.]+)\s*(mi|mile|miles|km|kilometer|kilometers|k)\b/);
+  if (!match) return null;
+  const value = parseFloat(match[1]);
+  if (isNaN(value)) return null;
+  const unit: 'mi' | 'km' = match[2].startsWith('mi') ? 'mi' : 'km';
+  return { value, unit };
 }
 
 // ─── Defaults ───────────────────────────────────────────────────────────────
@@ -87,6 +111,7 @@ function isCardioExercise(ex: Exercise): boolean {
 function buildExState(exercises: Exercise[]): ExState[] {
   return exercises.map((ex) => {
     const cardio = isCardioExercise(ex);
+    const distance = cardio ? parseDistance(ex.reps) : null;
     const targetReps = typeof ex.reps === 'number' ? ex.reps : parseInt(String(ex.reps)) || 8;
     // For cardio, treat reps as minutes unless cardioDurationSeconds is explicitly set
     const cardioDuration = ex.cardioDurationSeconds ?? (targetReps * 60);
@@ -104,6 +129,9 @@ function buildExState(exercises: Exercise[]): ExState[] {
       muscleGroup: ex.muscleGroup,
       isCardio: cardio,
       cardioDurationSeconds: cardioDuration,
+      isDistance: !!distance,
+      targetDistanceValue: distance?.value ?? 0,
+      targetDistanceUnit: distance?.unit ?? 'mi',
       isHiit: !!ex.isHiit,
       hiitWorkSeconds: ex.hiitWorkSeconds ?? 30,
       hiitRestSeconds: ex.hiitRestSeconds ?? 30,
@@ -397,6 +425,194 @@ function CardioTimerRow({
         >
           <CheckCircle className="w-4 h-4" />
           Done — Mark Complete
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Distance Log Row ────────────────────────────────────────────────────────
+// For cardio exercises whose target is a real distance ("5 miles", "3km") —
+// e.g. ruck marches and timed runs — rather than a fixed duration. A plain
+// countdown timer doesn't fit these (a 5-mile ruck isn't "5 minutes"), so
+// this instead runs a count-up stopwatch while the user covers the distance,
+// then lets them confirm the actual distance covered (defaults to target,
+// editable in case they went short/long) and logs time + auto-computed pace.
+
+function formatClock(totalSeconds: number): string {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function formatPace(totalSeconds: number, distance: number): string {
+  if (!distance || distance <= 0 || totalSeconds <= 0) return '—';
+  const paceSeconds = Math.round(totalSeconds / distance);
+  return `${formatClock(paceSeconds)}`;
+}
+
+interface DistanceLogRowProps {
+  setNum: number;
+  targetDistanceValue: number;
+  targetDistanceUnit: 'mi' | 'km';
+  isActive: boolean;
+  isPending: boolean;
+  isCompleted: boolean;
+  isSkipped: boolean;
+  loggedDistance?: number;
+  loggedSeconds?: number;
+  onActivate: () => void;
+  onComplete: (distanceValue: number, elapsedSeconds: number) => void;
+  onSkip: () => void;
+}
+
+function DistanceLogRow({
+  setNum, targetDistanceValue, targetDistanceUnit, isActive, isPending, isCompleted, isSkipped,
+  loggedDistance, loggedSeconds, onActivate, onComplete, onSkip,
+}: DistanceLogRowProps) {
+  const [elapsed, setElapsed] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [distanceInput, setDistanceInput] = useState(String(targetDistanceValue));
+  const tickRef = useRef<NodeJS.Timeout>();
+
+  useEffect(() => {
+    return () => clearInterval(tickRef.current);
+  }, []);
+
+  function toggle() {
+    if (running) {
+      clearInterval(tickRef.current);
+      setRunning(false);
+    } else {
+      setRunning(true);
+      tickRef.current = setInterval(() => setElapsed((prev) => prev + 1), 1000);
+    }
+  }
+
+  function handleComplete() {
+    clearInterval(tickRef.current);
+    setRunning(false);
+    const distance = parseFloat(distanceInput) || targetDistanceValue;
+    onComplete(distance, elapsed);
+  }
+
+  if (isCompleted || isSkipped) {
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, x: -16 }}
+        animate={{ opacity: 1, x: 0 }}
+        className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+          isCompleted ? 'bg-success/5 border-success/20' : 'bg-white/3 border-white/6 opacity-40'
+        }`}
+      >
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+          isCompleted ? 'bg-success/20' : 'bg-white/8'
+        }`}>
+          {isCompleted ? <CheckCircle className="w-4 h-4 text-success" /> : <span className="text-xs text-text-tertiary">{setNum}</span>}
+        </div>
+        <div className="flex-1">
+          <span className="text-sm text-text-secondary">Set {setNum}</span>
+        </div>
+        {isCompleted && loggedDistance !== undefined && loggedSeconds !== undefined && (
+          <span className="text-xs font-semibold text-success">
+            {loggedDistance}{targetDistanceUnit} in {formatClock(loggedSeconds)} · {formatPace(loggedSeconds, loggedDistance)}/{targetDistanceUnit} pace
+          </span>
+        )}
+        {isSkipped && <span className="text-xs text-text-tertiary">Skipped</span>}
+      </motion.div>
+    );
+  }
+
+  if (isPending) {
+    return (
+      <motion.button
+        layout
+        onClick={onActivate}
+        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-surface hover:bg-surface-elevated transition-colors text-left"
+      >
+        <div className="w-7 h-7 rounded-lg bg-white/8 flex items-center justify-center flex-shrink-0">
+          <span className="text-xs text-text-tertiary font-bold">{setNum}</span>
+        </div>
+        <span className="text-sm text-text-secondary flex-1">Set {setNum}</span>
+        <span className="text-xs text-text-tertiary">tap to activate</span>
+      </motion.button>
+    );
+  }
+
+  const currentPace = formatPace(elapsed, parseFloat(distanceInput) || targetDistanceValue);
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="rounded-2xl border border-accent/40 bg-accent/5"
+    >
+      <div className="flex items-center justify-between px-4 py-3 border-b border-accent/15">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center">
+            <span className="text-xs font-black text-accent">{setNum}</span>
+          </div>
+          <span className="text-sm font-semibold text-foreground">Target: {targetDistanceValue}{targetDistanceUnit}</span>
+        </div>
+        <button
+          onClick={onSkip}
+          className="px-2.5 py-1.5 rounded-lg text-xs text-text-tertiary hover:text-white hover:bg-white/8 transition-colors"
+        >
+          Skip
+        </button>
+      </div>
+
+      <div className="flex items-center gap-4 px-4 py-4">
+        <div className="flex-1">
+          <motion.p
+            key={elapsed}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            className="text-3xl font-black text-foreground leading-none tabular-nums"
+          >
+            {formatClock(elapsed)}
+          </motion.p>
+          <p className="text-xs text-text-tertiary mt-1">
+            {running ? `Running… ${currentPace}/${targetDistanceUnit} pace` : elapsed > 0 ? 'Paused' : 'Tap ▶ to start your stopwatch'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={toggle}
+            className="w-12 h-12 rounded-full bg-accent flex items-center justify-center shadow-glow-sm active:scale-95 transition-all"
+          >
+            {running
+              ? <Pause className="w-5 h-5 text-black" />
+              : <Play className="w-5 h-5 text-black ml-0.5" />
+            }
+          </button>
+        </div>
+      </div>
+
+      <div className="px-4 pb-4 flex items-center gap-3">
+        <label className="text-xs text-text-secondary flex-shrink-0">Actual distance</label>
+        <input
+          type="number"
+          step="0.1"
+          value={distanceInput}
+          onChange={(e) => setDistanceInput(e.target.value)}
+          className="w-20 bg-surface border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-accent/50"
+        />
+        <span className="text-xs text-text-tertiary">{targetDistanceUnit}</span>
+      </div>
+
+      <div className="px-4 pb-4">
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={handleComplete}
+          disabled={elapsed === 0}
+          className="w-full py-3.5 rounded-xl bg-accent text-black font-bold text-sm flex items-center justify-center gap-2 shadow-glow-sm hover:bg-amber-400 transition-colors disabled:opacity-40"
+        >
+          <CheckCircle className="w-4 h-4" />
+          Done — Log Result
         </motion.button>
       </div>
     </motion.div>
@@ -1301,6 +1517,11 @@ function WorkoutSessionPageInner() {
           weight: s.weight,
           reps: s.reps,
           completed: s.status === 'completed',
+          ...(ex.isDistance && s.distanceValue !== undefined ? {
+            distanceValue: s.distanceValue,
+            distanceUnit: ex.targetDistanceUnit,
+            elapsedSeconds: s.elapsedSeconds ?? 0,
+          } : {}),
         })),
       }));
       const result = await completeWorkout(user.uid, logs, duration, programId, dow ?? undefined);
@@ -1397,6 +1618,8 @@ function WorkoutSessionPageInner() {
                   <p className="text-xs text-text-secondary">
                     {currentEx.isHiit
                       ? `HIIT · ${currentEx.hiitRounds} rounds · ${currentEx.hiitWorkSeconds}s on / ${currentEx.hiitRestSeconds}s off`
+                      : currentEx.isDistance
+                      ? `Target: ${currentEx.targetDistanceValue}${currentEx.targetDistanceUnit}`
                       : currentEx.isCardio
                       ? `${currentEx.targetSets} sets · ${Math.floor(currentEx.cardioDurationSeconds / 60)}:${String(currentEx.cardioDurationSeconds % 60).padStart(2, '0')} each`
                       : `${currentEx.targetSets} sets × ${currentEx.targetReps} reps${currentEx.restSeconds > 0 ? ` · ${currentEx.restSeconds}s rest` : ''}`
@@ -1422,6 +1645,25 @@ function WorkoutSessionPageInner() {
                       isSkipped={setState.status === 'skipped'}
                       onActivate={() => activateSet(currentExIdx, si)}
                       onComplete={() => completeSet(currentExIdx, si)}
+                      onSkip={() => skipSet(currentExIdx, si)}
+                    />
+                  ) : currentEx.isDistance ? (
+                    <DistanceLogRow
+                      key={si}
+                      setNum={si + 1}
+                      targetDistanceValue={currentEx.targetDistanceValue}
+                      targetDistanceUnit={currentEx.targetDistanceUnit}
+                      isActive={setState.status === 'active'}
+                      isPending={setState.status === 'pending'}
+                      isCompleted={setState.status === 'completed'}
+                      isSkipped={setState.status === 'skipped'}
+                      loggedDistance={setState.distanceValue}
+                      loggedSeconds={setState.elapsedSeconds}
+                      onActivate={() => activateSet(currentExIdx, si)}
+                      onComplete={(distanceValue, elapsedSeconds) => {
+                        updateSet(currentExIdx, si, { distanceValue, elapsedSeconds });
+                        completeSet(currentExIdx, si);
+                      }}
                       onSkip={() => skipSet(currentExIdx, si)}
                     />
                   ) : currentEx.isCardio ? (

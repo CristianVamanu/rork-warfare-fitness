@@ -298,6 +298,14 @@ service cloud.firestore {
       allow delete: if isStaff();
     }
 
+    // ── PT test results (self-logged, read by owner + staff) ────────────────
+    match /ptTestResults/{resultId} {
+      allow read: if isAuthed() && (resource.data.userId == uid() || isStaff());
+      allow create: if isAuthed() && request.resource.data.userId == uid();
+      allow update: if false;
+      allow delete: if isAuthed() && (resource.data.userId == uid() || isStaff());
+    }
+
     // Body progress photos — private to the owning user and staff (admin/trainer) only.
     match /progressPhotos/{photoId} {
       allow read:   if isAuthed() && (resource.data.userId == uid() || isStaff());

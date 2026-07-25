@@ -62,7 +62,12 @@ async function emit(
 // Workout
 // ---------------------------------------------------------------------------
 
-interface SetLog { weight: number; reps: number; completed: boolean }
+interface SetLog {
+  weight: number; reps: number; completed: boolean;
+  // Only present for distance-mode sets (ruck marches, timed runs) — see
+  // parseDistance() in the training session page.
+  distanceValue?: number; distanceUnit?: 'mi' | 'km'; elapsedSeconds?: number;
+}
 interface ExerciseLog { name: string; sets: SetLog[] }
 
 export interface WorkoutResult {

@@ -1471,6 +1471,26 @@ export async function deleteGoal(goalId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// PT Test results — simplified 3-event military-style fitness test
+// (push-ups, sit-ups, timed run), see PtTestResult for scoring notes.
+// ---------------------------------------------------------------------------
+import type { PtTestResult } from '@/types';
+
+export async function createPtTestResult(data: Omit<PtTestResult, 'id' | 'createdAt'>): Promise<string> {
+  const ref = await addDoc(collection(db, 'ptTestResults'), {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getPtTestResults(userId: string): Promise<PtTestResult[]> {
+  const snap = await getDocs(query(collection(db, 'ptTestResults'), where('userId', '==', userId), limit(50)));
+  const results = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as PtTestResult);
+  return results.sort((a, b) => ((b.createdAt as Timestamp)?.toMillis() ?? 0) - ((a.createdAt as Timestamp)?.toMillis() ?? 0));
+}
+
+// ---------------------------------------------------------------------------
 // Coaching Applications (intake form → admin review → pay/reject)
 // ---------------------------------------------------------------------------
 import type { CoachingApplication } from '@/types';
