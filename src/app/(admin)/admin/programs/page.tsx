@@ -199,15 +199,13 @@ export default function ProgramsPage() {
                   >
                     <Users className="w-4 h-4" />
                   </button>
-                  {!(p as { _mock?: boolean })._mock && (
-                    <button
-                      onClick={() => router.push(`/admin/programs/builder?id=${p.id}`)}
-                      title="Edit"
-                      className="p-2 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => router.push(`/admin/programs/builder?id=${p.id}`)}
+                    title={(p as { _mock?: boolean })._mock ? 'Edit (creates an editable copy)' : 'Edit'}
+                    className="p-2 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => handleDelete(p)}
                     title="Delete"

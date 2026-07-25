@@ -9,9 +9,10 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
-  getProgram, createProgram, updateProgram, getAllUsers, enrollInProgram,
+  getProgram, createProgram, updateProgram, upsertProgram, getAllUsers, enrollInProgram,
   matchExercisesToVideos, getExerciseVideos,
 } from '@/lib/firestore';
+import { getMockProgram } from '@/lib/programs';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -103,6 +104,7 @@ function BuilderInner() {
 
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(programId);
+  const [editingBuiltIn, setEditingBuiltIn] = useState(false);
 
   const [assignModal, setAssignModal] = useState(false);
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -116,13 +118,26 @@ function BuilderInner() {
 
   const [loading, setLoading] = useState(!!programId);
 
-  // Load existing program for edit
+  // Load existing program for edit — falls back to the built-in seed
+  // programs (MOCK_PROGRAMS) when Firestore has no doc at this id yet, so
+  // editing one of the shipped-in-code programs works the same as editing
+  // an admin-created one. Saving writes a real Firestore doc under the same
+  // id (see handleSave/upsertProgram), which then transparently overrides
+  // the seed version everywhere it's looked up.
   useEffect(() => {
     if (!programId) return;
     getProgram(programId)
       .then((p) => {
-        if (!p) { toast.error('Program not found'); router.replace('/admin/programs'); return; }
-        const program = p as unknown as Program & { visibility?: string; schedule?: BDay[] };
+        if (!p) {
+          const mock = getMockProgram(programId);
+          if (!mock) { toast.error('Program not found'); router.replace('/admin/programs'); return; }
+          setEditingBuiltIn(true);
+          return mock as unknown as Program & { visibility?: string; schedule?: BDay[] };
+        }
+        return p as unknown as Program & { visibility?: string; schedule?: BDay[] };
+      })
+      .then((program) => {
+        if (!program) return;
         setProg({
           name: program.name,
           description: program.description,
@@ -239,7 +254,11 @@ function BuilderInner() {
         trainerId: user.uid,
         status: publish ? 'published' : 'draft',
       });
-      if (savedId) {
+      if (savedId && editingBuiltIn) {
+        await upsertProgram(savedId, data);
+        setEditingBuiltIn(false);
+        toast.success(publish ? 'Program published!' : 'Changes saved — now a fully editable program');
+      } else if (savedId) {
         await updateProgram(savedId, data);
         toast.success(publish ? 'Program published!' : 'Changes saved');
       } else {

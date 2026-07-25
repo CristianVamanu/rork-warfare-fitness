@@ -577,6 +577,17 @@ export async function updateProgram(id: string, data: Record<string, unknown>) {
   await updateDoc(doc(db, 'programs', id), { ...stripUndefinedDeep(data), updatedAt: serverTimestamp() });
 }
 
+/**
+ * Like updateProgram, but creates the doc if it doesn't exist yet — used
+ * when an admin edits a built-in seed program (MOCK_PROGRAMS) for the first
+ * time. Saving under the same id turns it into a real, editable Firestore
+ * program that transparently overrides the seed version everywhere it's
+ * looked up by id, without breaking any user already enrolled in it.
+ */
+export async function upsertProgram(id: string, data: Record<string, unknown>) {
+  await setDoc(doc(db, 'programs', id), { ...stripUndefinedDeep(data), updatedAt: serverTimestamp() }, { merge: true });
+}
+
 export async function deleteProgram(id: string) {
   await deleteDoc(doc(db, 'programs', id));
 }
