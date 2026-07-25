@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy,
   ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
+  Menu, X as XIcon, Clock, BarChart3,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSystemConfig, getMembershipConfig, getCoachingPlans, getMembershipPlans } from '@/lib/firestore';
@@ -51,6 +52,29 @@ const FAQ_ITEMS = [
   },
 ];
 
+interface PublicProgram {
+  id: string;
+  name: string;
+  description: string;
+  level: string;
+  goal: string;
+  weeks: number;
+  daysPerWeek: number;
+  imageUrl: string | null;
+  targetGender: string;
+}
+
+const NAV_LINKS = [
+  { href: '/', label: 'Home' },
+  { href: '#programs', label: 'Programs' },
+  { href: '/terms', label: 'Terms' },
+  { href: '/privacy', label: 'Privacy' },
+];
+
+const GOAL_LABEL: Record<string, string> = {
+  strength: 'Strength', hypertrophy: 'Muscle Building', endurance: 'Endurance', 'weight-loss': 'Weight Loss', general: 'General Fitness',
+};
+
 function FaqItem({ q, a, open, onToggle }: { q: string; a: string; open: boolean; onToggle: () => void }) {
   return (
     <div className="border-b border-white/8 last:border-b-0">
@@ -85,6 +109,8 @@ export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [quickSex, setQuickSex] = useState<'male' | 'female' | null>(null);
   const [quickAge, setQuickAge] = useState('');
+  const [programs, setPrograms] = useState<PublicProgram[]>([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard');
@@ -101,6 +127,7 @@ export default function LandingPage() {
     getMembershipPlans().then((plans) => setMembershipPlans(plans.filter((p) => p.active))).catch(() => {});
     fetch('/api/public/leaderboard').then((r) => r.json()).then((d) => setLeaderboard(d.entries ?? [])).catch(() => {});
     fetch('/api/public/stats').then((r) => r.json()).then(setStats).catch(() => {});
+    fetch('/api/public/programs').then((r) => r.json()).then((d) => setPrograms(d.programs ?? [])).catch(() => {});
   }, []);
 
   const trialDays = membership?.enabled ? (membership.trialDays ?? 0) : 0;
@@ -149,20 +176,70 @@ export default function LandingPage() {
       )}
 
       {/* Nav */}
-      <nav className="relative max-w-5xl mx-auto flex items-center justify-between px-5 py-5">
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center overflow-hidden flex-shrink-0">
-            {logoUrl ? (
-              <Image src={logoUrl} alt={appName} width={36} height={36} className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-base font-black text-black">{appName[0]}</span>
-            )}
+      <nav className="relative max-w-5xl mx-auto px-5 py-5">
+        <div className="flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center overflow-hidden flex-shrink-0">
+              {logoUrl ? (
+                <Image src={logoUrl} alt={appName} width={36} height={36} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-base font-black text-black">{appName[0]}</span>
+              )}
+            </div>
+            <span className="text-base font-black text-white tracking-tight">{appName}</span>
+          </Link>
+
+          {/* Desktop links */}
+          <div className="hidden sm:flex items-center gap-6">
+            {NAV_LINKS.map((link) => (
+              <a key={link.href} href={link.href} className="text-sm font-medium text-text-secondary hover:text-white transition-colors">
+                {link.label}
+              </a>
+            ))}
+            <Link href="/login" className="text-sm font-medium text-white hover:text-accent transition-colors">
+              Sign In
+            </Link>
           </div>
-          <span className="text-base font-black text-white tracking-tight">{appName}</span>
+
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            className="sm:hidden p-2 -mr-2 text-text-secondary hover:text-white transition-colors"
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <XIcon className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
-        <Link href="/login" className="text-sm font-medium text-text-secondary hover:text-white transition-colors">
-          Sign In
-        </Link>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="sm:hidden overflow-hidden"
+          >
+            <div className="flex flex-col gap-1 mt-4 pb-2 border-t border-white/8 pt-4">
+              {NAV_LINKS.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-sm font-medium text-text-secondary hover:text-white transition-colors py-2.5"
+                >
+                  {link.label}
+                </a>
+              ))}
+              <Link
+                href="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-sm font-bold text-accent py-2.5"
+              >
+                Sign In
+              </Link>
+            </div>
+          </motion.div>
+        )}
       </nav>
 
       {/* Hero */}
@@ -310,6 +387,81 @@ export default function LandingPage() {
           })}
         </div>
       </section>
+
+      {/* Programs — pulled from /api/public/programs (published Firestore
+          programs + built-in seed programs), so this always reflects
+          whatever's actually assignable, never hand-maintained copy that
+          could drift out of sync with the real program library. */}
+      {programs.length > 0 && (
+        <section id="programs" className="max-w-5xl mx-auto px-5 pb-16 scroll-mt-6">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl sm:text-3xl font-black text-white">Train Like an Elite Soldier</h2>
+            <p className="text-text-secondary text-sm mt-2">Every program is matched to you during onboarding — or pick one yourself below.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {programs.map((p, i) => (
+              <motion.div
+                key={p.id}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ duration: 0.35, delay: (i % 6) * 0.05 }}
+                className="rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors overflow-hidden flex flex-col"
+              >
+                {/* Fixed-aspect image slot, same size for every card — a
+                    themed gradient + icon fallback when no admin image is
+                    set yet, so the grid never looks unfinished. */}
+                <div className="w-full aspect-[4/3] relative bg-gradient-to-br from-accent/20 to-surface-elevated flex-shrink-0">
+                  {p.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Dumbbell className="w-10 h-10 text-accent/40" />
+                    </div>
+                  )}
+                  <div className="absolute top-2.5 left-2.5">
+                    <span className="px-2 py-1 rounded-lg bg-black/60 backdrop-blur-sm text-[10px] font-bold text-white uppercase tracking-wide">
+                      {p.level}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-4 flex flex-col flex-1">
+                  <h3 className="text-sm font-bold text-white">{p.name}</h3>
+                  <p className="text-xs text-text-secondary mt-1.5 leading-relaxed line-clamp-2 flex-1">{p.description}</p>
+                  <div className="flex items-center gap-3 mt-3 text-[11px] text-text-tertiary">
+                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {p.weeks}wk</span>
+                    <span className="flex items-center gap-1"><BarChart3 className="w-3 h-3" /> {p.daysPerWeek}d/wk</span>
+                    <span>{GOAL_LABEL[p.goal] ?? p.goal}</span>
+                  </div>
+                  <Link href="/onboarding" className="block pt-4 mt-auto">
+                    <Button fullWidth size="sm">Enroll Now <ArrowRight className="w-3.5 h-3.5" /></Button>
+                  </Link>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Build Your Own teaser — the real builder is inside the app
+              (needs an account), so this just points new visitors to the
+              signup funnel with the right expectation set. */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-40px' }}
+            transition={{ duration: 0.35 }}
+            className="mt-6 rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/[0.08] to-surface p-6 sm:p-8 text-center"
+          >
+            <h3 className="text-lg sm:text-xl font-black text-white">Don&apos;t see a perfect fit?</h3>
+            <p className="text-text-secondary text-sm mt-2 max-w-md mx-auto">
+              Build your own fully custom AI-generated program — answer a few questions about your goals, equipment, and schedule, and get a plan made just for you.
+            </p>
+            <Link href="/onboarding" className="inline-block mt-4">
+              <Button size="sm">Get Started <ArrowRight className="w-3.5 h-3.5" /></Button>
+            </Link>
+          </motion.div>
+        </section>
+      )}
 
       {/* Motivational quote — admin-editable, full-bleed accent treatment */}
       {landing.quoteText && (

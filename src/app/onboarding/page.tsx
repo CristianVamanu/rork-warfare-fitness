@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -245,7 +246,11 @@ function OnboardingPageInner() {
           const res = await fetch('/api/ai/recommend-program', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-            body: JSON.stringify({ goal, experience, trainingDays }),
+            body: JSON.stringify({
+              goal, experience, trainingDays,
+              sex: sex ?? undefined,
+              hasLimitations: !!buildLimitationsSummary(),
+            }),
           });
           if (!res.ok) throw new Error('Program assignment unavailable');
           const { program: matched } = await res.json();
@@ -430,13 +435,23 @@ function OnboardingPageInner() {
       {/* Header */}
       <div className="px-4 pt-12 pb-4 max-w-lg mx-auto w-full">
         <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={() => go(-1)}
-            disabled={step === 0 || isGenerating}
-            className="p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors disabled:opacity-0"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
+          {step === 0 ? (
+            <Link
+              href="/"
+              className="p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+              title="Back to homepage"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </Link>
+          ) : (
+            <button
+              onClick={() => go(-1)}
+              disabled={isGenerating}
+              className="p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors disabled:opacity-40"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
           <span className="text-xs text-text-secondary">Step {step + 1} of {TOTAL_STEPS}</span>
           <div className="w-9" />
         </div>

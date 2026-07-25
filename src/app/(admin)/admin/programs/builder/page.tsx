@@ -5,14 +5,15 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Sparkles, ChevronLeft, Plus, Trash2, ChevronUp, ChevronDown, Save,
-  Users, CheckCircle, Loader2, Moon, Dumbbell, AlertCircle, Video, Search, X, Play,
+  Users, CheckCircle, Loader2, Moon, Dumbbell, AlertCircle, Video, Search, X, Play, Upload,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   getProgram, createProgram, updateProgram, upsertProgram, getAllUsers, enrollInProgram,
-  matchExercisesToVideos, getExerciseVideos,
+  matchExercisesToVideos, getExerciseVideos, getSystemConfig,
 } from '@/lib/firestore';
 import { getMockProgram } from '@/lib/programs';
+import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -58,6 +59,7 @@ interface BProg {
   daysPerWeek: number;
   visibility: 'public' | 'coaching';
   targetGender: 'male' | 'female' | 'anyone';
+  imageUrl: string;
   schedule: BDay[];
 }
 
@@ -81,7 +83,7 @@ function blankEx(): BEx {
 function emptyProg(): BProg {
   return {
     name: '', description: '', level: 'intermediate', goal: 'hypertrophy',
-    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone',
+    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', imageUrl: '',
     schedule: [blankDay('Push Day'), blankDay('Pull Day'), blankDay('Legs'), restDay(), blankDay('Upper Body'), restDay(), restDay()],
   };
 }
@@ -105,6 +107,25 @@ function BuilderInner() {
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(programId);
   const [editingBuiltIn, setEditingBuiltIn] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingImage(true);
+    try {
+      const cfg = await getSystemConfig().catch(() => null);
+      const provider = ((cfg?.storageProvider as StorageProvider) || 'firebase');
+      const url = await uploadVideo(provider, user, file, 'programImages');
+      setProg((s) => ({ ...s, imageUrl: url }));
+      toast.success('Cover image uploaded');
+    } catch (err) {
+      toast.error(`Failed to upload image: ${err instanceof Error ? err.message : String(err)}`, { duration: 6000 });
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
+    }
+  }
 
   const [assignModal, setAssignModal] = useState(false);
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -147,6 +168,7 @@ function BuilderInner() {
           daysPerWeek: program.daysPerWeek,
           visibility: (program.visibility as 'public' | 'coaching') ?? 'public',
           targetGender: program.targetGender ?? 'anyone',
+          imageUrl: program.imageUrl ?? '',
           schedule: program.schedule?.length === 7
             ? program.schedule.map(d => ({
                 ...d,
@@ -211,6 +233,7 @@ function BuilderInner() {
         daysPerWeek: p.daysPerWeek || 4,
         visibility: 'public',
         targetGender: (p.targetGender === 'male' || p.targetGender === 'female') ? p.targetGender : 'anyone',
+        imageUrl: '',
         schedule: (p.schedule || []).map((d: BDay) => ({
           label: d.label || (d.isRest ? 'Rest' : 'Training Day'),
           isRest: !!d.isRest,
@@ -434,6 +457,26 @@ function BuilderInner() {
             rows={2}
             className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
           />
+        </div>
+        <div>
+          <label className="text-xs text-text-secondary mb-1 block">Cover Image (shown on landing page & program lists)</label>
+          <div className="flex items-center gap-3">
+            {prog.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={prog.imageUrl} alt="" className="w-16 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0" />
+            )}
+            <div className="flex flex-col gap-1.5">
+              <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-white/10 text-xs font-bold text-white cursor-pointer hover:border-accent/40 transition-colors">
+                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploadingImage} />
+                <Upload className="w-4 h-4" /> {uploadingImage ? 'Uploading…' : prog.imageUrl ? 'Change Image' : 'Upload Image'}
+              </label>
+              {prog.imageUrl && (
+                <button type="button" onClick={() => setProg(s => ({ ...s, imageUrl: '' }))} className="text-[11px] text-danger hover:underline text-left">
+                  Remove image
+                </button>
+              )}
+            </div>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

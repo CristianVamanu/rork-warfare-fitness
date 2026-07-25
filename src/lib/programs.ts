@@ -946,15 +946,22 @@ const GOAL_TO_PROGRAM_GOAL: Record<string, Program['goal']> = {
 /**
  * Scores every candidate program against the user's onboarding answers and
  * returns the best fit. Sex/height/weight are deliberately NOT used to
- * include/exclude programs — every program is appropriate for any athlete;
- * biometrics only matter for calorie targets (handled separately) and for
- * calibrating starting loads once training, not for which plan gets picked.
+ * hard include/exclude programs — every program is appropriate for any
+ * athlete; biometrics only matter for calorie targets (handled separately)
+ * and for calibrating starting loads once training, not for which plan gets
+ * picked. `sex` and `hasLimitations` are optional soft signals only: a
+ * gender-targeted program gets a small nudge for a matching user, and
+ * programs flagged as physically demanding get a small penalty when the
+ * user has reported an injury/medical limitation — nudges, never exclusions,
+ * so a real coach isn't overridden by a single onboarding checkbox.
  */
 export function pickBestProgram(
   pool: Program[],
   goal: string,
   experience: string,
-  trainingDays: number
+  trainingDays: number,
+  sex?: string,
+  hasLimitations?: boolean
 ): Program | null {
   if (pool.length === 0) return null;
   const targetGoal = GOAL_TO_PROGRAM_GOAL[goal] ?? goal;
@@ -967,6 +974,14 @@ export function pickBestProgram(
     const levelGap = Math.abs((levelRank[p.level] ?? 1) - (levelRank[experience] ?? 1));
     score += levelGap === 0 ? 6 : levelGap === 1 ? 2 : 0;
     score -= Math.abs(p.daysPerWeek - trainingDays);
+
+    if (sex && p.targetGender && p.targetGender !== 'anyone') {
+      score += p.targetGender === sex ? 2 : -3;
+    }
+    if (hasLimitations) {
+      score -= p.level === 'advanced' ? 4 : p.level === 'intermediate' ? 1 : 0;
+    }
+
     return { p, score };
   });
 
