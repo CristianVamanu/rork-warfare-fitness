@@ -81,7 +81,7 @@ export default function ProgramDashboardScreen() {
                           </View>
                           <View style={styles.metaBadge}>
                             <Crown size={12} color={Colors.textSecondary} />
-                            <Text style={styles.metaBadgeText}>Free</Text>
+                            <Text style={styles.metaBadgeText}>{p.isPaid ? 'Premium' : 'Free'}</Text>
                           </View>
                         </View>
                       </View>

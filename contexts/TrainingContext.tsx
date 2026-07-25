@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '@/contexts/AppContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { UNIT_PROGRAMS } from '@/constants/unitPrograms';
 
 export type Exercise = {
   id: string;
@@ -84,6 +85,10 @@ export type Program = {
   accessLevel?: 'free' | 'premium';
   isPaid?: boolean;
   requiresSubscription?: boolean;
+  unit?: string;
+  primaryGoal?: string;
+  secondaryGoals?: string[];
+  difficulty?: 'Beginner' | 'Intermediate' | 'Advanced' | 'Elite';
 };
 
 const STORAGE_KEYS = {
@@ -139,6 +144,7 @@ const DEFAULT_PROGRAMS: Program[] = [
   { id: 'alpha-bulk-90', title: 'Alpha Bulk 90', days: 90, schedule: build90DaySchedule('alpha-bulk-90', 'hypertrophy'), completedDays: {}, accessLevel: 'free', isPaid: false, requiresSubscription: false },
   { id: 'burn-ops-90', title: 'Burn Ops 90', days: 90, schedule: build90DaySchedule('burn-ops-90', 'fatloss'), completedDays: {}, accessLevel: 'free', isPaid: false, requiresSubscription: false },
   { id: 'calisthenics-warfare-90', title: 'Calisthenics Warfare 90', days: 90, schedule: build90DaySchedule('calisthenics-warfare-90', 'calisthenics'), completedDays: {}, accessLevel: 'free', isPaid: false, requiresSubscription: false },
+  ...UNIT_PROGRAMS,
 ];
 
 

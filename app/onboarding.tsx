@@ -17,6 +17,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
+import { useTraining } from '@/contexts/TrainingContext';
+import { recommendProgramId } from '@/constants/unitPrograms';
 
 const FITNESS_GOALS = ['Lose Fat', 'Build Muscle', 'Get Stronger', 'Improve Endurance', 'General Fitness'];
 const EXPERIENCE_LEVELS = ['Complete Beginner', 'Some Experience', 'Intermediate', 'Advanced', 'Elite'];
@@ -25,6 +27,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, updateUserProfile } = useApp();
+  const { enroll } = useTraining();
 
   const [step, setStep] = useState(0);
   const [role, setRole] = useState<'warrior' | 'trainer' | null>(null);
@@ -73,6 +76,9 @@ export default function OnboardingScreen() {
         weightUnit,
         isTrainer: role === 'trainer',
       });
+      if (role === 'warrior') {
+        enroll(recommendProgramId(goal, experience));
+      }
       await AsyncStorage.setItem('onboarding_complete', 'true');
       router.replace('/(tabs)' as any);
     } catch (e) {

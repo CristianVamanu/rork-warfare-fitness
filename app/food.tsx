@@ -15,7 +15,6 @@ type CameraMode = 'photo' | 'barcode' | null;
 export default function FoodScannerScreen() {
   const insets = useSafeAreaInsets();
 
-  const { addMeal, calorieTarget, setDailyCalorieTarget, getTodayMeals, appSettings, adminSettings } = useApp();
   const { addMeal, calorieTarget, setDailyCalorieTarget, getTodayMeals, adminSettings } = useApp();
 
   const [picked, setPicked] = useState<{ uri: string; base64?: string } | undefined>(undefined);
