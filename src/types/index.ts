@@ -452,6 +452,12 @@ export interface PtTestResult {
   totalScore: number; // 0-300
   tier: 'needs-work' | 'solid' | 'strong' | 'elite';
   createdAt: unknown;
+  // Optional unit-selection-standard mode (e.g. Spetsnaz Selection Prep) —
+  // absent/'generic' on every pre-existing result, so old data keeps
+  // rendering with the original 0-300 scoring path untouched.
+  standard?: 'generic' | 'spetsnaz';
+  pullups?: number;
+  standardPassed?: boolean;
 }
 
 export type CoachingApplicationStatus = 'pending' | 'approved' | 'rejected';

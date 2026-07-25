@@ -472,59 +472,75 @@ export const MOCK_PROGRAMS: Program[] = [
   // ── P8: Spetsnaz Strength (Russian Spetsnaz-inspired) ────────────────────
   {
     id: 'p8',
-    name: 'Spetsnaz Strength',
-    description: 'Kettlebell-heavy strength and conditioning inspired by Russian Spetsnaz training — raw power and grappling-style conditioning.',
+    name: 'Spetsnaz Selection Prep',
+    // Built backward from the actual published (unclassified) Spetsnaz
+    // selection PT standard — 20 strict pull-ups, 90 push-ups in 2 minutes,
+    // and a 3km run under 10:30 — so "you could pass it" is a real claim
+    // this program is periodized toward, not just branding. Track your
+    // numbers against these exact targets on the PT Test page (Spetsnaz
+    // Selection standard).
+    description: 'Do you have what it takes to be Spetsnaz? A 10-week program built to get you to the real published entry standard: 20 pull-ups, 90 push-ups in 2 minutes, and a sub-10:30 3km run.',
     level: 'advanced',
-    goal: 'strength',
+    goal: 'endurance',
     weeks: 10,
     daysPerWeek: 5,
     isPublic: true,
     createdBy: 'system',
     exercises: [
-      { id: 'p8-e1', name: 'Kettlebell Swing', sets: 5, reps: 20, restSeconds: 60, muscleGroup: 'full-body' },
-      { id: 'p8-e2', name: 'Barbell Back Squat', sets: 5, reps: 5, restSeconds: 180, muscleGroup: 'legs' },
-      { id: 'p8-e3', name: 'Kettlebell Clean & Press', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'shoulders' },
-      { id: 'p8-e4', name: 'Weighted Pull-Up', sets: 4, reps: 6, restSeconds: 120, muscleGroup: 'back' },
+      { id: 'p8-e1', name: 'Pull-Up Ladder', sets: 5, reps: 'ladder to failure', restSeconds: 90, muscleGroup: 'back' },
+      { id: 'p8-e2', name: 'Push-Up EMOM', sets: 10, reps: 'max in 40s', restSeconds: 20, muscleGroup: 'chest' },
+      { id: 'p8-e3', name: '3km Tempo Run', sets: 1, reps: '3km', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
+      { id: 'p8-e4', name: 'Barbell Back Squat', sets: 5, reps: 5, restSeconds: 180, muscleGroup: 'legs' },
     ],
     schedule: [
       {
-        label: 'Heavy Strength A',
+        label: 'Pull-Up Density',
         isRest: false,
         exercises: [
-          { id: 'p8-e2', name: 'Barbell Back Squat', sets: 5, reps: 5, restSeconds: 180, muscleGroup: 'legs' },
-          { id: 'p8-e4', name: 'Weighted Pull-Up', sets: 4, reps: 6, restSeconds: 120, muscleGroup: 'back' },
-          { id: 'p8-e5', name: 'Kettlebell Turkish Get-Up', sets: 3, reps: 6, restSeconds: 90, muscleGroup: 'full-body' },
+          { id: 'p8-e1', name: 'Pull-Up Ladder', sets: 5, reps: 'ladder to failure', restSeconds: 90, muscleGroup: 'back', notes: 'Build toward 20 strict reps: ladder 1-2-3...up until you can no longer add a rung.' },
+          { id: 'p8-e5', name: 'Barbell Row', sets: 4, reps: 8, restSeconds: 120, muscleGroup: 'back' },
+          { id: 'p8-e6', name: 'Hanging Leg Raise', sets: 4, reps: 15, restSeconds: 60, muscleGroup: 'core' },
         ],
       },
       {
-        label: 'Kettlebell Conditioning',
+        label: 'Push-Up Endurance + Intervals',
         isRest: false,
         exercises: [
-          { id: 'p8-e1', name: 'Kettlebell Swing', sets: 5, reps: 20, restSeconds: 60, muscleGroup: 'full-body' },
-          { id: 'p8-e3', name: 'Kettlebell Clean & Press', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'shoulders' },
-          { id: 'p8-e6', name: 'Kettlebell Goblet Squat', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'legs' },
+          { id: 'p8-e2', name: 'Push-Up EMOM', sets: 10, reps: 'max in 40s', restSeconds: 20, muscleGroup: 'chest', notes: 'Target: 90+ total reps across the set inside 2 minutes of work.' },
+          { id: 'p8-e7', name: 'Bench Press', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'chest' },
+          { id: 'p8-e8', name: '400m Run Intervals', sets: 8, reps: '0.4km', restSeconds: 90, muscleGroup: 'cardio', isCardio: true },
+          { id: 'p8-e9', name: 'Plank', sets: 4, reps: '60s', restSeconds: 45, muscleGroup: 'core' },
         ],
       },
       rest(),
       {
-        label: 'Heavy Strength B',
+        label: 'Heavy Strength (Durability Base)',
         isRest: false,
         exercises: [
-          { id: 'p8-e7', name: 'Deadlift', sets: 5, reps: 5, restSeconds: 180, muscleGroup: 'back' },
-          { id: 'p8-e8', name: 'Bench Press', sets: 5, reps: 5, restSeconds: 180, muscleGroup: 'chest' },
-          { id: 'p8-e9', name: 'Barbell Row', sets: 4, reps: 8, restSeconds: 120, muscleGroup: 'back' },
+          { id: 'p8-e4', name: 'Barbell Back Squat', sets: 5, reps: 5, restSeconds: 180, muscleGroup: 'legs' },
+          { id: 'p8-e10', name: 'Deadlift', sets: 5, reps: 5, restSeconds: 180, muscleGroup: 'back' },
+          { id: 'p8-e11', name: 'Overhead Press', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'shoulders' },
         ],
       },
       {
-        label: 'Grappling Conditioning',
+        label: '3km Tempo + Grip Conditioning',
         isRest: false,
         exercises: [
-          { id: 'p8-e10', name: 'Kettlebell Snatch', sets: 4, reps: 10, restSeconds: 75, muscleGroup: 'full-body' },
-          { id: 'p8-e11', name: 'Battle Rope Waves', sets: 4, reps: '30s', restSeconds: 60, muscleGroup: 'full-body' },
-          { id: 'p8-e12', name: 'Hanging Leg Raise', sets: 4, reps: 15, restSeconds: 60, muscleGroup: 'core' },
+          { id: 'p8-e3', name: '3km Tempo Run', sets: 1, reps: '3km', restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Run at goal pace: aim for sub-3:30/km to build toward the 10:30 standard.' },
+          { id: 'p8-e12', name: "Farmer's Carry", sets: 4, reps: '40m', restSeconds: 75, muscleGroup: 'full-body' },
+          { id: 'p8-e13', name: 'Kettlebell Swing', sets: 5, reps: 20, restSeconds: 60, muscleGroup: 'full-body' },
         ],
       },
-      rest(),
+      {
+        label: 'Standard Test Day',
+        isRest: false,
+        exercises: [
+          { id: 'p8-e14', name: 'Push-Up Max Test', sets: 1, reps: 'AMRAP in 2min', restSeconds: 0, muscleGroup: 'chest', notes: 'Target: 90+ reps. Log your number on the PT Test page.' },
+          { id: 'p8-e15', name: 'Pull-Up Max Test', sets: 1, reps: 'AMRAP', restSeconds: 0, muscleGroup: 'back', notes: 'Target: 20+ strict reps. Log your number on the PT Test page.' },
+          { id: 'p8-e16', name: 'Burpee', sets: 4, reps: 15, restSeconds: 60, muscleGroup: 'full-body' },
+          { id: 'p8-e17', name: 'Russian Twist', sets: 4, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+        ],
+      },
       rest(),
     ],
   },
