@@ -520,7 +520,7 @@ export const MOCK_PROGRAMS: Program[] = [
         isRest: false,
         exercises: [
           { id: 'p8-e10', name: 'Kettlebell Snatch', sets: 4, reps: 10, restSeconds: 75, muscleGroup: 'full-body' },
-          { id: 'p8-e11', name: 'Battle Rope Waves', sets: 4, reps: '30s', restSeconds: 60, muscleGroup: 'cardio' },
+          { id: 'p8-e11', name: 'Battle Rope Waves', sets: 4, reps: '30s', restSeconds: 60, muscleGroup: 'full-body' },
           { id: 'p8-e12', name: 'Hanging Leg Raise', sets: 4, reps: 15, restSeconds: 60, muscleGroup: 'core' },
         ],
       },
