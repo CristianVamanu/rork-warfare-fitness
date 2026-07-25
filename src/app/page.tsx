@@ -9,12 +9,13 @@ import { motion } from 'framer-motion';
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy,
   ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
-  Menu, X as XIcon, Clock, BarChart3,
+  Menu, X as XIcon, Clock, BarChart3, Anchor, Compass, Shield, Swords, Footprints, Waves, LifeBuoy, Mountain,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSystemConfig, getMembershipConfig, getCoachingPlans, getMembershipPlans } from '@/lib/firestore';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
 import { getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import type { LandingPageConfig, MembershipConfig, CoachingPlan, MembershipPlan } from '@/types';
@@ -75,6 +76,24 @@ const GOAL_LABEL: Record<string, string> = {
   strength: 'Strength', hypertrophy: 'Muscle Building', endurance: 'Endurance', 'weight-loss': 'Weight Loss', general: 'General Fitness',
 };
 
+// Stylized per-program badges — NOT real military insignia (using actual
+// unit crests/emblems would falsely imply an official endorsement that
+// doesn't exist, a real trademark/rights issue, not just a style choice).
+// Each built-in seed program gets its own distinct icon+color instead, so
+// the cards still read as visually distinct without borrowing real emblems.
+const PROGRAM_BADGE: Record<string, { icon: React.ElementType; color: string }> = {
+  p5: { icon: Anchor, color: 'text-blue-400' },
+  p6: { icon: Mountain, color: 'text-green-400' },
+  p7: { icon: Compass, color: 'text-orange-400' },
+  p8: { icon: Shield, color: 'text-red-400' },
+  p9: { icon: Swords, color: 'text-gray-300' },
+  p10: { icon: Footprints, color: 'text-yellow-400' },
+  p11: { icon: Shield, color: 'text-purple-400' },
+  p12: { icon: Waves, color: 'text-sky-400' },
+  p13: { icon: Mountain, color: 'text-accent' },
+  p14: { icon: LifeBuoy, color: 'text-orange-400' },
+};
+
 function FaqItem({ q, a, open, onToggle }: { q: string; a: string; open: boolean; onToggle: () => void }) {
   return (
     <div className="border-b border-white/8 last:border-b-0">
@@ -111,6 +130,7 @@ export default function LandingPage() {
   const [quickAge, setQuickAge] = useState('');
   const [programs, setPrograms] = useState<PublicProgram[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedProgram, setSelectedProgram] = useState<PublicProgram | null>(null);
 
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard');
@@ -399,14 +419,17 @@ export default function LandingPage() {
             <p className="text-text-secondary text-sm mt-2">Every program is matched to you during onboarding — or pick one yourself below.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {programs.map((p, i) => (
+            {programs.map((p, i) => {
+              const badge = PROGRAM_BADGE[p.id];
+              return (
               <motion.div
                 key={p.id}
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: (i % 6) * 0.05 }}
-                className="rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors overflow-hidden flex flex-col"
+                onClick={() => setSelectedProgram(p)}
+                className="rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors overflow-hidden flex flex-col cursor-pointer text-left"
               >
                 {/* Fixed-aspect image slot, same size for every card — a
                     themed gradient + icon fallback when no admin image is
@@ -425,6 +448,13 @@ export default function LandingPage() {
                       {p.level}
                     </span>
                   </div>
+                  {/* Stylized program badge — not a real unit insignia, see
+                      PROGRAM_BADGE comment above. */}
+                  {badge && (
+                    <div className="absolute top-2.5 right-2.5 w-8 h-8 rounded-lg bg-black/60 backdrop-blur-sm flex items-center justify-center">
+                      <badge.icon className={`w-4 h-4 ${badge.color}`} />
+                    </div>
+                  )}
                 </div>
                 <div className="p-4 flex flex-col flex-1">
                   <h3 className="text-sm font-bold text-white">{p.name}</h3>
@@ -434,12 +464,13 @@ export default function LandingPage() {
                     <span className="flex items-center gap-1"><BarChart3 className="w-3 h-3" /> {p.daysPerWeek}d/wk</span>
                     <span>{GOAL_LABEL[p.goal] ?? p.goal}</span>
                   </div>
-                  <Link href="/onboarding" className="block pt-4 mt-auto">
+                  <Link href="/login" onClick={(e) => e.stopPropagation()} className="block pt-4 mt-auto">
                     <Button fullWidth size="sm">Enroll Now <ArrowRight className="w-3.5 h-3.5" /></Button>
                   </Link>
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Build Your Own teaser — the real builder is inside the app
@@ -456,12 +487,41 @@ export default function LandingPage() {
             <p className="text-text-secondary text-sm mt-2 max-w-md mx-auto">
               Build your own fully custom AI-generated program — answer a few questions about your goals, equipment, and schedule, and get a plan made just for you.
             </p>
-            <Link href="/onboarding" className="inline-block mt-4">
+            <Link href="/login" className="inline-block mt-4">
               <Button size="sm">Get Started <ArrowRight className="w-3.5 h-3.5" /></Button>
             </Link>
           </motion.div>
         </section>
       )}
+
+      {/* Program detail modal — opened from a card click, shows the full
+          description instead of the 2-line clamp, without leaving the page. */}
+      <Modal open={!!selectedProgram} onClose={() => setSelectedProgram(null)} title={selectedProgram?.name ?? ''}>
+        {selectedProgram && (
+          <div className="space-y-4">
+            {selectedProgram.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={selectedProgram.imageUrl} alt={selectedProgram.name} className="w-full aspect-[16/9] object-cover rounded-xl" />
+            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2 py-1 rounded-lg bg-white/8 text-[10px] font-bold text-white uppercase tracking-wide">
+                {selectedProgram.level}
+              </span>
+              <span className="px-2 py-1 rounded-lg bg-white/8 text-[10px] font-bold text-text-secondary uppercase tracking-wide">
+                {GOAL_LABEL[selectedProgram.goal] ?? selectedProgram.goal}
+              </span>
+            </div>
+            <p className="text-sm text-text-secondary leading-relaxed">{selectedProgram.description}</p>
+            <div className="flex items-center gap-4 text-xs text-text-tertiary">
+              <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {selectedProgram.weeks} weeks</span>
+              <span className="flex items-center gap-1.5"><BarChart3 className="w-3.5 h-3.5" /> {selectedProgram.daysPerWeek} days/week</span>
+            </div>
+            <Link href="/login" className="block pt-2">
+              <Button fullWidth>Enroll Now <ArrowRight className="w-4 h-4" /></Button>
+            </Link>
+          </div>
+        )}
+      </Modal>
 
       {/* Motivational quote — admin-editable, full-bleed accent treatment */}
       {landing.quoteText && (
