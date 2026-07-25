@@ -106,13 +106,27 @@ export async function POST(req: NextRequest) {
     };
 
     const oneDayAgo = Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
-    const today = new Date().toLocaleDateString('sv-SE');
-    const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString('sv-SE');
     const sent: string[] = [];
+
+    // Computes a user's own "today"/"yesterday" date string (YYYY-MM-DD) in
+    // their stored timezone (captured at signup), not the server's — a
+    // server-timezone-only comparison here previously misjudged which day a
+    // logged workout fell on for anyone not in the same timezone as the VPS.
+    // Falls back to UTC for pre-existing accounts with no stored timezone.
+    const localDateStrFor = (timezone: string | undefined, msAgo: number): string => {
+      const date = new Date(Date.now() - msAgo);
+      try {
+        return new Intl.DateTimeFormat('sv-SE', { timeZone: timezone || 'UTC' }).format(date);
+      } catch {
+        return new Intl.DateTimeFormat('sv-SE', { timeZone: 'UTC' }).format(date);
+      }
+    };
 
     for (const user of users) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const u = user as any;
+      const today = localDateStrFor(u.timezone, 0);
+      const yesterday = localDateStrFor(u.timezone, 86_400_000);
 
       try {
         // Rule: missed_workout

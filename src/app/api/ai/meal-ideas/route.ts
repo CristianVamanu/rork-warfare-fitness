@@ -5,6 +5,7 @@ import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { checkAndIncrementUsage } from '@/lib/usageLimit';
+import { verifyAuthed } from '@/lib/verifyAdmin';
 
 const DEFAULT_DAILY_LIMIT = 15;
 
@@ -33,6 +34,12 @@ Suggest exactly 3 meals, varied in type where sensible. Keep instructions short 
 practical (3-6 steps). Estimate macros for a realistic single-serving portion.`;
 
 export async function POST(req: NextRequest) {
+  // Verifies the caller's own login token instead of trusting a
+  // client-supplied uid — see analyze-food/route.ts for why this matters.
+  const authCheck = await verifyAuthed(req);
+  if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
+  const uid = authCheck.uid;
+
   try {
     const apiKey = await getSecret('OPENAI_API_KEY');
     if (!apiKey) {
@@ -42,9 +49,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { ingredients, uid } = await req.json() as { ingredients?: string; uid?: string };
+    const { ingredients } = await req.json() as { ingredients?: string };
     if (!ingredients?.trim()) return NextResponse.json({ error: 'Tell me what you have' }, { status: 400 });
-    if (!uid) return NextResponse.json({ error: 'Missing uid' }, { status: 400 });
 
     const app = getAdminApp();
     if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Sparkles, Flame, Beef, ChevronDown, Plus, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { logMealAction } from '@/lib/actions';
 import { Button } from '@/components/ui/Button';
@@ -39,10 +40,11 @@ export default function MealPlannerPage() {
     setLoading(true);
     setMeals(null);
     try {
+      const token = await getIdToken(user);
       const res = await fetch('/api/ai/meal-ideas', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ingredients, uid: user.uid }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ingredients }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to generate ideas');

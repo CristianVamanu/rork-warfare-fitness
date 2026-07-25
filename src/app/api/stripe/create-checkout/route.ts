@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
+import { verifyAdmin } from '@/lib/verifyAdmin';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  try {
-    const { trainerId, email, priceId, successUrl, cancelUrl } = await req.json();
+  // This is the trainer's own platform-subscription checkout (admin-only) —
+  // verify the caller is actually an admin and use their own uid as
+  // trainerId, rather than trusting a body-supplied trainerId with no check.
+  const authCheck = await verifyAdmin(req);
+  if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
+  const trainerId = authCheck.uid;
 
-    if (!trainerId || !priceId) {
-      return NextResponse.json({ error: 'trainerId and priceId are required' }, { status: 400 });
+  try {
+    const { email, priceId, successUrl, cancelUrl } = await req.json();
+
+    if (!priceId) {
+      return NextResponse.json({ error: 'priceId is required' }, { status: 400 });
     }
 
     const stripe = await getStripe();

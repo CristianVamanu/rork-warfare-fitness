@@ -2301,10 +2301,10 @@ function AdminPageInner() {
                             )}
                           </div>
                           <div className="flex gap-1 flex-shrink-0">
-                            <button onClick={() => startEditMembershipPlan(plan)} className="p-1.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
+                            <button onClick={() => startEditMembershipPlan(plan)} className="p-2.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
-                            <button onClick={() => handleDeleteMembershipPlan(plan)} className="p-1.5 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors">
+                            <button onClick={() => handleDeleteMembershipPlan(plan)} className="p-2.5 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
@@ -2457,10 +2457,10 @@ function AdminPageInner() {
                             )}
                           </div>
                           <div className="flex gap-1 flex-shrink-0">
-                            <button onClick={() => startEditPlan(plan)} className="p-1.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
+                            <button onClick={() => startEditPlan(plan)} className="p-2.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
-                            <button onClick={() => handleDeletePlan(plan)} className="p-1.5 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors">
+                            <button onClick={() => handleDeletePlan(plan)} className="p-2.5 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
@@ -2888,10 +2888,10 @@ function AdminPageInner() {
                     )}
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
-                    <button onClick={() => startEditEx(ex)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+                    <button onClick={() => startEditEx(ex)} className="p-2.5 rounded-lg hover:bg-white/10 transition-colors">
                       <Edit2 className="w-4 h-4 text-text-secondary" />
                     </button>
-                    <button onClick={() => handleDeleteEx(ex.id)} className="p-1.5 rounded-lg hover:bg-red-500/20 transition-colors">
+                    <button onClick={() => handleDeleteEx(ex.id)} className="p-2.5 rounded-lg hover:bg-red-500/20 transition-colors">
                       <Trash2 className="w-4 h-4 text-red-400" />
                     </button>
                   </div>
@@ -3809,7 +3809,7 @@ function AdminPageInner() {
                             <CheckCircle className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        <button onClick={() => handleDeleteGoal(goal)} className="p-1.5 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors">
+                        <button onClick={() => handleDeleteGoal(goal)} className="p-2.5 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>

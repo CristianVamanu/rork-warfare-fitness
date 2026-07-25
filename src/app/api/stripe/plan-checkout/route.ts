@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
+import { verifyAuthed } from '@/lib/verifyAdmin';
 import type { MembershipPlan } from '@/types';
 
 function getAdminDb() {
@@ -23,9 +24,17 @@ function getAdminDb() {
 }
 
 export async function POST(req: NextRequest) {
+  // Verifies the caller's own login token so a checkout session can only
+  // ever be started for the person actually making the request — previously
+  // userId came straight from the request body with no check that it
+  // matched who was logged in.
+  const authCheck = await verifyAuthed(req);
+  if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
+  const userId = authCheck.uid;
+
   try {
-    const { userId, userEmail, planId } = await req.json() as { userId: string; userEmail: string; planId: string };
-    if (!userId || !planId) return NextResponse.json({ error: 'userId and planId required' }, { status: 400 });
+    const { userEmail, planId } = await req.json() as { userEmail: string; planId: string };
+    if (!planId) return NextResponse.json({ error: 'planId required' }, { status: 400 });
 
     const db = getAdminDb();
     if (!db) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });

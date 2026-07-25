@@ -111,6 +111,36 @@ export async function POST(req: NextRequest) {
     if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
     const db = getAdminDb(app);
 
+    // Attach demo videos from the existing exercise library wherever a name
+    // matches, same as admin-created programs get — previously only ran
+    // when an admin built/edited a program by hand, so every self-serve
+    // "Build Your Own" program shipped with zero demo videos even for
+    // common moves (squats, push-ups) the admin already has footage for.
+    // Uses the Admin SDK (not the client-side matchExercisesToVideos
+    // helper in lib/firestore.ts) since this route has no browser auth
+    // context to satisfy that collection's normal Firestore rules.
+    try {
+      const librarySnap = await db.collection('exerciseLibrary').get();
+      const library = librarySnap.docs.map((d) => d.data() as { name: string; aliases?: string[]; videoUrl: string });
+      if (library.length > 0) {
+        for (const day of generated.schedule) {
+          for (const ex of day.exercises ?? []) {
+            const normalized = String(ex.name).toLowerCase().trim();
+            for (const entry of library) {
+              const candidates = [entry.name, ...(entry.aliases ?? [])];
+              const isMatch = candidates.some((c) => {
+                const cn = c.toLowerCase().trim();
+                return cn === normalized || normalized.includes(cn) || cn.includes(normalized);
+              });
+              if (isMatch) { ex.videoUrl = entry.videoUrl; break; }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[build-my-program] Video matching failed (non-fatal):', err);
+    }
+
     const exercises = generated.schedule.flatMap((d: { exercises?: unknown[] }) => d.exercises ?? []);
     const docRef = await db.collection('programs').add({
       name: generated.name,

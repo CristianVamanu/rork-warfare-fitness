@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Camera, Upload, Flame, Beef, Wheat, AlertCircle, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayMeals, getUserGoals } from '@/lib/firestore';
 import { logMealAction } from '@/lib/actions';
@@ -107,10 +108,11 @@ function AnalyzeFoodPageInner() {
     setAnalyzing(true);
     setResult(null);
     try {
+      const token = await getIdToken(user);
       const res = await fetch('/api/ai/analyze-food', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64Image, uid: user.uid }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ base64Image }),
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);

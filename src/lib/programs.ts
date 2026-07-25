@@ -955,17 +955,34 @@ const GOAL_TO_PROGRAM_GOAL: Record<string, Program['goal']> = {
  * user has reported an injury/medical limitation — nudges, never exclusions,
  * so a real coach isn't overridden by a single onboarding checkbox.
  */
+// Programs don't carry an explicit equipment tag, so this estimates the
+// heaviest equipment tier a program actually requires by scanning its own
+// exercise names — 'barbell' implies a full gym/rack, kettlebell/dumbbell
+// implies at-home free weights are enough, anything else is bodyweight-only.
+// Used only as a soft nudge against a user's stated equipment access, same
+// spirit as the sex/limitations signals above: never a hard exclusion.
+const EQUIPMENT_RANK: Record<string, number> = { minimal: 0, home: 1, 'full-gym': 2 };
+
+function estimateEquipmentTier(p: Program): 'minimal' | 'home' | 'full-gym' {
+  const names = p.exercises.map((e) => e.name.toLowerCase()).join(' | ');
+  if (/barbell/.test(names)) return 'full-gym';
+  if (/kettlebell|dumbbell/.test(names)) return 'home';
+  return 'minimal';
+}
+
 export function pickBestProgram(
   pool: Program[],
   goal: string,
   experience: string,
   trainingDays: number,
   sex?: string,
-  hasLimitations?: boolean
+  hasLimitations?: boolean,
+  equipment?: string
 ): Program | null {
   if (pool.length === 0) return null;
   const targetGoal = GOAL_TO_PROGRAM_GOAL[goal] ?? goal;
   const levelRank: Record<string, number> = { beginner: 0, intermediate: 1, advanced: 2 };
+  const userEquipmentRank = equipment ? EQUIPMENT_RANK[equipment] : undefined;
 
   const scored = pool.map((p) => {
     let score = 0;
@@ -980,6 +997,13 @@ export function pickBestProgram(
     }
     if (hasLimitations) {
       score -= p.level === 'advanced' ? 4 : p.level === 'intermediate' ? 1 : 0;
+    }
+    if (userEquipmentRank !== undefined) {
+      const programNeedRank = EQUIPMENT_RANK[estimateEquipmentTier(p)];
+      // Only penalize when the program needs MORE equipment than the user
+      // has access to — never penalize a simple bodyweight program for
+      // someone with a full gym, that's still a perfectly valid match.
+      if (programNeedRank > userEquipmentRank) score -= 5 * (programNeedRank - userEquipmentRank);
     }
 
     return { p, score };

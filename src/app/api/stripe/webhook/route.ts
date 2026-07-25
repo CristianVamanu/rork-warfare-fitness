@@ -154,6 +154,50 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      // ── Refund or dispute — revoke whatever access that charge granted ──
+      // Previously unhandled: a refunded or disputed charge left the buyer
+      // with permanent access (subscription or one-time program purchase)
+      // since nothing ever told the app the payment was reversed.
+      case 'charge.refunded':
+      case 'charge.dispute.created': {
+        const charge = event.type === 'charge.dispute.created'
+          ? (event.data.object as Stripe.Dispute).charge as string | Stripe.Charge
+          : event.data.object as Stripe.Charge;
+        const stripe = await getStripe();
+        const chargeObj = typeof charge === 'string' ? await stripe.charges.retrieve(charge) : charge;
+
+        const piId = typeof chargeObj.payment_intent === 'string' ? chargeObj.payment_intent : chargeObj.payment_intent?.id;
+        const piMetadata = piId ? (await stripe.paymentIntents.retrieve(piId)).metadata : chargeObj.metadata;
+
+        if (piMetadata?.kind === 'program_purchase' && piMetadata.userId && piMetadata.programId) {
+          const db = getAdminDb();
+          if (db) {
+            await db.collection('users').doc(piMetadata.userId).update({
+              purchasedProgramIds: FieldValue.arrayRemove(piMetadata.programId),
+            });
+            console.log(`[Stripe webhook] Revoked program ${piMetadata.programId} from user ${piMetadata.userId} (${event.type})`);
+          }
+          break;
+        }
+
+        // Subscription-based charge — trace back through the invoice to find
+        // which subscription/user this charge belongs to.
+        const invoiceId = (chargeObj as { invoice?: string | null }).invoice;
+        if (invoiceId) {
+          const invoice = await stripe.invoices.retrieve(invoiceId);
+          const subId = (invoice as { subscription?: string | null }).subscription;
+          if (subId) {
+            const sub = await stripe.subscriptions.retrieve(subId);
+            const userId = sub.metadata?.userId;
+            if (userId) {
+              await setMembershipStatus(userId, 'none');
+              console.log(`[Stripe webhook] Revoked membership for user ${userId} (${event.type})`);
+            }
+          }
+        }
+        break;
+      }
+
       default:
         // Unhandled event — safe to ignore
     }

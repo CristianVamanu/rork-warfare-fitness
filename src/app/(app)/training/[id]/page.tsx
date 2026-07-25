@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
+import { getIdToken } from 'firebase/auth';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
@@ -131,10 +132,11 @@ export default function ProgramDetailPage() {
     if (!user || !program) return;
     setPurchasing(true);
     try {
+      const token = await getIdToken(user);
       const res = await fetch('/api/stripe/program-checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.uid, userEmail: user.email, programId: program.id }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userEmail: user.email, programId: program.id }),
       });
       const data = await res.json() as { url?: string; error?: string };
       if (data.url) window.location.href = data.url;

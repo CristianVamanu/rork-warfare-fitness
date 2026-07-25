@@ -5,10 +5,19 @@ import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { checkAndIncrementUsage } from '@/lib/usageLimit';
+import { verifyAuthed } from '@/lib/verifyAdmin';
 
 const DEFAULT_DAILY_ANALYSIS_LIMIT = 20;
 
 export async function POST(req: NextRequest) {
+  // Verifies the caller's own Firebase login token rather than trusting a
+  // client-supplied uid — without this, anyone could send a fresh random uid
+  // on every request and bypass the per-user daily rate limit entirely,
+  // running unlimited OpenAI calls on this app's bill.
+  const authCheck = await verifyAuthed(req);
+  if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
+  const uid = authCheck.uid;
+
   try {
     const apiKey = await getSecret('OPENAI_API_KEY');
     if (!apiKey) {
@@ -19,11 +28,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { base64Image, uid } = await req.json();
+    const { base64Image } = await req.json();
     if (!base64Image) {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 });
     }
-    if (!uid) return NextResponse.json({ error: 'Missing uid' }, { status: 400 });
 
     const app = getAdminApp();
     if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });

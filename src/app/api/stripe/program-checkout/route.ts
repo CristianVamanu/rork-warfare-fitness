@@ -6,12 +6,18 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
+import { verifyAuthed } from '@/lib/verifyAdmin';
 import type { Program } from '@/types';
 
 export async function POST(req: NextRequest) {
+  // Verifies the caller's own login token — see plan-checkout/route.ts.
+  const authCheck = await verifyAuthed(req);
+  if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
+  const userId = authCheck.uid;
+
   try {
-    const { userId, userEmail, programId } = await req.json() as { userId: string; userEmail: string; programId: string };
-    if (!userId || !programId) return NextResponse.json({ error: 'userId and programId required' }, { status: 400 });
+    const { userEmail, programId } = await req.json() as { userEmail: string; programId: string };
+    if (!programId) return NextResponse.json({ error: 'programId required' }, { status: 400 });
 
     const app = getAdminApp();
     if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
@@ -40,6 +46,11 @@ export async function POST(req: NextRequest) {
         },
       ],
       metadata: { userId, programId, kind: 'program_purchase' },
+      // Also set on the PaymentIntent (not just the Checkout Session) —
+      // a refund/dispute webhook only ever sees the Charge/PaymentIntent,
+      // not the original session, so without this a refund can't be traced
+      // back to which user/program to revoke access for.
+      payment_intent_data: { metadata: { userId, programId, kind: 'program_purchase' } },
       success_url: `${appUrl}/training/${programId}?purchased=1`,
       cancel_url: `${appUrl}/training/${programId}`,
     });

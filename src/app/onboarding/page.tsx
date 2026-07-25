@@ -250,6 +250,7 @@ function OnboardingPageInner() {
               goal, experience, trainingDays,
               sex: sex ?? undefined,
               hasLimitations: !!buildLimitationsSummary(),
+              equipment: equipment ?? undefined,
             }),
           });
           if (!res.ok) throw new Error('Program assignment unavailable');

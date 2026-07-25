@@ -46,6 +46,12 @@ export async function signUp(
     lastActive: serverTimestamp(),
     onboardingComplete: false,
     stats: { streak: 0, powerLevel: 1, totalWorkouts: 0, totalWeightLifted: 0 },
+    // Captured once at signup so server-side jobs (the daily notification
+    // cron) can compute "today"/"yesterday" in the user's own timezone
+    // instead of the server's — without this, streak/missed-workout
+    // notifications compare dates across mismatched day boundaries for
+    // anyone not in the same timezone as the VPS.
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   };
   console.log('[Auth] Writing Firestore user doc at users/', credential.user.uid);
   await setDoc(doc(db, 'users', credential.user.uid), userData);
