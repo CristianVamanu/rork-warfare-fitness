@@ -68,6 +68,26 @@ interface UserRow { id: string; displayName?: string; email?: string; role?: str
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MUSCLE_GROUPS = ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Glutes', 'Core', 'Cardio', 'Full Body', 'Other'];
 
+// Program data (seed programs + some admin-created ones) stores muscleGroup
+// as lowercase/hyphenated ('legs', 'full-body') while this form's <select>
+// only offers Title Case options ('Legs', 'Full Body') — when a <select>'s
+// value doesn't match any of its options, the browser silently falls back
+// to displaying the FIRST option ("Chest"), which made every exercise in
+// every built-in program look mistagged as chest once opened for editing.
+// This normalizes on load so the dropdown actually reflects the real tag.
+const MUSCLE_GROUP_ALIASES: Record<string, string> = {
+  legs: 'Legs', hamstrings: 'Legs', quads: 'Legs', glutes: 'Glutes',
+  chest: 'Chest', back: 'Back', shoulders: 'Shoulders',
+  biceps: 'Biceps', triceps: 'Triceps', arms: 'Triceps',
+  core: 'Core', cardio: 'Cardio', 'full-body': 'Full Body', fullbody: 'Full Body',
+};
+
+function normalizeMuscleGroup(mg: string | undefined): string {
+  if (!mg) return '';
+  if (MUSCLE_GROUPS.includes(mg)) return mg;
+  return MUSCLE_GROUP_ALIASES[mg.toLowerCase().trim()] ?? 'Other';
+}
+
 function blankDay(label = 'Training Day'): BDay {
   return { label, isRest: false, dayNote: '', exercises: [] };
 }
@@ -157,8 +177,31 @@ function BuilderInner() {
         }
         return p as unknown as Program & { visibility?: string; schedule?: BDay[] };
       })
-      .then((program) => {
+      .then(async (program) => {
         if (!program) return;
+        const schedule = program.schedule?.length === 7
+          ? program.schedule.map(d => ({
+              ...d,
+              dayNote: (d as BDay).dayNote || '',
+              exercises: (d.exercises || []).map(e => ({
+                id: e.id || Math.random().toString(36).slice(2),
+                name: e.name,
+                muscleGroup: normalizeMuscleGroup((e as BEx).muscleGroup),
+                sets: e.sets,
+                reps: String(e.reps),
+                rpe: (e as BEx).rpe || 8,
+                restSeconds: e.restSeconds,
+                notes: e.notes || '',
+                isCardio: (e as BEx).isCardio,
+                isHiit: (e as BEx).isHiit,
+                hiitWorkSeconds: (e as BEx).hiitWorkSeconds,
+                hiitRestSeconds: (e as BEx).hiitRestSeconds,
+                hiitRounds: (e as BEx).hiitRounds,
+                videoUrl: (e as BEx).videoUrl,
+              })),
+            }))
+          : emptyProg().schedule;
+
         setProg({
           name: program.name,
           description: program.description,
@@ -169,29 +212,33 @@ function BuilderInner() {
           visibility: (program.visibility as 'public' | 'coaching') ?? 'public',
           targetGender: program.targetGender ?? 'anyone',
           imageUrl: program.imageUrl ?? '',
-          schedule: program.schedule?.length === 7
-            ? program.schedule.map(d => ({
-                ...d,
-                dayNote: (d as BDay).dayNote || '',
-                exercises: (d.exercises || []).map(e => ({
-                  id: e.id || Math.random().toString(36).slice(2),
-                  name: e.name,
-                  muscleGroup: (e as BEx).muscleGroup || '',
-                  sets: e.sets,
-                  reps: String(e.reps),
-                  rpe: (e as BEx).rpe || 8,
-                  restSeconds: e.restSeconds,
-                  notes: e.notes || '',
-                  isCardio: (e as BEx).isCardio,
-                  isHiit: (e as BEx).isHiit,
-                  hiitWorkSeconds: (e as BEx).hiitWorkSeconds,
-                  hiitRestSeconds: (e as BEx).hiitRestSeconds,
-                  hiitRounds: (e as BEx).hiitRounds,
-                  videoUrl: (e as BEx).videoUrl,
-                })),
-              }))
-            : emptyProg().schedule,
+          schedule,
         });
+
+        // Auto-attach demo videos from the admin's existing exercise video
+        // library wherever a name matches and no video is set yet — built-in
+        // seed programs ship with no videos of their own (we can't fabricate
+        // real demo footage), but if the admin has already uploaded videos
+        // for common exercises (Squat, Push-Up, Pull-Up, etc.) via Admin ->
+        // Exercise Library, this wires them up automatically instead of
+        // requiring the admin to manually pick one per exercise.
+        const namesNeedingVideo = schedule.flatMap((d) => d.exercises).filter((e) => !e.videoUrl).map((e) => e.name);
+        if (namesNeedingVideo.length > 0) {
+          try {
+            const videoMap = await matchExercisesToVideos(namesNeedingVideo);
+            if (Object.keys(videoMap).length > 0) {
+              setProg((s) => ({
+                ...s,
+                schedule: s.schedule.map((d) => ({
+                  ...d,
+                  exercises: d.exercises.map((e) => e.videoUrl ? e : { ...e, videoUrl: videoMap[e.name] || e.videoUrl }),
+                })),
+              }));
+            }
+          } catch {
+            // Non-fatal — admin can still assign videos manually via the picker
+          }
+        }
       })
       .catch(() => toast.error('Failed to load program'))
       .finally(() => setLoading(false));
@@ -241,7 +288,7 @@ function BuilderInner() {
           exercises: (d.exercises || []).map((e: BEx) => ({
             id: Math.random().toString(36).slice(2),
             name: e.name || '',
-            muscleGroup: e.muscleGroup || '',
+            muscleGroup: normalizeMuscleGroup(e.muscleGroup),
             sets: Number(e.sets) || 3,
             reps: String(e.reps || '8-12'),
             rpe: Number(e.rpe) || 8,
