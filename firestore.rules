@@ -277,9 +277,14 @@ service cloud.firestore {
       // author edit it, only delete it, so there's no legitimate case for
       // an author-owns-it update clause here. Anyone signed in can still
       // bump likeCount.
+      // The app only ever likes (never unlikes) a post, one at a time, so
+      // require the new value to be exactly +1 — without this a client could
+      // call Firestore directly and set likeCount to anything at all, since
+      // affectedKeys() only checks WHICH field changed, not by how much.
       allow update: if isAuthed() && (
         isAdmin() ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
+          && request.resource.data.likeCount == resource.data.likeCount + 1)
       );
       allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }

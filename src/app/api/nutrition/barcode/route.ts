@@ -3,6 +3,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { checkAndIncrementUsage } from '@/lib/usageLimit';
+import { verifyAuthed } from '@/lib/verifyAdmin';
 
 const DEFAULT_DAILY_SCAN_LIMIT = 20;
 
@@ -48,12 +49,16 @@ const KNOWN_LABELS: Record<string, string> = {
 };
 
 export async function GET(req: NextRequest) {
+  // Verifies the caller's own login token instead of trusting a
+  // client-supplied uid — see analyze-food/route.ts for why this matters.
+  const authCheck = await verifyAuthed(req);
+  if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
+  const uid = authCheck.uid;
+
   try {
     const code = req.nextUrl.searchParams.get('code');
     if (!code) return NextResponse.json({ error: 'Barcode required' }, { status: 400 });
 
-    const uid = req.nextUrl.searchParams.get('uid');
-    if (!uid) return NextResponse.json({ error: 'Missing uid' }, { status: 400 });
     const app = getAdminApp();
     if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
     const cfgSnap = await getAdminDb(app).collection('system').doc('config').get();

@@ -2,6 +2,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
 import type { App } from 'firebase-admin/app';
 import type { Firestore } from 'firebase-admin/firestore';
+import { getStripe } from '@/lib/stripe';
 
 /**
  * Collections that store docs keyed by `userId` (not by uid-as-doc-id) —
@@ -72,6 +73,26 @@ export interface DeletionSummary {
  */
 export async function deleteUserCompletely(app: App, db: Firestore, uid: string): Promise<DeletionSummary> {
   let firestoreDocsDeleted = 0;
+
+  // Cancel any live Stripe subscription BEFORE wiping the user doc — once
+  // deleted, the app has no record of stripeSubscriptionId and no way to
+  // stop future billing, so a self-deleted (or admin-removed) user with an
+  // active membership would otherwise keep getting charged indefinitely
+  // with no account left to dispute it from.
+  try {
+    const userSnap = await db.collection('users').doc(uid).get();
+    const subId = userSnap.data()?.membership?.stripeSubscriptionId as string | undefined;
+    if (subId) {
+      const stripe = await getStripe();
+      await stripe.subscriptions.cancel(subId);
+      console.log(`[accountDeletion] Cancelled Stripe subscription ${subId} for user ${uid}`);
+    }
+  } catch (err) {
+    // Non-fatal but logged loudly — an already-cancelled/missing subscription
+    // is fine, but any other failure here needs a human to check Stripe
+    // directly since deletion is about to make it much harder to trace.
+    console.error(`[accountDeletion] Stripe subscription cancellation failed for ${uid}:`, err);
+  }
 
   for (const collection of USER_FIELD_COLLECTIONS) {
     firestoreDocsDeleted += await deleteByQuery(db, collection, 'userId', uid);

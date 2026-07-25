@@ -9,6 +9,7 @@ import {
   Smartphone, RefreshCw, ZapOff,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { logMealAction } from '@/lib/actions';
 import { Button } from '@/components/ui/Button';
@@ -193,7 +194,10 @@ export default function BarcodePage() {
     setLabels([]);
     try {
       if (!user) throw new Error('Not signed in');
-      const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}&uid=${encodeURIComponent(user.uid)}`);
+      const token = await getIdToken(user);
+      const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Product not found');
       setResult(data.nutrition);

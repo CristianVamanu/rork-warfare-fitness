@@ -166,6 +166,19 @@ export async function POST(req: NextRequest) {
         const stripe = await getStripe();
         const chargeObj = typeof charge === 'string' ? await stripe.charges.retrieve(charge) : charge;
 
+        // A dispute is always treated as full-severity regardless of amount
+        // (it's a fraud/risk signal, not a refund amount question), but a
+        // plain refund only revokes access when the WHOLE charge was
+        // refunded — chargeObj.refunded is Stripe's own "fully refunded"
+        // flag, false for partial refunds. Without this gate, a small
+        // partial refund issued for a billing dispute on one invoice would
+        // fully kill an otherwise-still-paying, still-active membership.
+        const isFullSeverity = event.type === 'charge.dispute.created' || chargeObj.refunded === true;
+        if (!isFullSeverity) {
+          console.log(`[Stripe webhook] Partial refund on charge ${chargeObj.id} — access not revoked`);
+          break;
+        }
+
         const piId = typeof chargeObj.payment_intent === 'string' ? chargeObj.payment_intent : chargeObj.payment_intent?.id;
         const piMetadata = piId ? (await stripe.paymentIntents.retrieve(piId)).metadata : chargeObj.metadata;
 
