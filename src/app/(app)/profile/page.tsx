@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp } from 'lucide-react';
+import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -473,6 +473,22 @@ export default function ProfilePage() {
               Complete workouts to increase your power level
             </p>
           </Card>
+        </motion.div>
+
+        {/* Build Your Own — self-serve AI program builder */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.155 }}>
+          <Link href="/programs/build">
+            <Card className="p-4 flex items-center gap-3.5 hover:border-accent/30 transition-colors">
+              <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-5 h-5 text-accent" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white">Build Your Own Program</p>
+                <p className="text-xs text-text-secondary mt-0.5">Answer a few questions, get a fully custom AI-built plan</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+            </Card>
+          </Link>
         </motion.div>
 
         {/* Progress Hub */}

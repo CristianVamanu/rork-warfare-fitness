@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown, Sparkles } from 'lucide-react';
+import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, getProgram, getHiddenMockIds } from '@/lib/firestore';
@@ -147,20 +147,6 @@ export default function TrainingPage() {
             </Card>
           )}
         </motion.div>
-
-        {/* Build Your Own — self-serve AI program builder */}
-        <Link href="/programs/build">
-          <Card className="p-4 flex items-center gap-3.5 hover:border-accent/30 transition-colors border-accent/20 bg-gradient-to-br from-accent/[0.06] to-surface">
-            <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-5 h-5 text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">Build Your Own Program</p>
-              <p className="text-xs text-text-secondary mt-0.5">Answer a few questions, get a fully custom AI-built plan</p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-          </Card>
-        </Link>
 
         {/* Filters */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
