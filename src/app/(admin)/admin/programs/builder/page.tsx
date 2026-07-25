@@ -10,10 +10,11 @@ import {
 import toast from 'react-hot-toast';
 import {
   getProgram, createProgram, updateProgram, upsertProgram, getAllUsers, enrollInProgram,
-  matchExercisesToVideos, getExerciseVideos, getSystemConfig,
+  matchExercisesToVideos, getExerciseVideos, getSystemConfig, saveExerciseVideo,
 } from '@/lib/firestore';
 import { getMockProgram } from '@/lib/programs';
 import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
+import { extractVideoThumbnail } from '@/lib/videoThumbnail';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -156,6 +157,8 @@ function BuilderInner() {
   const [videoLibraryLoading, setVideoLibraryLoading] = useState(false);
   const [videoSearch, setVideoSearch] = useState('');
   const [previewingId, setPreviewingId] = useState<string | null>(null);
+  const [uploadingNewVideo, setUploadingNewVideo] = useState(false);
+  const [newVideoUploadProgress, setNewVideoUploadProgress] = useState(0);
 
   const [loading, setLoading] = useState(!!programId);
 
@@ -416,6 +419,56 @@ function BuilderInner() {
     }
     setPreviewingId(null);
     setVideoPickerFor(null);
+  }
+
+  // Lets the admin upload a video right from the program builder when the
+  // library search comes up empty, instead of having to abandon the program
+  // they're editing, go add it via Admin → Exercise Library, then come back
+  // and search again. Saves to the same exerciseLibrary collection
+  // (saveExerciseVideo) so it's immediately available for every other
+  // program too, not just this one.
+  async function handleUploadNewVideo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user || !videoPickerFor) return;
+    const ex = prog.schedule[activeDay]?.exercises.find((x) => x.id === videoPickerFor);
+    if (!ex?.name.trim()) {
+      toast.error('Name the exercise before uploading its video');
+      e.target.value = '';
+      return;
+    }
+    setUploadingNewVideo(true);
+    setNewVideoUploadProgress(0);
+    try {
+      const cfg = await getSystemConfig().catch(() => null);
+      const provider = ((cfg?.storageProvider as StorageProvider) || 'firebase');
+      const videoUrl = await uploadVideo(provider, user, file, 'exerciseLibrary', setNewVideoUploadProgress);
+      const thumbBlob = await extractVideoThumbnail(file).catch(() => null);
+      let thumbnailUrl: string | undefined;
+      if (thumbBlob) {
+        const thumbFile = new File([thumbBlob], 'thumb.jpg', { type: 'image/jpeg' });
+        thumbnailUrl = await uploadVideo(provider, user, thumbFile, 'exerciseLibrary').catch(() => undefined);
+      }
+      const newVideo = {
+        name: ex.name.trim(),
+        aliases: [],
+        muscleGroups: ex.muscleGroup ? [ex.muscleGroup] : [],
+        equipment: [],
+        videoUrl,
+        ...(thumbnailUrl ? { thumbnailUrl } : {}),
+        uploadedBy: user.uid,
+      };
+      const id = await saveExerciseVideo(newVideo);
+      setVideoLibrary((prev) => [{ id, ...newVideo, uploadedAt: new Date() }, ...prev]);
+      updateEx(activeDay, videoPickerFor, { videoUrl });
+      toast.success('Video uploaded and added to the library');
+      setVideoPickerFor(null);
+    } catch (err) {
+      toast.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`, { duration: 6000 });
+    } finally {
+      setUploadingNewVideo(false);
+      setNewVideoUploadProgress(0);
+      e.target.value = '';
+    }
   }
 
 
@@ -986,6 +1039,35 @@ function BuilderInner() {
       {/* Video picker modal */}
       <Modal open={!!videoPickerFor} onClose={() => setVideoPickerFor(null)} title="Select Demo Video">
         <div className="space-y-3">
+          {/* Upload directly, right here, when the library search below comes
+              up empty — no need to leave the builder to add it via the
+              separate Exercise Library page first. */}
+          <label className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-dashed transition-colors cursor-pointer text-xs font-medium ${uploadingNewVideo ? 'border-white/10 text-text-tertiary' : 'border-accent/40 text-accent hover:border-accent hover:bg-accent-muted'}`}>
+            {uploadingNewVideo ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Uploading... {newVideoUploadProgress > 0 ? `${Math.round(newVideoUploadProgress)}%` : ''}
+              </>
+            ) : (
+              <>
+                <Upload className="w-3.5 h-3.5" /> No video for this exercise? Upload one now
+              </>
+            )}
+            <input
+              type="file"
+              accept="video/*"
+              className="hidden"
+              disabled={uploadingNewVideo}
+              onChange={handleUploadNewVideo}
+            />
+          </label>
+
+          <div className="flex items-center gap-2 text-[10px] text-text-tertiary">
+            <div className="flex-1 h-px bg-white/10" />
+            OR PICK FROM LIBRARY
+            <div className="flex-1 h-px bg-white/10" />
+          </div>
+
           <Input
             value={videoSearch}
             onChange={e => setVideoSearch(e.target.value)}
