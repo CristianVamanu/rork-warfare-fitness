@@ -266,8 +266,10 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-black text-white tracking-tight">{firstName} 💪</h1>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {activeProgram && (
-              <Badge variant="accent">
-                Day {workedOutToday ? lastCompleted + 1 : lastCompleted + 2} of {activeProgram.programName}
+              <Badge variant="accent" className="max-w-[240px]">
+                <span className="truncate block">
+                  Day {workedOutToday ? lastCompleted + 1 : lastCompleted + 2} of {activeProgram.programName}
+                </span>
               </Badge>
             )}
             {streak > 0 && <Badge variant="muted">🔥 {streak} day streak</Badge>}
@@ -375,22 +377,22 @@ export default function DashboardPage() {
                       <Droplets className="w-3.5 h-3.5 text-blue-400" />
                       <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Water</span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={handleRemoveWater}
                         disabled={adjustingWater || !waterMl}
                         aria-label="Remove 250ml"
-                        className="w-5 h-5 rounded-full bg-blue-400/10 text-blue-400 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
+                        className="w-7 h-7 rounded-full bg-blue-400/10 text-blue-400 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
                       >
-                        <Minus className="w-3 h-3" />
+                        <Minus className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={handleAddWater}
                         disabled={adjustingWater}
                         aria-label="Add 250ml"
-                        className="w-5 h-5 rounded-full bg-blue-400/10 text-blue-400 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
+                        className="w-7 h-7 rounded-full bg-blue-400/10 text-blue-400 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>

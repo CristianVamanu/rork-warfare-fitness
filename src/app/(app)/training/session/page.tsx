@@ -173,7 +173,7 @@ function RestPill({ seconds, total, onSkip, onExtend }: RestPillProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={onExtend}
-              className="w-9 h-9 rounded-xl bg-white/8 flex items-center justify-center text-text-secondary hover:text-white hover:bg-white/15 transition-colors"
+              className="w-11 h-11 rounded-xl bg-white/8 flex items-center justify-center text-text-secondary hover:text-white hover:bg-white/15 transition-colors"
               title="+30s"
             >
               <Plus className="w-4 h-4" />
@@ -363,7 +363,7 @@ function CardioTimerRow({
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={reset}
-            className="w-9 h-9 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-text-secondary hover:text-foreground transition-colors"
+            className="w-11 h-11 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-text-secondary hover:text-foreground transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
@@ -610,7 +610,7 @@ function HiitTimerRow({
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={reset}
-            className="w-9 h-9 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-text-secondary hover:text-foreground transition-colors"
+            className="w-11 h-11 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-text-secondary hover:text-foreground transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
@@ -902,7 +902,7 @@ function ExerciseInfoButton({ videoUrl, tip, name }: { videoUrl?: string; tip?: 
             )}
             <button
               onClick={() => setExpanded(false)}
-              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-lg"
+              className="absolute -top-2.5 -right-2.5 w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-lg"
             >
               <X className="w-4 h-4 text-black" />
             </button>

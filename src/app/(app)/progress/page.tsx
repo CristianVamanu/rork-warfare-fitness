@@ -250,12 +250,12 @@ export default function ProgressPage() {
 
         {/* Body Progress Photos — private, only visible to this user and admin/trainer */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.09 }}>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-1.5">
               <h2 className="text-base font-bold text-white">Body Photos</h2>
               <Lock className="w-3 h-3 text-text-tertiary" />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {photos.length >= 2 && (
                 <Button
                   size="sm"

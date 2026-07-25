@@ -1522,7 +1522,7 @@ function AdminPageInner() {
             <p className="text-text-secondary text-sm mb-4">
               Describe a program in plain text — AI generates a complete weekly schedule with exercises, sets, reps, RPE, and rest times. You review and edit everything before publishing.
             </p>
-            <div className="flex gap-3 justify-center">
+            <div className="flex gap-3 justify-center flex-wrap">
               <Button onClick={() => router.push('/admin/programs/builder')}>
                 <Sparkles className="w-4 h-4" /> Create with AI
               </Button>
