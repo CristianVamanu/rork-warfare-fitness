@@ -3,8 +3,10 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Edit2, Trash2, Users, Sparkles, ChevronLeft, Dumbbell, Crown } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, Sparkles, ChevronLeft, Dumbbell, Crown, Stethoscope, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getIdToken } from 'firebase/auth';
+import { useAuth } from '@/contexts/AuthContext';
 import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, updateProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Card } from '@/components/ui/Card';
@@ -16,14 +18,45 @@ import type { Program } from '@/types';
 
 interface UserRow { id: string; displayName?: string; email?: string; activeProgram?: { programName?: string } }
 
+interface HealthFinding {
+  programId: string;
+  programName: string;
+  exerciseId: string;
+  exerciseName: string;
+  missingMuscleGroup: boolean;
+  missingVideoMatch: boolean;
+}
+
 export default function ProgramsPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [programs, setPrograms] = useState<(Program & { visibility?: string; _mock?: boolean })[]>([]);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [assignModal, setAssignModal] = useState<(Program & { visibility?: string }) | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<string | null>(null);
+  const [healthChecking, setHealthChecking] = useState(false);
+  const [healthResult, setHealthResult] = useState<{ programsChecked: number; librarySize: number; findings: HealthFinding[] } | null>(null);
+
+  async function runHealthCheck() {
+    if (!user) return;
+    setHealthChecking(true);
+    setHealthResult(null);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/program-health', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Health check failed');
+      setHealthResult(data);
+      if (data.findings.length === 0) toast.success('All exercises tagged and matched — no gaps found');
+      else toast(`${data.findings.length} exercise${data.findings.length === 1 ? '' : 's'} need attention`, { icon: '⚠️' });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Health check failed');
+    } finally {
+      setHealthChecking(false);
+    }
+  }
 
   useEffect(() => {
     Promise.all([
@@ -112,10 +145,45 @@ export default function ProgramsPage() {
           <h1 className="text-xl font-black text-white">Programs</h1>
           <p className="text-xs text-text-secondary">{programs.length} total</p>
         </div>
+        <Button variant="secondary" onClick={runHealthCheck} disabled={healthChecking}>
+          <Stethoscope className="w-4 h-4" /> {healthChecking ? 'Checking...' : 'Health Check'}
+        </Button>
         <Button onClick={() => router.push('/admin/programs/builder')}>
           <Sparkles className="w-4 h-4" /> Create with AI
         </Button>
       </div>
+
+      {/* Health check results — flags exercises missing a muscleGroup tag
+          or with no matching video in the exerciseLibrary, checked live
+          against real Firestore data since neither can be verified from
+          the codebase alone. */}
+      {healthResult && (
+        <Card className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Stethoscope className="w-4 h-4 text-accent" />
+            <p className="text-sm font-bold text-white">
+              Program Health — {healthResult.programsChecked} programs, {healthResult.librarySize} videos in library
+            </p>
+          </div>
+          {healthResult.findings.length === 0 ? (
+            <p className="text-sm text-text-secondary">Every exercise is tagged and has a matching video. No gaps found.</p>
+          ) : (
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {healthResult.findings.map((f) => (
+                <div key={`${f.programId}-${f.exerciseId}`} className="flex items-start gap-2 text-xs p-2 rounded-lg bg-white/5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-white font-semibold">{f.exerciseName} <span className="text-text-tertiary font-normal">— {f.programName}</span></p>
+                    <p className="text-text-secondary">
+                      {[f.missingMuscleGroup && 'no muscle group tag', f.missingVideoMatch && 'no matching video'].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* List */}
       {loading ? (
