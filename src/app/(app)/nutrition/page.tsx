@@ -32,7 +32,7 @@ function formatDate(d: Date): string {
 }
 
 function NutritionPageInner() {
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [meals, setMeals] = useState<Meal[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
@@ -74,9 +74,18 @@ function NutritionPageInner() {
   }, [user, selectedDate]);
 
   useEffect(() => {
-    if (!user) return;
+    // Previously bailed out (without ever clearing `loading`) whenever this
+    // effect ran before `user` had resolved yet — if auth took a moment,
+    // the skeleton loaders under the scanner buttons would spin forever
+    // instead of just waiting for the next re-run. Now it explicitly stops
+    // waiting once auth itself has settled with no user, instead of only
+    // relying on a second `user`-truthy re-run that might not come.
+    if (!user) {
+      if (!authLoading) setLoading(false);
+      return;
+    }
     refresh().finally(() => setLoading(false));
-  }, [user, refresh]);
+  }, [user, authLoading, refresh]);
 
   useEffect(() => {
     const onFocus = () => { if (!loading) refresh().catch(console.error); };

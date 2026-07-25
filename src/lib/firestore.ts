@@ -747,7 +747,14 @@ function subscribeTodayEventsTotal(
   sumField: string,
   onUpdate: (total: number) => void,
 ): () => void {
-  const todayTs = Timestamp.fromDate(new Date(localDateStr));
+  // 'T00:00:00' forces local-midnight parsing — without it, new Date(str)
+  // parses a bare date string as UTC midnight, which in any non-UTC
+  // timezone shifts the boundary by hours and disagrees with the other
+  // today-boundary helpers below (getTodayWater/getTodayWaterLogs), causing
+  // this live listener's total to silently diverge from the one-shot reads
+  // used elsewhere (e.g. dashboard showing a different water total than
+  // the nutrition page for the "same" day).
+  const todayTs = Timestamp.fromDate(new Date(localDateStr + 'T00:00:00'));
   const compoundQ = query(
     collection(db, 'events'),
     where('userId', '==', userId),
