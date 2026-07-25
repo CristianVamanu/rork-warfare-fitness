@@ -1,8 +1,9 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,6 +11,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 import { resetPassword } from '@/lib/auth';
+import { getSystemConfig } from '@/lib/firestore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -23,6 +25,15 @@ type FormData = z.infer<typeof schema>;
 export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [appName, setAppName] = useState('Warfare Fitness');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    getSystemConfig().then((cfg) => {
+      if (cfg?.appName) setAppName(cfg.appName as string);
+      if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string);
+    }).catch(() => {});
+  }, []);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -46,13 +57,17 @@ export default function ForgotPasswordPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="flex flex-col items-center mb-8">
-        <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mb-4">
-          <span className="text-2xl font-black text-black">W</span>
+      <Link href="/" className="flex flex-col items-center mb-8">
+        <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mb-4 overflow-hidden">
+          {logoUrl ? (
+            <Image src={logoUrl} alt={appName} width={64} height={64} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-2xl font-black text-black">{appName[0]}</span>
+          )}
         </div>
         <h1 className="text-2xl font-black text-white">Reset Password</h1>
         <p className="text-text-secondary text-sm mt-1">We'll send you a reset link</p>
-      </div>
+      </Link>
 
       <Card glass className="p-6">
         {sent ? (
