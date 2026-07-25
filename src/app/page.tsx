@@ -434,10 +434,10 @@ export default function LandingPage() {
                 {/* Fixed-aspect image slot, same size for every card — a
                     themed gradient + icon fallback when no admin image is
                     set yet, so the grid never looks unfinished. */}
-                <div className="w-full aspect-[4/3] relative bg-gradient-to-br from-accent/20 to-surface-elevated flex-shrink-0">
+                <div className="w-full aspect-square relative bg-gradient-to-br from-accent/20 to-surface-elevated flex-shrink-0">
                   {p.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.imageUrl} alt={p.name} className="w-full h-full object-contain p-3" />
+                    <img src={p.imageUrl} alt={p.name} className="w-full h-full object-contain p-2" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <Dumbbell className="w-10 h-10 text-accent/40" />
@@ -501,7 +501,7 @@ export default function LandingPage() {
           <div className="space-y-4">
             {selectedProgram.imageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={selectedProgram.imageUrl} alt={selectedProgram.name} className="w-full aspect-[16/9] object-contain bg-black/20 rounded-xl p-3" />
+              <img src={selectedProgram.imageUrl} alt={selectedProgram.name} className="w-full aspect-square object-contain bg-black/20 rounded-xl p-3" />
             )}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="px-2 py-1 rounded-lg bg-white/8 text-[10px] font-bold text-white uppercase tracking-wide">
