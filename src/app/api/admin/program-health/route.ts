@@ -15,13 +15,47 @@ import { verifyAdmin } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import type { Program, ExerciseVideo } from '@/types';
 
+// Mirrors matchExercisesToVideos in src/lib/firestore.ts exactly (duplicated,
+// not imported, since that file pulls in the client Firebase SDK which has
+// no place in a server route) — otherwise this audit uses a looser/stricter
+// match than what actually decides whether a video shows up in the app,
+// and flags things as "missing" that the app itself already matches fine
+// (e.g. plain substring containment misses "Push-Ups" vs "Push Up" on the
+// hyphen alone; the word-overlap fallback below is what catches that).
+const MATCH_STOPWORDS = new Set(['the', 'a', 'an', 'and', 'or', 'with', 'for', 'to', 'on', 'of', 'in']);
+
+function tokenize(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 0 && !MATCH_STOPWORDS.has(w));
+}
+
+function nameSimilarity(a: string, b: string): number {
+  const tokensA = tokenize(a);
+  const tokensB = tokenize(b);
+  if (tokensA.length === 0 || tokensB.length === 0) return 0;
+  const setA = new Set(tokensA);
+  const setB = new Set(tokensB);
+  const shorter = setA.size <= setB.size ? setA : setB;
+  const longer = setA.size <= setB.size ? setB : setA;
+  let overlap = 0;
+  shorter.forEach((word) => {
+    if (longer.has(word)) overlap++;
+  });
+  return overlap / shorter.size;
+}
+
 function isVideoMatch(exerciseName: string, video: Pick<ExerciseVideo, 'name' | 'aliases'>): boolean {
   const normalized = exerciseName.toLowerCase().trim();
   const candidates = [video.name, ...(video.aliases ?? [])];
-  return candidates.some((c) => {
-    const cn = c.toLowerCase().trim();
-    return cn === normalized || normalized.includes(cn) || cn.includes(normalized);
-  });
+  for (const candidate of candidates) {
+    const c = candidate.toLowerCase().trim();
+    if (c === normalized || normalized.includes(c) || c.includes(normalized)) return true;
+    if (nameSimilarity(normalized, c) >= 0.5) return true;
+  }
+  return false;
 }
 
 export async function GET(req: NextRequest) {
