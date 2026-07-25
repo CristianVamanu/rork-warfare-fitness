@@ -454,8 +454,10 @@ export interface PtTestResult {
   createdAt: unknown;
   // Optional unit-selection-standard mode (e.g. Spetsnaz Selection Prep) —
   // absent/'generic' on every pre-existing result, so old data keeps
-  // rendering with the original 0-300 scoring path untouched.
-  standard?: 'generic' | 'spetsnaz';
+  // rendering with the original 0-300 scoring path untouched. Any value
+  // other than 'generic' is a unit id matched against UNIT_STANDARDS in
+  // the PT Test page (not a fixed union — new units don't need a type change).
+  standard?: 'generic' | string;
   pullups?: number;
   standardPassed?: boolean;
 }

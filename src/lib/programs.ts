@@ -285,7 +285,11 @@ export const MOCK_PROGRAMS: Program[] = [
   {
     id: 'p5',
     name: 'Commando Prep',
-    description: 'Your first step toward elite fitness, inspired by Royal Marines Commando training. Builds the base conditioning and functional strength every elite unit starts with.',
+    // Built toward the published Royal Marines Candidate Preparation
+    // standard: 30 push-ups, 40 sit-ups, 4 pull-ups minimum, and a 1.5-mile
+    // run under 11:15. Track your numbers against these targets on the PT
+    // Test page (Commando PT Test standard).
+    description: 'Do you have what it takes to be a Royal Marines Commando? An 8-week base-building program toward the real published entry standard: 30 push-ups, 40 sit-ups, 4 pull-ups, and a 1.5-mile run under 11:15.',
     level: 'beginner',
     goal: 'weight-loss',
     weeks: 8,
@@ -295,8 +299,8 @@ export const MOCK_PROGRAMS: Program[] = [
     exercises: [
       { id: 'p5-e1', name: 'Bodyweight Squat', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'legs' },
       { id: 'p5-e2', name: 'Push-Up', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'chest' },
-      { id: 'p5-e3', name: 'Brisk Walk / Jog', sets: 1, reps: '20 min', restSeconds: 0, muscleGroup: 'cardio' },
-      { id: 'p5-e4', name: 'Plank', sets: 3, reps: 30, restSeconds: 45, muscleGroup: 'core' },
+      { id: 'p5-e3', name: '1.5-Mile Timed Run', sets: 1, reps: '1.5mi', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
+      { id: 'p5-e4', name: 'Sit-Up', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core' },
     ],
     schedule: [
       {
@@ -304,18 +308,18 @@ export const MOCK_PROGRAMS: Program[] = [
         isRest: false,
         exercises: [
           { id: 'p5-e1', name: 'Bodyweight Squat', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'legs' },
-          { id: 'p5-e2', name: 'Push-Up', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'chest' },
-          { id: 'p5-e5', name: 'Dumbbell Row', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'back' },
+          { id: 'p5-e2', name: 'Push-Up', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'chest', notes: 'Build toward 30 in one set — the Commando PT Test standard.' },
+          { id: 'p5-e4', name: 'Sit-Up', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core', notes: 'Build toward 40 in one set — the Commando PT Test standard.' },
           { id: 'p5-e6', name: 'Plank', sets: 3, reps: 30, restSeconds: 45, muscleGroup: 'core' },
         ],
       },
       {
-        label: 'Endurance March',
+        label: 'Pull-Up Foundation',
         isRest: false,
         exercises: [
-          { id: 'p5-e3', name: 'Brisk Walk / Jog', sets: 1, reps: '25 min', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p5-e12', name: 'Assisted Pull-Up', sets: 4, reps: 6, restSeconds: 75, muscleGroup: 'back', notes: 'Progress toward 4 strict pull-ups unassisted — the Commando PT Test minimum.' },
+          { id: 'p5-e5', name: 'Dumbbell Row', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'back' },
           { id: 'p5-e7', name: 'Walking Lunge', sets: 3, reps: 16, restSeconds: 60, muscleGroup: 'legs' },
-          { id: 'p5-e8', name: 'Bodyweight Glute Bridge', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'legs' },
         ],
       },
       rest(),
@@ -331,13 +335,12 @@ export const MOCK_PROGRAMS: Program[] = [
       },
       rest(),
       {
-        label: 'Full Body Conditioning',
+        label: 'Standard Test Day',
         isRest: false,
         exercises: [
+          { id: 'p5-e3', name: '1.5-Mile Timed Run', sets: 1, reps: '1.5mi', restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Target: under 11:15. Log your time on the PT Test page.' },
           { id: 'p5-e10', name: 'Dumbbell Goblet Squat', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'legs' },
-          { id: 'p5-e5', name: 'Dumbbell Row', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'back' },
           { id: 'p5-e11', name: 'Dumbbell Shoulder Press', sets: 3, reps: 10, restSeconds: 75, muscleGroup: 'shoulders' },
-          { id: 'p5-e3', name: 'Brisk Walk / Jog', sets: 1, reps: '15 min', restSeconds: 0, muscleGroup: 'cardio' },
         ],
       },
       rest(),
@@ -348,7 +351,10 @@ export const MOCK_PROGRAMS: Program[] = [
   {
     id: 'p6',
     name: 'Ranger Assessment',
-    description: 'Weighted rucks, bodyweight circuits, and tactical strength — inspired by the standard Army Ranger prepares for selection with.',
+    // Built toward the published pre-RASP entry standard: 53 push-ups, 63
+    // sit-ups, 4 pull-ups, and a 2-mile run under 14:30. Track your numbers
+    // on the PT Test page (Ranger Assessment standard).
+    description: 'Do you have what it takes to be an Army Ranger? A 10-week program toward the real published pre-RASP standard: 53 push-ups, 63 sit-ups, 4 pull-ups, and a 2-mile run under 14:30.',
     level: 'intermediate',
     goal: 'endurance',
     weeks: 10,
@@ -356,7 +362,7 @@ export const MOCK_PROGRAMS: Program[] = [
     isPublic: true,
     createdBy: 'system',
     exercises: [
-      { id: 'p6-e1', name: 'Weighted Ruck March', sets: 1, reps: '4 miles', restSeconds: 0, muscleGroup: 'cardio' },
+      { id: 'p6-e1', name: 'Weighted Ruck March', sets: 1, reps: '4 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
       { id: 'p6-e2', name: 'Pull-Up', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'back' },
       { id: 'p6-e3', name: 'Front Squat', sets: 4, reps: 8, restSeconds: 120, muscleGroup: 'legs' },
       { id: 'p6-e4', name: 'Push-Up', sets: 4, reps: 20, restSeconds: 60, muscleGroup: 'chest' },
@@ -366,7 +372,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Ruck March',
         isRest: false,
         exercises: [
-          { id: 'p6-e1', name: 'Weighted Ruck March', sets: 1, reps: '4 miles', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p6-e1', name: 'Weighted Ruck March', sets: 1, reps: '4 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
           { id: 'p6-e5', name: 'Bodyweight Lunge', sets: 3, reps: 20, restSeconds: 60, muscleGroup: 'legs' },
         ],
       },
@@ -375,9 +381,9 @@ export const MOCK_PROGRAMS: Program[] = [
         isRest: false,
         exercises: [
           { id: 'p6-e3', name: 'Front Squat', sets: 4, reps: 8, restSeconds: 120, muscleGroup: 'legs' },
-          { id: 'p6-e2', name: 'Pull-Up', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'back' },
+          { id: 'p6-e2', name: 'Pull-Up', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'back', notes: 'Build toward 4+ strict reps — the RASP entry minimum.' },
           { id: 'p6-e6', name: 'Kettlebell Swing', sets: 3, reps: 20, restSeconds: 60, muscleGroup: 'full-body' },
-          { id: 'p6-e7', name: 'Hanging Leg Raise', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'core' },
+          { id: 'p6-e12', name: 'Sit-Up', sets: 4, reps: 20, restSeconds: 45, muscleGroup: 'core', notes: 'Build toward 63 in 2 minutes — the RASP entry standard.' },
         ],
       },
       {
@@ -385,7 +391,7 @@ export const MOCK_PROGRAMS: Program[] = [
         isRest: false,
         exercises: [
           { id: 'p6-e8', name: 'Sprint Intervals (30s on / 90s off)', sets: 8, reps: 1, restSeconds: 90, muscleGroup: 'cardio' },
-          { id: 'p6-e4', name: 'Push-Up', sets: 4, reps: 20, restSeconds: 60, muscleGroup: 'chest' },
+          { id: 'p6-e4', name: 'Push-Up', sets: 4, reps: 20, restSeconds: 60, muscleGroup: 'chest', notes: 'Build toward 53 in 2 minutes — the RASP entry standard.' },
         ],
       },
       {
@@ -399,10 +405,10 @@ export const MOCK_PROGRAMS: Program[] = [
       },
       rest(),
       {
-        label: 'Ruck March + Core',
+        label: 'Standard Test Day',
         isRest: false,
         exercises: [
-          { id: 'p6-e1', name: 'Weighted Ruck March', sets: 1, reps: '6 miles', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p6-e13', name: '2-Mile Timed Run', sets: 1, reps: '2mi', restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Target: under 14:30. Log your time on the PT Test page.' },
           { id: 'p6-e7', name: 'Hanging Leg Raise', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'core' },
         ],
       },
@@ -414,7 +420,10 @@ export const MOCK_PROGRAMS: Program[] = [
   {
     id: 'p7',
     name: 'Recon Fit',
-    description: 'PFT/CFT-style training inspired by Marine Force Recon — pull-ups, timed runs, and functional carries that build real-world readiness.',
+    // Built toward a Force Recon-competitive standard: 20 pull-ups and a
+    // 3-mile run under 18:00 — well above the standard Marine PFT minimum.
+    // Track your numbers on the PT Test page (Force Recon Prep standard).
+    description: 'Do you have what it takes to be a Force Recon Marine? An 8-week program toward a Recon-competitive standard: 20 pull-ups and a 3-mile run under 18:00.',
     level: 'intermediate',
     goal: 'endurance',
     weeks: 8,
@@ -423,7 +432,7 @@ export const MOCK_PROGRAMS: Program[] = [
     createdBy: 'system',
     exercises: [
       { id: 'p7-e1', name: 'Pull-Up', sets: 4, reps: 10, restSeconds: 90, muscleGroup: 'back' },
-      { id: 'p7-e2', name: 'Timed Run', sets: 1, reps: '3 miles', restSeconds: 0, muscleGroup: 'cardio' },
+      { id: 'p7-e2', name: 'Timed Run', sets: 1, reps: '3 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
       { id: 'p7-e3', name: 'Ammo-Can Carry (use kettlebell)', sets: 3, reps: '50m', restSeconds: 75, muscleGroup: 'full-body' },
       { id: 'p7-e4', name: 'Sit-Up', sets: 3, reps: 25, restSeconds: 45, muscleGroup: 'core' },
     ],
@@ -432,9 +441,9 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'PFT Prep',
         isRest: false,
         exercises: [
-          { id: 'p7-e1', name: 'Pull-Up', sets: 4, reps: 10, restSeconds: 90, muscleGroup: 'back' },
+          { id: 'p7-e1', name: 'Pull-Up', sets: 4, reps: 10, restSeconds: 90, muscleGroup: 'back', notes: 'Build toward 20 reps — the Force Recon-competitive standard.' },
           { id: 'p7-e4', name: 'Sit-Up', sets: 3, reps: 25, restSeconds: 45, muscleGroup: 'core' },
-          { id: 'p7-e2', name: 'Timed Run', sets: 1, reps: '3 miles', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p7-e2', name: 'Timed Run', sets: 1, reps: '3 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
         ],
       },
       {
@@ -457,10 +466,11 @@ export const MOCK_PROGRAMS: Program[] = [
         ],
       },
       {
-        label: 'Endurance Run',
+        label: 'Standard Test Day',
         isRest: false,
         exercises: [
-          { id: 'p7-e2', name: 'Timed Run', sets: 1, reps: '4 miles', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p7-e2', name: '3-Mile Timed Run', sets: 1, reps: '3 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Target: under 18:00. Log your time on the PT Test page.' },
+          { id: 'p7-e9', name: 'Pull-Up Max Test', sets: 1, reps: 'AMRAP', restSeconds: 0, muscleGroup: 'back', notes: 'Target: 20+ reps. Log your number on the PT Test page.' },
           { id: 'p7-e4', name: 'Sit-Up', sets: 3, reps: 30, restSeconds: 45, muscleGroup: 'core' },
         ],
       },
@@ -549,7 +559,10 @@ export const MOCK_PROGRAMS: Program[] = [
   {
     id: 'p9',
     name: 'KSK Hybrid',
-    description: 'Strength and hypertrophy in one — inspired by KSK training, built for soldiers who need both size and real-world utility.',
+    // Built toward the published German KSK field endurance standard: a 7km
+    // ruck march with a 20kg pack under 52:00. Track your time on the PT
+    // Test page (KSK Selection standard).
+    description: 'Do you have what it takes to be KSK? A 10-week strength-and-hypertrophy hybrid toward the real published endurance standard: a 7km ruck with a 20kg pack under 52:00.',
     level: 'intermediate',
     goal: 'hypertrophy',
     weeks: 10,
@@ -602,7 +615,13 @@ export const MOCK_PROGRAMS: Program[] = [
           { id: 'p9-e14', name: 'Hanging Leg Raise', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'core' },
         ],
       },
-      rest(),
+      {
+        label: 'Standard Test Day',
+        isRest: false,
+        exercises: [
+          { id: 'p9-e15', name: '7km Ruck March (20kg)', sets: 1, reps: '7km', restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Target: under 52:00. Log your time on the PT Test page.' },
+        ],
+      },
       rest(),
     ],
   },
@@ -611,7 +630,10 @@ export const MOCK_PROGRAMS: Program[] = [
   {
     id: 'p10',
     name: 'Legion Endurance',
-    description: 'Progressive-overload rucking and disciplined volume increases every week — inspired by French Foreign Legion training.',
+    // Built toward the published French Foreign Legion recruiting-station
+    // standard: 7 strict pull-ups from a dead hang. Track your number on
+    // the PT Test page (Legion Selection standard).
+    description: 'Do you have what it takes to join the French Foreign Legion? A 12-week progressive-overload rucking program toward the real published entry standard: 7 strict pull-ups from a dead hang.',
     level: 'intermediate',
     goal: 'endurance',
     weeks: 12,
@@ -619,7 +641,7 @@ export const MOCK_PROGRAMS: Program[] = [
     isPublic: true,
     createdBy: 'system',
     exercises: [
-      { id: 'p10-e1', name: 'Weighted Ruck March', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio' },
+      { id: 'p10-e1', name: 'Weighted Ruck March', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
       { id: 'p10-e2', name: 'Bodyweight Squat', sets: 4, reps: 20, restSeconds: 60, muscleGroup: 'legs' },
       { id: 'p10-e3', name: 'Push-Up', sets: 4, reps: 20, restSeconds: 60, muscleGroup: 'chest' },
       { id: 'p10-e4', name: 'Pull-Up', sets: 3, reps: 8, restSeconds: 90, muscleGroup: 'back' },
@@ -629,7 +651,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'March Day',
         isRest: false,
         exercises: [
-          { id: 'p10-e1', name: 'Weighted Ruck March', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p10-e1', name: 'Weighted Ruck March', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
         ],
       },
       {
@@ -638,7 +660,7 @@ export const MOCK_PROGRAMS: Program[] = [
         exercises: [
           { id: 'p10-e2', name: 'Bodyweight Squat', sets: 4, reps: 20, restSeconds: 60, muscleGroup: 'legs' },
           { id: 'p10-e3', name: 'Push-Up', sets: 4, reps: 20, restSeconds: 60, muscleGroup: 'chest' },
-          { id: 'p10-e4', name: 'Pull-Up', sets: 3, reps: 8, restSeconds: 90, muscleGroup: 'back' },
+          { id: 'p10-e4', name: 'Pull-Up', sets: 3, reps: 8, restSeconds: 90, muscleGroup: 'back', notes: 'Build toward 7 strict dead-hang reps — the Legion entry standard.' },
         ],
       },
       {
@@ -663,6 +685,7 @@ export const MOCK_PROGRAMS: Program[] = [
         exercises: [
           { id: 'p10-e7', name: 'Barbell Deadlift', sets: 4, reps: 6, restSeconds: 150, muscleGroup: 'back' },
           { id: 'p10-e8', name: 'Dumbbell Bench Press', sets: 4, reps: 10, restSeconds: 90, muscleGroup: 'chest' },
+          { id: 'p10-e9', name: 'Pull-Up Max Test', sets: 1, reps: 'AMRAP', restSeconds: 0, muscleGroup: 'back', notes: 'Target: 7+ strict dead-hang reps. Log your number on the PT Test page.' },
         ],
       },
       rest(),
@@ -673,7 +696,10 @@ export const MOCK_PROGRAMS: Program[] = [
   {
     id: 'p11',
     name: 'Commando Combatives',
-    description: 'Kettlebell and bodyweight circuits styled after combatives conditioning — inspired by Israeli commando training.',
+    // Built toward the published Royal Marines Endurance Course standard: 6
+    // miles carrying 21lb fighting order under 73:00. Track your time on
+    // the PT Test page (Commando Endurance standard).
+    description: 'Do you have what it takes to complete the Commando Endurance Course? An 8-week kettlebell-and-bodyweight combatives program toward the real published standard: 6 miles carrying 21lb under 73:00.',
     level: 'intermediate',
     goal: 'general',
     weeks: 8,
@@ -722,7 +748,13 @@ export const MOCK_PROGRAMS: Program[] = [
           { id: 'p11-e10', name: 'Interval Run (1 min hard / 1 min easy)', sets: 10, reps: 1, restSeconds: 0, muscleGroup: 'cardio' },
         ],
       },
-      rest(),
+      {
+        label: 'Standard Test Day',
+        isRest: false,
+        exercises: [
+          { id: 'p11-e11', name: '6-Mile Load Carry (21lb)', sets: 1, reps: '6 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Target: under 73:00 carrying 21lb. Log your time on the PT Test page.' },
+        ],
+      },
       rest(),
     ],
   },
@@ -731,7 +763,11 @@ export const MOCK_PROGRAMS: Program[] = [
   {
     id: 'p12',
     name: 'SEAL Selection',
-    description: 'Calisthenics, swim-style conditioning intervals, and mental-toughness finishers — inspired by Navy SEAL training. Our advanced endurance flagship.',
+    // Built toward the published Navy SEAL Physical Screening Test (PST)
+    // minimums: 42 push-ups, 50 sit-ups, 10 pull-ups, and a 1.5-mile run
+    // under 10:30. Track your numbers on the PT Test page (SEAL Selection
+    // standard).
+    description: 'Do you have what it takes to be a Navy SEAL? A 12-week advanced program toward the real published PST minimums: 42 push-ups, 50 sit-ups, 10 pull-ups, and a 1.5-mile run under 10:30.',
     level: 'advanced',
     goal: 'endurance',
     weeks: 12,
@@ -741,24 +777,24 @@ export const MOCK_PROGRAMS: Program[] = [
     exercises: [
       { id: 'p12-e1', name: 'Pull-Up', sets: 5, reps: 12, restSeconds: 90, muscleGroup: 'back' },
       { id: 'p12-e2', name: 'Push-Up', sets: 5, reps: 25, restSeconds: 60, muscleGroup: 'chest' },
-      { id: 'p12-e3', name: 'Timed Swim / Row Machine', sets: 1, reps: '1000m', restSeconds: 0, muscleGroup: 'cardio' },
-      { id: 'p12-e4', name: 'Weighted Ruck March', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio' },
+      { id: 'p12-e3', name: 'Timed Swim / Row Machine', sets: 1, reps: '1000m', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
+      { id: 'p12-e4', name: 'Weighted Ruck March', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
     ],
     schedule: [
       {
         label: 'PT Test Prep',
         isRest: false,
         exercises: [
-          { id: 'p12-e1', name: 'Pull-Up', sets: 5, reps: 12, restSeconds: 90, muscleGroup: 'back' },
-          { id: 'p12-e2', name: 'Push-Up', sets: 5, reps: 25, restSeconds: 60, muscleGroup: 'chest' },
-          { id: 'p12-e5', name: 'Sit-Up', sets: 4, reps: 25, restSeconds: 45, muscleGroup: 'core' },
+          { id: 'p12-e1', name: 'Pull-Up', sets: 5, reps: 12, restSeconds: 90, muscleGroup: 'back', notes: 'Build toward 10+ reps — the PST minimum.' },
+          { id: 'p12-e2', name: 'Push-Up', sets: 5, reps: 25, restSeconds: 60, muscleGroup: 'chest', notes: 'Build toward 42 in 2 minutes — the PST minimum.' },
+          { id: 'p12-e5', name: 'Sit-Up', sets: 4, reps: 25, restSeconds: 45, muscleGroup: 'core', notes: 'Build toward 50 in 2 minutes — the PST minimum.' },
         ],
       },
       {
         label: 'Swim Conditioning',
         isRest: false,
         exercises: [
-          { id: 'p12-e3', name: 'Timed Swim / Row Machine', sets: 1, reps: '1000m', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p12-e3', name: 'Timed Swim / Row Machine', sets: 1, reps: '1000m', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
           { id: 'p12-e6', name: 'Plank', sets: 3, reps: 60, restSeconds: 45, muscleGroup: 'core' },
         ],
       },
@@ -775,7 +811,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Ruck March',
         isRest: false,
         exercises: [
-          { id: 'p12-e4', name: 'Weighted Ruck March', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p12-e4', name: 'Weighted Ruck March', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
         ],
       },
       {
@@ -788,10 +824,11 @@ export const MOCK_PROGRAMS: Program[] = [
         ],
       },
       {
-        label: 'Active Recovery Swim',
+        label: 'Standard Test Day',
         isRest: false,
         exercises: [
-          { id: 'p12-e3', name: 'Timed Swim / Row Machine', sets: 1, reps: '500m easy', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p12-e12', name: '1.5-Mile Timed Run', sets: 1, reps: '1.5mi', restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Target: under 10:30. Log your time on the PT Test page.' },
+          { id: 'p12-e3', name: 'Timed Swim / Row Machine', sets: 1, reps: '500m easy', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
         ],
       },
       rest(),
@@ -802,7 +839,10 @@ export const MOCK_PROGRAMS: Program[] = [
   {
     id: 'p13',
     name: 'SAS Selection',
-    description: 'The hardest ruck-mile volume and functional strength we offer — inspired by British SAS Selection. Our flagship program for the truly committed.',
+    // Built toward the published SAS Combat Fitness Test run standard: 2
+    // miles under 18:00. Track your time on the PT Test page (SAS
+    // Selection standard).
+    description: 'Do you have what it takes to pass SAS Selection? A 12-week flagship program built around the real published Combat Fitness Test standard: a 2-mile run under 18:00, backed by the ruck-mile volume the Fan Dance demands.',
     level: 'advanced',
     goal: 'endurance',
     weeks: 12,
@@ -810,7 +850,7 @@ export const MOCK_PROGRAMS: Program[] = [
     isPublic: true,
     createdBy: 'system',
     exercises: [
-      { id: 'p13-e1', name: 'Weighted Ruck March', sets: 1, reps: '8 miles', restSeconds: 0, muscleGroup: 'cardio' },
+      { id: 'p13-e1', name: 'Weighted Ruck March', sets: 1, reps: '8 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
       { id: 'p13-e2', name: 'Pull-Up', sets: 5, reps: 10, restSeconds: 90, muscleGroup: 'back' },
       { id: 'p13-e3', name: 'Barbell Back Squat', sets: 5, reps: 5, restSeconds: 150, muscleGroup: 'legs' },
       { id: 'p13-e4', name: 'Farmer’s Carry', sets: 4, reps: '50m', restSeconds: 75, muscleGroup: 'full-body' },
@@ -820,7 +860,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Big Ruck',
         isRest: false,
         exercises: [
-          { id: 'p13-e1', name: 'Weighted Ruck March', sets: 1, reps: '10 miles', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p13-e1', name: 'Weighted Ruck March', sets: 1, reps: '10 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
         ],
       },
       {
@@ -837,6 +877,7 @@ export const MOCK_PROGRAMS: Program[] = [
         isRest: false,
         exercises: [
           { id: 'p13-e6', name: 'Hill Sprint Intervals', sets: 8, reps: 1, restSeconds: 90, muscleGroup: 'cardio' },
+          { id: 'p13-e12', name: '2-Mile Timed Run', sets: 1, reps: '2mi', restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Target: under 18:00 — the SAS Combat Fitness Test standard. Log your time on the PT Test page.' },
         ],
       },
       {
@@ -872,7 +913,10 @@ export const MOCK_PROGRAMS: Program[] = [
   {
     id: 'p14',
     name: 'PJ Conditioning',
-    description: 'The most well-rounded hybrid we offer — strength, endurance, and swim-style conditioning combined, inspired by Air Force Pararescue training.',
+    // Built toward the published Air Force Pararescue (PJ) PAST standard:
+    // 10 pull-ups. Track your number on the PT Test page (PJ Indoc Prep
+    // standard).
+    description: 'Do you have what it takes to be a PJ? A 10-week hybrid strength/endurance/swim program toward the real published PAST standard: 10 pull-ups, alongside the swim and ruck conditioning the full indoc demands.',
     level: 'advanced',
     goal: 'general',
     weeks: 10,
@@ -880,17 +924,17 @@ export const MOCK_PROGRAMS: Program[] = [
     isPublic: true,
     createdBy: 'system',
     exercises: [
-      { id: 'p14-e1', name: 'Timed Swim / Row Machine', sets: 1, reps: '800m', restSeconds: 0, muscleGroup: 'cardio' },
+      { id: 'p14-e1', name: 'Timed Swim / Row Machine', sets: 1, reps: '800m', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
       { id: 'p14-e2', name: 'Pull-Up', sets: 4, reps: 12, restSeconds: 90, muscleGroup: 'back' },
       { id: 'p14-e3', name: 'Barbell Back Squat', sets: 4, reps: 8, restSeconds: 120, muscleGroup: 'legs' },
-      { id: 'p14-e4', name: 'Weighted Ruck March', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio' },
+      { id: 'p14-e4', name: 'Weighted Ruck March', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
     ],
     schedule: [
       {
         label: 'Swim Conditioning',
         isRest: false,
         exercises: [
-          { id: 'p14-e1', name: 'Timed Swim / Row Machine', sets: 1, reps: '800m', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p14-e1', name: 'Timed Swim / Row Machine', sets: 1, reps: '800m', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
           { id: 'p14-e5', name: 'Plank', sets: 3, reps: 60, restSeconds: 45, muscleGroup: 'core' },
         ],
       },
@@ -899,7 +943,7 @@ export const MOCK_PROGRAMS: Program[] = [
         isRest: false,
         exercises: [
           { id: 'p14-e3', name: 'Barbell Back Squat', sets: 4, reps: 8, restSeconds: 120, muscleGroup: 'legs' },
-          { id: 'p14-e2', name: 'Pull-Up', sets: 4, reps: 12, restSeconds: 90, muscleGroup: 'back' },
+          { id: 'p14-e2', name: 'Pull-Up', sets: 4, reps: 12, restSeconds: 90, muscleGroup: 'back', notes: 'Build toward 10+ reps — the PAST standard.' },
           { id: 'p14-e6', name: 'Dumbbell Bench Press', sets: 4, reps: 10, restSeconds: 90, muscleGroup: 'chest' },
         ],
       },
@@ -907,7 +951,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Ruck March',
         isRest: false,
         exercises: [
-          { id: 'p14-e4', name: 'Weighted Ruck March', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p14-e4', name: 'Weighted Ruck March', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
         ],
       },
       {
@@ -922,16 +966,16 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Swim + Core',
         isRest: false,
         exercises: [
-          { id: 'p14-e1', name: 'Timed Swim / Row Machine', sets: 1, reps: '600m', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p14-e1', name: 'Timed Swim / Row Machine', sets: 1, reps: '600m', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
           { id: 'p14-e9', name: 'Hanging Leg Raise', sets: 4, reps: 15, restSeconds: 60, muscleGroup: 'core' },
         ],
       },
       {
-        label: 'Strength + Run',
+        label: 'Standard Test Day',
         isRest: false,
         exercises: [
-          { id: 'p14-e10', name: 'Deadlift', sets: 4, reps: 6, restSeconds: 150, muscleGroup: 'back' },
-          { id: 'p14-e11', name: 'Steady-State Run', sets: 1, reps: '3 miles', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p14-e10', name: 'Pull-Up Max Test', sets: 1, reps: 'AMRAP', restSeconds: 0, muscleGroup: 'back', notes: 'Target: 10+ reps — the PAST standard. Log your number on the PT Test page.' },
+          { id: 'p14-e11', name: 'Steady-State Run', sets: 1, reps: '3 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
         ],
       },
       rest(),

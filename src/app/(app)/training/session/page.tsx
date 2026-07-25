@@ -1173,7 +1173,15 @@ function WorkoutSessionPageInner() {
   // ── Load program ────────────────────────────────────────────────────────
 
   useEffect(() => {
-    // Check sessionStorage first — instant restore with no network call
+    // Check sessionStorage first — instant restore with no network call.
+    // This is a full snapshot of exercise state including videoUrl, so if
+    // it was cached before the admin attached a demo video to this program,
+    // resuming here previously restored it forever without ever refreshing
+    // — the fix below still restores progress (sets/reps/currentExIdx)
+    // instantly, but doesn't skip the network fetch entirely: it runs in
+    // the background and patches in fresh videoUrl/notes/muscleGroup once
+    // it lands, without disturbing anything the user already logged.
+    let restoredFromCache = false;
     try {
       const saved = sessionStorage.getItem(sessionKey);
       if (saved) {
@@ -1182,7 +1190,7 @@ function WorkoutSessionPageInner() {
           setExStates(states);
           setCurrentExIdx(exIdx ?? 0);
           setLoadingProgram(false);
-          return;
+          restoredFromCache = true;
         }
       }
     } catch { /* ignore */ }
@@ -1224,6 +1232,15 @@ function WorkoutSessionPageInner() {
             exercises = mock.exercises.length > 0 ? mock.exercises : DEFAULT_EXERCISES;
           }
         }
+      }
+
+      if (restoredFromCache) {
+        const freshById = new Map(exercises.map((e) => [e.id, e]));
+        setExStates((prev) => prev.map((s) => {
+          const fresh = freshById.get(s.id);
+          return fresh ? { ...s, videoUrl: fresh.videoUrl, notes: fresh.notes, muscleGroup: fresh.muscleGroup } : s;
+        }));
+        return;
       }
 
       setExStates(buildExState(exercises));
