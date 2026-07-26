@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, getProgressPhotos, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
 import type { ProgressPhoto } from '@/types';
 import { logWaterAction } from '@/lib/actions';
-import { getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
+import { getMockProgram, stripWeekdayPrefix, getProgramDayForDow } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
@@ -219,9 +219,13 @@ export default function DashboardPage() {
   // nextAbsIdx: absolute day index the user should do next (or just did today)
   const nextAbsIdx = workedOutToday ? lastCompleted : lastCompleted + 1;
   const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
-  const scheduleLen = activeMock?.schedule?.length || 7;
-  const todayScheduleIdx = nextAbsIdx % scheduleLen;
-  const todayDay = activeMock?.schedule?.[todayScheduleIdx] ?? null;
+  // Phase-aware day resolution (same helper the session page uses), so a
+  // phased long program shows the right week's exercises here too.
+  const todayDay = activeMock ? getProgramDayForDow(activeMock, nextAbsIdx) : null;
+  // After today's session is done, preview tomorrow's — fills the card
+  // (which spans 3 grid rows) instead of leaving a dead gap under the
+  // congrats message, and answers the natural next question anyway.
+  const upcomingDay = activeMock && workedOutToday ? getProgramDayForDow(activeMock, lastCompleted + 1) : null;
   const programPct = activeProgram
     ? Math.min(100, Math.round((completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
@@ -460,6 +464,34 @@ export default function DashboardPage() {
                           button row used to. */}
                       {todayDay!.exercises.length > 4 && (
                         <p className="text-[11px] text-text-tertiary">+{todayDay!.exercises.length - 4} more in session</p>
+                      )}
+                    </div>
+                  )}
+                  {/* Same idea for the day-complete state: the congrats line
+                      alone left the tall card mostly empty, so preview what
+                      tomorrow holds in that space instead. */}
+                  {workedOutToday && completedWorkouts > 0 && upcomingDay && (
+                    <div className="mt-3">
+                      <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-wide mb-1.5">
+                        Next workout: {upcomingDay.isRest ? 'Rest Day' : stripWeekdayPrefix(upcomingDay.label)}
+                      </p>
+                      {upcomingDay.isRest ? (
+                        <p className="text-xs text-text-secondary flex items-center gap-1.5"><Moon className="w-3 h-3" /> Recovery — let your muscles grow.</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {upcomingDay.exercises.slice(0, 4).map((ex) => (
+                            <div key={ex.id} className="flex items-center justify-between text-xs">
+                              <span className="flex items-center gap-1.5 text-text-secondary min-w-0">
+                                <Dumbbell className="w-3 h-3 text-text-tertiary flex-shrink-0" />
+                                <span className="truncate">{ex.name}</span>
+                              </span>
+                              <span className="text-text-tertiary flex-shrink-0 ml-2">{ex.sets}×{ex.reps}</span>
+                            </div>
+                          ))}
+                          {upcomingDay.exercises.length > 4 && (
+                            <p className="text-[11px] text-text-tertiary">+{upcomingDay.exercises.length - 4} more in session</p>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}

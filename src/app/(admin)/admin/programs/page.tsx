@@ -137,20 +137,25 @@ export default function ProgramsPage() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      {/* On phones the two action buttons crowded the title into a cramped
+          squeeze — stack them on their own full-width row below the title
+          instead; side by side with the title only from sm: up. */}
+      <div className="flex flex-wrap items-center gap-3">
         <button onClick={() => router.back()} className="p-2 rounded-xl hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h1 className="text-xl font-black text-white">Programs</h1>
           <p className="text-xs text-text-secondary">{programs.length} total</p>
         </div>
-        <Button variant="secondary" onClick={runHealthCheck} disabled={healthChecking}>
-          <Stethoscope className="w-4 h-4" /> {healthChecking ? 'Checking...' : 'Health Check'}
-        </Button>
-        <Button onClick={() => router.push('/admin/programs/builder')}>
-          <Sparkles className="w-4 h-4" /> Create with AI
-        </Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button size="sm" variant="secondary" className="flex-1 sm:flex-none" onClick={runHealthCheck} disabled={healthChecking}>
+            <Stethoscope className="w-4 h-4" /> {healthChecking ? 'Checking...' : 'Health Check'}
+          </Button>
+          <Button size="sm" className="flex-1 sm:flex-none" onClick={() => router.push('/admin/programs/builder')}>
+            <Sparkles className="w-4 h-4" /> Create with AI
+          </Button>
+        </div>
       </div>
 
       {/* Health check results — flags exercises missing a muscleGroup tag

@@ -250,7 +250,10 @@ function AdminPageInner() {
   } | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
-  const [analyticsRange, setAnalyticsRange] = useState<'today' | 'yesterday' | '7d' | '14d' | '30d' | 'all'>('30d');
+  // No "all time" option: Cloudflare's analytics retention doesn't reach
+  // that far back (plan-dependent), and the year-wide query it required
+  // timed out at the proxy and surfaced as an HTML error page to the admin.
+  const [analyticsRange, setAnalyticsRange] = useState<'today' | 'yesterday' | '7d' | '14d' | '30d'>('30d');
 
   // ── Notifications state ────────────────────────────────────────────────────
   const DEFAULT_NOTIF_CONFIG: NotificationConfig = {
@@ -2934,7 +2937,7 @@ function AdminPageInner() {
           <div className="flex gap-1.5 flex-wrap">
             {([
               ['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', '7 Days'],
-              ['14d', '14 Days'], ['30d', '30 Days'], ['all', 'All Time'],
+              ['14d', '14 Days'], ['30d', '30 Days'],
             ] as const).map(([value, label]) => (
               <button
                 key={value}

@@ -58,15 +58,6 @@ export async function GET(req: NextRequest) {
         since = new Date(until.getTime() - 14 * 86_400_000);
         limit = 15;
         break;
-      case 'all':
-        // Cloudflare's Analytics API itself caps how far back it'll return
-        // data (varies by plan, commonly far less than a year) — requesting
-        // a wide window and letting Cloudflare hand back whatever it
-        // actually retains is simpler and more correct than guessing the
-        // account's specific retention limit here.
-        since = new Date(until.getTime() - 365 * 86_400_000);
-        limit = 366;
-        break;
       case '30d':
       default:
         since = new Date(until.getTime() - 30 * 86_400_000);
