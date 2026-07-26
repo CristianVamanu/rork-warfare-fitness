@@ -464,7 +464,7 @@ export default function DashboardPage() {
                       {programPct}% complete · {activeProgram.totalWorkouts - completedWorkouts} sessions remaining
                     </p>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 flex-wrap pb-1">
                     {todayDay?.isRest ? (
                       <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                         <Moon className="w-3.5 h-3.5" /> Rest day
