@@ -438,12 +438,28 @@ export default function DashboardPage() {
                       {todayDay.isRest ? '😴 Rest Day — recover well' : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
                     </p>
                   ) : null}
-                  {!workedOutToday && !todayDay?.isRest && firstExerciseName && (
-                    <div className="mt-2 flex items-center gap-1.5 text-xs text-text-tertiary">
-                      <Dumbbell className="w-3 h-3" />
-                      Target: {firstExerciseName}
-                      {todayDay?.exercises?.[0] && (
-                        <span> — {todayDay.exercises[0].sets}×{todayDay.exercises[0].reps}</span>
+                  {/* Full session preview — the card spans 3 grid rows, so a
+                      single "Target:" line left a large dead gap between the
+                      header and the progress bar. Listing every exercise for
+                      today fills that space with the thing the user actually
+                      opens this card to know: what's in the session. */}
+                  {!workedOutToday && !todayDay?.isRest && (todayDay?.exercises?.length ?? 0) > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      {todayDay!.exercises.slice(0, 4).map((ex) => (
+                        <div key={ex.id} className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1.5 text-text-secondary min-w-0">
+                            <Dumbbell className="w-3 h-3 text-text-tertiary flex-shrink-0" />
+                            <span className="truncate">{ex.name}</span>
+                          </span>
+                          <span className="text-text-tertiary flex-shrink-0 ml-2">{ex.sets}×{ex.reps}</span>
+                        </div>
+                      ))}
+                      {/* The card is a fixed-height grid cell with
+                          overflow-hidden — an uncapped list on a 7-exercise
+                          day would clip against the border exactly like the
+                          button row used to. */}
+                      {todayDay!.exercises.length > 4 && (
+                        <p className="text-[11px] text-text-tertiary">+{todayDay!.exercises.length - 4} more in session</p>
                       )}
                     </div>
                   )}
