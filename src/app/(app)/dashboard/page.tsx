@@ -408,7 +408,7 @@ export default function DashboardPage() {
   {/* Today's Workout — hero */}
           <motion.div variants={stagger.item} className="col-span-4 row-span-2">
             {activeProgram ? (
-              <Card className="p-5 pb-6 h-full relative overflow-hidden flex flex-col justify-between">
+              <Card className="p-5 pb-8 h-full relative overflow-hidden flex flex-col justify-between">
                 <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
                   <Dumbbell className="w-28 h-28 text-accent" />
                 </div>

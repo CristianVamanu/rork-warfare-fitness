@@ -478,7 +478,7 @@ export default function LandingPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-40px' }}
             transition={{ duration: 0.35 }}
-            className="mt-6 rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/[0.08] to-surface p-6 sm:p-8 text-center"
+            className="mt-6 rounded-2xl border border-white/10 bg-surface p-6 sm:p-8 text-center"
           >
             <h3 className="text-lg sm:text-xl font-black text-white">Don&apos;t see a perfect fit?</h3>
             <p className="text-text-secondary text-sm mt-2 max-w-md mx-auto">
@@ -528,7 +528,7 @@ export default function LandingPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-40px' }}
             transition={{ duration: 0.4 }}
-            className="relative rounded-3xl border border-accent/20 bg-gradient-to-br from-accent/[0.08] to-surface p-8 sm:p-12 text-center overflow-hidden"
+            className="relative rounded-3xl border border-white/10 bg-surface p-8 sm:p-12 text-center overflow-hidden"
           >
             {/* Fixed-size badge instead of a giant absolutely-positioned glyph
                 behind the text — the old version overlapped the quote on
@@ -592,7 +592,7 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: i * 0.05 }}
-                className={`relative rounded-2xl p-5 h-full flex flex-col ${i === 0 ? 'border-2 border-accent bg-accent/[0.03]' : 'border border-white/10 bg-surface'}`}
+                className={`relative rounded-2xl p-5 h-full flex flex-col bg-surface ${i === 0 ? 'border-2 border-accent' : 'border border-white/10'}`}
               >
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
