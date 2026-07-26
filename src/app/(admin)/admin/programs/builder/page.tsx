@@ -51,6 +51,19 @@ interface BDay {
   exercises: BEx[];
 }
 
+// A week-ranged block (e.g. "Weeks 1-4: Base Building") with its own 7-day
+// schedule — lets a long program vary what it trains over time instead of
+// one template repeating for the whole thing. `phases` stays empty for a
+// simple single-template program; `schedule` below is still what's edited
+// directly in that case, kept in sync with phases[0] only once phases exist.
+interface BPhase {
+  id: string;
+  label: string;
+  startWeek: number;
+  endWeek: number;
+  schedule: BDay[];
+}
+
 interface BProg {
   name: string;
   description: string;
@@ -62,6 +75,7 @@ interface BProg {
   targetGender: 'male' | 'female' | 'anyone';
   imageUrl: string;
   schedule: BDay[];
+  phases: BPhase[];
 }
 
 interface UserRow { id: string; displayName?: string; email?: string; role?: string; activeProgram?: { programName?: string } }
@@ -106,7 +120,12 @@ function emptyProg(): BProg {
     name: '', description: '', level: 'intermediate', goal: 'hypertrophy',
     weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', imageUrl: '',
     schedule: [blankDay('Push Day'), blankDay('Pull Day'), blankDay('Legs'), restDay(), blankDay('Upper Body'), restDay(), restDay()],
+    phases: [],
   };
+}
+
+function blankPhase(label: string, startWeek: number, endWeek: number, schedule: BDay[]): BPhase {
+  return { id: Math.random().toString(36).slice(2), label, startWeek, endWeek, schedule };
 }
 
 // ─── Main component ────────────────────────────────────────────────────────────
@@ -119,7 +138,62 @@ function BuilderInner() {
 
   const [prog, setProg] = useState<BProg>(emptyProg());
   const [activeDay, setActiveDay] = useState(0);
+  const [activePhase, setActivePhase] = useState(0);
   const [expandedEx, setExpandedEx] = useState<string | null>(null);
+
+  // Every day-editing helper below reads/writes through these two functions
+  // instead of touching prog.schedule directly, so the exact same editor UI
+  // works whether the program has phases or not — with no phases, they're a
+  // thin passthrough to prog.schedule (today's behavior, unchanged).
+  const activeSchedule: BDay[] = prog.phases.length > 0
+    ? (prog.phases[activePhase]?.schedule ?? [])
+    : prog.schedule;
+
+  function setActiveSchedule(updater: (schedule: BDay[]) => BDay[]) {
+    setProg((s) => {
+      if (s.phases.length > 0) {
+        return {
+          ...s,
+          phases: s.phases.map((p, i) => i === activePhase ? { ...p, schedule: updater(p.schedule) } : p),
+        };
+      }
+      return { ...s, schedule: updater(s.schedule) };
+    });
+  }
+
+  function addPhase() {
+    setProg((s) => {
+      if (s.phases.length === 0) {
+        // First split: divide the program's current week range roughly in
+        // half. Phase 2 starts as a copy of phase 1's schedule (a later
+        // block usually evolves from the one before it, not a blank
+        // template) — the admin then edits whichever weeks should differ.
+        const mid = Math.max(1, Math.ceil(s.weeks / 2));
+        const phase1 = blankPhase('Phase 1', 1, mid, s.schedule);
+        const phase2 = blankPhase('Phase 2', Math.min(mid + 1, s.weeks), s.weeks, JSON.parse(JSON.stringify(s.schedule)));
+        setActivePhase(1);
+        return { ...s, phases: [phase1, phase2] };
+      }
+      const last = s.phases[s.phases.length - 1];
+      const startWeek = last.endWeek + 1;
+      const newPhase = blankPhase(`Phase ${s.phases.length + 1}`, startWeek, Math.max(startWeek, s.weeks), JSON.parse(JSON.stringify(last.schedule)));
+      setActivePhase(s.phases.length);
+      return { ...s, phases: [...s.phases, newPhase] };
+    });
+  }
+
+  function removePhase(idx: number) {
+    setProg((s) => {
+      if (s.phases.length <= 1) return s; // last phase can't be removed via this button — see collapsePhases
+      const phases = s.phases.filter((_, i) => i !== idx);
+      setActivePhase((p) => Math.min(p, phases.length - 1));
+      return { ...s, phases };
+    });
+  }
+
+  function updatePhase(idx: number, patch: Partial<Pick<BPhase, 'label' | 'startWeek' | 'endWeek'>>) {
+    setProg((s) => ({ ...s, phases: s.phases.map((p, i) => i === idx ? { ...p, ...patch } : p) }));
+  }
 
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -168,6 +242,13 @@ function BuilderInner() {
   // an admin-created one. Saving writes a real Firestore doc under the same
   // id (see handleSave/upsertProgram), which then transparently overrides
   // the seed version everywhere it's looked up.
+  interface LoadedProgram {
+    name: string; description: string; level: BProg['level']; goal: BProg['goal'];
+    weeks: number; daysPerWeek: number; visibility?: string; targetGender?: BProg['targetGender']; imageUrl?: string;
+    schedule?: BDay[];
+    phases?: { id: string; label: string; startWeek: number; endWeek: number; schedule: BDay[] }[];
+  }
+
   useEffect(() => {
     if (!programId) return;
     getProgram(programId)
@@ -176,14 +257,15 @@ function BuilderInner() {
           const mock = getMockProgram(programId);
           if (!mock) { toast.error('Program not found'); router.replace('/admin/programs'); return; }
           setEditingBuiltIn(true);
-          return mock as unknown as Program & { visibility?: string; schedule?: BDay[] };
+          return mock as unknown as LoadedProgram;
         }
-        return p as unknown as Program & { visibility?: string; schedule?: BDay[] };
+        return p as unknown as LoadedProgram;
       })
       .then(async (program) => {
         if (!program) return;
-        const schedule = program.schedule?.length === 7
-          ? program.schedule.map(d => ({
+
+        const hydrateSchedule = (raw?: BDay[]): BDay[] => raw?.length === 7
+          ? raw.map(d => ({
               ...d,
               dayNote: (d as BDay).dayNote || '',
               exercises: (d.exercises || []).map(e => ({
@@ -205,6 +287,15 @@ function BuilderInner() {
             }))
           : emptyProg().schedule;
 
+        const phases: BPhase[] = (program.phases ?? []).map((p) => ({
+          id: p.id || Math.random().toString(36).slice(2),
+          label: p.label || 'Phase',
+          startWeek: p.startWeek || 1,
+          endWeek: p.endWeek || program.weeks,
+          schedule: hydrateSchedule(p.schedule),
+        }));
+        const schedule = hydrateSchedule(program.schedule);
+
         setProg({
           name: program.name,
           description: program.description,
@@ -216,6 +307,7 @@ function BuilderInner() {
           targetGender: program.targetGender ?? 'anyone',
           imageUrl: program.imageUrl ?? '',
           schedule,
+          phases,
         });
 
         // Auto-attach demo videos from the admin's existing exercise video
@@ -224,18 +316,22 @@ function BuilderInner() {
         // real demo footage), but if the admin has already uploaded videos
         // for common exercises (Squat, Push-Up, Pull-Up, etc.) via Admin ->
         // Exercise Library, this wires them up automatically instead of
-        // requiring the admin to manually pick one per exercise.
-        const namesNeedingVideo = schedule.flatMap((d) => d.exercises).filter((e) => !e.videoUrl).map((e) => e.name);
+        // requiring the admin to manually pick one per exercise. Covers
+        // every phase's schedule too, not just the top-level one.
+        const allSchedules = phases.length > 0 ? phases.map((p) => p.schedule) : [schedule];
+        const namesNeedingVideo = allSchedules.flatMap((s) => s.flatMap((d) => d.exercises)).filter((e) => !e.videoUrl).map((e) => e.name);
         if (namesNeedingVideo.length > 0) {
           try {
             const videoMap = await matchExercisesToVideos(namesNeedingVideo);
             if (Object.keys(videoMap).length > 0) {
+              const patchDay = (d: BDay) => ({
+                ...d,
+                exercises: d.exercises.map((e) => e.videoUrl ? e : { ...e, videoUrl: videoMap[e.name] || e.videoUrl }),
+              });
               setProg((s) => ({
                 ...s,
-                schedule: s.schedule.map((d) => ({
-                  ...d,
-                  exercises: d.exercises.map((e) => e.videoUrl ? e : { ...e, videoUrl: videoMap[e.name] || e.videoUrl }),
-                })),
+                schedule: s.schedule.map(patchDay),
+                phases: s.phases.map((p) => ({ ...p, schedule: p.schedule.map(patchDay) })),
               }));
             }
           } catch {
@@ -301,9 +397,11 @@ function BuilderInner() {
             videoUrl: (videoMap as Record<string, string>)[e.name] ?? '',
           })),
         })),
+        phases: [],
       });
       setAiGenerated(true);
       setActiveDay(0);
+      setActivePhase(0);
       toast.success('Program generated! Review and edit before saving.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'AI generation failed');
@@ -317,10 +415,17 @@ function BuilderInner() {
     if (!user) return;
     setSaving(true);
     try {
-      const exercises = prog.schedule.flatMap(d => d.exercises);
+      // A phased program's top-level `schedule`/`exercises` still get kept
+      // in sync (mirroring phase 1) purely for older code paths that only
+      // ever look at those two fields directly — every phase's exercises
+      // are folded into the flat `exercises` list so the muscle-group/video
+      // health check and AI-matching cover every phase, not just phase 1.
+      const allSchedules = prog.phases.length > 0 ? prog.phases.map((p) => p.schedule) : [prog.schedule];
+      const exercises = allSchedules.flatMap((s) => s.flatMap((d) => d.exercises));
       const unique = exercises.filter((e, i, arr) => arr.findIndex(x => x.name === e.name) === i);
       const data = stripUndefinedDeep({
         ...prog,
+        schedule: prog.phases.length > 0 ? prog.phases[0].schedule : prog.schedule,
         isPublic: publish || prog.visibility === 'public',
         exercises: unique.map(e => ({ ...e, reps: e.reps })),
         createdBy: user.uid,
@@ -360,11 +465,11 @@ function BuilderInner() {
   // ── Day helpers ───────────────────────────────────────────────────────────
 
   function setDay(i: number, patch: Partial<BDay>) {
-    setProg(s => ({ ...s, schedule: s.schedule.map((d, j) => j === i ? { ...d, ...patch } : d) }));
+    setActiveSchedule((schedule) => schedule.map((d, j) => j === i ? { ...d, ...patch } : d));
   }
 
   function toggleRest(i: number) {
-    const day = prog.schedule[i];
+    const day = activeSchedule[i];
     if (day.isRest) {
       setDay(i, { isRest: false, label: 'Training Day', exercises: [] });
     } else {
@@ -374,21 +479,21 @@ function BuilderInner() {
 
   function addExercise(dayIdx: number) {
     const ex = blankEx();
-    setDay(dayIdx, { exercises: [...prog.schedule[dayIdx].exercises, ex] });
+    setDay(dayIdx, { exercises: [...activeSchedule[dayIdx].exercises, ex] });
     setExpandedEx(ex.id);
   }
 
   function removeExercise(dayIdx: number, exId: string) {
-    setDay(dayIdx, { exercises: prog.schedule[dayIdx].exercises.filter(e => e.id !== exId) });
+    setDay(dayIdx, { exercises: activeSchedule[dayIdx].exercises.filter(e => e.id !== exId) });
     if (expandedEx === exId) setExpandedEx(null);
   }
 
   function updateEx(dayIdx: number, exId: string, patch: Partial<BEx>) {
-    setDay(dayIdx, { exercises: prog.schedule[dayIdx].exercises.map(e => e.id === exId ? { ...e, ...patch } : e) });
+    setDay(dayIdx, { exercises: activeSchedule[dayIdx].exercises.map(e => e.id === exId ? { ...e, ...patch } : e) });
   }
 
   function moveEx(dayIdx: number, exId: string, dir: -1 | 1) {
-    const exs = [...prog.schedule[dayIdx].exercises];
+    const exs = [...activeSchedule[dayIdx].exercises];
     const i = exs.findIndex(e => e.id === exId);
     const j = i + dir;
     if (j < 0 || j >= exs.length) return;
@@ -430,7 +535,7 @@ function BuilderInner() {
   async function handleUploadNewVideo(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !user || !videoPickerFor) return;
-    const ex = prog.schedule[activeDay]?.exercises.find((x) => x.id === videoPickerFor);
+    const ex = activeSchedule[activeDay]?.exercises.find((x) => x.id === videoPickerFor);
     if (!ex?.name.trim()) {
       toast.error('Name the exercise before uploading its video');
       e.target.value = '';
@@ -480,7 +585,7 @@ function BuilderInner() {
     );
   }
 
-  const day = prog.schedule[activeDay];
+  const day = activeSchedule[activeDay];
 
   return (
     <div className="space-y-5 pb-10">
@@ -663,12 +768,80 @@ function BuilderInner() {
 
       {/* Weekly Schedule Builder */}
       <Card className="p-5">
-        <h2 className="text-sm font-bold text-white mb-4">Weekly Schedule</h2>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-sm font-bold text-white">Weekly Schedule</h2>
+          {prog.phases.length === 0 && prog.weeks > 4 && (
+            <button onClick={addPhase} className="text-xs text-accent hover:underline flex items-center gap-1">
+              <Plus className="w-3 h-3" /> Split into phases
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-text-tertiary mb-4">
+          {prog.phases.length === 0
+            ? `This one 7-day template repeats for all ${prog.weeks} weeks. Split it into phases if exercises should change partway through (e.g. week 5 onward).`
+            : 'Each phase below has its own 7-day template for its week range — exercises can be completely different from one phase to the next.'}
+        </p>
+
+        {/* Phase tabs — only shown once a program has been split into phases */}
+        {prog.phases.length > 0 && (
+          <div className="mb-4 space-y-2">
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {prog.phases.map((p, i) => (
+                <button
+                  key={p.id}
+                  onClick={() => { setActivePhase(i); setActiveDay(0); }}
+                  className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                    activePhase === i ? 'bg-accent text-black border-accent' : 'bg-surface-elevated text-text-secondary border-white/10 hover:text-white'
+                  }`}
+                >
+                  {p.label} <span className="font-normal opacity-70">(wk {p.startWeek}-{p.endWeek})</span>
+                </button>
+              ))}
+              <button
+                onClick={addPhase}
+                className="flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold border border-dashed border-white/20 text-text-secondary hover:text-white hover:border-white/40 transition-colors"
+              >
+                <Plus className="w-3 h-3 inline mr-1" /> Add Phase
+              </button>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap p-3 bg-surface rounded-xl border border-white/10">
+              <input
+                value={prog.phases[activePhase]?.label ?? ''}
+                onChange={(e) => updatePhase(activePhase, { label: e.target.value })}
+                placeholder="Phase label e.g. Base Building"
+                className="flex-1 min-w-[140px] bg-surface-elevated border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-accent/50"
+              />
+              <label className="text-[10px] text-text-tertiary flex items-center gap-1.5">
+                Weeks
+                <input
+                  type="number" min={1} value={prog.phases[activePhase]?.startWeek ?? 1}
+                  onChange={(e) => updatePhase(activePhase, { startWeek: Math.max(1, parseInt(e.target.value) || 1) })}
+                  className="w-14 bg-surface-elevated border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white text-center focus:outline-none focus:border-accent/50"
+                />
+                to
+                <input
+                  type="number" min={1} value={prog.phases[activePhase]?.endWeek ?? 1}
+                  onChange={(e) => updatePhase(activePhase, { endWeek: Math.max(1, parseInt(e.target.value) || 1) })}
+                  className="w-14 bg-surface-elevated border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white text-center focus:outline-none focus:border-accent/50"
+                />
+              </label>
+              {prog.phases.length > 1 && (
+                <button
+                  onClick={() => removePhase(activePhase)}
+                  className="p-1.5 text-text-tertiary hover:text-danger transition-colors"
+                  title="Remove this phase"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Day tabs */}
         <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
           {DOW.map((d, i) => {
-            const isRest = prog.schedule[i]?.isRest;
+            const isRest = activeSchedule[i]?.isRest;
             return (
               <button
                 key={d}
@@ -956,10 +1129,12 @@ function BuilderInner() {
 
       {/* Week overview summary */}
       <Card className="p-4">
-        <h2 className="text-sm font-bold text-white mb-3">Week Overview</h2>
+        <h2 className="text-sm font-bold text-white mb-3">
+          Week Overview{prog.phases.length > 0 ? ` — ${prog.phases[activePhase]?.label}` : ''}
+        </h2>
         <div className="grid grid-cols-7 gap-1">
           {DOW.map((d, i) => {
-            const s = prog.schedule[i];
+            const s = activeSchedule[i];
             return (
               <button
                 key={d}

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { getProgram } from '@/lib/firestore';
 import { enrollInProgram } from '@/lib/firestore';
-import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix } from '@/lib/programs';
+import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix, getScheduleForWeek } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -85,7 +85,10 @@ export default function ProgramDetailPage() {
   // ── Single source of truth for "which day is the user on" ──────────────────
   // nextAbsIdx: the absolute day index the user is targeting next.
   // If worked out today → show today's completed day; else → advance to next.
-  const scheduleLen = program?.schedule?.length || 1;
+  // Every phase's schedule is enforced to be 7 entries (same invariant as
+  // the original single `schedule`), so this length is a program-wide
+  // constant regardless of which phase is actually active.
+  const scheduleLen = (program?.phases?.[0]?.schedule ?? program?.schedule)?.length || 1;
   const nextAbsIdx = isEnrolled
     ? (workedOutToday ? lastCompleted : lastCompleted + 1)
     : 0;
@@ -99,7 +102,13 @@ export default function ProgramDetailPage() {
     if (isEnrolled) setDisplayWeek(currentWeek);
   }, [isEnrolled, currentWeek]);
 
-  const todayDay: ProgramDay | null = program?.schedule?.[todayDayIndex] ?? null;
+  // The week actually shown in the schedule list below — phase-aware, so a
+  // 90-day program with different blocks shows the right week's exercises
+  // instead of the same 7-day template repeating regardless of which week
+  // the schedule browser is on.
+  const displayWeekSchedule: ProgramDay[] = (program ? getScheduleForWeek(program, displayWeek + 1) : undefined) ?? [];
+  const currentWeekSchedule: ProgramDay[] = (program ? getScheduleForWeek(program, currentWeek + 1) : undefined) ?? [];
+  const todayDay: ProgramDay | null = currentWeekSchedule[todayDayIndex] ?? null;
 
   const handleEnroll = async (force = false) => {
     if (!user || !program) return;
@@ -323,7 +332,7 @@ export default function ProgramDetailPage() {
         )}
 
         {/* Schedule — week-aware */}
-        {program.schedule && program.schedule.length > 0 && (
+        {displayWeekSchedule.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             {/* Week header with nav */}
             <div className="flex items-center justify-between mb-3">
@@ -353,7 +362,7 @@ export default function ProgramDetailPage() {
             </div>
 
             <div className="space-y-2">
-              {program.schedule.map((day, idx) => {
+              {displayWeekSchedule.map((day, idx) => {
                 // Absolute index of this slot in the displayed week
                 const absoluteDay = displayWeek * scheduleLen + idx;
                 // Is this slot the one the user is currently on?

@@ -1084,6 +1084,24 @@ export function stripWeekdayPrefix(label: string): string {
 }
 
 /**
+ * Returns the 7-day weekly template that applies to a given (1-indexed)
+ * week number of a program. If the program defines `phases` (week-ranged
+ * blocks — see ProgramPhase), picks whichever phase's range covers that
+ * week, falling back to the last defined phase once the program runs
+ * longer than its phases cover (e.g. a maintenance phase left undefined
+ * past week 12). Programs with no phases just use the single top-level
+ * `schedule` for every week, exactly as before phases existed.
+ */
+export function getScheduleForWeek(program: Program, weekNumber: number): ProgramDay[] | undefined {
+  if (program.phases && program.phases.length > 0) {
+    const sorted = [...program.phases].sort((a, b) => a.startWeek - b.startWeek);
+    const match = sorted.find((p) => weekNumber >= p.startWeek && weekNumber <= p.endWeek);
+    return (match ?? sorted[sorted.length - 1]).schedule;
+  }
+  return program.schedule;
+}
+
+/**
  * Returns the ProgramDay for the current user based on days since enrollment.
  * Falls back to day-of-week logic for legacy users without programStartDate.
  */
@@ -1091,13 +1109,12 @@ export function getProgramDayForUser(
   program: Program,
   programStartDate?: string
 ): ProgramDay | null {
-  const schedule = program.schedule;
-  if (!schedule?.length) return null;
+  if (!program.schedule?.length && !program.phases?.length) return null;
 
   if (programStartDate) {
     const start = new Date(programStartDate);
     const dayIndex = Math.floor((Date.now() - start.getTime()) / 86400000);
-    return schedule[dayIndex % schedule.length] ?? null;
+    return getProgramDayForDow(program, dayIndex);
   }
   // fallback to DOW for existing users without programStartDate
   return getProgramDayForDow(program, (() => {
@@ -1107,11 +1124,14 @@ export function getProgramDayForUser(
 }
 
 /**
- * Returns the ProgramDay for a given day of week (0 = Monday … 6 = Sunday)
- * from a program's schedule, cycling if the week pattern is shorter.
+ * Returns the ProgramDay for a given absolute day index since enrollment
+ * (not day-of-week — despite the name, callers pass a running count of
+ * training days/sessions), resolving through phases first if the program
+ * has them, then cycling within that week's 7-day template.
  */
 export function getProgramDayForDow(program: Program, dow: number): ProgramDay | null {
-  const schedule = program.schedule;
+  const weekNumber = Math.floor(dow / 7) + 1;
+  const schedule = getScheduleForWeek(program, weekNumber);
   if (!schedule || schedule.length === 0) {
     if (program.exercises.length === 0) return null;
     // Flat exercise list — treat every day as a training day

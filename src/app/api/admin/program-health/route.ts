@@ -85,7 +85,13 @@ export async function GET(req: NextRequest) {
     }[] = [];
 
     for (const program of programs) {
-      const exercises = program.schedule
+      // Phased programs (week-ranged blocks — see ProgramPhase) can have
+      // completely different exercises in each phase, so every phase's
+      // schedule needs checking, not just the top-level `schedule` (which
+      // only ever mirrors phase 1).
+      const exercises = program.phases?.length
+        ? program.phases.flatMap((p) => p.schedule.flatMap((d) => d.exercises ?? []))
+        : program.schedule
         ? program.schedule.flatMap((d) => d.exercises ?? [])
         : (program.exercises ?? []);
 

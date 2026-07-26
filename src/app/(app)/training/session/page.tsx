@@ -19,7 +19,7 @@ import { Modal } from '@/components/ui/Modal';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { WeightSlider } from '@/components/workout/WeightSlider';
 import { PlateCalculatorButton } from '@/components/workout/PlateCalculator';
-import type { Exercise } from '@/types';
+import type { Exercise, Program } from '@/types';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -1202,24 +1202,24 @@ function WorkoutSessionPageInner() {
         try {
           const prog = await getProgram(programId);
           const mock = getMockProgram(programId);
-          type AnyProgram = { schedule?: { isRest?: boolean; exercises?: Exercise[] }[]; exercises?: Exercise[] };
+          type AnyProgram = Pick<Program, 'schedule' | 'phases' | 'exercises'>;
+          const firestoreProg = prog as AnyProgram | null;
+          // Field-by-field fallback to the built-in seed program — a
+          // Firestore doc with, say, no `phases` field shouldn't lose the
+          // mock's phases if this id happens to also be a seed program id.
+          const merged: AnyProgram = {
+            schedule: firestoreProg?.schedule ?? mock?.schedule,
+            phases: firestoreProg?.phases ?? mock?.phases,
+            exercises: firestoreProg?.exercises ?? mock?.exercises ?? [],
+          };
 
           if (dow !== null) {
-            const firestoreProg = prog as AnyProgram | null;
-            const schedule = firestoreProg?.schedule ?? (mock as AnyProgram | null)?.schedule ?? null;
-            if (schedule?.length) {
-              const dayPlan = schedule[dow % schedule.length];
-              if (dayPlan && !dayPlan.isRest && dayPlan.exercises && dayPlan.exercises.length > 0) {
-                exercises = dayPlan.exercises as Exercise[];
-              }
-            } else {
-              const flat = firestoreProg?.exercises ?? (mock as AnyProgram | null)?.exercises ?? [];
-              exercises = flat.length > 0 ? flat as Exercise[] : DEFAULT_EXERCISES;
-            }
+            const dayPlan = getProgramDayForDow(merged as Program, dow);
+            exercises = (dayPlan && !dayPlan.isRest && dayPlan.exercises && dayPlan.exercises.length > 0)
+              ? dayPlan.exercises as Exercise[]
+              : (merged.exercises.length > 0 ? merged.exercises as Exercise[] : DEFAULT_EXERCISES);
           } else {
-            const firestoreProg = prog as AnyProgram | null;
-            const flat = firestoreProg?.exercises ?? (mock as AnyProgram | null)?.exercises ?? [];
-            exercises = flat.length > 0 ? flat as Exercise[] : DEFAULT_EXERCISES;
+            exercises = merged.exercises.length > 0 ? merged.exercises as Exercise[] : DEFAULT_EXERCISES;
           }
         } catch {
           const mock = getMockProgram(programId);

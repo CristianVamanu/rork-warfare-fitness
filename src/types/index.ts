@@ -301,6 +301,22 @@ export interface ProgramDay {
   exercises: Exercise[];
 }
 
+/**
+ * A week-ranged block within a long program — e.g. "Weeks 1-4: Base
+ * Building" — each with its own 7-element weekly pattern. Lets a 90-day
+ * program actually vary what it trains over time instead of one 7-day
+ * template repeating for the program's entire length. `startWeek`/`endWeek`
+ * are 1-indexed and inclusive. Optional: a program with no phases just uses
+ * its top-level `schedule` for every week, exactly as before.
+ */
+export interface ProgramPhase {
+  id: string;
+  label: string;
+  startWeek: number;
+  endWeek: number;
+  schedule: ProgramDay[];
+}
+
 export interface Program {
   id: string;
   name: string;
@@ -310,7 +326,8 @@ export interface Program {
   weeks: number;
   daysPerWeek: number;
   exercises: Exercise[];  // flat fallback list used by session page
-  schedule?: ProgramDay[]; // 7-element Mon–Sun weekly pattern (index 0 = Monday)
+  schedule?: ProgramDay[]; // 7-element Mon–Sun weekly pattern (index 0 = Monday); phases[0]'s schedule when phases are used
+  phases?: ProgramPhase[]; // when present, overrides `schedule` per week range — see ProgramPhase
   createdBy: string;
   trainerId?: string;
   isPublic: boolean;
