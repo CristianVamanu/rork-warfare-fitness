@@ -250,6 +250,7 @@ function AdminPageInner() {
   } | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [analyticsRange, setAnalyticsRange] = useState<'today' | 'yesterday' | '7d' | '14d' | '30d' | 'all'>('30d');
 
   // ── Notifications state ────────────────────────────────────────────────────
   const DEFAULT_NOTIF_CONFIG: NotificationConfig = {
@@ -412,16 +413,16 @@ function AdminPageInner() {
     if (tab === 'community') loadChannels();
     if (tab === 'library' && exerciseLibrary.length === 0) loadExerciseLibrary();
     if (tab === 'integrations') loadSecretStatuses();
-    if (tab === 'analytics') loadAnalytics();
+    if (tab === 'analytics') loadAnalytics(analyticsRange);
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function loadAnalytics() {
+  async function loadAnalytics(range: typeof analyticsRange = analyticsRange) {
     if (!user) return;
     setAnalyticsLoading(true);
     setAnalyticsError(null);
     try {
       const token = await getIdToken(user);
-      const res = await fetch('/api/admin/analytics', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/admin/analytics?range=${range}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Request failed (status ${res.status})`);
       setAnalytics(data);
@@ -2929,6 +2930,25 @@ function AdminPageInner() {
             </p>
           </Card>
 
+          {/* Range picker */}
+          <div className="flex gap-1.5 flex-wrap">
+            {([
+              ['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', '7 Days'],
+              ['14d', '14 Days'], ['30d', '30 Days'], ['all', 'All Time'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => { setAnalyticsRange(value); loadAnalytics(value); }}
+                disabled={analyticsLoading}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors disabled:opacity-50 ${
+                  analyticsRange === value ? 'bg-accent text-black border-accent' : 'bg-surface-elevated text-text-secondary border-white/10 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           {analyticsLoading ? (
             <div className="grid grid-cols-2 gap-3">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
           ) : analyticsError ? (
@@ -2936,13 +2956,15 @@ function AdminPageInner() {
               <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
               <p className="text-sm text-white font-bold">Couldn&apos;t load analytics</p>
               <p className="text-xs text-text-secondary mt-1">{analyticsError}</p>
-              <Button size="sm" variant="ghost" className="mt-3" onClick={loadAnalytics}>
+              <Button size="sm" variant="ghost" className="mt-3" onClick={() => loadAnalytics()}>
                 <RefreshCw className="w-3.5 h-3.5" /> Retry
               </Button>
             </Card>
           ) : analytics ? (
             <>
-              <p className="text-xs text-text-tertiary">Last {analytics.rangeDays} days</p>
+              <p className="text-xs text-text-tertiary">
+                {analyticsRange === 'today' ? 'Today' : analyticsRange === 'yesterday' ? 'Yesterday' : `Last ${analytics.rangeDays} days`}
+              </p>
               <div className="grid grid-cols-2 gap-3">
                 <Card className="p-4">
                   <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Unique Visits</p>
@@ -2973,7 +2995,12 @@ function AdminPageInner() {
                       const pct = Math.max(2, Math.round((d.pageViews / max) * 100));
                       return (
                         <div key={d.date} className="flex-1 flex flex-col items-center justify-end h-full group relative">
-                          <div className="w-full bg-accent/70 group-hover:bg-accent rounded-t transition-colors" style={{ height: `${pct}%` }} />
+                          {/* bg-accent/70 (Tailwind's opacity-modifier syntax) silently
+                              renders nothing here — --accent is a raw hex CSS variable,
+                              not the R-G-B triplet format that modifier needs to combine
+                              with an alpha value. Using the `opacity` utility instead
+                              works with any color format. */}
+                          <div className="w-full bg-accent opacity-70 group-hover:opacity-100 rounded-t transition-opacity" style={{ height: `${pct}%` }} />
                           <div className="absolute -top-8 hidden group-hover:block bg-black text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
                             {d.date}: {d.pageViews.toLocaleString()} views
                           </div>

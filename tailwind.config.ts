@@ -9,13 +9,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // All theme-sensitive colors → CSS variables (flip with light/dark class)
-        background: 'var(--background)',
-        surface: 'var(--surface)',
+        // All theme-sensitive colors → CSS variables (flip with light/dark class).
+        // background/surface/accent use the rgb(var(--x-rgb) / <alpha-value>)
+        // form specifically so opacity modifiers (bg-accent/70, etc.) actually
+        // work — Tailwind can only inject an alpha value into a CSS variable
+        // color when the variable holds a bare "R G B" triplet, not a hex
+        // string, otherwise the modifier silently produces no color at all.
+        background: 'rgb(var(--background-rgb) / <alpha-value>)',
+        surface: 'rgb(var(--surface-rgb) / <alpha-value>)',
         'surface-elevated': 'var(--surface-elevated)',
         foreground: 'var(--foreground)',
         border: 'var(--border-subtle)',
-        accent: 'var(--accent)',
+        accent: 'rgb(var(--accent-rgb) / <alpha-value>)',
         'accent-muted': 'var(--accent-muted)',
         'text-primary': 'var(--foreground)',
         'text-secondary': 'var(--text-secondary)',

@@ -13,6 +13,17 @@
   --accent-hover: #E8941A;
   --accent-muted: rgba(245, 166, 35, 0.15);
   --foreground: #FFFFFF;
+  /* R-G-B triplets (no rgb()/no commas) for the colors above — Tailwind's
+     opacity modifier (e.g. bg-accent/70) can only combine a CSS-variable
+     color with an alpha value if the variable holds a bare triplet like
+     this, not a hex string. Without these, bg-accent/70 silently rendered
+     nothing at all (confirmed: a chart bar was invisible until :hover
+     switched it to the modifier-free `group-hover:bg-accent`, which
+     worked fine) — this fixes every such usage across the app at once,
+     not just the one that got reported. */
+  --accent-rgb: 245 166 35;
+  --background-rgb: 10 10 10;
+  --surface-rgb: 17 17 17;
   --text-secondary: rgba(255, 255, 255, 0.55);
   --text-tertiary: rgba(255, 255, 255, 0.33);
   --border-subtle: rgba(255, 255, 255, 0.08);
@@ -45,6 +56,9 @@ html.light {
   --accent-hover: #C07508;
   --accent-muted: rgba(212, 130, 10, 0.12);
   --foreground: #0A0A0A;
+  --accent-rgb: 212 130 10;
+  --background-rgb: 242 242 247;
+  --surface-rgb: 255 255 255;
   --text-secondary: rgba(0, 0, 0, 0.55);
   --text-tertiary: rgba(0, 0, 0, 0.38);
   --border-subtle: rgba(0, 0, 0, 0.09);

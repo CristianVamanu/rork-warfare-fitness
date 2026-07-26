@@ -31,16 +31,56 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Cloudflare Analytics not configured — add an API token and Zone ID in Admin → Integrations.' }, { status: 400 });
     }
 
+    // "today" and "yesterday" are still resolved against the daily dataset
+    // (Cloudflare's httpRequests1dGroups) rather than an hourly one — a
+    // single-day chart only ever draws one bar, but the stat tiles above it
+    // (unique visits, page views, etc.) still show accurate numbers for
+    // that specific day, which is the part that actually matters most.
+    const range = req.nextUrl.searchParams.get('range') || '30d';
     const until = new Date();
-    const since = new Date(until.getTime() - 30 * 86_400_000);
+    let since: Date;
+    let limit: number;
+    switch (range) {
+      case 'today':
+        since = new Date(until);
+        limit = 1;
+        break;
+      case 'yesterday':
+        since = new Date(until.getTime() - 86_400_000);
+        until.setTime(since.getTime());
+        limit = 1;
+        break;
+      case '7d':
+        since = new Date(until.getTime() - 7 * 86_400_000);
+        limit = 8;
+        break;
+      case '14d':
+        since = new Date(until.getTime() - 14 * 86_400_000);
+        limit = 15;
+        break;
+      case 'all':
+        // Cloudflare's Analytics API itself caps how far back it'll return
+        // data (varies by plan, commonly far less than a year) — requesting
+        // a wide window and letting Cloudflare hand back whatever it
+        // actually retains is simpler and more correct than guessing the
+        // account's specific retention limit here.
+        since = new Date(until.getTime() - 365 * 86_400_000);
+        limit = 366;
+        break;
+      case '30d':
+      default:
+        since = new Date(until.getTime() - 30 * 86_400_000);
+        limit = 31;
+        break;
+    }
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
     const query = `
-      query ($zoneTag: String!, $since: Date!, $until: Date!) {
+      query ($zoneTag: String!, $since: Date!, $until: Date!, $limit: Int!) {
         viewer {
           zones(filter: { zoneTag: $zoneTag }) {
             httpRequests1dGroups(
-              limit: 31
+              limit: $limit
               filter: { date_geq: $since, date_leq: $until }
               orderBy: [date_ASC]
             ) {
@@ -58,7 +98,7 @@ export async function GET(req: NextRequest) {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query,
-        variables: { zoneTag: zoneId, since: fmt(since), until: fmt(until) },
+        variables: { zoneTag: zoneId, since: fmt(since), until: fmt(until), limit },
       }),
     });
 
