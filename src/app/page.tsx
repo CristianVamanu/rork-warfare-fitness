@@ -175,8 +175,6 @@ export default function LandingPage() {
             maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)',
           }}
         />
-        <div className="absolute left-1/2 top-[-120px] -translate-x-1/2 w-[700px] h-[700px] rounded-full bg-accent/20 blur-[120px]" />
-        <div className="absolute right-[-100px] top-[80px] w-[500px] h-[240px] rotate-[-20deg] bg-gradient-to-r from-transparent via-accent/25 to-transparent blur-3xl" />
       </div>
 
       {/* Hero background image — full-bleed behind the entire hero, not
@@ -270,7 +268,6 @@ export default function LandingPage() {
               Safari; the poster frame paints instantly so there's no blank
               gap while the ~900KB clip loads. */}
           <div className="relative w-32 h-32 mx-auto mb-6">
-            <div className="absolute inset-0 rounded-full bg-accent/25 blur-2xl" />
             <video
               className="relative w-full h-full rounded-2xl object-cover shadow-glow-accent"
               src="/videos/hero-logo.mp4"
@@ -434,7 +431,7 @@ export default function LandingPage() {
                 {/* Fixed-aspect image slot, same size for every card — a
                     themed gradient + icon fallback when no admin image is
                     set yet, so the grid never looks unfinished. */}
-                <div className="w-full aspect-square relative bg-gradient-to-br from-accent/20 to-surface-elevated flex-shrink-0">
+                <div className="w-full aspect-square relative bg-surface-elevated flex-shrink-0">
                   {p.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={p.imageUrl} alt={p.name} className="w-full h-full object-contain p-2" />

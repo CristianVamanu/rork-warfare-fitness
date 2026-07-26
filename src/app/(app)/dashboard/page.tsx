@@ -408,7 +408,7 @@ export default function DashboardPage() {
   {/* Today's Workout — hero */}
           <motion.div variants={stagger.item} className="col-span-4 row-span-2">
             {activeProgram ? (
-              <Card className="p-5 h-full relative overflow-hidden flex flex-col justify-between">
+              <Card className="p-5 pb-6 h-full relative overflow-hidden flex flex-col justify-between">
                 <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
                   <Dumbbell className="w-28 h-28 text-accent" />
                 </div>
@@ -464,7 +464,7 @@ export default function DashboardPage() {
                       {programPct}% complete · {activeProgram.totalWorkouts - completedWorkouts} sessions remaining
                     </p>
                   </div>
-                  <div className="flex gap-2 flex-wrap pb-1">
+                  <div className="flex gap-2 flex-wrap">
                     {todayDay?.isRest ? (
                       <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                         <Moon className="w-3.5 h-3.5" /> Rest day
