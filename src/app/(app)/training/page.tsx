@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown } from 'lucide-react';
+import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, resolveProgram, getHiddenMockIds } from '@/lib/firestore';
@@ -104,7 +104,9 @@ export default function TrainingPage() {
               <h3 className="text-xl font-black text-white">{activeProgram.programName}</h3>
               {todayDay && (
                 <p className="text-text-secondary text-sm mt-1">
-                  Today: {todayDay.isRest ? '😴 Rest Day' : stripWeekdayPrefix(todayDay.label)}
+                  {workedOutToday
+                    ? `Completed: ${stripWeekdayPrefix(todayDay.label)}`
+                    : `Today: ${todayDay.isRest ? '😴 Rest Day' : stripWeekdayPrefix(todayDay.label)}`}
                 </p>
               )}
               <div className="mt-4 space-y-2">
@@ -114,8 +116,26 @@ export default function TrainingPage() {
                 </div>
                 <ProgressBar value={activeProgram.completedWorkouts} max={activeProgram.totalWorkouts} color="accent" size="sm" />
               </div>
-              <div className="flex gap-2 mt-4">
-                {todayDay && !todayDay.isRest ? (
+              {/* Three-way state, matching the dashboard card and program
+                  detail page exactly — this previously only branched on
+                  rest day, so it still said "Start Today's Workout" after
+                  the session was already done, contradicting both other
+                  screens. */}
+              {workedOutToday && (
+                <div className="mt-4 p-3 bg-success/10 border border-success/30 rounded-xl flex items-center gap-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-white">Day {lastCompleted + 1} Complete!</p>
+                    <p className="text-xs text-text-secondary">Come back tomorrow for Day {lastCompleted + 2}</p>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-2 mt-4 flex-wrap">
+                {workedOutToday ? (
+                  <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
+                    <RotateCcw className="w-4 h-4" /> Repeat Today
+                  </Button>
+                ) : todayDay && !todayDay.isRest ? (
                   <Button size="sm" onClick={() => {
                     router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`);
                   }}>

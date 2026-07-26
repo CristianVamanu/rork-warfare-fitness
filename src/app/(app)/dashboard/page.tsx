@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
+import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
@@ -531,7 +531,7 @@ export default function DashboardPage() {
                       </div>
                     ) : workedOutToday && completedWorkouts > 0 ? (
                       <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                        <RefreshCw className="w-3.5 h-3.5" /> Repeat Day
+                        <RotateCcw className="w-3.5 h-3.5" /> Repeat Today
                       </Button>
                     ) : (
                       <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
