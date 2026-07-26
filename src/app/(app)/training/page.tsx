@@ -6,8 +6,8 @@ import { motion } from 'framer-motion';
 import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getPrograms, getProgram, getHiddenMockIds } from '@/lib/firestore';
-import { MOCK_PROGRAMS, getMockProgram, stripWeekdayPrefix } from '@/lib/programs';
+import { getPrograms, resolveProgram, getHiddenMockIds } from '@/lib/firestore';
+import { MOCK_PROGRAMS, stripWeekdayPrefix } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -56,19 +56,14 @@ export default function TrainingPage() {
     ? Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100)
     : 0;
 
-  // Resolve schedule from Firestore program first, then fall back to mock
+  // Shared resolver (Firestore-first, seed fallback) — this used to prefer
+  // the built-in seed copy over the admin's saved Firestore edits, the
+  // exact opposite precedence of the program detail page, which is how two
+  // screens ended up disagreeing about the same program's schedule.
   useEffect(() => {
     if (!activeProgram) { setActiveSchedule(null); return; }
-    const mock = getMockProgram(activeProgram.programId);
-    if (mock?.schedule?.length) {
-      setActiveSchedule(mock.schedule);
-      return;
-    }
-    getProgram(activeProgram.programId)
-      .then((p) => {
-        const prog = p as Program | null;
-        setActiveSchedule(prog?.schedule?.length ? prog.schedule : null);
-      })
+    resolveProgram(activeProgram.programId)
+      .then((p) => setActiveSchedule(p?.schedule?.length ? p.schedule : null))
       .catch(() => setActiveSchedule(null));
   }, [activeProgram]);
 

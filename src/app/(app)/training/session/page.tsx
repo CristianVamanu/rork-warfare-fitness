@@ -9,8 +9,8 @@ import {
   Copy, SkipForward, Plus, Minus, Dumbbell, Zap, Play, Pause, RotateCcw, Info,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getProgram, getLastExercisePerformance } from '@/lib/firestore';
-import { getMockProgram, getProgramDayForDow } from '@/lib/programs';
+import { resolveProgram, getLastExercisePerformance } from '@/lib/firestore';
+import { getProgramDayForDow } from '@/lib/programs';
 import { completeWorkout } from '@/lib/actions';
 import { WorkoutShareCard } from '@/components/workout/WorkoutShareCard';
 import toast from 'react-hot-toast';
@@ -1199,37 +1199,20 @@ function WorkoutSessionPageInner() {
       let exercises: Exercise[] = DEFAULT_EXERCISES;
 
       if (programId) {
-        try {
-          const prog = await getProgram(programId);
-          const mock = getMockProgram(programId);
-          type AnyProgram = Pick<Program, 'schedule' | 'phases' | 'exercises'>;
-          const firestoreProg = prog as AnyProgram | null;
-          // Field-by-field fallback to the built-in seed program — a
-          // Firestore doc with, say, no `phases` field shouldn't lose the
-          // mock's phases if this id happens to also be a seed program id.
-          const merged: AnyProgram = {
-            schedule: firestoreProg?.schedule ?? mock?.schedule,
-            phases: firestoreProg?.phases ?? mock?.phases,
-            exercises: firestoreProg?.exercises ?? mock?.exercises ?? [],
-          };
-
+        // Shared resolver (Firestore-first, seed fallback) — the same one
+        // every other program-rendering screen uses, so this session can
+        // never disagree with the dashboard/training pages about what
+        // today's exercises are. resolveProgram never throws (it degrades
+        // to the seed copy internally), so no separate catch path needed.
+        const merged = await resolveProgram(programId);
+        if (merged) {
           if (dow !== null) {
-            const dayPlan = getProgramDayForDow(merged as Program, dow);
+            const dayPlan = getProgramDayForDow(merged, dow);
             exercises = (dayPlan && !dayPlan.isRest && dayPlan.exercises && dayPlan.exercises.length > 0)
               ? dayPlan.exercises as Exercise[]
               : (merged.exercises.length > 0 ? merged.exercises as Exercise[] : DEFAULT_EXERCISES);
           } else {
             exercises = merged.exercises.length > 0 ? merged.exercises as Exercise[] : DEFAULT_EXERCISES;
-          }
-        } catch {
-          const mock = getMockProgram(programId);
-          if (mock && dow !== null) {
-            const dayPlan = getProgramDayForDow(mock, dow);
-            exercises = (dayPlan && !dayPlan.isRest && dayPlan.exercises.length > 0)
-              ? dayPlan.exercises
-              : (mock.exercises.length > 0 ? mock.exercises : DEFAULT_EXERCISES);
-          } else if (mock) {
-            exercises = mock.exercises.length > 0 ? mock.exercises : DEFAULT_EXERCISES;
           }
         }
       }

@@ -5,8 +5,8 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, getProgressPhotos, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
-import type { ProgressPhoto } from '@/types';
+import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
+import type { ProgressPhoto, Program } from '@/types';
 import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix, getProgramDayForDow } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
@@ -45,6 +45,7 @@ export default function DashboardPage() {
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
+  const [resolvedProgram, setResolvedProgram] = useState<Program | null>(null);
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
   const [adjustingWater, setAdjustingWater] = useState(false);
   const [activeGoalCount, setActiveGoalCount] = useState(0);
@@ -218,14 +219,19 @@ export default function DashboardPage() {
     : (completedWorkouts > 0 ? completedWorkouts - 1 : -1);
   // nextAbsIdx: absolute day index the user should do next (or just did today)
   const nextAbsIdx = workedOutToday ? lastCompleted : lastCompleted + 1;
+  // resolveProgram is async (Firestore-first), so while it loads the seed
+  // copy renders immediately and gets replaced if the admin has saved edits.
   const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
-  // Phase-aware day resolution (same helper the session page uses), so a
-  // phased long program shows the right week's exercises here too.
-  const todayDay = activeMock ? getProgramDayForDow(activeMock, nextAbsIdx) : null;
+  const programSource = resolvedProgram ?? activeMock;
+  // Phase-aware day resolution through the shared resolver — previously this
+  // card read ONLY the built-in seed copy while the training screens read
+  // the admin's saved Firestore version, so "next workout" here could name a
+  // completely different session than the training tab. One resolver now.
+  const todayDay = programSource ? getProgramDayForDow(programSource, nextAbsIdx) : null;
   // After today's session is done, preview tomorrow's — fills the card
   // (which spans 3 grid rows) instead of leaving a dead gap under the
   // congrats message, and answers the natural next question anyway.
-  const upcomingDay = activeMock && workedOutToday ? getProgramDayForDow(activeMock, lastCompleted + 1) : null;
+  const upcomingDay = programSource && workedOutToday ? getProgramDayForDow(programSource, lastCompleted + 1) : null;
   const programPct = activeProgram
     ? Math.min(100, Math.round((completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
@@ -236,6 +242,12 @@ export default function DashboardPage() {
     if (!user) return;
     getWeeklySummary(user.uid).then(setWeeklySummary).catch(() => {});
   }, [user]);
+
+  const activeProgramId = profile?.activeProgram?.programId;
+  useEffect(() => {
+    if (!activeProgramId) { setResolvedProgram(null); return; }
+    resolveProgram(activeProgramId).then(setResolvedProgram).catch(() => setResolvedProgram(null));
+  }, [activeProgramId]);
 
   useEffect(() => {
     if (!user || !firstExerciseName) { setPersonalBest(null); return; }

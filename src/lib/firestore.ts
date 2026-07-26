@@ -569,6 +569,40 @@ export async function getProgram(id: string) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
+/**
+ * THE single source of truth for what a program's schedule actually is.
+ * Every screen that renders a program's days (dashboard next-workout card,
+ * training list, program detail, live workout session) must resolve through
+ * here — before this existed, each screen picked its own precedence between
+ * the Firestore doc and the built-in seed copy (one even preferred the seed
+ * OVER the admin's saved edits), so the home screen and the training screen
+ * could disagree about what tomorrow's workout is.
+ *
+ * Precedence: the Firestore doc wins wherever it has data — an admin who
+ * edited a built-in program saved their version there deliberately — and the
+ * built-in seed fills any field the doc doesn't carry (e.g. a doc saved
+ * before `phases` existed shouldn't erase the seed's phases).
+ */
+export async function resolveProgram(programId: string): Promise<Program | null> {
+  const { getMockProgram } = await import('./programs');
+  const mock = getMockProgram(programId);
+  let fsDoc: Partial<Program> | null = null;
+  try {
+    fsDoc = await getProgram(programId) as Partial<Program> | null;
+  } catch {
+    // Offline / rules hiccup — the seed copy alone is still a valid answer
+  }
+  if (!fsDoc && !mock) return null;
+
+  return {
+    ...(mock ?? {}),
+    ...(fsDoc ?? {}),
+    schedule: fsDoc?.schedule?.length ? fsDoc.schedule : mock?.schedule,
+    phases: fsDoc?.phases?.length ? fsDoc.phases : mock?.phases,
+    exercises: fsDoc?.exercises?.length ? fsDoc.exercises : (mock?.exercises ?? []),
+  } as Program;
+}
+
 export async function createProgram(data: Record<string, unknown>) {
   return addDoc(collection(db, 'programs'), { ...stripUndefinedDeep(data), createdAt: serverTimestamp() });
 }

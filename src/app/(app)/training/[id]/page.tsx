@@ -9,8 +9,7 @@ import {
   Play, Clock, Target, Dumbbell, Moon, CheckCircle, CheckCircle2, ChevronLeft,
   AlertTriangle, RotateCcw, ChevronRight,
 } from 'lucide-react';
-import { getProgram } from '@/lib/firestore';
-import { enrollInProgram } from '@/lib/firestore';
+import { resolveProgram, enrollInProgram } from '@/lib/firestore';
 import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix, getScheduleForWeek } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
@@ -68,17 +67,12 @@ export default function ProgramDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    getProgram(id)
-      .then((p) => {
-        if (p && (p as Program).schedule?.length) {
-          setProgram(p as Program);
-        } else {
-          setProgram(getMockProgram(id) ?? (MOCK_PROGRAMS[0] as Program));
-        }
-      })
-      .catch(() => {
-        setProgram(getMockProgram(id) ?? (MOCK_PROGRAMS[0] as Program));
-      })
+    // Shared resolver (Firestore-first, seed fallback) — same source of
+    // truth as the dashboard card and workout session, so this page can
+    // never show a different schedule than the rest of the app.
+    resolveProgram(id)
+      .then((p) => setProgram(p ?? (MOCK_PROGRAMS[0] as Program)))
+      .catch(() => setProgram(getMockProgram(id) ?? (MOCK_PROGRAMS[0] as Program)))
       .finally(() => setLoading(false));
   }, [id]);
 
