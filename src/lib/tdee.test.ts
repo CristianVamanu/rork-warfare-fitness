@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estimateNutritionTargets, calculateBmi, estimateBmiTimeline } from './tdee';
+import { estimateNutritionTargets, calculateBmi, estimateBmiTimeline, estimateWeightGoalTimeline } from './tdee';
 
 describe('estimateNutritionTargets', () => {
   it('computes a plausible maintenance for a real profile (regression test for the overestimate bug)', () => {
@@ -99,5 +99,33 @@ describe('estimateBmiTimeline', () => {
     const result = estimateBmiTimeline(170, 100);
     expect(result.weightChangeKg).toBeLessThan(0);
     expect(result.weeksToHealthy).not.toBeNull();
+  });
+});
+
+describe('estimateWeightGoalTimeline', () => {
+  it('treats a goal within 0.5kg as already reached', () => {
+    const result = estimateWeightGoalTimeline(80, 80.2);
+    expect(result.direction).toBe('maintain');
+    expect(result.weeksToGoal).toBe(0);
+  });
+
+  it('estimates a fat-loss timeline at 0.5kg/week', () => {
+    const result = estimateWeightGoalTimeline(90, 80);
+    expect(result.direction).toBe('lose');
+    expect(result.weightChangeKg).toBe(-10);
+    expect(result.weeksToGoal).toBe(20); // 10kg / 0.5kg per week
+  });
+
+  it('estimates a lean-gain timeline at 0.25kg/week (slower than fat loss)', () => {
+    const result = estimateWeightGoalTimeline(70, 75);
+    expect(result.direction).toBe('gain');
+    expect(result.weightChangeKg).toBe(5);
+    expect(result.weeksToGoal).toBe(20); // 5kg / 0.25kg per week
+  });
+
+  it('gaining the same amount takes longer than losing it (asymmetric safe rates)', () => {
+    const loss = estimateWeightGoalTimeline(90, 85);
+    const gain = estimateWeightGoalTimeline(70, 75);
+    expect(gain.weeksToGoal).toBeGreaterThan(loss.weeksToGoal);
   });
 });

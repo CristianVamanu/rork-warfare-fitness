@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getNextSession, countTrainingSlotsThrough, getTotalTrainingDays, MOCK_PROGRAMS } from './programs';
+import { getNextSession, countTrainingSlotsThrough, getTotalTrainingDays, pickBestProgram, MOCK_PROGRAMS } from './programs';
 import type { Program, ProgramDay } from '@/types';
 
 const train = (label: string): ProgramDay => ({ label, isRest: false, exercises: [{ id: 'e', name: 'Squat', sets: 3, reps: 10, restSeconds: 60 }] });
@@ -95,5 +95,32 @@ describe('progress units — training days, not schedule slots', () => {
     for (const p of MOCK_PROGRAMS) {
       expect(getTotalTrainingDays(p), p.id).toBe(p.weeks * p.daysPerWeek);
     }
+  });
+});
+
+describe('pickBestProgram — weight-goal timeline scoring', () => {
+  const goalMatch = (weeks: number, id: string): Program => ({
+    ...standard, id, weeks, goal: 'weight-loss',
+  });
+  const pool: Program[] = [goalMatch(8, 'short'), goalMatch(24, 'medium'), goalMatch(52, 'long')];
+
+  it('without a weeks-to-goal hint, ties are broken by goal/level/days only (first equally-good match wins)', () => {
+    const result = pickBestProgram(pool, 'lose-fat', 'beginner', 4);
+    expect(result!.id).toBe('short'); // all score equally on goal/level/days — first one wins the sort
+  });
+
+  it('prefers the program whose duration is closest to the estimated timeline', () => {
+    const result = pickBestProgram(pool, 'lose-fat', 'beginner', 4, undefined, undefined, undefined, 24);
+    expect(result!.id).toBe('medium');
+  });
+
+  it('a far-off duration match is never enough to beat a real goal-category mismatch', () => {
+    // "wrong-goal" matches the 24-week timeline exactly but has the wrong
+    // goal category — the 10-point goal-match bonus plus level match should
+    // still make a same-goal program a better pick even at a worse duration.
+    const wrongGoal: Program = { ...standard, id: 'wrong-goal', weeks: 24, goal: 'strength' };
+    const rightGoalOffDuration: Program = { ...standard, id: 'right-goal', weeks: 8, goal: 'weight-loss' };
+    const result = pickBestProgram([wrongGoal, rightGoalOffDuration], 'lose-fat', 'beginner', 4, undefined, undefined, undefined, 24);
+    expect(result!.id).toBe('right-goal');
   });
 });

@@ -14,7 +14,7 @@ import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { signUp } from '@/lib/auth';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, resolveProgram } from '@/lib/firestore';
-import { estimateNutritionTargets, calculateBmi, estimateBmiTimeline, type NutritionTargets } from '@/lib/tdee';
+import { estimateNutritionTargets, calculateBmi, estimateBmiTimeline, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -93,6 +93,7 @@ function OnboardingPageInner() {
   const [age, setAge] = useState('');
   const [heightCm, setHeightCm] = useState('');
   const [weightKg, setWeightKg] = useState('');
+  const [targetWeightKg, setTargetWeightKg] = useState('');
   const [medicalHistory, setMedicalHistory] = useState<MedicalHistoryAnswers>({});
   const [targetFocus, setTargetFocus] = useState<OnboardingData['targetFocus'] | null>(null);
   const [sessionMinutes, setSessionMinutes] = useState<OnboardingData['sessionMinutes'] | null>(null);
@@ -107,6 +108,7 @@ function OnboardingPageInner() {
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [revealProgram, setRevealProgram] = useState<{ name: string; description: string; weeks: number; daysPerWeek: number } | null>(null);
   const [revealNutrition, setRevealNutrition] = useState<(NutritionTargets & { goalLabel: string; rationale: string }) | null>(null);
+  const [revealTimeline, setRevealTimeline] = useState<WeightGoalTimeline | null>(null);
 
   function updateMedical(patch: Partial<MedicalHistoryAnswers>) {
     setMedicalHistory((m) => ({ ...m, ...patch }));
@@ -146,7 +148,13 @@ function OnboardingPageInner() {
   const ageNum = parseInt(age, 10);
   const heightNum = parseFloat(heightCm);
   const weightNum = parseFloat(weightKg);
-  const biometricsValid = !!sex && ageNum >= 13 && ageNum <= 100 && heightNum >= 100 && heightNum <= 250 && weightNum >= 30 && weightNum <= 300;
+  const targetWeightNum = parseFloat(targetWeightKg);
+  // Goal weight is mandatory alongside current weight — without both there's
+  // no timeline to estimate and no accurate program-duration match, which
+  // was the whole point of asking (see estimateWeightGoalTimeline in
+  // lib/tdee.ts and the weight-goal scoring bonus in pickBestProgram).
+  const biometricsValid = !!sex && ageNum >= 13 && ageNum <= 100 && heightNum >= 100 && heightNum <= 250
+    && weightNum >= 30 && weightNum <= 300 && targetWeightNum >= 30 && targetWeightNum <= 300;
   const accountValid = name.trim().length >= 2 && /^\S+@\S+\.\S+$/.test(email) && password.length >= 6 && password === confirmPassword;
 
   const canAdvance = [
@@ -189,7 +197,7 @@ function OnboardingPageInner() {
     return parts.join('; ');
   }
 
-  function fallbackRecommendProgram(): typeof MOCK_PROGRAMS[0] {
+  function fallbackRecommendProgram(estimatedWeeksToGoal?: number): typeof MOCK_PROGRAMS[0] {
     // Goal → program goal mapping
     const goalMap: Record<FitnessGoal, string> = {
       'lose-fat': 'weight-loss',
@@ -199,13 +207,18 @@ function OnboardingPageInner() {
     };
     const targetGoal = goalMap[goal!];
 
-    // Score each program by how well it matches
+    // Score each program by how well it matches — mirrors pickBestProgram's
+    // weighting (lib/programs.ts) so the local fallback never disagrees
+    // wildly with the real matcher when it's used.
     const scored = MOCK_PROGRAMS.map((p) => {
       let score = 0;
       if (p.goal === targetGoal) score += 10;
       if (p.level === experience) score += 5;
       // Prefer programs whose daysPerWeek is close to what the user chose
       score -= Math.abs(p.daysPerWeek - (trainingDays ?? 3));
+      if (estimatedWeeksToGoal && estimatedWeeksToGoal > 0) {
+        score -= Math.min(10, Math.abs(p.weeks - estimatedWeeksToGoal) * 0.3);
+      }
       return { p, score };
     });
 
@@ -234,6 +247,12 @@ function OnboardingPageInner() {
 
       const biometricsPayload = biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, weightKg: weightNum } : undefined;
       const authToken = await getIdToken(activeUser);
+
+      // Weight-goal timeline — drives both the program-duration match below
+      // and the "you'll reach your goal in X months" reveal message. Only
+      // computable when biometrics passed validation (both weights present).
+      const timeline = biometricsValid ? estimateWeightGoalTimeline(weightNum, targetWeightNum) : null;
+      if (timeline) setRevealTimeline(timeline);
 
       // Everything below is independent — none of these depend on each
       // other's result — so they run concurrently instead of one after
@@ -275,13 +294,14 @@ function OnboardingPageInner() {
                 sex: sex ?? undefined,
                 hasLimitations: !!buildLimitationsSummary(),
                 equipment: equipment ?? undefined,
+                estimatedWeeksToGoal: timeline?.weeksToGoal ?? undefined,
               }),
             });
             if (!res.ok) throw new Error('Program assignment unavailable');
             const { program: matched } = await res.json();
             program = matched;
           } catch {
-            program = fallbackRecommendProgram();
+            program = fallbackRecommendProgram(timeline?.weeksToGoal ?? undefined);
           }
         }
         const finalProgram = program!;
@@ -332,14 +352,31 @@ function OnboardingPageInner() {
         trainingDays,
         equipment,
         ...(limitations.trim() ? { limitations: limitations.trim() } : {}),
-        ...(biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum } : {}),
+        ...(biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, targetWeightKg: targetWeightNum } : {}),
         ...(Object.keys(cleanedMedicalHistory).length > 0 ? { medicalHistory: cleanedMedicalHistory } : {}),
         ...(targetFocus ? { targetFocus } : {}),
         ...(sessionMinutes ? { sessionMinutes } : {}),
         ...(trainingStyle ? { trainingStyle } : {}),
       };
       const saveTask = saveOnboardingData(activeUser.uid, { ...onboardingData, onboardingComplete: true });
-      const weightTask = biometricsValid ? updateUserDoc(activeUser.uid, { currentWeightKg: weightNum }) : Promise.resolve();
+      // Weight goal is set once, here, at signup — startedAt/estimatedTargetDate
+      // are the fixed reference points the goals page measures ongoing
+      // progress against, not recomputed every time weight is logged.
+      const nowIso = new Date().toISOString().slice(0, 10);
+      const weightTask = biometricsValid
+        ? updateUserDoc(activeUser.uid, {
+            currentWeightKg: weightNum,
+            weightGoal: {
+              startWeightKg: weightNum,
+              targetWeightKg: targetWeightNum,
+              startedAt: nowIso,
+              estimatedTargetDate: timeline && timeline.weeksToGoal > 0
+                ? new Date(Date.now() + timeline.weeksToGoal * 7 * 86400000).toISOString().slice(0, 10)
+                : nowIso,
+              direction: timeline?.direction ?? 'maintain',
+            },
+          })
+        : Promise.resolve();
 
       setStatus('saving');
       await Promise.all([programTask, nutritionTask, saveTask, weightTask]);
@@ -409,6 +446,25 @@ function OnboardingPageInner() {
               <p className="text-xs text-text-secondary">days/week</p>
             </div>
           </div>
+
+          {/* The core promise of the whole goal-weight question: a concrete,
+              personalized timeline tied to the specific program just
+              assigned — not a generic "results vary" hand-wave. */}
+          {revealTimeline && revealTimeline.weeksToGoal > 0 && (
+            <div className="mb-6 p-4 bg-accent/5 border border-accent/20 rounded-2xl text-left flex items-start gap-3">
+              {revealTimeline.direction === 'lose'
+                ? <TrendingDown className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+                : <TrendingUp className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />}
+              <p className="text-sm text-text-secondary leading-relaxed">
+                Based on this information, you&apos;ll reach your goal weight in{' '}
+                <span className="text-white font-bold">
+                  ~{revealTimeline.monthsToGoal} month{revealTimeline.monthsToGoal !== 1 ? 's' : ''}
+                </span>{' '}
+                by following <span className="text-white font-bold">{revealProgram.name}</span>
+                {' '}({revealTimeline.direction === 'lose' ? 'losing' : 'gaining'} ~{Math.abs(Math.round(revealTimeline.weightChangeKg))}kg at a safe, sustainable pace).
+              </p>
+            </div>
+          )}
 
           {revealNutrition && (
             <Card className="p-5 mb-6 text-left">
@@ -515,6 +571,7 @@ function OnboardingPageInner() {
                 age={age} onAge={setAge}
                 heightCm={heightCm} onHeight={setHeightCm}
                 weightKg={weightKg} onWeight={setWeightKg}
+                targetWeightKg={targetWeightKg} onTargetWeight={setTargetWeightKg}
               />
             )}
             {step === 5 && (
@@ -962,12 +1019,13 @@ const SEX_OPTIONS: { value: BiologicalSex; label: string; icon: React.ElementTyp
 ];
 
 function StepBiometrics({
-  sex, onSex, age, onAge, heightCm, onHeight, weightKg, onWeight,
+  sex, onSex, age, onAge, heightCm, onHeight, weightKg, onWeight, targetWeightKg, onTargetWeight,
 }: {
   sex: BiologicalSex | null; onSex: (v: BiologicalSex) => void;
   age: string; onAge: (v: string) => void;
   heightCm: string; onHeight: (v: string) => void;
   weightKg: string; onWeight: (v: string) => void;
+  targetWeightKg: string; onTargetWeight: (v: string) => void;
 }) {
   return (
     <div>
@@ -988,7 +1046,7 @@ function StepBiometrics({
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3 mb-5">
         <div>
           <label className="text-xs font-medium text-text-secondary mb-1.5 block">Age</label>
           <input
@@ -1022,6 +1080,24 @@ function StepBiometrics({
             className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
           />
         </div>
+      </div>
+
+      {/* Goal weight — mandatory alongside current weight. Without it there's
+          no timeline to estimate ("reach your goal in X months") and no way
+          to match program duration to how long that goal actually takes. */}
+      <div>
+        <label className="text-xs font-medium text-text-secondary mb-1.5 block">Goal weight (kg)</label>
+        <input
+          type="number"
+          inputMode="decimal"
+          value={targetWeightKg}
+          onChange={(e) => onTargetWeight(e.target.value)}
+          placeholder="e.g. 75"
+          className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+        />
+        <p className="text-[11px] text-text-tertiary mt-1.5">
+          We&apos;ll use this to estimate your timeline and pick a program matched to it — not just your current weight.
+        </p>
       </div>
     </div>
   );

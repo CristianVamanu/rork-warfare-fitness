@@ -149,6 +149,33 @@ export function calculateBmi(heightCm: number, weightKg: number): BmiResult {
   return { bmi, category, healthyWeightRangeKg };
 }
 
+export interface WeightGoalTimeline {
+  weeksToGoal: number;   // 0 if already at (or within 0.5kg of) goal
+  monthsToGoal: number;  // rounded to 1 decimal, derived from weeksToGoal
+  weightChangeKg: number; // negative = needs to lose, positive = needs to gain
+  direction: 'lose' | 'gain' | 'maintain';
+}
+
+/**
+ * Generalized version of estimateBmiTimeline's rate assumptions
+ * (0.5kg/week loss, 0.25kg/week lean gain) applied to a user-chosen target
+ * weight instead of the BMI-healthy-range boundary — this is what actually
+ * powers the onboarding "reach your goal in X months" estimate, since most
+ * users have a specific number in mind, not just "somewhere in a healthy
+ * BMI band."
+ */
+export function estimateWeightGoalTimeline(currentWeightKg: number, targetWeightKg: number): WeightGoalTimeline {
+  const diff = targetWeightKg - currentWeightKg;
+  if (Math.abs(diff) < 0.5) return { weeksToGoal: 0, monthsToGoal: 0, weightChangeKg: 0, direction: 'maintain' };
+
+  const direction: WeightGoalTimeline['direction'] = diff < 0 ? 'lose' : 'gain';
+  const weeklyRateKg = direction === 'lose' ? 0.5 : 0.25;
+  const weeksToGoal = Math.ceil(Math.abs(diff) / weeklyRateKg);
+  const monthsToGoal = Math.round((weeksToGoal / 4.345) * 10) / 10;
+
+  return { weeksToGoal, monthsToGoal, weightChangeKg: diff, direction };
+}
+
 export interface BmiProjection {
   weeksToHealthy: number | null; // null = already healthy
   weightChangeKg: number; // positive = needs to gain, negative = needs to lose

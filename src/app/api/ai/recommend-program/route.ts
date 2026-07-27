@@ -21,13 +21,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { goal, experience, trainingDays, sex, hasLimitations, equipment } = body as {
+    const { goal, experience, trainingDays, sex, hasLimitations, equipment, estimatedWeeksToGoal } = body as {
       goal: string;
       experience: string;
       trainingDays: number;
       sex?: string;
       hasLimitations?: boolean;
       equipment?: string;
+      estimatedWeeksToGoal?: number;
     };
 
     if (!goal || !experience || !trainingDays) {
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
     const adminPrograms = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Program);
 
     const pool = adminPrograms.length > 0 ? adminPrograms : MOCK_PROGRAMS;
-    const program = pickBestProgram(pool, goal, experience, trainingDays, sex, hasLimitations, equipment);
+    const program = pickBestProgram(pool, goal, experience, trainingDays, sex, hasLimitations, equipment, estimatedWeeksToGoal);
 
     if (!program) {
       return NextResponse.json({ error: 'No programs available' }, { status: 500 });

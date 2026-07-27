@@ -1037,7 +1037,15 @@ export function pickBestProgram(
   trainingDays: number,
   sex?: string,
   hasLimitations?: boolean,
-  equipment?: string
+  equipment?: string,
+  // Weeks needed to reach the user's chosen goal weight at a safe rate
+  // (see estimateWeightGoalTimeline in lib/tdee.ts) — a program whose
+  // total duration is wildly shorter or longer than that timeline is a
+  // worse fit even if goal/level/days all match, e.g. a 4-week program for
+  // someone whose weight goal realistically needs 6 months. Capped at 10
+  // points (same ceiling as the goal-category match) so it's a real factor
+  // without swamping every other signal.
+  estimatedWeeksToGoal?: number
 ): Program | null {
   if (pool.length === 0) return null;
   const targetGoal = GOAL_TO_PROGRAM_GOAL[goal] ?? goal;
@@ -1064,6 +1072,9 @@ export function pickBestProgram(
       // has access to — never penalize a simple bodyweight program for
       // someone with a full gym, that's still a perfectly valid match.
       if (programNeedRank > userEquipmentRank) score -= 5 * (programNeedRank - userEquipmentRank);
+    }
+    if (estimatedWeeksToGoal && estimatedWeeksToGoal > 0) {
+      score -= Math.min(10, Math.abs(p.weeks - estimatedWeeksToGoal) * 0.3);
     }
 
     return { p, score };

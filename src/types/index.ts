@@ -90,6 +90,21 @@ export interface OnboardingData {
   targetFocus?: 'full-body' | 'upper-body' | 'lower-body' | 'core';
   sessionMinutes?: 30 | 45 | 60 | 90;
   trainingStyle?: 'free-weights' | 'machines' | 'bodyweight' | 'mixed';
+  targetWeightKg?: number;
+}
+
+// Self-serve weight goal, set once at onboarding (mandatory alongside
+// current weight) and read by the dashboard/goals page to show ongoing
+// progress toward it. Separate from ClientGoal (goals/{goalId} collection)
+// deliberately — that collection is coach/admin-authored only per
+// firestore.rules (`allow create: if isStaff()`), and this one needs to be
+// self-serve at signup, before any coach relationship necessarily exists.
+export interface WeightGoal {
+  startWeightKg: number;
+  targetWeightKg: number;
+  startedAt: string;          // ISO date, set once at onboarding
+  estimatedTargetDate: string; // ISO date — startedAt + the timeline estimate shown at onboarding
+  direction: 'lose' | 'gain' | 'maintain';
 }
 
 // From the trainer's fitness medical questionnaire — collected during
@@ -187,6 +202,7 @@ export interface UserProfile {
   xp?: number;
   powerLevel?: number;
   currentWeightKg?: number;
+  weightGoal?: WeightGoal;
   purchasedProgramIds?: string[];
   banned?: boolean;
   membership?: {

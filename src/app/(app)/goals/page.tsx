@@ -89,8 +89,48 @@ function GoalCard({ goal, onUpdate }: { goal: ClientGoal; onUpdate: (value: numb
   );
 }
 
+// Self-serve weight goal set at onboarding (UserProfile.weightGoal) — kept
+// separate from ClientGoal below since those are coach/admin-authored only
+// (firestore.rules: allow create: if isStaff()). Progress reads straight
+// from profile.currentWeightKg, which the progress/profile weigh-in flows
+// already keep updated — no separate check-in mechanism needed here.
+function WeightGoalCard({ startWeightKg, targetWeightKg, currentWeightKg, estimatedTargetDate, direction }: {
+  startWeightKg: number; targetWeightKg: number; currentWeightKg: number; estimatedTargetDate: string; direction: 'lose' | 'gain' | 'maintain';
+}) {
+  const totalChange = Math.abs(targetWeightKg - startWeightKg);
+  const progressSoFar = direction === 'lose' ? startWeightKg - currentWeightKg : currentWeightKg - startWeightKg;
+  const pct = totalChange > 0 ? Math.min(100, Math.max(0, Math.round((progressSoFar / totalChange) * 100))) : 100;
+  const reached = direction === 'lose' ? currentWeightKg <= targetWeightKg : direction === 'gain' ? currentWeightKg >= targetWeightKg : true;
+
+  return (
+    <Card className={`p-4 ${reached ? 'border-success/30 bg-success/5' : ''}`}>
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
+          {reached ? <CheckCircle className="w-5 h-5 text-success" /> : <Scale className="w-5 h-5 text-accent" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-white">Weight Goal</p>
+          <p className="text-xs text-text-secondary mt-0.5">
+            {reached ? 'Goal reached!' : `${direction === 'lose' ? 'Lose' : 'Gain'} to ${targetWeightKg}kg`}
+          </p>
+          <p className="text-[10px] text-text-tertiary mt-1 flex items-center gap-1">
+            <Calendar className="w-3 h-3" /> Estimated {new Date(estimatedTargetDate).toLocaleDateString()}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3">
+        <div className="flex items-center justify-between text-xs mb-1.5">
+          <span className="text-text-secondary">{currentWeightKg}kg of {targetWeightKg}kg (started at {startWeightKg}kg)</span>
+          {!reached && <span className="text-accent font-bold">{pct}%</span>}
+        </div>
+        <ProgressBar value={pct} max={100} size="sm" />
+      </div>
+    </Card>
+  );
+}
+
 export default function GoalsPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [goals, setGoals] = useState<ClientGoal[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -106,19 +146,33 @@ export default function GoalsPage() {
 
   const active = goals.filter((g) => g.status === 'active');
   const past = goals.filter((g) => g.status !== 'active');
+  const weightGoal = profile?.weightGoal;
 
   return (
     <div>
       <Header title="My Goals" showBack />
       <div className="px-4 py-4 max-w-lg mx-auto space-y-3">
+        {weightGoal && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <WeightGoalCard
+              startWeightKg={weightGoal.startWeightKg}
+              targetWeightKg={weightGoal.targetWeightKg}
+              currentWeightKg={profile?.currentWeightKg ?? weightGoal.startWeightKg}
+              estimatedTargetDate={weightGoal.estimatedTargetDate}
+              direction={weightGoal.direction}
+            />
+          </motion.div>
+        )}
         {loading ? (
           <div className="space-y-3">{[1, 2].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div>
         ) : goals.length === 0 ? (
-          <Card className="p-10 text-center">
-            <Target className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
-            <p className="text-white font-bold">No goals yet</p>
-            <p className="text-text-secondary text-sm mt-1">Your coach hasn&apos;t set any goals for you yet.</p>
-          </Card>
+          !weightGoal && (
+            <Card className="p-10 text-center">
+              <Target className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
+              <p className="text-white font-bold">No goals yet</p>
+              <p className="text-text-secondary text-sm mt-1">Your coach hasn&apos;t set any goals for you yet.</p>
+            </Card>
+          )
         ) : (
           <>
             {active.map((goal, i) => (
