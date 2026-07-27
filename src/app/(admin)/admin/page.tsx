@@ -222,6 +222,7 @@ function AdminPageInner() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
+  const [uploadingDemoVideo, setUploadingDemoVideo] = useState(false);
   const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '' });
   const [savingLegal, setSavingLegal] = useState(false);
   const [runningBackup, setRunningBackup] = useState(false);
@@ -1347,6 +1348,23 @@ function AdminPageInner() {
       toast.error(`Failed to upload hero image: ${msg}`, { duration: 6000 });
     } finally {
       setUploadingHeroImage(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleDemoVideoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingDemoVideo(true);
+    try {
+      const url = await uploadVideo(storageProvider, user, file, 'branding');
+      setLandingForm(f => ({ ...f, heroDemoVideoUrl: url }));
+      toast.success('Demo video uploaded — click Save Landing Page below to publish it');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to upload demo video: ${msg}`, { duration: 6000 });
+    } finally {
+      setUploadingDemoVideo(false);
       e.target.value = '';
     }
   }
@@ -3294,6 +3312,30 @@ function AdminPageInner() {
                       className="text-[11px] text-danger hover:underline text-left"
                     >
                       Remove image
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Demo Video (optional)</label>
+              <p className="text-[11px] text-text-tertiary mb-2">A short walkthrough of the app. Adds a "Watch Demo" link near the hero CTA that opens it in a lightbox — visitors who want proof before signing up can see the product working without leaving the page.</p>
+              <div className="flex items-center gap-3">
+                {landingForm.heroDemoVideoUrl && (
+                  <video src={landingForm.heroDemoVideoUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted />
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-white/10 text-xs font-bold text-white cursor-pointer hover:border-accent/40 transition-colors">
+                    <input type="file" accept="video/*" className="hidden" onChange={handleDemoVideoUpload} disabled={uploadingDemoVideo} />
+                    <Upload className="w-4 h-4" /> {uploadingDemoVideo ? 'Uploading…' : landingForm.heroDemoVideoUrl ? 'Change Video' : 'Upload Video'}
+                  </label>
+                  {landingForm.heroDemoVideoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setLandingForm(f => ({ ...f, heroDemoVideoUrl: '' }))}
+                      className="text-[11px] text-danger hover:underline text-left"
+                    >
+                      Remove video
                     </button>
                   )}
                 </div>

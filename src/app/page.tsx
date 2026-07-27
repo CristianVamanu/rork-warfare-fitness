@@ -9,7 +9,7 @@ import { motion } from 'framer-motion';
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy,
   ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
-  Menu, X as XIcon, Clock, BarChart3, Anchor, Compass, Shield, Swords, Footprints, Waves, LifeBuoy, Mountain,
+  Menu, X as XIcon, Clock, BarChart3, Anchor, Compass, Shield, Swords, Footprints, Waves, LifeBuoy, Mountain, PlayCircle,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSystemConfig, getMembershipConfig, getCoachingPlans, getMembershipPlans } from '@/lib/firestore';
@@ -131,6 +131,7 @@ export default function LandingPage() {
   const [programs, setPrograms] = useState<PublicProgram[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<PublicProgram | null>(null);
+  const [demoOpen, setDemoOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard');
@@ -329,12 +330,23 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          <div className="flex items-center justify-center gap-4 mt-5">
+          <div className="flex items-center justify-center gap-4 mt-5 flex-wrap">
             <p className="text-xs text-text-tertiary">No credit card required</p>
             <span className="text-text-tertiary">·</span>
             <Link href="/login" className="text-xs text-accent font-medium hover:underline">
               {landing.ctaSecondaryLabel}
             </Link>
+            {landing.heroDemoVideoUrl && (
+              <>
+                <span className="text-text-tertiary">·</span>
+                <button
+                  onClick={() => setDemoOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-xs text-accent font-medium hover:underline"
+                >
+                  <PlayCircle className="w-3.5 h-3.5" /> Watch Demo
+                </button>
+              </>
+            )}
           </div>
 
           {/* Real usage numbers only — hidden below a threshold so a brand
@@ -490,6 +502,24 @@ export default function LandingPage() {
           </motion.div>
         </section>
       )}
+
+      {/* Demo video modal — admin-uploaded product walkthrough, only shown
+          once landing.heroDemoVideoUrl is set (Admin → Landing Page). Not
+          autoplaying/looping like the small hero logo clip — this is a real
+          demo the visitor chose to watch, so normal video controls apply. */}
+      <Modal open={demoOpen} onClose={() => setDemoOpen(false)} title="See it in action">
+        {landing.heroDemoVideoUrl && (
+          <video
+            key={landing.heroDemoVideoUrl}
+            className="w-full rounded-xl bg-black"
+            src={landing.heroDemoVideoUrl}
+            poster={landing.heroDemoPosterUrl || undefined}
+            controls
+            autoPlay
+            playsInline
+          />
+        )}
+      </Modal>
 
       {/* Program detail modal — opened from a card click, shows the full
           description instead of the 2-line clamp, without leaving the page. */}

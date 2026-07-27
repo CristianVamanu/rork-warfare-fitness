@@ -263,6 +263,8 @@ export interface LandingPageConfig {
   // whatever a real admin actually typed in.
   testimonials?: { name: string; quote: string }[];
   heroImageUrl?: string; // optional background image behind the hero section
+  heroDemoVideoUrl?: string; // optional product-demo video shown in the hero as a "Watch Demo" player
+  heroDemoPosterUrl?: string; // poster frame for the demo video, shown before play + while it loads
 }
 
 export interface Channel {
