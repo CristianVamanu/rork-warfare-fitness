@@ -429,13 +429,18 @@ export default function DashboardPage() {
               )}
             </Card>
           </motion.div>
+        </motion.div>
 
-  {/* Today's Workout — hero. row-span-4 (was 3) — with a full 4-exercise
-      preview list plus the personal-best banner both showing, the card's
-      content routinely exceeded the row-span-3 fixed height and the
-      overflow-hidden card clipped the action row (Start Workout/Switch)
-      off the bottom entirely, making it look like the button had vanished. */}
-          <motion.div variants={stagger.item} className="col-span-4 row-span-4">
+        {/* Today's Workout — hero. Pulled out of the bento grid entirely:
+            that grid's rows are a fixed 86px each (auto-rows-[86px]), so any
+            fixed row-span here was always wrong for one direction or the
+            other — too short clipped the action row off the bottom, too
+            tall left a dead gap of empty card below it whenever a shorter
+            day (fewer exercises, no personal-best banner) didn't fill the
+            reserved space. As its own full-width block outside the grid,
+            its height is just whatever its content needs — never clipped,
+            never padded with empty space either. */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} className="mb-3">
             {activeProgram ? (
               <Card className="p-5 h-full relative overflow-hidden flex flex-col">
                 <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
@@ -580,7 +585,9 @@ export default function DashboardPage() {
                 </Card>
               </Link>
             )}
-          </motion.div>
+        </motion.div>
+
+        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
 
           {/* Rank */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-1">
