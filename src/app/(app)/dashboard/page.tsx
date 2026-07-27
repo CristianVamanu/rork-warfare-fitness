@@ -430,8 +430,12 @@ export default function DashboardPage() {
             </Card>
           </motion.div>
 
-  {/* Today's Workout — hero */}
-          <motion.div variants={stagger.item} className="col-span-4 row-span-3">
+  {/* Today's Workout — hero. row-span-4 (was 3) — with a full 4-exercise
+      preview list plus the personal-best banner both showing, the card's
+      content routinely exceeded the row-span-3 fixed height and the
+      overflow-hidden card clipped the action row (Start Workout/Switch)
+      off the bottom entirely, making it look like the button had vanished. */}
+          <motion.div variants={stagger.item} className="col-span-4 row-span-4">
             {activeProgram ? (
               <Card className="p-5 h-full relative overflow-hidden flex flex-col justify-between">
                 <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
