@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getPrograms, resolveProgram, getHiddenMockIds } from '@/lib/firestore';
+import { getPrograms, resolveProgram, getHiddenMockIds, getUserCustomPrograms } from '@/lib/firestore';
 import { MOCK_PROGRAMS, stripWeekdayPrefix, getProgramDayForDow, getNextSession } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
@@ -32,9 +32,10 @@ const levelColors: Record<string, string> = {
 };
 
 export default function TrainingPage() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const router = useRouter();
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [customPrograms, setCustomPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
 
@@ -92,6 +93,18 @@ export default function TrainingPage() {
       .catch(() => setPrograms(MOCK_PROGRAMS))
       .finally(() => setLoading(false));
   }, []);
+
+  // Personal "Build Your Own" programs never show up in the public browse
+  // list above (by design — they're not other users' business), but that
+  // used to mean switching away from one made it look gone forever. It was
+  // never deleted, just unreachable. Listed here so the user always has a
+  // way back to anything they've built.
+  useEffect(() => {
+    if (!user) { setCustomPrograms([]); return; }
+    getUserCustomPrograms(user.uid)
+      .then((progs) => setCustomPrograms(progs as unknown as Program[]))
+      .catch(() => setCustomPrograms([]));
+  }, [user]);
 
   const filtered = filter === 'all' ? programs : programs.filter((p) => p.goal === filter || p.level === filter);
 
@@ -171,6 +184,57 @@ export default function TrainingPage() {
             </Card>
           )}
         </motion.div>
+
+        {/* My Built Programs — personal programs, kept visible even after
+            switching to a different one, so nothing built here is ever
+            actually lost, just not currently active. */}
+        {customPrograms.length > 0 && (
+          <div>
+            <h2 className="text-base font-bold text-white mb-3">My Built Programs</h2>
+            <div className="space-y-3">
+              {customPrograms.map((prog, i) => {
+                const isActive = activeProgram?.programId === prog.id;
+                return (
+                  <motion.div
+                    key={prog.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                  >
+                    <Link href={`/training/${prog.id}`}>
+                      <Card className={`p-4 hover:border-accent/30 transition-colors ${isActive ? 'border-accent/40' : ''}`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex gap-2 mb-2 flex-wrap">
+                              <Badge variant={(goalColors[prog.goal] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
+                                {prog.goal}
+                              </Badge>
+                              <Badge variant={(levelColors[prog.level] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
+                                {prog.level}
+                              </Badge>
+                              {isActive && <Badge variant="success">Active</Badge>}
+                            </div>
+                            <h3 className="font-bold text-white">{prog.name}</h3>
+                            <p className="text-xs text-text-secondary mt-1 line-clamp-2">{prog.description}</p>
+                            <div className="flex items-center gap-4 mt-2">
+                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
+                                <Clock className="w-3 h-3" />{prog.weeks}w
+                              </span>
+                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
+                                <Target className="w-3 h-3" />{prog.daysPerWeek}d/week
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-text-tertiary mt-1 flex-shrink-0" />
+                        </div>
+                      </Card>
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">

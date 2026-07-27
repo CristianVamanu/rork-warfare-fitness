@@ -564,6 +564,23 @@ export async function getPrograms(trainerId?: string) {
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 
+// Personal ("Build Your Own") programs are saved with visibility:'personal'
+// and deliberately excluded from getPrograms() so they never show up in
+// other users' browse lists — but that also meant a user who switched their
+// active program away from a personal one had no way back to it: it wasn't
+// deleted (enrollInProgram only ever reassigns the activeProgram pointer),
+// just invisible. This surfaces the ones a given user owns so the training
+// screen can list them separately and let the user re-select one.
+export async function getUserCustomPrograms(uid: string) {
+  const snap = await getDocs(collection(db, 'programs'));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((p: any) => p.ownerId === uid)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .sort((a: any, b: any) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+}
+
 export async function getProgram(id: string) {
   const snap = await getDoc(doc(db, 'programs', id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;

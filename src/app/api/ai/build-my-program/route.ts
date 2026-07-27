@@ -107,6 +107,20 @@ export async function POST(req: NextRequest) {
       generated.schedule = days.slice(0, 7);
     }
 
+    // The Exercise type requires a stable `id` (used as the React key, the
+    // session-tracking key, and the lookup key when patching in a fresh
+    // videoUrl on resume) but the AI schema above never asked the model for
+    // one, so every generated exercise previously carried `id: undefined` —
+    // collapsing distinct exercises onto the same key and silently losing
+    // per-exercise state (including the demo video patched in below) to
+    // whichever one happened to win the collision.
+    for (let d = 0; d < generated.schedule.length; d++) {
+      const day = generated.schedule[d];
+      for (let e = 0; e < (day.exercises ?? []).length; e++) {
+        day.exercises[e].id = `custom-${d}-${e}`;
+      }
+    }
+
     const app = getAdminApp();
     if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
     const db = getAdminDb(app);
