@@ -95,8 +95,14 @@ const DEFAULT_EXERCISES: Exercise[] = [
 // still catching "Rowing Machine" or "Brisk Walk". This is now only a
 // fallback for exercises the admin hasn't explicitly tagged — isCardio set
 // in the program builder always wins (checked first below).
+//
+// 'walk'/'walking' were dropped from this list entirely: as a WHOLE word
+// (not substring) it still matched "Walking Lunge" — a strength movement,
+// not cardio — showing a timer instead of sets/reps. No seed program uses
+// "walk" for an actual cardio activity without also using "jog" (e.g.
+// "Brisk Walk / Jog"), so those still classify correctly without it.
 const CARDIO_KEYWORDS = [
-  'run', 'running', 'jog', 'jogging', 'sprint', 'walk', 'walking',
+  'run', 'running', 'jog', 'jogging', 'sprint',
   'cardio', 'bike', 'biking', 'cycling', 'cycle', 'rowing',
   'swim', 'swimming', 'elliptical', 'treadmill', 'stairmaster', 'hiit',
   'jump rope', 'skipping', 'rucking', 'ruck', 'hike', 'hiking',
