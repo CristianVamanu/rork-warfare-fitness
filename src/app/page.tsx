@@ -51,6 +51,10 @@ const FAQ_ITEMS = [
     q: 'Can I cancel anytime?',
     a: 'Yes, no lock-in contracts — manage or cancel your membership at any time from your account settings.',
   },
+  {
+    q: "What if it's not for me?",
+    a: "Start with the free trial — no card required, so there's nothing to refund if it's not a fit. Once you're a paying member, cancel anytime from your account and you won't be billed again; you keep access through the end of the period you already paid for.",
+  },
 ];
 
 interface PublicProgram {
@@ -624,6 +628,13 @@ export default function LandingPage() {
                 transition={{ duration: 0.35, delay: i * 0.05 }}
                 className={`relative rounded-2xl p-5 h-full flex flex-col bg-surface ${i === 0 ? 'border-2 border-accent' : 'border border-white/10'}`}
               >
+                {/* Text label, not just the border color — a color-only cue
+                    is easy to miss when someone's quickly scanning prices. */}
+                {i === 0 && (
+                  <div className="absolute -top-3 left-4 px-2.5 py-0.5 bg-accent rounded-full">
+                    <span className="text-[10px] font-bold text-black uppercase tracking-wide">Most Popular</span>
+                  </div>
+                )}
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
                     <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
