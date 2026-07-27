@@ -265,6 +265,7 @@ export interface LandingPageConfig {
   heroImageUrl?: string; // optional background image behind the hero section
   heroDemoVideoUrl?: string; // optional product-demo video shown in the hero as a "Watch Demo" player
   heroDemoPosterUrl?: string; // poster frame for the demo video, shown before play + while it loads
+  screenshotUrls?: string[]; // real in-app screenshots shown in a "See It In Action" gallery on the landing page
 }
 
 export interface Channel {

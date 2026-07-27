@@ -223,6 +223,7 @@ function AdminPageInner() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [uploadingDemoVideo, setUploadingDemoVideo] = useState(false);
+  const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
   const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '' });
   const [savingLegal, setSavingLegal] = useState(false);
   const [runningBackup, setRunningBackup] = useState(false);
@@ -1365,6 +1366,29 @@ function AdminPageInner() {
       toast.error(`Failed to upload demo video: ${msg}`, { duration: 6000 });
     } finally {
       setUploadingDemoVideo(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleScreenshotsUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length || !user) return;
+    setUploadingScreenshots(true);
+    try {
+      // Sequential, not Promise.all — real device screenshots run several
+      // MB each, so uploading a handful at once competes for the same
+      // upload bandwidth and tends to time out on slower connections.
+      const urls: string[] = [];
+      for (const file of files) {
+        urls.push(await uploadVideo(storageProvider, user, file, 'branding'));
+      }
+      setLandingForm(f => ({ ...f, screenshotUrls: [...(f.screenshotUrls ?? []), ...urls] }));
+      toast.success(`${urls.length} screenshot${urls.length > 1 ? 's' : ''} uploaded — click Save Landing Page below to publish`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to upload screenshots: ${msg}`, { duration: 6000 });
+    } finally {
+      setUploadingScreenshots(false);
       e.target.value = '';
     }
   }
@@ -3340,6 +3364,31 @@ function AdminPageInner() {
                   )}
                 </div>
               </div>
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">App Screenshots (optional)</label>
+              <p className="text-[11px] text-text-tertiary mb-2">Real in-app screenshots shown in a &quot;See It In Action&quot; gallery on the landing page. Upload several at once — order here is the order they appear.</p>
+              {landingForm.screenshotUrls && landingForm.screenshotUrls.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {landingForm.screenshotUrls.map((url, i) => (
+                    <div key={url + i} className="relative flex-shrink-0">
+                      <img src={url} alt={`Screenshot ${i + 1}`} className="w-16 h-32 rounded-xl object-cover border border-white/10" />
+                      <button
+                        type="button"
+                        onClick={() => setLandingForm(f => ({ ...f, screenshotUrls: (f.screenshotUrls ?? []).filter((_, idx) => idx !== i) }))}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-danger rounded-full flex items-center justify-center"
+                        aria-label={`Remove screenshot ${i + 1}`}
+                      >
+                        <XIcon className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-white/10 text-xs font-bold text-white cursor-pointer hover:border-accent/40 transition-colors">
+                <input type="file" accept="image/*" multiple className="hidden" onChange={handleScreenshotsUpload} disabled={uploadingScreenshots} />
+                <Upload className="w-4 h-4" /> {uploadingScreenshots ? 'Uploading…' : 'Add Screenshots'}
+              </label>
             </div>
             <div>
               <label className="text-xs text-text-secondary mb-1 block">Badge Text (above headline)</label>
