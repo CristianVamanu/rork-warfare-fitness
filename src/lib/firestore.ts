@@ -678,7 +678,19 @@ export async function enrollInProgram(
   userId: string,
   program: { id: string; name: string; weeks: number; daysPerWeek: number }
 ) {
-  const totalWorkouts = program.weeks * program.daysPerWeek;
+  // Count REAL training days from the resolved schedule (phase-aware, rest
+  // slots excluded) rather than trusting weeks × daysPerWeek — the two
+  // drift apart on phased programs, and completedWorkouts (see
+  // incrementProgramWorkouts) counts actual training sessions, so the
+  // denominator must use the same unit or progress % lies.
+  let totalWorkouts = program.weeks * program.daysPerWeek;
+  try {
+    const resolved = await resolveProgram(program.id);
+    if (resolved) {
+      const { getTotalTrainingDays } = await import('./programs');
+      totalWorkouts = getTotalTrainingDays(resolved);
+    }
+  } catch { /* offline etc. — the approximation above is an acceptable fallback */ }
   // updateDoc (not setDoc+merge) — dotted field paths only reliably resolve
   // to nested fields with updateDoc; setDoc's merge doesn't parse dotted
   // string keys as paths, so a previous version of this using setDoc wrote
@@ -716,13 +728,31 @@ export async function unenrollProgram(userId: string) {
 export async function incrementProgramWorkouts(userId: string, dayIndex?: number) {
   const snap = await getDoc(doc(db, 'users', userId));
   if (!snap.exists() || !snap.data()?.activeProgram) return;
-  const lastCompleted: number = snap.data()?.activeProgram?.lastCompletedDayIndex ?? -1;
+  const activeProgram = snap.data()?.activeProgram;
+  const lastCompleted: number = activeProgram?.lastCompletedDayIndex ?? -1;
   // Only advance when doing a genuinely new (later) day, not a repeat
   const isNewDay = dayIndex === undefined || dayIndex > lastCompleted;
   if (!isNewDay) return;
   const newLastCompleted = dayIndex !== undefined ? dayIndex : lastCompleted + 1;
+
+  // completedWorkouts counts TRAINING sessions, not schedule slots — the
+  // pointer index includes rest slots (and skipped-ahead rest days, see
+  // getNextSession), so `index + 1` overstated progress the moment a
+  // program's first rest day passed: a 4-day/week program showed 7 sessions
+  // "done" after one calendar week. Recomputing from the schedule here also
+  // self-heals any user whose stored count was inflated by the old formula
+  // the next time they finish a workout.
+  let completedTraining = newLastCompleted + 1;
+  try {
+    const resolved = await resolveProgram(activeProgram.programId);
+    if (resolved) {
+      const { countTrainingSlotsThrough } = await import('./programs');
+      completedTraining = countTrainingSlotsThrough(resolved, newLastCompleted);
+    }
+  } catch { /* fall back to slot count rather than blocking the workout save */ }
+
   await updateDoc(doc(db, 'users', userId), {
-    'activeProgram.completedWorkouts': newLastCompleted + 1,
+    'activeProgram.completedWorkouts': completedTraining,
     'activeProgram.lastCompletedDayIndex': newLastCompleted,
     lastActive: serverTimestamp(),
   });

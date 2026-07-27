@@ -122,9 +122,34 @@ export async function POST(req: NextRequest) {
       }
     };
 
+    // The cron fires HOURLY (see vercel.json) and each run only processes
+    // users whose local clock currently reads the target hour — so everyone
+    // gets their daily notifications at ~8am THEIR time instead of 8am UTC
+    // (which was the middle of the night for US users). Users without a
+    // stored timezone resolve as UTC, i.e. exactly the old behavior.
+    // Half-hour timezones (e.g. India, UTC+5:30) still match: the :00 cron
+    // nearest their 8am reads hour 8 on their clock.
+    const TARGET_LOCAL_HOUR = 8;
+    // Admin "Run Now" (admin/run-notifications) passes ?force=1 — a manual
+    // trigger means "process everyone right now", not "only users whose
+    // clock happens to read 8am at this moment".
+    const force = req.nextUrl.searchParams.get('force') === '1';
+    const localHourFor = (timezone: string | undefined): number => {
+      try {
+        return parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: timezone || 'UTC', hour: 'numeric', hour12: false }).format(new Date()), 10);
+      } catch {
+        return new Date().getUTCHours();
+      }
+    };
+
     for (const user of users) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const u = user as any;
+      // Not this user's notification hour yet (or already past) — every
+      // rule below sends at most once per matching run, so gating the whole
+      // block per-hour is also what stops the hourly cron from sending the
+      // same reminders 24× a day.
+      if (!force && localHourFor(u.timezone) !== TARGET_LOCAL_HOUR) continue;
       const today = localDateStrFor(u.timezone, 0);
       const yesterday = localDateStrFor(u.timezone, 86_400_000);
 

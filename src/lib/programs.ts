@@ -1139,3 +1139,98 @@ export function getProgramDayForDow(program: Program, dow: number): ProgramDay |
   }
   return schedule[dow % schedule.length] ?? null;
 }
+
+/**
+ * Total number of TRAINING days (rest slots excluded) across a program's
+ * full length — phase-aware, so a program whose later phases train more or
+ * fewer days per week is counted correctly instead of approximated by
+ * `weeks × daysPerWeek`. Falls back to that approximation only when the
+ * program has no schedule at all.
+ */
+export function getTotalTrainingDays(program: Program): number {
+  const weeks = Math.max(1, program.weeks || 1);
+  if (!program.schedule?.length && !program.phases?.length) {
+    return weeks * (program.daysPerWeek || 1);
+  }
+  let total = 0;
+  for (let w = 1; w <= weeks; w++) {
+    const schedule = getScheduleForWeek(program, w);
+    total += schedule?.filter((d) => !d.isRest).length ?? 0;
+  }
+  return Math.max(1, total);
+}
+
+/**
+ * How many TRAINING slots fall in [0..lastSlotIndex] inclusive — converts a
+ * slot-based progress pointer (which counts rest days too) into an honest
+ * "sessions completed" count. Phase-aware for the same reason as above.
+ */
+export function countTrainingSlotsThrough(program: Program, lastSlotIndex: number): number {
+  if (lastSlotIndex < 0) return 0;
+  if (!program.schedule?.length && !program.phases?.length) {
+    // Flat-exercise programs treat every slot as a training day
+    return lastSlotIndex + 1;
+  }
+  let count = 0;
+  for (let i = 0; i <= lastSlotIndex; i++) {
+    const day = getProgramDayForDow(program, i);
+    if (day && !day.isRest) count++;
+  }
+  return count;
+}
+
+export interface NextSession {
+  /** Absolute slot index to pass to the workout session as `dow`. */
+  index: number;
+  day: ProgramDay;
+  /** True when today should be displayed (and respected) as a rest day. */
+  isRestToday: boolean;
+}
+
+/**
+ * THE single source of truth for "what should this user do next" — used by
+ * the dashboard card, the training list, and the program detail page so
+ * they can never disagree.
+ *
+ * Fixes the rest-day deadlock: the progress pointer only ever advances when
+ * a workout is COMPLETED, but rest slots can't be completed — so before
+ * this, a pointer that landed on a rest slot stayed there forever and every
+ * screen showed "Rest day" for the rest of time. The rule now:
+ *
+ *   - If the user trained YESTERDAY and the next slot is a rest day, today
+ *     genuinely is their rest day — show it as such, no workout offered.
+ *   - Otherwise (they last trained 2+ days ago, or never), rest slots are
+ *     considered already-served by the time away: skip forward to the next
+ *     training slot so there is always a workout to start.
+ *
+ * Completing that skipped-ahead slot moves `lastCompletedDayIndex` past the
+ * rest slots naturally, so the pointer can never wedge on one. A full week
+ * of rest slots (pathological admin data) is bounded and falls back to
+ * showing the rest day rather than looping.
+ */
+export function getNextSession(
+  program: Program,
+  lastCompletedDayIndex: number,
+  lastWorkoutDate?: string,
+): NextSession | null {
+  const start = lastCompletedDayIndex + 1;
+  const first = getProgramDayForDow(program, start);
+  if (!first) return null;
+
+  if (!first.isRest) return { index: start, day: first, isRestToday: false };
+
+  const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString('sv-SE');
+  const today = new Date().toLocaleDateString('sv-SE');
+  // Trained yesterday (or somehow already today) → this rest day is current,
+  // honor it. Anything older and the rest has already happened in real time.
+  if (lastWorkoutDate === yesterday || lastWorkoutDate === today) {
+    return { index: start, day: first, isRestToday: true };
+  }
+
+  for (let offset = 1; offset <= 7; offset++) {
+    const day = getProgramDayForDow(program, start + offset);
+    if (day && !day.isRest) return { index: start + offset, day, isRestToday: false };
+  }
+  // Entire week is rest slots — show the rest day rather than spin
+  return { index: start, day: first, isRestToday: true };
+}

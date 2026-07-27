@@ -7,7 +7,7 @@ import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown, CheckCircle2,
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, resolveProgram, getHiddenMockIds } from '@/lib/firestore';
-import { MOCK_PROGRAMS, stripWeekdayPrefix } from '@/lib/programs';
+import { MOCK_PROGRAMS, stripWeekdayPrefix, getProgramDayForDow, getNextSession } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -49,9 +49,8 @@ export default function TrainingPage() {
     ? activeProgram.lastCompletedDayIndex
     : (completedWorkouts > 0 ? completedWorkouts - 1 : -1);
   const workedOutToday = completedWorkouts > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
-  const nextAbsIdx = activeProgram ? (workedOutToday ? lastCompleted : lastCompleted + 1) : 0;
 
-  const [activeSchedule, setActiveSchedule] = useState<{ label: string; isRest: boolean }[] | null>(null);
+  const [resolvedActive, setResolvedActive] = useState<Program | null>(null);
   const pct = activeProgram
     ? Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100)
     : 0;
@@ -61,14 +60,24 @@ export default function TrainingPage() {
   // exact opposite precedence of the program detail page, which is how two
   // screens ended up disagreeing about the same program's schedule.
   useEffect(() => {
-    if (!activeProgram) { setActiveSchedule(null); return; }
+    if (!activeProgram) { setResolvedActive(null); return; }
     resolveProgram(activeProgram.programId)
-      .then((p) => setActiveSchedule(p?.schedule?.length ? p.schedule : null))
-      .catch(() => setActiveSchedule(null));
+      .then(setResolvedActive)
+      .catch(() => setResolvedActive(null));
   }, [activeProgram]);
 
-  const scheduleLen = activeSchedule?.length || 1;
-  const todayDay = activeSchedule ? activeSchedule[nextAbsIdx % scheduleLen] : null;
+  // getNextSession skips stale rest slots (deadlock fix) — same shared
+  // logic as the dashboard card and program detail page.
+  const nextSession = resolvedActive && activeProgram && !workedOutToday
+    ? getNextSession(resolvedActive, lastCompleted, profile?.statsCache?.lastWorkoutDate)
+    : null;
+  const nextAbsIdx = activeProgram
+    ? (workedOutToday ? lastCompleted : (nextSession?.index ?? lastCompleted + 1))
+    : 0;
+  const todayDay = workedOutToday
+    ? (resolvedActive ? getProgramDayForDow(resolvedActive, lastCompleted) : null)
+    : (nextSession?.day ?? null);
+  const isRestToday = !workedOutToday && (nextSession?.isRestToday ?? false);
 
   useEffect(() => {
     Promise.all([getPrograms(), getHiddenMockIds().catch(() => [] as string[])])
@@ -106,7 +115,7 @@ export default function TrainingPage() {
                 <p className="text-text-secondary text-sm mt-1">
                   {workedOutToday
                     ? `Completed: ${stripWeekdayPrefix(todayDay.label)}`
-                    : `Today: ${todayDay.isRest ? '😴 Rest Day' : stripWeekdayPrefix(todayDay.label)}`}
+                    : `Today: ${isRestToday ? '😴 Rest Day' : stripWeekdayPrefix(todayDay.label)}`}
                 </p>
               )}
               <div className="mt-4 space-y-2">
@@ -125,8 +134,8 @@ export default function TrainingPage() {
                 <div className="mt-4 p-3 bg-success/10 border border-success/30 rounded-xl flex items-center gap-2.5">
                   <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-white">Day {lastCompleted + 1} Complete!</p>
-                    <p className="text-xs text-text-secondary">Come back tomorrow for Day {lastCompleted + 2}</p>
+                    <p className="text-sm font-bold text-white">Day {Math.max(1, completedWorkouts)} Complete!</p>
+                    <p className="text-xs text-text-secondary">Come back tomorrow for Day {completedWorkouts + 1}</p>
                   </div>
                 </div>
               )}
@@ -135,7 +144,7 @@ export default function TrainingPage() {
                   <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
                     <RotateCcw className="w-4 h-4" /> Repeat Today
                   </Button>
-                ) : todayDay && !todayDay.isRest ? (
+                ) : todayDay && !isRestToday ? (
                   <Button size="sm" onClick={() => {
                     router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`);
                   }}>

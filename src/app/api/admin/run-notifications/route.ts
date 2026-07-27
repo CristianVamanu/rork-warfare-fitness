@@ -27,7 +27,9 @@ export async function POST(req: NextRequest) {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (secret) headers['Authorization'] = `Bearer ${secret}`;
 
-    const res = await fetch(`${baseUrl}/api/notifications/process`, {
+    // force=1: a manual admin trigger processes every user immediately,
+    // bypassing the hourly per-timezone gate the cron uses.
+    const res = await fetch(`${baseUrl}/api/notifications/process?force=1`, {
       method: 'POST',
       headers,
     });

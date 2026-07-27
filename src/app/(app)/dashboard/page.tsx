@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
 import { logWaterAction } from '@/lib/actions';
-import { getMockProgram, stripWeekdayPrefix, getProgramDayForDow } from '@/lib/programs';
+import { getMockProgram, stripWeekdayPrefix, getProgramDayForDow, getNextSession } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
@@ -217,26 +217,35 @@ export default function DashboardPage() {
   const lastCompleted = activeProgram?.lastCompletedDayIndex !== undefined
     ? activeProgram.lastCompletedDayIndex
     : (completedWorkouts > 0 ? completedWorkouts - 1 : -1);
-  // nextAbsIdx: absolute day index the user should do next (or just did today)
-  const nextAbsIdx = workedOutToday ? lastCompleted : lastCompleted + 1;
   // resolveProgram is async (Firestore-first), so while it loads the seed
   // copy renders immediately and gets replaced if the admin has saved edits.
   const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
   const programSource = resolvedProgram ?? activeMock;
-  // Phase-aware day resolution through the shared resolver — previously this
-  // card read ONLY the built-in seed copy while the training screens read
-  // the admin's saved Firestore version, so "next workout" here could name a
-  // completely different session than the training tab. One resolver now.
-  const todayDay = programSource ? getProgramDayForDow(programSource, nextAbsIdx) : null;
-  // After today's session is done, preview tomorrow's — fills the card
+  // getNextSession is the single shared answer to "what's next" — it skips
+  // stale rest slots (deadlock fix) and only reports isRestToday when the
+  // user actually trained yesterday, so a rest day is shown for exactly one
+  // real day instead of trapping the pointer forever.
+  const nextSession = programSource && !workedOutToday
+    ? getNextSession(programSource, lastCompleted, profile?.statsCache?.lastWorkoutDate)
+    : null;
+  // nextAbsIdx: absolute slot index the user should do next (or just did today)
+  const nextAbsIdx = workedOutToday ? lastCompleted : (nextSession?.index ?? lastCompleted + 1);
+  const todayDay = workedOutToday
+    ? (programSource ? getProgramDayForDow(programSource, lastCompleted) : null)
+    : (nextSession?.day ?? null);
+  const isRestToday = !workedOutToday && (nextSession?.isRestToday ?? false);
+  // After today's session is done, preview what's next — fills the card
   // (which spans 3 grid rows) instead of leaving a dead gap under the
   // congrats message, and answers the natural next question anyway.
-  const upcomingDay = programSource && workedOutToday ? getProgramDayForDow(programSource, lastCompleted + 1) : null;
+  const upcomingSession = programSource && workedOutToday
+    ? getNextSession(programSource, lastCompleted, profile?.statsCache?.lastWorkoutDate)
+    : null;
+  const upcomingDay = upcomingSession?.day ?? null;
   const programPct = activeProgram
     ? Math.min(100, Math.round((completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
 
-  const firstExerciseName = !todayDay?.isRest ? todayDay?.exercises?.[0]?.name : undefined;
+  const firstExerciseName = !isRestToday ? todayDay?.exercises?.[0]?.name : undefined;
 
   useEffect(() => {
     if (!user) return;
@@ -284,7 +293,7 @@ export default function DashboardPage() {
             {activeProgram && (
               <Badge variant="accent" className="max-w-[240px]">
                 <span className="truncate block">
-                  Day {workedOutToday ? lastCompleted + 1 : lastCompleted + 2} of {activeProgram.programName}
+                  Day {workedOutToday ? Math.max(1, completedWorkouts) : completedWorkouts + 1} of {activeProgram.programName}
                 </span>
               </Badge>
             )}
@@ -433,25 +442,25 @@ export default function DashboardPage() {
                     {workedOutToday && completedWorkouts > 0 ? (
                       <Badge variant="success">
                         <CheckCircle2 className="w-3 h-3 mr-1" />
-                        Day {lastCompleted + 1} Complete
+                        Day {Math.max(1, completedWorkouts)} Complete
                       </Badge>
                     ) : (
                       <Badge variant="accent">
-                        Day {lastCompleted + 2} of {activeProgram.totalWorkouts}
+                        Day {completedWorkouts + 1} of {activeProgram.totalWorkouts}
                       </Badge>
                     )}
                   </div>
                   <h3 className="text-base font-bold text-white">{activeProgram.programName}</h3>
                   {workedOutToday && completedWorkouts > 0 ? (
                     <p className="text-sm text-success mt-0.5">
-                      🎉 Great work! Come back tomorrow for Day {lastCompleted + 2}.
+                      🎉 Great work! Come back tomorrow for Day {completedWorkouts + 1}.
                       {activeProgram.totalWorkouts - completedWorkouts > 0 &&
                         ` ${activeProgram.totalWorkouts - completedWorkouts} session${activeProgram.totalWorkouts - completedWorkouts !== 1 ? 's' : ''} remaining.`
                       }
                     </p>
                   ) : todayDay ? (
                     <p className="text-sm text-text-secondary mt-0.5">
-                      {todayDay.isRest ? '😴 Rest Day — recover well' : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
+                      {isRestToday ? '😴 Rest Day — recover well' : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
                     </p>
                   ) : null}
                   {/* Full session preview — the card spans 3 grid rows, so a
@@ -459,7 +468,7 @@ export default function DashboardPage() {
                       header and the progress bar. Listing every exercise for
                       today fills that space with the thing the user actually
                       opens this card to know: what's in the session. */}
-                  {!workedOutToday && !todayDay?.isRest && (todayDay?.exercises?.length ?? 0) > 0 && (
+                  {!workedOutToday && !isRestToday && (todayDay?.exercises?.length ?? 0) > 0 && (
                     <div className="mt-3 space-y-1.5">
                       {todayDay!.exercises.slice(0, 4).map((ex) => (
                         <div key={ex.id} className="flex items-center justify-between text-xs">
@@ -507,7 +516,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                   )}
-                  {!workedOutToday && !todayDay?.isRest && personalBest && (
+                  {!workedOutToday && !isRestToday && personalBest && (
                     <div className="mt-2 flex items-center gap-1.5 p-2 bg-accent/5 border border-accent/20 rounded-lg">
                       <Trophy className="w-3.5 h-3.5 text-accent flex-shrink-0" />
                       <p className="text-xs text-accent">
@@ -525,7 +534,7 @@ export default function DashboardPage() {
                     </p>
                   </div>
                   <div className="flex gap-2 flex-wrap">
-                    {todayDay?.isRest ? (
+                    {isRestToday ? (
                       <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                         <Moon className="w-3.5 h-3.5" /> Rest day
                       </div>

@@ -50,6 +50,11 @@ function getAppVersion() {
 
 const nextConfig = {
   reactStrictMode: true,
+  // ESLint exists as a manual/CI gate (`npx next lint`) — it must NOT gate
+  // production builds yet, because the config was only just added and the
+  // pre-existing codebase carries legacy warnings that would otherwise
+  // turn every deploy red the moment .eslintrc.json landed.
+  eslint: { ignoreDuringBuilds: true },
   env: {
     NEXT_PUBLIC_APP_VERSION: getAppVersion(),
   },

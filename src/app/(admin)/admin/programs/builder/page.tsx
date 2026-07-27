@@ -175,8 +175,24 @@ function BuilderInner() {
         return { ...s, phases: [phase1, phase2] };
       }
       const last = s.phases[s.phases.length - 1];
+      // No room after the last phase → shrink it by half its range to make
+      // space, rather than creating an out-of-range phase that save-time
+      // validation would then reject with a confusing error.
+      if (last.endWeek >= s.weeks) {
+        const shrunkEnd = Math.max(last.startWeek, last.endWeek - Math.max(1, Math.floor((last.endWeek - last.startWeek + 1) / 2)));
+        if (shrunkEnd >= s.weeks) {
+          toast.error('No weeks left for a new phase — lengthen the program or shorten an existing phase first');
+          return s;
+        }
+        const newPhase = blankPhase(`Phase ${s.phases.length + 1}`, shrunkEnd + 1, s.weeks, JSON.parse(JSON.stringify(last.schedule)));
+        setActivePhase(s.phases.length);
+        return {
+          ...s,
+          phases: [...s.phases.slice(0, -1), { ...last, endWeek: shrunkEnd }, newPhase],
+        };
+      }
       const startWeek = last.endWeek + 1;
-      const newPhase = blankPhase(`Phase ${s.phases.length + 1}`, startWeek, Math.max(startWeek, s.weeks), JSON.parse(JSON.stringify(last.schedule)));
+      const newPhase = blankPhase(`Phase ${s.phases.length + 1}`, startWeek, s.weeks, JSON.parse(JSON.stringify(last.schedule)));
       setActivePhase(s.phases.length);
       return { ...s, phases: [...s.phases, newPhase] };
     });
@@ -413,6 +429,35 @@ function BuilderInner() {
   async function handleSave(publish = false) {
     if (!prog.name.trim()) { toast.error('Program name required'); return; }
     if (!user) return;
+    // Phase week-ranges must be coherent before saving — getScheduleForWeek
+    // silently picks first-match/last-phase for overlapping or gapped
+    // ranges, so bad ranges wouldn't crash anything but WOULD quietly train
+    // users on the wrong week's schedule with no warning to anyone.
+    if (prog.phases.length > 0) {
+      const sorted = [...prog.phases].sort((a, b) => a.startWeek - b.startWeek);
+      for (const p of sorted) {
+        if (p.startWeek > p.endWeek) {
+          toast.error(`"${p.label}": start week ${p.startWeek} is after end week ${p.endWeek}`);
+          return;
+        }
+      }
+      if (sorted[0].startWeek !== 1) {
+        toast.error(`Phases must start at week 1 — "${sorted[0].label}" starts at week ${sorted[0].startWeek}`);
+        return;
+      }
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1], cur = sorted[i];
+        if (cur.startWeek !== prev.endWeek + 1) {
+          toast.error(`Gap or overlap between "${prev.label}" (ends wk ${prev.endWeek}) and "${cur.label}" (starts wk ${cur.startWeek})`);
+          return;
+        }
+      }
+      const lastEnd = sorted[sorted.length - 1].endWeek;
+      if (lastEnd !== prog.weeks) {
+        toast.error(`Phases cover weeks 1–${lastEnd} but the program is ${prog.weeks} weeks — adjust the last phase or the program length`);
+        return;
+      }
+    }
     setSaving(true);
     try {
       // A phased program's top-level `schedule`/`exercises` still get kept

@@ -10,7 +10,7 @@ import {
   AlertTriangle, RotateCcw, ChevronRight,
 } from 'lucide-react';
 import { resolveProgram, enrollInProgram } from '@/lib/firestore';
-import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix, getScheduleForWeek } from '@/lib/programs';
+import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix, getScheduleForWeek, getProgramDayForDow, getNextSession } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -83,8 +83,14 @@ export default function ProgramDetailPage() {
   // the original single `schedule`), so this length is a program-wide
   // constant regardless of which phase is actually active.
   const scheduleLen = (program?.phases?.[0]?.schedule ?? program?.schedule)?.length || 1;
+  // getNextSession skips stale rest slots (deadlock fix) — same shared
+  // logic as the dashboard card and training list, so all three screens
+  // always agree on what the user should do next.
+  const nextSession = program && isEnrolled && !workedOutToday
+    ? getNextSession(program, lastCompleted, profile?.statsCache?.lastWorkoutDate)
+    : null;
   const nextAbsIdx = isEnrolled
-    ? (workedOutToday ? lastCompleted : lastCompleted + 1)
+    ? (workedOutToday ? lastCompleted : (nextSession?.index ?? lastCompleted + 1))
     : 0;
   const todayDayIndex = nextAbsIdx % scheduleLen; // which slot in the 7-day template
   const currentWeek = Math.floor(nextAbsIdx / scheduleLen); // 0-based week the user is in
@@ -101,8 +107,10 @@ export default function ProgramDetailPage() {
   // instead of the same 7-day template repeating regardless of which week
   // the schedule browser is on.
   const displayWeekSchedule: ProgramDay[] = (program ? getScheduleForWeek(program, displayWeek + 1) : undefined) ?? [];
-  const currentWeekSchedule: ProgramDay[] = (program ? getScheduleForWeek(program, currentWeek + 1) : undefined) ?? [];
-  const todayDay: ProgramDay | null = currentWeekSchedule[todayDayIndex] ?? null;
+  const todayDay: ProgramDay | null = workedOutToday
+    ? (program ? getProgramDayForDow(program, lastCompleted) : null)
+    : (nextSession?.day ?? null);
+  const isRestToday = isEnrolled && !workedOutToday && (nextSession?.isRestToday ?? false);
 
   const handleEnroll = async (force = false) => {
     if (!user || !program) return;
@@ -223,7 +231,7 @@ export default function ProgramDetailPage() {
                 <div className="flex justify-between text-xs mb-1">
                   <span className={workedOutToday ? 'text-success font-medium' : 'text-text-secondary'}>
                     {workedOutToday
-                      ? `✓ Day ${lastCompleted + 1} complete`
+                      ? `✓ Day ${Math.max(1, completedWorkouts)} complete`
                       : `${completedWorkouts} workouts done`}
                   </span>
                   <span className="text-text-tertiary">{activeProgram.totalWorkouts - completedWorkouts} remaining</span>
@@ -246,15 +254,15 @@ export default function ProgramDetailPage() {
               {workedOutToday ? (
                 <div className="p-4 bg-success/10 border border-success/30 rounded-2xl text-center">
                   <CheckCircle2 className="w-6 h-6 text-success mx-auto mb-1.5" />
-                  <p className="text-sm font-bold text-white">Day {lastCompleted + 1} Complete!</p>
+                  <p className="text-sm font-bold text-white">Day {Math.max(1, completedWorkouts)} Complete!</p>
                   <p className="text-xs text-text-secondary mt-0.5">
-                    Come back tomorrow for Day {lastCompleted + 2}
+                    Come back tomorrow for Day {completedWorkouts + 1}
                   </p>
                   <Button size="sm" variant="ghost" className="mt-2" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
                     <RotateCcw className="w-3.5 h-3.5" /> Repeat Today
                   </Button>
                 </div>
-              ) : todayDay && !todayDay.isRest ? (
+              ) : todayDay && !isRestToday ? (
                 <Button fullWidth size="lg" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
                   <Play className="w-5 h-5" /> Start — {stripWeekdayPrefix(todayDay.label ?? '')}
                 </Button>
@@ -288,26 +296,26 @@ export default function ProgramDetailPage() {
         {isEnrolled && todayDay && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
             <h2 className="text-base font-bold text-white mb-3">Today&apos;s Workout</h2>
-            <Card className={`p-4 ${workedOutToday ? 'border-success/30' : todayDay.isRest ? 'border-white/5' : 'border-accent/30'}`}>
+            <Card className={`p-4 ${workedOutToday ? 'border-success/30' : isRestToday ? 'border-white/5' : 'border-accent/30'}`}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   {workedOutToday ? (
                     <CheckCircle2 className="w-4 h-4 text-success" />
-                  ) : todayDay.isRest ? (
+                  ) : isRestToday ? (
                     <Moon className="w-4 h-4 text-text-tertiary" />
                   ) : (
                     <Dumbbell className="w-4 h-4 text-accent" />
                   )}
                   <span className="text-sm font-bold text-white">{stripWeekdayPrefix(todayDay.label)}</span>
-                  {workedOutToday ? <Badge variant="success">Done</Badge> : todayDay.isRest ? <Badge variant="muted">Rest</Badge> : null}
+                  {workedOutToday ? <Badge variant="success">Done</Badge> : isRestToday ? <Badge variant="muted">Rest</Badge> : null}
                 </div>
-                {!todayDay.isRest && !workedOutToday && (
+                {!isRestToday && !workedOutToday && (
                   <Button size="sm" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
                     <Play className="w-4 h-4" /> Start
                   </Button>
                 )}
               </div>
-              {!todayDay.isRest && todayDay.exercises.length > 0 && (
+              {!isRestToday && todayDay.exercises.length > 0 && (
                 <div className="space-y-2 mt-2">
                   {todayDay.exercises.map((ex, i) => (
                     <div key={ex.id ?? i} className="flex items-center justify-between text-sm">
@@ -318,7 +326,7 @@ export default function ProgramDetailPage() {
                   ))}
                 </div>
               )}
-              {todayDay.isRest && (
+              {isRestToday && (
                 <p className="text-xs text-text-secondary">Recovery day — let your muscles grow.</p>
               )}
             </Card>
