@@ -97,6 +97,55 @@ const PROGRAM_BADGE: Record<string, { icon: React.ElementType; color: string }> 
   p14: { icon: LifeBuoy, color: 'text-orange-400' },
 };
 
+const TICKER_ITEMS = [
+  'Train Like The Elite', 'AI-Matched From Day One', 'Adapts To Every Rep',
+  'No Generic Plans', 'Built To Adapt', 'Consistency Over Motivation',
+];
+
+// Infinite scrolling ticker — two identical copies of the same content
+// back to back, animated translateX(-50%) so the loop seam is invisible.
+// Purely decorative momentum between the feature grid and the rest of the
+// page, which previously went flat straight into plain stacked sections.
+function TacticalTicker() {
+  return (
+    <div className="relative overflow-hidden border-y border-accent/15 bg-gradient-to-r from-accent/[0.06] via-accent/[0.03] to-accent/[0.06] py-3">
+      <div className="landing-marquee flex whitespace-nowrap">
+        {[0, 1].map((copy) => (
+          <div key={copy} className="flex gap-10 pr-10 flex-shrink-0">
+            {TICKER_ITEMS.map((t, i) => (
+              <span key={i} className="flex items-center gap-2.5 text-accent font-black text-xs sm:text-sm tracking-widest uppercase">
+                {t} <span className="text-white/15">✦</span>
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Diagonal hazard-stripe divider — a cheap, thematic (tactical/warfare)
+// section break that reads as far more "designed" than a plain border.
+function TacticalStripe() {
+  return (
+    <div
+      className="h-2 w-full opacity-40"
+      style={{
+        backgroundImage: 'repeating-linear-gradient(-45deg, var(--accent, #F5A623) 0 10px, transparent 10px 20px)',
+      }}
+      aria-hidden="true"
+    />
+  );
+}
+
+// Slow-drifting blurred glow orb, scoped to whatever section wraps it
+// (that section must be `relative overflow-hidden`) so it scales with
+// content instead of needing a fixed pixel offset down a page whose total
+// height varies by admin-configured content.
+function GlowOrb({ className }: { className: string }) {
+  return <div className={`orb-drift pointer-events-none absolute rounded-full blur-3xl ${className}`} aria-hidden="true" />;
+}
+
 function FaqItem({ q, a, open, onToggle }: { q: string; a: string; open: boolean; onToggle: () => void }) {
   return (
     <div className="border-b border-white/8 last:border-b-0">
@@ -432,12 +481,16 @@ export default function LandingPage({
         </div>
       </section>
 
+      <TacticalTicker />
+
       {/* Programs — pulled from /api/public/programs (published Firestore
           programs + built-in seed programs), so this always reflects
           whatever's actually assignable, never hand-maintained copy that
           could drift out of sync with the real program library. */}
       {programs.length > 0 && (
-        <section id="programs" className="max-w-5xl mx-auto px-5 pb-16 scroll-mt-6">
+        <section id="programs" className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16 scroll-mt-6">
+          <GlowOrb className="w-72 h-72 bg-accent/10 -top-10 -left-16 -z-10" />
+          <GlowOrb className="w-80 h-80 bg-accent/[0.07] bottom-0 -right-20 -z-10" />
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-black text-white">Train Like an Elite Soldier</h2>
             <p className="text-text-secondary text-sm mt-2">Every program is matched to you during onboarding — or pick one yourself below.</p>
@@ -453,7 +506,7 @@ export default function LandingPage({
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: (i % 6) * 0.05 }}
                 onClick={() => setSelectedProgram(p)}
-                className="rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors overflow-hidden flex flex-col cursor-pointer text-left"
+                className="rounded-2xl border border-white/8 bg-surface hover:border-accent/30 hover:shadow-glow-accent transition-all overflow-hidden flex flex-col cursor-pointer text-left"
               >
                 {/* Fixed-aspect image slot, same size for every card — a
                     themed gradient + icon fallback when no admin image is
@@ -562,6 +615,7 @@ export default function LandingPage({
             transition={{ duration: 0.4 }}
             className="relative rounded-3xl border border-white/10 bg-surface p-8 sm:p-12 text-center overflow-hidden"
           >
+            <GlowOrb className="w-64 h-64 bg-accent/[0.08] -top-20 -right-20 -z-10" />
             {/* Fixed-size badge instead of a giant absolutely-positioned glyph
                 behind the text — the old version overlapped the quote on
                 narrow screens since it never adapted to width or copy length. */}
@@ -604,8 +658,10 @@ export default function LandingPage({
       )}
 
       {/* Pricing */}
+      {(membershipPlans.length > 0 || coachingPlans.length > 0) && <TacticalStripe />}
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && (
-        <section className="max-w-5xl mx-auto px-5 pb-16">
+        <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16">
+          <GlowOrb className="w-96 h-96 bg-accent/[0.08] -top-16 left-1/2 -translate-x-1/2 -z-10" />
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
             <p className="text-text-secondary text-sm mt-2">
@@ -784,8 +840,11 @@ export default function LandingPage({
         </div>
       </section>
 
+      <TacticalStripe />
+
       {/* Final CTA */}
-      <section className="max-w-2xl mx-auto px-5 pb-20 text-center">
+      <section className="relative overflow-hidden max-w-2xl mx-auto px-5 pt-16 pb-20 text-center">
+        <GlowOrb className="w-[420px] h-[420px] bg-accent/[0.1] top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 -z-10" />
         <h2 className="text-2xl sm:text-3xl font-black text-white">{landing.finalCtaHeadline}</h2>
         <p className="text-text-secondary text-sm mt-2 mb-6">{landing.finalCtaSubtext}</p>
         <Link href="/onboarding">

@@ -265,6 +265,29 @@ html.light .bg-gradient-to-r.text-transparent { -webkit-text-fill-color: transpa
 .ignite-flash {
   animation: ignite-flash 1.1s ease-out 1;
 }
+/* ── Landing page ambient elements ──
+   Scrolling tactical ticker + slow-drifting glow orbs, used to keep the
+   landing page feeling alive past the feature grid instead of going flat
+   into plain stacked sections. CSS-only (no extra libs), cheap to render. */
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.landing-marquee {
+  width: max-content;
+  animation: marquee-scroll 28s linear infinite;
+}
+@keyframes orb-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(3%, -4%) scale(1.08); }
+}
+.orb-drift {
+  animation: orb-drift 14s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-marquee, .orb-drift { animation: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .flame-ignite, .ignite-flash { animation: none; }
 }
