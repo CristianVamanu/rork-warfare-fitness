@@ -437,7 +437,7 @@ export default function DashboardPage() {
       off the bottom entirely, making it look like the button had vanished. */}
           <motion.div variants={stagger.item} className="col-span-4 row-span-4">
             {activeProgram ? (
-              <Card className="p-5 h-full relative overflow-hidden flex flex-col justify-between">
+              <Card className="p-5 h-full relative overflow-hidden flex flex-col">
                 <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
                   <Dumbbell className="w-28 h-28 text-accent" />
                 </div>
@@ -530,7 +530,14 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                <div>
+                {/* Was pinned to the bottom of the card via justify-between,
+                    which left a huge dead gap above it whenever the content
+                    above was short (e.g. no personal-best banner, only 1-2
+                    exercises). Flows directly after content now with a
+                    fixed margin instead — still never clipped (row-span-4
+                    still gives enough headroom for the tallest content
+                    case), just no longer stretched away from it. */}
+                <div className="mt-4">
                   <div className="mb-3">
                     <ProgressBar value={completedWorkouts} max={activeProgram.totalWorkouts} color={workedOutToday ? 'success' : 'accent'} size="sm" />
                     <p className="text-xs text-text-tertiary mt-1">
