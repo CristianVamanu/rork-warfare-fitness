@@ -700,12 +700,15 @@ function BuilderInner() {
         </div>
         <div>
           <label className="text-xs text-text-secondary mb-1 block">Description</label>
+          <p className="text-[11px] text-text-tertiary mb-1.5">
+            Shown to users on the program detail page and landing page. Length doesn&apos;t matter — line breaks you type here are preserved when it&apos;s shown, so short paragraphs (or a one-line-per-point list) read far easier than one dense block of text.
+          </p>
           <textarea
             value={prog.description}
             onChange={e => setProg(s => ({ ...s, description: e.target.value }))}
-            placeholder="What's this program about? Who is it for?"
-            rows={2}
-            className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+            placeholder={'What\'s this program about? Who is it for?\n\nBuilt around 4 days/week of heavy compound lifts.\nBest for lifters with at least 6 months of experience.'}
+            rows={5}
+            className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-y"
           />
         </div>
         <div>

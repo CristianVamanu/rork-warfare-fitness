@@ -397,7 +397,7 @@ function OnboardingPageInner() {
           </div>
           <p className="text-xs font-bold text-accent uppercase tracking-wide mb-2">Your Personalized Plan</p>
           <h1 className="text-2xl font-black text-white mb-2">{revealProgram.name}</h1>
-          <p className="text-text-secondary text-sm mb-5 leading-relaxed">{revealProgram.description}</p>
+          <p className="text-text-secondary text-sm mb-5 leading-relaxed whitespace-pre-line">{revealProgram.description}</p>
           <div className="flex items-center justify-center gap-6 mb-6">
             <div>
               <p className="text-2xl font-black text-white">{revealProgram.weeks}</p>

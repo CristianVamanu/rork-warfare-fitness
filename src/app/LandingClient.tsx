@@ -572,7 +572,13 @@ export default function LandingPage({
             <h2 className="text-2xl sm:text-3xl font-black text-white">See It In Action</h2>
             <p className="text-text-secondary text-sm mt-2">Real screens from the real app — not mockups.</p>
           </div>
-          <div className="flex gap-5 overflow-x-auto pb-4 px-1 -mx-1 sm:justify-center sm:flex-wrap snap-x snap-mandatory">
+          {/* Mobile: horizontal snap-scroller (fixed height cards, natural
+              width) — a grid would force illegible tiny thumbnails on a
+              narrow screen. Desktop: a proper side-by-side row, each column
+              sized evenly instead of shrinking to content width. */}
+          <div className="flex gap-5 overflow-x-auto pb-4 px-1 -mx-1 sm:grid sm:overflow-visible sm:px-0 sm:mx-0 snap-x snap-mandatory"
+            style={{ gridTemplateColumns: `repeat(${Math.min(landing.screenshotUrls.length, 4)}, minmax(0, 1fr))` }}
+          >
             {landing.screenshotUrls.map((url, i) => (
               <motion.div
                 key={url + i}
@@ -583,7 +589,7 @@ export default function LandingPage({
                 className={`flex-shrink-0 snap-center rounded-[2rem] border-4 border-white/10 bg-black overflow-hidden shadow-2xl hover:border-accent/40 hover:-translate-y-2 transition-all duration-300 ${i % 2 === 1 ? 'sm:mt-8' : ''}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt={`${appName} app screenshot`} className="h-[420px] w-auto object-cover" />
+                <img src={url} alt={`${appName} app screenshot`} className="h-[420px] w-auto sm:w-full object-cover" />
               </motion.div>
             ))}
           </div>
@@ -625,7 +631,7 @@ export default function LandingPage({
                 {GOAL_LABEL[selectedProgram.goal] ?? selectedProgram.goal}
               </span>
             </div>
-            <p className="text-sm text-text-secondary leading-relaxed">{selectedProgram.description}</p>
+            <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">{selectedProgram.description}</p>
             <div className="flex items-center gap-4 text-xs text-text-tertiary">
               <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {selectedProgram.weeks} weeks</span>
               <span className="flex items-center gap-1.5"><BarChart3 className="w-3.5 h-3.5" /> {selectedProgram.daysPerWeek} days/week</span>

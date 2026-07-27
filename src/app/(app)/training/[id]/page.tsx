@@ -212,7 +212,11 @@ export default function ProgramDetailPage() {
               {isEnrolled && <Badge variant="success">Enrolled</Badge>}
             </div>
             <h2 className="text-xl font-black text-white">{program.name}</h2>
-            <p className="text-text-secondary text-sm mt-1">{program.description}</p>
+            {/* whitespace-pre-line — admins write these as short paragraphs/
+                line-broken lists for readability; plain flowing text
+                collapsed every newline they typed, making a carefully
+                formatted description read as one dense wall of text. */}
+            <p className="text-text-secondary text-sm mt-1 whitespace-pre-line">{program.description}</p>
             <div className="flex gap-5 mt-3">
               <span className="flex items-center gap-1 text-xs text-text-tertiary">
                 <Clock className="w-3 h-3" /> {program.weeks} weeks
