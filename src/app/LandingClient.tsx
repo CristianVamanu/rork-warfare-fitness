@@ -502,25 +502,6 @@ export default function LandingPage({
               );
             })}
           </div>
-
-          {/* Build Your Own teaser — the real builder is inside the app
-              (needs an account), so this just points new visitors to the
-              signup funnel with the right expectation set. */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-40px' }}
-            transition={{ duration: 0.35 }}
-            className="mt-6 rounded-2xl border border-white/10 bg-surface p-6 sm:p-8 text-center"
-          >
-            <h3 className="text-lg sm:text-xl font-black text-white">Don&apos;t see a perfect fit?</h3>
-            <p className="text-text-secondary text-sm mt-2 max-w-md mx-auto">
-              Build your own fully custom AI-generated program — answer a few questions about your goals, equipment, and schedule, and get a plan made just for you.
-            </p>
-            <Link href="/login" className="inline-block mt-4">
-              <Button size="sm">Get Started <ArrowRight className="w-3.5 h-3.5" /></Button>
-            </Link>
-          </motion.div>
         </section>
       )}
 
