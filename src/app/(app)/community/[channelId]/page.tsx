@@ -544,22 +544,6 @@ export default function ChannelPage() {
             </div>
           )}
           <div className="flex gap-2 items-end">
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={e => setText(e.target.value)}
-              placeholder={isBlocked ? 'Slow mode active…' : 'Share something…'}
-              disabled={isBlocked}
-              rows={1}
-              className="flex-1 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent/50 disabled:opacity-40"
-              style={{ maxHeight: 96, overflowY: 'auto' }}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(); } }}
-              onInput={e => {
-                const t = e.currentTarget;
-                t.style.height = 'auto';
-                t.style.height = Math.min(t.scrollHeight, 96) + 'px';
-              }}
-            />
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -580,6 +564,22 @@ export default function ChannelPage() {
                 }
               </button>
             )}
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder={isBlocked ? 'Slow mode active…' : 'Share something…'}
+              disabled={isBlocked}
+              rows={1}
+              className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent/50 disabled:opacity-40"
+              style={{ maxHeight: 96, overflowY: 'auto' }}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(); } }}
+              onInput={e => {
+                const t = e.currentTarget;
+                t.style.height = 'auto';
+                t.style.height = Math.min(t.scrollHeight, 96) + 'px';
+              }}
+            />
             <Button
               onClick={handlePost}
               loading={posting}
