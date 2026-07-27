@@ -390,7 +390,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Interval Sprints',
         isRest: false,
         exercises: [
-          { id: 'p6-e8', name: 'Sprint Intervals (30s on / 90s off)', sets: 8, reps: 1, restSeconds: 90, muscleGroup: 'cardio' },
+          { id: 'p6-e8', name: 'Sprint Intervals (30s on / 90s off)', sets: 8, reps: 1, restSeconds: 90, muscleGroup: 'cardio', isCardio: true },
           { id: 'p6-e4', name: 'Push-Up', sets: 4, reps: 20, restSeconds: 60, muscleGroup: 'chest', notes: 'Build toward 53 in 2 minutes — the RASP entry standard.' },
         ],
       },
@@ -667,7 +667,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Run + Core',
         isRest: false,
         exercises: [
-          { id: 'p10-e5', name: 'Steady-State Run', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p10-e5', name: 'Steady-State Run', sets: 1, reps: '5 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
           { id: 'p10-e6', name: 'Plank', sets: 3, reps: 60, restSeconds: 45, muscleGroup: 'core' },
         ],
       },
@@ -676,7 +676,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Long March',
         isRest: false,
         exercises: [
-          { id: 'p10-e1', name: 'Weighted Ruck March', sets: 1, reps: '8 miles', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p10-e1', name: 'Weighted Ruck March', sets: 1, reps: '8 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
         ],
       },
       {
@@ -745,7 +745,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Conditioning Run',
         isRest: false,
         exercises: [
-          { id: 'p11-e10', name: 'Interval Run (1 min hard / 1 min easy)', sets: 10, reps: 1, restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p11-e10', name: 'Interval Run (1 min hard / 1 min easy)', sets: 10, reps: 1, restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
         ],
       },
       {
@@ -876,7 +876,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Hill Run',
         isRest: false,
         exercises: [
-          { id: 'p13-e6', name: 'Hill Sprint Intervals', sets: 8, reps: 1, restSeconds: 90, muscleGroup: 'cardio' },
+          { id: 'p13-e6', name: 'Hill Sprint Intervals', sets: 8, reps: 1, restSeconds: 90, muscleGroup: 'cardio', isCardio: true },
           { id: 'p13-e12', name: '2-Mile Timed Run', sets: 1, reps: '2mi', restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Target: under 18:00 — the SAS Combat Fitness Test standard. Log your time on the PT Test page.' },
         ],
       },
@@ -893,7 +893,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Ruck March',
         isRest: false,
         exercises: [
-          { id: 'p13-e1', name: 'Weighted Ruck March', sets: 1, reps: '8 miles', restSeconds: 0, muscleGroup: 'cardio' },
+          { id: 'p13-e1', name: 'Weighted Ruck March', sets: 1, reps: '8 miles', restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
         ],
       },
       {
