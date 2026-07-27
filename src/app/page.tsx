@@ -477,7 +477,13 @@ export default function LandingPage() {
                     <span className="flex items-center gap-1"><BarChart3 className="w-3 h-3" /> {p.daysPerWeek}d/wk</span>
                     <span>{GOAL_LABEL[p.goal] ?? p.goal}</span>
                   </div>
-                  <Link href="/login" onClick={(e) => e.stopPropagation()} className="block pt-4 mt-auto">
+                  {/* Straight to onboarding with the chosen program attached
+                      (see onboarding/page.tsx's `programId` handling) — this
+                      used to go to /login with no memory of which program
+                      was clicked, so a visitor who picked, say, SEAL
+                      Selection would sign up and get handed whatever the AI
+                      matcher picked instead, silently ignoring their choice. */}
+                  <Link href={`/onboarding?programId=${p.id}`} onClick={(e) => e.stopPropagation()} className="block pt-4 mt-auto">
                     <Button fullWidth size="sm">Enroll Now <ArrowRight className="w-3.5 h-3.5" /></Button>
                   </Link>
                 </div>
@@ -547,7 +553,7 @@ export default function LandingPage() {
               <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {selectedProgram.weeks} weeks</span>
               <span className="flex items-center gap-1.5"><BarChart3 className="w-3.5 h-3.5" /> {selectedProgram.daysPerWeek} days/week</span>
             </div>
-            <Link href="/login" className="block pt-2">
+            <Link href={`/onboarding?programId=${selectedProgram.id}`} className="block pt-2">
               <Button fullWidth>Enroll Now <ArrowRight className="w-4 h-4" /></Button>
             </Link>
           </div>

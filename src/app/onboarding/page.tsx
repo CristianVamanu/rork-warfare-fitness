@@ -13,7 +13,7 @@ import {
 import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { signUp } from '@/lib/auth';
-import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig } from '@/lib/firestore';
+import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, resolveProgram } from '@/lib/firestore';
 import { estimateNutritionTargets, calculateBmi, estimateBmiTimeline, type NutritionTargets } from '@/lib/tdee';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
@@ -122,6 +122,14 @@ function OnboardingPageInner() {
     if (qAge && /^\d+$/.test(qAge)) setAge(qAge);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A program picked directly on the landing page's catalog (via
+  // ?programId=X) — honored as-is instead of being silently overridden by
+  // the AI matcher below. The quiz still runs and still saves goal/
+  // biometrics/equipment for nutrition targets and other features; it just
+  // doesn't get to pick a *different* program than the one this visitor
+  // deliberately chose.
+  const preselectedProgramId = searchParams.get('programId');
 
   // Quiz runs fully anonymously — no account required to start. The account
   // is only created at the very last step, once someone has already
@@ -241,28 +249,46 @@ function OnboardingPageInner() {
       // match against the seed library if the request itself fails, so
       // onboarding never blocks a new user from finishing.
       const programTask = (async () => {
-        let program: { id: string; name: string; description: string; weeks: number; daysPerWeek: number };
-        try {
-          const res = await fetch('/api/ai/recommend-program', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-            body: JSON.stringify({
-              goal, experience, trainingDays,
-              sex: sex ?? undefined,
-              hasLimitations: !!buildLimitationsSummary(),
-              equipment: equipment ?? undefined,
-            }),
-          });
-          if (!res.ok) throw new Error('Program assignment unavailable');
-          const { program: matched } = await res.json();
-          program = matched;
-        } catch {
-          program = fallbackRecommendProgram();
+        let program: { id: string; name: string; description: string; weeks: number; daysPerWeek: number } | null = null;
+
+        // If this visitor picked a specific program on the landing page's
+        // catalog, honor that choice as-is instead of letting the AI matcher
+        // below silently override it with a different program.
+        if (preselectedProgramId) {
+          try {
+            const resolved = await resolveProgram(preselectedProgramId);
+            if (resolved) {
+              program = { id: resolved.id, name: resolved.name, description: resolved.description, weeks: resolved.weeks, daysPerWeek: resolved.daysPerWeek };
+            }
+          } catch {
+            // fall through to AI matching / local fallback below
+          }
         }
+
+        if (!program) {
+          try {
+            const res = await fetch('/api/ai/recommend-program', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+              body: JSON.stringify({
+                goal, experience, trainingDays,
+                sex: sex ?? undefined,
+                hasLimitations: !!buildLimitationsSummary(),
+                equipment: equipment ?? undefined,
+              }),
+            });
+            if (!res.ok) throw new Error('Program assignment unavailable');
+            const { program: matched } = await res.json();
+            program = matched;
+          } catch {
+            program = fallbackRecommendProgram();
+          }
+        }
+        const finalProgram = program!;
         await enrollInProgram(activeUser.uid, {
-          id: program.id, name: program.name, weeks: program.weeks, daysPerWeek: program.daysPerWeek,
+          id: finalProgram.id, name: finalProgram.name, weeks: finalProgram.weeks, daysPerWeek: finalProgram.daysPerWeek,
         });
-        setRevealProgram(program);
+        setRevealProgram(finalProgram);
       })();
 
       // Nutrition targets: deterministic math server-side (near-instant,
