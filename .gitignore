@@ -5,6 +5,9 @@ node_modules/
 
 # Next.js
 .next/
+# Transient build dirs used by deploy.sh's staged build + atomic swap
+.next-staging/
+.next-previous/
 out/
 dist/
 

@@ -50,6 +50,11 @@ function getAppVersion() {
 
 const nextConfig = {
   reactStrictMode: true,
+  // Lets deploy.sh build into a staging directory instead of overwriting
+  // the live .next that the running server is still lazily loading route
+  // bundles from (see deploy.sh for the full rationale). Unset at runtime,
+  // so `next start` always resolves the normal '.next'.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   // ESLint exists as a manual/CI gate (`npx next lint`) — it must NOT gate
   // production builds yet, because the config was only just added and the
   // pre-existing codebase carries legacy warnings that would otherwise
