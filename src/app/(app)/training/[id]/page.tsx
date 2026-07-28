@@ -7,10 +7,11 @@ import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Play, Clock, Target, Dumbbell, Moon, CheckCircle, CheckCircle2, ChevronLeft,
-  AlertTriangle, RotateCcw, ChevronRight,
+  AlertTriangle, RotateCcw, ChevronRight, Lock, Crown,
 } from 'lucide-react';
-import { resolveProgram, enrollInProgram } from '@/lib/firestore';
+import { resolveProgram, enrollInProgram, getMembershipConfig } from '@/lib/firestore';
 import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix, getScheduleForWeek, getProgramDayForDow, getNextSession } from '@/lib/programs';
+import { getProgramDayLimit } from '@/lib/membership';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -19,7 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import type { Program, ProgramDay } from '@/types';
+import type { Program, ProgramDay, MembershipConfig } from '@/types';
 
 const goalColors: Record<string, string> = {
   strength: 'accent',
@@ -49,6 +50,17 @@ export default function ProgramDetailPage() {
   const [switchModal, setSwitchModal] = useState(false);
   const [displayWeek, setDisplayWeek] = useState(0); // 0-based week shown in schedule
   const [purchasing, setPurchasing] = useState(false);
+  const [membershipConfig, setMembershipConfig] = useState<MembershipConfig | null>(null);
+  const [membershipLoaded, setMembershipLoaded] = useState(false);
+
+  useEffect(() => {
+    getMembershipConfig().then(setMembershipConfig).catch(() => setMembershipConfig(null)).finally(() => setMembershipLoaded(true));
+  }, []);
+
+  // Infinity until membership config has actually loaded — treating an
+  // unloaded config as "no limit" avoids a flash of locked days that then
+  // unlock a moment later once the real config arrives.
+  const dayLimit = membershipLoaded ? getProgramDayLimit(membershipConfig, profile) : Infinity;
 
   const activeProgram = profile?.activeProgram;
   const isEnrolled = activeProgram?.programId === id;
@@ -96,6 +108,9 @@ export default function ProgramDetailPage() {
   const currentWeek = Math.floor(nextAbsIdx / scheduleLen); // 0-based week the user is in
   // Use whichever is larger: program's declared weeks or the user's actual progress
   const totalWeeks = Math.max(program?.weeks || 1, currentWeek + 1);
+  // Never locks a day already completed (workedOutToday means nextAbsIdx
+  // points at what was just finished, not the next new day).
+  const nextIsLocked = isEnrolled && !workedOutToday && nextAbsIdx >= dayLimit;
 
   // Sync displayWeek to user's current week whenever program or user state changes
   useEffect(() => {
@@ -255,7 +270,18 @@ export default function ProgramDetailPage() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
           {isEnrolled ? (
             <div className="space-y-2">
-              {workedOutToday ? (
+              {nextIsLocked ? (
+                <div className="p-4 bg-surface border border-accent/30 rounded-2xl text-center">
+                  <Lock className="w-6 h-6 text-accent mx-auto mb-1.5" />
+                  <p className="text-sm font-bold text-white">Free Trial Limit Reached</p>
+                  <p className="text-xs text-text-secondary mt-0.5 mb-3">
+                    Your trial covers the first {dayLimit} days of this program. Subscribe to keep training.
+                  </p>
+                  <Button size="sm" fullWidth onClick={() => router.push('/profile')}>
+                    <Crown className="w-4 h-4" /> View Plans
+                  </Button>
+                </div>
+              ) : workedOutToday ? (
                 <div className="p-4 bg-success/10 border border-success/30 rounded-2xl text-center">
                   <CheckCircle2 className="w-6 h-6 text-success mx-auto mb-1.5" />
                   <p className="text-sm font-bold text-white">Day {Math.max(1, completedWorkouts)} Complete!</p>
@@ -296,8 +322,9 @@ export default function ProgramDetailPage() {
           )}
         </motion.div>
 
-        {/* Today's Workout */}
-        {isEnrolled && todayDay && (
+        {/* Today's Workout — hidden once the trial's day-limit is hit;
+            the CTA above already explains the lock and offers to subscribe. */}
+        {isEnrolled && todayDay && !nextIsLocked && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
             <h2 className="text-base font-bold text-white mb-3">Today&apos;s Workout</h2>
             <Card className={`p-4 ${workedOutToday ? 'border-success/30' : isRestToday ? 'border-white/5' : 'border-accent/30'}`}>
@@ -381,11 +408,16 @@ export default function ProgramDetailPage() {
 
                 // Only mark as "upcoming" for current week or near future
                 const isUpcoming = isEnrolled && !isToday && !isPast;
+                // Never locks a day the user already trained — this caps
+                // how much NEW progress a lapsed-trial user can make, not
+                // access to what they've already done.
+                const isLocked = absoluteDay >= dayLimit && !isCompleted;
 
                 return (
                   <motion.div key={`${displayWeek}-${idx}`} layout>
                     <Card
                       className={`p-4 cursor-pointer transition-colors ${
+                        isLocked ? 'opacity-60' :
                         isCompleted ? 'border-success/30 bg-success/5' :
                         isToday ? 'border-accent/50 bg-accent/5' : ''
                       }`}
@@ -401,6 +433,8 @@ export default function ProgramDetailPage() {
                           }`}>
                             {isCompleted
                               ? <CheckCircle2 className="w-5 h-5" />
+                              : isLocked
+                              ? <Lock className="w-4 h-4 text-text-tertiary" />
                               : <span className="text-center leading-none">{`D${idx + 1}`}</span>
                             }
                           </div>
@@ -410,15 +444,18 @@ export default function ProgramDetailPage() {
                                 {stripWeekdayPrefix(day.label ?? '')}
                               </p>
                               {isCompleted && <Badge variant="success">Done</Badge>}
-                              {!isCompleted && isToday && <Badge variant="accent">Today</Badge>}
-                              {!isCompleted && !isToday && isUpcoming && !day.isRest && <Badge variant="muted">Upcoming</Badge>}
+                              {isLocked && <Badge variant="muted">Members Only</Badge>}
+                              {!isCompleted && !isLocked && isToday && <Badge variant="accent">Today</Badge>}
+                              {!isCompleted && !isLocked && !isToday && isUpcoming && !day.isRest && <Badge variant="muted">Upcoming</Badge>}
                             </div>
                             {!day.isRest && (
                               <p className="text-xs text-text-tertiary mt-0.5">{day.exercises.length} exercises</p>
                             )}
                           </div>
                         </div>
-                        {day.isRest ? (
+                        {isLocked ? (
+                          <Lock className="w-4 h-4 text-text-tertiary" />
+                        ) : day.isRest ? (
                           <Moon className="w-4 h-4 text-text-tertiary" />
                         ) : isCompleted ? (
                           <CheckCircle2 className="w-4 h-4 text-success" />
@@ -427,7 +464,21 @@ export default function ProgramDetailPage() {
                         )}
                       </div>
 
-                      {isExpanded && !day.isRest && day.exercises.length > 0 && (
+                      {isExpanded && isLocked && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="mt-3 pt-3 border-t border-white/8 text-center"
+                        >
+                          <p className="text-xs text-text-secondary mb-2.5">
+                            Your free trial covers the first {dayLimit} days of this program. Subscribe to keep going from here.
+                          </p>
+                          <Button size="sm" fullWidth onClick={(e) => { e.stopPropagation(); router.push('/profile'); }}>
+                            <Crown className="w-3.5 h-3.5" /> View Plans
+                          </Button>
+                        </motion.div>
+                      )}
+                      {isExpanded && !isLocked && !day.isRest && day.exercises.length > 0 && (
                         <motion.div
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}

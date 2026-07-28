@@ -6,11 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, CheckCircle, Timer, AlertTriangle, ChevronLeft, ChevronRight,
-  Copy, SkipForward, Plus, Minus, Dumbbell, Zap, Play, Pause, RotateCcw, Info,
+  Copy, SkipForward, Plus, Minus, Dumbbell, Zap, Play, Pause, RotateCcw, Info, Lock, Crown,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { resolveProgram, getLastExercisePerformance } from '@/lib/firestore';
+import { resolveProgram, getLastExercisePerformance, getMembershipConfig } from '@/lib/firestore';
 import { getProgramDayForDow } from '@/lib/programs';
+import { getProgramDayLimit } from '@/lib/membership';
 import { completeWorkout } from '@/lib/actions';
 import { WorkoutShareCard } from '@/components/workout/WorkoutShareCard';
 import toast from 'react-hot-toast';
@@ -1157,6 +1158,23 @@ function WorkoutSessionPageInner() {
 
   const sessionKey = `workout_session_${programId ?? 'free'}_${dow ?? 'x'}`;
 
+  // Defense-in-depth: the training/[id] detail page already prevents
+  // navigating here for a day beyond the trial's day limit, but this route
+  // is reachable by URL directly, so the same check has to be re-verified
+  // here independently rather than trusting how the user arrived.
+  const [dayLimit, setDayLimit] = useState(Infinity);
+  useEffect(() => {
+    getMembershipConfig()
+      .then((cfg) => setDayLimit(getProgramDayLimit(cfg, profile)))
+      .catch(() => setDayLimit(Infinity));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.membership?.status]);
+  const lastCompletedDayIndex = profile?.activeProgram?.lastCompletedDayIndex;
+  // Never locks a repeat of a day already completed — only new progress
+  // past the trial's day limit is gated.
+  const isLockedByTrial = !!programId && dow !== null && dow >= dayLimit
+    && !(lastCompletedDayIndex !== undefined && dow <= lastCompletedDayIndex);
+
   const [exStates, setExStates] = useState<ExState[]>([]);
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [loadingProgram, setLoadingProgram] = useState(true);
@@ -1542,6 +1560,26 @@ function WorkoutSessionPageInner() {
   };
 
   // ── Render ──────────────────────────────────────────────────────────────
+
+  if (isLockedByTrial) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-4">
+          <Lock className="w-8 h-8 text-accent" />
+        </div>
+        <h1 className="text-xl font-black text-white mb-2">Free Trial Limit Reached</h1>
+        <p className="text-text-secondary text-sm max-w-xs mb-6">
+          Your trial covers the first {dayLimit} days of this program. Subscribe to keep training from here.
+        </p>
+        <Button onClick={() => router.push('/profile')}>
+          <Crown className="w-4 h-4" /> View Plans
+        </Button>
+        <button onClick={() => router.back()} className="text-xs text-text-tertiary hover:text-white mt-4">
+          Go back
+        </button>
+      </div>
+    );
+  }
 
   if (loadingProgram) {
     return (

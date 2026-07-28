@@ -1012,8 +1012,11 @@ export const MOCK_PROGRAMS: Program[] = [
       { id: 'p15-e7', name: 'Goblet Squat', sets: 3, reps: 15, restSeconds: 75, muscleGroup: 'legs' },
       { id: 'p15-e8', name: 'Burpee', sets: 3, reps: 12, restSeconds: 45, muscleGroup: 'full-body' },
     ],
-    // phases[0]'s schedule doubles as the top-level `schedule` fallback —
-    // Phase 1's Monday circuit.
+    // phases[0]'s full 7-day schedule doubles as the top-level `schedule`
+    // fallback for any older code path that reads program.schedule directly
+    // instead of going through phases (e.g. the program detail page's
+    // weekly-training-day count) — this was previously truncated to just
+    // 2 of the 7 days, making that count read "1 workout day" instead of 5.
     schedule: [
       { label: 'Full-Body Circuit A', isRest: false, exercises: [
         { id: 'p15-e1', name: 'Push-Up', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'chest' },
@@ -1021,6 +1024,29 @@ export const MOCK_PROGRAMS: Program[] = [
         { id: 'p15-e3', name: 'Plank', sets: 3, reps: '30s', restSeconds: 45, muscleGroup: 'core' },
         { id: 'p15-e9', name: 'Glute Bridge', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'legs' },
         { id: 'p15-e10', name: 'Mountain Climbers', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      { label: 'Cardio + Core', isRest: false, exercises: [
+        { id: 'p15-e4', name: 'Brisk Walk', sets: 1, reps: 45, restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
+        { id: 'p15-e3', name: 'Plank', sets: 3, reps: '30s', restSeconds: 45, muscleGroup: 'core' },
+        { id: 'p15-e11', name: 'Bicycle Crunch', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      { label: 'Full-Body Circuit B', isRest: false, exercises: [
+        { id: 'p15-e12', name: 'Reverse Lunge', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'legs' },
+        { id: 'p15-e13', name: 'Incline Push-Up', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'chest' },
+        { id: 'p15-e14', name: 'Superman', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'back' },
+        { id: 'p15-e15', name: 'Side Plank', sets: 3, reps: '20s', restSeconds: 45, muscleGroup: 'core' },
+        { id: 'p15-e16', name: 'Jumping Jacks', sets: 3, reps: 1, restSeconds: 30, muscleGroup: 'cardio', isCardio: true, cardioDurationSeconds: 30 },
+      ] },
+      rest(),
+      { label: 'Full-Body Circuit C', isRest: false, exercises: [
+        { id: 'p15-e1', name: 'Push-Up', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+        { id: 'p15-e2', name: 'Bodyweight Squat', sets: 3, reps: 18, restSeconds: 60, muscleGroup: 'legs' },
+        { id: 'p15-e9', name: 'Glute Bridge', sets: 3, reps: 18, restSeconds: 45, muscleGroup: 'legs' },
+        { id: 'p15-e10', name: 'Mountain Climbers', sets: 3, reps: 25, restSeconds: 45, muscleGroup: 'core' },
+        { id: 'p15-e3', name: 'Plank', sets: 3, reps: '40s', restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      { label: 'Cardio + Mobility', isRest: false, exercises: [
+        { id: 'p15-e4', name: 'Brisk Walk', sets: 1, reps: 60, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Follow with 5-10 min of light stretching.' },
       ] },
       rest(),
     ],
