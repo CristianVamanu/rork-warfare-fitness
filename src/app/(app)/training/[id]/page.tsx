@@ -1,13 +1,13 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getIdToken } from 'firebase/auth';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Play, Clock, Target, Dumbbell, Moon, CheckCircle, CheckCircle2, ChevronLeft,
-  AlertTriangle, RotateCcw, ChevronRight, Lock, Crown,
+  AlertTriangle, RotateCcw, Lock, Crown,
 } from 'lucide-react';
 import { resolveProgram, enrollInProgram, getMembershipConfig } from '@/lib/firestore';
 import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix, getScheduleForWeek, getProgramDayForDow, getNextSession } from '@/lib/programs';
@@ -48,7 +48,6 @@ export default function ProgramDetailPage() {
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [switchModal, setSwitchModal] = useState(false);
-  const [displayWeek, setDisplayWeek] = useState(0); // 0-based week shown in schedule
   const [purchasing, setPurchasing] = useState(false);
   const [membershipConfig, setMembershipConfig] = useState<MembershipConfig | null>(null);
   const [membershipLoaded, setMembershipLoaded] = useState(false);
@@ -112,20 +111,29 @@ export default function ProgramDetailPage() {
   // points at what was just finished, not the next new day).
   const nextIsLocked = isEnrolled && !workedOutToday && nextAbsIdx >= dayLimit;
 
-  // Sync displayWeek to user's current week whenever program or user state changes
-  useEffect(() => {
-    if (isEnrolled) setDisplayWeek(currentWeek);
-  }, [isEnrolled, currentWeek]);
-
-  // The week actually shown in the schedule list below — phase-aware, so a
-  // 90-day program with different blocks shows the right week's exercises
-  // instead of the same 7-day template repeating regardless of which week
-  // the schedule browser is on.
-  const displayWeekSchedule: ProgramDay[] = (program ? getScheduleForWeek(program, displayWeek + 1) : undefined) ?? [];
+  // The FULL program, every week, in one flat list — previously paginated
+  // one week at a time behind arrow buttons, which meant the trial day-lock
+  // (see dayLimit above) was invisible unless a user manually paged forward
+  // past their free week(s) first. Phase-aware per week via
+  // getScheduleForWeek, same as before.
+  const allWeeks: { week: number; days: ProgramDay[] }[] = program
+    ? Array.from({ length: totalWeeks }, (_, w) => ({ week: w + 1, days: getScheduleForWeek(program, w + 1) ?? [] }))
+    : [];
   const todayDay: ProgramDay | null = workedOutToday
     ? (program ? getProgramDayForDow(program, lastCompleted) : null)
     : (nextSession?.day ?? null);
   const isRestToday = isEnrolled && !workedOutToday && (nextSession?.isRestToday ?? false);
+
+  // Auto-scroll to today's slot once the full list has rendered — a 12+
+  // week program is a long scroll, and nobody wants to hunt for "today"
+  // by eye through 80+ rows every time they open this page.
+  const autoScrolledRef = useRef(false);
+  useEffect(() => {
+    if (!isEnrolled || loading || autoScrolledRef.current) return;
+    autoScrolledRef.current = true;
+    const el = document.getElementById(`program-day-${nextAbsIdx}`);
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  }, [isEnrolled, loading, nextAbsIdx]);
 
   const handleEnroll = async (force = false) => {
     if (!user || !program) return;
@@ -364,157 +372,145 @@ export default function ProgramDetailPage() {
           </motion.div>
         )}
 
-        {/* Schedule — week-aware */}
-        {displayWeekSchedule.length > 0 && (
+        {/* Schedule — the FULL program, every week, in one continuous list.
+            Previously paginated one week at a time behind arrow buttons,
+            which meant the trial day-lock below was invisible unless a
+            user manually paged forward past their free days first. */}
+        {allWeeks.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            {/* Week header with nav */}
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold text-white">
-                {isEnrolled
-                  ? `Week ${displayWeek + 1} of ${totalWeeks}`
-                  : 'Weekly Schedule'}
+                {isEnrolled ? `Full Program — ${totalWeeks} Weeks` : 'Weekly Schedule'}
               </h2>
-              {isEnrolled && (totalWeeks > 1 || currentWeek > 0) && (
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setDisplayWeek(w => Math.max(0, w - 1))}
-                    disabled={displayWeek === 0}
-                    className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/10 transition-colors disabled:opacity-30"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setDisplayWeek(w => Math.min(totalWeeks - 1, w + 1))}
-                    disabled={displayWeek >= totalWeeks - 1}
-                    className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/10 transition-colors disabled:opacity-30"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
+              {isEnrolled && (
+                <button
+                  onClick={() => document.getElementById(`program-day-${nextAbsIdx}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                  className="text-xs text-accent hover:underline flex-shrink-0"
+                >
+                  Jump to Today
+                </button>
               )}
             </div>
 
-            <div className="space-y-2">
-              {displayWeekSchedule.map((day, idx) => {
-                // Absolute index of this slot in the displayed week
-                const absoluteDay = displayWeek * scheduleLen + idx;
-                // Is this slot the one the user is currently on?
-                const isToday = isEnrolled && displayWeek === currentWeek && idx === todayDayIndex;
-                const isPast = isEnrolled && absoluteDay < nextAbsIdx && !isToday;
-                const isDoneToday = isToday && workedOutToday;
-                const isCompleted = (isPast || isDoneToday) && !day.isRest;
-                const isExpanded = expandedDay === (displayWeek * scheduleLen + idx);
-                const expandKey = displayWeek * scheduleLen + idx;
+            <div className="space-y-4">
+              {allWeeks.map(({ week, days }) => (
+                <div key={week}>
+                  <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-2 px-1">
+                    Week {week}{week === currentWeek + 1 && isEnrolled ? ' · Current' : ''}
+                  </p>
+                  <div className="space-y-2">
+                    {days.map((day, idx) => {
+                      const weekIdx = week - 1;
+                      // Absolute index of this slot across the whole program
+                      const absoluteDay = weekIdx * scheduleLen + idx;
+                      // Is this slot the one the user is currently on?
+                      const isToday = isEnrolled && weekIdx === currentWeek && idx === todayDayIndex;
+                      const isPast = isEnrolled && absoluteDay < nextAbsIdx && !isToday;
+                      const isDoneToday = isToday && workedOutToday;
+                      const isCompleted = (isPast || isDoneToday) && !day.isRest;
+                      const isExpanded = expandedDay === absoluteDay;
 
-                // Only mark as "upcoming" for current week or near future
-                const isUpcoming = isEnrolled && !isToday && !isPast;
-                // Never locks a day the user already trained — this caps
-                // how much NEW progress a lapsed-trial user can make, not
-                // access to what they've already done.
-                const isLocked = absoluteDay >= dayLimit && !isCompleted;
+                      const isUpcoming = isEnrolled && !isToday && !isPast;
+                      // Never locks a day the user already trained — this caps
+                      // how much NEW progress a lapsed-trial user can make, not
+                      // access to what they've already done.
+                      const isLocked = absoluteDay >= dayLimit && !isCompleted;
 
-                return (
-                  <motion.div key={`${displayWeek}-${idx}`} layout>
-                    <Card
-                      className={`p-4 cursor-pointer transition-colors ${
-                        isLocked ? 'opacity-60' :
-                        isCompleted ? 'border-success/30 bg-success/5' :
-                        isToday ? 'border-accent/50 bg-accent/5' : ''
-                      }`}
-                      onClick={() => setExpandedDay(isExpanded ? null : expandKey)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center text-xs font-bold ${
-                            isCompleted ? 'bg-success/20 text-success' :
-                            isToday ? 'bg-accent text-black' :
-                            day.isRest ? 'bg-surface-elevated text-text-tertiary' :
-                            'bg-surface-elevated text-white'
-                          }`}>
-                            {isCompleted
-                              ? <CheckCircle2 className="w-5 h-5" />
-                              : isLocked
-                              ? <Lock className="w-4 h-4 text-text-tertiary" />
-                              : <span className="text-center leading-none">{`D${idx + 1}`}</span>
-                            }
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className={`text-sm font-medium ${isCompleted ? 'text-success' : isToday ? 'text-white' : 'text-text-secondary'}`}>
-                                {stripWeekdayPrefix(day.label ?? '')}
-                              </p>
-                              {isCompleted && <Badge variant="success">Done</Badge>}
-                              {isLocked && <Badge variant="muted">Members Only</Badge>}
-                              {!isCompleted && !isLocked && isToday && <Badge variant="accent">Today</Badge>}
-                              {!isCompleted && !isLocked && !isToday && isUpcoming && !day.isRest && <Badge variant="muted">Upcoming</Badge>}
-                            </div>
-                            {!day.isRest && (
-                              <p className="text-xs text-text-tertiary mt-0.5">{day.exercises.length} exercises</p>
-                            )}
-                          </div>
-                        </div>
-                        {isLocked ? (
-                          <Lock className="w-4 h-4 text-text-tertiary" />
-                        ) : day.isRest ? (
-                          <Moon className="w-4 h-4 text-text-tertiary" />
-                        ) : isCompleted ? (
-                          <CheckCircle2 className="w-4 h-4 text-success" />
-                        ) : (
-                          <Dumbbell className="w-4 h-4 text-text-tertiary" />
-                        )}
-                      </div>
-
-                      {isExpanded && isLocked && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          className="mt-3 pt-3 border-t border-white/8 text-center"
-                        >
-                          <p className="text-xs text-text-secondary mb-2.5">
-                            Your free trial covers the first {dayLimit} days of this program. Subscribe to keep going from here.
-                          </p>
-                          <Button size="sm" fullWidth onClick={(e) => { e.stopPropagation(); router.push('/profile'); }}>
-                            <Crown className="w-3.5 h-3.5" /> View Plans
-                          </Button>
-                        </motion.div>
-                      )}
-                      {isExpanded && !isLocked && !day.isRest && day.exercises.length > 0 && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          className="mt-3 pt-3 border-t border-white/8 space-y-2"
-                        >
-                          {day.exercises.map((ex, i) => (
-                            <div key={ex.id ?? i} className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <CheckCircle className={`w-3 h-3 ${isCompleted ? 'text-success' : 'text-text-tertiary'}`} />
-                                <span className={`text-sm ${isCompleted ? 'text-text-secondary line-through' : 'text-text-secondary'}`}>{ex.name}</span>
+                      return (
+                        <motion.div key={`${week}-${idx}`} layout id={`program-day-${absoluteDay}`}>
+                          <Card
+                            className={`p-4 cursor-pointer transition-colors ${
+                              isLocked ? 'opacity-60' :
+                              isCompleted ? 'border-success/30 bg-success/5' :
+                              isToday ? 'border-accent/50 bg-accent/5' : ''
+                            }`}
+                            onClick={() => setExpandedDay(isExpanded ? null : absoluteDay)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center text-xs font-bold ${
+                                  isCompleted ? 'bg-success/20 text-success' :
+                                  isToday ? 'bg-accent text-black' :
+                                  day.isRest ? 'bg-surface-elevated text-text-tertiary' :
+                                  'bg-surface-elevated text-white'
+                                }`}>
+                                  {isCompleted
+                                    ? <CheckCircle2 className="w-5 h-5" />
+                                    : isLocked
+                                    ? <Lock className="w-4 h-4 text-text-tertiary" />
+                                    : <span className="text-center leading-none">{`D${idx + 1}`}</span>
+                                  }
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className={`text-sm font-medium ${isCompleted ? 'text-success' : isToday ? 'text-white' : 'text-text-secondary'}`}>
+                                      {stripWeekdayPrefix(day.label ?? '')}
+                                    </p>
+                                    {isCompleted && <Badge variant="success">Done</Badge>}
+                                    {isLocked && <Badge variant="muted">Members Only</Badge>}
+                                    {!isCompleted && !isLocked && isToday && <Badge variant="accent">Today</Badge>}
+                                    {!isCompleted && !isLocked && !isToday && isUpcoming && !day.isRest && <Badge variant="muted">Upcoming</Badge>}
+                                  </div>
+                                  {!day.isRest && (
+                                    <p className="text-xs text-text-tertiary mt-0.5">{day.exercises.length} exercises</p>
+                                  )}
+                                </div>
                               </div>
-                              <span className="text-xs text-text-tertiary">{ex.sets}×{ex.reps}</span>
+                              {isLocked ? (
+                                <Lock className="w-4 h-4 text-text-tertiary" />
+                              ) : day.isRest ? (
+                                <Moon className="w-4 h-4 text-text-tertiary" />
+                              ) : isCompleted ? (
+                                <CheckCircle2 className="w-4 h-4 text-success" />
+                              ) : (
+                                <Dumbbell className="w-4 h-4 text-text-tertiary" />
+                              )}
                             </div>
-                          ))}
-                          {isToday && isEnrolled && !workedOutToday && (
-                            <Button size="sm" fullWidth className="mt-3" onClick={(e) => { e.stopPropagation(); router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`); }}>
-                              <Play className="w-4 h-4" /> Start This Workout
-                            </Button>
-                          )}
-                        </motion.div>
-                      )}
-                    </Card>
-                  </motion.div>
-                );
-              })}
-            </div>
 
-            {/* Jump to current week shortcut when browsing past/future weeks */}
-            {isEnrolled && displayWeek !== currentWeek && (
-              <button
-                onClick={() => setDisplayWeek(currentWeek)}
-                className="mt-2 w-full text-center text-xs text-accent hover:underline py-1"
-              >
-                Jump to current week (Week {currentWeek + 1})
-              </button>
-            )}
+                            {isExpanded && isLocked && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="mt-3 pt-3 border-t border-white/8 text-center"
+                              >
+                                <p className="text-xs text-text-secondary mb-2.5">
+                                  Your free trial covers the first {dayLimit} days of this program. Subscribe to keep going from here.
+                                </p>
+                                <Button size="sm" fullWidth onClick={(e) => { e.stopPropagation(); router.push('/profile'); }}>
+                                  <Crown className="w-3.5 h-3.5" /> View Plans
+                                </Button>
+                              </motion.div>
+                            )}
+                            {isExpanded && !isLocked && !day.isRest && day.exercises.length > 0 && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="mt-3 pt-3 border-t border-white/8 space-y-2"
+                              >
+                                {day.exercises.map((ex, i) => (
+                                  <div key={ex.id ?? i} className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <CheckCircle className={`w-3 h-3 ${isCompleted ? 'text-success' : 'text-text-tertiary'}`} />
+                                      <span className={`text-sm ${isCompleted ? 'text-text-secondary line-through' : 'text-text-secondary'}`}>{ex.name}</span>
+                                    </div>
+                                    <span className="text-xs text-text-tertiary">{ex.sets}×{ex.reps}</span>
+                                  </div>
+                                ))}
+                                {isToday && isEnrolled && !workedOutToday && (
+                                  <Button size="sm" fullWidth className="mt-3" onClick={(e) => { e.stopPropagation(); router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`); }}>
+                                    <Play className="w-4 h-4" /> Start This Workout
+                                  </Button>
+                                )}
+                              </motion.div>
+                            )}
+                          </Card>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           </motion.div>
         )}
       </div>
