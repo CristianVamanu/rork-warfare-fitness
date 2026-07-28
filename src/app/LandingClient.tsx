@@ -191,7 +191,6 @@ export default function LandingPage({
   const [stats, setStats] = useState<{ totalUsers: number; totalWorkouts: number } | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [quickSex, setQuickSex] = useState<'male' | 'female' | null>(null);
-  const [quickAge, setQuickAge] = useState('');
   const [programs, setPrograms] = useState<PublicProgram[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<PublicProgram | null>(null);
@@ -225,8 +224,6 @@ export default function LandingPage({
   // automatically for trialDays from account creation, so the CTA can lead
   // straight to registration rather than a paid checkout.
   const primaryCtaLabel = trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : landing.ctaPrimaryLabel;
-  const quickAgeNum = parseInt(quickAge, 10);
-  const quickSexAgeValid = !!quickSex && quickAgeNum >= 13 && quickAgeNum <= 100;
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
@@ -359,11 +356,13 @@ export default function LandingPage({
             {subheadline}
           </p>
           {/* Quick-start selector — getting a visitor to make one small,
-              personal choice (their sex, their age) before they even leave
-              the landing page builds investment in the result, the same
-              trick quiz-funnel apps use. Answers ride along as query params
-              and simply pre-fill the same fields on the biometrics step —
-              nothing here is saved or required, it's just a head start. */}
+              personal choice (their sex) before they even leave the landing
+              page builds investment in the result, the same trick
+              quiz-funnel apps use. Age used to be asked here too, but it's
+              the less important of the two to front-load — it's asked in
+              onboarding instead (still right at the start there, just not
+              on the landing page itself). Rides along as a query param and
+              pre-fills the same field on the biometrics step. */}
           <div className="max-w-md mx-auto mt-8 p-5 rounded-2xl border border-white/8 bg-surface/60 backdrop-blur-sm">
             <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-3">Start building your program</p>
             <div className="grid grid-cols-2 gap-2 mb-3">
@@ -378,31 +377,22 @@ export default function LandingPage({
                 </button>
               ))}
             </div>
-            <input
-              type="number"
-              inputMode="numeric"
-              value={quickAge}
-              onChange={(e) => setQuickAge(e.target.value)}
-              placeholder="Your age"
-              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm text-center placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 mb-3"
-            />
-            {/* Now mandatory (previously both were optional) — an unset sex/
-                age used to just skip straight to asking again on the
-                biometrics step, making this box pointless busywork instead
-                of an actual head start. Disabled instead of just letting a
-                blank/invalid value silently pass through as before. */}
+            {/* Mandatory — an unset sex used to just skip straight to
+                asking again in onboarding, making this box pointless
+                busywork instead of an actual head start. Disabled instead
+                of letting a blank value silently pass through as before. */}
             <Link
-              href={quickSexAgeValid ? `/onboarding?sex=${quickSex}&age=${quickAge}` : '#'}
-              onClick={(e) => { if (!quickSexAgeValid) e.preventDefault(); }}
+              href={quickSex ? `/onboarding?sex=${quickSex}` : '#'}
+              onClick={(e) => { if (!quickSex) e.preventDefault(); }}
               className="block"
-              aria-disabled={!quickSexAgeValid}
+              aria-disabled={!quickSex}
             >
-              <Button size="lg" fullWidth disabled={!quickSexAgeValid}>
+              <Button size="lg" fullWidth disabled={!quickSex}>
                 {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
-            {!quickSexAgeValid && (
-              <p className="text-[11px] text-text-tertiary text-center mt-2">Select your sex and enter your age to continue.</p>
+            {!quickSex && (
+              <p className="text-[11px] text-text-tertiary text-center mt-2">Select your sex to continue.</p>
             )}
           </div>
 

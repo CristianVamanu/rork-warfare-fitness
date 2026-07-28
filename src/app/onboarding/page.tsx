@@ -14,7 +14,7 @@ import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { signUp } from '@/lib/auth';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, resolveProgram } from '@/lib/firestore';
-import { estimateNutritionTargets, calculateBmi, estimateBmiTimeline, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
+import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -109,16 +109,21 @@ function OnboardingPageInner() {
   const [revealProgram, setRevealProgram] = useState<{ name: string; description: string; weeks: number; daysPerWeek: number } | null>(null);
   const [revealNutrition, setRevealNutrition] = useState<(NutritionTargets & { goalLabel: string; rationale: string }) | null>(null);
   const [revealTimeline, setRevealTimeline] = useState<WeightGoalTimeline | null>(null);
-  // Snapshot taken once, at mount — whether this visitor already answered
-  // sex/age (came from the landing page's mandatory quick-start box).
-  // Deliberately NOT reactive to the live sex/age state: step 0's quick
-  // picker below uses this (not sexAgeAnswered) to decide whether to render
-  // itself at all, so it doesn't vanish out from under someone mid-keystroke
-  // the instant their typed age crosses into the valid 13-100 range.
-  const [hadPrefilledSexAge] = useState(() => {
+  // Snapshots taken once, at mount — whether this visitor already answered
+  // sex and/or age (the landing page's quick-start box only asks sex now;
+  // age is asked here instead — but /register's own form still sends both,
+  // and either can arrive independently). Deliberately NOT reactive to the
+  // live sex/age state: step 0's quick picker below uses these (not
+  // sexAgeAnswered) to decide which parts of itself to render, so it
+  // doesn't vanish out from under someone mid-keystroke the instant their
+  // typed age crosses into the valid 13-100 range.
+  const [hadPrefilledSex] = useState(() => {
     const qSex = searchParams.get('sex');
+    return qSex === 'male' || qSex === 'female';
+  });
+  const [hadPrefilledAge] = useState(() => {
     const qAge = searchParams.get('age');
-    return (qSex === 'male' || qSex === 'female') && !!qAge && /^\d+$/.test(qAge) && +qAge >= 13 && +qAge <= 100;
+    return !!qAge && /^\d+$/.test(qAge) && +qAge >= 13 && +qAge <= 100;
   });
 
   function updateMedical(patch: Partial<MedicalHistoryAnswers>) {
@@ -613,7 +618,7 @@ function OnboardingPageInner() {
               <StepGoal
                 selected={goal} onSelect={setGoal}
                 sex={sex} onSex={setSex} age={age} onAge={setAge}
-                showQuickSexAge={!hadPrefilledSexAge}
+                showSexPicker={!hadPrefilledSex} showAgeInput={!hadPrefilledAge}
               />
             )}
             {step === 1 && (
@@ -746,42 +751,48 @@ function OnboardingPageInner() {
 // ─── Step components ───────────────────────────────────────────────────────────
 
 function StepGoal({
-  selected, onSelect, sex, onSex, age, onAge, showQuickSexAge,
+  selected, onSelect, sex, onSex, age, onAge, showSexPicker, showAgeInput,
 }: {
   selected: FitnessGoal | null; onSelect: (v: FitnessGoal) => void;
   sex: BiologicalSex | null; onSex: (v: BiologicalSex) => void;
   age: string; onAge: (v: string) => void;
-  showQuickSexAge: boolean;
+  showSexPicker: boolean; showAgeInput: boolean;
 }) {
   return (
     <div>
       {/* Asked right here, first, for anyone who didn't already answer it
-          on the landing page's quick-start box (which pre-fills and skips
-          this) — previously only asked much later on the "About You" step,
-          which meant most of the quiz ran before biometrics were even
-          known, and visitors who started from "New here? Create account"
-          on /login never got asked early at all. */}
-      {showQuickSexAge && (
+          elsewhere — the landing page's quick-start box only asks sex now
+          (age is asked here instead, since it's the less important of the
+          two to front-load), and /register's own form still asks both.
+          Whichever of sex/age wasn't already answered shows here; previously
+          this was asked much later on the "About You" step, and visitors
+          who started from "New here? Create account" on /login never got
+          asked early at all. */}
+      {(showSexPicker || showAgeInput) && (
         <div className="mb-6 p-4 bg-surface rounded-2xl border border-white/8">
           <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-3">Quick — before we start</p>
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
-              <button key={value} onClick={() => onSex(value)} className="w-full">
-                <Card className={`p-3 text-center transition-colors ${sex === value ? 'border-accent bg-accent/5' : ''}`}>
-                  <Icon className="w-4 h-4 mx-auto mb-1 text-text-secondary" />
-                  <p className="text-xs font-medium text-white">{label}</p>
-                </Card>
-              </button>
-            ))}
-          </div>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={age}
-            onChange={(e) => onAge(e.target.value)}
-            placeholder="Your age"
-            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm text-center placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-          />
+          {showSexPicker && (
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
+                <button key={value} onClick={() => onSex(value)} className="w-full">
+                  <Card className={`p-3 text-center transition-colors ${sex === value ? 'border-accent bg-accent/5' : ''}`}>
+                    <Icon className="w-4 h-4 mx-auto mb-1 text-text-secondary" />
+                    <p className="text-xs font-medium text-white">{label}</p>
+                  </Card>
+                </button>
+              ))}
+            </div>
+          )}
+          {showAgeInput && (
+            <input
+              type="number"
+              inputMode="numeric"
+              value={age}
+              onChange={(e) => onAge(e.target.value)}
+              placeholder="Your age"
+              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm text-center placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+            />
+          )}
         </div>
       )}
 
@@ -1289,7 +1300,6 @@ function StepAccount({
 
 function StepBmiResult({ heightCm, weightKg }: { heightCm: number; weightKg: number }) {
   const { bmi, category, healthyWeightRangeKg } = calculateBmi(heightCm, weightKg);
-  const { weeksToHealthy, weightChangeKg } = estimateBmiTimeline(heightCm, weightKg);
 
   const categoryColor = {
     Underweight: 'text-blue-400',
@@ -1297,8 +1307,6 @@ function StepBmiResult({ heightCm, weightKg }: { heightCm: number; weightKg: num
     Overweight: 'text-amber-400',
     Obese: 'text-red-400',
   }[category];
-
-  const months = weeksToHealthy ? Math.round((weeksToHealthy / 4.345) * 10) / 10 : null;
 
   return (
     <div>
@@ -1315,6 +1323,13 @@ function StepBmiResult({ heightCm, weightKg }: { heightCm: number; weightKg: num
         </p>
       </Card>
 
+      {/* Used to also show its own "X months to a healthy BMI range"
+          estimate here — but the goal-weight question a few steps later
+          produces a second, different timeline (to the weight the user
+          actually asked for, not a generic BMI band), and showing two
+          different "months to X" numbers back-to-back read as the app
+          contradicting itself. The real, personalized one now only ever
+          appears once, on the final reveal screen. */}
       {category === 'Healthy' ? (
         <div className="mt-4 p-4 bg-success/10 border border-success/20 rounded-2xl flex items-start gap-3">
           <PartyPopper className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
@@ -1324,18 +1339,9 @@ function StepBmiResult({ heightCm, weightKg }: { heightCm: number; weightKg: num
         </div>
       ) : (
         <div className="mt-4 p-4 bg-accent/5 border border-accent/20 rounded-2xl flex items-start gap-3">
-          {weightChangeKg < 0 ? (
-            <TrendingDown className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
-          ) : (
-            <TrendingUp className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
-          )}
+          <TrendingUp className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
           <p className="text-sm text-text-secondary">
-            Following your program consistently, a realistic estimate is{' '}
-            <span className="text-white font-medium">
-              ~{months} month{months !== 1 ? 's' : ''}
-            </span>{' '}
-            to reach a healthy BMI range ({weightChangeKg < 0 ? 'losing' : 'gaining'} ~{Math.abs(Math.round(weightChangeKg))}kg
-            at a safe, sustainable pace).
+            Your goal weight (next up) will drive your program and your personalized timeline — this is just a reference point, not a target.
           </p>
         </div>
       )}
