@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isInTrial, getProgramDayLimit } from './membership';
+import { getProgramDayLimit } from './membership';
 import type { MembershipConfig, UserProfile } from '@/types';
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
@@ -13,28 +13,9 @@ const config = (overrides: Partial<MembershipConfig> = {}): MembershipConfig => 
   ...overrides,
 });
 
-const profile = (overrides: Partial<Pick<UserProfile, 'createdAt' | 'membership'>> = {}) => ({
-  createdAt: daysAgo(3),
+const profile = (overrides: Partial<Pick<UserProfile, 'membership'>> = {}) => ({
   ...overrides,
-}) as Pick<UserProfile, 'createdAt' | 'membership'>;
-
-describe('isInTrial', () => {
-  it('is true when created within the trial window', () => {
-    expect(isInTrial(profile({ createdAt: daysAgo(3) }), 7)).toBe(true);
-  });
-
-  it('is false once the trial window has passed', () => {
-    expect(isInTrial(profile({ createdAt: daysAgo(10) }), 7)).toBe(false);
-  });
-
-  it('is false when trialDays is 0', () => {
-    expect(isInTrial(profile({ createdAt: daysAgo(1) }), 0)).toBe(false);
-  });
-
-  it('is false with no createdAt', () => {
-    expect(isInTrial({ createdAt: undefined }, 7)).toBe(false);
-  });
-});
+}) as Pick<UserProfile, 'membership'>;
 
 describe('getProgramDayLimit', () => {
   it('is unlimited when membership config is disabled or missing', () => {
@@ -42,23 +23,28 @@ describe('getProgramDayLimit', () => {
     expect(getProgramDayLimit(config({ enabled: false }), profile())).toBe(Infinity);
   });
 
-  it('is unlimited for an active paying member, even past the trial window', () => {
-    const p = profile({ createdAt: daysAgo(365), membership: { status: 'active' } });
+  it('is unlimited for an active paying member', () => {
+    const p = profile({ membership: { status: 'active' } });
     expect(getProgramDayLimit(config(), p)).toBe(Infinity);
   });
 
-  it('is unlimited for anyone still inside the calendar trial window — matches the existing site-wide trial behavior', () => {
-    const p = profile({ createdAt: daysAgo(2) });
-    expect(getProgramDayLimit(config({ trialDays: 7 }), p)).toBe(Infinity);
+  it('caps at trialDays for a non-member from day one — not just once some calendar window closes', () => {
+    // This is the whole point: a brand-new signup with no membership sees
+    // exactly `trialDays` days unlocked immediately, same as someone who
+    // signed up months ago and never subscribed.
+    expect(getProgramDayLimit(config({ trialDays: 7 }), profile())).toBe(7);
   });
 
-  it('caps at trialDays once the trial window has closed without subscribing', () => {
-    const p = profile({ createdAt: daysAgo(10) });
-    expect(getProgramDayLimit(config({ trialDays: 7 }), p)).toBe(7);
+  it('caps at 14 or 30 the same way, following whatever trialDays is configured', () => {
+    expect(getProgramDayLimit(config({ trialDays: 14 }), profile())).toBe(14);
+    expect(getProgramDayLimit(config({ trialDays: 30 }), profile())).toBe(30);
   });
 
   it('is unlimited when trialDays is 0 (no trial concept configured)', () => {
-    const p = profile({ createdAt: daysAgo(100) });
-    expect(getProgramDayLimit(config({ trialDays: 0 }), p)).toBe(Infinity);
+    expect(getProgramDayLimit(config({ trialDays: 0 }), profile())).toBe(Infinity);
+  });
+
+  it('is unaffected by membership.status being anything other than active', () => {
+    expect(getProgramDayLimit(config({ trialDays: 7 }), profile({ membership: { status: 'none' } }))).toBe(7);
   });
 });
