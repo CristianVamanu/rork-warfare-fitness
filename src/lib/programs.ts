@@ -981,6 +981,180 @@ export const MOCK_PROGRAMS: Program[] = [
       rest(),
     ],
   },
+
+  // ── P15: Burn Ops — 90-Day Fat Loss Protocol ──────────────────────────
+  // Adapted from a user-supplied "Burn Ops" program doc that leaned on a
+  // 1-meal-a-day / 1200kcal protocol and framed hunger/withdrawal symptoms
+  // as things to push through — not safe to ship as-is. Kept everything
+  // that WAS good: the 3-phase progressive structure (foundation ->
+  // escalation -> full-send), the actual exercise programming (circuits ->
+  // split routine -> giant sets/drop sets/HIIT), daily cardio, and the
+  // military "mission" branding. Nutrition guidance in the description
+  // points to the app's own calorie calculator (a real moderate deficit)
+  // instead of the extreme-restriction protocol from the source doc.
+  {
+    id: 'p15',
+    name: 'Burn Ops: 90-Day Fat Loss Protocol',
+    description: 'A 90-day, 3-phase mission built to strip fat and build real conditioning — for men and women, home-friendly (dumbbells + bodyweight, no gym required).\n\nPhase 1 (Weeks 1-4): Foundation. Bodyweight circuits + daily cardio — build consistency and a real mind-muscle connection.\n\nPhase 2 (Weeks 5-9): Escalation. A structured push/pull/legs split with dumbbells — more volume, more intensity.\n\nPhase 3 (Weeks 10-13): Full Send. Giant sets, drop sets, and HIIT finishers — your hardest block, built on the base you already earned.\n\nPair this with a moderate calorie deficit (your Nutrition tab already calculates yours) and daily movement — that combo, not starvation, is what actually burns fat and keeps it off.',
+    level: 'beginner',
+    goal: 'weight-loss',
+    weeks: 13,
+    daysPerWeek: 6,
+    isPublic: true,
+    createdBy: 'system',
+    exercises: [
+      { id: 'p15-e1', name: 'Push-Up', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'chest' },
+      { id: 'p15-e2', name: 'Bodyweight Squat', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'legs' },
+      { id: 'p15-e3', name: 'Plank', sets: 3, reps: '30s', restSeconds: 45, muscleGroup: 'core' },
+      { id: 'p15-e4', name: 'Brisk Walk', sets: 1, reps: 45, restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
+      { id: 'p15-e5', name: 'Dumbbell Bench Press', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'chest' },
+      { id: 'p15-e6', name: 'Dumbbell Row', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'back' },
+      { id: 'p15-e7', name: 'Goblet Squat', sets: 3, reps: 15, restSeconds: 75, muscleGroup: 'legs' },
+      { id: 'p15-e8', name: 'Burpee', sets: 3, reps: 12, restSeconds: 45, muscleGroup: 'full-body' },
+    ],
+    // phases[0]'s schedule doubles as the top-level `schedule` fallback —
+    // Phase 1's Monday circuit.
+    schedule: [
+      { label: 'Full-Body Circuit A', isRest: false, exercises: [
+        { id: 'p15-e1', name: 'Push-Up', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'chest' },
+        { id: 'p15-e2', name: 'Bodyweight Squat', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'legs' },
+        { id: 'p15-e3', name: 'Plank', sets: 3, reps: '30s', restSeconds: 45, muscleGroup: 'core' },
+        { id: 'p15-e9', name: 'Glute Bridge', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'legs' },
+        { id: 'p15-e10', name: 'Mountain Climbers', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      rest(),
+    ],
+    phases: [
+      {
+        id: 'p15-ph1',
+        label: 'Phase 1: Foundation',
+        startWeek: 1,
+        endWeek: 4,
+        schedule: [
+          { label: 'Full-Body Circuit A', isRest: false, exercises: [
+            { id: 'p15-e1', name: 'Push-Up', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'chest' },
+            { id: 'p15-e2', name: 'Bodyweight Squat', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'legs' },
+            { id: 'p15-e3', name: 'Plank', sets: 3, reps: '30s', restSeconds: 45, muscleGroup: 'core' },
+            { id: 'p15-e9', name: 'Glute Bridge', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'legs' },
+            { id: 'p15-e10', name: 'Mountain Climbers', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Cardio + Core', isRest: false, exercises: [
+            { id: 'p15-e4', name: 'Brisk Walk', sets: 1, reps: 45, restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
+            { id: 'p15-e3', name: 'Plank', sets: 3, reps: '30s', restSeconds: 45, muscleGroup: 'core' },
+            { id: 'p15-e11', name: 'Bicycle Crunch', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Full-Body Circuit B', isRest: false, exercises: [
+            { id: 'p15-e12', name: 'Reverse Lunge', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'legs' },
+            { id: 'p15-e13', name: 'Incline Push-Up', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'chest' },
+            { id: 'p15-e14', name: 'Superman', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'back' },
+            { id: 'p15-e15', name: 'Side Plank', sets: 3, reps: '20s', restSeconds: 45, muscleGroup: 'core' },
+            { id: 'p15-e16', name: 'Jumping Jacks', sets: 3, reps: 1, restSeconds: 30, muscleGroup: 'cardio', isCardio: true, cardioDurationSeconds: 30 },
+          ] },
+          rest(),
+          { label: 'Full-Body Circuit C', isRest: false, exercises: [
+            { id: 'p15-e1', name: 'Push-Up', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+            { id: 'p15-e2', name: 'Bodyweight Squat', sets: 3, reps: 18, restSeconds: 60, muscleGroup: 'legs' },
+            { id: 'p15-e9', name: 'Glute Bridge', sets: 3, reps: 18, restSeconds: 45, muscleGroup: 'legs' },
+            { id: 'p15-e10', name: 'Mountain Climbers', sets: 3, reps: 25, restSeconds: 45, muscleGroup: 'core' },
+            { id: 'p15-e3', name: 'Plank', sets: 3, reps: '40s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Cardio + Mobility', isRest: false, exercises: [
+            { id: 'p15-e4', name: 'Brisk Walk', sets: 1, reps: 60, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Follow with 5-10 min of light stretching.' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p15-ph2',
+        label: 'Phase 2: Escalation',
+        startWeek: 5,
+        endWeek: 9,
+        schedule: [
+          { label: 'Chest + Triceps + Core', isRest: false, exercises: [
+            { id: 'p15-e5', name: 'Dumbbell Bench Press', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'chest' },
+            { id: 'p15-e17', name: 'Dumbbell Flye', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'chest' },
+            { id: 'p15-e18', name: 'Tricep Dip', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'arms' },
+            { id: 'p15-e3', name: 'Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Back + Biceps + Core', isRest: false, exercises: [
+            { id: 'p15-e6', name: 'Dumbbell Row', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'back' },
+            { id: 'p15-e19', name: 'Renegade Row', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back' },
+            { id: 'p15-e20', name: 'Dumbbell Bicep Curl', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'arms' },
+            { id: 'p15-e21', name: 'Russian Twist', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs + Shoulders + Core', isRest: false, exercises: [
+            { id: 'p15-e7', name: 'Goblet Squat', sets: 3, reps: 15, restSeconds: 75, muscleGroup: 'legs' },
+            { id: 'p15-e22', name: 'Dumbbell Romanian Deadlift', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'legs' },
+            { id: 'p15-e23', name: 'Dumbbell Shoulder Press', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'shoulders' },
+            { id: 'p15-e24', name: 'Lateral Raise', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'shoulders' },
+          ] },
+          { label: 'Cardio + Core', isRest: false, exercises: [
+            { id: 'p15-e4', name: 'Brisk Walk / Light Jog', sets: 1, reps: 45, restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
+            { id: 'p15-e25', name: 'Lying Leg Raise', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Full-Body Functional', isRest: false, exercises: [
+            { id: 'p15-e8', name: 'Burpee', sets: 3, reps: 12, restSeconds: 45, muscleGroup: 'full-body' },
+            { id: 'p15-e26', name: 'Dumbbell Swing', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'full-body' },
+            { id: 'p15-e1', name: 'Push-Up', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+            { id: 'p15-e10', name: 'Mountain Climbers', sets: 3, reps: 25, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Light Cardio + Mobility', isRest: false, exercises: [
+            { id: 'p15-e4', name: 'Brisk Walk', sets: 1, reps: 30, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Follow with 10 min of mobility work.' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p15-ph3',
+        label: 'Phase 3: Full Send',
+        startWeek: 10,
+        endWeek: 13,
+        schedule: [
+          { label: 'Chest + HIIT', isRest: false, exercises: [
+            { id: 'p15-e5', name: 'Dumbbell Bench Press', sets: 3, reps: 10, restSeconds: 20, muscleGroup: 'chest', notes: 'Giant set — go straight into the next exercise.' },
+            { id: 'p15-e27', name: 'Incline Dumbbell Press', sets: 3, reps: 10, restSeconds: 20, muscleGroup: 'chest', notes: 'Giant set, part 2.' },
+            { id: 'p15-e1', name: 'Push-Up', sets: 3, reps: 'to failure', restSeconds: 90, muscleGroup: 'chest', notes: 'Giant set, part 3 — then rest.' },
+            { id: 'p15-e10', name: 'Mountain Climbers', sets: 4, reps: 1, restSeconds: 30, muscleGroup: 'cardio', isCardio: true, cardioDurationSeconds: 30, notes: 'HIIT finisher.' },
+            { id: 'p15-e8', name: 'Burpee', sets: 4, reps: 1, restSeconds: 30, muscleGroup: 'full-body', isCardio: true, cardioDurationSeconds: 30 },
+          ] },
+          { label: 'Back + HIIT', isRest: false, exercises: [
+            { id: 'p15-e6', name: 'Dumbbell Row', sets: 3, reps: 10, restSeconds: 20, muscleGroup: 'back', notes: 'Giant set — go straight into the next exercise.' },
+            { id: 'p15-e19', name: 'Renegade Row', sets: 3, reps: 10, restSeconds: 20, muscleGroup: 'back', notes: 'Giant set, part 2.' },
+            { id: 'p15-e14', name: 'Superman', sets: 3, reps: 15, restSeconds: 90, muscleGroup: 'back', notes: 'Giant set, part 3 — then rest.' },
+            { id: 'p15-e28', name: 'Jumping Lunges', sets: 4, reps: 1, restSeconds: 30, muscleGroup: 'cardio', isCardio: true, cardioDurationSeconds: 30, notes: 'HIIT finisher.' },
+            { id: 'p15-e29', name: 'High Knees', sets: 4, reps: 1, restSeconds: 30, muscleGroup: 'cardio', isCardio: true, cardioDurationSeconds: 30 },
+          ] },
+          { label: 'Legs + Core + HIIT', isRest: false, exercises: [
+            { id: 'p15-e7', name: 'Goblet Squat', sets: 3, reps: 12, restSeconds: 20, muscleGroup: 'legs', notes: 'Giant set — go straight into the next exercise.' },
+            { id: 'p15-e30', name: 'Walking Lunge', sets: 3, reps: 12, restSeconds: 20, muscleGroup: 'legs', notes: 'Giant set, part 2.' },
+            { id: 'p15-e31', name: 'Jump Squat', sets: 3, reps: 12, restSeconds: 90, muscleGroup: 'legs', notes: 'Giant set, part 3 — then rest.' },
+            { id: 'p15-e10', name: 'Mountain Climbers', sets: 4, reps: 1, restSeconds: 30, muscleGroup: 'cardio', isCardio: true, cardioDurationSeconds: 30, notes: 'HIIT finisher.' },
+            { id: 'p15-e8', name: 'Burpee', sets: 4, reps: 1, restSeconds: 30, muscleGroup: 'full-body', isCardio: true, cardioDurationSeconds: 30 },
+          ] },
+          { label: 'Shoulders + Arms + HIIT', isRest: false, exercises: [
+            { id: 'p15-e23', name: 'Dumbbell Shoulder Press', sets: 3, reps: 10, restSeconds: 20, muscleGroup: 'shoulders', notes: 'Giant set — go straight into the next exercise.' },
+            { id: 'p15-e24', name: 'Lateral Raise', sets: 3, reps: 12, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Giant set, part 2 — then rest.' },
+            { id: 'p15-e20', name: 'Dumbbell Bicep Curl', sets: 3, reps: 12, restSeconds: 15, muscleGroup: 'arms', notes: 'Superset — go straight into the next exercise.' },
+            { id: 'p15-e18', name: 'Tricep Dip', sets: 3, reps: 12, restSeconds: 90, muscleGroup: 'arms', notes: 'Superset, part 2 — then rest.' },
+            { id: 'p15-e32', name: 'Plank Jacks', sets: 4, reps: 1, restSeconds: 30, muscleGroup: 'cardio', isCardio: true, cardioDurationSeconds: 30, notes: 'HIIT finisher.' },
+          ] },
+          { label: 'Full-Body HIIT Finisher', isRest: false, exercises: [
+            { id: 'p15-e8', name: 'Burpee', sets: 4, reps: 1, restSeconds: 15, muscleGroup: 'full-body', isCardio: true, cardioDurationSeconds: 30, notes: 'Tabata-style — 4 rounds of the whole circuit.' },
+            { id: 'p15-e31', name: 'Jump Squat', sets: 4, reps: 1, restSeconds: 15, muscleGroup: 'legs', isCardio: true, cardioDurationSeconds: 30 },
+            { id: 'p15-e1', name: 'Push-Up', sets: 4, reps: 1, restSeconds: 15, muscleGroup: 'chest', isCardio: true, cardioDurationSeconds: 30 },
+            { id: 'p15-e10', name: 'Mountain Climbers', sets: 4, reps: 1, restSeconds: 90, muscleGroup: 'core', isCardio: true, cardioDurationSeconds: 30 },
+            { id: 'p15-e33', name: 'Weighted Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Sprints + Core', isRest: false, exercises: [
+            { id: 'p15-e34', name: 'Sprint Intervals', sets: 10, reps: 1, restSeconds: 60, muscleGroup: 'cardio', isCardio: true, cardioDurationSeconds: 30, notes: 'All-out for 30 seconds each interval.' },
+            { id: 'p15-e33', name: 'Weighted Plank', sets: 3, reps: '60s', restSeconds: 45, muscleGroup: 'core' },
+            { id: 'p15-e15', name: 'Side Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+    ],
+  },
 ];
 
 /** Look up a mock program by id. Returns null if not found. */

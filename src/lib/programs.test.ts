@@ -91,8 +91,13 @@ describe('progress units — training days, not schedule slots', () => {
     expect(getTotalTrainingDays(phased)).toBe(2 * 4 + 2 * 5);
   });
 
-  it('every seed program totals weeks × daysPerWeek exactly', () => {
+  it('every non-phased seed program totals weeks × daysPerWeek exactly', () => {
+    // Phased programs (e.g. p15) deliberately vary training days per phase —
+    // that's the whole point of getTotalTrainingDays being phase-aware (see
+    // the test above) — so the top-level daysPerWeek × weeks equality only
+    // holds for programs using one flat schedule throughout.
     for (const p of MOCK_PROGRAMS) {
+      if (p.phases?.length) continue;
       expect(getTotalTrainingDays(p), p.id).toBe(p.weeks * p.daysPerWeek);
     }
   });
