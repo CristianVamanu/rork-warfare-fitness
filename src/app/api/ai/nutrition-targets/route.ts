@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     const targets = estimateNutritionTargets(goal, experience, trainingDays, biometrics);
     const biometricsDescription = biometrics
-      ? `your stats (${biometrics.sex !== 'prefer-not-to-say' ? biometrics.sex + ', ' : ''}${biometrics.age}yo, ${biometrics.heightCm}cm, ${biometrics.weightKg}kg) and training ${trainingDays}x/week`
+      ? `your stats (${biometrics.sex}, ${biometrics.age}yo, ${biometrics.heightCm}cm, ${biometrics.weightKg}kg) and training ${trainingDays}x/week`
       : `your training frequency (${trainingDays}x/week) and experience level`;
 
     const rationale = templateRationale(goal, targets.calorieAdjustment, biometricsDescription);

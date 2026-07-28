@@ -67,17 +67,11 @@ export function estimateNutritionTargets(
   const usedRealBiometrics = !!biometrics;
 
   let bmr: number;
-  if (biometrics && biometrics.sex !== 'prefer-not-to-say') {
+  if (biometrics) {
     const { sex, age, heightCm, weightKg } = biometrics;
     bmr = sex === 'male'
       ? 10 * weightKg + 6.25 * heightCm - 5 * age + 5
       : 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
-  } else if (biometrics) {
-    // Sex not disclosed — average the male/female BMR formulas
-    const { age, heightCm, weightKg } = biometrics;
-    const bmrMale = 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
-    const bmrFemale = 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
-    bmr = (bmrMale + bmrFemale) / 2;
   } else {
     // No biometrics at all (step skipped) — flat per-experience-level guess
     bmr = BASE_CALORIES[experience] ?? 2200;

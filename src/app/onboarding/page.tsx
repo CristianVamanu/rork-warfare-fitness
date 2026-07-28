@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Flame, Dumbbell, RefreshCw, Zap,
   ChevronRight, ChevronLeft, Loader2, CheckCircle,
-  Home, Building2, Package, User, Users, AlertCircle, TrendingDown, TrendingUp, PartyPopper,
+  Home, Building2, Package, User, AlertCircle, TrendingDown, TrendingUp, PartyPopper,
 } from 'lucide-react';
 import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -736,8 +736,8 @@ function StepGoal({
       {!sexAgeAnswered && (
         <div className="mb-6 p-4 bg-surface rounded-2xl border border-white/8">
           <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-3">Quick — before we start</p>
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            {SEX_OPTIONS.filter((o) => o.value !== 'prefer-not-to-say').map(({ value, label, icon: Icon }) => (
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
               <button key={value} onClick={() => onSex(value)}>
                 <Card className={`p-3 text-center transition-colors ${sex === value ? 'border-accent bg-accent/5' : ''}`}>
                   <Icon className="w-4 h-4 mx-auto mb-1 text-text-secondary" />
@@ -1085,7 +1085,6 @@ function StepPreferences({
 const SEX_OPTIONS: { value: BiologicalSex; label: string; icon: React.ElementType }[] = [
   { value: 'male', label: 'Male', icon: User },
   { value: 'female', label: 'Female', icon: User },
-  { value: 'prefer-not-to-say', label: 'Prefer not to say', icon: Users },
 ];
 
 function StepBiometrics({
@@ -1120,7 +1119,7 @@ function StepBiometrics({
       ) : (
         <>
           <p className="text-xs font-medium text-text-secondary mb-2">Sex</p>
-          <div className="grid grid-cols-3 gap-2 mb-5">
+          <div className="grid grid-cols-2 gap-2 mb-5">
             {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
               <button key={value} onClick={() => onSex(value)}>
                 <Card className={`p-3 text-center transition-colors ${sex === value ? 'border-accent bg-accent/5' : ''}`}>

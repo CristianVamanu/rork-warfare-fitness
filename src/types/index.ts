@@ -75,7 +75,7 @@ export interface ActiveProgram {
 export type FitnessGoal = 'lose-fat' | 'build-muscle' | 'recomposition' | 'strength';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 export type EquipmentType = 'home' | 'full-gym' | 'minimal';
-export type BiologicalSex = 'male' | 'female' | 'prefer-not-to-say';
+export type BiologicalSex = 'male' | 'female';
 
 export interface OnboardingData {
   fitnessGoal: FitnessGoal;

@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     const profileLines = [
       u.fitnessGoal ? `Goal: ${u.fitnessGoal}` : null,
       u.experience ? `Training experience: ${u.experience}` : null,
-      u.sex && u.sex !== 'prefer-not-to-say' ? `Sex: ${u.sex}` : null,
+      u.sex ? `Sex: ${u.sex}` : null,
       u.age ? `Age: ${u.age}` : null,
       u.heightCm ? `Height: ${u.heightCm}cm` : null,
       u.currentWeightKg ? `Weight: ${u.currentWeightKg}kg` : null,

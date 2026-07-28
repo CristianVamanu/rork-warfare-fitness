@@ -20,6 +20,8 @@ const schema = z.object({
   email: z.string().email('Invalid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
+  sex: z.enum(['male', 'female'], { errorMap: () => ({ message: 'Select male or female' }) }),
+  age: z.coerce.number({ invalid_type_error: 'Enter your age' }).int().min(13, 'Must be 13 or older').max(100, 'Enter a valid age'),
   weightUnit: z.enum(['kg', 'lbs']),
   acceptedTerms: z.boolean().refine(v => v === true, 'You must accept the Terms & Conditions'),
 }).refine((d) => d.password === d.confirmPassword, {
@@ -40,6 +42,7 @@ export default function RegisterPage() {
   });
 
   const weightUnit = watch('weightUnit');
+  const sex = watch('sex');
 
   const onSubmit = async (data: FormData) => {
     console.log('[Register] Sign-up requested — email:', data.email, 'name:', data.name, 'unit:', data.weightUnit);
@@ -47,8 +50,13 @@ export default function RegisterPage() {
     try {
       console.log('[Register] Calling signUp...');
       await signUp(data.email, data.password, data.name, data.weightUnit);
-      console.log('[Register] signUp succeeded — navigating to /dashboard');
-      router.replace('/dashboard');
+      // Straight into the same onboarding quiz the landing page funnels
+      // into (goal/experience/program/etc) instead of dumping the user on
+      // an empty dashboard with no program, no goals, nothing — sex/age
+      // ride along as query params exactly like the landing page's
+      // quick-start box, so onboarding doesn't ask for them a second time.
+      console.log('[Register] signUp succeeded — continuing to onboarding');
+      router.replace(`/onboarding?sex=${data.sex}&age=${data.age}`);
     } catch (err: unknown) {
       const e = err as Error & { code?: string };
       console.error('[Register] Sign-up FAILED:', {
@@ -117,6 +125,34 @@ export default function RegisterPage() {
             leftIcon={<Lock className="w-4 h-4" />}
             error={errors.confirmPassword?.message}
             {...register('confirmPassword')}
+          />
+
+          <div>
+            <label className="text-sm font-medium text-text-secondary block mb-2">Sex</label>
+            <div className="grid grid-cols-2 gap-2">
+              {(['male', 'female'] as const).map((value) => (
+                <label
+                  key={value}
+                  className={`flex items-center justify-center py-2.5 rounded-xl border cursor-pointer transition-all ${
+                    sex === value
+                      ? 'border-accent bg-accent-muted text-accent'
+                      : 'border-white/10 bg-surface-elevated text-text-secondary'
+                  }`}
+                >
+                  <input type="radio" value={value} className="sr-only" {...register('sex')} />
+                  <span className="text-sm font-medium capitalize">{value}</span>
+                </label>
+              ))}
+            </div>
+            {errors.sex && <p className="text-xs text-danger mt-1.5">{errors.sex.message}</p>}
+          </div>
+
+          <Input
+            label="Age"
+            type="number"
+            placeholder="28"
+            error={errors.age?.message}
+            {...register('age')}
           />
 
           <div>
