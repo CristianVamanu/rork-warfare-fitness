@@ -38,6 +38,7 @@ interface BEx {
   notes: string;
   videoUrl?: string;
   isCardio?: boolean;
+  cardioDurationSeconds?: number;
   isHiit?: boolean;
   hiitWorkSeconds?: number;
   hiitRestSeconds?: number;
@@ -126,6 +127,47 @@ function emptyProg(): BProg {
 
 function blankPhase(label: string, startWeek: number, endWeek: number, schedule: BDay[]): BPhase {
   return { id: Math.random().toString(36).slice(2), label, startWeek, endWeek, schedule };
+}
+
+// A plain (non-HIIT) cardio exercise's on-screen timer length always comes
+// from cardioDurationSeconds — the session player only falls back to
+// treating the "Reps" field as whole minutes when that's unset. This
+// builder previously had no control for cardioDurationSeconds at all, so
+// admins typed a duration into Reps expecting seconds and got minutes
+// instead (e.g. a 30-second plank became a 30-minute timer). Lets the
+// admin type in whichever unit is natural (seconds for a HIIT-style
+// finisher, minutes for a walk/run) and always stores the true seconds
+// value regardless of which unit is currently selected.
+function CardioDurationInput({ valueSeconds, onChange }: { valueSeconds: number; onChange: (seconds: number) => void }) {
+  const [unit, setUnit] = useState<'sec' | 'min'>(valueSeconds >= 60 && valueSeconds % 60 === 0 ? 'min' : 'sec');
+  const amount = unit === 'min' ? Math.round(valueSeconds / 60) : valueSeconds;
+
+  return (
+    <div className="flex gap-2">
+      <Input
+        type="number"
+        min={1}
+        value={amount}
+        onChange={e => onChange(Math.max(1, Number(e.target.value)) * (unit === 'min' ? 60 : 1))}
+        className="flex-1"
+      />
+      <select
+        value={unit}
+        onChange={e => {
+          const newUnit = e.target.value as 'sec' | 'min';
+          setUnit(newUnit);
+          // Re-express the currently displayed amount in the new unit's
+          // seconds so switching units doesn't silently change the
+          // duration (e.g. "30" showing under "sec" becoming "30 min").
+          onChange(newUnit === 'min' ? amount * 60 : amount);
+        }}
+        className="bg-surface border border-white/10 rounded-xl px-2 text-sm text-white focus:outline-none focus:border-accent/50"
+      >
+        <option value="sec">sec</option>
+        <option value="min">min</option>
+      </select>
+    </div>
+  );
 }
 
 // ─── Main component ────────────────────────────────────────────────────────────
@@ -294,6 +336,7 @@ function BuilderInner() {
                 restSeconds: e.restSeconds,
                 notes: e.notes || '',
                 isCardio: (e as BEx).isCardio,
+                cardioDurationSeconds: (e as BEx).cardioDurationSeconds,
                 isHiit: (e as BEx).isHiit,
                 hiitWorkSeconds: (e as BEx).hiitWorkSeconds,
                 hiitRestSeconds: (e as BEx).hiitRestSeconds,
@@ -410,6 +453,7 @@ function BuilderInner() {
             restSeconds: Number(e.restSeconds) || 90,
             notes: e.notes || '',
             isCardio: !!e.isCardio,
+            cardioDurationSeconds: (e as BEx).cardioDurationSeconds,
             videoUrl: (videoMap as Record<string, string>)[e.name] ?? '',
           })),
         })),
@@ -1026,14 +1070,24 @@ function BuilderInner() {
                               min={1} max={20}
                             />
                           </div>
-                          <div>
-                            <label className="text-[10px] text-text-tertiary mb-1 block">Reps / Range</label>
-                            <Input
-                              value={ex.reps}
-                              onChange={e => updateEx(activeDay, ex.id, { reps: e.target.value })}
-                              placeholder="e.g. 5 or 8-12"
-                            />
-                          </div>
+                          {ex.isCardio && !ex.isHiit ? (
+                            <div>
+                              <label className="text-[10px] text-text-tertiary mb-1 block">Duration</label>
+                              <CardioDurationInput
+                                valueSeconds={ex.cardioDurationSeconds ?? (typeof ex.reps === 'number' ? ex.reps * 60 : (parseInt(String(ex.reps), 10) || 30) * 60)}
+                                onChange={sec => updateEx(activeDay, ex.id, { cardioDurationSeconds: sec })}
+                              />
+                            </div>
+                          ) : !ex.isHiit ? (
+                            <div>
+                              <label className="text-[10px] text-text-tertiary mb-1 block">Reps / Range</label>
+                              <Input
+                                value={ex.reps}
+                                onChange={e => updateEx(activeDay, ex.id, { reps: e.target.value })}
+                                placeholder="e.g. 5 or 8-12"
+                              />
+                            </div>
+                          ) : null}
                           <div>
                             <label className="text-[10px] text-text-tertiary mb-1 block">RPE ({ex.rpe}/10)</label>
                             <input
@@ -1095,9 +1149,9 @@ function BuilderInner() {
                               <div>
                                 <label className="text-[10px] text-text-tertiary mb-1 block">Work (sec)</label>
                                 <Input
-                                  type="number" min={5} max={600} step={5}
+                                  type="number" min={1} max={600} step={1}
                                   value={ex.hiitWorkSeconds ?? 30}
-                                  onChange={e => updateEx(activeDay, ex.id, { hiitWorkSeconds: Math.max(5, Number(e.target.value)) })}
+                                  onChange={e => updateEx(activeDay, ex.id, { hiitWorkSeconds: Math.max(1, Number(e.target.value)) })}
                                 />
                               </div>
                               <div>
