@@ -114,7 +114,7 @@ export default function DashboardPage() {
   const tier = getLevelTier(powerLevel);
 
   const localDateStr = new Date().toLocaleDateString('sv-SE');
-  const workedOutToday = profile?.statsCache?.lastWorkoutDate === localDateStr;
+  const workedOutToday = (profile?.activeProgram?.completedWorkouts ?? 0) > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
 
   // `stats.streak` is only recomputed when a workout is completed (see
   // completeWorkout() in actions.ts) — there's no daily job that decays it,
