@@ -24,6 +24,27 @@ service cloud.firestore {
       return isAuthed() && (callerRole() == 'admin' || callerRole() == 'trainer');
     }
 
+    // How many absolute program day-slots a non-member can advance into —
+    // mirrors src/lib/membership.ts's getProgramDayLimit() so the client-side
+    // padlock can't be bypassed by writing lastCompletedDayIndex directly.
+    function trialDayLimit() {
+      return exists(/databases/$(database)/documents/config/membership) &&
+        get(/databases/$(database)/documents/config/membership).data.get('enabled', false) == true &&
+        get(/databases/$(database)/documents/config/membership).data.get('trialDays', 0) > 0
+        ? get(/databases/$(database)/documents/config/membership).data.get('trialDays', 0)
+        : 999999;
+    }
+
+    // Only restricts writes that actually move activeProgram's completion
+    // pointer forward past the trial cap — enrolling in a new program
+    // (which resets lastCompletedDayIndex) or any unrelated field change is
+    // always allowed.
+    function activeProgramWriteAllowed() {
+      return !('activeProgram' in request.resource.data.diff(resource.data).affectedKeys())
+        || resource.data.get('membership', {}).get('status', 'none') == 'active'
+        || request.resource.data.activeProgram.get('lastCompletedDayIndex', -1) < trialDayLimit();
+    }
+
     // ── System config ─────────────────────────────────────────────────────
     // installer doc must be publicly readable (checked before auth exists)
     match /system/installer {
@@ -80,7 +101,8 @@ service cloud.firestore {
         (uid() == userId &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(
             ['role', 'membership', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan']
-          ))
+          ) &&
+          activeProgramWriteAllowed())
       );
       allow delete: if isAdmin();
     }
