@@ -570,44 +570,6 @@ export default function LandingPage({
         </section>
       )}
 
-      {/* App screenshot gallery — real in-app screenshots (Admin → Landing
-          Page → App Screenshots), hidden entirely until an admin uploads
-          at least one. Alternating vertical offsets + a slight rotation on
-          hover give a "cascading" gallery feel instead of a flat grid,
-          without needing any new dependency — a horizontal scroller on
-          mobile since a multi-column grid would force tiny, illegible
-          thumbnails on a narrow screen. */}
-      {landing.screenshotUrls && landing.screenshotUrls.length > 0 && (
-        <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16">
-          <GlowOrb className="w-80 h-80 bg-accent/[0.07] top-1/2 -translate-y-1/2 -left-20 -z-10" />
-          <div className="text-center mb-10">
-            <h2 className="text-2xl sm:text-3xl font-black text-white">See It In Action</h2>
-            <p className="text-text-secondary text-sm mt-2">Real screens from the real app — not mockups.</p>
-          </div>
-          {/* Mobile: horizontal snap-scroller (fixed height cards, natural
-              width) — a grid would force illegible tiny thumbnails on a
-              narrow screen. Desktop: a proper side-by-side row, each column
-              sized evenly instead of shrinking to content width. */}
-          <div className="flex gap-5 overflow-x-auto pb-4 px-1 -mx-1 sm:grid sm:overflow-visible sm:px-0 sm:mx-0 snap-x snap-mandatory"
-            style={{ gridTemplateColumns: `repeat(${Math.min(landing.screenshotUrls.length, 4)}, minmax(0, 1fr))` }}
-          >
-            {landing.screenshotUrls.map((url, i) => (
-              <motion.div
-                key={url + i}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.4, delay: (i % 6) * 0.06 }}
-                className={`flex-shrink-0 snap-center rounded-[2rem] border-4 border-white/10 bg-black overflow-hidden shadow-2xl hover:border-accent/40 hover:-translate-y-2 transition-all duration-300 ${i % 2 === 1 ? 'sm:mt-8' : ''}`}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt={`${appName} app screenshot`} className="h-[420px] w-auto sm:w-full object-cover" />
-              </motion.div>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* Demo video modal — admin-uploaded product walkthrough, only shown
           once landing.heroDemoVideoUrl is set (Admin → Landing Page). Not
           autoplaying/looping like the small hero logo clip — this is a real

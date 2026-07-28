@@ -169,6 +169,23 @@ function OnboardingPageInner() {
     && weightNum >= 30 && weightNum <= 300 && targetWeightNum >= 30 && targetWeightNum <= 300;
   const accountValid = name.trim().length >= 2 && /^\S+@\S+\.\S+$/.test(email) && password.length >= 6 && password === confirmPassword;
 
+  // Every yes/no screening question must be explicitly answered (true or
+  // false — undefined means "skipped") before either step can advance.
+  // The free-text/numeric fields alongside them (body fat %, blood
+  // pressure, daily fluid intake, etc) stay optional — most people
+  // genuinely don't know their resting heart rate off-hand, and forcing a
+  // made-up number in would make the data worse, not better.
+  const medicalHistoryAnswered = [
+    medicalHistory.practicesSports, medicalHistory.movementDisorders, medicalHistory.previousSurgeries,
+    medicalHistory.sportsInjuries, medicalHistory.musculoskeletalProblems, medicalHistory.heartDisease,
+    medicalHistory.otherMedicalConditions,
+  ].every((v) => v !== undefined);
+  const lifestyleHabitsAnswered = [
+    medicalHistory.smokes, medicalHistory.drinksAlcoholRegularly, medicalHistory.suffersFromStress,
+    medicalHistory.takesSleepingPills, medicalHistory.takesPainMedication, medicalHistory.takesBetaBlockers,
+    medicalHistory.eatsFattyOrSweetFoodsOften, medicalHistory.experiencesFoodCravings,
+  ].every((v) => v !== undefined);
+
   const canAdvance = [
     !!goal && sexAgeAnswered,
     !!experience,
@@ -177,8 +194,8 @@ function OnboardingPageInner() {
     biometricsValid,
     true, // BMI result step is informational only
     true, // limitations is optional
-    true, // medical history is optional
-    true, // lifestyle habits is optional
+    medicalHistoryAnswered,
+    lifestyleHabitsAnswered,
     true, // focus/session/style preferences are optional
     accountValid, // only reached when needsAccount is true
   ][step];
@@ -738,7 +755,7 @@ function StepGoal({
           <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-3">Quick — before we start</p>
           <div className="grid grid-cols-2 gap-2 mb-3">
             {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
-              <button key={value} onClick={() => onSex(value)}>
+              <button key={value} onClick={() => onSex(value)} className="w-full">
                 <Card className={`p-3 text-center transition-colors ${sex === value ? 'border-accent bg-accent/5' : ''}`}>
                   <Icon className="w-4 h-4 mx-auto mb-1 text-text-secondary" />
                   <p className="text-xs font-medium text-white">{label}</p>
@@ -923,8 +940,7 @@ function StepMedicalHistory({ data, onChange }: { data: MedicalHistoryAnswers; o
     <div>
       <h1 className="text-2xl font-black text-white mb-1">Health screening</h1>
       <p className="text-text-secondary text-sm mb-5">
-        Helps your coach train around any medical considerations, shared only with your coach.
-        <span className="text-text-tertiary"> (optional)</span>
+        Answer every question below (Yes/No) so your coach can train around any medical considerations — shared only with your coach.
       </p>
       <Card className="p-4 divide-y divide-white/5">
         <YesNoField label="Do you practice sports/exercise?" value={data.practicesSports} onChange={(v) => onChange({ practicesSports: v })} detail={data.sportsDetail} onDetailChange={(v) => onChange({ sportsDetail: v })} detailPlaceholder="Which sport(s)?" />
@@ -976,8 +992,7 @@ function StepLifestyleHabits({ data, onChange }: { data: MedicalHistoryAnswers; 
     <div>
       <h1 className="text-2xl font-black text-white mb-1">Lifestyle habits</h1>
       <p className="text-text-secondary text-sm mb-5">
-        Helps tailor your nutrition and recovery guidance.
-        <span className="text-text-tertiary"> (optional)</span>
+        Answer every question below (Yes/No) to help tailor your nutrition and recovery guidance.
       </p>
       <Card className="p-4 divide-y divide-white/5">
         <YesNoField label="Do you smoke?" value={data.smokes} onChange={(v) => onChange({ smokes: v })} />
@@ -1121,7 +1136,7 @@ function StepBiometrics({
           <p className="text-xs font-medium text-text-secondary mb-2">Sex</p>
           <div className="grid grid-cols-2 gap-2 mb-5">
             {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
-              <button key={value} onClick={() => onSex(value)}>
+              <button key={value} onClick={() => onSex(value)} className="w-full">
                 <Card className={`p-3 text-center transition-colors ${sex === value ? 'border-accent bg-accent/5' : ''}`}>
                   <Icon className="w-4 h-4 mx-auto mb-1 text-text-secondary" />
                   <p className="text-xs font-medium text-white">{label}</p>
