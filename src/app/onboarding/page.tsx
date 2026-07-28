@@ -109,6 +109,17 @@ function OnboardingPageInner() {
   const [revealProgram, setRevealProgram] = useState<{ name: string; description: string; weeks: number; daysPerWeek: number } | null>(null);
   const [revealNutrition, setRevealNutrition] = useState<(NutritionTargets & { goalLabel: string; rationale: string }) | null>(null);
   const [revealTimeline, setRevealTimeline] = useState<WeightGoalTimeline | null>(null);
+  // Snapshot taken once, at mount — whether this visitor already answered
+  // sex/age (came from the landing page's mandatory quick-start box).
+  // Deliberately NOT reactive to the live sex/age state: step 0's quick
+  // picker below uses this (not sexAgeAnswered) to decide whether to render
+  // itself at all, so it doesn't vanish out from under someone mid-keystroke
+  // the instant their typed age crosses into the valid 13-100 range.
+  const [hadPrefilledSexAge] = useState(() => {
+    const qSex = searchParams.get('sex');
+    const qAge = searchParams.get('age');
+    return (qSex === 'male' || qSex === 'female') && !!qAge && /^\d+$/.test(qAge) && +qAge >= 13 && +qAge <= 100;
+  });
 
   function updateMedical(patch: Partial<MedicalHistoryAnswers>) {
     setMedicalHistory((m) => ({ ...m, ...patch }));
@@ -602,7 +613,7 @@ function OnboardingPageInner() {
               <StepGoal
                 selected={goal} onSelect={setGoal}
                 sex={sex} onSex={setSex} age={age} onAge={setAge}
-                sexAgeAnswered={sexAgeAnswered}
+                showQuickSexAge={!hadPrefilledSexAge}
               />
             )}
             {step === 1 && (
@@ -735,12 +746,12 @@ function OnboardingPageInner() {
 // ─── Step components ───────────────────────────────────────────────────────────
 
 function StepGoal({
-  selected, onSelect, sex, onSex, age, onAge, sexAgeAnswered,
+  selected, onSelect, sex, onSex, age, onAge, showQuickSexAge,
 }: {
   selected: FitnessGoal | null; onSelect: (v: FitnessGoal) => void;
   sex: BiologicalSex | null; onSex: (v: BiologicalSex) => void;
   age: string; onAge: (v: string) => void;
-  sexAgeAnswered: boolean;
+  showQuickSexAge: boolean;
 }) {
   return (
     <div>
@@ -750,7 +761,7 @@ function StepGoal({
           which meant most of the quiz ran before biometrics were even
           known, and visitors who started from "New here? Create account"
           on /login never got asked early at all. */}
-      {!sexAgeAnswered && (
+      {showQuickSexAge && (
         <div className="mb-6 p-4 bg-surface rounded-2xl border border-white/8">
           <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-3">Quick — before we start</p>
           <div className="grid grid-cols-2 gap-2 mb-3">
