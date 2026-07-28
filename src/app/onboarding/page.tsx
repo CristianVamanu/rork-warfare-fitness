@@ -114,14 +114,21 @@ function OnboardingPageInner() {
     setMedicalHistory((m) => ({ ...m, ...patch }));
   }
 
-  // Pre-fills sex/age from the landing page's quick-start selector, if the
-  // visitor used it — pure head start, every field here is still editable
-  // on the biometrics step like normal.
+  // Pre-fills sex/age from the landing page's quick-start selector (now
+  // mandatory there — see LandingClient.tsx). Visitors who didn't come
+  // through that box (e.g. "New here? Create account" straight from
+  // /login) get asked the same quick question here instead, right at step
+  // 0 — see StepGoal below — rather than only much later on the full
+  // "About You" step. Either way, once sex/age are answered they're never
+  // asked again (sexAgeAnswered, derived below) — asking the same question
+  // twice read as the app not listening, not as thoroughness.
   useEffect(() => {
     const qSex = searchParams.get('sex');
     const qAge = searchParams.get('age');
-    if (qSex === 'male' || qSex === 'female') setSex(qSex);
-    if (qAge && /^\d+$/.test(qAge)) setAge(qAge);
+    const validSex = qSex === 'male' || qSex === 'female';
+    const validAge = !!qAge && /^\d+$/.test(qAge) && +qAge >= 13 && +qAge <= 100;
+    if (validSex) setSex(qSex);
+    if (validAge) setAge(qAge!);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -149,16 +156,21 @@ function OnboardingPageInner() {
   const heightNum = parseFloat(heightCm);
   const weightNum = parseFloat(weightKg);
   const targetWeightNum = parseFloat(targetWeightKg);
+  // Purely reactive — true the moment both are validly set, regardless of
+  // whether that happened via the landing page's query params or the quick
+  // picker on step 0 below. Drives both "hide the redundant question on the
+  // About You step" and "don't block step 0 on it once it's answered."
+  const sexAgeAnswered = !!sex && ageNum >= 13 && ageNum <= 100;
   // Goal weight is mandatory alongside current weight — without both there's
   // no timeline to estimate and no accurate program-duration match, which
   // was the whole point of asking (see estimateWeightGoalTimeline in
   // lib/tdee.ts and the weight-goal scoring bonus in pickBestProgram).
-  const biometricsValid = !!sex && ageNum >= 13 && ageNum <= 100 && heightNum >= 100 && heightNum <= 250
+  const biometricsValid = sexAgeAnswered && heightNum >= 100 && heightNum <= 250
     && weightNum >= 30 && weightNum <= 300 && targetWeightNum >= 30 && targetWeightNum <= 300;
   const accountValid = name.trim().length >= 2 && /^\S+@\S+\.\S+$/.test(email) && password.length >= 6 && password === confirmPassword;
 
   const canAdvance = [
-    !!goal,
+    !!goal && sexAgeAnswered,
     !!experience,
     !!trainingDays,
     !!equipment,
@@ -227,8 +239,24 @@ function OnboardingPageInner() {
   }
 
   async function handleFinish() {
-    if (!goal || !experience || !trainingDays || !equipment) return;
-    if (needsAccount && !accountValid) return;
+    // These early-return guards used to fail completely silently — no error
+    // shown, button just did nothing. If a user hit this state (e.g. left
+    // Confirm password empty, which alone makes accountValid false with no
+    // visible field error since the mismatch warning only fires once both
+    // fields have something typed), it looked exactly like a broken button.
+    if (!goal || !experience || !trainingDays || !equipment) {
+      setError('Something went missing earlier in the quiz — please go back and check every step.');
+      return;
+    }
+    if (needsAccount && !accountValid) {
+      setError(
+        !name.trim() || name.trim().length < 2 ? 'Enter your name (at least 2 characters).' :
+        !/^\S+@\S+\.\S+$/.test(email) ? 'Enter a valid email address.' :
+        password.length < 6 ? 'Password must be at least 6 characters.' :
+        'Passwords don’t match — check both password fields.'
+      );
+      return;
+    }
     setError(null);
     setStatus('generating');
 
@@ -554,7 +582,11 @@ function OnboardingPageInner() {
             className="space-y-4"
           >
             {step === 0 && (
-              <StepGoal selected={goal} onSelect={setGoal} />
+              <StepGoal
+                selected={goal} onSelect={setGoal}
+                sex={sex} onSex={setSex} age={age} onAge={setAge}
+                sexAgeAnswered={sexAgeAnswered}
+              />
             )}
             {step === 1 && (
               <StepExperience selected={experience} onSelect={setExperience} />
@@ -572,6 +604,7 @@ function OnboardingPageInner() {
                 heightCm={heightCm} onHeight={setHeightCm}
                 weightKg={weightKg} onWeight={setWeightKg}
                 targetWeightKg={targetWeightKg} onTargetWeight={setTargetWeightKg}
+                sexAgeAnswered={sexAgeAnswered} onEditSexAge={() => { setSex(null); setAge(''); }}
               />
             )}
             {step === 5 && (
@@ -627,7 +660,7 @@ function OnboardingPageInner() {
           <Button
             fullWidth
             size="lg"
-            disabled={isGenerating}
+            disabled={isGenerating || !canAdvance}
             onClick={handleFinish}
           >
             {isGenerating ? (
@@ -684,9 +717,46 @@ function OnboardingPageInner() {
 
 // ─── Step components ───────────────────────────────────────────────────────────
 
-function StepGoal({ selected, onSelect }: { selected: FitnessGoal | null; onSelect: (v: FitnessGoal) => void }) {
+function StepGoal({
+  selected, onSelect, sex, onSex, age, onAge, sexAgeAnswered,
+}: {
+  selected: FitnessGoal | null; onSelect: (v: FitnessGoal) => void;
+  sex: BiologicalSex | null; onSex: (v: BiologicalSex) => void;
+  age: string; onAge: (v: string) => void;
+  sexAgeAnswered: boolean;
+}) {
   return (
     <div>
+      {/* Asked right here, first, for anyone who didn't already answer it
+          on the landing page's quick-start box (which pre-fills and skips
+          this) — previously only asked much later on the "About You" step,
+          which meant most of the quiz ran before biometrics were even
+          known, and visitors who started from "New here? Create account"
+          on /login never got asked early at all. */}
+      {!sexAgeAnswered && (
+        <div className="mb-6 p-4 bg-surface rounded-2xl border border-white/8">
+          <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-3">Quick — before we start</p>
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {SEX_OPTIONS.filter((o) => o.value !== 'prefer-not-to-say').map(({ value, label, icon: Icon }) => (
+              <button key={value} onClick={() => onSex(value)}>
+                <Card className={`p-3 text-center transition-colors ${sex === value ? 'border-accent bg-accent/5' : ''}`}>
+                  <Icon className="w-4 h-4 mx-auto mb-1 text-text-secondary" />
+                  <p className="text-xs font-medium text-white">{label}</p>
+                </Card>
+              </button>
+            ))}
+          </div>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={age}
+            onChange={(e) => onAge(e.target.value)}
+            placeholder="Your age"
+            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm text-center placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+        </div>
+      )}
+
       <h1 className="text-2xl font-black text-white mb-1">What&apos;s your goal?</h1>
       <p className="text-text-secondary text-sm mb-5">This determines your program structure and intensity.</p>
       <div className="space-y-3">
@@ -1020,12 +1090,14 @@ const SEX_OPTIONS: { value: BiologicalSex; label: string; icon: React.ElementTyp
 
 function StepBiometrics({
   sex, onSex, age, onAge, heightCm, onHeight, weightKg, onWeight, targetWeightKg, onTargetWeight,
+  sexAgeAnswered, onEditSexAge,
 }: {
   sex: BiologicalSex | null; onSex: (v: BiologicalSex) => void;
   age: string; onAge: (v: string) => void;
   heightCm: string; onHeight: (v: string) => void;
   weightKg: string; onWeight: (v: string) => void;
   targetWeightKg: string; onTargetWeight: (v: string) => void;
+  sexAgeAnswered: boolean; onEditSexAge: () => void;
 }) {
   return (
     <div>
@@ -1034,30 +1106,47 @@ function StepBiometrics({
         Used to calculate your calorie needs accurately and calibrate your program — not shared with anyone.
       </p>
 
-      <p className="text-xs font-medium text-text-secondary mb-2">Sex</p>
-      <div className="grid grid-cols-3 gap-2 mb-5">
-        {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
-          <button key={value} onClick={() => onSex(value)}>
-            <Card className={`p-3 text-center transition-colors ${sex === value ? 'border-accent bg-accent/5' : ''}`}>
-              <Icon className="w-4 h-4 mx-auto mb-1 text-text-secondary" />
-              <p className="text-xs font-medium text-white">{label}</p>
-            </Card>
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <div>
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Age</label>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={age}
-            onChange={(e) => onAge(e.target.value)}
-            placeholder="28"
-            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-          />
+      {sexAgeAnswered ? (
+        // Already answered on the landing page seconds ago — re-asking the
+        // exact same question here read as the app not listening. Shown as
+        // a confirmation instead, with an escape hatch in case the landing
+        // page tap was a mistake.
+        <div className="flex items-center justify-between mb-5 p-3 bg-surface rounded-xl border border-white/8">
+          <p className="text-sm text-white">
+            <span className="font-bold">{sex === 'male' ? 'Male' : 'Female'}</span>, age <span className="font-bold">{age}</span>
+          </p>
+          <button onClick={onEditSexAge} className="text-xs text-accent font-medium hover:underline">Not you?</button>
         </div>
+      ) : (
+        <>
+          <p className="text-xs font-medium text-text-secondary mb-2">Sex</p>
+          <div className="grid grid-cols-3 gap-2 mb-5">
+            {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
+              <button key={value} onClick={() => onSex(value)}>
+                <Card className={`p-3 text-center transition-colors ${sex === value ? 'border-accent bg-accent/5' : ''}`}>
+                  <Icon className="w-4 h-4 mx-auto mb-1 text-text-secondary" />
+                  <p className="text-xs font-medium text-white">{label}</p>
+                </Card>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className={`grid ${sexAgeAnswered ? 'grid-cols-2' : 'grid-cols-3'} gap-3 mb-5`}>
+        {!sexAgeAnswered && (
+          <div>
+            <label className="text-xs font-medium text-text-secondary mb-1.5 block">Age</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={age}
+              onChange={(e) => onAge(e.target.value)}
+              placeholder="28"
+              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+            />
+          </div>
+        )}
         <div>
           <label className="text-xs font-medium text-text-secondary mb-1.5 block">Height (cm)</label>
           <input

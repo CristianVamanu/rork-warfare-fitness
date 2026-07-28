@@ -225,6 +225,8 @@ export default function LandingPage({
   // automatically for trialDays from account creation, so the CTA can lead
   // straight to registration rather than a paid checkout.
   const primaryCtaLabel = trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : landing.ctaPrimaryLabel;
+  const quickAgeNum = parseInt(quickAge, 10);
+  const quickSexAgeValid = !!quickSex && quickAgeNum >= 13 && quickAgeNum <= 100;
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
@@ -384,14 +386,24 @@ export default function LandingPage({
               placeholder="Your age"
               className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm text-center placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 mb-3"
             />
+            {/* Now mandatory (previously both were optional) — an unset sex/
+                age used to just skip straight to asking again on the
+                biometrics step, making this box pointless busywork instead
+                of an actual head start. Disabled instead of just letting a
+                blank/invalid value silently pass through as before. */}
             <Link
-              href={`/onboarding${quickSex ? `?sex=${quickSex}` : ''}${quickAge ? `${quickSex ? '&' : '?'}age=${quickAge}` : ''}`}
+              href={quickSexAgeValid ? `/onboarding?sex=${quickSex}&age=${quickAge}` : '#'}
+              onClick={(e) => { if (!quickSexAgeValid) e.preventDefault(); }}
               className="block"
+              aria-disabled={!quickSexAgeValid}
             >
-              <Button size="lg" fullWidth>
+              <Button size="lg" fullWidth disabled={!quickSexAgeValid}>
                 {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
+            {!quickSexAgeValid && (
+              <p className="text-[11px] text-text-tertiary text-center mt-2">Select your sex and enter your age to continue.</p>
+            )}
           </div>
 
           <div className="flex items-center justify-center gap-4 mt-5 flex-wrap">
