@@ -379,7 +379,7 @@ function NutritionPageInner() {
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-bold text-white capitalize">{type}</h3>
                   <span className="text-xs text-text-tertiary">
-                    {mealsByType[type].reduce((s, m) => s + m.calories, 0)} kcal
+                    {mealsByType[type].reduce((s, m) => s + (m.calories || 0), 0)} kcal
                   </span>
                 </div>
                 {mealsByType[type].length === 0 ? (

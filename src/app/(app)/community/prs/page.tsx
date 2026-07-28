@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 import { Heart, Upload, X, Video, Image as ImageIcon, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
@@ -22,7 +23,13 @@ export default function PRWallPage() {
   const [liked, setLiked] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const unsub = subscribePRFeed((p) => { setPosts(p); setLoading(false); }, user?.uid ?? null);
+    const unsub = subscribePRFeed((p) => {
+      setPosts(p);
+      setLoading(false);
+      if (user?.uid) {
+        setLiked(new Set(p.filter((post) => post.likedBy?.includes(user.uid)).map((post) => post.id)));
+      }
+    }, user?.uid ?? null);
     return unsub;
   }, [user?.uid]);
 
@@ -30,9 +37,9 @@ export default function PRWallPage() {
   const isBanned = !!profile?.prBan && (banUntil === null || (banUntil?.toDate?.() ?? new Date(0)) > new Date());
 
   const handleLike = (id: string) => {
-    if (liked.has(id)) return;
+    if (!user || liked.has(id)) return;
     setLiked((prev) => new Set(prev).add(id));
-    likePRPost(id).catch(() => {});
+    likePRPost(id, user.uid, true).catch(() => {});
   };
 
   const isAdmin = profile?.role === 'admin' || profile?.role === 'trainer';
@@ -220,6 +227,7 @@ function PRForm({ userId, displayName, photoURL, onDone }: { userId: string; dis
       onDone();
     } catch (err) {
       console.error('[PRForm] submit failed:', err);
+      toast.error('Failed to post — try again');
     } finally {
       setUploading(false);
     }

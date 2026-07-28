@@ -160,6 +160,7 @@ export interface PRPost {
   // the whole community before anyone's looked at it.
   moderationStatus: 'pending' | 'approved' | 'rejected';
   likeCount: number;
+  likedBy?: string[];
   createdAt: unknown;
 }
 

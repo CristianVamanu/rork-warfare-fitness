@@ -62,8 +62,26 @@ service cloud.firestore {
     // member via direct Firestore calls, not just through the app UI.
     match /users/{userId} {
       allow read:   if isAuthed();
-      allow create: if isAuthed() && uid() == userId;
-      allow update: if isAuthed() && (uid() == userId || isAdmin());
+      allow create: if isAuthed() && uid() == userId
+        && request.resource.data.role == 'user'
+        && !('membership' in request.resource.data)
+        && !('purchasedProgramIds' in request.resource.data)
+        && !('trainerId' in request.resource.data)
+        && !('banned' in request.resource.data)
+        && !('prBan' in request.resource.data);
+      // Self-updates may touch their own profile/preferences/stats, but never
+      // the privileged fields below — role, membership, and purchase state
+      // are only ever meant to change via the Stripe webhook / admin SDK
+      // (server-side, bypassing rules) or an admin action here. Without this
+      // allow-list a signed-in user could call updateDoc() directly from the
+      // client and grant themselves admin or an active paid membership.
+      allow update: if isAuthed() && (
+        isAdmin() ||
+        (uid() == userId &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+            ['role', 'membership', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan']
+          ))
+      );
       allow delete: if isAdmin();
     }
 
@@ -275,16 +293,22 @@ service cloud.firestore {
       // Only admins can touch moderation/verification state (that's the
       // whole point of the review gate) — the app never lets a post's own
       // author edit it, only delete it, so there's no legitimate case for
-      // an author-owns-it update clause here. Anyone signed in can still
-      // bump likeCount.
-      // The app only ever likes (never unlikes) a post, one at a time, so
-      // require the new value to be exactly +1 — without this a client could
-      // call Firestore directly and set likeCount to anything at all, since
-      // affectedKeys() only checks WHICH field changed, not by how much.
+      // an author-owns-it update clause here. Anyone signed in can like or
+      // unlike, one at a time, adding/removing exactly their own uid from
+      // likedBy with a matching +1/-1 on likeCount — without the exact-uid
+      // and exact-delta checks a client could call Firestore directly and
+      // set likeCount to anything, or like on another user's behalf.
       allow update: if isAuthed() && (
         isAdmin() ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
-          && request.resource.data.likeCount == resource.data.likeCount + 1)
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'likedBy']) &&
+          (
+            (request.resource.data.likeCount == resource.data.likeCount + 1
+              && request.resource.data.likedBy == resource.data.get('likedBy', []).concat([uid()])
+              && !(uid() in resource.data.get('likedBy', []))) ||
+            (request.resource.data.likeCount == resource.data.likeCount - 1
+              && request.resource.data.likedBy == resource.data.get('likedBy', []).removeAll([uid()])
+              && (uid() in resource.data.get('likedBy', [])))
+          ))
       );
       allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }

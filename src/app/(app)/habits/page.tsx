@@ -27,7 +27,7 @@ const HABIT_META: Record<HabitKey, { label: string; icon: React.ElementType; col
 const HISTORY_DAYS = 7;
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString('sv-SE');
 }
 
 export default function HabitsPage() {
@@ -83,7 +83,7 @@ export default function HabitsPage() {
     for (let i = 0; i < HISTORY_DAYS; i++) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
+      const dateStr = d.toLocaleDateString('sv-SE');
       const log = logs.find((l) => l.date === dateStr);
       if (log?.habits?.[habit]) streak++;
       else break;
@@ -161,7 +161,7 @@ export default function HabitsPage() {
                     {Array.from({ length: HISTORY_DAYS }).map((_, i) => {
                       const d = new Date();
                       d.setDate(d.getDate() - (HISTORY_DAYS - 1 - i));
-                      const dateStr = d.toISOString().slice(0, 10);
+                      const dateStr = d.toLocaleDateString('sv-SE');
                       const log = logs.find((l) => l.date === dateStr);
                       const done = !!log?.habits?.[habit];
                       return (

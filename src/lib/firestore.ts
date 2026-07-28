@@ -28,6 +28,8 @@ import {
   increment,
   onSnapshot,
   deleteField,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { stripUndefinedDeep } from './utils';
@@ -178,7 +180,7 @@ export async function getRecentHabitLogs(userId: string, days: number): Promise<
   for (let i = 0; i < days; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().slice(0, 10));
+    dates.push(d.toLocaleDateString('sv-SE'));
   }
   const snaps = await Promise.all(
     dates.map((date) => getDoc(doc(db, 'habitLogs', `${userId}_${date}`)))
@@ -1217,9 +1219,9 @@ export async function deleteChannel(id: string) {
 
 export async function getChannelPosts(channelId: string): Promise<ChannelPost[]> {
   const snap = await getDocs(
-    query(collection(db, 'channels', channelId, 'posts'), orderBy('createdAt', 'asc'), limit(50))
+    query(collection(db, 'channels', channelId, 'posts'), orderBy('createdAt', 'desc'), limit(50))
   );
-  return snap.docs.map((d) => ({ id: d.id, channelId, ...d.data() }) as ChannelPost);
+  return snap.docs.map((d) => ({ id: d.id, channelId, ...d.data() }) as ChannelPost).reverse();
 }
 
 export async function createChannelPost(channelId: string, data: {
@@ -1243,13 +1245,7 @@ export async function createChannelPost(channelId: string, data: {
 
 export async function likeChannelPost(channelId: string, postId: string, userId: string, liked: boolean) {
   const ref = doc(db, 'channels', channelId, 'posts', postId);
-  if (liked) {
-    await updateDoc(ref, { likes: [...(await getDoc(ref)).data()?.likes ?? [], userId] });
-  } else {
-    const snap = await getDoc(ref);
-    const likes: string[] = (snap.data()?.likes ?? []).filter((id: string) => id !== userId);
-    await updateDoc(ref, { likes });
-  }
+  await updateDoc(ref, { likes: liked ? arrayUnion(userId) : arrayRemove(userId) });
 }
 
 export async function getPostReplies(channelId: string, postId: string): Promise<ChannelPost[]> {
@@ -1387,8 +1383,11 @@ export function subscribePRFeed(
   }, (err) => console.error('[Firestore] subscribePRFeed error:', err));
 }
 
-export async function likePRPost(postId: string) {
-  await updateDoc(doc(db, 'prPosts', postId), { likeCount: increment(1) });
+export async function likePRPost(postId: string, userId: string, liked: boolean) {
+  await updateDoc(doc(db, 'prPosts', postId), {
+    likeCount: increment(liked ? 1 : -1),
+    likedBy: liked ? arrayUnion(userId) : arrayRemove(userId),
+  });
 }
 
 /** Admin approve/reject — a post only reaches the public feed once approved.
