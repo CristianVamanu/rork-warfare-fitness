@@ -995,7 +995,7 @@ export const MOCK_PROGRAMS: Program[] = [
   {
     id: 'p15',
     name: 'Burn Ops: 90-Day Fat Loss Protocol',
-    description: 'A 90-day, 3-phase mission built to strip fat and build real conditioning — for men and women, home-friendly (dumbbells + bodyweight, no gym required).\n\nPhase 1 (Weeks 1-4): Foundation. Bodyweight circuits + daily cardio — build consistency and a real mind-muscle connection.\n\nPhase 2 (Weeks 5-9): Escalation. A structured push/pull/legs split with dumbbells — more volume, more intensity.\n\nPhase 3 (Weeks 10-13): Full Send. Giant sets, drop sets, and HIIT finishers — your hardest block, built on the base you already earned.\n\nPair this with a moderate calorie deficit (your Nutrition tab already calculates yours) and daily movement — that combo, not starvation, is what actually burns fat and keeps it off.',
+    description: 'A 90-day, 3-phase mission built to strip fat and build real conditioning — for men and women, home-friendly (dumbbells + bodyweight, no gym required).\n\nPhase 1 (Weeks 1-4): Foundation. Bodyweight circuits + daily cardio — build consistency and a real mind-muscle connection.\n\nPhase 2 (Weeks 5-7): Escalation. A structured push/pull/legs split with dumbbells — more volume, more intensity.\n\nWeek 8: Deload. A lighter recovery week — same movements, less volume — before the hardest block. Don\'t skip it, it\'s what makes Phase 3 sustainable instead of a burnout risk.\n\nPhase 3 (Weeks 9-13): Full Send. Giant sets, drop sets, and HIIT finishers — your hardest block, built on the base you already earned.\n\nPair this with a moderate calorie deficit (your Nutrition tab already calculates yours) and daily movement — that combo, not starvation, is what actually burns fat and keeps it off.\n\nProgress checkpoints: weigh in once a week, same day and time, and track the trend — not any single day. If your weight hasn\'t moved over 2 straight weeks, tighten your calorie target slightly or add 10-15 minutes to your daily cardio before changing anything else. And once your dumbbell exercises feel easy at the top of the rep range, add weight — the notes on each exercise tell you when.',
     level: 'beginner',
     goal: 'weight-loss',
     weeks: 13,
@@ -1068,24 +1068,24 @@ export const MOCK_PROGRAMS: Program[] = [
         id: 'p15-ph2',
         label: 'Phase 2: Escalation',
         startWeek: 5,
-        endWeek: 9,
+        endWeek: 7,
         schedule: [
           { label: 'Chest + Triceps + Core', isRest: false, exercises: [
-            { id: 'p15-e5', name: 'Dumbbell Bench Press', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'chest' },
-            { id: 'p15-e17', name: 'Dumbbell Flye', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'chest' },
+            { id: 'p15-e5', name: 'Dumbbell Bench Press', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'chest', notes: 'Progressive overload: once you complete all 3 sets of 12 with good form, add weight next session.' },
+            { id: 'p15-e17', name: 'Dumbbell Flye', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'chest', notes: 'Add weight once all sets hit 12 reps cleanly.' },
             { id: 'p15-e18', name: 'Tricep Dip', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'arms' },
             { id: 'p15-e3', name: 'Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
           ] },
           { label: 'Back + Biceps + Core', isRest: false, exercises: [
-            { id: 'p15-e6', name: 'Dumbbell Row', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'back' },
+            { id: 'p15-e6', name: 'Dumbbell Row', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'back', notes: 'Progressive overload: once you complete all 3 sets of 12 with good form, add weight next session.' },
             { id: 'p15-e19', name: 'Renegade Row', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back' },
-            { id: 'p15-e20', name: 'Dumbbell Bicep Curl', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'arms' },
+            { id: 'p15-e20', name: 'Dumbbell Bicep Curl', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'arms', notes: 'Add weight once all sets hit 12 reps cleanly.' },
             { id: 'p15-e21', name: 'Russian Twist', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core' },
           ] },
           { label: 'Legs + Shoulders + Core', isRest: false, exercises: [
-            { id: 'p15-e7', name: 'Goblet Squat', sets: 3, reps: 15, restSeconds: 75, muscleGroup: 'legs' },
+            { id: 'p15-e7', name: 'Goblet Squat', sets: 3, reps: 15, restSeconds: 75, muscleGroup: 'legs', notes: 'Progressive overload: once you complete all 3 sets of 15 with good form, add weight next session.' },
             { id: 'p15-e22', name: 'Dumbbell Romanian Deadlift', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'legs' },
-            { id: 'p15-e23', name: 'Dumbbell Shoulder Press', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'shoulders' },
+            { id: 'p15-e23', name: 'Dumbbell Shoulder Press', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Add weight once all sets hit 12 reps cleanly.' },
             { id: 'p15-e24', name: 'Lateral Raise', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'shoulders' },
           ] },
           { label: 'Cardio + Core', isRest: false, exercises: [
@@ -1094,7 +1094,7 @@ export const MOCK_PROGRAMS: Program[] = [
           ] },
           { label: 'Full-Body Functional', isRest: false, exercises: [
             { id: 'p15-e8', name: 'Burpee', sets: 3, reps: 12, restSeconds: 45, muscleGroup: 'full-body' },
-            { id: 'p15-e26', name: 'Dumbbell Swing', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'full-body' },
+            { id: 'p15-e26', name: 'Dumbbell Swing', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'full-body', notes: 'Add weight once all sets hit 15 reps cleanly.' },
             { id: 'p15-e1', name: 'Push-Up', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
             { id: 'p15-e10', name: 'Mountain Climbers', sets: 3, reps: 25, restSeconds: 45, muscleGroup: 'core' },
           ] },
@@ -1104,10 +1104,44 @@ export const MOCK_PROGRAMS: Program[] = [
           rest(),
         ],
       },
+      // Deload — a single lighter week between the two escalating blocks.
+      // Phase 2 -> Phase 3 goes straight from moderate dumbbell training
+      // into giant sets/drop sets/HIIT at 6 days/week; without a break
+      // between them, someone who was doing bodyweight circuits a month
+      // earlier is at real risk of burnout or injury before Phase 3 even
+      // starts. Same movement patterns, ~60% of the volume, so it still
+      // feels like training, not a dead week.
+      {
+        id: 'p15-deload',
+        label: 'Deload / Recovery Week',
+        startWeek: 8,
+        endWeek: 8,
+        schedule: [
+          { label: 'Light Full-Body', isRest: false, exercises: [
+            { id: 'p15-e5', name: 'Dumbbell Bench Press', sets: 2, reps: 10, restSeconds: 90, muscleGroup: 'chest', notes: 'Deload week — lighter weight, focus on form and recovery.' },
+            { id: 'p15-e7', name: 'Goblet Squat', sets: 2, reps: 12, restSeconds: 90, muscleGroup: 'legs' },
+            { id: 'p15-e3', name: 'Plank', sets: 2, reps: '30s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Light Cardio', isRest: false, exercises: [
+            { id: 'p15-e4', name: 'Brisk Walk', sets: 1, reps: 40, restSeconds: 0, muscleGroup: 'cardio', isCardio: true },
+          ] },
+          { label: 'Light Full-Body', isRest: false, exercises: [
+            { id: 'p15-e6', name: 'Dumbbell Row', sets: 2, reps: 10, restSeconds: 90, muscleGroup: 'back', notes: 'Deload week — lighter weight, focus on form and recovery.' },
+            { id: 'p15-e23', name: 'Dumbbell Shoulder Press', sets: 2, reps: 10, restSeconds: 90, muscleGroup: 'shoulders' },
+            { id: 'p15-e9', name: 'Glute Bridge', sets: 2, reps: 15, restSeconds: 45, muscleGroup: 'legs' },
+          ] },
+          rest(),
+          { label: 'Light Cardio + Mobility', isRest: false, exercises: [
+            { id: 'p15-e4', name: 'Brisk Walk', sets: 1, reps: 30, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Follow with 10-15 min of stretching or foam rolling.' },
+          ] },
+          rest(),
+          rest(),
+        ],
+      },
       {
         id: 'p15-ph3',
         label: 'Phase 3: Full Send',
-        startWeek: 10,
+        startWeek: 9,
         endWeek: 13,
         schedule: [
           { label: 'Chest + HIIT', isRest: false, exercises: [
