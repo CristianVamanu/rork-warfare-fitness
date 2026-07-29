@@ -22,6 +22,7 @@ const REASON_ICONS = [Palette, DollarSign, Sparkles, Users2, Apple, Flame, Layou
 const NAV_LINKS = [
   { href: '/', label: 'For Athletes' },
   { href: '#pricing', label: 'Pricing' },
+  { href: '/b2b-terms', label: 'B2B Terms' },
 ];
 
 export default function TrainersLandingPage({
@@ -288,7 +289,7 @@ export default function TrainersLandingPage({
           <span>© {new Date().getFullYear()} {appName}</span>
           <div className="flex items-center gap-4">
             <Link href="/" className="hover:text-white transition-colors">For Athletes</Link>
-            <Link href="/terms" className="hover:text-white transition-colors">Terms</Link>
+            <Link href="/b2b-terms" className="hover:text-white transition-colors">B2B Terms</Link>
             <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>
           </div>
         </div>

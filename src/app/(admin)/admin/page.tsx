@@ -15,7 +15,7 @@ import { db } from '@/lib/firebase';
 import { getIdToken } from 'firebase/auth';
 import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail, extractVideoThumbnailFromUrl } from '@/lib/videoThumbnail';
-import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS } from '@/lib/legalDefaults';
+import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_B2B_TERMS } from '@/lib/legalDefaults';
 import {
   getSystemConfig, setSystemConfig,
   banUser, unbanUser, getAllUsers,
@@ -226,7 +226,7 @@ function AdminPageInner() {
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [uploadingDemoVideo, setUploadingDemoVideo] = useState(false);
   const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
-  const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '' });
+  const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '', b2bTermsText: '' });
   const [savingLegal, setSavingLegal] = useState(false);
   const [runningBackup, setRunningBackup] = useState(false);
   const [lastBackupResult, setLastBackupResult] = useState<{ collections: number; sizeBytes: number; location: string } | null>(null);
@@ -402,6 +402,7 @@ function AdminPageInner() {
         setLegalForm({
           privacyPolicyText: cfg.privacyPolicyText || DEFAULT_PRIVACY_POLICY,
           termsText: cfg.termsText || DEFAULT_TERMS,
+          b2bTermsText: cfg.b2bTermsText || DEFAULT_B2B_TERMS,
         });
         const savedLanding = (c as { landingPage?: Partial<LandingPageConfig> }).landingPage;
         if (savedLanding) {
@@ -3953,7 +3954,7 @@ function AdminPageInner() {
           <Card className="p-5 space-y-4">
             <h2 className="text-base font-bold text-white">Legal Pages</h2>
             <p className="text-xs text-text-secondary">
-              Edit your Privacy Policy and Terms & Conditions. Use blank lines between paragraphs and start a line with <code className="bg-black/30 px-1 rounded">## </code> for a section heading.
+              Edit your Privacy Policy, Terms & Conditions, and B2B Terms (the separate agreement for the white-label trainer offer). Use blank lines between paragraphs and start a line with <code className="bg-black/30 px-1 rounded">## </code> for a section heading.
             </p>
             <div>
               <label className="text-xs text-text-secondary mb-1 block">Privacy Policy</label>
@@ -3969,6 +3970,15 @@ function AdminPageInner() {
               <textarea
                 value={legalForm.termsText}
                 onChange={e => setLegalForm(s => ({ ...s, termsText: e.target.value }))}
+                rows={8}
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs font-mono placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-y"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">B2B Terms & Conditions (shown at /b2b-terms, linked from the /trainers page)</label>
+              <textarea
+                value={legalForm.b2bTermsText}
+                onChange={e => setLegalForm(s => ({ ...s, b2bTermsText: e.target.value }))}
                 rows={8}
                 className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs font-mono placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-y"
               />

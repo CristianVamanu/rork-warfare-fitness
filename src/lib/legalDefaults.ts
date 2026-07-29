@@ -43,3 +43,32 @@ To the maximum extent permitted by law, the platform owner, operators, trainers,
 
 ## 7. Changes to Terms
 We reserve the right to update these Terms at any time. Continued use of the platform following any changes constitutes acceptance of the new Terms.`;
+
+// Separate terms for the B2B/white-label install offer (/trainers) — a
+// one-time setup service on the client's own infrastructure, not a
+// consumer membership, so the consumer DEFAULT_TERMS above (health
+// disclaimers, membership billing language, etc.) doesn't fit this
+// relationship at all.
+export const DEFAULT_B2B_TERMS = `## 1. Scope of Service
+These terms govern the one-time white-label setup service ("the Service"): installing, branding, and configuring the platform on the client's own domain and server infrastructure. They are separate from, and do not apply to, the consumer-facing Terms & Conditions that govern individual athlete accounts on this platform.
+
+## 2. One-Time Fee, No Recurring Charge
+The Service is billed as a one-time setup fee agreed with the client before work begins. There is no recurring platform fee, no per-client fee, and no ongoing percentage of the client's own revenue, unless a separate optional maintenance/support agreement is explicitly agreed in writing.
+
+## 3. Client Ownership
+Once delivered, the installed instance runs on the client's own domain and infrastructure. The client is responsible for their own hosting, domain, and any third-party service costs (e.g. their own Firebase project, Stripe account) going forward.
+
+## 4. Deliverables & Timeline
+Setup timelines quoted are estimates, not guarantees, and may vary based on the client's responsiveness (providing branding assets, domain access, and account credentials in a timely manner) and the scope agreed at the time of purchase.
+
+## 5. Support Window
+A fixed period of post-launch setup support is included as agreed at the time of purchase. Support, feature requests, or changes requested after that window are available separately as a paid add-on, never assumed to be included.
+
+## 6. No Guarantee of Business Results
+The Service provides software and setup — it does not guarantee the client's own business outcomes (client acquisition, revenue, retention). The client is solely responsible for their own pricing, marketing, and client relationships.
+
+## 7. Liability
+To the maximum extent permitted by law, the platform operator's liability arising from the Service is limited to the amount actually paid for the Service. The operator is not liable for indirect, incidental, or consequential damages arising from the client's use of the delivered instance.
+
+## 8. Changes to These Terms
+These B2B Terms may be updated from time to time. The terms in effect at the time of purchase govern that specific engagement.`;
