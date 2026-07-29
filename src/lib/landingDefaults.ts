@@ -43,53 +43,57 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
 };
 
 // Recommended starting price points for the white-label/B2B offer — a
-// sales-assisted, manually-provisioned instance on your own infrastructure
-// (separate domain + Firebase project per client), not a self-serve SaaS
-// tier. Priced against the realistic alternative a trainer is comparing
-// against (Trainerize/TrueCoach run $50-150/mo per trainer for bare
-// client-management tooling with no consumer-grade app, gamification, AI
-// nutrition, or community layer) — positioned as a premium "your own
-// branded app" product, not competing on being the cheapest option.
+// ONE-TIME sale, not a hosted SaaS: install + brand the app on the client's
+// own VPS and domain, hand it off, done. No ongoing per-client fee to us,
+// no multi-tenant hosting to manage, no recurring revenue built into the
+// core price (an optional maintenance retainer is offered separately as an
+// upsell, never required). Priced as a "buy your own branded app outright"
+// product against the realistic alternative — building something like this
+// from scratch runs tens of thousands of dollars in dev time, and ongoing
+// SaaS tools like Trainerize/TrueCoach cost $50-150/month forever and the
+// trainer never owns anything. A one-time price well under "build it
+// yourself" and cheaper than a few years of a recurring tool is the right
+// anchor here.
 export const DEFAULT_B2B_LANDING_CONFIG: B2BLandingConfig = {
-  badgeText: 'Your brand. Your app. Zero dev work.',
-  headlineLine1: 'Give your clients an app',
-  headlineLine2: 'with your name on it.',
-  subheadline: 'A fully white-labeled training app for your business — your logo, your programs, your pricing — running on your own domain. We handle the platform. You keep the relationship.',
-  ctaPrimaryLabel: 'Book a Demo',
+  badgeText: 'One-time setup. Yours forever. No recurring fee.',
+  headlineLine1: 'Own your own branded app —',
+  headlineLine2: 'installed once, yours for good.',
+  subheadline: 'We install a fully white-labeled training app on your own domain and server — your logo, your programs, your pricing. One-time setup fee, no monthly platform fee, no ongoing cut of your revenue.',
+  ctaPrimaryLabel: 'Get Your Branded App',
   reasons: [
+    { title: 'You Own It Outright', desc: 'Installed on your own VPS and domain — this isn\'t a rented subscription you lose access to if you stop paying us.' },
+    { title: 'No Recurring Platform Fee', desc: 'One-time setup cost. No monthly fee to us, no per-client fee, no cut of what you charge your own clients.' },
     { title: 'Fully White-Labeled', desc: 'Your logo, your app name, your colors, your domain — clients never see our branding anywhere in the experience.' },
-    { title: 'You Set the Price', desc: 'Charge your clients whatever you want, however you want — we don\'t take a cut of your client revenue.' },
     { title: 'AI Program Matching', desc: 'New clients get quizzed and matched to a program automatically — you can still build and assign programs by hand whenever you want to.' },
     { title: 'Built-In Community', desc: 'Channels, a PR wall, direct messaging — your clients stay engaged with each other, not just with an app icon.' },
     { title: 'AI Nutrition Coaching', desc: 'Food photo analysis, barcode scanning, and calorie/macro targets calculated per client — without you doing the math.' },
     { title: 'Real Retention Tools', desc: 'Streaks, XP, achievements, and a leaderboard keep clients opening the app daily instead of ghosting after week two.' },
-    { title: 'Your Own Admin Dashboard', desc: 'Manage clients, review PT tests and PR submissions, message clients directly, and edit every program from one place.' },
-    { title: 'Launched For You', desc: 'We set up your domain, your branding, and your first programs — you\'re live in days, not months.' },
+    { title: 'Set Up And Handed Off', desc: 'We install it on your domain, brand it to you, and load your first programs — then it\'s yours to run.' },
   ],
   pricingTiers: [
     {
-      name: 'Starter',
-      price: '149',
-      period: '/month',
-      description: 'For solo trainers just getting their own app off the ground.',
-      features: ['Up to 25 active clients', 'Full white-label branding', 'AI program + nutrition matching', 'Community & messaging', 'Email support'],
+      name: 'Launch',
+      price: '1,497',
+      period: 'one-time',
+      description: 'Full setup on your own domain, ready to hand your clients.',
+      features: ['Installed on your own VPS/domain', 'Full white-label branding (logo, colors, name)', 'AI program + nutrition matching', 'Up to 3 programs configured', '14 days of setup support'],
     },
     {
-      name: 'Growth',
-      price: '299',
-      period: '/month',
-      description: 'For established coaches and small studios scaling up.',
-      features: ['Up to 100 active clients', 'Everything in Starter', 'Custom program library', 'Priority support', 'Onboarding call included'],
+      name: 'Pro',
+      price: '2,997',
+      period: 'one-time',
+      description: 'For coaches who want their program library built out, not just installed.',
+      features: ['Everything in Launch', 'Custom program library built to your specs', 'Priority setup & onboarding call', '30 days of support', 'Community channels pre-configured'],
       highlighted: true,
     },
     {
       name: 'Agency',
       price: 'Custom',
       period: '',
-      description: 'For gyms and multi-trainer businesses with larger rosters.',
-      features: ['Unlimited clients', 'Everything in Growth', 'Multiple trainer accounts', 'Custom integrations', 'Dedicated support'],
+      description: 'For gyms, franchises, or multi-location businesses.',
+      features: ['Everything in Pro', 'Multiple trainer/staff accounts', 'Custom integrations on request', 'Extended support window', 'Optional ongoing maintenance plan available'],
     },
   ],
-  finalCtaHeadline: 'Ready to put your name on it?',
-  finalCtaSubtext: 'Book a 15-minute demo — see the app running under your brand before you commit to anything.',
+  finalCtaHeadline: 'Ready to own your own branded app?',
+  finalCtaSubtext: 'Book a 15-minute call — see it running under your brand, get a fixed one-time price, no subscription.',
 };
