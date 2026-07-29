@@ -3701,6 +3701,31 @@ function AdminPageInner() {
             </div>
 
             <div>
+              <label className="text-xs text-text-secondary mb-1 block">Comparison Section Headline</label>
+              <Input value={b2bForm.comparisonHeadline} onChange={e => setB2bForm(f => ({ ...f, comparisonHeadline: e.target.value }))} placeholder="What this actually replaces" />
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-2 block">Build-It-Yourself vs Buy-It Comparison</label>
+              <div className="space-y-2">
+                {b2bForm.comparisonPoints.map((row, i) => (
+                  <div key={i} className="flex gap-2">
+                    <div className="flex-1 grid grid-cols-3 gap-1.5">
+                      <Input value={row.label} onChange={e => setB2bForm(f => ({ ...f, comparisonPoints: f.comparisonPoints.map((x, idx) => idx === i ? { ...x, label: e.target.value } : x) }))} placeholder="Row label" />
+                      <Input value={row.diy} onChange={e => setB2bForm(f => ({ ...f, comparisonPoints: f.comparisonPoints.map((x, idx) => idx === i ? { ...x, diy: e.target.value } : x) }))} placeholder="DIY" />
+                      <Input value={row.us} onChange={e => setB2bForm(f => ({ ...f, comparisonPoints: f.comparisonPoints.map((x, idx) => idx === i ? { ...x, us: e.target.value } : x) }))} placeholder="Us" />
+                    </div>
+                    <button onClick={() => setB2bForm(f => ({ ...f, comparisonPoints: f.comparisonPoints.filter((_, idx) => idx !== i) }))} className="text-danger self-start mt-2">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                <Button variant="ghost" size="sm" onClick={() => setB2bForm(f => ({ ...f, comparisonPoints: [...f.comparisonPoints, { label: '', diy: '', us: '' }] }))}>
+                  <Plus className="w-3.5 h-3.5" /> Add Row
+                </Button>
+              </div>
+            </div>
+
+            <div>
               <label className="text-xs text-text-secondary mb-2 block">Pricing Tiers</label>
               <div className="space-y-3">
                 {b2bForm.pricingTiers.map((tier, i) => (
@@ -3725,6 +3750,37 @@ function AdminPageInner() {
                 ))}
                 <Button variant="ghost" size="sm" onClick={() => setB2bForm(f => ({ ...f, pricingTiers: [...f.pricingTiers, { name: '', price: '', period: '/month', description: '', features: [] }] }))}>
                   <Plus className="w-3.5 h-3.5" /> Add Tier
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Guarantee Text (shown under the price)</label>
+              <Input value={b2bForm.guaranteeText ?? ''} onChange={e => setB2bForm(f => ({ ...f, guaranteeText: e.target.value }))} />
+            </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-2 block">FAQ</label>
+              <div className="space-y-2">
+                {b2bForm.faqs.map((item, i) => (
+                  <div key={i} className="flex gap-2">
+                    <div className="flex-1 space-y-1.5">
+                      <Input value={item.q} onChange={e => setB2bForm(f => ({ ...f, faqs: f.faqs.map((x, idx) => idx === i ? { ...x, q: e.target.value } : x) }))} placeholder="Question" />
+                      <textarea
+                        className="w-full bg-surface-elevated border border-border rounded-xl px-3.5 py-2.5 text-sm text-white resize-none"
+                        rows={2}
+                        value={item.a}
+                        onChange={e => setB2bForm(f => ({ ...f, faqs: f.faqs.map((x, idx) => idx === i ? { ...x, a: e.target.value } : x) }))}
+                        placeholder="Answer"
+                      />
+                    </div>
+                    <button onClick={() => setB2bForm(f => ({ ...f, faqs: f.faqs.filter((_, idx) => idx !== i) }))} className="text-danger self-start mt-2">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                <Button variant="ghost" size="sm" onClick={() => setB2bForm(f => ({ ...f, faqs: [...f.faqs, { q: '', a: '' }] }))}>
+                  <Plus className="w-3.5 h-3.5" /> Add FAQ
                 </Button>
               </div>
             </div>

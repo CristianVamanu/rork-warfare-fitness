@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowRight, Check, Crown, Menu, X as XIcon, PlayCircle,
   Palette, DollarSign, Sparkles, Users2, Apple, MessageSquare,
-  Flame, LayoutDashboard, Rocket,
+  Flame, LayoutDashboard, Rocket, ChevronDown, ShieldCheck, XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSystemConfig, createTrainerLead } from '@/lib/firestore';
@@ -39,6 +39,7 @@ export default function TrainersLandingPage({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
   const [demoOpenForm, setDemoOpenForm] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   useEffect(() => {
     getSystemConfig().then((cfg) => {
@@ -181,44 +182,85 @@ export default function TrainersLandingPage({
         </div>
       </section>
 
+      {/* Build-it-yourself vs buy-it comparison — the core price justification */}
+      <section className="max-w-4xl mx-auto px-4 py-14">
+        <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-10">{config.comparisonHeadline}</h2>
+        <div className="rounded-2xl border border-white/10 overflow-hidden">
+          <div className="grid grid-cols-3 bg-white/[0.03] text-xs font-bold uppercase tracking-wide text-text-tertiary">
+            <div className="p-3.5"></div>
+            <div className="p-3.5 flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5 text-danger" /> Building It Yourself</div>
+            <div className="p-3.5 flex items-center gap-1.5 text-accent"><ShieldCheck className="w-3.5 h-3.5" /> Buying It From Us</div>
+          </div>
+          {config.comparisonPoints.map((row, i) => (
+            <div key={row.label} className={`grid grid-cols-3 text-sm ${i % 2 === 1 ? 'bg-white/[0.02]' : ''}`}>
+              <div className="p-3.5 font-semibold text-white">{row.label}</div>
+              <div className="p-3.5 text-text-secondary">{row.diy}</div>
+              <div className="p-3.5 text-white font-medium">{row.us}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Pricing */}
-      <section id="pricing" className="max-w-6xl mx-auto px-4 py-14">
-        <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-2">Simple, predictable pricing</h2>
+      <section id="pricing" className="max-w-2xl mx-auto px-4 py-14">
+        <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-2">One price. Yours forever.</h2>
         <p className="text-sm text-text-secondary text-center max-w-lg mx-auto mb-10">
-          One flat monthly fee to us — you keep 100% of what you charge your own clients.
+          No monthly platform fee. No per-client tax. No cut of your revenue — ever.
         </p>
-        <div className="grid sm:grid-cols-3 gap-5">
-          {config.pricingTiers.map((tier) => (
-            <motion.div
-              key={tier.name}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-40px' }}
-              transition={{ duration: 0.3 }}
-              className={`relative rounded-2xl p-5 h-full flex flex-col border ${tier.highlighted ? 'border-accent/40 bg-accent-muted/30' : 'border-white/10 bg-surface'}`}
-            >
-              {tier.highlighted && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-accent rounded-full">
-                  <span className="text-[10px] font-bold text-black uppercase tracking-wide">Most Popular</span>
-                </div>
+        {config.pricingTiers.map((tier) => (
+          <motion.div
+            key={tier.name}
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-40px' }}
+            transition={{ duration: 0.3 }}
+            className="relative rounded-2xl p-6 sm:p-8 flex flex-col border border-accent/40 bg-accent-muted/20"
+          >
+            <p className="text-xs font-bold text-accent uppercase tracking-wide">{tier.name}</p>
+            <div className="flex items-baseline gap-1.5 mt-2">
+              <span className="text-5xl font-black text-white">{tier.price === 'Custom' ? 'Custom' : `$${tier.price}`}</span>
+              {tier.period && <span className="text-sm text-text-secondary">{tier.period}</span>}
+            </div>
+            <p className="text-sm text-text-secondary mt-3 leading-relaxed">{tier.description}</p>
+            <ul className="mt-5 space-y-2.5 grid sm:grid-cols-2 gap-x-4">
+              {tier.features.map((f) => (
+                <li key={f} className="flex items-start gap-2 text-sm text-text-secondary">
+                  <Check className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" /> {f}
+                </li>
+              ))}
+            </ul>
+            <Button fullWidth size="lg" className="mt-7" onClick={() => setDemoOpenForm(true)}>
+              {config.ctaPrimaryLabel} <ArrowRight className="w-4 h-4" />
+            </Button>
+            {config.guaranteeText && (
+              <p className="text-xs text-text-tertiary text-center mt-4 flex items-center justify-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {config.guaranteeText}
+              </p>
+            )}
+          </motion.div>
+        ))}
+      </section>
+
+      {/* FAQ */}
+      <section className="max-w-2xl mx-auto px-4 py-14">
+        <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-8">Questions, answered</h2>
+        <div className="rounded-2xl border border-white/8 bg-surface px-5">
+          {config.faqs.map((item, i) => (
+            <div key={item.q} className="border-b border-white/8 last:border-b-0">
+              <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full flex items-center justify-between gap-4 py-4 text-left">
+                <span className="text-sm font-semibold text-white">{item.q}</span>
+                <ChevronDown className={`w-4 h-4 text-text-tertiary flex-shrink-0 transition-transform ${openFaq === i ? 'rotate-180' : ''}`} />
+              </button>
+              {openFaq === i && (
+                <motion.p
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="text-sm text-text-secondary leading-relaxed pb-4 pr-8"
+                >
+                  {item.a}
+                </motion.p>
               )}
-              <p className="text-xs font-bold text-accent uppercase tracking-wide">{tier.name}</p>
-              <div className="flex items-baseline gap-1 mt-2">
-                <span className="text-3xl font-black text-white">{tier.price === 'Custom' ? 'Custom' : `$${tier.price}`}</span>
-                {tier.period && <span className="text-xs text-text-secondary">{tier.period}</span>}
-              </div>
-              <p className="text-xs text-text-secondary mt-2 leading-relaxed">{tier.description}</p>
-              <ul className="mt-4 space-y-2 flex-1">
-                {tier.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
-                    <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {f}
-                  </li>
-                ))}
-              </ul>
-              <Button fullWidth size="md" variant={tier.highlighted ? 'primary' : 'secondary'} className="mt-5" onClick={() => setDemoOpenForm(true)}>
-                {config.ctaPrimaryLabel} <ArrowRight className="w-4 h-4" />
-              </Button>
-            </motion.div>
+            </div>
           ))}
         </div>
       </section>

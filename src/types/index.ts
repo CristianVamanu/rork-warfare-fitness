@@ -269,14 +269,20 @@ export interface B2BLandingConfig {
   heroDemoVideoUrl?: string;
   heroDemoPosterUrl?: string;
   reasons: { title: string; desc: string }[];
+  // "Build it yourself" vs "buy it" comparison strip — the core price
+  // justification (a from-scratch build costs vastly more in money/time).
+  comparisonHeadline: string;
+  comparisonPoints: { label: string; diy: string; us: string }[];
   pricingTiers: {
     name: string;
-    price: string;      // e.g. "149" — free-text so admin can put "Custom" etc.
-    period: string;      // e.g. "/month"
+    price: string;      // e.g. "2,997" — free-text so admin can put "Custom" etc.
+    period: string;      // e.g. "one-time"
     description: string;
     features: string[];
     highlighted?: boolean;
   }[];
+  guaranteeText?: string;
+  faqs: { q: string; a: string }[];
   finalCtaHeadline: string;
   finalCtaSubtext: string;
 }
