@@ -120,8 +120,20 @@ async function safeGetEvents(
 // ---------------------------------------------------------------------------
 // System config
 // ---------------------------------------------------------------------------
+// Called from generateMetadata() in the root layout — i.e. on EVERY page
+// request, server-side, for the whole site — plus a few individual pages.
+// Next.js blocks the initial HTML response until metadata resolves (the
+// tags land in <head>), so an unbounded network call here can hang every
+// single route at once if Firestore is ever slow/unreachable from the
+// server (flaky egress, DNS hiccup, throttling) — indistinguishable from a
+// blank/black page in any browser, since the failure never reaches the
+// client. The race guarantees callers' existing `.catch(() => null)`
+// fallback fires within a bounded time instead of hanging indefinitely.
 export async function getSystemConfig() {
-  const snap = await getDoc(doc(db, 'system', 'config'));
+  const snap = await Promise.race([
+    getDoc(doc(db, 'system', 'config')),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('getSystemConfig timed out')), 3000)),
+  ]);
   return snap.exists() ? snap.data() : null;
 }
 
