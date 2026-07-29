@@ -43,7 +43,6 @@ export async function POST(req: NextRequest) {
     const plans = (snap.data()?.plans as MembershipPlan[]) ?? [];
     const plan = plans.find((p) => p.id === planId && p.active);
     if (!plan) return NextResponse.json({ error: 'Plan not found or inactive' }, { status: 404 });
-    if (plan.priceMonthly <= 0) return NextResponse.json({ error: 'Plan price not set' }, { status: 400 });
 
     // Price and Stripe billing cadence are both derived server-side from the
     // requested term, never trusted from the client — a client could

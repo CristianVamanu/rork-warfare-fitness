@@ -16,7 +16,7 @@ import { FullPageSpinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
-import { getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
+import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
 import type { LandingPageConfig, MembershipConfig, CoachingPlan, MembershipPlan } from '@/types';
 
 // Icon + color stay fixed by position — only title/desc are admin-editable.
@@ -209,7 +209,7 @@ export default function LandingPage({
     }).catch(() => {});
     getMembershipConfig().then(setMembership).catch(() => {});
     getCoachingPlans().then((plans) => setCoachingPlans(plans.filter((p) => p.active))).catch(() => {});
-    getMembershipPlans().then((plans) => setMembershipPlans(plans.filter((p) => p.active))).catch(() => {});
+    getMembershipPlans().then((plans) => setMembershipPlans(plans.filter((p) => p.active && getPlanBillingPeriods(p).length > 0))).catch(() => {});
     fetch('/api/public/leaderboard').then((r) => r.json()).then((d) => setLeaderboard(d.entries ?? [])).catch(() => {});
     fetch('/api/public/stats').then((r) => r.json()).then(setStats).catch(() => {});
     fetch('/api/public/programs').then((r) => r.json()).then((d) => setPrograms(d.programs ?? [])).catch(() => {});
@@ -676,7 +676,9 @@ export default function LandingPage({
             : (membershipPlans.length + coachingPlans.length) === 2 ? 'sm:grid-cols-2 max-w-2xl mx-auto'
             : 'max-w-sm mx-auto'
           }`}>
-            {membershipPlans.map((plan, i) => (
+            {membershipPlans.map((plan, i) => {
+              const displayPeriod = getPlanBillingPeriods(plan)[0];
+              return (
               <motion.div
                 key={plan.id}
                 initial={{ opacity: 0, y: 16 }}
@@ -704,13 +706,13 @@ export default function LandingPage({
                 <div className="flex items-baseline gap-1.5 mt-2">
                   {discountPercent > 0 ? (
                     <>
-                      <span className="text-3xl font-black text-white">${applyDiscount(plan.priceMonthly, discountPercent).toFixed(2)}</span>
-                      <span className="text-sm text-text-tertiary line-through">${plan.priceMonthly.toFixed(2)}</span>
+                      <span className="text-3xl font-black text-white">${applyDiscount(displayPeriod.price, discountPercent).toFixed(2)}</span>
+                      <span className="text-sm text-text-tertiary line-through">${displayPeriod.price.toFixed(2)}</span>
                     </>
                   ) : (
-                    <span className="text-3xl font-black text-white">${plan.priceMonthly.toFixed(2)}</span>
+                    <span className="text-3xl font-black text-white">${displayPeriod.price.toFixed(2)}</span>
                   )}
-                  <span className="text-xs text-text-secondary">/month</span>
+                  <span className="text-xs text-text-secondary">{displayPeriod.months === 1 ? '/month' : ` / ${displayPeriod.months}mo`}</span>
                 </div>
                 {trialDays > 0 && (
                   <p className="text-[11px] text-accent mt-1 font-medium">{trialDays}-day free trial, no payment required</p>
@@ -731,7 +733,8 @@ export default function LandingPage({
                   </Button>
                 </Link>
               </motion.div>
-            ))}
+              );
+            })}
             {coachingPlans.map((plan) => (
               <motion.div
                 key={plan.id}

@@ -642,11 +642,13 @@ export interface MembershipPlan {
   id: string;
   name: string;
   description: string;
-  priceMonthly: number;
-  // Optional longer-commitment terms — the TOTAL price for that whole term
-  // (not per-month), e.g. price6mo is what the customer pays once for 6
-  // months of access, billed as a single recurring charge on that cadence.
-  // Unset or 0 = that term isn't offered for this plan.
+  // Every term below is independently optional — an admin offering only a
+  // yearly plan sets ONLY price12mo and leaves the rest unset; nothing
+  // requires a monthly price to exist just because a longer term does. At
+  // least one of the four must be set for the plan to be purchasable (each
+  // is the TOTAL price for that whole term, not per-month — price6mo is
+  // what's charged once for 6 months, billed on that cadence).
+  priceMonthly?: number;
   price3mo?: number;
   price6mo?: number;
   price12mo?: number;

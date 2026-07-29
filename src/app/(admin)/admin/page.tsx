@@ -42,6 +42,7 @@ import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
 import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, TrainerLead } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
+import { getPlanBillingPeriods } from '@/lib/utils';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'settings';
 
@@ -819,20 +820,21 @@ function AdminPageInner() {
   }
 
   async function handleSaveMembershipPlan() {
-    const price = parseFloat(membershipPlanForm.priceMonthly);
-    if (!membershipPlanForm.name.trim() || isNaN(price) || price <= 0) {
-      toast.error('Name and a valid price are required'); return;
+    const priceMonthly = parseFloat(membershipPlanForm.priceMonthly);
+    const price3mo = parseFloat(membershipPlanForm.price3mo);
+    const price6mo = parseFloat(membershipPlanForm.price6mo);
+    const price12mo = parseFloat(membershipPlanForm.price12mo);
+    const hasAnyPrice = [priceMonthly, price3mo, price6mo, price12mo].some(p => !isNaN(p) && p > 0);
+    if (!membershipPlanForm.name.trim() || !hasAnyPrice) {
+      toast.error('Name and at least one billing-term price are required'); return;
     }
     setSavingMembershipPlans(true);
     try {
-      const price3mo = parseFloat(membershipPlanForm.price3mo);
-      const price6mo = parseFloat(membershipPlanForm.price6mo);
-      const price12mo = parseFloat(membershipPlanForm.price12mo);
       const plan: MembershipPlan = {
         id: editingMembershipPlan?.id ?? `mplan_${Date.now()}`,
         name: membershipPlanForm.name.trim(),
         description: membershipPlanForm.description.trim(),
-        priceMonthly: price,
+        ...(!isNaN(priceMonthly) && priceMonthly > 0 ? { priceMonthly } : {}),
         ...(!isNaN(price3mo) && price3mo > 0 ? { price3mo } : {}),
         ...(!isNaN(price6mo) && price6mo > 0 ? { price6mo } : {}),
         ...(!isNaN(price12mo) && price12mo > 0 ? { price12mo } : {}),
@@ -869,7 +871,7 @@ function AdminPageInner() {
     setMembershipPlanForm({
       name: plan.name,
       description: plan.description,
-      priceMonthly: String(plan.priceMonthly),
+      priceMonthly: plan.priceMonthly ? String(plan.priceMonthly) : '',
       price3mo: plan.price3mo ? String(plan.price3mo) : '',
       price6mo: plan.price6mo ? String(plan.price6mo) : '',
       price12mo: plan.price12mo ? String(plan.price12mo) : '',
@@ -2312,7 +2314,7 @@ function AdminPageInner() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-xs text-text-secondary mb-1 block">Price / Month</label>
+                        <label className="text-xs text-text-secondary mb-1 block">Price / Month (optional)</label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
                           <input
@@ -2421,7 +2423,12 @@ function AdminPageInner() {
                     </div>
                     <div className="flex gap-2">
                       <Button variant="ghost" fullWidth onClick={() => { setShowMembershipPlanForm(false); setEditingMembershipPlan(null); }}>Cancel</Button>
-                      <Button fullWidth loading={savingMembershipPlans} disabled={!membershipPlanForm.name.trim() || !membershipPlanForm.priceMonthly} onClick={handleSaveMembershipPlan}>
+                      <Button
+                        fullWidth
+                        loading={savingMembershipPlans}
+                        disabled={!membershipPlanForm.name.trim() || ![membershipPlanForm.priceMonthly, membershipPlanForm.price3mo, membershipPlanForm.price6mo, membershipPlanForm.price12mo].some(v => parseFloat(v) > 0)}
+                        onClick={handleSaveMembershipPlan}
+                      >
                         {editingMembershipPlan ? 'Save' : 'Create'}
                       </Button>
                     </div>
@@ -2440,16 +2447,14 @@ function AdminPageInner() {
                               <p className="text-sm font-bold text-white">{plan.name}</p>
                               {plan.active ? <Badge variant="success">Active</Badge> : <Badge variant="muted">Inactive</Badge>}
                             </div>
-                            <p className="text-sm font-black text-accent mt-0.5">{plan.currency} {plan.priceMonthly.toFixed(2)}/mo</p>
-                            {(plan.price3mo || plan.price6mo || plan.price12mo) && (
-                              <p className="text-[11px] text-text-tertiary mt-0.5">
-                                {[
-                                  plan.price3mo ? `3mo: ${plan.currency} ${plan.price3mo.toFixed(2)}` : null,
-                                  plan.price6mo ? `6mo: ${plan.currency} ${plan.price6mo.toFixed(2)}` : null,
-                                  plan.price12mo ? `12mo: ${plan.currency} ${plan.price12mo.toFixed(2)}` : null,
-                                ].filter(Boolean).join(' · ')}
-                              </p>
-                            )}
+                            <p className="text-sm font-black text-accent mt-0.5">
+                              {[
+                                plan.priceMonthly ? `1mo: ${plan.currency} ${plan.priceMonthly.toFixed(2)}` : null,
+                                plan.price3mo ? `3mo: ${plan.currency} ${plan.price3mo.toFixed(2)}` : null,
+                                plan.price6mo ? `6mo: ${plan.currency} ${plan.price6mo.toFixed(2)}` : null,
+                                plan.price12mo ? `12mo: ${plan.currency} ${plan.price12mo.toFixed(2)}` : null,
+                              ].filter(Boolean).join(' · ') || 'No price set'}
+                            </p>
                             {plan.description && <p className="text-xs text-text-secondary mt-1">{plan.description}</p>}
                             {plan.features.length > 0 && (
                               <ul className="mt-2 space-y-0.5">
@@ -2692,9 +2697,14 @@ function AdminPageInner() {
                             <option value="">Assign plan…</option>
                             {membershipPlans.filter(p => p.active).length > 0 && (
                               <optgroup label="Membership Plans">
-                                {membershipPlans.filter(p => p.active).map(p => (
-                                  <option key={p.id} value={p.id}>{p.name} — {p.currency} {p.priceMonthly}/mo</option>
-                                ))}
+                                {membershipPlans.filter(p => p.active).map(p => {
+                                  const period = getPlanBillingPeriods(p)[0];
+                                  return (
+                                    <option key={p.id} value={p.id}>
+                                      {p.name}{period ? ` — ${p.currency} ${period.price}${period.months === 1 ? '/mo' : ` / ${period.months}mo`}` : ''}
+                                    </option>
+                                  );
+                                })}
                               </optgroup>
                             )}
                             {coachingPlans.filter(p => p.active).length > 0 && (

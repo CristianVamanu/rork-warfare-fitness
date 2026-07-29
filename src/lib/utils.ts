@@ -54,20 +54,28 @@ export function applyDiscount(price: number, percent: number): number {
 
 const PERIOD_LABELS: Record<number, string> = { 1: 'Monthly', 3: 'Every 3 months', 6: 'Every 6 months', 12: 'Yearly' };
 
-/** Every billing term a plan actually offers — monthly is always available
- * (from priceMonthly), longer terms only appear once an admin sets a price
- * for them. Total price is what's charged per that whole term, not per
- * month, so a 6-month term shows one number, not "x/month". */
-export function getPlanBillingPeriods(plan: {
-  priceMonthly: number; price3mo?: number; price6mo?: number; price12mo?: number;
-}): { months: 1 | 3 | 6 | 12; price: number; label: string }[] {
-  const periods: { months: 1 | 3 | 6 | 12; price: number; label: string }[] = [
-    { months: 1, price: plan.priceMonthly, label: PERIOD_LABELS[1] },
-  ];
+type PlanPrices = { priceMonthly?: number; price3mo?: number; price6mo?: number; price12mo?: number };
+
+/** Every billing term a plan actually offers — EACH of the four is
+ * independently optional. A plan that only has price12mo set offers ONLY a
+ * yearly term; it does NOT fall back to showing a monthly price just
+ * because priceMonthly happens to be unset. Total price is what's charged
+ * per that whole term, not per month, so a 6-month term shows one number,
+ * not "x/month". */
+export function getPlanBillingPeriods(plan: PlanPrices): { months: 1 | 3 | 6 | 12; price: number; label: string }[] {
+  const periods: { months: 1 | 3 | 6 | 12; price: number; label: string }[] = [];
+  if (plan.priceMonthly && plan.priceMonthly > 0) periods.push({ months: 1, price: plan.priceMonthly, label: PERIOD_LABELS[1] });
   if (plan.price3mo && plan.price3mo > 0) periods.push({ months: 3, price: plan.price3mo, label: PERIOD_LABELS[3] });
   if (plan.price6mo && plan.price6mo > 0) periods.push({ months: 6, price: plan.price6mo, label: PERIOD_LABELS[6] });
   if (plan.price12mo && plan.price12mo > 0) periods.push({ months: 12, price: plan.price12mo, label: PERIOD_LABELS[12] });
   return periods;
+}
+
+/** Whether a plan has ANY purchasable term at all — replaces the old
+ * `priceMonthly > 0` check, which wrongly excluded a plan that only offers
+ * (say) a yearly price with nothing set for priceMonthly. */
+export function planHasAnyPrice(plan: PlanPrices): boolean {
+  return getPlanBillingPeriods(plan).length > 0;
 }
 
 export function kgToLbs(kg: number): number {

@@ -133,8 +133,10 @@ export default function ProfilePage() {
   const [selectedPlanPeriod, setSelectedPlanPeriod] = useState<Record<string, PlanBillingPeriodMonths>>({});
   const handleSubscribeMembershipPlan = async (planId: string) => {
     if (!user) return;
+    const plan = membershipPlans.find((p) => p.id === planId);
+    const defaultMonths = plan ? getPlanBillingPeriods(plan)[0]?.months : undefined;
     setSubscribingMembershipPlanId(planId);
-    const err = await startPlanCheckout(user, planId, selectedPlanPeriod[planId] ?? 1);
+    const err = await startPlanCheckout(user, planId, selectedPlanPeriod[planId] ?? defaultMonths ?? 1);
     if (err) { toast.error(err); setSubscribingMembershipPlanId(null); }
   };
 
@@ -279,8 +281,13 @@ export default function ProfilePage() {
               {showMembershipSection && membershipPlans.map((plan) => {
                 const isCurrentPlan = isActive && profile?.membership?.planId === plan.id;
                 const periods = getPlanBillingPeriods(plan);
-                const period = selectedPlanPeriod[plan.id] ?? 1;
-                const activePeriod = periods.find((p) => p.months === period) ?? periods[0];
+                // A plan with no valid price on any term can't be purchased —
+                // only worth showing at all if it's the member's existing
+                // plan (so "YOUR PLAN" doesn't just disappear if an admin
+                // later clears its pricing).
+                if (periods.length === 0 && !isCurrentPlan) return null;
+                const period = selectedPlanPeriod[plan.id] ?? periods[0]?.months ?? 1;
+                const activePeriod = periods.find((p) => p.months === period) ?? periods[0] ?? { months: 1 as const, price: 0, label: 'Monthly' };
                 return (
                   <div key={plan.id} className={`relative rounded-2xl border-2 p-5 ${isCurrentPlan ? 'border-accent bg-accent/[0.03]' : 'border-white/10 bg-surface'}`}>
                     {isCurrentPlan && (

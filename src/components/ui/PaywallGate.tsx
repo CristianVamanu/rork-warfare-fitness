@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Lock, Star, Crown } from 'lucide-react';
 import { getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
 import { startPlanCheckout } from '@/lib/checkout';
+import { getPlanBillingPeriods, planHasAnyPrice } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from './Card';
 import { Button } from './Button';
@@ -84,12 +85,14 @@ export function PaywallGate({ feature, programId, children }: Props) {
 
   async function handleSubscribe(planId: string) {
     if (!user) return;
+    const plan = plans.find((p) => p.id === planId);
+    const defaultMonths = plan ? getPlanBillingPeriods(plan)[0]?.months : undefined;
     setSubscribingId(planId);
-    const err = await startPlanCheckout(user, planId);
+    const err = await startPlanCheckout(user, planId, defaultMonths ?? 1);
     if (err) setSubscribingId(null);
   }
 
-  const activePlans = plans.filter((p) => p.active && p.priceMonthly > 0);
+  const activePlans = plans.filter((p) => p.active && planHasAnyPrice(p));
   const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
 
   return (
@@ -119,10 +122,14 @@ export function PaywallGate({ feature, programId, children }: Props) {
               || (!feature || plan.featureAccess.includes(feature))
               && (!programId || plan.featureAccess.includes('premium-programs'));
             if (!includesThis) return null;
+            const displayPeriod = getPlanBillingPeriods(plan)[0];
             return (
               <Card key={plan.id} className="p-5 border-accent/20">
                 <p className="text-sm font-bold text-white">{plan.name}</p>
-                <p className="text-2xl font-black text-white mt-1">${plan.priceMonthly.toFixed(2)}<span className="text-sm font-medium text-text-secondary">/mo</span></p>
+                <p className="text-2xl font-black text-white mt-1">
+                  ${displayPeriod.price.toFixed(2)}
+                  <span className="text-sm font-medium text-text-secondary">{displayPeriod.months === 1 ? '/mo' : ` / ${displayPeriod.months}mo`}</span>
+                </p>
                 {plan.description && <p className="text-xs text-text-secondary mt-1.5">{plan.description}</p>}
                 <Button fullWidth className="mt-4" onClick={() => handleSubscribe(plan.id)} loading={subscribingId === plan.id}>
                   <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}

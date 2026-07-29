@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { Lock, Star, Crown } from 'lucide-react';
 import { getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
 import { startPlanCheckout } from '@/lib/checkout';
-import { getPlanBillingPeriods } from '@/lib/utils';
+import { getPlanBillingPeriods, planHasAnyPrice } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from './Card';
 import { Button } from './Button';
@@ -70,13 +70,15 @@ function LockedScreen({ trialDays }: { trialDays: number }) {
   const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
 
   useEffect(() => {
-    getMembershipPlans().then((p) => setPlans(p.filter((x) => x.active && x.priceMonthly > 0))).catch(() => {});
+    getMembershipPlans().then((p) => setPlans(p.filter((x) => x.active && planHasAnyPrice(x)))).catch(() => {});
   }, []);
 
   async function handleSubscribe(planId: string) {
     if (!user) return;
+    const plan = plans.find((p) => p.id === planId);
+    const defaultMonths = plan ? getPlanBillingPeriods(plan)[0]?.months : undefined;
     setSubscribingId(planId);
-    const err = await startPlanCheckout(user, planId, selectedPeriod[planId] ?? 1);
+    const err = await startPlanCheckout(user, planId, selectedPeriod[planId] ?? defaultMonths ?? 1);
     if (err) {
       toast.error(err);
       setSubscribingId(null);
