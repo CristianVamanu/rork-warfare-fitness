@@ -117,13 +117,11 @@ export default function TrainersLandingPage({
             </div>
           </div>
 
-          <div className="relative">
+          <div className="relative flex justify-center">
             {config.heroDemoVideoUrl ? (
               <InlineHeroVideo src={config.heroDemoVideoUrl} posterUrl={config.heroDemoPosterUrl || config.heroImageUrl} />
             ) : config.heroImageUrl ? (
-              <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10">
-                <Image src={config.heroImageUrl} alt="Your branded app" fill className="object-cover" />
-              </div>
+              <img src={config.heroImageUrl} alt="Your branded app" className="max-h-[560px] max-w-full w-auto h-auto rounded-2xl border border-white/10" />
             ) : (
               <div className="w-full aspect-[4/3] rounded-2xl border border-dashed border-white/15 flex items-center justify-center">
                 <p className="text-xs text-text-tertiary text-center px-6">Add a hero image or demo video from Admin → B2B Landing Page</p>
@@ -304,9 +302,13 @@ export default function TrainersLandingPage({
 // Autoplays muted (required by every browser's autoplay policy) directly in
 // the hero — no click-to-open modal. A tap on the speaker icon unmutes in
 // place instead of navigating away from the page.
+// No fixed aspect ratio on the wrapper — forcing a 4:3 landscape box around
+// a portrait phone-screen recording (the common case for an app demo) was
+// pillarboxing it with black bars on both sides. Sizing to the video's own
+// natural dimensions instead removes the bars regardless of orientation.
 function InlineHeroVideo({ src, posterUrl }: { src: string; posterUrl?: string }) {
   return (
-    <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 bg-black">
+    <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black mx-auto max-w-full w-fit">
       <video
         src={src}
         poster={posterUrl}
@@ -315,7 +317,7 @@ function InlineHeroVideo({ src, posterUrl }: { src: string; posterUrl?: string }
         muted
         playsInline
         controls
-        className="w-full h-full object-contain"
+        className="block max-h-[560px] max-w-full w-auto h-auto mx-auto"
       />
     </div>
   );
