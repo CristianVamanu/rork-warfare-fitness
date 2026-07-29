@@ -1318,6 +1318,14 @@ function AdminPageInner() {
     }));
   }
 
+  function addLandingFeature() {
+    setLandingForm(f => ({ ...f, features: [...f.features, { title: '', desc: '' }] }));
+  }
+
+  function removeLandingFeature(i: number) {
+    setLandingForm(f => ({ ...f, features: f.features.filter((_, idx) => idx !== i) }));
+  }
+
   function updateSocialProof(i: number, value: string) {
     setLandingForm(f => ({
       ...f,
@@ -3569,11 +3577,17 @@ function AdminPageInner() {
               <div className="space-y-2">
                 {landingForm.features.map((f, i) => (
                   <div key={i} className="p-3 bg-surface-elevated rounded-xl space-y-2">
-                    <Input
-                      value={f.title}
-                      onChange={e => updateLandingFeature(i, { title: e.target.value })}
-                      placeholder={`Feature ${i + 1} title`}
-                    />
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={f.title}
+                        onChange={e => updateLandingFeature(i, { title: e.target.value })}
+                        placeholder={`Feature ${i + 1} title`}
+                        className="flex-1"
+                      />
+                      <Button variant="ghost" size="sm" onClick={() => removeLandingFeature(i)}>
+                        Remove
+                      </Button>
+                    </div>
                     <textarea
                       value={f.desc}
                       onChange={e => updateLandingFeature(i, { desc: e.target.value })}
@@ -3583,6 +3597,9 @@ function AdminPageInner() {
                     />
                   </div>
                 ))}
+                <Button variant="ghost" size="sm" onClick={addLandingFeature}>
+                  + Add Feature
+                </Button>
               </div>
             </div>
 
