@@ -83,11 +83,14 @@ service cloud.firestore {
     // member via direct Firestore calls, not just through the app UI.
     match /users/{userId} {
       allow read:   if isAuthed();
+      // trainerId is deliberately allowed here (unlike role/membership/
+      // purchasedProgramIds) — signUp() always writes it (possibly null),
+      // and unlike those other fields it doesn't grant admin or paid access
+      // by itself, so it's not the same kind of escalation risk.
       allow create: if isAuthed() && uid() == userId
         && request.resource.data.role == 'user'
         && !('membership' in request.resource.data)
         && !('purchasedProgramIds' in request.resource.data)
-        && !('trainerId' in request.resource.data)
         && !('banned' in request.resource.data)
         && !('prBan' in request.resource.data);
       // Self-updates may touch their own profile/preferences/stats, but never
