@@ -8,7 +8,6 @@ import {
   ArrowRight, Check, Crown, Menu, X as XIcon,
   Palette, DollarSign, Sparkles, Users2, Apple, MessageSquare,
   Flame, LayoutDashboard, Rocket, ChevronDown, ShieldCheck, XCircle, Smartphone,
-  Volume2, VolumeX,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSystemConfig, createTrainerLead } from '@/lib/firestore';
@@ -100,7 +99,7 @@ export default function TrainersLandingPage({
       <section className="relative">
         <div className="orb-drift pointer-events-none absolute rounded-full blur-3xl -top-20 -right-20 w-80 h-80 bg-accent/10" aria-hidden="true" />
         <div className="max-w-6xl mx-auto px-4 pt-14 pb-16 grid md:grid-cols-2 gap-10 items-center relative">
-          <div>
+          <div className="text-center flex flex-col items-center">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-muted border border-accent/20 mb-5">
               <Sparkles className="w-3.5 h-3.5 text-accent" />
               <span className="text-xs font-bold text-accent">{config.badgeText}</span>
@@ -111,7 +110,7 @@ export default function TrainersLandingPage({
             <p className="text-base text-text-secondary leading-relaxed mb-7 max-w-md">
               {config.subheadline}
             </p>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <Button size="lg" onClick={() => setDemoOpenForm(true)}>
                 {config.ctaPrimaryLabel} <ArrowRight className="w-4 h-4" />
               </Button>
@@ -135,18 +134,18 @@ export default function TrainersLandingPage({
       </section>
 
       {/* Not "just a website" — a real installable PWA app */}
-      <section className="max-w-4xl mx-auto px-4 py-14">
+      <section className="max-w-4xl mx-auto px-4 py-14 flex flex-col items-center text-center">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-muted border border-accent/20 mb-4">
           <Smartphone className="w-3.5 h-3.5 text-accent" />
           <span className="text-xs font-bold text-accent">Progressive Web App</span>
         </div>
         <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">{config.pwaHeadline}</h2>
         <p className="text-sm text-text-secondary max-w-2xl mb-10">{config.pwaSubheadline}</p>
-        <div className="rounded-2xl border border-white/10 overflow-hidden">
+        <div className="w-full rounded-2xl border border-white/10 overflow-hidden text-center">
           <div className="grid grid-cols-3 bg-white/[0.03] text-xs font-bold uppercase tracking-wide text-text-tertiary">
             <div className="p-3.5"></div>
-            <div className="p-3.5 flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5 text-danger" /> App Store / Play Store</div>
-            <div className="p-3.5 flex items-center gap-1.5 text-accent"><ShieldCheck className="w-3.5 h-3.5" /> Our PWA</div>
+            <div className="p-3.5 flex items-center justify-center gap-1.5"><XCircle className="w-3.5 h-3.5 text-danger" /> App Store / Play Store</div>
+            <div className="p-3.5 flex items-center justify-center gap-1.5 text-accent"><ShieldCheck className="w-3.5 h-3.5" /> Our PWA</div>
           </div>
           {config.pwaPoints.map((row, i) => (
             <div key={row.label} className={`grid grid-cols-3 text-sm ${i % 2 === 1 ? 'bg-white/[0.02]' : ''}`}>
@@ -174,7 +173,7 @@ export default function TrainersLandingPage({
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.3, delay: i * 0.03 }}
-                className="rounded-2xl border border-white/8 bg-surface p-5"
+                className="rounded-2xl border border-white/8 bg-surface p-5 flex flex-col items-center text-center"
               >
                 <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center mb-3">
                   <Icon className="w-5 h-5 text-accent" />
@@ -190,11 +189,11 @@ export default function TrainersLandingPage({
       {/* Build-it-yourself vs buy-it comparison — the core price justification */}
       <section className="max-w-4xl mx-auto px-4 py-14">
         <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-10">{config.comparisonHeadline}</h2>
-        <div className="rounded-2xl border border-white/10 overflow-hidden">
+        <div className="rounded-2xl border border-white/10 overflow-hidden text-center">
           <div className="grid grid-cols-3 bg-white/[0.03] text-xs font-bold uppercase tracking-wide text-text-tertiary">
             <div className="p-3.5"></div>
-            <div className="p-3.5 flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5 text-danger" /> Building It Yourself</div>
-            <div className="p-3.5 flex items-center gap-1.5 text-accent"><ShieldCheck className="w-3.5 h-3.5" /> Buying It From Us</div>
+            <div className="p-3.5 flex items-center justify-center gap-1.5"><XCircle className="w-3.5 h-3.5 text-danger" /> Building It Yourself</div>
+            <div className="p-3.5 flex items-center justify-center gap-1.5 text-accent"><ShieldCheck className="w-3.5 h-3.5" /> Buying It From Us</div>
           </div>
           {config.comparisonPoints.map((row, i) => (
             <div key={row.label} className={`grid grid-cols-3 text-sm ${i % 2 === 1 ? 'bg-white/[0.02]' : ''}`}>
@@ -220,7 +219,7 @@ export default function TrainersLandingPage({
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-40px' }}
               transition={{ duration: 0.3 }}
-              className={`relative rounded-2xl p-5 h-full flex flex-col border ${tier.highlighted ? 'border-accent/40 bg-accent-muted/30' : 'border-white/10 bg-surface'}`}
+              className={`relative rounded-2xl p-5 h-full flex flex-col items-center text-center border ${tier.highlighted ? 'border-accent/40 bg-accent-muted/30' : 'border-white/10 bg-surface'}`}
             >
               {tier.highlighted && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-accent rounded-full">
@@ -228,14 +227,14 @@ export default function TrainersLandingPage({
                 </div>
               )}
               <p className="text-xs font-bold text-accent uppercase tracking-wide">{tier.name}</p>
-              <div className="flex items-baseline gap-1 mt-2">
+              <div className="flex items-baseline justify-center gap-1 mt-2">
                 <span className="text-3xl font-black text-white">{tier.price === 'Custom' ? 'Custom' : `$${tier.price}`}</span>
                 {tier.period && <span className="text-xs text-text-secondary">{tier.period}</span>}
               </div>
               <p className="text-xs text-text-secondary mt-2 leading-relaxed">{tier.description}</p>
               <ul className="mt-4 space-y-2 flex-1">
                 {tier.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
+                  <li key={f} className="flex items-center justify-center gap-2 text-xs text-text-secondary">
                     <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {f}
                   </li>
                 ))}
@@ -258,8 +257,8 @@ export default function TrainersLandingPage({
         <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-8">Questions, answered</h2>
         <div className="rounded-2xl border border-white/8 bg-surface px-5">
           {config.faqs.map((item, i) => (
-            <div key={item.q} className="border-b border-white/8 last:border-b-0">
-              <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full flex items-center justify-between gap-4 py-4 text-left">
+            <div key={item.q} className="border-b border-white/8 last:border-b-0 text-center">
+              <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full flex items-center justify-center gap-4 py-4">
                 <span className="text-sm font-semibold text-white">{item.q}</span>
                 <ChevronDown className={`w-4 h-4 text-text-tertiary flex-shrink-0 transition-transform ${openFaq === i ? 'rotate-180' : ''}`} />
               </button>
@@ -267,7 +266,7 @@ export default function TrainersLandingPage({
                 <motion.p
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="text-sm text-text-secondary leading-relaxed pb-4 pr-8"
+                  className="text-sm text-text-secondary leading-relaxed pb-4"
                 >
                   {item.a}
                 </motion.p>
@@ -306,8 +305,6 @@ export default function TrainersLandingPage({
 // the hero — no click-to-open modal. A tap on the speaker icon unmutes in
 // place instead of navigating away from the page.
 function InlineHeroVideo({ src, posterUrl }: { src: string; posterUrl?: string }) {
-  const [muted, setMuted] = useState(true);
-
   return (
     <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 bg-black">
       <video
@@ -315,17 +312,11 @@ function InlineHeroVideo({ src, posterUrl }: { src: string; posterUrl?: string }
         poster={posterUrl}
         autoPlay
         loop
-        muted={muted}
+        muted
         playsInline
-        className="w-full h-full object-cover"
+        controls
+        className="w-full h-full object-contain"
       />
-      <button
-        onClick={() => setMuted((m) => !m)}
-        aria-label={muted ? 'Unmute video' : 'Mute video'}
-        className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm border border-white/15 flex items-center justify-center hover:bg-black/80 transition-colors"
-      >
-        {muted ? <VolumeX className="w-4.5 h-4.5 text-white" /> : <Volume2 className="w-4.5 h-4.5 text-white" />}
-      </button>
     </div>
   );
 }
