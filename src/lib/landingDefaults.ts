@@ -70,6 +70,16 @@ export const DEFAULT_B2B_LANDING_CONFIG: B2BLandingConfig = {
     { title: 'Your Own Command Center', desc: 'One dashboard to manage every client, review PR submissions and PT tests, message clients directly, and edit every program — no spreadsheets, no juggling five different tools.' },
     { title: 'We Do The Heavy Lifting', desc: 'Domain setup, branding, your first programs — all configured and handed to you ready to sell. You focus on clients, not deployment.' },
   ],
+  pwaHeadline: 'This isn\'t a website. It\'s a real app.',
+  pwaSubheadline: 'Your clients install it straight to their home screen, exactly like an app from the App Store — because that\'s exactly what it is. It just skips everything that makes app stores painful.',
+  pwaPoints: [
+    { label: 'Store fees', native: 'Apple/Google take 15–30% of every in-app payment', pwa: '$0 — you keep 100% of what your clients pay' },
+    { label: 'Update wait time', native: 'Every update sits in review for days, sometimes gets rejected', pwa: 'Instant — push an update and every client has it immediately' },
+    { label: 'Getting listed at all', native: 'App Store review can reject or delay your launch for weeks', pwa: 'No review process — it\'s live the moment we install it' },
+    { label: 'Developer account costs', native: '$99/year (Apple) + $25 one-time (Google), plus compliance overhead', pwa: '$0' },
+    { label: 'Install experience', native: 'Client has to find it in a store, download, wait', pwa: 'One tap "Add to Home Screen" from your own site — no store, no search' },
+    { label: 'Platform lock-in', native: 'Separate iOS and Android codebases/approvals to maintain', pwa: 'One app, works identically on iPhone and Android' },
+  ],
   comparisonHeadline: 'What this actually replaces',
   comparisonPoints: [
     { label: 'Cost', diy: '$25,000–$80,000+ to custom-build', us: 'A fraction of that, paid once' },

@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowRight, Check, Crown, Menu, X as XIcon, PlayCircle,
   Palette, DollarSign, Sparkles, Users2, Apple, MessageSquare,
-  Flame, LayoutDashboard, Rocket, ChevronDown, ShieldCheck, XCircle,
+  Flame, LayoutDashboard, Rocket, ChevronDown, ShieldCheck, XCircle, Smartphone,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSystemConfig, createTrainerLead } from '@/lib/firestore';
@@ -150,6 +150,30 @@ export default function TrainersLandingPage({
               </div>
             )}
           </div>
+        </div>
+      </section>
+
+      {/* Not "just a website" — a real installable PWA app */}
+      <section className="max-w-4xl mx-auto px-4 py-14">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-muted border border-accent/20 mb-4">
+          <Smartphone className="w-3.5 h-3.5 text-accent" />
+          <span className="text-xs font-bold text-accent">Progressive Web App</span>
+        </div>
+        <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">{config.pwaHeadline}</h2>
+        <p className="text-sm text-text-secondary max-w-2xl mb-10">{config.pwaSubheadline}</p>
+        <div className="rounded-2xl border border-white/10 overflow-hidden">
+          <div className="grid grid-cols-3 bg-white/[0.03] text-xs font-bold uppercase tracking-wide text-text-tertiary">
+            <div className="p-3.5"></div>
+            <div className="p-3.5 flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5 text-danger" /> App Store / Play Store</div>
+            <div className="p-3.5 flex items-center gap-1.5 text-accent"><ShieldCheck className="w-3.5 h-3.5" /> Our PWA</div>
+          </div>
+          {config.pwaPoints.map((row, i) => (
+            <div key={row.label} className={`grid grid-cols-3 text-sm ${i % 2 === 1 ? 'bg-white/[0.02]' : ''}`}>
+              <div className="p-3.5 font-semibold text-white">{row.label}</div>
+              <div className="p-3.5 text-text-secondary">{row.native}</div>
+              <div className="p-3.5 text-white font-medium">{row.pwa}</div>
+            </div>
+          ))}
         </div>
       </section>
 

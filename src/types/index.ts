@@ -269,6 +269,12 @@ export interface B2BLandingConfig {
   heroDemoVideoUrl?: string;
   heroDemoPosterUrl?: string;
   reasons: { title: string; desc: string }[];
+  // Explains this is a real installable PWA (home-screen icon, works
+  // offline-ish, push notifications) — not "just a website" — and why
+  // that beats a native App Store / Play Store app for this use case.
+  pwaHeadline: string;
+  pwaSubheadline: string;
+  pwaPoints: { label: string; native: string; pwa: string }[];
   // "Build it yourself" vs "buy it" comparison strip — the core price
   // justification (a from-scratch build costs vastly more in money/time).
   comparisonHeadline: string;

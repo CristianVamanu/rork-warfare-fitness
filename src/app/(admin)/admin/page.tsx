@@ -3701,6 +3701,40 @@ function AdminPageInner() {
             </div>
 
             <div>
+              <label className="text-xs text-text-secondary mb-1 block">PWA Section Headline</label>
+              <Input value={b2bForm.pwaHeadline} onChange={e => setB2bForm(f => ({ ...f, pwaHeadline: e.target.value }))} placeholder="This isn't a website. It's a real app." />
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">PWA Section Subheadline</label>
+              <textarea
+                className="w-full bg-surface-elevated border border-border rounded-xl px-3.5 py-2.5 text-sm text-white resize-none"
+                rows={2}
+                value={b2bForm.pwaSubheadline}
+                onChange={e => setB2bForm(f => ({ ...f, pwaSubheadline: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-2 block">App Store vs Our PWA Comparison</label>
+              <div className="space-y-2">
+                {b2bForm.pwaPoints.map((row, i) => (
+                  <div key={i} className="flex gap-2">
+                    <div className="flex-1 grid grid-cols-3 gap-1.5">
+                      <Input value={row.label} onChange={e => setB2bForm(f => ({ ...f, pwaPoints: f.pwaPoints.map((x, idx) => idx === i ? { ...x, label: e.target.value } : x) }))} placeholder="Row label" />
+                      <Input value={row.native} onChange={e => setB2bForm(f => ({ ...f, pwaPoints: f.pwaPoints.map((x, idx) => idx === i ? { ...x, native: e.target.value } : x) }))} placeholder="App Store / Play Store" />
+                      <Input value={row.pwa} onChange={e => setB2bForm(f => ({ ...f, pwaPoints: f.pwaPoints.map((x, idx) => idx === i ? { ...x, pwa: e.target.value } : x) }))} placeholder="Our PWA" />
+                    </div>
+                    <button onClick={() => setB2bForm(f => ({ ...f, pwaPoints: f.pwaPoints.filter((_, idx) => idx !== i) }))} className="text-danger self-start mt-2">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                <Button variant="ghost" size="sm" onClick={() => setB2bForm(f => ({ ...f, pwaPoints: [...f.pwaPoints, { label: '', native: '', pwa: '' }] }))}>
+                  <Plus className="w-3.5 h-3.5" /> Add Row
+                </Button>
+              </div>
+            </div>
+
+            <div>
               <label className="text-xs text-text-secondary mb-1 block">Comparison Section Headline</label>
               <Input value={b2bForm.comparisonHeadline} onChange={e => setB2bForm(f => ({ ...f, comparisonHeadline: e.target.value }))} placeholder="What this actually replaces" />
             </div>
