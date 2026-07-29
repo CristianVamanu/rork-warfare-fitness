@@ -31,6 +31,7 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     { title: 'Fasting Timer', desc: 'Track intermittent fasts with a live stage-by-stage breakdown, from fed state to fat burning to autophagy.' },
     { title: 'Break Bad Habits', desc: 'Track any habit you\'re quitting with a running streak counter and daily motivation to keep you accountable.' },
     { title: 'Streaks, XP & Leaderboard', desc: 'Every workout earns XP and power level. Climb the leaderboard and keep your streak alive.' },
+    { title: 'Scan & Go', desc: 'Photograph any gym — a hotel, a friend\'s garage, wherever — and get a workout built around exactly the equipment you can see. No commitment beyond today.' },
     { title: 'A Real Community', desc: 'Train alongside people on the same journey — share wins, ask questions, stay motivated together.' },
   ],
   socialProof: ['Matched to you, not a template.', 'Adapts as you get stronger.', 'Built to keep you consistent.'],

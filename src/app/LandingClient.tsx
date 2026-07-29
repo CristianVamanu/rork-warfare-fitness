@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
-  Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy,
+  Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera,
   ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
   Menu, X as XIcon, Clock, BarChart3, Anchor, Compass, Shield, Swords, Footprints, Waves, LifeBuoy, Mountain, PlayCircle,
 } from 'lucide-react';
@@ -30,6 +30,7 @@ const FEATURE_STYLES = [
   { icon: Timer, color: 'text-sky-400', bg: 'bg-sky-400/10' },
   { icon: Ban, color: 'text-red-400', bg: 'bg-red-400/10' },
   { icon: Trophy, color: 'text-accent', bg: 'bg-accent-muted' },
+  { icon: Camera, color: 'text-cyan-400', bg: 'bg-cyan-400/10' },
   { icon: Users, color: 'text-orange-400', bg: 'bg-orange-400/10' },
 ];
 
@@ -457,6 +458,7 @@ export default function LandingPage({
               'col-span-1',
               'col-span-1',
               'col-span-1',
+              'col-span-2 sm:col-span-1',
               'col-span-2 sm:col-span-4',
             ][i] ?? 'col-span-2 sm:col-span-1';
             const isHero = i === 0;
