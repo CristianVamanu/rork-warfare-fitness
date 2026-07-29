@@ -65,6 +65,24 @@ const nextConfig = {
   },
   // Mark all pages as dynamic to avoid SSR with Firebase
   output: undefined,
+  // sw.js must never be cached by a CDN/browser — if Cloudflare (or any
+  // intermediary) serves a stale sw.js after a deploy, the browser can end
+  // up installing a service worker whose precache manifest lists chunk
+  // filenames from an OLDER build that no longer exist on the server
+  // (surfaces as "importScripts... not allowed" / "bad-precaching-response"
+  // 404s in the console — a real report from a rapid-redeploy session).
+  // Forcing no-cache means every page load always re-checks sw.js against
+  // the current deploy instead of possibly running one build behind it.
+  async headers() {
+    return [
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+        ],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.googleapis.com' },
