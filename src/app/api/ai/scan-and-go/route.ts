@@ -77,6 +77,13 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
     const response = await openai.chat.completions.create({
       model,
       max_tokens: 1200,
+      // Forces the model to emit strictly valid JSON instead of relying on
+      // the prompt's "no markdown fences" instruction, which the model
+      // doesn't always follow exactly — a stray trailing comma or unescaped
+      // character in free-text output was breaking the naive regex-extract
+      // + JSON.parse this used to rely on ("Expected ',' or '}'..." errors
+      // reported in production).
+      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'user',
@@ -86,13 +93,16 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
     });
 
     const content = response.choices[0]?.message?.content?.trim() || '{}';
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Invalid AI response format');
-
-    const parsed = JSON.parse(jsonMatch[0]) as {
+    let parsed: {
       equipmentDetected?: string[]; ignoredNote?: string;
       exercises?: { name: string; sets: number; reps: string | number; restSeconds: number; notes?: string }[];
     };
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      console.error('[scan-and-go] Model returned unparseable JSON:', content);
+      return NextResponse.json({ error: "Couldn't read the AI's response — try again." }, { status: 502 });
+    }
 
     if (!parsed.exercises || parsed.exercises.length === 0) {
       return NextResponse.json({ error: "Couldn't identify any usable equipment or exercises from those photos — try again with clearer shots." }, { status: 422 });
