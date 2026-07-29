@@ -37,12 +37,18 @@ export function WorkoutShareCard({
   const [sharing, setSharing] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // NEXT_PUBLIC_ env vars are inlined at build time, so this is safe to read
+  // client-side too — matches the same fallback used in the root layout.
+  // The old hardcoded "warfare.fit" was simply the wrong domain (the real
+  // site is warfarefitness.com), so every shared card linked nowhere.
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com').replace(/^https?:\/\//, '');
+
   const shareText =
     `💪 Just finished a ${duration}-min workout!\n` +
     `${exerciseCount} exercises · ${completedSets} sets · ${xpEarned} XP earned\n` +
     `${streak > 0 ? `🔥 ${streak}-day streak\n` : ''}` +
     `Fitness Level ${newPowerLevel} · ${levelTitle}\n\n` +
-    `Join me on Warfare Fitness → warfare.fit`;
+    `Join me on Warfare Fitness → ${appUrl}`;
 
   const handleShare = async () => {
     if (sharing) return;
