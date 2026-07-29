@@ -10,8 +10,34 @@ import { sendEmail, trainerLeadEmailHtml } from '@/lib/email';
 // is already validated/shape-checked by firestore.rules before this fires;
 // this route only sends a best-effort notification email, so a failure
 // here never blocks the lead from being saved (see createTrainerLead).
+
+// In-memory per-IP throttle — this is an unauthenticated public endpoint
+// with no other rate limiting, so without this it could be scripted to
+// spam the Resend account and/or flood the notification inbox. Not a
+// distributed limiter (resets per server instance/restart), but a real
+// floor against casual abuse; the Firestore lead write itself has its own
+// shape/size validation as a second layer.
+const WINDOW_MS = 15 * 60 * 1000;
+const MAX_PER_WINDOW = 3;
+const requestLog = new Map<string, number[]>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const timestamps = (requestLog.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
+  timestamps.push(now);
+  requestLog.set(ip, timestamps);
+  // Prevent unbounded growth of the map across many distinct IPs over time.
+  if (requestLog.size > 5000) requestLog.clear();
+  return timestamps.length > MAX_PER_WINDOW;
+}
+
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
+    if (isRateLimited(ip)) {
+      return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429 });
+    }
+
     const body = await req.json() as {
       name?: string; email?: string; businessName?: string; phone?: string; clientCount?: string; message?: string;
     };

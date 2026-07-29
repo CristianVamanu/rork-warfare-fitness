@@ -24,6 +24,16 @@ service cloud.firestore {
       return isAuthed() && (callerRole() == 'admin' || callerRole() == 'trainer');
     }
 
+    // True until the one-time /install wizard finishes — createAdminUser()
+    // writes role:'admin' directly on the very first user doc, before any
+    // admin account (and therefore any isAdmin() caller) exists yet. Scoping
+    // the exception to "installer not done" closes it back down the moment
+    // setup completes, same as every signup after that point.
+    function installerNotDone() {
+      return !exists(/databases/$(database)/documents/system/installer) ||
+        get(/databases/$(database)/documents/system/installer).data.get('installed', false) != true;
+    }
+
     // How many absolute program day-slots a non-member can advance into —
     // mirrors src/lib/membership.ts's getProgramDayLimit() so the client-side
     // padlock can't be bypassed by writing lastCompletedDayIndex directly.
@@ -86,9 +96,12 @@ service cloud.firestore {
       // trainerId is deliberately allowed here (unlike role/membership/
       // purchasedProgramIds) — signUp() always writes it (possibly null),
       // and unlike those other fields it doesn't grant admin or paid access
-      // by itself, so it's not the same kind of escalation risk.
+      // by itself, so it's not the same kind of escalation risk. role:'admin'
+      // is allowed ONLY while the installer hasn't finished yet — that's
+      // createAdminUser()'s one-time bootstrap write, not a general escape
+      // hatch for regular signups.
       allow create: if isAuthed() && uid() == userId
-        && request.resource.data.role == 'user'
+        && (request.resource.data.role == 'user' || (request.resource.data.role == 'admin' && installerNotDone()))
         && !('membership' in request.resource.data)
         && !('purchasedProgramIds' in request.resource.data)
         && !('banned' in request.resource.data)
@@ -246,7 +259,20 @@ service cloud.firestore {
             isAdmin() ||
             get(/databases/$(database)/documents/channels/$(channelId)).data.get('allowUserPosts', true) == true
           );
-        allow update: if isAuthed() && resource.data.userId == uid();
+        // Author can edit their own post; anyone signed in can like/unlike,
+        // adding/removing exactly their own uid from `likes` — same
+        // exact-delta pattern as prPosts, so a client can't like on
+        // another user's behalf or forge the whole array.
+        allow update: if isAuthed() && (
+          resource.data.userId == uid() ||
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']) &&
+            (
+              (request.resource.data.likes == resource.data.get('likes', []).concat([uid()])
+                && !(uid() in resource.data.get('likes', []))) ||
+              (request.resource.data.likes == resource.data.get('likes', []).removeAll([uid()])
+                && (uid() in resource.data.get('likes', [])))
+            ))
+        );
         allow delete: if isAdmin();
 
         match /replies/{replyId} {
@@ -257,14 +283,23 @@ service cloud.firestore {
       }
 
       match /members/{userId} {
-        allow read, write: if isAuthed();
+        allow read: if isAuthed();
+        // Only ever writes its own lastPostAt slow-mode doc — scoped to
+        // that so one member can't overwrite another's timestamp.
+        allow write: if isAuthed() && uid() == userId;
       }
     }
 
     // ── Notifications ─────────────────────────────────────────────────────
     match /notifications/{notifId} {
       allow read, update: if isAuthed() && resource.data.userId == uid();
-      allow create: if isAdmin();
+      // Admins can notify anyone (broadcasts, PR-review results, etc). A
+      // regular user can only create a notification whose recipient is
+      // staff — covers submitCoachingApplication() notifying admins of a
+      // new application — never another regular user (no spam vector).
+      allow create: if isAdmin() ||
+        (isAuthed() &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.get('role', 'user') in ['admin', 'trainer']);
       allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }
 
@@ -274,10 +309,17 @@ service cloud.firestore {
       // Public form on the logged-out /trainers page — no auth yet at
       // submit time, so this can't check uid() like other creates. Locked
       // to exactly the expected shape/status instead of a wide-open create.
+      // Length caps are a cheap ceiling against scripted spam filling the
+      // doc (and the notification email) with huge payloads — the API
+      // route's own rate limit is the real throttle, this is just a floor.
       allow create: if request.resource.data.status == 'new'
         && request.resource.data.keys().hasAll(['name', 'email', 'status', 'createdAt'])
-        && request.resource.data.name is string && request.resource.data.name.size() > 0
-        && request.resource.data.email is string && request.resource.data.email.size() > 0;
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200
+        && request.resource.data.email is string && request.resource.data.email.size() > 0 && request.resource.data.email.size() <= 320
+        && (!('businessName' in request.resource.data) || (request.resource.data.businessName is string && request.resource.data.businessName.size() <= 200))
+        && (!('phone' in request.resource.data) || (request.resource.data.phone is string && request.resource.data.phone.size() <= 40))
+        && (!('clientCount' in request.resource.data) || (request.resource.data.clientCount is string && request.resource.data.clientCount.size() <= 20))
+        && (!('message' in request.resource.data) || (request.resource.data.message is string && request.resource.data.message.size() <= 2000));
     }
 
     // ── 1:1 Coaching applications (intake form → admin review) ───────────

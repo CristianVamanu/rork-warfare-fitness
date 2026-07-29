@@ -45,6 +45,19 @@ function button(label: string, url: string): string {
   return `<a href="${url}" style="display:inline-block;margin-top:20px;background:#F5A623;color:#000;font-weight:800;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none;">${label}</a>`;
 }
 
+// Only needed for templates interpolating untrusted, unauthenticated
+// input (the /trainers demo form) — someone submitting that form could
+// otherwise inject arbitrary markup/links into the notification email
+// that lands in a real inbox.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function welcomeEmailHtml(name: string, appName: string, appUrl: string): string {
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Welcome, ${name}. 💪</h1>
@@ -66,7 +79,7 @@ export function trainerLeadEmailHtml(lead: {
     ['Client count', lead.clientCount],
     ['Message', lead.message],
   ].filter(([, v]) => v) as [string, string][];
-  const rowsHtml = rows.map(([k, v]) => `<p style="margin:0 0 8px;font-size:14px;color:#bbb;"><strong style="color:#fff;">${k}:</strong> ${v}</p>`).join('');
+  const rowsHtml = rows.map(([k, v]) => `<p style="margin:0 0 8px;font-size:14px;color:#bbb;"><strong style="color:#fff;">${escapeHtml(k)}:</strong> ${escapeHtml(v)}</p>`).join('');
   return shell('Warfare Fitness', `
     <h1 style="margin:0 0 16px;font-size:20px;font-weight:900;color:#fff;">New Demo Request 🎯</h1>
     ${rowsHtml}

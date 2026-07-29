@@ -109,7 +109,7 @@ function LockedScreen({ trialDays }: { trialDays: number }) {
         <div className="space-y-3 max-w-sm w-full">
           {plans.map((plan) => {
             const periods = getPlanBillingPeriods(plan);
-            const period = selectedPeriod[plan.id] ?? 1;
+            const period = selectedPeriod[plan.id] ?? periods[0]?.months ?? 1;
             const active = periods.find((p) => p.months === period) ?? periods[0];
             return (
               <Card key={plan.id} className="p-5 border-accent/20">
