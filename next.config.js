@@ -18,7 +18,18 @@ const withPWA = require('next-pwa')({
   // next-pwa's auto-generated precache list includes it anyway, and the
   // resulting 404 fails the whole precache install step, permanently
   // stuck the service worker in "installing" and never activating.
-  buildExcludes: [/app-build-manifest\.json$/],
+  //
+  // .js.map files are excluded for the same reason, and this is the real
+  // fix for the recurring "bad-precaching-response" 404s reported in
+  // production: Workbox's own build-time size limit already skips large
+  // maps (observed directly in a build log — "won't be precached"), but
+  // smaller ones still get listed. Source maps serve no purpose to an end
+  // user's browser (they're irrelevant to the app actually running) and
+  // there's no reason to ever precache them — excluding the whole
+  // extension removes this failure mode entirely instead of hoping every
+  // future deploy's map files happen to still exist by the time a
+  // browser's install step gets around to fetching them.
+  buildExcludes: [/app-build-manifest\.json$/, /\.map$/],
   // With frequent redeploys (every push auto-deploys), a service worker
   // that was mid-install or already active from a previous build can end
   // up serving/precaching references to JS chunk files that no longer
