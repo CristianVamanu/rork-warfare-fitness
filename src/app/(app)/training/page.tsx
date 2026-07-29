@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown, CheckCircle2, RotateCcw, Camera, ArrowRight } from 'lucide-react';
+import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, resolveProgram, getHiddenMockIds, getUserCustomPrograms } from '@/lib/firestore';
@@ -112,21 +112,6 @@ export default function TrainingPage() {
     <div>
       <Header title="Training" />
       <div className="px-4 py-4 space-y-5">
-        {/* Scan & Go — not tied to any program, so it's always available
-            regardless of what's active below */}
-        <Link href="/training/scan-go">
-          <Card className="p-4 flex items-center gap-3 border-accent/20 bg-gradient-to-r from-accent-muted/40 to-transparent hover:from-accent-muted/60 transition-colors">
-            <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
-              <Camera className="w-5 h-5 text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">Scan & Go</p>
-              <p className="text-xs text-text-secondary">Photograph any gym, get today's workout built around it</p>
-            </div>
-            <ArrowRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-          </Card>
-        </Link>
-
         {/* Active Program Hero */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <h2 className="text-sm font-medium text-text-secondary mb-2">ACTIVE PROGRAM</h2>
