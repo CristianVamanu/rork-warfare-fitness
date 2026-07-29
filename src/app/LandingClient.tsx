@@ -451,7 +451,11 @@ export default function LandingPage({
           the hero/full-width slots and icon assignment were both keyed to
           a fixed index that only matched one specific save order. A plain
           uniform grid always looks right regardless of count or order. */}
-      <section className="max-w-5xl mx-auto px-5 pb-16">
+      <TacticalStripe />
+
+      <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pt-16 pb-16">
+        <GlowOrb className="w-80 h-80 bg-accent/[0.08] -top-20 -left-20 -z-10" />
+        <GlowOrb className="w-72 h-72 bg-accent/[0.06] bottom-0 -right-16 -z-10" />
         <div className="text-center mb-8">
           <h2 className="text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
           <p className="text-text-secondary text-sm mt-2">One app for training, nutrition, accountability, and progress.</p>
