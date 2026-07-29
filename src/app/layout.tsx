@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -72,8 +73,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             "moov atom at end of file" MP4s with ffmpeg -movflags +faststart. */}
         <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
+        {/* Chirps chatbot widget — config must be set before embed.js runs,
+            so it's an inline script (not next/script) to guarantee ordering
+            in <head>. embed.js itself loads async via next/script below,
+            right after this, same load-order guarantee as the plain
+            <script> tags from the vendor's install instructions. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.chirpsConfig = { assistantId: "e663729e-796a-44d9-98a8-316824eebcb0" };`,
+          }}
+        />
       </head>
       <body>
+        <Script src="https://digimetrix.ai/embed.js" strategy="afterInteractive" async />
         <ThemeProvider>
         <AuthProvider>
           {children}
