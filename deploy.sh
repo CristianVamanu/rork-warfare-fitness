@@ -20,6 +20,7 @@ cd "$(dirname "$0")"
 
 STAGING=".next-staging"
 PREVIOUS=".next-previous"
+PWA_STAGING="public-pwa-staging"
 
 echo "==> Pulling latest code"
 git fetch origin
@@ -29,17 +30,33 @@ echo "==> Installing dependencies"
 npm install
 
 echo "==> Building into $STAGING (live .next untouched)"
-rm -rf "$STAGING"
-# NEXT_DIST_DIR is read by next.config.js. It is deliberately NOT set for
-# `next start`, so the running server always resolves the normal '.next' —
-# verified that a build produced under a staging distDir serves correctly
-# once renamed into place.
-NEXT_DIST_DIR="$STAGING" npm run build
+rm -rf "$STAGING" "$PWA_STAGING"
+# NEXT_DIST_DIR is read by next.config.js for .next. NEXT_PWA_DEST does the
+# same for next-pwa's own output (sw.js, sw.js.map, workbox-*.js, and the
+# content-hashed custom worker-*.js chunk) — next-pwa writes those straight
+# to disk regardless of NEXT_DIST_DIR, so without redirecting them too, a
+# ~90s build was overwriting the LIVE public/ service worker files in
+# place while the old server was still actively serving them. A real
+# user's browser could fetch sw.js right as this replaced the exact
+# worker-*.js chunk it references — the deploy always regenerates a new
+# content hash for it — surfacing as "importScripts...not allowed" and a
+# blank page in production.
+NEXT_DIST_DIR="$STAGING" NEXT_PWA_DEST="$PWA_STAGING" npm run build
 
 echo "==> Swapping in the new build"
 rm -rf "$PREVIOUS"
 if [ -e .next ]; then mv .next "$PREVIOUS"; fi
 mv "$STAGING" .next
+
+echo "==> Swapping in the new service worker files (old worker/workbox chunks removed first so nothing stale lingers)"
+rm -f public/workbox-*.js public/workbox-*.js.map public/worker-*.js public/worker-*.js.map
+mv "$PWA_STAGING"/sw.js public/sw.js
+mv "$PWA_STAGING"/sw.js.map public/sw.js.map 2>/dev/null || true
+mv "$PWA_STAGING"/workbox-*.js public/ 2>/dev/null || true
+mv "$PWA_STAGING"/workbox-*.js.map public/ 2>/dev/null || true
+mv "$PWA_STAGING"/worker-*.js public/ 2>/dev/null || true
+mv "$PWA_STAGING"/worker-*.js.map public/ 2>/dev/null || true
+rm -rf "$PWA_STAGING"
 
 echo "==> Reloading app (zero-downtime — restarts cluster workers one at a time)"
 # The previous build stays on disk until after the reload: workers restart

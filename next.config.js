@@ -1,6 +1,14 @@
 /** @type {import('next').NextConfig} */
 const withPWA = require('next-pwa')({
-  dest: 'public',
+  // Overridable so deploy.sh can build the service worker + its
+  // content-hashed worker-*.js chunk into a staging location instead of
+  // writing straight into the LIVE public/ folder mid-build. next-pwa
+  // writes these files directly to disk regardless of NEXT_DIST_DIR (that
+  // only affects .next), so without this a real user's browser could
+  // fetch a still-being-overwritten sw.js right as a deploy replaces the
+  // worker-*.js chunk it references — surfacing as "importScripts...not
+  // allowed" and a blank page, reported in production.
+  dest: process.env.NEXT_PWA_DEST || 'public',
   disable: process.env.NODE_ENV === 'development',
   register: true,
   skipWaiting: true,
