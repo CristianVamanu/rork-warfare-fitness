@@ -30,6 +30,7 @@ import {
   getCoachingApplications, approveCoachingApplication, rejectCoachingApplication,
   getProgressPhotos,
   createGoal, getClientGoals, setGoalStatus, deleteGoal,
+  getTrainerLeads, updateTrainerLeadStatus,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -39,8 +40,8 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory } from '@/types';
-import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
+import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, TrainerLead } from '@/types';
+import { DEFAULT_LANDING_CONFIG, DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'settings';
 
@@ -345,6 +346,14 @@ function AdminPageInner() {
   const [landingForm, setLandingForm] = useState<LandingPageConfig>(DEFAULT_LANDING_CONFIG);
   const [savingLanding, setSavingLanding] = useState(false);
 
+  // ── B2B (/trainers) landing page state ─────────────────────────────────────
+  const [b2bForm, setB2bForm] = useState<B2BLandingConfig>(DEFAULT_B2B_LANDING_CONFIG);
+  const [savingB2b, setSavingB2b] = useState(false);
+  const [uploadingB2bHero, setUploadingB2bHero] = useState(false);
+  const [uploadingB2bVideo, setUploadingB2bVideo] = useState(false);
+  const [trainerLeads, setTrainerLeads] = useState<TrainerLead[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(false);
+
   // ── Initial load ────────────────────────────────────────────────────────────
   useEffect(() => {
     const trainerId = profile?.trainerId;
@@ -392,9 +401,18 @@ function AdminPageInner() {
         if (savedLanding) {
           setLandingForm({ ...DEFAULT_LANDING_CONFIG, ...savedLanding });
         }
+        const savedB2b = (c as { b2bLandingPage?: Partial<B2BLandingConfig> }).b2bLandingPage;
+        if (savedB2b) {
+          setB2bForm({ ...DEFAULT_B2B_LANDING_CONFIG, ...savedB2b });
+        }
       }
     }).catch(console.error).finally(() => setOverviewLoading(false));
   }, [profile?.trainerId]);
+
+  useEffect(() => {
+    setLoadingLeads(true);
+    getTrainerLeads().then(setTrainerLeads).catch(() => {}).finally(() => setLoadingLeads(false));
+  }, []);
 
   // Load real Stripe/OpenAI/etc config status once on mount for the Overview card
   useEffect(() => {
@@ -1367,6 +1385,52 @@ function AdminPageInner() {
     } finally {
       setUploadingDemoVideo(false);
       e.target.value = '';
+    }
+  }
+
+  async function handleB2bHeroImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingB2bHero(true);
+    try {
+      const url = await uploadVideo(storageProvider, user, file, 'branding');
+      setB2bForm(f => ({ ...f, heroImageUrl: url }));
+      toast.success('Hero image uploaded — click Save below to publish it');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to upload hero image: ${msg}`, { duration: 6000 });
+    } finally {
+      setUploadingB2bHero(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleB2bVideoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingB2bVideo(true);
+    try {
+      const url = await uploadVideo(storageProvider, user, file, 'branding');
+      setB2bForm(f => ({ ...f, heroDemoVideoUrl: url }));
+      toast.success('Demo video uploaded — click Save below to publish it');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to upload demo video: ${msg}`, { duration: 6000 });
+    } finally {
+      setUploadingB2bVideo(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleSaveB2b() {
+    setSavingB2b(true);
+    try {
+      await setSystemConfig({ b2bLandingPage: b2bForm });
+      toast.success('B2B landing page saved');
+    } catch {
+      toast.error('Failed to save — try again');
+    } finally {
+      setSavingB2b(false);
     }
   }
 
@@ -3537,6 +3601,187 @@ function AdminPageInner() {
               <Button variant="ghost" onClick={handleResetLanding}>Reset to Default</Button>
               <Button onClick={handleSaveLanding} loading={savingLanding} fullWidth>Save Landing Page</Button>
             </div>
+          </Card>
+
+          {/* B2B (/trainers) Landing Page */}
+          <Card className="p-5 space-y-4">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Rocket className="w-4 h-4 text-accent" /> B2B Landing Page (/trainers)
+            </h2>
+            <p className="text-xs text-text-secondary">
+              A separate landing page pitching the white-label offer to trainers/gym owners — linked from the main site's nav as &quot;For Trainers&quot;.
+            </p>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Hero Image</label>
+              <div className="flex items-center gap-3">
+                {b2bForm.heroImageUrl && (
+                  <img src={b2bForm.heroImageUrl} alt="Hero preview" className="w-16 h-20 rounded-xl object-cover border border-white/10 flex-shrink-0" />
+                )}
+                <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-elevated border border-border text-xs font-medium text-white cursor-pointer">
+                  <input type="file" accept="image/*" className="hidden" onChange={handleB2bHeroImageUpload} disabled={uploadingB2bHero} />
+                  <Upload className="w-4 h-4" /> {uploadingB2bHero ? 'Uploading…' : b2bForm.heroImageUrl ? 'Change Image' : 'Upload Image'}
+                </label>
+                {b2bForm.heroImageUrl && (
+                  <button onClick={() => setB2bForm(f => ({ ...f, heroImageUrl: '' }))} className="text-xs text-danger">Remove</button>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Hero Demo Video (optional — shown as a "Watch Demo" player instead of the static image)</label>
+              <div className="flex items-center gap-3">
+                {b2bForm.heroDemoVideoUrl && (
+                  <video src={b2bForm.heroDemoVideoUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted />
+                )}
+                <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-elevated border border-border text-xs font-medium text-white cursor-pointer">
+                  <input type="file" accept="video/*" className="hidden" onChange={handleB2bVideoUpload} disabled={uploadingB2bVideo} />
+                  <Upload className="w-4 h-4" /> {uploadingB2bVideo ? 'Uploading…' : b2bForm.heroDemoVideoUrl ? 'Change Video' : 'Upload Video'}
+                </label>
+                {b2bForm.heroDemoVideoUrl && (
+                  <button onClick={() => setB2bForm(f => ({ ...f, heroDemoVideoUrl: '' }))} className="text-xs text-danger">Remove</button>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Badge Text</label>
+              <Input value={b2bForm.badgeText} onChange={e => setB2bForm(f => ({ ...f, badgeText: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Headline (line 1)</label>
+                <Input value={b2bForm.headlineLine1} onChange={e => setB2bForm(f => ({ ...f, headlineLine1: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Headline (line 2, accent color)</label>
+                <Input value={b2bForm.headlineLine2} onChange={e => setB2bForm(f => ({ ...f, headlineLine2: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Subheadline</label>
+              <textarea
+                className="w-full bg-surface-elevated border border-border rounded-xl px-3.5 py-2.5 text-sm text-white resize-none"
+                rows={2}
+                value={b2bForm.subheadline}
+                onChange={e => setB2bForm(f => ({ ...f, subheadline: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">CTA Button Label</label>
+              <Input value={b2bForm.ctaPrimaryLabel} onChange={e => setB2bForm(f => ({ ...f, ctaPrimaryLabel: e.target.value }))} placeholder="Book a Demo" />
+            </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-2 block">Reasons to Choose Us</label>
+              <div className="space-y-2">
+                {b2bForm.reasons.map((r, i) => (
+                  <div key={i} className="flex gap-2">
+                    <div className="flex-1 space-y-1.5">
+                      <Input
+                        value={r.title}
+                        onChange={e => setB2bForm(f => ({ ...f, reasons: f.reasons.map((x, idx) => idx === i ? { ...x, title: e.target.value } : x) }))}
+                        placeholder="Title"
+                      />
+                      <Input
+                        value={r.desc}
+                        onChange={e => setB2bForm(f => ({ ...f, reasons: f.reasons.map((x, idx) => idx === i ? { ...x, desc: e.target.value } : x) }))}
+                        placeholder="Description"
+                      />
+                    </div>
+                    <button onClick={() => setB2bForm(f => ({ ...f, reasons: f.reasons.filter((_, idx) => idx !== i) }))} className="text-danger self-start mt-2">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                <Button variant="ghost" size="sm" onClick={() => setB2bForm(f => ({ ...f, reasons: [...f.reasons, { title: '', desc: '' }] }))}>
+                  <Plus className="w-3.5 h-3.5" /> Add Reason
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-2 block">Pricing Tiers</label>
+              <div className="space-y-3">
+                {b2bForm.pricingTiers.map((tier, i) => (
+                  <div key={i} className="border border-white/10 rounded-xl p-3 space-y-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <Input value={tier.name} onChange={e => setB2bForm(f => ({ ...f, pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, name: e.target.value } : t) }))} placeholder="Name" />
+                      <Input value={tier.price} onChange={e => setB2bForm(f => ({ ...f, pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, price: e.target.value } : t) }))} placeholder="Price (or Custom)" />
+                      <Input value={tier.period} onChange={e => setB2bForm(f => ({ ...f, pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, period: e.target.value } : t) }))} placeholder="/month" />
+                      <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+                        <input type="checkbox" checked={!!tier.highlighted} onChange={e => setB2bForm(f => ({ ...f, pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, highlighted: e.target.checked } : t) }))} />
+                        Highlighted
+                      </label>
+                    </div>
+                    <Input value={tier.description} onChange={e => setB2bForm(f => ({ ...f, pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, description: e.target.value } : t) }))} placeholder="Description" />
+                    <Input
+                      value={tier.features.join(', ')}
+                      onChange={e => setB2bForm(f => ({ ...f, pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, features: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } : t) }))}
+                      placeholder="Features, comma-separated"
+                    />
+                    <button onClick={() => setB2bForm(f => ({ ...f, pricingTiers: f.pricingTiers.filter((_, idx) => idx !== i) }))} className="text-xs text-danger">Remove Tier</button>
+                  </div>
+                ))}
+                <Button variant="ghost" size="sm" onClick={() => setB2bForm(f => ({ ...f, pricingTiers: [...f.pricingTiers, { name: '', price: '', period: '/month', description: '', features: [] }] }))}>
+                  <Plus className="w-3.5 h-3.5" /> Add Tier
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Final CTA Headline</label>
+                <Input value={b2bForm.finalCtaHeadline} onChange={e => setB2bForm(f => ({ ...f, finalCtaHeadline: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Final CTA Subtext</label>
+                <Input value={b2bForm.finalCtaSubtext} onChange={e => setB2bForm(f => ({ ...f, finalCtaSubtext: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setB2bForm(DEFAULT_B2B_LANDING_CONFIG)}>Reset to Default</Button>
+              <Button onClick={handleSaveB2b} loading={savingB2b} fullWidth>Save B2B Landing Page</Button>
+            </div>
+          </Card>
+
+          {/* Trainer demo-request leads */}
+          <Card className="p-5 space-y-3">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-accent" /> Trainer Leads
+            </h2>
+            <p className="text-xs text-text-secondary">Demo requests submitted from the /trainers page.</p>
+            {loadingLeads ? (
+              <p className="text-xs text-text-tertiary">Loading…</p>
+            ) : trainerLeads.length === 0 ? (
+              <p className="text-xs text-text-tertiary">No demo requests yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {trainerLeads.map((lead) => (
+                  <div key={lead.id} className="border border-white/10 rounded-xl p-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white truncate">{lead.name} {lead.businessName ? `· ${lead.businessName}` : ''}</p>
+                      <p className="text-xs text-text-secondary truncate">{lead.email} {lead.phone ? `· ${lead.phone}` : ''} {lead.clientCount ? `· ${lead.clientCount} clients` : ''}</p>
+                      {lead.message && <p className="text-xs text-text-tertiary mt-1">{lead.message}</p>}
+                    </div>
+                    <select
+                      className="bg-surface-elevated border border-border rounded-lg px-2 py-1 text-xs text-white flex-shrink-0"
+                      value={lead.status}
+                      onChange={(e) => {
+                        const status = e.target.value as TrainerLead['status'];
+                        setTrainerLeads(ls => ls.map(l => l.id === lead.id ? { ...l, status } : l));
+                        updateTrainerLeadStatus(lead.id, status).catch(() => toast.error('Failed to update status'));
+                      }}
+                    >
+                      <option value="new">New</option>
+                      <option value="contacted">Contacted</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
 
           {/* Legal Pages */}

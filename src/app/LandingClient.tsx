@@ -71,6 +71,7 @@ interface PublicProgram {
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
   { href: '#programs', label: 'Programs' },
+  { href: '/trainers', label: 'For Trainers' },
   { href: '/terms', label: 'Terms' },
   { href: '/privacy', label: 'Privacy' },
 ];

@@ -253,6 +253,48 @@ export interface SystemConfig {
   barcodeScanDailyLimit?: number; // default 20 if unset
   foodAnalysisDailyLimit?: number; // default 20 if unset
   mealIdeasDailyLimit?: number; // default 15 if unset
+  b2bLandingPage?: B2BLandingConfig;
+}
+
+// A separate landing page for the B2B/white-label pitch (trainers, coaches,
+// gym owners) — same visual system as the consumer landing page, but its
+// own copy/hero/pricing so the two audiences never see the wrong pitch.
+export interface B2BLandingConfig {
+  badgeText: string;
+  headlineLine1: string;
+  headlineLine2: string;
+  subheadline: string;
+  ctaPrimaryLabel: string;
+  heroImageUrl?: string;
+  heroDemoVideoUrl?: string;
+  heroDemoPosterUrl?: string;
+  reasons: { title: string; desc: string }[];
+  pricingTiers: {
+    name: string;
+    price: string;      // e.g. "149" — free-text so admin can put "Custom" etc.
+    period: string;      // e.g. "/month"
+    description: string;
+    features: string[];
+    highlighted?: boolean;
+  }[];
+  finalCtaHeadline: string;
+  finalCtaSubtext: string;
+}
+
+// A lead submitted from the B2B landing page's "Book a Demo" / "Get Started"
+// form — reviewed manually in the admin panel (this business is a
+// sales-assisted, manually-provisioned white-label service, not instant
+// self-serve signup, so there's no Stripe checkout on this page).
+export interface TrainerLead {
+  id: string;
+  name: string;
+  email: string;
+  businessName?: string;
+  phone?: string;
+  message?: string;
+  clientCount?: string;
+  status: 'new' | 'contacted' | 'closed';
+  createdAt: unknown;
 }
 
 export interface LandingFeature {

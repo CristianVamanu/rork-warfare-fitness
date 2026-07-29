@@ -140,6 +140,32 @@ export async function setSystemConfig(config: Record<string, unknown>) {
   await setDoc(doc(db, 'system', 'config'), config, { merge: true });
 }
 
+// ---------------------------------------------------------------------------
+// B2B trainer leads — submitted from the /trainers landing page's demo form,
+// reviewed manually in the admin panel (this is a sales-assisted,
+// manually-provisioned offer, not self-serve).
+// ---------------------------------------------------------------------------
+import type { TrainerLead } from '@/types';
+
+export async function createTrainerLead(data: {
+  name: string; email: string; businessName?: string; phone?: string; message?: string; clientCount?: string;
+}) {
+  await addDoc(collection(db, 'trainerLeads'), {
+    ...data,
+    status: 'new',
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function getTrainerLeads(): Promise<TrainerLead[]> {
+  const snap = await getDocs(query(collection(db, 'trainerLeads'), orderBy('createdAt', 'desc')));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TrainerLead);
+}
+
+export async function updateTrainerLeadStatus(id: string, status: TrainerLead['status']) {
+  await updateDoc(doc(db, 'trainerLeads', id), { status });
+}
+
 export async function markInstalled() {
   await setDoc(doc(db, 'system', 'installer'), {
     installed: true,
