@@ -8,23 +8,45 @@ import { usePathname } from 'next/navigation';
 // marketing pages (public landing, /trainers, /terms, /privacy), not
 // anywhere inside the authenticated app (dashboard, training, etc).
 //
-// PRIOR APPROACH (REVERTED — caused a full-site outage): a MutationObserver
-// watched document.body for ANY directly-appended child and force-set
-// `display: none` on it outside the allowed paths, on the assumption that
-// the only thing ever appended straight to <body> in this app is the
-// widget's own DOM. That assumption broke production: whatever the embed
-// script appends is not necessarily scoped to just its own launcher/iframe
-// — if it wraps or reparents anything broader, blindly hiding "whatever
-// got added to body" can hide real app content too, and since this
-// component is mounted in the ROOT layout, that manifested as a black
-// screen on every page outside the 4 allowed ones, in every browser
-// (this was a real DOM-level bug, not a caching/service-worker issue).
+// PRIOR APPROACH #1 (REVERTED — caused a full-site outage): a
+// MutationObserver watched document.body for ANY directly-appended child
+// and force-hid it outside the allowed paths, assuming the only thing ever
+// appended straight to <body> was the widget's own DOM. That assumption
+// was wrong and blindly hiding "whatever got added to body" hid real app
+// content too — a black screen on every disallowed page.
 //
-// Fixed by not injecting the widget's script at all outside the allowed
-// paths (so there's nothing of its to hide on the other 90% of the app),
-// and only cleaning up its own iframe by matching the widget's own known
-// domain — never touching anything else that might be in <body>.
+// PRIOR APPROACH #2 (didn't work — wrong selector): tried removing
+// `iframe[src*="digimetrix.ai"]`, but inspecting the actual DOM the widget
+// creates (confirmed directly in production) showed it's not an iframe at
+// all — it's `<div id="chirps-widget-host">` plus a separate full-viewport
+// positioning div fingerprinted by inline styles
+// (position:fixed;z-index:9999;...;pointer-events:none, no children). The
+// selector matched nothing, so the widget kept leaking onto every page.
+//
+// Fixed for real this time: only inject the widget's script on allowed
+// paths (nothing to clean up on the other pages in the common case), and
+// a MutationObserver + one-off sweep that ONLY ever touch elements
+// matching those two specific, verified fingerprints — never a blanket
+// "anything appended to body".
 const ALLOWED_PATHS = ['/', '/trainers', '/terms', '/privacy'];
+
+function isChirpsWidgetNode(node: Node): node is HTMLElement {
+  if (!(node instanceof HTMLElement)) return false;
+  if (node.id === 'chirps-widget-host') return true;
+  return (
+    node.tagName === 'DIV' &&
+    node.children.length === 0 &&
+    node.style.position === 'fixed' &&
+    node.style.zIndex === '9999' &&
+    node.style.pointerEvents === 'none'
+  );
+}
+
+function removeChirpsWidgetNodes() {
+  document.querySelectorAll('body > *').forEach((el) => {
+    if (isChirpsWidgetNode(el)) el.remove();
+  });
+}
 
 export function ChatWidget() {
   const pathname = usePathname();
@@ -32,11 +54,24 @@ export function ChatWidget() {
 
   useEffect(() => {
     if (allowed) return;
-    // Client-side nav away from an allowed page: the widget's own iframe
-    // may already be in the DOM from before. Only ever remove elements
-    // that are provably the widget's own — matched by the exact embed
-    // domain — never anything else in <body>.
-    document.querySelectorAll('iframe[src*="digimetrix.ai"]').forEach((el) => el.remove());
+    // Covers the case where the widget's DOM already existed before
+    // navigating away from an allowed page.
+    removeChirpsWidgetNodes();
+
+    // Covers the case where the embed script is still loading (its
+    // request was in flight) at the moment of navigation and creates its
+    // DOM slightly after this effect runs — only ever matched against the
+    // two specific, verified fingerprints above, so this can't touch
+    // anything else in <body> the way the original blanket observer did.
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        mutation.addedNodes.forEach((node) => {
+          if (isChirpsWidgetNode(node)) node.remove();
+        });
+      }
+    });
+    observer.observe(document.body, { childList: true });
+    return () => observer.disconnect();
   }, [allowed]);
 
   if (!allowed) return null;
