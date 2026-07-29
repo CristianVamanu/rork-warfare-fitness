@@ -181,6 +181,11 @@ export interface UserProfile {
   email: string;
   photoURL: string | null;
   weightUnit: 'kg' | 'lbs';
+  // Merged flat onto this doc by saveOnboardingData(OnboardingData) — real
+  // fields on the document, just not previously reflected in this type.
+  fitnessGoal?: FitnessGoal;
+  experience?: ExperienceLevel;
+  limitations?: string;
   role: 'user' | 'trainer' | 'admin';
   trainerId?: string;        // uid of the owning trainer / tenant
   createdAt: unknown;

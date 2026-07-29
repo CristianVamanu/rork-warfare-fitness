@@ -1155,8 +1155,12 @@ function WorkoutSessionPageInner() {
   const programId = searchParams.get('programId') ?? undefined;
   const dowParam = searchParams.get('dow');
   const dow = dowParam !== null ? parseInt(dowParam) : null;
+  // Scan & Go: a single ad-hoc day built from photographed equipment, never
+  // tied to a program — the exercise list itself travels via sessionStorage
+  // (set by the scan-go results screen) rather than a programId/dow pair.
+  const isScanGo = searchParams.get('source') === 'scan-go';
 
-  const sessionKey = `workout_session_${programId ?? 'free'}_${dow ?? 'x'}`;
+  const sessionKey = `workout_session_${isScanGo ? 'scan-go' : (programId ?? 'free')}_${dow ?? 'x'}`;
 
   // Defense-in-depth: the training/[id] detail page already prevents
   // navigating here for a day beyond the trial's day limit, but this route
@@ -1222,7 +1226,13 @@ function WorkoutSessionPageInner() {
     const resolveExercises = async () => {
       let exercises: Exercise[] = DEFAULT_EXERCISES;
 
-      if (programId) {
+      if (isScanGo) {
+        try {
+          const raw = sessionStorage.getItem('scan_go_exercises');
+          const parsed = raw ? JSON.parse(raw) as Exercise[] : null;
+          if (parsed && parsed.length > 0) exercises = parsed;
+        } catch { /* falls back to DEFAULT_EXERCISES */ }
+      } else if (programId) {
         // Shared resolver (Firestore-first, seed fallback) — the same one
         // every other program-rendering screen uses, so this session can
         // never disagree with the dashboard/training pages about what
