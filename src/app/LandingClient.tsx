@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
-  Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera,
+  Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
   ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
   Menu, X as XIcon, Clock, BarChart3, Anchor, Compass, Shield, Swords, Footprints, Waves, LifeBuoy, Mountain, PlayCircle,
 } from 'lucide-react';
@@ -19,20 +19,28 @@ import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
 import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
 import type { LandingPageConfig, MembershipConfig, CoachingPlan, MembershipPlan } from '@/types';
 
-// Icon + color stay fixed by position — only title/desc are admin-editable.
-// If a client adds more feature entries than this list has, extras fall
-// back to the last icon/color rather than crashing.
-const FEATURE_STYLES = [
-  { icon: Dumbbell, color: 'text-purple-400', bg: 'bg-purple-400/10' },
-  { icon: Apple, color: 'text-green-400', bg: 'bg-green-400/10' },
-  { icon: ScanLine, color: 'text-blue-400', bg: 'bg-blue-400/10' },
-  { icon: MessageCircle, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-  { icon: Timer, color: 'text-sky-400', bg: 'bg-sky-400/10' },
-  { icon: Ban, color: 'text-red-400', bg: 'bg-red-400/10' },
-  { icon: Trophy, color: 'text-accent', bg: 'bg-accent-muted' },
-  { icon: Camera, color: 'text-cyan-400', bg: 'bg-cyan-400/10' },
-  { icon: Users, color: 'text-orange-400', bg: 'bg-orange-400/10' },
+// Icon/color is matched by keyword in the feature's title rather than by
+// array position — an admin adding/reordering/removing feature entries in
+// the landing-page editor used to desync every icon and the hero/
+// full-width special-casing below it (both were keyed to a fixed index,
+// assuming a specific save order that a real edit broke immediately).
+// Keyword matching survives any order or count; anything unrecognized
+// (a brand-new custom feature) falls back to the generic Sparkles icon.
+const FEATURE_STYLE_RULES: { match: RegExp; icon: typeof Dumbbell; color: string; bg: string }[] = [
+  { match: /program|adapt/i, icon: Dumbbell, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+  { match: /food|meal|nutrition/i, icon: Apple, color: 'text-green-400', bg: 'bg-green-400/10' },
+  { match: /barcode|scan-a/i, icon: ScanLine, color: 'text-blue-400', bg: 'bg-blue-400/10' },
+  { match: /scan\s*&?\s*go/i, icon: Camera, color: 'text-cyan-400', bg: 'bg-cyan-400/10' },
+  { match: /elite|unit|train like/i, icon: MessageCircle, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+  { match: /fast/i, icon: Timer, color: 'text-sky-400', bg: 'bg-sky-400/10' },
+  { match: /habit/i, icon: Ban, color: 'text-red-400', bg: 'bg-red-400/10' },
+  { match: /streak|xp|leaderboard/i, icon: Trophy, color: 'text-accent', bg: 'bg-accent-muted' },
+  { match: /communit/i, icon: Users, color: 'text-orange-400', bg: 'bg-orange-400/10' },
 ];
+const DEFAULT_FEATURE_STYLE = { icon: Sparkles, color: 'text-teal-400', bg: 'bg-teal-400/10' };
+function getFeatureStyle(title: string) {
+  return FEATURE_STYLE_RULES.find((r) => r.match.test(title)) ?? DEFAULT_FEATURE_STYLE;
+}
 
 const FAQ_ITEMS = [
   {
@@ -436,51 +444,35 @@ export default function LandingPage({
         </motion.div>
       </section>
 
-      {/* Feature grid — bento layout. Width varies by position (wide hero,
-          narrower supporting cards, full-width closer) but height is never
-          forced — each row's cards stretch to match whichever card in that
-          row has the most text, so nothing overflows past its border and
-          nothing is left with an oddly empty middle. If an admin adds/
-          removes features, extras fall back to a plain 1-column width. */}
+      {/* Feature grid — uniform equal-size cards. Deliberately NOT a
+          position-dependent bento layout (a wide "hero" first tile, a
+          full-width last tile) — that broke the moment an admin added,
+          removed, or reordered a feature in the landing-page editor, since
+          the hero/full-width slots and icon assignment were both keyed to
+          a fixed index that only matched one specific save order. A plain
+          uniform grid always looks right regardless of count or order. */}
       <section className="max-w-5xl mx-auto px-5 pb-16">
         <div className="text-center mb-8">
           <h2 className="text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
           <p className="text-text-secondary text-sm mt-2">One app for training, nutrition, accountability, and progress.</p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 items-stretch">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
           {landing.features.map((f, i) => {
-            const style = FEATURE_STYLES[i] ?? FEATURE_STYLES[FEATURE_STYLES.length - 1];
-            const colSpan = [
-              'col-span-2 sm:col-span-2',
-              'col-span-2 sm:col-span-1',
-              'col-span-2 sm:col-span-1',
-              'col-span-1',
-              'col-span-1',
-              'col-span-1',
-              'col-span-1',
-              'col-span-2 sm:col-span-1',
-              'col-span-2 sm:col-span-4',
-            ][i] ?? 'col-span-2 sm:col-span-1';
-            const isHero = i === 0;
+            const style = getFeatureStyle(f.title);
             return (
               <motion.div
                 key={`${f.title}-${i}`}
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.35, delay: (i % 4) * 0.05 }}
-                className={`${colSpan} p-5 rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors flex flex-col items-start relative overflow-hidden`}
+                transition={{ duration: 0.35, delay: (i % 3) * 0.05 }}
+                className="p-5 rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors flex flex-col items-start"
               >
-                {/* Large faint watermark icon — fills a wide hero tile's
-                    extra space without inventing fake content per feature. */}
-                {isHero && (
-                  <style.icon className="absolute -right-4 -bottom-4 w-28 h-28 text-white/[0.03] pointer-events-none" />
-                )}
-                <div className={`relative ${isHero ? 'w-12 h-12' : 'w-10 h-10'} rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
-                  <style.icon className={`${isHero ? 'w-6 h-6' : 'w-5 h-5'} ${style.color}`} />
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
+                  <style.icon className={`w-5 h-5 ${style.color}`} />
                 </div>
-                <h3 className={`relative font-bold text-white ${isHero ? 'text-base' : 'text-sm'}`}>{f.title}</h3>
-                <p className="relative text-xs text-text-secondary mt-1.5 leading-relaxed">{f.desc}</p>
+                <h3 className="font-bold text-white text-sm">{f.title}</h3>
+                <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">{f.desc}</p>
               </motion.div>
             );
           })}
