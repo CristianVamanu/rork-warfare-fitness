@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Lock, Star, Crown } from 'lucide-react';
 import { getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
 import { startPlanCheckout } from '@/lib/checkout';
@@ -74,7 +75,10 @@ function LockedScreen({ trialDays }: { trialDays: number }) {
     if (!user) return;
     setSubscribingId(planId);
     const err = await startPlanCheckout(user, planId);
-    if (err) setSubscribingId(null);
+    if (err) {
+      toast.error(err);
+      setSubscribingId(null);
+    }
   }
 
   return (

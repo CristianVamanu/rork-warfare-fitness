@@ -234,7 +234,7 @@ export default function ProfilePage() {
             <div className="relative inline-block mb-4">
               <Avatar name={profile?.displayName} src={profile?.photoURL} size="xl" />
               <button
-                onClick={() => setEditModal(true)}
+                onClick={() => { setDisplayName(profile?.displayName ?? ''); setEditModal(true); }}
                 className="absolute bottom-0 right-0 w-7 h-7 bg-accent rounded-full flex items-center justify-center"
               >
                 <Edit2 className="w-3.5 h-3.5 text-black" />

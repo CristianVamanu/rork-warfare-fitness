@@ -724,7 +724,7 @@ export default function LandingPage({
                     </li>
                   ))}
                 </ul>
-                <Link href="/onboarding" className="block pt-5 mt-auto">
+                <Link href={`/onboarding?planId=${plan.id}`} className="block pt-5 mt-auto">
                   <Button fullWidth size="md" variant={i === 0 ? 'primary' : 'secondary'}>
                     {trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : 'Join Now'} <ArrowRight className="w-4 h-4" />
                   </Button>
@@ -765,7 +765,7 @@ export default function LandingPage({
                     </li>
                   ))}
                 </ul>
-                <Link href="/onboarding" className="block pt-5 mt-auto">
+                <Link href={`/onboarding?coachingPlanId=${plan.id}`} className="block pt-5 mt-auto">
                   <Button fullWidth size="md" variant="secondary">
                     Apply Now <ArrowRight className="w-4 h-4" />
                   </Button>

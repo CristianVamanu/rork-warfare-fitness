@@ -13,6 +13,7 @@ import {
 import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { signUp } from '@/lib/auth';
+import { startPlanCheckout, startCoachingCheckout } from '@/lib/checkout';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, resolveProgram } from '@/lib/firestore';
 import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
 import { MOCK_PROGRAMS } from '@/lib/programs';
@@ -155,6 +156,12 @@ function OnboardingPageInner() {
   // doesn't get to pick a *different* program than the one this visitor
   // deliberately chose.
   const preselectedProgramId = searchParams.get('programId');
+  // Carries the pricing-card the visitor actually clicked on the landing
+  // page through signup + the quiz, so "Let's Go" lands them in the
+  // checkout they picked instead of forgetting it and dropping them on the
+  // free dashboard with no prompt to ever pay.
+  const preselectedPlanId = searchParams.get('planId');
+  const preselectedCoachingPlanId = searchParams.get('coachingPlanId');
 
   // Quiz runs fully anonymously — no account required to start. The account
   // is only created at the very last step, once someone has already
@@ -473,6 +480,16 @@ function OnboardingPageInner() {
   async function proceedToApp() {
     if (proceedingRef.current) return;
     proceedingRef.current = true;
+    // Honor whichever pricing card the visitor actually clicked on the
+    // landing page — send them straight into that checkout instead of
+    // dropping them on the dashboard having forgotten the price they saw.
+    if (user && (preselectedPlanId || preselectedCoachingPlanId)) {
+      const err = preselectedCoachingPlanId
+        ? await startCoachingCheckout(user, preselectedCoachingPlanId)
+        : await startPlanCheckout(user, preselectedPlanId!);
+      if (!err) return; // navigated to Stripe
+      setError(err);
+    }
     try {
       const cfg = await getSystemConfig();
       if (cfg?.videoGreetingUrl) {
