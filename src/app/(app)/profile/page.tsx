@@ -13,7 +13,7 @@ import {
   submitCoachingApplication, getUserCoachingApplication,
 } from '@/lib/firestore';
 import { startCoachingCheckout, startPlanCheckout } from '@/lib/checkout';
-import { getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
+import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
 import { Modal } from '@/components/ui/Modal';
-import type { MembershipConfig, MembershipPlan, CoachingPlan, CoachingApplication } from '@/types';
+import type { MembershipConfig, MembershipPlan, CoachingPlan, CoachingApplication, PlanBillingPeriodMonths } from '@/types';
 
 // Separate component so useSearchParams doesn't block the page render
 function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
@@ -130,10 +130,11 @@ export default function ProfilePage() {
     }
   };
 
+  const [selectedPlanPeriod, setSelectedPlanPeriod] = useState<Record<string, PlanBillingPeriodMonths>>({});
   const handleSubscribeMembershipPlan = async (planId: string) => {
     if (!user) return;
     setSubscribingMembershipPlanId(planId);
-    const err = await startPlanCheckout(user, planId);
+    const err = await startPlanCheckout(user, planId, selectedPlanPeriod[planId] ?? 1);
     if (err) { toast.error(err); setSubscribingMembershipPlanId(null); }
   };
 
@@ -277,6 +278,9 @@ export default function ProfilePage() {
 
               {showMembershipSection && membershipPlans.map((plan) => {
                 const isCurrentPlan = isActive && profile?.membership?.planId === plan.id;
+                const periods = getPlanBillingPeriods(plan);
+                const period = selectedPlanPeriod[plan.id] ?? 1;
+                const activePeriod = periods.find((p) => p.months === period) ?? periods[0];
                 return (
                   <div key={plan.id} className={`relative rounded-2xl border-2 p-5 ${isCurrentPlan ? 'border-accent bg-accent/[0.03]' : 'border-white/10 bg-surface'}`}>
                     {isCurrentPlan && (
@@ -296,14 +300,27 @@ export default function ProfilePage() {
                     <div className="flex items-baseline gap-2 mt-2">
                       {discountPercent > 0 && !isCurrentPlan ? (
                         <>
-                          <span className="text-3xl font-black text-white">${applyDiscount(plan.priceMonthly, discountPercent).toFixed(2)}</span>
-                          <span className="text-sm text-text-tertiary line-through">${plan.priceMonthly.toFixed(2)}</span>
+                          <span className="text-3xl font-black text-white">${applyDiscount(activePeriod.price, discountPercent).toFixed(2)}</span>
+                          <span className="text-sm text-text-tertiary line-through">${activePeriod.price.toFixed(2)}</span>
                         </>
                       ) : (
-                        <span className="text-3xl font-black text-white">${plan.priceMonthly.toFixed(2)}</span>
+                        <span className="text-3xl font-black text-white">${activePeriod.price.toFixed(2)}</span>
                       )}
-                      <span className="text-sm text-text-secondary">/month</span>
+                      <span className="text-sm text-text-secondary">{activePeriod.months === 1 ? '/month' : ` / ${activePeriod.months}mo`}</span>
                     </div>
+                    {periods.length > 1 && !isCurrentPlan && (
+                      <div className="flex gap-1.5 mt-3 flex-wrap">
+                        {periods.map((p) => (
+                          <button
+                            key={p.months}
+                            onClick={() => setSelectedPlanPeriod((s) => ({ ...s, [plan.id]: p.months }))}
+                            className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${p.months === period ? 'bg-accent text-black border-accent' : 'bg-surface-elevated text-text-secondary border-border'}`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     {trialDays > 0 && !isCurrentPlan && !inTrial && (
                       <p className="text-xs text-accent mt-1">{trialDays}-day free trial included</p>
                     )}

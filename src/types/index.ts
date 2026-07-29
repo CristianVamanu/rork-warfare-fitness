@@ -643,6 +643,13 @@ export interface MembershipPlan {
   name: string;
   description: string;
   priceMonthly: number;
+  // Optional longer-commitment terms — the TOTAL price for that whole term
+  // (not per-month), e.g. price6mo is what the customer pays once for 6
+  // months of access, billed as a single recurring charge on that cadence.
+  // Unset or 0 = that term isn't offered for this plan.
+  price3mo?: number;
+  price6mo?: number;
+  price12mo?: number;
   currency: string; // e.g. 'USD'
   features: string[]; // bullet points shown on the pricing card
   // Which gated tools this plan unlocks — 'barcode' | 'nutrition-ai' |
@@ -652,6 +659,8 @@ export interface MembershipPlan {
   featureAccess: string[];
   active: boolean;
 }
+
+export type PlanBillingPeriodMonths = 1 | 3 | 6 | 12;
 
 export interface Conversation {
   id: string;

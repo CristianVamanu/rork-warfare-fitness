@@ -150,10 +150,24 @@ import type { TrainerLead } from '@/types';
 export async function createTrainerLead(data: {
   name: string; email: string; businessName?: string; phone?: string; message?: string; clientCount?: string;
 }) {
-  await addDoc(collection(db, 'trainerLeads'), {
-    ...data,
+  // Firestore's client SDK throws on any field whose value is literally
+  // `undefined` (no ignoreUndefinedProperties configured) — the optional
+  // fields here come straight from `x.trim() || undefined` on the form, so
+  // every submission that left one blank threw and the form showed
+  // "Something went wrong" with no lead ever saved.
+  const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+  const leadRef = await addDoc(collection(db, 'trainerLeads'), {
+    ...clean,
     status: 'new',
     createdAt: serverTimestamp(),
+  });
+  fetch('/api/email/trainer-lead', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ leadId: leadRef.id, ...clean }),
+  }).catch(() => {
+    // Non-fatal — the lead is already saved and visible in the admin panel
+    // even if the notification email fails to send.
   });
 }
 

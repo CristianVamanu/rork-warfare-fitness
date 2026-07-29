@@ -243,7 +243,7 @@ function AdminPageInner() {
   const [savingMembershipPlans, setSavingMembershipPlans] = useState(false);
   const [showMembershipPlanForm, setShowMembershipPlanForm] = useState(false);
   const [editingMembershipPlan, setEditingMembershipPlan] = useState<MembershipPlan | null>(null);
-  const [membershipPlanForm, setMembershipPlanForm] = useState<{ name: string; description: string; priceMonthly: string; currency: string; features: string; active: boolean; featureAccess: string[] }>({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] });
+  const [membershipPlanForm, setMembershipPlanForm] = useState<{ name: string; description: string; priceMonthly: string; price3mo: string; price6mo: string; price12mo: string; currency: string; features: string; active: boolean; featureAccess: string[] }>({ name: '', description: '', priceMonthly: '', price3mo: '', price6mo: '', price12mo: '', currency: 'USD', features: '', active: true, featureAccess: [] });
 
   // ── Analytics state (real visitor data pulled from Cloudflare's edge) ──────
   const [analytics, setAnalytics] = useState<{
@@ -825,11 +825,17 @@ function AdminPageInner() {
     }
     setSavingMembershipPlans(true);
     try {
+      const price3mo = parseFloat(membershipPlanForm.price3mo);
+      const price6mo = parseFloat(membershipPlanForm.price6mo);
+      const price12mo = parseFloat(membershipPlanForm.price12mo);
       const plan: MembershipPlan = {
         id: editingMembershipPlan?.id ?? `mplan_${Date.now()}`,
         name: membershipPlanForm.name.trim(),
         description: membershipPlanForm.description.trim(),
         priceMonthly: price,
+        ...(!isNaN(price3mo) && price3mo > 0 ? { price3mo } : {}),
+        ...(!isNaN(price6mo) && price6mo > 0 ? { price6mo } : {}),
+        ...(!isNaN(price12mo) && price12mo > 0 ? { price12mo } : {}),
         currency: membershipPlanForm.currency,
         features: membershipPlanForm.features.split('\n').map(f => f.trim()).filter(Boolean),
         active: membershipPlanForm.active,
@@ -842,7 +848,7 @@ function AdminPageInner() {
       setMembershipPlans(updated);
       setShowMembershipPlanForm(false);
       setEditingMembershipPlan(null);
-      setMembershipPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] });
+      setMembershipPlanForm({ name: '', description: '', priceMonthly: '', price3mo: '', price6mo: '', price12mo: '', currency: 'USD', features: '', active: true, featureAccess: [] });
       toast.success(editingMembershipPlan ? 'Plan updated' : 'Plan created');
     } catch { toast.error('Failed to save plan'); }
     finally { setSavingMembershipPlans(false); }
@@ -864,6 +870,9 @@ function AdminPageInner() {
       name: plan.name,
       description: plan.description,
       priceMonthly: String(plan.priceMonthly),
+      price3mo: plan.price3mo ? String(plan.price3mo) : '',
+      price6mo: plan.price6mo ? String(plan.price6mo) : '',
+      price12mo: plan.price12mo ? String(plan.price12mo) : '',
       currency: plan.currency,
       features: plan.features.join('\n'),
       active: plan.active,
@@ -2271,7 +2280,7 @@ function AdminPageInner() {
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
                     <CreditCard className="w-4 h-4 text-accent" /> Membership Plans
                   </h2>
-                  <Button size="sm" onClick={() => { setEditingMembershipPlan(null); setMembershipPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] }); setShowMembershipPlanForm(true); }}>
+                  <Button size="sm" onClick={() => { setEditingMembershipPlan(null); setMembershipPlanForm({ name: '', description: '', priceMonthly: '', price3mo: '', price6mo: '', price12mo: '', currency: 'USD', features: '', active: true, featureAccess: [] }); setShowMembershipPlanForm(true); }}>
                     <Plus className="w-3.5 h-3.5" /> New Plan
                   </Button>
                 </div>
@@ -2326,6 +2335,42 @@ function AdminPageInner() {
                           <option value="EUR">EUR</option>
                           <option value="GBP">GBP</option>
                         </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Longer Terms (optional — leave blank to not offer that term)</label>
+                      <p className="text-[11px] text-text-tertiary mb-2">Total price for the whole term, not per month — e.g. $250 for 6 months billed once every 6 months.</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={membershipPlanForm.price3mo}
+                            onChange={e => setMembershipPlanForm(f => ({ ...f, price3mo: e.target.value }))}
+                            placeholder="3 months"
+                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                          />
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={membershipPlanForm.price6mo}
+                            onChange={e => setMembershipPlanForm(f => ({ ...f, price6mo: e.target.value }))}
+                            placeholder="6 months"
+                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                          />
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={membershipPlanForm.price12mo}
+                            onChange={e => setMembershipPlanForm(f => ({ ...f, price12mo: e.target.value }))}
+                            placeholder="12 months"
+                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                          />
+                        </div>
                       </div>
                     </div>
                     <div>
@@ -2396,6 +2441,15 @@ function AdminPageInner() {
                               {plan.active ? <Badge variant="success">Active</Badge> : <Badge variant="muted">Inactive</Badge>}
                             </div>
                             <p className="text-sm font-black text-accent mt-0.5">{plan.currency} {plan.priceMonthly.toFixed(2)}/mo</p>
+                            {(plan.price3mo || plan.price6mo || plan.price12mo) && (
+                              <p className="text-[11px] text-text-tertiary mt-0.5">
+                                {[
+                                  plan.price3mo ? `3mo: ${plan.currency} ${plan.price3mo.toFixed(2)}` : null,
+                                  plan.price6mo ? `6mo: ${plan.currency} ${plan.price6mo.toFixed(2)}` : null,
+                                  plan.price12mo ? `12mo: ${plan.currency} ${plan.price12mo.toFixed(2)}` : null,
+                                ].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
                             {plan.description && <p className="text-xs text-text-secondary mt-1">{plan.description}</p>}
                             {plan.features.length > 0 && (
                               <ul className="mt-2 space-y-0.5">

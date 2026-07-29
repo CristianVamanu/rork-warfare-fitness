@@ -1,14 +1,15 @@
 import type { User } from 'firebase/auth';
 import { getIdToken } from 'firebase/auth';
 
-/** Opens Stripe Checkout for a specific membership plan tier. Redirects on success. */
-export async function startPlanCheckout(user: User, planId: string): Promise<string | null> {
+/** Opens Stripe Checkout for a specific membership plan tier + billing term
+ * (1/3/6/12 months — defaults to monthly). Redirects on success. */
+export async function startPlanCheckout(user: User, planId: string, periodMonths: 1 | 3 | 6 | 12 = 1): Promise<string | null> {
   try {
     const token = await getIdToken(user);
     const res = await fetch('/api/stripe/plan-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ userEmail: user.email, planId }),
+      body: JSON.stringify({ userEmail: user.email, planId, periodMonths }),
     });
     const data = await res.json() as { url?: string; error?: string };
     if (data.url) {

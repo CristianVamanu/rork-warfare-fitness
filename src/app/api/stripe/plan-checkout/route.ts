@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   const userId = authCheck.uid;
 
   try {
-    const { userEmail, planId } = await req.json() as { userEmail: string; planId: string };
+    const { userEmail, planId, periodMonths } = await req.json() as { userEmail: string; planId: string; periodMonths?: 1 | 3 | 6 | 12 };
     if (!planId) return NextResponse.json({ error: 'planId required' }, { status: 400 });
 
     const db = getAdminDb();
@@ -44,6 +44,20 @@ export async function POST(req: NextRequest) {
     const plan = plans.find((p) => p.id === planId && p.active);
     if (!plan) return NextResponse.json({ error: 'Plan not found or inactive' }, { status: 404 });
     if (plan.priceMonthly <= 0) return NextResponse.json({ error: 'Plan price not set' }, { status: 400 });
+
+    // Price and Stripe billing cadence are both derived server-side from the
+    // requested term, never trusted from the client — a client could
+    // otherwise request periodMonths: 12 while still being charged the
+    // 1-month price, or vice versa.
+    const months = periodMonths ?? 1;
+    const PERIOD_PRICE_FIELD: Record<number, keyof MembershipPlan | null> = {
+      1: null, 3: 'price3mo', 6: 'price6mo', 12: 'price12mo',
+    };
+    const priceField = PERIOD_PRICE_FIELD[months];
+    const totalPrice = priceField ? (plan[priceField] as number | undefined) : plan.priceMonthly;
+    if (!totalPrice || totalPrice <= 0) return NextResponse.json({ error: 'That billing term is not available for this plan' }, { status: 400 });
+    const interval: 'month' | 'year' = months === 12 ? 'year' : 'month';
+    const intervalCount = months === 12 ? 1 : months;
 
     const stripe = await getStripe();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
@@ -85,18 +99,18 @@ export async function POST(req: NextRequest) {
           quantity: 1,
           price_data: {
             currency: (plan.currency ?? 'USD').toLowerCase(),
-            unit_amount: Math.round(plan.priceMonthly * 100),
-            recurring: { interval: 'month' },
-            product_data: { name: plan.name },
+            unit_amount: Math.round(totalPrice * 100),
+            recurring: { interval, interval_count: intervalCount },
+            product_data: { name: months === 1 ? plan.name : `${plan.name} (${months}-month term)` },
           },
         },
       ],
       ...(discounts ? { discounts } : { allow_promotion_codes: true }),
       subscription_data: {
         ...(trialEnd ? { trial_end: trialEnd } : {}),
-        metadata: { userId, planId, planName: plan.name },
+        metadata: { userId, planId, planName: plan.name, periodMonths: String(months) },
       },
-      metadata: { userId, planId, planName: plan.name },
+      metadata: { userId, planId, planName: plan.name, periodMonths: String(months) },
       success_url: `${appUrl}/profile?subscribed=1`,
       cancel_url: `${appUrl}/profile`,
     });

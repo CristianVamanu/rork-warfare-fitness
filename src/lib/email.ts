@@ -55,6 +55,25 @@ export function welcomeEmailHtml(name: string, appName: string, appUrl: string):
   `);
 }
 
+export function trainerLeadEmailHtml(lead: {
+  name: string; email: string; businessName?: string; phone?: string; clientCount?: string; message?: string;
+}, appUrl: string): string {
+  const rows = [
+    ['Name', lead.name],
+    ['Email', lead.email],
+    ['Business', lead.businessName],
+    ['Phone', lead.phone],
+    ['Client count', lead.clientCount],
+    ['Message', lead.message],
+  ].filter(([, v]) => v) as [string, string][];
+  const rowsHtml = rows.map(([k, v]) => `<p style="margin:0 0 8px;font-size:14px;color:#bbb;"><strong style="color:#fff;">${k}:</strong> ${v}</p>`).join('');
+  return shell('Warfare Fitness', `
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:900;color:#fff;">New Demo Request 🎯</h1>
+    ${rowsHtml}
+    ${button('View in Admin Panel', `${appUrl}/admin`)}
+  `);
+}
+
 export function achievementEmailHtml(name: string, titles: string[], appName: string, appUrl: string): string {
   const list = titles.map((t) => `<li style="margin:4px 0;">🏆 ${t}</li>`).join('');
   return shell(appName, `

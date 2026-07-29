@@ -5,10 +5,11 @@ import toast from 'react-hot-toast';
 import { Lock, Star, Crown } from 'lucide-react';
 import { getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
 import { startPlanCheckout } from '@/lib/checkout';
+import { getPlanBillingPeriods } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from './Card';
 import { Button } from './Button';
-import type { MembershipConfig, MembershipPlan } from '@/types';
+import type { MembershipConfig, MembershipPlan, PlanBillingPeriodMonths } from '@/types';
 
 // Pages that are always accessible regardless of membership
 const FREE_PATHS = ['/dashboard', '/settings', '/messages', '/notifications', '/profile', '/banned', '/onboarding', '/goals'];
@@ -65,6 +66,7 @@ function LockedScreen({ trialDays }: { trialDays: number }) {
   const { user } = useAuth();
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [subscribingId, setSubscribingId] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<Record<string, PlanBillingPeriodMonths>>({});
   const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
 
   useEffect(() => {
@@ -74,7 +76,7 @@ function LockedScreen({ trialDays }: { trialDays: number }) {
   async function handleSubscribe(planId: string) {
     if (!user) return;
     setSubscribingId(planId);
-    const err = await startPlanCheckout(user, planId);
+    const err = await startPlanCheckout(user, planId, selectedPeriod[planId] ?? 1);
     if (err) {
       toast.error(err);
       setSubscribingId(null);
@@ -103,16 +105,37 @@ function LockedScreen({ trialDays }: { trialDays: number }) {
         </Card>
       ) : (
         <div className="space-y-3 max-w-sm w-full">
-          {plans.map((plan) => (
-            <Card key={plan.id} className="p-5 border-accent/20">
-              <p className="text-sm font-bold text-white">{plan.name}</p>
-              <p className="text-2xl font-black text-white mt-1">${plan.priceMonthly.toFixed(2)}<span className="text-sm font-medium text-text-secondary">/mo</span></p>
-              {plan.description && <p className="text-xs text-text-secondary mt-1.5">{plan.description}</p>}
-              <Button fullWidth className="mt-4" onClick={() => handleSubscribe(plan.id)} loading={subscribingId === plan.id}>
-                <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
-              </Button>
-            </Card>
-          ))}
+          {plans.map((plan) => {
+            const periods = getPlanBillingPeriods(plan);
+            const period = selectedPeriod[plan.id] ?? 1;
+            const active = periods.find((p) => p.months === period) ?? periods[0];
+            return (
+              <Card key={plan.id} className="p-5 border-accent/20">
+                <p className="text-sm font-bold text-white">{plan.name}</p>
+                <p className="text-2xl font-black text-white mt-1">
+                  ${active.price.toFixed(2)}
+                  <span className="text-sm font-medium text-text-secondary">{active.months === 1 ? '/mo' : ` / ${active.months}mo`}</span>
+                </p>
+                {plan.description && <p className="text-xs text-text-secondary mt-1.5">{plan.description}</p>}
+                {periods.length > 1 && (
+                  <div className="flex gap-1.5 mt-3 flex-wrap">
+                    {periods.map((p) => (
+                      <button
+                        key={p.months}
+                        onClick={() => setSelectedPeriod((s) => ({ ...s, [plan.id]: p.months }))}
+                        className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${p.months === period ? 'bg-accent text-black border-accent' : 'bg-surface-elevated text-text-secondary border-border'}`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <Button fullWidth className="mt-4" onClick={() => handleSubscribe(plan.id)} loading={subscribingId === plan.id}>
+                  <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
+                </Button>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
