@@ -1350,7 +1350,10 @@ function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): Leade
 // value with only one trainer. Revisit if true multi-tenant coaching ships.
 export async function getLeaderboard(limitCount = 10): Promise<LeaderboardEntry[]> {
   const snap = await getDocs(query(collection(db, 'users'), limit(200)));
-  const entries = snap.docs.map((d) => mapToLeaderboardEntry(d.id, d.data())).filter((e) => e.totalWorkouts > 0);
+  const entries = snap.docs
+    .filter((d) => !d.data().banned)
+    .map((d) => mapToLeaderboardEntry(d.id, d.data()))
+    .filter((e) => e.totalWorkouts > 0);
   return entries.sort((a, b) => b.xp - a.xp).slice(0, limitCount);
 }
 
@@ -1360,7 +1363,10 @@ export function subscribeLeaderboard(
 ): () => void {
   const q = query(collection(db, 'users'), limit(200));
   return onSnapshot(q, (snap) => {
-    const entries = snap.docs.map((d) => mapToLeaderboardEntry(d.id, d.data())).filter((e) => e.totalWorkouts > 0);
+    const entries = snap.docs
+      .filter((d) => !d.data().banned)
+      .map((d) => mapToLeaderboardEntry(d.id, d.data()))
+      .filter((e) => e.totalWorkouts > 0);
     onUpdate(entries.sort((a, b) => b.xp - a.xp).slice(0, limitCount));
   }, (err) => console.error('[Firestore] subscribeLeaderboard error:', err));
 }

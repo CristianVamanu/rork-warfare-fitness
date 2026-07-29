@@ -26,6 +26,7 @@ export async function GET() {
 
     const snap = await db.collection('users').limit(200).get();
     const entries = snap.docs
+      .filter((d) => !d.data().banned)
       .map((d) => {
         const u = d.data();
         const totalWorkouts = u.statsCache?.totalWorkouts ?? u.stats?.totalWorkouts ?? 0;

@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, arrayUnion } from 'firebase/firestore';
 import { db } from './firebase';
 
 export interface AchievementDef {
@@ -104,9 +104,15 @@ export async function checkAndAwardAchievements(
       .filter((id) => !existing.includes(id) && isEarned(id, params));
 
     if (newlyEarned.length > 0) {
+      // arrayUnion is applied atomically server-side against whatever the
+      // document actually contains at write time — unlike writing back
+      // `[...existing, ...newlyEarned]` from a snapshot read here, it can't
+      // lose an achievement another concurrent call (e.g. logMealAction's
+      // unawaited check firing around the same time as a workout
+      // completion) already added between this read and this write.
       await setDoc(
         doc(db, 'users', userId),
-        { achievements: [...existing, ...newlyEarned] },
+        { achievements: arrayUnion(...newlyEarned) },
         { merge: true }
       );
     }

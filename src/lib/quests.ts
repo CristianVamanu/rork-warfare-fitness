@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, arrayUnion } from 'firebase/firestore';
 import { db } from './firebase';
 
 export type QuestRequirementKind = 'totalWorkouts' | 'streak' | 'powerLevel' | 'totalWeightLifted' | 'totalMealsLogged';
@@ -120,9 +120,15 @@ export async function checkAndAwardQuests(userId: string, stats: QuestProgressIn
       .filter((id) => !existing.includes(id) && isQuestComplete(QUEST_DEFS.find((q) => q.id === id)!, stats));
 
     if (newlyCompleted.length > 0) {
+      // arrayUnion applies atomically against the document's actual current
+      // state at write time — writing back `[...existing, ...newlyCompleted]`
+      // from this snapshot read could otherwise lose a quest another
+      // concurrent call (e.g. an unawaited check from logging a meal
+      // firing around the same time as a workout completion) already added
+      // between this read and this write.
       await setDoc(
         doc(db, 'users', userId),
-        { questsCompleted: [...existing, ...newlyCompleted] },
+        { questsCompleted: arrayUnion(...newlyCompleted) },
         { merge: true }
       );
     }
