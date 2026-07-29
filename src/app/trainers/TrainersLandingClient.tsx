@@ -5,9 +5,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
-  ArrowRight, Check, Crown, Menu, X as XIcon, PlayCircle,
+  ArrowRight, Check, Crown, Menu, X as XIcon,
   Palette, DollarSign, Sparkles, Users2, Apple, MessageSquare,
   Flame, LayoutDashboard, Rocket, ChevronDown, ShieldCheck, XCircle, Smartphone,
+  Volume2, VolumeX,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSystemConfig, createTrainerLead } from '@/lib/firestore';
@@ -37,7 +38,6 @@ export default function TrainersLandingPage({
   const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl);
   const [config, setConfig] = useState<B2BLandingConfig>(initialConfig);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [demoOpen, setDemoOpen] = useState(false);
   const [demoOpenForm, setDemoOpenForm] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
@@ -115,31 +115,12 @@ export default function TrainersLandingPage({
               <Button size="lg" onClick={() => setDemoOpenForm(true)}>
                 {config.ctaPrimaryLabel} <ArrowRight className="w-4 h-4" />
               </Button>
-              {config.heroDemoVideoUrl && (
-                <Button size="lg" variant="secondary" onClick={() => setDemoOpen(true)}>
-                  <PlayCircle className="w-4 h-4" /> Watch Demo
-                </Button>
-              )}
             </div>
           </div>
 
           <div className="relative">
             {config.heroDemoVideoUrl ? (
-              <button
-                onClick={() => setDemoOpen(true)}
-                className="relative block w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 group"
-              >
-                {config.heroDemoPosterUrl || config.heroImageUrl ? (
-                  <Image src={config.heroDemoPosterUrl || config.heroImageUrl!} alt="Product demo" fill className="object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-surface-elevated" />
-                )}
-                <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition-colors">
-                  <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center">
-                    <PlayCircle className="w-8 h-8 text-black" />
-                  </div>
-                </div>
-              </button>
+              <InlineHeroVideo src={config.heroDemoVideoUrl} posterUrl={config.heroDemoPosterUrl || config.heroImageUrl} />
             ) : config.heroImageUrl ? (
               <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10">
                 <Image src={config.heroImageUrl} alt="Your branded app" fill className="object-cover" />
@@ -316,13 +297,35 @@ export default function TrainersLandingPage({
         </div>
       </footer>
 
-      {config.heroDemoVideoUrl && (
-        <Modal open={demoOpen} onClose={() => setDemoOpen(false)} title="Product Demo">
-          <video src={config.heroDemoVideoUrl} controls autoPlay className="w-full rounded-xl" />
-        </Modal>
-      )}
-
       <DemoRequestModal open={demoOpenForm} onClose={() => setDemoOpenForm(false)} />
+    </div>
+  );
+}
+
+// Autoplays muted (required by every browser's autoplay policy) directly in
+// the hero — no click-to-open modal. A tap on the speaker icon unmutes in
+// place instead of navigating away from the page.
+function InlineHeroVideo({ src, posterUrl }: { src: string; posterUrl?: string }) {
+  const [muted, setMuted] = useState(true);
+
+  return (
+    <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 bg-black">
+      <video
+        src={src}
+        poster={posterUrl}
+        autoPlay
+        loop
+        muted={muted}
+        playsInline
+        className="w-full h-full object-cover"
+      />
+      <button
+        onClick={() => setMuted((m) => !m)}
+        aria-label={muted ? 'Unmute video' : 'Mute video'}
+        className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm border border-white/15 flex items-center justify-center hover:bg-black/80 transition-colors"
+      >
+        {muted ? <VolumeX className="w-4.5 h-4.5 text-white" /> : <Volume2 className="w-4.5 h-4.5 text-white" />}
+      </button>
     </div>
   );
 }
