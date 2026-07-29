@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import Script from 'next/script';
 import { usePathname } from 'next/navigation';
 
@@ -8,55 +8,38 @@ import { usePathname } from 'next/navigation';
 // marketing pages (public landing, /trainers, /terms, /privacy), not
 // anywhere inside the authenticated app (dashboard, training, etc).
 //
-// The embed script injects its own floating launcher button/iframe
-// directly into <body>, outside React's tree. Unmounting the <Script> tag
-// on route change only removes the tag itself — it does NOT undo that
-// side effect, so the widget kept showing everywhere after a client-side
-// navigation. An earlier version of this file tried to fix that by
-// diffing a "before" snapshot of document.body.children against an
-// "after" snapshot taken in the script's onLoad callback — but that's
-// fundamentally timing-dependent (onReady/onLoad both fire only AFTER the
-// script has already run, so a synchronously-injecting widget's node can
-// already be in the "before" snapshot, and the diff finds nothing).
+// PRIOR APPROACH (REVERTED — caused a full-site outage): a MutationObserver
+// watched document.body for ANY directly-appended child and force-set
+// `display: none` on it outside the allowed paths, on the assumption that
+// the only thing ever appended straight to <body> in this app is the
+// widget's own DOM. That assumption broke production: whatever the embed
+// script appends is not necessarily scoped to just its own launcher/iframe
+// — if it wraps or reparents anything broader, blindly hiding "whatever
+// got added to body" can hide real app content too, and since this
+// component is mounted in the ROOT layout, that manifested as a black
+// screen on every page outside the 4 allowed ones, in every browser
+// (this was a real DOM-level bug, not a caching/service-worker issue).
 //
-// A MutationObserver instead watches document.body for any DIRECTLY
-// appended child, for as long as the app is open — it doesn't matter
-// when the widget injects its DOM, or whether it injects more later
-// (e.g. an iframe added after the initial launcher button). This app
-// renders straight into <body> (App Router, no #__next wrapper) and has
-// no other component that portals into document.body directly (verified:
-// no createPortal/ReactDOM.createPortal calls anywhere in the codebase),
-// so every node this observer sees is safely assumed to be the widget's.
+// Fixed by not injecting the widget's script at all outside the allowed
+// paths (so there's nothing of its to hide on the other 90% of the app),
+// and only cleaning up its own iframe by matching the widget's own known
+// domain — never touching anything else that might be in <body>.
 const ALLOWED_PATHS = ['/', '/trainers', '/terms', '/privacy'];
 
 export function ChatWidget() {
   const pathname = usePathname();
   const allowed = ALLOWED_PATHS.includes(pathname);
-  const allowedRef = useRef(allowed);
-  allowedRef.current = allowed;
-
-  const injectedNodesRef = useRef<HTMLElement[]>([]);
 
   useEffect(() => {
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        mutation.addedNodes.forEach((node) => {
-          if (node instanceof HTMLElement) {
-            injectedNodesRef.current.push(node);
-            node.style.display = allowedRef.current ? '' : 'none';
-          }
-        });
-      }
-    });
-    observer.observe(document.body, { childList: true });
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    injectedNodesRef.current.forEach((el) => {
-      el.style.display = allowed ? '' : 'none';
-    });
+    if (allowed) return;
+    // Client-side nav away from an allowed page: the widget's own iframe
+    // may already be in the DOM from before. Only ever remove elements
+    // that are provably the widget's own — matched by the exact embed
+    // domain — never anything else in <body>.
+    document.querySelectorAll('iframe[src*="digimetrix.ai"]').forEach((el) => el.remove());
   }, [allowed]);
+
+  if (!allowed) return null;
 
   return (
     <>
