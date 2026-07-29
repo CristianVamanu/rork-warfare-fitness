@@ -245,6 +245,11 @@ function AdminPageInner() {
   const [showMembershipPlanForm, setShowMembershipPlanForm] = useState(false);
   const [editingMembershipPlan, setEditingMembershipPlan] = useState<MembershipPlan | null>(null);
   const [membershipPlanForm, setMembershipPlanForm] = useState<{ name: string; description: string; priceMonthly: string; price3mo: string; price6mo: string; price12mo: string; currency: string; features: string; active: boolean; featureAccess: string[] }>({ name: '', description: '', priceMonthly: '', price3mo: '', price6mo: '', price12mo: '', currency: 'USD', features: '', active: true, featureAccess: [] });
+  // The edit form renders ABOVE the plan list, inside the same card — with
+  // enough plans on the page, clicking a lower plan's pencil icon opened
+  // the form off the top of the viewport with no visual feedback at all,
+  // reading as "nothing happens." Scroll it into view on open instead.
+  const membershipPlanFormRef = useRef<HTMLDivElement>(null);
 
   // ── Analytics state (real visitor data pulled from Cloudflare's edge) ──────
   const [analytics, setAnalytics] = useState<{
@@ -881,6 +886,7 @@ function AdminPageInner() {
       featureAccess: plan.featureAccess ?? [],
     });
     setShowMembershipPlanForm(true);
+    setTimeout(() => membershipPlanFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
 
   function toggleMembershipPlanFeatureAccess(id: string) {
@@ -2282,7 +2288,12 @@ function AdminPageInner() {
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
                     <CreditCard className="w-4 h-4 text-accent" /> Membership Plans
                   </h2>
-                  <Button size="sm" onClick={() => { setEditingMembershipPlan(null); setMembershipPlanForm({ name: '', description: '', priceMonthly: '', price3mo: '', price6mo: '', price12mo: '', currency: 'USD', features: '', active: true, featureAccess: [] }); setShowMembershipPlanForm(true); }}>
+                  <Button size="sm" onClick={() => {
+                    setEditingMembershipPlan(null);
+                    setMembershipPlanForm({ name: '', description: '', priceMonthly: '', price3mo: '', price6mo: '', price12mo: '', currency: 'USD', features: '', active: true, featureAccess: [] });
+                    setShowMembershipPlanForm(true);
+                    setTimeout(() => membershipPlanFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+                  }}>
                     <Plus className="w-3.5 h-3.5" /> New Plan
                   </Button>
                 </div>
@@ -2291,7 +2302,7 @@ function AdminPageInner() {
                 </p>
 
                 {showMembershipPlanForm && (
-                  <div className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+                  <div ref={membershipPlanFormRef} className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
                     <p className="text-sm font-bold text-white">{editingMembershipPlan ? 'Edit Plan' : 'New Membership Plan'}</p>
                     <div>
                       <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
