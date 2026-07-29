@@ -163,32 +163,64 @@ export default function DownloadClient({
             </a>
           </div>
 
-          {/* Decorative device mockup — purely illustrative, no real screenshot dependency */}
-          <div className="relative mx-auto w-[220px] sm:w-[240px]">
-            <div className="relative rounded-[2.2rem] border-4 border-white/15 bg-surface shadow-2xl overflow-hidden aspect-[9/19]">
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-5 bg-black rounded-b-2xl z-10" />
-              <div className="w-full h-full bg-gradient-to-b from-surface-elevated to-background p-4 pt-9 flex flex-col gap-2.5">
-                <div className="flex items-center gap-2 mb-1">
+          {/* Decorative laptop + phone mockup — purely illustrative, no
+              real screenshot dependency. Shorter/wider than a single
+              full-height phone so it doesn't dominate the hero. */}
+          <div className="relative mx-auto max-w-[420px] h-[220px] sm:h-[240px]">
+            {/* Laptop */}
+            <div className="absolute left-0 top-0 w-[74%] rounded-t-xl border-2 border-white/15 bg-surface overflow-hidden shadow-2xl">
+              <div className="aspect-[16/10] bg-gradient-to-br from-surface-elevated to-background p-2.5 flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5">
                   {logoUrl ? (
-                    <Image src={logoUrl} alt={appName} width={20} height={20} className="rounded-md" />
+                    <Image src={logoUrl} alt={appName} width={12} height={12} className="rounded-sm" />
                   ) : (
-                    <div className="w-5 h-5 rounded-md bg-accent flex items-center justify-center"><Crown className="w-3 h-3 text-black" /></div>
+                    <div className="w-3 h-3 rounded-sm bg-accent flex items-center justify-center"><Crown className="w-2 h-2 text-black" /></div>
                   )}
-                  <div className="h-2 w-16 rounded-full bg-white/15" />
+                  <div className="h-1.5 w-10 rounded-full bg-white/15" />
                 </div>
-                {[0.85, 1, 0.7].map((w, i) => (
-                  <div key={i} className="rounded-xl bg-white/[0.06] border border-white/8 p-2.5" style={{ width: `${w * 100}%` }}>
-                    <div className="h-2 w-2/3 rounded-full bg-white/20 mb-1.5" />
-                    <div className="h-1.5 w-1/3 rounded-full bg-accent/50" />
-                  </div>
-                ))}
-                <div className="mt-auto rounded-xl bg-accent/90 p-2 flex items-center justify-center gap-1.5">
-                  <Zap className="w-3 h-3 text-black" />
-                  <div className="h-1.5 w-12 rounded-full bg-black/40" />
+                <div className="flex-1 grid grid-cols-3 gap-1.5">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="rounded-md bg-white/[0.06] border border-white/8 p-1.5 flex flex-col justify-end">
+                      <div className="h-1 w-2/3 rounded-full bg-white/20 mb-1" />
+                      <div className="h-1 w-1/2 rounded-full bg-accent/50" />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-            <div className="absolute -inset-6 rounded-[3rem] bg-accent/10 blur-3xl -z-10" aria-hidden="true" />
+            {/* Phone, overlapping bottom-right of the laptop */}
+            <div className="absolute right-0 bottom-0 w-[34%] rounded-[1.2rem] border-2 border-white/20 bg-surface shadow-2xl overflow-hidden">
+              <div className="aspect-[9/18] bg-gradient-to-b from-surface-elevated to-background p-1.5 flex flex-col gap-1">
+                <div className="h-1 w-6 mx-auto rounded-full bg-black/40 mb-0.5" />
+                {[0, 1].map((i) => (
+                  <div key={i} className="rounded-md bg-white/[0.06] border border-white/8 p-1">
+                    <div className="h-1 w-2/3 rounded-full bg-white/20 mb-0.5" />
+                    <div className="h-1 w-1/3 rounded-full bg-accent/50" />
+                  </div>
+                ))}
+                <div className="mt-auto rounded-md bg-accent/90 p-1 flex items-center justify-center">
+                  <Zap className="w-2 h-2 text-black" />
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute -inset-8 rounded-[3rem] bg-accent/10 blur-3xl -z-10" aria-hidden="true" />
+          </div>
+
+          {/* Platform icon row */}
+          <div className="flex items-center justify-center gap-5 mt-8">
+            {[
+              { icon: Apple, label: 'iOS' },
+              { icon: Smartphone, label: 'Android' },
+              { icon: Monitor, label: 'Desktop' },
+            ].map(({ icon: Icon, label }) => (
+              <div key={label} className="flex flex-col items-center gap-1.5">
+                <div className="w-10 h-10 rounded-xl bg-surface border border-white/10 flex items-center justify-center">
+                  <Icon className="w-4.5 h-4.5 text-text-secondary" />
+                </div>
+                <span className="text-[10px] font-medium text-text-tertiary">{label}</span>
+              </div>
+            ))}
           </div>
         </div>
       </section>
