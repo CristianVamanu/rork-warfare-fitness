@@ -63,6 +63,16 @@ export default function BarcodePage() {
   const [mealType, setMealType] = useState<MealType>('snack');
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    getIdToken(user)
+      .then((token) => fetch('/api/nutrition/barcode/usage', { headers: { Authorization: `Bearer ${token}` } }))
+      .then((res) => res.json())
+      .then((data: { remaining?: number }) => { if (typeof data.remaining === 'number') setRemaining(data.remaining); })
+      .catch(() => {});
+  }, [user]);
 
   // No cameraState dependency here on purpose: this is called from inside the
   // decodeFromVideoDevice callback, a closure frozen at scanner-start time by
@@ -179,6 +189,10 @@ export default function BarcodePage() {
   const lookupBarcode = async (code: string) => {
     const trimmed = code.trim();
     if (!trimmed) return;
+    if (remaining === 0) {
+      toast.error('No scans left today — try again tomorrow');
+      return;
+    }
     // Product barcodes are numeric (EAN-8/13, UPC-A/E, sometimes padded Code128).
     // Anything else (e.g. a stray QR/URL scan) can't be a valid product code.
     if (!/^\d{6,14}$/.test(trimmed)) {
@@ -199,6 +213,7 @@ export default function BarcodePage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
+      if (typeof data.remaining === 'number') setRemaining(data.remaining);
       if (!res.ok) throw new Error(data.error || 'Product not found');
       setResult(data.nutrition);
       setProductName(data.name || data.nutrition?.name || 'Product');
@@ -253,6 +268,11 @@ export default function BarcodePage() {
       </div>
 
       <div className="px-4 py-6 space-y-5 max-w-lg mx-auto">
+        {remaining !== null && (
+          <p className={`text-xs font-semibold text-center ${remaining === 0 ? 'text-red-400' : 'text-text-tertiary'}`}>
+            {remaining === 0 ? 'No scans left today — try again tomorrow' : `${remaining} scan${remaining === 1 ? '' : 's'} left today`}
+          </p>
+        )}
         {/* Camera Viewfinder */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <div className="relative aspect-square bg-black rounded-2xl overflow-hidden">
@@ -377,7 +397,7 @@ export default function BarcodePage() {
               className="flex-1 bg-surface-elevated border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/40"
               onKeyDown={(e) => e.key === 'Enter' && lookupBarcode(manualCode)}
             />
-            <Button loading={searching} onClick={() => lookupBarcode(manualCode)} size="sm">
+            <Button loading={searching} disabled={remaining === 0} onClick={() => lookupBarcode(manualCode)} size="sm">
               Search
             </Button>
           </div>

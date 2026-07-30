@@ -76,6 +76,7 @@ function AnalyzeFoodPageInner() {
   const [mealType, setMealType] = useState<MealType>(initialMealType);
   const [todayCalories, setTodayCalories] = useState(0);
   const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
+  const [remaining, setRemaining] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -84,6 +85,11 @@ function AnalyzeFoodPageInner() {
       setTodayCalories(total);
       setGoals(g);
     });
+    getIdToken(user)
+      .then((token) => fetch('/api/ai/analyze-food', { headers: { Authorization: `Bearer ${token}` } }))
+      .then((res) => res.json())
+      .then((data: { remaining?: number }) => { if (typeof data.remaining === 'number') setRemaining(data.remaining); })
+      .catch(() => {});
   }, [user]);
 
   const handleFile = useCallback((file: File) => {
@@ -115,8 +121,9 @@ function AnalyzeFoodPageInner() {
         body: JSON.stringify({ base64Image }),
       });
       const text = await res.text();
-      if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
-      const data = JSON.parse(text);
+      const data = text ? JSON.parse(text) : {};
+      if (typeof data.remaining === 'number') setRemaining(data.remaining);
+      if (!res.ok) throw new Error(data.error || text || `HTTP ${res.status}`);
       setResult(data);
     } catch (err: unknown) {
       const msg = (err as Error)?.message || String(err);
@@ -165,6 +172,11 @@ function AnalyzeFoodPageInner() {
       </div>
 
       <div className="px-4 py-6 space-y-5 max-w-lg mx-auto">
+        {remaining !== null && (
+          <p className={`text-xs font-semibold text-center ${remaining === 0 ? 'text-red-400' : 'text-text-tertiary'}`}>
+            {remaining === 0 ? 'No scans left today — try again tomorrow' : `${remaining} scan${remaining === 1 ? '' : 's'} left today`}
+          </p>
+        )}
         {/* Upload Area */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <input
@@ -208,7 +220,8 @@ function AnalyzeFoodPageInner() {
           ) : (
             <button
               onClick={() => fileRef.current?.click()}
-              className="w-full aspect-square border-2 border-dashed border-white/20 rounded-2xl flex flex-col items-center justify-center gap-4 hover:border-accent/50 transition-colors group"
+              disabled={remaining === 0}
+              className="w-full aspect-square border-2 border-dashed border-white/20 rounded-2xl flex flex-col items-center justify-center gap-4 hover:border-accent/50 transition-colors group disabled:opacity-40 disabled:pointer-events-none"
             >
               <div className="p-5 rounded-full bg-accent-muted group-hover:bg-accent/20 transition-colors">
                 <Camera className="w-10 h-10 text-accent" />
@@ -223,10 +236,10 @@ function AnalyzeFoodPageInner() {
 
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-3">
-          <Button variant="secondary" onClick={() => fileRef.current?.click()}>
+          <Button variant="secondary" disabled={remaining === 0} onClick={() => fileRef.current?.click()}>
             <Camera className="w-4 h-4" /> Camera
           </Button>
-          <Button variant="secondary" onClick={() => galleryFileRef.current?.click()}>
+          <Button variant="secondary" disabled={remaining === 0} onClick={() => galleryFileRef.current?.click()}>
             <Upload className="w-4 h-4" /> Upload
           </Button>
         </div>

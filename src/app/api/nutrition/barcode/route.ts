@@ -1,8 +1,8 @@
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage } from '@/lib/usageLimit';
+import { getAdminApp } from '@/lib/firebase-admin';
+import { checkAndIncrementUsage, resolveConfiguredDailyLimit } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 
 const DEFAULT_DAILY_SCAN_LIMIT = 20;
@@ -61,12 +61,11 @@ export async function GET(req: NextRequest) {
 
     const app = getAdminApp();
     if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
-    const cfgSnap = await getAdminDb(app).collection('system').doc('config').get();
-    const dailyLimit = (cfgSnap.data()?.barcodeScanDailyLimit as number) || DEFAULT_DAILY_SCAN_LIMIT;
+    const dailyLimit = await resolveConfiguredDailyLimit(app, 'barcodeScanDailyLimit', DEFAULT_DAILY_SCAN_LIMIT);
     const usage = await checkAndIncrementUsage(app, uid, 'barcode', dailyLimit);
     if (!usage.allowed) {
       return NextResponse.json(
-        { error: `Daily scan limit reached (${dailyLimit}/day). Try again tomorrow.` },
+        { error: `Daily scan limit reached (${dailyLimit}/day). Try again tomorrow.`, remaining: 0 },
         { status: 429 }
       );
     }
@@ -106,6 +105,7 @@ export async function GET(req: NextRequest) {
       .filter((label): label is string => !!label);
 
     return NextResponse.json({
+      remaining: usage.remaining,
       name: product.product_name || 'Unknown Product',
       brand: product.brands || '',
       nutriScoreGrade: validGrade,

@@ -45,6 +45,18 @@ export async function getRemainingUsage(app: App, uid: string, feature: string, 
   return Math.max(0, dailyLimit - count);
 }
 
+// Shared lookup for a per-feature daily cap stored on system/config, with a
+// fallback default — the same admin-configurable field two routes
+// (analyze-food, barcode) each need to read both to enforce the limit AND
+// to answer "how many are left today" from a separate GET, so it lives
+// here rather than duplicated (or exported from a route.ts file, which
+// Next.js's App Router rejects for anything but its recognized handler
+// exports).
+export async function resolveConfiguredDailyLimit(app: App, configField: string, fallback: number): Promise<number> {
+  const cfgSnap = await getAdminDb(app).collection('system').doc('config').get();
+  return (cfgSnap.data()?.[configField] as number) || fallback;
+}
+
 // checkAndIncrementUsage reserves the day's slot up front (needed to stay
 // race-safe under concurrent requests), so a call that fails AFTER that —
 // the third-party API errored, or its response was unusable — would

@@ -3,11 +3,26 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
-import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage } from '@/lib/usageLimit';
+import { getAdminApp } from '@/lib/firebase-admin';
+import { checkAndIncrementUsage, getRemainingUsage, resolveConfiguredDailyLimit } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 
 const DEFAULT_DAILY_ANALYSIS_LIMIT = 20;
+const resolveDailyLimit = (app: NonNullable<ReturnType<typeof getAdminApp>>) =>
+  resolveConfiguredDailyLimit(app, 'foodAnalysisDailyLimit', DEFAULT_DAILY_ANALYSIS_LIMIT);
+
+// So the page can show "X left today" before the user even takes a photo.
+export async function GET(req: NextRequest) {
+  const authCheck = await verifyAuthed(req);
+  if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
+
+  const app = getAdminApp();
+  if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
+
+  const dailyLimit = await resolveDailyLimit(app);
+  const remaining = await getRemainingUsage(app, authCheck.uid, 'food-analysis', dailyLimit);
+  return NextResponse.json({ remaining, dailyLimit });
+}
 
 export async function POST(req: NextRequest) {
   // Verifies the caller's own Firebase login token rather than trusting a
@@ -35,12 +50,11 @@ export async function POST(req: NextRequest) {
 
     const app = getAdminApp();
     if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
-    const cfgSnap = await getAdminDb(app).collection('system').doc('config').get();
-    const dailyLimit = (cfgSnap.data()?.foodAnalysisDailyLimit as number) || DEFAULT_DAILY_ANALYSIS_LIMIT;
+    const dailyLimit = await resolveDailyLimit(app);
     const usage = await checkAndIncrementUsage(app, uid, 'food-analysis', dailyLimit);
     if (!usage.allowed) {
       return NextResponse.json(
-        { error: `Daily analysis limit reached (${dailyLimit}/day). Try again tomorrow.` },
+        { error: `Daily analysis limit reached (${dailyLimit}/day). Try again tomorrow.`, remaining: 0 },
         { status: 429 }
       );
     }
@@ -84,7 +98,7 @@ All values should be in grams (except calories in kcal). Estimate for a typical 
     if (!jsonMatch) throw new Error('Invalid AI response format');
 
     const nutrition = JSON.parse(jsonMatch[0]);
-    return NextResponse.json(nutrition);
+    return NextResponse.json({ ...nutrition, remaining: usage.remaining });
   } catch (err: unknown) {
     console.error('[analyze-food] Error:', err);
     const message = err instanceof Error ? err.message : 'Analysis failed';
