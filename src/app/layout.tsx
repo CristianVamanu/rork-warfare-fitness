@@ -7,6 +7,7 @@ import { getSystemConfig } from '@/lib/firestore';
 import { ServiceWorkerUpdater } from '@/components/ui/ServiceWorkerUpdater';
 import { ChunkErrorReloader } from '@/components/ui/ChunkErrorReloader';
 import { CookieConsent } from '@/components/ui/CookieConsent';
+import { ChatWidget } from '@/components/ui/ChatWidget';
 
 export async function generateMetadata(): Promise<Metadata> {
   const cfg = await getSystemConfig().catch(() => null);
@@ -74,6 +75,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
       </head>
       <body>
+        <ChatWidget />
         <ThemeProvider>
         <AuthProvider>
           {children}
