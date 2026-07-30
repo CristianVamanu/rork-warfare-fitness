@@ -94,7 +94,11 @@ function NutritionPageInner() {
   }, [refresh, loading]);
 
 
-  const totals = meals.reduce(
+  // Rounded once here (to 1 decimal for macros, whole kcal for calories)
+  // rather than at each render site — summing many meals' decimal grams
+  // (e.g. AI-estimated 24.4g + 24.4g + ...) accumulates plain binary
+  // floating-point error, showing as "24.400000000000002g" if left raw.
+  const rawTotals = meals.reduce(
     (acc, m) => ({
       calories: acc.calories + (m.calories || 0),
       protein: acc.protein + (m.protein || 0),
@@ -103,6 +107,12 @@ function NutritionPageInner() {
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
+  const totals = {
+    calories: Math.round(rawTotals.calories),
+    protein: Math.round(rawTotals.protein * 10) / 10,
+    carbs: Math.round(rawTotals.carbs * 10) / 10,
+    fat: Math.round(rawTotals.fat * 10) / 10,
+  };
 
   const addWater = async (ml: number) => {
     if (!user) return;
