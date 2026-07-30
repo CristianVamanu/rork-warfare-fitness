@@ -93,7 +93,15 @@ export default function ScanAndGoPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          base64Images: photos.map((p) => p.split(',')[1]),
+          // Full data URLs (not just the base64 payload) — resizeImage
+          // always re-encodes as JPEG via canvas, but its catch fallback
+          // keeps the ORIGINAL file's data URL if canvas resizing throws
+          // (e.g. a tainted canvas or decode failure), which isn't
+          // necessarily JPEG (PNG screenshots, HEIC-derived uploads).
+          // Sending the real data URL through means the API route never
+          // has to guess/hardcode a MIME type that might not match the
+          // actual bytes.
+          dataUrls: photos,
           experience: profile?.experience,
           fitnessGoal: profile?.fitnessGoal,
           limitations: profile?.limitations,

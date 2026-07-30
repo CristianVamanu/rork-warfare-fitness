@@ -1227,11 +1227,25 @@ function WorkoutSessionPageInner() {
       let exercises: Exercise[] = DEFAULT_EXERCISES;
 
       if (isScanGo) {
+        let scanGoExercises: Exercise[] | null = null;
         try {
           const raw = sessionStorage.getItem('scan_go_exercises');
           const parsed = raw ? JSON.parse(raw) as Exercise[] : null;
-          if (parsed && parsed.length > 0) exercises = parsed;
-        } catch { /* falls back to DEFAULT_EXERCISES */ }
+          if (parsed && parsed.length > 0) scanGoExercises = parsed;
+        } catch { /* handled below like a missing result */ }
+
+        // Falling back to DEFAULT_EXERCISES here would silently hand
+        // someone a generic workout with no equipment match at all under
+        // the "Scan & Go" banner — worse than just telling them to rescan,
+        // since it looks like a real result. sessionStorage is per-tab, so
+        // this is reachable by opening the URL directly, in a new tab, or
+        // after it's been cleared.
+        if (!scanGoExercises) {
+          toast.error('Your scan result is gone — scan again to get a fresh workout.');
+          router.replace('/training/scan-go');
+          return;
+        }
+        exercises = scanGoExercises;
       } else if (programId) {
         // Shared resolver (Firestore-first, seed fallback) — the same one
         // every other program-rendering screen uses, so this session can

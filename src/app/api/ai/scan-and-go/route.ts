@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, refundUsage } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 
 const DAILY_LIMIT = 10;
@@ -15,20 +15,31 @@ export async function POST(req: NextRequest) {
   if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
   const uid = authCheck.uid;
 
+  // Tracked so the outer catch only ever refunds a count it actually
+  // incremented THIS request — not e.g. a previous request's usage if this
+  // one fails before ever reaching checkAndIncrementUsage.
+  let usageApp: ReturnType<typeof getAdminApp> = null;
+
   try {
     const apiKey = await getSecret('OPENAI_API_KEY');
     if (!apiKey) {
       return NextResponse.json({ error: 'OpenAI API key not configured. Add it in Admin → Integrations.' }, { status: 500 });
     }
 
-    const { base64Images, experience, fitnessGoal, limitations } = await req.json() as {
-      base64Images?: string[]; experience?: string; fitnessGoal?: string; limitations?: string;
+    const { dataUrls, experience, fitnessGoal, limitations } = await req.json() as {
+      dataUrls?: string[]; experience?: string; fitnessGoal?: string; limitations?: string;
     };
-    if (!base64Images || !Array.isArray(base64Images) || base64Images.length === 0) {
+    if (!dataUrls || !Array.isArray(dataUrls) || dataUrls.length === 0) {
       return NextResponse.json({ error: 'No images provided' }, { status: 400 });
     }
-    if (base64Images.length > MAX_IMAGES) {
+    if (dataUrls.length > MAX_IMAGES) {
       return NextResponse.json({ error: `Maximum ${MAX_IMAGES} photos` }, { status: 400 });
+    }
+    // Trust the caller's own MIME type instead of assuming/hardcoding one —
+    // still validated as an actual image data URL so this can't be used to
+    // smuggle an arbitrary URL into the OpenAI request.
+    if (!dataUrls.every((u) => /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(u))) {
+      return NextResponse.json({ error: 'Invalid image data' }, { status: 400 });
     }
 
     const app = getAdminApp();
@@ -37,6 +48,7 @@ export async function POST(req: NextRequest) {
     if (!usage.allowed) {
       return NextResponse.json({ error: `Daily limit reached (${DAILY_LIMIT}/day). Try again tomorrow.` }, { status: 429 });
     }
+    usageApp = app;
 
     const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
     const openai = new OpenAI({ apiKey });
@@ -69,9 +81,9 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
   ]
 }`;
 
-    const imageContent = base64Images.slice(0, MAX_IMAGES).map((b64) => ({
+    const imageContent = dataUrls.slice(0, MAX_IMAGES).map((url) => ({
       type: 'image_url' as const,
-      image_url: { url: `data:image/jpeg;base64,${b64}`, detail: 'low' as const },
+      image_url: { url, detail: 'low' as const },
     }));
 
     const response = await openai.chat.completions.create({
@@ -101,10 +113,12 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
       parsed = JSON.parse(content);
     } catch {
       console.error('[scan-and-go] Model returned unparseable JSON:', content);
+      await refundUsage(app, uid, 'scan-and-go');
       return NextResponse.json({ error: "Couldn't read the AI's response — try again." }, { status: 502 });
     }
 
     if (!parsed.exercises || parsed.exercises.length === 0) {
+      await refundUsage(app, uid, 'scan-and-go');
       return NextResponse.json({ error: "Couldn't identify any usable equipment or exercises from those photos — try again with clearer shots." }, { status: 422 });
     }
 
@@ -115,6 +129,7 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
     });
   } catch (err: unknown) {
     console.error('[scan-and-go] Error:', err);
+    if (usageApp) await refundUsage(usageApp, uid, 'scan-and-go');
     const message = err instanceof Error ? err.message : 'Scan failed';
     return NextResponse.json({ error: message }, { status: 500 });
   }

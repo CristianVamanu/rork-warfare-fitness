@@ -33,3 +33,19 @@ export async function checkAndIncrementUsage(
     return { allowed: true, remaining: dailyLimit - count - 1 };
   });
 }
+
+// checkAndIncrementUsage reserves the day's slot up front (needed to stay
+// race-safe under concurrent requests), so a call that fails AFTER that —
+// the third-party API errored, or its response was unusable — would
+// otherwise burn one of the user's limited daily attempts for nothing.
+// Call this from the caller's catch/failure paths to give it back.
+export async function refundUsage(app: App, uid: string, feature: string): Promise<void> {
+  const db = getAdminDb(app);
+  const today = new Date().toISOString().slice(0, 10);
+  const ref = db.collection('users').doc(uid).collection('usage').doc(`${feature}_${today}`);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const count = snap.exists ? (snap.data()?.count as number ?? 0) : 0;
+    if (count > 0) tx.update(ref, { count: FieldValue.increment(-1) });
+  });
+}
