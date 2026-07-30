@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Camera, Upload, X as XIcon, Sparkles, Dumbbell, ArrowRight, Info } from 'lucide-react';
@@ -63,6 +63,16 @@ export default function ScanAndGoPage() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    getIdToken(user)
+      .then((token) => fetch('/api/ai/scan-and-go', { headers: { Authorization: `Bearer ${token}` } }))
+      .then((res) => res.json())
+      .then((data: { remaining?: number }) => { if (typeof data.remaining === 'number') setRemaining(data.remaining); })
+      .catch(() => {});
+  }, [user]);
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList) return;
@@ -108,8 +118,13 @@ export default function ScanAndGoPage() {
         }),
       });
       const text = await res.text();
-      if (!res.ok) throw new Error(text ? (JSON.parse(text).error ?? text) : `HTTP ${res.status}`);
-      const data = JSON.parse(text) as { equipmentDetected: string[]; ignoredNote: string; exercises: { name: string; sets: number; reps: string | number; restSeconds: number; notes?: string }[] };
+      const body = text ? JSON.parse(text) : {};
+      // Both success and refunded-failure responses carry the up-to-date
+      // count, so the display never drifts from what the server actually
+      // charged — updating it here regardless of res.ok.
+      if (typeof body.remaining === 'number') setRemaining(body.remaining);
+      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+      const data = body as { equipmentDetected: string[]; ignoredNote: string; exercises: { name: string; sets: number; reps: string | number; restSeconds: number; notes?: string }[] };
       const exercises: Exercise[] = data.exercises.map((ex, i) => ({
         id: `scan-go-${i}`,
         name: ex.name,
@@ -147,6 +162,11 @@ export default function ScanAndGoPage() {
               <p className="text-sm text-text-secondary leading-relaxed">
                 Take up to {MAX_PHOTOS} photos of the equipment around you — a hotel gym, a friend's setup, whatever's in front of you — and get a single workout built around exactly what's there. No commitment beyond today.
               </p>
+              {remaining !== null && (
+                <p className={`text-xs font-semibold mt-3 ${remaining === 0 ? 'text-red-400' : 'text-text-tertiary'}`}>
+                  {remaining === 0 ? 'No scans left today — try again tomorrow' : `${remaining} scan${remaining === 1 ? '' : 's'} left today`}
+                </p>
+              )}
             </Card>
 
             <div className="grid grid-cols-3 gap-2">
@@ -182,7 +202,7 @@ export default function ScanAndGoPage() {
               onChange={(e) => handleFiles(e.target.files)}
             />
 
-            <Button fullWidth size="lg" disabled={photos.length === 0} loading={scanning} onClick={handleScan}>
+            <Button fullWidth size="lg" disabled={photos.length === 0 || remaining === 0} loading={scanning} onClick={handleScan}>
               <Sparkles className="w-4 h-4" /> {scanning ? 'Scanning…' : 'Generate My Workout'}
             </Button>
           </>

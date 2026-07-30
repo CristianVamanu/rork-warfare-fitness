@@ -34,6 +34,17 @@ export async function checkAndIncrementUsage(
   });
 }
 
+// Read-only lookup for showing "X left today" in the UI before the user
+// takes an action — a plain get(), not a transaction, since there's
+// nothing to race against for a read.
+export async function getRemainingUsage(app: App, uid: string, feature: string, dailyLimit: number): Promise<number> {
+  const db = getAdminDb(app);
+  const today = new Date().toISOString().slice(0, 10);
+  const snap = await db.collection('users').doc(uid).collection('usage').doc(`${feature}_${today}`).get();
+  const count = snap.exists ? (snap.data()?.count as number ?? 0) : 0;
+  return Math.max(0, dailyLimit - count);
+}
+
 // checkAndIncrementUsage reserves the day's slot up front (needed to stay
 // race-safe under concurrent requests), so a call that fails AFTER that —
 // the third-party API errored, or its response was unusable — would

@@ -4,11 +4,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage, refundUsage } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, refundUsage, getRemainingUsage } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 
 const DAILY_LIMIT = 10;
 const MAX_IMAGES = 6;
+
+// So the page can show "X scans left today" before the user has even
+// taken a photo, not just after their first attempt.
+export async function GET(req: NextRequest) {
+  const authCheck = await verifyAuthed(req);
+  if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
+
+  const app = getAdminApp();
+  if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
+
+  const remaining = await getRemainingUsage(app, authCheck.uid, 'scan-and-go', DAILY_LIMIT);
+  return NextResponse.json({ remaining, dailyLimit: DAILY_LIMIT });
+}
 
 export async function POST(req: NextRequest) {
   const authCheck = await verifyAuthed(req);
@@ -46,7 +59,7 @@ export async function POST(req: NextRequest) {
     if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
     const usage = await checkAndIncrementUsage(app, uid, 'scan-and-go', DAILY_LIMIT);
     if (!usage.allowed) {
-      return NextResponse.json({ error: `Daily limit reached (${DAILY_LIMIT}/day). Try again tomorrow.` }, { status: 429 });
+      return NextResponse.json({ error: `Daily limit reached (${DAILY_LIMIT}/day). Try again tomorrow.`, remaining: 0 }, { status: 429 });
     }
     usageApp = app;
 
@@ -114,23 +127,28 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
     } catch {
       console.error('[scan-and-go] Model returned unparseable JSON:', content);
       await refundUsage(app, uid, 'scan-and-go');
-      return NextResponse.json({ error: "Couldn't read the AI's response — try again." }, { status: 502 });
+      return NextResponse.json({ error: "Couldn't read the AI's response — try again.", remaining: usage.remaining + 1 }, { status: 502 });
     }
 
     if (!parsed.exercises || parsed.exercises.length === 0) {
       await refundUsage(app, uid, 'scan-and-go');
-      return NextResponse.json({ error: "Couldn't identify any usable equipment or exercises from those photos — try again with clearer shots." }, { status: 422 });
+      return NextResponse.json({ error: "Couldn't identify any usable equipment or exercises from those photos — try again with clearer shots.", remaining: usage.remaining + 1 }, { status: 422 });
     }
 
     return NextResponse.json({
       equipmentDetected: parsed.equipmentDetected ?? [],
       ignoredNote: parsed.ignoredNote ?? '',
       exercises: parsed.exercises,
+      remaining: usage.remaining,
     });
   } catch (err: unknown) {
     console.error('[scan-and-go] Error:', err);
-    if (usageApp) await refundUsage(usageApp, uid, 'scan-and-go');
+    let remaining: number | undefined;
+    if (usageApp) {
+      await refundUsage(usageApp, uid, 'scan-and-go');
+      remaining = await getRemainingUsage(usageApp, uid, 'scan-and-go', DAILY_LIMIT);
+    }
     const message = err instanceof Error ? err.message : 'Scan failed';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message, remaining }, { status: 500 });
   }
 }
