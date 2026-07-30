@@ -157,14 +157,6 @@ function GlowOrb({ className }: { className: string }) {
   return <div className={`orb-drift pointer-events-none absolute rounded-full blur-3xl ${className}`} aria-hidden="true" />;
 }
 
-// Same idea as GlowOrb but slower and colored as neutral haze rather than
-// accent-orange light — meant to sit behind the orbs and read as ambient
-// smoke/fog, matching the "tactical ops" brand language without needing a
-// real particle system.
-function SmokeWisp({ className }: { className: string }) {
-  return <div className={`smoke-drift pointer-events-none absolute rounded-full blur-3xl bg-white/[0.035] ${className}`} aria-hidden="true" />;
-}
-
 function FaqItem({ q, a, open, onToggle }: { q: string; a: string; open: boolean; onToggle: () => void }) {
   return (
     <div className="border-b border-white/8 last:border-b-0">
@@ -249,8 +241,6 @@ export default function LandingPage({
       {/* Ambient glow + grid texture, contained to the hero viewport so it
           doesn't bleed color into the feature/social-proof sections below. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[640px] overflow-hidden">
-        <SmokeWisp className="w-[600px] h-[600px] -top-32 -left-20" />
-        <SmokeWisp className="w-[500px] h-[500px] top-10 -right-32" />
         <div
           className="absolute inset-0 opacity-[0.07]"
           style={{
@@ -464,7 +454,6 @@ export default function LandingPage({
       <TacticalStripe />
 
       <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pt-16 pb-16">
-        <SmokeWisp className="w-[450px] h-[450px] -top-24 left-1/3 -z-10" />
         <GlowOrb className="w-80 h-80 bg-accent/[0.08] -top-20 -left-20 -z-10" />
         <GlowOrb className="w-72 h-72 bg-accent/[0.06] bottom-0 -right-16 -z-10" />
         <div className="text-center mb-8">
@@ -860,7 +849,6 @@ export default function LandingPage({
 
       {/* Final CTA */}
       <section className="relative overflow-hidden max-w-2xl mx-auto px-5 pt-16 pb-20 text-center">
-        <SmokeWisp className="w-[520px] h-[520px] top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 -z-10" />
         <GlowOrb className="w-[420px] h-[420px] bg-accent/[0.1] top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 -z-10" />
         <h2 className="text-2xl sm:text-3xl font-black text-white">{landing.finalCtaHeadline}</h2>
         <p className="text-text-secondary text-sm mt-2 mb-6">{landing.finalCtaSubtext}</p>
