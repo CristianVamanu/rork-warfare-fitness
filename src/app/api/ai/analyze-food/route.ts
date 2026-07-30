@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage, getRemainingUsage, resolveConfiguredDailyLimit } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, getRemainingUsage, refundUsage, resolveConfiguredDailyLimit } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 
 const DEFAULT_DAILY_ANALYSIS_LIMIT = 20;
@@ -33,6 +33,10 @@ export async function POST(req: NextRequest) {
   if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
   const uid = authCheck.uid;
 
+  // Tracked so the catch block only ever refunds a count it actually
+  // incremented THIS request.
+  let usageApp: ReturnType<typeof getAdminApp> = null;
+
   try {
     const apiKey = await getSecret('OPENAI_API_KEY');
     if (!apiKey) {
@@ -58,6 +62,7 @@ export async function POST(req: NextRequest) {
         { status: 429 }
       );
     }
+    usageApp = app;
 
     const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
     const openai = new OpenAI({ apiKey });
@@ -101,7 +106,13 @@ All values should be in grams (except calories in kcal). Estimate for a typical 
     return NextResponse.json({ ...nutrition, remaining: usage.remaining });
   } catch (err: unknown) {
     console.error('[analyze-food] Error:', err);
+    let remaining: number | undefined;
+    if (usageApp) {
+      await refundUsage(usageApp, uid, 'food-analysis');
+      const dailyLimit = await resolveDailyLimit(usageApp);
+      remaining = await getRemainingUsage(usageApp, uid, 'food-analysis', dailyLimit);
+    }
     const message = err instanceof Error ? err.message : 'Analysis failed';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message, remaining }, { status: 500 });
   }
 }

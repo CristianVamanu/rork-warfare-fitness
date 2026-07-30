@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage, resolveConfiguredDailyLimit } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, refundUsage, getRemainingUsage, resolveConfiguredDailyLimit } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 
 const DEFAULT_DAILY_SCAN_LIMIT = 20;
@@ -55,6 +55,10 @@ export async function GET(req: NextRequest) {
   if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
   const uid = authCheck.uid;
 
+  // Tracked so the outer catch only ever refunds a count it actually
+  // incremented THIS request.
+  let usageApp: ReturnType<typeof getAdminApp> = null;
+
   try {
     const code = req.nextUrl.searchParams.get('code');
     if (!code) return NextResponse.json({ error: 'Barcode required' }, { status: 400 });
@@ -69,13 +73,15 @@ export async function GET(req: NextRequest) {
         { status: 429 }
       );
     }
+    usageApp = app;
 
     // Product barcodes are numeric only (EAN-8/13, UPC-A/E). Reject anything
     // else before it reaches the external request — a malformed/non-numeric
     // "code" (e.g. from a stray QR scan) breaks the OpenFoodFacts URL and
     // surfaces as a confusing low-level fetch/URL error to the user.
     if (!/^\d{6,14}$/.test(code)) {
-      return NextResponse.json({ error: 'Invalid barcode format' }, { status: 400 });
+      await refundUsage(app, uid, 'barcode');
+      return NextResponse.json({ error: 'Invalid barcode format', remaining: usage.remaining + 1 }, { status: 400 });
     }
 
     const res = await fetch(
@@ -89,7 +95,12 @@ export async function GET(req: NextRequest) {
     const data: OpenFoodFactsResponse = await res.json();
 
     if (data.status !== 1 || !data.product) {
-      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+      // Not found is a common, non-error outcome (OpenFoodFacts' database
+      // has real gaps) — refunded like any other failed attempt rather
+      // than silently burning one of the user's limited daily scans on a
+      // product that was simply never barcoded in the first place.
+      await refundUsage(app, uid, 'barcode');
+      return NextResponse.json({ error: 'Product not found', remaining: usage.remaining + 1 }, { status: 404 });
     }
 
     const { product } = data;
@@ -128,6 +139,12 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error('Barcode lookup error:', err);
-    return NextResponse.json({ error: 'Lookup failed' }, { status: 500 });
+    let remaining: number | undefined;
+    if (usageApp) {
+      await refundUsage(usageApp, uid, 'barcode');
+      const dailyLimit = await resolveConfiguredDailyLimit(usageApp, 'barcodeScanDailyLimit', DEFAULT_DAILY_SCAN_LIMIT);
+      remaining = await getRemainingUsage(usageApp, uid, 'barcode', dailyLimit);
+    }
+    return NextResponse.json({ error: 'Lookup failed', remaining }, { status: 500 });
   }
 }
