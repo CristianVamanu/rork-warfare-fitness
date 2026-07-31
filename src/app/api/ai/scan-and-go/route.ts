@@ -79,29 +79,38 @@ Athlete context:
 - Injuries/limitations to strictly avoid aggravating: ${limitations || 'none reported'}
 
 Instructions:
-1. Identify every piece of exercise equipment actually visible across the photos (e.g. barbell, dumbbells, kettlebells, pull-up bar, bench, resistance bands, cable machine, squat rack). Bodyweight is always available even with no equipment.
+1. Identify every piece of exercise equipment actually visible across the photos (e.g. barbell, dumbbells, kettlebells, pull-up bar, bench, leg press machine, leg extension machine, cable machine, squat rack). Look carefully — a leg press and a leg extension machine are different machines with different silhouettes; don't guess generically.
 2. Ignore anything in the photos that isn't exercise equipment (furniture, people, walls, etc.) — do not mention it as equipment, but you may note it was ignored.
-3. Build ONE day's workout (6-8 exercises) using ONLY the equipment you actually identified plus bodyweight. Never invent equipment that wasn't in a photo.
-4. Respect the athlete's experience level and goal, and NEVER include an exercise that would aggravate a stated limitation/injury — substitute a safer alternative instead.
-5. Balance the session across muscle groups (don't repeat the same movement pattern back to back).
+3. Every exercise MUST use either bodyweight or a specific item from the equipment you actually identified — name which one in "equipmentUsed" for each exercise (or "bodyweight"). Never invent equipment that wasn't in a photo, and never pick an exercise just because it's a normally-popular one if nothing in the photos supports it.
+4. Do NOT force variety across muscle groups if the equipment doesn't support it. If the photos only show leg machines, build a genuinely leg-focused session (that machine's primary movement, a different rep/tempo variation of it, plus bodyweight leg/glute/calf accessory work) instead of padding in unrelated upper-body or arm exercises just to look "balanced" — a single-focus day from limited equipment is the correct, expected result, not a flaw to cover up.
+5. Respect the athlete's experience level and goal, and NEVER include an exercise that would aggravate a stated limitation/injury — substitute a safer alternative instead.
+6. Only balance across muscle groups when the detected equipment actually allows it.
 
 Return ONLY valid JSON with this exact structure, no markdown fences:
 {
   "equipmentDetected": ["string", ...],
   "ignoredNote": "short note about anything irrelevant in the photos, or empty string if nothing to mention",
   "exercises": [
-    { "name": "string", "sets": number, "reps": "string or number", "restSeconds": number, "notes": "short form cue" }
+    { "name": "string", "equipmentUsed": "string", "sets": number, "reps": "string or number", "restSeconds": number, "notes": "short form cue" }
   ]
 }`;
 
     const imageContent = dataUrls.slice(0, MAX_IMAGES).map((url) => ({
       type: 'image_url' as const,
-      image_url: { url, detail: 'low' as const },
+      // 'high' detail (vs. the previous 'low', a single downscaled 512px
+      // tile) is what actually fixed misidentified equipment — a leg press
+      // and a leg extension machine look meaningfully different but were
+      // getting blurred together at low resolution, and the model would
+      // then fall back on generic/popular exercises (reported: recommending
+      // tricep extensions from a photo of leg machines) instead of what was
+      // actually there. Worth the extra tokens given this is capped at 6
+      // images and a low daily limit already.
+      image_url: { url, detail: 'high' as const },
     }));
 
     const response = await openai.chat.completions.create({
       model,
-      max_tokens: 1200,
+      max_tokens: 1500,
       // Forces the model to emit strictly valid JSON instead of relying on
       // the prompt's "no markdown fences" instruction, which the model
       // doesn't always follow exactly — a stray trailing comma or unescaped
@@ -120,7 +129,7 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
     const content = response.choices[0]?.message?.content?.trim() || '{}';
     let parsed: {
       equipmentDetected?: string[]; ignoredNote?: string;
-      exercises?: { name: string; sets: number; reps: string | number; restSeconds: number; notes?: string }[];
+      exercises?: { name: string; equipmentUsed?: string; sets: number; reps: string | number; restSeconds: number; notes?: string }[];
     };
     try {
       parsed = JSON.parse(content);

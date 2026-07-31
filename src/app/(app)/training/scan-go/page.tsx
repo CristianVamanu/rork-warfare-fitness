@@ -17,8 +17,12 @@ const MAX_PHOTOS = 6;
 
 // Same resize approach as the food-photo analyzer — camera photos can be
 // several MB each; sending up to 6 of them raw would blow past Vercel's
-// serverless request body limit. OpenAI's vision "low detail" mode only
-// uses ~512px anyway, so nothing is lost.
+// serverless request body limit. The API route requests OpenAI's "high"
+// detail mode (needed to reliably tell visually-similar machines apart —
+// e.g. a leg press vs. a leg extension machine, previously getting blurred
+// together at low detail and producing generic/wrong exercise picks), so
+// this resize target is set high enough to still give it real detail to
+// work with while staying well under any request-size limits.
 function resizeImage(dataUrl: string, maxDimension: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
@@ -54,6 +58,11 @@ interface ScanResult {
   equipmentDetected: string[];
   ignoredNote: string;
   exercises: Exercise[];
+  // Display-only, keyed by index alongside `exercises` — not persisted
+  // into the workout session itself, just shown here so it's obvious
+  // which detected equipment each pick actually uses (and easy to spot if
+  // something looks off before starting).
+  equipmentPerExercise: string[];
 }
 
 export default function ScanAndGoPage() {
@@ -124,7 +133,7 @@ export default function ScanAndGoPage() {
       // charged — updating it here regardless of res.ok.
       if (typeof body.remaining === 'number') setRemaining(body.remaining);
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
-      const data = body as { equipmentDetected: string[]; ignoredNote: string; exercises: { name: string; sets: number; reps: string | number; restSeconds: number; notes?: string }[] };
+      const data = body as { equipmentDetected: string[]; ignoredNote: string; exercises: { name: string; equipmentUsed?: string; sets: number; reps: string | number; restSeconds: number; notes?: string }[] };
       const exercises: Exercise[] = data.exercises.map((ex, i) => ({
         id: `scan-go-${i}`,
         name: ex.name,
@@ -133,7 +142,12 @@ export default function ScanAndGoPage() {
         restSeconds: ex.restSeconds,
         notes: ex.notes,
       }));
-      setResult({ equipmentDetected: data.equipmentDetected, ignoredNote: data.ignoredNote, exercises });
+      setResult({
+        equipmentDetected: data.equipmentDetected,
+        ignoredNote: data.ignoredNote,
+        exercises,
+        equipmentPerExercise: data.exercises.map((ex) => ex.equipmentUsed || 'bodyweight'),
+      });
     } catch (err: unknown) {
       const msg = (err as Error)?.message || String(err);
       toast.error(`Scan failed: ${msg}`, { duration: 8000 });
@@ -236,7 +250,10 @@ export default function ScanAndGoPage() {
                   <div key={ex.id} className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-surface-elevated border border-white/10 flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-0.5">{i + 1}</div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white">{ex.name}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-sm font-semibold text-white">{ex.name}</p>
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/5 text-text-tertiary">{result.equipmentPerExercise[i]}</span>
+                      </div>
                       <p className="text-xs text-text-secondary">{ex.sets} sets × {ex.reps} · {ex.restSeconds}s rest</p>
                       {ex.notes && <p className="text-xs text-text-tertiary mt-0.5">{ex.notes}</p>}
                     </div>
