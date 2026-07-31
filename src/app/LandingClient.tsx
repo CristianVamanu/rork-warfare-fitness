@@ -310,8 +310,16 @@ export default function LandingPage({
   // straight to registration rather than a paid checkout.
   const primaryCtaLabel = trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : landing.ctaPrimaryLabel;
 
+  // `isolate` forces this div to establish its own stacking context, so
+  // TopoBackground's -z-10 canvas is guaranteed to paint above THIS div's
+  // own bg-background fill and below everything else inside it — without
+  // it, whether a negative-z-index descendant renders above or below its
+  // non-stacking-context ancestor's own painted background is genuinely
+  // ambiguous, and was rendering the canvas completely invisible rather
+  // than just faint (reported: "I can't see anything" after deploy, not
+  // "it's too subtle").
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden relative">
+    <div className="min-h-screen bg-background overflow-x-hidden relative isolate">
       <TopoBackground />
       {/* Ambient glow + grid texture, contained to the hero viewport so it
           doesn't bleed color into the feature/social-proof sections below. */}
