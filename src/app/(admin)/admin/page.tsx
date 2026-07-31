@@ -18,7 +18,7 @@ import { extractVideoThumbnail, extractVideoThumbnailFromUrl } from '@/lib/video
 import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_B2B_TERMS } from '@/lib/legalDefaults';
 import {
   getSystemConfig, setSystemConfig,
-  banUser, unbanUser, getAllUsers,
+  getAllUsers,
   getAdminConversations, getOrCreateConversation, getMessages, sendMessage, markConversationRead, deleteConversation,
   getMembershipConfig, saveMembershipConfig, setUserMembership,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
@@ -589,19 +589,23 @@ function AdminPageInner() {
   }
 
   async function handleBanToggle(u: UserData) {
+    if (!u.banned && !confirm(`Ban ${u.displayName}? Their account will be disabled — they won't be able to sign in at all.`)) return;
     setBanningUser(u.id);
     try {
-      if (u.banned) {
-        await unbanUser(u.id);
-        toast.success(`${u.displayName} unbanned`);
-      } else {
-        if (!confirm(`Ban ${u.displayName}? They will be locked out of the app.`)) { setBanningUser(null); return; }
-        await banUser(u.id);
-        toast.success(`${u.displayName} banned`);
-      }
+      if (!user) throw new Error('Not signed in');
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/ban-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId: u.id, action: u.banned ? 'unban' : 'ban' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update user');
+      toast.success(u.banned ? `${u.displayName} unbanned` : `${u.displayName} banned — account disabled`);
       await loadUsers();
-    } catch { toast.error('Failed to update user'); }
-    finally { setBanningUser(null); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update user');
+    } finally { setBanningUser(null); }
   }
 
   async function handleDeleteUser(u: UserData) {

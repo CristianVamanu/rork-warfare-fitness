@@ -971,14 +971,6 @@ export async function createAIProgram(program: Omit<Program, 'id'>): Promise<str
 // Admin — user management
 // ---------------------------------------------------------------------------
 
-export async function banUser(userId: string) {
-  await updateDoc(doc(db, 'users', userId), { banned: true });
-}
-
-export async function unbanUser(userId: string) {
-  await updateDoc(doc(db, 'users', userId), { banned: false });
-}
-
 export async function markFlameIgnited(userId: string) {
   await updateDoc(doc(db, 'users', userId), { flameIgnited: true });
 }
