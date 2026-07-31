@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -157,80 +157,6 @@ function GlowOrb({ className }: { className: string }) {
   return <div className={`orb-drift pointer-events-none absolute rounded-full blur-3xl ${className}`} aria-hidden="true" />;
 }
 
-// One continuous, very faint topo-line field behind the ENTIRE page —
-// approved as a mockup first (real hero copy against 3 candidate
-// treatments, then a follow-up showing this one running the full scroll)
-// specifically to fix "the hero has atmosphere, everything below it is
-// flat black" without touching the hero's own background at all. Fixed
-// positioning means it never needs to track scroll or match a document
-// height that varies with admin-configured content — it just always
-// covers the viewport, identically on mobile and desktop.
-function TopoBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let w = 0, h = 0, t = 0, raf = 0;
-    const LINES = 16;
-
-    function resize() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      w = window.innerWidth;
-      h = window.innerHeight;
-      canvas!.width = w * dpr;
-      canvas!.height = h * dpr;
-      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-
-    function draw() {
-      ctx!.clearRect(0, 0, w, h);
-      for (let i = 0; i < LINES; i++) {
-        const baseY = (h / LINES) * i + 20;
-        ctx!.beginPath();
-        for (let x = 0; x <= w; x += 10) {
-          const y = baseY
-            + Math.sin(x * 0.005 + i * 0.7 + t) * 22 * Math.sin(i * 0.35 + 0.4)
-            + Math.sin(x * 0.013 + i + t * 1.2) * 7;
-          if (x === 0) ctx!.moveTo(x, y); else ctx!.lineTo(x, y);
-        }
-        // Deliberately faint — atmosphere, not a feature in its own right.
-        ctx!.strokeStyle = 'rgba(245,166,35,0.045)';
-        ctx!.lineWidth = 1;
-        ctx!.stroke();
-      }
-    }
-
-    // Resizing a <canvas> (setting .width/.height) always clears its
-    // contents — without redrawing here too, rotating a phone or resizing
-    // the window would leave it blank until the next animation frame,
-    // which never comes at all when prefers-reduced-motion skips the loop.
-    const onResize = () => { resize(); draw(); };
-    onResize();
-    window.addEventListener('resize', onResize);
-
-    if (!reduceMotion) {
-      const loop = () => {
-        t += 0.0025;
-        draw();
-        raf = requestAnimationFrame(loop);
-      };
-      raf = requestAnimationFrame(loop);
-    }
-
-    return () => {
-      window.removeEventListener('resize', onResize);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
-
-  return <canvas ref={canvasRef} className="fixed inset-0 -z-10 pointer-events-none" aria-hidden="true" />;
-}
-
 function FaqItem({ q, a, open, onToggle }: { q: string; a: string; open: boolean; onToggle: () => void }) {
   return (
     <div className="border-b border-white/8 last:border-b-0">
@@ -310,17 +236,8 @@ export default function LandingPage({
   // straight to registration rather than a paid checkout.
   const primaryCtaLabel = trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : landing.ctaPrimaryLabel;
 
-  // `isolate` forces this div to establish its own stacking context, so
-  // TopoBackground's -z-10 canvas is guaranteed to paint above THIS div's
-  // own bg-background fill and below everything else inside it — without
-  // it, whether a negative-z-index descendant renders above or below its
-  // non-stacking-context ancestor's own painted background is genuinely
-  // ambiguous, and was rendering the canvas completely invisible rather
-  // than just faint (reported: "I can't see anything" after deploy, not
-  // "it's too subtle").
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden relative isolate">
-      <TopoBackground />
+    <div className="min-h-screen bg-background overflow-x-hidden relative">
       {/* Ambient glow + grid texture, contained to the hero viewport so it
           doesn't bleed color into the feature/social-proof sections below. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[640px] overflow-hidden">
