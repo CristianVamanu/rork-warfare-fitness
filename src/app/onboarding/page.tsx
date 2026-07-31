@@ -78,29 +78,75 @@ export default function OnboardingPage() {
   );
 }
 
+// Auto-saved so an interrupted quiz (tab closed, connection dropped, app
+// backgrounded) can resume where it left off instead of forcing a full
+// redo — losing everything already answered (including the health
+// screening) is exactly what made an abandoned mid-flow account look like
+// a data-loss bug rather than an incomplete signup. Password/
+// confirmPassword are deliberately never included — a plaintext password
+// has no business sitting in localStorage.
+const ONBOARDING_DRAFT_KEY = 'wf_onboarding_draft';
+
+interface OnboardingDraft {
+  step: number;
+  goal: FitnessGoal | null;
+  experience: ExperienceLevel | null;
+  trainingDays: number | null;
+  equipment: EquipmentType | null;
+  limitations: string;
+  sex: BiologicalSex | null;
+  age: string;
+  heightCm: string;
+  weightKg: string;
+  targetWeightKg: string;
+  medicalHistory: MedicalHistoryAnswers;
+  targetFocus: OnboardingData['targetFocus'] | null;
+  sessionMinutes: OnboardingData['sessionMinutes'] | null;
+  trainingStyle: OnboardingData['trainingStyle'] | null;
+  name: string;
+  email: string;
+}
+
+function loadOnboardingDraft(): Partial<OnboardingDraft> {
+  try {
+    const raw = localStorage.getItem(ONBOARDING_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function clearOnboardingDraft() {
+  try { localStorage.removeItem(ONBOARDING_DRAFT_KEY); } catch { /* ignore */ }
+}
+
 function OnboardingPageInner() {
   const { user, loading: authLoading, refreshProfile } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [step, setStep] = useState(0);
+  // Read once per mount — every field below seeds its initial value from
+  // this instead of each calling localStorage separately.
+  const [draft] = useState(loadOnboardingDraft);
+
+  const [step, setStep] = useState(draft.step ?? 0);
   const [dir, setDir] = useState(1);
-  const [goal, setGoal] = useState<FitnessGoal | null>(null);
-  const [experience, setExperience] = useState<ExperienceLevel | null>(null);
-  const [trainingDays, setTrainingDays] = useState<number | null>(null);
-  const [equipment, setEquipment] = useState<EquipmentType | null>(null);
-  const [limitations, setLimitations] = useState('');
-  const [sex, setSex] = useState<BiologicalSex | null>(null);
-  const [age, setAge] = useState('');
-  const [heightCm, setHeightCm] = useState('');
-  const [weightKg, setWeightKg] = useState('');
-  const [targetWeightKg, setTargetWeightKg] = useState('');
-  const [medicalHistory, setMedicalHistory] = useState<MedicalHistoryAnswers>({});
-  const [targetFocus, setTargetFocus] = useState<OnboardingData['targetFocus'] | null>(null);
-  const [sessionMinutes, setSessionMinutes] = useState<OnboardingData['sessionMinutes'] | null>(null);
-  const [trainingStyle, setTrainingStyle] = useState<OnboardingData['trainingStyle'] | null>(null);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [goal, setGoal] = useState<FitnessGoal | null>(draft.goal ?? null);
+  const [experience, setExperience] = useState<ExperienceLevel | null>(draft.experience ?? null);
+  const [trainingDays, setTrainingDays] = useState<number | null>(draft.trainingDays ?? null);
+  const [equipment, setEquipment] = useState<EquipmentType | null>(draft.equipment ?? null);
+  const [limitations, setLimitations] = useState(draft.limitations ?? '');
+  const [sex, setSex] = useState<BiologicalSex | null>(draft.sex ?? null);
+  const [age, setAge] = useState(draft.age ?? '');
+  const [heightCm, setHeightCm] = useState(draft.heightCm ?? '');
+  const [weightKg, setWeightKg] = useState(draft.weightKg ?? '');
+  const [targetWeightKg, setTargetWeightKg] = useState(draft.targetWeightKg ?? '');
+  const [medicalHistory, setMedicalHistory] = useState<MedicalHistoryAnswers>(draft.medicalHistory ?? {});
+  const [targetFocus, setTargetFocus] = useState<OnboardingData['targetFocus'] | null>(draft.targetFocus ?? null);
+  const [sessionMinutes, setSessionMinutes] = useState<OnboardingData['sessionMinutes'] | null>(draft.sessionMinutes ?? null);
+  const [trainingStyle, setTrainingStyle] = useState<OnboardingData['trainingStyle'] | null>(draft.trainingStyle ?? null);
+  const [name, setName] = useState(draft.name ?? '');
+  const [email, setEmail] = useState(draft.email ?? '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'generating' | 'saving' | 'done'>('idle');
@@ -130,6 +176,21 @@ function OnboardingPageInner() {
   function updateMedical(patch: Partial<MedicalHistoryAnswers>) {
     setMedicalHistory((m) => ({ ...m, ...patch }));
   }
+
+  // Persists every answer as it changes — cheap (localStorage writes are
+  // synchronous and tiny) and means a tab close/crash/lost connection at
+  // any point loses at most the current keystroke, not the whole quiz.
+  // Never includes password/confirmPassword (see loadOnboardingDraft above).
+  useEffect(() => {
+    try {
+      const draftToSave: OnboardingDraft = {
+        step, goal, experience, trainingDays, equipment, limitations,
+        sex, age, heightCm, weightKg, targetWeightKg, medicalHistory,
+        targetFocus, sessionMinutes, trainingStyle, name, email,
+      };
+      localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(draftToSave));
+    } catch { /* ignore — e.g. private browsing storage quota */ }
+  }, [step, goal, experience, trainingDays, equipment, limitations, sex, age, heightCm, weightKg, targetWeightKg, medicalHistory, targetFocus, sessionMinutes, trainingStyle, name, email]);
 
   // Pre-fills sex/age from the landing page's quick-start selector (now
   // mandatory there — see LandingClient.tsx). Visitors who didn't come
@@ -448,6 +509,11 @@ function OnboardingPageInner() {
 
       setStatus('saving');
       await Promise.all([programTask, nutritionTask, saveTask, weightTask]);
+
+      // Everything is safely persisted now (saveTask above just completed) —
+      // the draft has done its job and would otherwise linger and prefill
+      // stale answers if this browser/device ever starts onboarding again.
+      clearOnboardingDraft();
 
       // Refresh profile so layout no longer redirects here, then show the
       // plan reveal — proceedToApp() (triggered by its "Let's Go" button)
