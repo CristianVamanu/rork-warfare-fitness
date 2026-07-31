@@ -6,6 +6,27 @@ import { getSystemConfig } from '@/lib/firestore';
 // reasonably quickly.
 export const revalidate = 3600;
 
+// The admin logo upload accepts any image type (accept="image/*" — JPG,
+// WEBP, GIF, etc.), not just PNG. A manifest icon whose declared `type`
+// doesn't match the actual file's real MIME type can be silently rejected
+// by the browser per the Web App Manifest spec — breaking "Add to Home
+// Screen"'s icon (or PWA installability entirely) for any site where the
+// admin uploaded a non-PNG logo. Both upload paths (Firebase Storage,
+// R2 presign) preserve the original filename/extension in the resulting
+// URL, so it can be recovered from there instead of hardcoding PNG.
+function guessImageMimeType(url: string): string {
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'webp': return 'image/webp';
+    case 'gif': return 'image/gif';
+    case 'svg': return 'image/svg+xml';
+    case 'avif': return 'image/avif';
+    default: return 'image/png';
+  }
+}
+
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const cfg = await getSystemConfig().catch(() => null);
   const name = (cfg?.appName as string) || 'Warfare Fitness';
@@ -13,9 +34,9 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
 
   const icons = logoUrl
     ? [
-        { src: logoUrl, sizes: '192x192', type: 'image/png', purpose: 'any' as const },
-        { src: logoUrl, sizes: '192x192', type: 'image/png', purpose: 'maskable' as const },
-        { src: logoUrl, sizes: '512x512', type: 'image/png' },
+        { src: logoUrl, sizes: '192x192', type: guessImageMimeType(logoUrl), purpose: 'any' as const },
+        { src: logoUrl, sizes: '192x192', type: guessImageMimeType(logoUrl), purpose: 'maskable' as const },
+        { src: logoUrl, sizes: '512x512', type: guessImageMimeType(logoUrl) },
       ]
     : [
         { src: '/icons/icon-72x72.png', sizes: '72x72', type: 'image/png' },
