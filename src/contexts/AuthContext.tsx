@@ -72,34 +72,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const profileUnsubRef = useRef<(() => void) | null>(null);
 
-  const subscribeToProfile = (firebaseUser: User) => {
+  const subscribeToProfile = (firebaseUser: User, retriedAfterAuthError = false) => {
     const uid = firebaseUser.uid;
 
     // Cancel any previous listener
     profileUnsubRef.current?.();
 
-    // Guarantee user doc exists first, then open a real-time listener
-    ensureUserDoc(firebaseUser)
-      .catch((err) => console.error('[Auth] ensureUserDoc failed:', err))
-      .then(() => {
-        // Record login time on every session start — ensureUserDoc only sets
-        // this once (at account creation, via its merge-and-return-early
-        // guard), so it doesn't reflect actual last-login without this.
-        setDoc(doc(db, 'users', uid), { lastLoginAt: serverTimestamp() }, { merge: true }).catch(() => {});
-        const unsub = onSnapshot(
-          doc(db, 'users', uid),
-          (snap) => {
-            if (!snap.exists()) return;
-            const p = snap.data() as UserProfile;
-            setProfile(p);
-            if (p.trainerId) {
-              getTenant(p.trainerId).then(setTenant).catch(console.error);
-            }
-          },
-          (err) => console.error('[Auth] profile listener error:', err),
-        );
-        profileUnsubRef.current = unsub;
-      });
+    // Right after onAuthStateChanged fires with a new user (especially when
+    // switching accounts in the same session), the Firestore SDK's
+    // underlying connection needs a brief moment to actually attach the new
+    // ID token — Firestore requests issued in that window can transiently
+    // fail with permission-denied even though the user IS properly signed
+    // in. Forcing a fresh token here (rather than relying on whatever's
+    // cached) closes most of that gap before the first Firestore call.
+    firebaseUser.getIdToken(true).catch(() => {}).then(() => {
+      // Guarantee user doc exists first, then open a real-time listener
+      ensureUserDoc(firebaseUser)
+        .catch((err) => console.error('[Auth] ensureUserDoc failed:', err))
+        .then(() => {
+          // Record login time on every session start — ensureUserDoc only sets
+          // this once (at account creation, via its merge-and-return-early
+          // guard), so it doesn't reflect actual last-login without this.
+          setDoc(doc(db, 'users', uid), { lastLoginAt: serverTimestamp() }, { merge: true }).catch(() => {});
+          const unsub = onSnapshot(
+            doc(db, 'users', uid),
+            (snap) => {
+              if (!snap.exists()) return;
+              const p = snap.data() as UserProfile;
+              setProfile(p);
+              if (p.trainerId) {
+                getTenant(p.trainerId).then(setTenant).catch(console.error);
+              }
+            },
+            (err) => {
+              console.error('[Auth] profile listener error:', err);
+              // Self-heal from the token-propagation race above instead of
+              // leaving the user stuck on placeholder data until they
+              // manually refresh — one retry, ~1.5s later, is enough once
+              // the token has actually attached.
+              if (!retriedAfterAuthError && err.code === 'permission-denied') {
+                setTimeout(() => subscribeToProfile(firebaseUser, true), 1500);
+              }
+            },
+          );
+          profileUnsubRef.current = unsub;
+        });
+    });
 
     // Non-blocking stats migration
     checkAndRunMigration(uid).catch(console.error);
