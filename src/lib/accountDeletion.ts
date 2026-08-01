@@ -74,18 +74,24 @@ export interface DeletionSummary {
 export async function deleteUserCompletely(app: App, db: Firestore, uid: string): Promise<DeletionSummary> {
   let firestoreDocsDeleted = 0;
 
-  // Cancel any live Stripe subscription BEFORE wiping the user doc — once
-  // deleted, the app has no record of stripeSubscriptionId and no way to
-  // stop future billing, so a self-deleted (or admin-removed) user with an
-  // active membership would otherwise keep getting charged indefinitely
-  // with no account left to dispute it from.
+  // Cancel every live Stripe subscription BEFORE wiping the user doc — once
+  // deleted, the app has no record of any stripeSubscriptionId and no way
+  // to stop future billing, so a self-deleted (or admin-removed) user would
+  // otherwise keep getting charged indefinitely with no account left to
+  // dispute it from. membership and coaching are separate subscriptions —
+  // a user can hold both at once — so both need to be cancelled, not just
+  // whichever one happens to be checked.
   try {
     const userSnap = await db.collection('users').doc(uid).get();
-    const subId = userSnap.data()?.membership?.stripeSubscriptionId as string | undefined;
-    if (subId) {
+    const membershipSubId = userSnap.data()?.membership?.stripeSubscriptionId as string | undefined;
+    const coachingSubId = userSnap.data()?.coaching?.stripeSubscriptionId as string | undefined;
+    const subIds = Array.from(new Set([membershipSubId, coachingSubId].filter((id): id is string => !!id)));
+    if (subIds.length > 0) {
       const stripe = await getStripe();
-      await stripe.subscriptions.cancel(subId);
-      console.log(`[accountDeletion] Cancelled Stripe subscription ${subId} for user ${uid}`);
+      for (const subId of subIds) {
+        await stripe.subscriptions.cancel(subId);
+        console.log(`[accountDeletion] Cancelled Stripe subscription ${subId} for user ${uid}`);
+      }
     }
   } catch (err) {
     // Non-fatal but logged loudly — an already-cancelled/missing subscription

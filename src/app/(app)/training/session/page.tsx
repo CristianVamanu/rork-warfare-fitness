@@ -1172,7 +1172,7 @@ function WorkoutSessionPageInner() {
       .then((cfg) => setDayLimit(getProgramDayLimit(cfg, profile)))
       .catch(() => setDayLimit(Infinity));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.membership?.status]);
+  }, [profile?.membership?.status, profile?.coaching?.status]);
   const lastCompletedDayIndex = profile?.activeProgram?.lastCompletedDayIndex;
   // Never locks a repeat of a day already completed — only new progress
   // past the trial's day limit is gated.

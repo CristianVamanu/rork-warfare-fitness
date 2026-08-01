@@ -160,25 +160,30 @@ export default function ProfilePage() {
     }
   };
 
-  const handleCancelMembership = async () => {
+  // membership and coaching are two independent Stripe subscriptions a
+  // user can hold at once — cancelling one must never touch the other, so
+  // which one is explicit rather than assumed.
+  const handleCancelSubscription = async (kind: 'membership' | 'coaching') => {
     if (!user) return;
-    if (!confirm('Cancel your membership? You will keep access until the end of your current billing period.')) return;
+    const label = kind === 'coaching' ? '1:1 coaching' : 'membership';
+    if (!confirm(`Cancel your ${label}? You will keep access until the end of your current billing period.`)) return;
     setCancelling(true);
     try {
       const token = await user.getIdToken();
       const res = await fetch('/api/stripe/cancel-subscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ kind }),
       });
       const data = await res.json() as { ok?: boolean; error?: string };
       if (data.ok) {
-        toast.success('Membership cancelled — access continues until your billing period ends');
+        toast.success(`${kind === 'coaching' ? 'Coaching' : 'Membership'} cancelled — access continues until your billing period ends`);
         await refreshProfile();
       } else {
-        toast.error(data.error ?? 'Failed to cancel membership');
+        toast.error(data.error ?? `Failed to cancel ${label}`);
       }
     } catch {
-      toast.error('Failed to cancel membership');
+      toast.error(`Failed to cancel ${label}`);
     } finally {
       setCancelling(false);
     }
@@ -358,7 +363,7 @@ export default function ProfilePage() {
                                 {expiresAt ? `Renews ${expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Active'}
                               </p>
                             </div>
-                            <Button size="sm" variant="ghost" fullWidth onClick={handleCancelMembership} loading={cancelling}>
+                            <Button size="sm" variant="ghost" fullWidth onClick={() => handleCancelSubscription('membership')} loading={cancelling}>
                               Cancel Membership
                             </Button>
                           </>
@@ -381,7 +386,7 @@ export default function ProfilePage() {
               })}
 
               {coachingPlans.map((plan) => {
-                const isCurrentPlan = profile?.membership?.status === 'active' && profile?.membership?.planId === plan.id;
+                const isCurrentPlan = profile?.coaching?.status === 'active' && profile?.coaching?.planId === plan.id;
                 return (
                   <div key={plan.id} className={`relative rounded-2xl border-2 p-5 ${isCurrentPlan ? 'border-accent bg-accent/[0.03]' : 'border-white/10 bg-surface'}`}>
                     {isCurrentPlan && (
@@ -423,9 +428,20 @@ export default function ProfilePage() {
 
                     <div className="mt-5">
                       {isCurrentPlan ? (
-                        <div className="text-center py-2 bg-success/10 border border-success/20 rounded-xl">
-                          <p className="text-xs text-success font-medium">Active</p>
-                        </div>
+                        profile?.coaching?.cancelAtPeriodEnd ? (
+                          <p className="text-xs text-text-tertiary text-center py-2">
+                            Cancelled — access continues until the end of your billing period.
+                          </p>
+                        ) : (
+                          <>
+                            <div className="text-center py-2 mb-2 bg-success/10 border border-success/20 rounded-xl">
+                              <p className="text-xs text-success font-medium">Active</p>
+                            </div>
+                            <Button size="sm" variant="ghost" fullWidth onClick={() => handleCancelSubscription('coaching')} loading={cancelling}>
+                              Cancel Coaching
+                            </Button>
+                          </>
+                        )
                       ) : coachingApplication?.planId === plan.id && coachingApplication.status === 'pending' ? (
                         <div className="text-center py-2.5 bg-yellow-400/10 border border-yellow-400/20 rounded-xl">
                           <p className="text-xs text-yellow-400 font-medium">Application under review — we&apos;ll notify you soon</p>

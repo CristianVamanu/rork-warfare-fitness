@@ -30,7 +30,12 @@ export async function POST(req: NextRequest) {
 
     const db = getAdminDb(app);
     const userSnap = await db.collection('users').doc(uid).get();
-    const subId = userSnap.data()?.membership?.stripeSubscriptionId as string | undefined;
+    // Falls back to the coaching subscription if there's no membership one
+    // — either is enough to look up the shared Stripe Customer, and
+    // Stripe's own portal lists every subscription on that customer, not
+    // just the one used to find them (so a coaching-only user still sees
+    // and can manage their subscription here, not just a membership one).
+    const subId = (userSnap.data()?.membership?.stripeSubscriptionId ?? userSnap.data()?.coaching?.stripeSubscriptionId) as string | undefined;
     if (!subId) return NextResponse.json({ error: 'No active subscription found' }, { status: 400 });
 
     const stripe = await getStripe();

@@ -159,7 +159,7 @@ export default function ProgramDetailPage() {
   };
 
   const hasPurchased = !!(program?.id && profile?.purchasedProgramIds?.includes(program.id));
-  const hasMembership = profile?.membership?.status === 'active';
+  const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
   const needsPurchase = !!program?.price && program.price > 0 && !hasPurchased && !hasMembership;
 
   const handleBuyProgram = async () => {

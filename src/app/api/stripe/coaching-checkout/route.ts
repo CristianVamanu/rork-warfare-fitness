@@ -63,9 +63,9 @@ export async function POST(req: NextRequest) {
       ],
       ...(discounts ? { discounts } : { allow_promotion_codes: true }),
       subscription_data: {
-        metadata: { userId, planId, planName: plan.name },
+        metadata: { userId, planId, planName: plan.name, kind: 'coaching' },
       },
-      metadata: { userId, planId, planName: plan.name },
+      metadata: { userId, planId, planName: plan.name, kind: 'coaching' },
       success_url: `${appUrl}/profile?subscribed=coaching`,
       cancel_url: `${appUrl}/profile`,
     });

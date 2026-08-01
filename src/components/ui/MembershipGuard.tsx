@@ -41,7 +41,9 @@ export function MembershipGuard({ pathname, children }: Props) {
   if (profile?.role === 'admin' || profile?.role === 'trainer') return <>{children}</>;
 
   // Check if user has active membership
-  const hasMembership = profile?.membership?.status === 'active';
+  // Active coaching is a higher-priced add-on tier, not an alternative to
+  // membership — it grants at least everything a regular membership does.
+  const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
 
   // Check free trial
   const trialDays = config?.trialDays ?? 0;

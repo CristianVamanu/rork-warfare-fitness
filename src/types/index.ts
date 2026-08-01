@@ -215,7 +215,23 @@ export interface UserProfile {
     status: 'active' | 'none';
     expiresAt?: unknown;
     grantedBy?: string;
-    planId?: string;    // coaching plan ID if on a specific plan
+    planId?: string;
+    planName?: string;
+    stripeSubscriptionId?: string;
+    cancelAtPeriodEnd?: boolean;
+  };
+  // Separate from `membership` — a user can hold both an active membership
+  // plan AND an active 1:1 coaching plan simultaneously (coaching is a paid
+  // add-on tier, not a replacement). They're two independent Stripe
+  // subscriptions; tracking them in one shared field meant buying the
+  // second one silently overwrote the first's subscription ID, making it
+  // impossible to cancel through the app and — worse — un-cancelable by
+  // account deletion too, leaving an orphaned subscription still billing
+  // a deleted account's card indefinitely.
+  coaching?: {
+    status: 'active' | 'none';
+    expiresAt?: unknown;
+    planId?: string;
     planName?: string;
     stripeSubscriptionId?: string;
     cancelAtPeriodEnd?: boolean;

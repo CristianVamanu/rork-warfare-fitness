@@ -107,9 +107,9 @@ export async function POST(req: NextRequest) {
       ...(discounts ? { discounts } : { allow_promotion_codes: true }),
       subscription_data: {
         ...(trialEnd ? { trial_end: trialEnd } : {}),
-        metadata: { userId, planId, planName: plan.name, periodMonths: String(months) },
+        metadata: { userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership' },
       },
-      metadata: { userId, planId, planName: plan.name, periodMonths: String(months) },
+      metadata: { userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership' },
       success_url: `${appUrl}/profile?subscribed=1`,
       cancel_url: `${appUrl}/profile`,
     });

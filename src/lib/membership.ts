@@ -17,10 +17,13 @@ import type { MembershipConfig, UserProfile } from '@/types';
  */
 export function getProgramDayLimit(
   config: MembershipConfig | null,
-  profile: Pick<UserProfile, 'membership'> | null | undefined
+  profile: Pick<UserProfile, 'membership' | 'coaching'> | null | undefined
 ): number {
   if (!config || !config.enabled) return Infinity;
-  if (profile?.membership?.status === 'active') return Infinity;
+  // 1:1 coaching is a higher-priced add-on tier, not an alternative to a
+  // regular membership — an active coaching subscriber gets at least
+  // everything a regular member gets.
+  if (profile?.membership?.status === 'active' || profile?.coaching?.status === 'active') return Infinity;
   const trialDays = config.trialDays ?? 0;
   return trialDays > 0 ? trialDays : Infinity;
 }

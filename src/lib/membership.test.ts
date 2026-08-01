@@ -13,9 +13,9 @@ const config = (overrides: Partial<MembershipConfig> = {}): MembershipConfig => 
   ...overrides,
 });
 
-const profile = (overrides: Partial<Pick<UserProfile, 'membership'>> = {}) => ({
+const profile = (overrides: Partial<Pick<UserProfile, 'membership' | 'coaching'>> = {}) => ({
   ...overrides,
-}) as Pick<UserProfile, 'membership'>;
+}) as Pick<UserProfile, 'membership' | 'coaching'>;
 
 describe('getProgramDayLimit', () => {
   it('is unlimited when membership config is disabled or missing', () => {
@@ -46,5 +46,13 @@ describe('getProgramDayLimit', () => {
 
   it('is unaffected by membership.status being anything other than active', () => {
     expect(getProgramDayLimit(config({ trialDays: 7 }), profile({ membership: { status: 'none' } }))).toBe(7);
+  });
+
+  it('is unlimited for an active coaching subscriber even with no membership plan', () => {
+    // membership and coaching are separate Stripe subscriptions a user can
+    // hold independently — coaching is a higher tier, not an alternative,
+    // so it must grant at least what a regular membership grants.
+    const p = profile({ coaching: { status: 'active' } });
+    expect(getProgramDayLimit(config({ trialDays: 7 }), p)).toBe(Infinity);
   });
 });

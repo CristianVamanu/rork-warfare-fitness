@@ -44,7 +44,9 @@ export function PaywallGate({ feature, programId, children }: Props) {
 
   if (!loaded) return null;
 
-  const hasMembership = profile?.membership?.status === 'active';
+  // Active coaching is a higher-priced add-on tier, not an alternative to
+  // membership — it grants at least everything a regular membership does.
+  const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
 
   // Check free trial: if user joined within trialDays, treat as member —
   // full access to every feature regardless of plan, no exceptions.

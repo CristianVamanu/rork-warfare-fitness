@@ -52,6 +52,7 @@ service cloud.firestore {
     function activeProgramWriteAllowed() {
       return !('activeProgram' in request.resource.data.diff(resource.data).affectedKeys())
         || resource.data.get('membership', {}).get('status', 'none') == 'active'
+        || resource.data.get('coaching', {}).get('status', 'none') == 'active'
         || request.resource.data.activeProgram.get('lastCompletedDayIndex', -1) < trialDayLimit();
     }
 
@@ -103,20 +104,22 @@ service cloud.firestore {
       allow create: if isAuthed() && uid() == userId
         && (request.resource.data.role == 'user' || (request.resource.data.role == 'admin' && installerNotDone()))
         && !('membership' in request.resource.data)
+        && !('coaching' in request.resource.data)
         && !('purchasedProgramIds' in request.resource.data)
         && !('banned' in request.resource.data)
         && !('prBan' in request.resource.data);
       // Self-updates may touch their own profile/preferences/stats, but never
-      // the privileged fields below — role, membership, and purchase state
-      // are only ever meant to change via the Stripe webhook / admin SDK
-      // (server-side, bypassing rules) or an admin action here. Without this
-      // allow-list a signed-in user could call updateDoc() directly from the
-      // client and grant themselves admin or an active paid membership.
+      // the privileged fields below — role, membership/coaching, and purchase
+      // state are only ever meant to change via the Stripe webhook / admin
+      // SDK (server-side, bypassing rules) or an admin action here. Without
+      // this allow-list a signed-in user could call updateDoc() directly
+      // from the client and grant themselves admin or an active paid
+      // membership/coaching subscription for free.
       allow update: if isAuthed() && (
         isAdmin() ||
         (uid() == userId &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-            ['role', 'membership', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan']
+            ['role', 'membership', 'coaching', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan']
           ) &&
           activeProgramWriteAllowed())
       );

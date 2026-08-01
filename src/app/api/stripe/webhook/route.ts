@@ -22,8 +22,22 @@ function subscriptionPeriodEnd(sub: Stripe.Subscription): Date | undefined {
   return periodEnd ? new Date(periodEnd * 1000) : undefined;
 }
 
-async function setMembershipStatus(
+// 'membership' (a regular subscription plan) and 'coaching' (the 1:1
+// add-on tier) are tracked in SEPARATE Firestore fields — a user can hold
+// both simultaneously, as two independent Stripe subscriptions. They used
+// to share one field, so buying the second while already holding the
+// first silently overwrote the first's tracked subscription ID, making it
+// un-cancelable through the app (and un-cancelable by account deletion,
+// leaving it billing a deleted account's card forever).
+type SubscriptionField = 'membership' | 'coaching';
+
+function fieldFromMetadata(metadata: Stripe.Metadata | null | undefined): SubscriptionField {
+  return metadata?.kind === 'coaching' ? 'coaching' : 'membership';
+}
+
+async function setSubscriptionStatus(
   userId: string,
+  field: SubscriptionField,
   status: 'active' | 'none',
   expiresAt?: Date,
   planId?: string,
@@ -34,14 +48,14 @@ async function setMembershipStatus(
   const db = getAdminDb();
   if (!db) { console.error('[Stripe webhook] Admin DB not available'); return; }
   await db.collection('users').doc(userId).update({
-    'membership.status': status,
-    'membership.updatedAt': FieldValue.serverTimestamp(),
-    ...(expiresAt ? { 'membership.expiresAt': expiresAt } : {}),
-    ...(planId ? { 'membership.planId': planId, 'membership.planName': planName ?? '' } : {}),
-    ...(subscriptionId ? { 'membership.stripeSubscriptionId': subscriptionId } : {}),
-    ...(cancelAtPeriodEnd !== undefined ? { 'membership.cancelAtPeriodEnd': cancelAtPeriodEnd } : {}),
+    [`${field}.status`]: status,
+    [`${field}.updatedAt`]: FieldValue.serverTimestamp(),
+    ...(expiresAt ? { [`${field}.expiresAt`]: expiresAt } : {}),
+    ...(planId ? { [`${field}.planId`]: planId, [`${field}.planName`]: planName ?? '' } : {}),
+    ...(subscriptionId ? { [`${field}.stripeSubscriptionId`]: subscriptionId } : {}),
+    ...(cancelAtPeriodEnd !== undefined ? { [`${field}.cancelAtPeriodEnd`]: cancelAtPeriodEnd } : {}),
   });
-  console.log(`[Stripe webhook] User ${userId} membership → ${status}${planId ? ` (plan: ${planId})` : ''}`);
+  console.log(`[Stripe webhook] User ${userId} ${field} → ${status}${planId ? ` (plan: ${planId})` : ''}`);
 }
 
 export async function POST(req: NextRequest) {
@@ -93,7 +107,7 @@ export async function POST(req: NextRequest) {
           }
           const planId = session.metadata?.planId;
           const planName = session.metadata?.planName;
-          await setMembershipStatus(userId, 'active', expiresAt, planId, planName, subId ?? undefined, false);
+          await setSubscriptionStatus(userId, fieldFromMetadata(session.metadata), 'active', expiresAt, planId, planName, subId ?? undefined, false);
         }
         break;
       }
@@ -109,7 +123,7 @@ export async function POST(req: NextRequest) {
         const expiresAt = subscriptionPeriodEnd(sub);
         const planId = sub.metadata?.planId;
         const planName = sub.metadata?.planName;
-        await setMembershipStatus(userId, active ? 'active' : 'none', expiresAt, planId, planName, sub.id, sub.cancel_at_period_end);
+        await setSubscriptionStatus(userId, fieldFromMetadata(sub.metadata), active ? 'active' : 'none', expiresAt, planId, planName, sub.id, sub.cancel_at_period_end);
         break;
       }
 
@@ -118,7 +132,7 @@ export async function POST(req: NextRequest) {
         const sub = event.data.object as Stripe.Subscription;
         const userId = sub.metadata?.userId;
         if (!userId) { console.warn('[Stripe webhook] subscription.deleted: no userId in metadata'); break; }
-        await setMembershipStatus(userId, 'none');
+        await setSubscriptionStatus(userId, fieldFromMetadata(sub.metadata), 'none');
         break;
       }
 
@@ -203,8 +217,9 @@ export async function POST(req: NextRequest) {
             const sub = await stripe.subscriptions.retrieve(subId);
             const userId = sub.metadata?.userId;
             if (userId) {
-              await setMembershipStatus(userId, 'none');
-              console.log(`[Stripe webhook] Revoked membership for user ${userId} (${event.type})`);
+              const field = fieldFromMetadata(sub.metadata);
+              await setSubscriptionStatus(userId, field, 'none');
+              console.log(`[Stripe webhook] Revoked ${field} for user ${userId} (${event.type})`);
             }
           }
         }
