@@ -1001,6 +1001,14 @@ export async function hideMockProgram(id: string) {
   }
 }
 
+export async function unhideMockProgram(id: string) {
+  const snap = await getDoc(doc(db, 'config', 'hiddenMocks'));
+  const ids: string[] = snap.exists() ? (snap.data().ids ?? []) : [];
+  if (ids.includes(id)) {
+    await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: ids.filter((x) => x !== id) }, { merge: true });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Membership configuration — stored at config/membership
 // ---------------------------------------------------------------------------

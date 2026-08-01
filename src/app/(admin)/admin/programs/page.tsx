@@ -7,7 +7,7 @@ import { Plus, Edit2, Trash2, Users, Sparkles, ChevronLeft, Dumbbell, Crown, Ste
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, updateProgram } from '@/lib/firestore';
+import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, unhideMockProgram, updateProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -38,6 +38,8 @@ export default function ProgramsPage() {
   const [publishing, setPublishing] = useState<string | null>(null);
   const [healthChecking, setHealthChecking] = useState(false);
   const [healthResult, setHealthResult] = useState<{ programsChecked: number; librarySize: number; findings: HealthFinding[] } | null>(null);
+  const [hiddenMockIds, setHiddenMockIds] = useState<string[]>([]);
+  const [restoring, setRestoring] = useState<string | null>(null);
 
   async function runHealthCheck() {
     if (!user) return;
@@ -69,9 +71,25 @@ export default function ProgramsPage() {
       const hidden = new Set(hiddenIds as string[]);
       const mocks = MOCK_PROGRAMS.filter(p => !fpIds.has(p.id) && !hidden.has(p.id)).map(p => ({ ...p, _mock: true }));
       setPrograms([...firestoreProgs, ...mocks]);
+      // A hidden mock id can be stale (the Firestore doc it once pointed to
+      // may since have been deleted) — only offer to restore ones that
+      // aren't already showing some other way, i.e. still actually hidden.
+      setHiddenMockIds((hiddenIds as string[]).filter((id) => !fpIds.has(id)));
       setUsers((u as UserRow[]).filter((x: UserRow & { role?: string }) => x.role !== 'admin'));
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
+
+  async function handleRestoreMock(id: string) {
+    setRestoring(id);
+    try {
+      await unhideMockProgram(id);
+      const mock = MOCK_PROGRAMS.find((p) => p.id === id);
+      if (mock) setPrograms((prev) => [...prev, { ...mock, _mock: true }]);
+      setHiddenMockIds((prev) => prev.filter((x) => x !== id));
+      toast.success('Restored');
+    } catch { toast.error('Failed to restore'); }
+    finally { setRestoring(null); }
+  }
 
   async function handleSetPrice(p: Program & { _mock?: boolean }, price: number) {
     if (p._mock) { toast.error('Built-in programs cannot be priced — click Edit and save it first to make it a real program.'); return; }
@@ -291,6 +309,28 @@ export default function ProgramsPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {hiddenMockIds.length > 0 && (
+        <Card className="p-4 mt-4">
+          <p className="text-sm font-bold text-white mb-1">Hidden Built-in Programs</p>
+          <p className="text-xs text-text-secondary mb-3">
+            Deleted from this list before. They still exist in the app’s code — restore one to bring it back.
+          </p>
+          <div className="space-y-2">
+            {hiddenMockIds.map((id) => {
+              const mock = MOCK_PROGRAMS.find((p) => p.id === id);
+              return (
+                <div key={id} className="flex items-center justify-between gap-2 py-1.5">
+                  <span className="text-sm text-white">{mock?.name ?? id}</span>
+                  <Button size="sm" variant="secondary" onClick={() => handleRestoreMock(id)} loading={restoring === id}>
+                    Restore
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       )}
 
       {/* Assign modal */}
