@@ -18,7 +18,7 @@ import { extractVideoThumbnail, extractVideoThumbnailFromUrl } from '@/lib/video
 import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_B2B_TERMS } from '@/lib/legalDefaults';
 import {
   getSystemConfig, setSystemConfig,
-  getAllUsers,
+  getAllUsers, setUserRole, setUserTrainer,
   getAdminConversations, getOrCreateConversation, getMessages, sendMessage, markConversationRead, deleteConversation,
   getMembershipConfig, saveMembershipConfig,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
@@ -146,6 +146,7 @@ interface UserData {
   displayName?: string;
   email?: string;
   role?: string;
+  trainerId?: string | null;
   banned?: boolean;
   statsCache?: { totalWorkouts?: number; streak?: number };
   stats?: { totalWorkouts?: number };
@@ -238,6 +239,8 @@ function AdminPageInner() {
   const [membershipLoading, setMembershipLoading] = useState(false);
   const [savingMembership, setSavingMembership] = useState(false);
   const [togglingMember, setTogglingMember] = useState<string | null>(null);
+  const [changingRole, setChangingRole] = useState<string | null>(null);
+  const [assigningTrainer, setAssigningTrainer] = useState<string | null>(null);
 
   // ── Membership plans state (multiple, fully admin-editable pricing tiers) ──
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
@@ -995,6 +998,27 @@ function AdminPageInner() {
     } finally { setTogglingMember(null); }
   }
 
+  async function handleSetRole(u: UserData, role: 'user' | 'trainer') {
+    if (!user || u.id === user.uid) return; // can't change your own role — avoids locking yourself out of /admin
+    setChangingRole(u.id);
+    try {
+      await setUserRole(u.id, role);
+      toast.success(`${u.displayName || 'User'} is now ${role === 'trainer' ? 'a trainer' : 'a regular user'}`);
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, role, ...(role === 'trainer' ? { trainerId: null } : {}) } : x));
+    } catch { toast.error('Failed to update role'); }
+    finally { setChangingRole(null); }
+  }
+
+  async function handleAssignTrainer(u: UserData, trainerId: string) {
+    setAssigningTrainer(u.id);
+    try {
+      await setUserTrainer(u.id, trainerId || null);
+      toast.success(trainerId ? `Assigned to trainer` : 'Unassigned from trainer');
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, trainerId: trainerId || null } : x));
+    } catch { toast.error('Failed to assign trainer'); }
+    finally { setAssigningTrainer(null); }
+  }
+
   function toggleLockedFeature(f: string) {
     setMembership(m => ({
       ...m,
@@ -1536,6 +1560,7 @@ function AdminPageInner() {
 
   const stripeConfigured = secretStatuses.find(s => s.key === 'STRIPE_SECRET_KEY')?.configured ?? false;
   const clients = users.filter(u => u.role !== 'admin');
+  const trainers = users.filter(u => u.role === 'trainer');
 
   // Exports the currently-loaded client list as a CSV — client-side only,
   // no new API surface, since the admin panel already has this exact data
@@ -2771,6 +2796,31 @@ function AdminPageInner() {
                           )}
                         </div>
                       )}
+                      <div className="flex items-center gap-2 pl-11">
+                        <Badge variant={u.role === 'trainer' ? 'accent' : 'muted'}>{u.role === 'trainer' ? 'Trainer' : 'User'}</Badge>
+                        {u.id !== user?.uid && (
+                          <button
+                            onClick={() => handleSetRole(u, u.role === 'trainer' ? 'user' : 'trainer')}
+                            disabled={changingRole === u.id}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors whitespace-nowrap"
+                          >
+                            {changingRole === u.id ? '…' : u.role === 'trainer' ? 'Demote to User' : 'Make Trainer'}
+                          </button>
+                        )}
+                        {u.role !== 'trainer' && trainers.length > 0 && (
+                          <select
+                            className="flex-1 bg-surface border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent/50"
+                            value={u.trainerId || ''}
+                            disabled={assigningTrainer === u.id}
+                            onChange={(e) => handleAssignTrainer(u, e.target.value)}
+                          >
+                            <option value="">No trainer assigned</option>
+                            {trainers.map((t) => (
+                              <option key={t.id} value={t.id}>{t.displayName || t.email}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

@@ -980,6 +980,20 @@ export async function getAllUsers() {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+// Admin-only writes — 'role' and 'trainerId' are both in the restricted-
+// fields list a regular user can't touch on their own doc, but the same
+// firestore.rules update rule lets isAdmin() write anything, so these are
+// plain client-side writes rather than a server route (unlike
+// set-membership, which additionally needs to cancel a Stripe
+// subscription — nothing here needs Admin SDK access).
+export async function setUserRole(userId: string, role: 'user' | 'trainer' | 'admin') {
+  await updateDoc(doc(db, 'users', userId), { role });
+}
+
+export async function setUserTrainer(userId: string, trainerId: string | null) {
+  await updateDoc(doc(db, 'users', userId), { trainerId });
+}
+
 export async function getAllPrograms() {
   const snap = await getDocs(collection(db, 'programs'));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
