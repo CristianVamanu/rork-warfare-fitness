@@ -7,7 +7,7 @@ import { Plus, Edit2, Trash2, Users, Sparkles, ChevronLeft, Dumbbell, Crown, Ste
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, unhideMockProgram, updateProgram } from '@/lib/firestore';
+import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, unhideMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -91,20 +91,35 @@ export default function ProgramsPage() {
     finally { setRestoring(null); }
   }
 
+  // Toggling premium/price on a built-in (mock) program promotes it to a
+  // real Firestore doc in the same step — writing the mock's full content
+  // plus the one changed field, via upsertProgram (merge:true, creates the
+  // doc if it doesn't exist). No separate "edit and save it first" step;
+  // the icon itself is the promotion action.
   async function handleSetPrice(p: Program & { _mock?: boolean }, price: number) {
-    if (p._mock) { toast.error('Built-in programs cannot be priced — click Edit and save it first to make it a real program.'); return; }
     try {
-      await updateProgram(p.id, { price });
-      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, price } : x));
+      if (p._mock) {
+        const { _mock, ...data } = p;
+        void _mock;
+        await upsertProgram(p.id, { ...data, price });
+      } else {
+        await updateProgram(p.id, { price });
+      }
+      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, price, _mock: false } : x));
       toast.success(price > 0 ? `Price set to $${price.toFixed(2)}` : 'Price removed');
     } catch { toast.error('Failed to update price'); }
   }
 
   async function handleTogglePremium(p: Program & { _mock?: boolean }) {
-    if (p._mock) { toast.error('Built-in programs cannot be toggled — click Edit and save it first to make it a real program.'); return; }
     try {
-      await updateProgram(p.id, { isPremium: !p.isPremium });
-      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPremium: !x.isPremium } : x));
+      if (p._mock) {
+        const { _mock, ...data } = p;
+        void _mock;
+        await upsertProgram(p.id, { ...data, isPremium: !p.isPremium });
+      } else {
+        await updateProgram(p.id, { isPremium: !p.isPremium });
+      }
+      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPremium: !x.isPremium, _mock: false } : x));
       toast.success(p.isPremium ? 'Set to Free' : 'Set to Premium');
     } catch { toast.error('Failed to update'); }
   }
@@ -246,27 +261,25 @@ export default function ProgramsPage() {
                     <span className="text-xs text-text-tertiary">{p.weeks}w · {p.daysPerWeek}d/wk</span>
                   </div>
                   {p.description && <p className="text-xs text-text-secondary mt-1.5 line-clamp-1">{p.description}</p>}
-                  {!(p as { _mock?: boolean })._mock && (
-                    <div className="flex items-center gap-1.5 mt-2">
-                      <span className="text-xs text-text-tertiary">One-time price:</span>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary text-xs">$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          defaultValue={p.price || ''}
-                          placeholder="0"
-                          onBlur={(e) => {
-                            const v = parseFloat(e.target.value) || 0;
-                            if (v !== (p.price || 0)) handleSetPrice(p, v);
-                          }}
-                          className="w-20 bg-surface border border-white/10 rounded-lg pl-4 pr-1.5 py-1 text-xs text-white focus:outline-none focus:border-accent/50"
-                        />
-                      </div>
-                      <span className="text-xs text-text-tertiary">(optional — lets clients buy this program without full membership)</span>
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <span className="text-xs text-text-tertiary">One-time price:</span>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary text-xs">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue={p.price || ''}
+                        placeholder="0"
+                        onBlur={(e) => {
+                          const v = parseFloat(e.target.value) || 0;
+                          if (v !== (p.price || 0)) handleSetPrice(p, v);
+                        }}
+                        className="w-20 bg-surface border border-white/10 rounded-lg pl-4 pr-1.5 py-1 text-xs text-white focus:outline-none focus:border-accent/50"
+                      />
                     </div>
-                  )}
+                    <span className="text-xs text-text-tertiary">(optional — lets clients buy this program without full membership)</span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {!(p as { _mock?: boolean })._mock && !p.isPublic && p.visibility !== 'coaching' && p.visibility !== 'public' && (
@@ -274,15 +287,13 @@ export default function ProgramsPage() {
                       Publish
                     </Button>
                   )}
-                  {!(p as { _mock?: boolean })._mock && (
-                    <button
-                      onClick={() => handleTogglePremium(p)}
-                      title={p.isPremium ? 'Set Free' : 'Set Premium'}
-                      className={`p-2 rounded-lg transition-colors ${p.isPremium ? 'text-yellow-400 hover:bg-yellow-400/10' : 'text-text-secondary hover:text-yellow-400 hover:bg-yellow-400/10'}`}
-                    >
-                      <Crown className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleTogglePremium(p)}
+                    title={p.isPremium ? 'Set Free' : 'Set Premium'}
+                    className={`p-2 rounded-lg transition-colors ${p.isPremium ? 'text-yellow-400 hover:bg-yellow-400/10' : 'text-text-secondary hover:text-yellow-400 hover:bg-yellow-400/10'}`}
+                  >
+                    <Crown className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => setAssignModal(p)}
                     title="Assign to client"
