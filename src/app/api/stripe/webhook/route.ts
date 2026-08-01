@@ -96,18 +96,28 @@ export async function POST(req: NextRequest) {
         }
 
         // For subscription mode, activation is confirmed via subscription.updated below.
-        // But also activate here in case the subscription event fires first.
+        // But also activate here in case the subscription event fires first —
+        // only once the subscription itself is actually active/trialing,
+        // never just because mode is 'subscription'. `session.mode ===
+        // 'subscription'` alone doesn't mean payment succeeded: a delayed
+        // or failed initial charge (e.g. 3DS/SCA still pending) can still
+        // fire checkout.session.completed with an incomplete subscription,
+        // which would otherwise grant membership ahead of actual payment.
         if (session.payment_status === 'paid' || session.mode === 'subscription') {
           const stripe = await getStripe();
           const subId = session.subscription as string | null;
           let expiresAt: Date | undefined;
+          let subActive = session.payment_status === 'paid';
           if (subId) {
             const sub = await stripe.subscriptions.retrieve(subId);
             expiresAt = subscriptionPeriodEnd(sub);
+            subActive = subActive || sub.status === 'active' || sub.status === 'trialing';
           }
-          const planId = session.metadata?.planId;
-          const planName = session.metadata?.planName;
-          await setSubscriptionStatus(userId, fieldFromMetadata(session.metadata), 'active', expiresAt, planId, planName, subId ?? undefined, false);
+          if (subActive) {
+            const planId = session.metadata?.planId;
+            const planName = session.metadata?.planName;
+            await setSubscriptionStatus(userId, fieldFromMetadata(session.metadata), 'active', expiresAt, planId, planName, subId ?? undefined, false);
+          }
         }
         break;
       }

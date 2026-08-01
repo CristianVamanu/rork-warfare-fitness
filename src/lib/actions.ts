@@ -166,10 +166,14 @@ export async function completeWorkout(
       // Non-critical; background recompute will self-correct
     });
 
-    // Check achievements after updating power level
+    // Check achievements after updating power level — use newStreak (the
+    // value just computed for this workout), not the pre-workout `streak`,
+    // otherwise a streak-gated achievement/quest (e.g. "5 days in a row")
+    // only fires a day late, once today's newStreak becomes tomorrow's
+    // stale `streak` read.
     newAchievements = await checkAndAwardAchievements(userId, {
       totalWorkouts,
-      streak,
+      streak: newStreak,
       powerLevel: newPowerLevel,
       workoutHour,
       isWeekend,
@@ -180,7 +184,7 @@ export async function completeWorkout(
     const totalMealsLogged = (data.stats as Record<string, number> | undefined)?.totalMealsLogged ?? 0;
     newQuests = await checkAndAwardQuests(userId, {
       totalWorkouts,
-      streak,
+      streak: newStreak,
       powerLevel: newPowerLevel,
       totalWeightLifted: prevTotalWeightLifted + totalWeightLifted,
       totalMealsLogged,

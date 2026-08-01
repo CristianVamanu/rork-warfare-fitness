@@ -44,6 +44,16 @@ export async function POST(req: NextRequest) {
     const plan = plans.find((p) => p.id === planId && p.active);
     if (!plan) return NextResponse.json({ error: 'Plan not found or inactive' }, { status: 404 });
 
+    // Reject a second checkout attempt while one is already active — with
+    // nothing checking for an existing subscription, a double-click or a
+    // retry on a slow connection could each create their own Stripe
+    // Checkout Session, and if the user completed both, two separate
+    // subscriptions would get created for the same plan.
+    const userSnap = await db.collection('users').doc(userId).get();
+    if (userSnap.data()?.membership?.status === 'active') {
+      return NextResponse.json({ error: 'You already have an active membership.' }, { status: 400 });
+    }
+
     // Price and Stripe billing cadence are both derived server-side from the
     // requested term, never trusted from the client — a client could
     // otherwise request periodMonths: 12 while still being charged the

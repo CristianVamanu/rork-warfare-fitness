@@ -1059,13 +1059,6 @@ export async function saveMembershipPlans(plans: MembershipPlan[]): Promise<void
   await setDoc(doc(db, 'config', 'membershipPlans'), { plans });
 }
 
-export async function setUserMembership(userId: string, status: 'active' | 'none') {
-  await updateDoc(doc(db, 'users', userId), {
-    'membership.status': status,
-    'membership.grantedAt': serverTimestamp(),
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Conversations — admin-initiated DMs
 // ---------------------------------------------------------------------------
@@ -1380,7 +1373,7 @@ function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): Leade
 // trainerId and the live admin uid made them silently invisible) and adds no
 // value with only one trainer. Revisit if true multi-tenant coaching ships.
 export async function getLeaderboard(limitCount = 10): Promise<LeaderboardEntry[]> {
-  const snap = await getDocs(query(collection(db, 'users'), limit(200)));
+  const snap = await getDocs(query(collection(db, 'users'), orderBy('xp', 'desc'), limit(200)));
   const entries = snap.docs
     .filter((d) => !d.data().banned)
     .map((d) => mapToLeaderboardEntry(d.id, d.data()))
@@ -1392,7 +1385,7 @@ export function subscribeLeaderboard(
   onUpdate: (entries: LeaderboardEntry[]) => void,
   limitCount = 10,
 ): () => void {
-  const q = query(collection(db, 'users'), limit(200));
+  const q = query(collection(db, 'users'), orderBy('xp', 'desc'), limit(200));
   return onSnapshot(q, (snap) => {
     const entries = snap.docs
       .filter((d) => !d.data().banned)

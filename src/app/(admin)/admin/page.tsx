@@ -20,7 +20,7 @@ import {
   getSystemConfig, setSystemConfig,
   getAllUsers,
   getAdminConversations, getOrCreateConversation, getMessages, sendMessage, markConversationRead, deleteConversation,
-  getMembershipConfig, saveMembershipConfig, setUserMembership,
+  getMembershipConfig, saveMembershipConfig,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
   getChannels, createChannel, updateChannel, deleteChannel,
   getCoachingPlans, saveCoachingPlans, assignCoachingPlan, revokeCoachingPlan,
@@ -970,15 +970,29 @@ function AdminPageInner() {
   }
 
   async function handleToggleMember(u: UserData) {
+    if (!user) return;
     setTogglingMember(u.id);
     const currentStatus = (u as UserData & { membership?: { status?: string } }).membership?.status ?? 'none';
     const newStatus = currentStatus === 'active' ? 'none' : 'active';
     try {
-      await setUserMembership(u.id, newStatus);
+      // Goes through the server (not the client-side setUserMembership
+      // write) so revoking a user with a real Stripe subscription actually
+      // cancels it — otherwise Stripe keeps billing them every cycle while
+      // the app shows them as not a member, and the next subscription
+      // webhook silently flips membership.status back to 'active' anyway.
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/set-membership', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: u.id, status: newStatus }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to update membership');
       toast.success(newStatus === 'active' ? `${u.displayName} is now a member` : `${u.displayName}'s membership revoked`);
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, membership: { status: newStatus } } : x));
-    } catch { toast.error('Failed to update membership'); }
-    finally { setTogglingMember(null); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update membership');
+    } finally { setTogglingMember(null); }
   }
 
   function toggleLockedFeature(f: string) {
