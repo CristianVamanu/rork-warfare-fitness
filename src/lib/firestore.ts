@@ -1010,6 +1010,25 @@ export async function unhideMockProgram(id: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Permanently deleted built-in programs — stored at config/deletedMocks
+// { ids: string[] }. Separate from hiddenMocks: a hidden one can still be
+// restored, a deleted one is gone from every list for good (short of
+// editing Firestore directly) — no restore path is exposed for it.
+// ---------------------------------------------------------------------------
+export async function getDeletedMockIds(): Promise<string[]> {
+  const snap = await getDoc(doc(db, 'config', 'deletedMocks'));
+  return snap.exists() ? ((snap.data().ids as string[]) ?? []) : [];
+}
+
+export async function permanentlyDeleteMockProgram(id: string) {
+  const snap = await getDoc(doc(db, 'config', 'deletedMocks'));
+  const ids: string[] = snap.exists() ? (snap.data().ids ?? []) : [];
+  if (!ids.includes(id)) {
+    await setDoc(doc(db, 'config', 'deletedMocks'), { ids: [...ids, id] }, { merge: true });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Membership configuration — stored at config/membership
 // ---------------------------------------------------------------------------
 import type { MembershipConfig, MembershipPlan } from '@/types';

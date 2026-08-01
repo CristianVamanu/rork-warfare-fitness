@@ -3,11 +3,11 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Edit2, Trash2, Users, Sparkles, ChevronLeft, Dumbbell, Crown, Stethoscope, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Trash2, EyeOff, Users, Sparkles, ChevronLeft, Dumbbell, Crown, Stethoscope, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, unhideMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
+import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, unhideMockProgram, getDeletedMockIds, permanentlyDeleteMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -40,6 +40,7 @@ export default function ProgramsPage() {
   const [healthResult, setHealthResult] = useState<{ programsChecked: number; librarySize: number; findings: HealthFinding[] } | null>(null);
   const [hiddenMockIds, setHiddenMockIds] = useState<string[]>([]);
   const [restoring, setRestoring] = useState<string | null>(null);
+  const [deletingForever, setDeletingForever] = useState<string | null>(null);
 
   async function runHealthCheck() {
     if (!user) return;
@@ -65,16 +66,19 @@ export default function ProgramsPage() {
       getAllPrograms().catch(() => []),
       getAllUsers().catch(() => []),
       getHiddenMockIds().catch(() => [] as string[]),
-    ]).then(([progs, u, hiddenIds]) => {
+      getDeletedMockIds().catch(() => [] as string[]),
+    ]).then(([progs, u, hiddenIds, deletedIds]) => {
       const firestoreProgs = progs as (Program & { visibility?: string })[];
       const fpIds = new Set(firestoreProgs.map(p => p.id));
+      const deleted = new Set(deletedIds as string[]);
       const hidden = new Set(hiddenIds as string[]);
-      const mocks = MOCK_PROGRAMS.filter(p => !fpIds.has(p.id) && !hidden.has(p.id)).map(p => ({ ...p, _mock: true }));
+      const mocks = MOCK_PROGRAMS.filter(p => !fpIds.has(p.id) && !hidden.has(p.id) && !deleted.has(p.id)).map(p => ({ ...p, _mock: true }));
       setPrograms([...firestoreProgs, ...mocks]);
       // A hidden mock id can be stale (the Firestore doc it once pointed to
       // may since have been deleted) — only offer to restore ones that
-      // aren't already showing some other way, i.e. still actually hidden.
-      setHiddenMockIds((hiddenIds as string[]).filter((id) => !fpIds.has(id)));
+      // aren't already showing some other way, i.e. still actually hidden,
+      // and haven't been permanently deleted.
+      setHiddenMockIds((hiddenIds as string[]).filter((id) => !fpIds.has(id) && !deleted.has(id)));
       setUsers((u as UserRow[]).filter((x: UserRow & { role?: string }) => x.role !== 'admin'));
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
@@ -89,6 +93,17 @@ export default function ProgramsPage() {
       toast.success('Restored');
     } catch { toast.error('Failed to restore'); }
     finally { setRestoring(null); }
+  }
+
+  async function handleDeleteForever(id: string, name: string) {
+    if (!confirm(`Permanently delete "${name}"? This can't be undone from the admin panel.`)) return;
+    setDeletingForever(id);
+    try {
+      await permanentlyDeleteMockProgram(id);
+      setHiddenMockIds((prev) => prev.filter((x) => x !== id));
+      toast.success('Deleted forever');
+    } catch { toast.error('Failed to delete'); }
+    finally { setDeletingForever(null); }
   }
 
   // Toggling premium/price on a built-in (mock) program promotes it to a
@@ -135,15 +150,19 @@ export default function ProgramsPage() {
   }
 
   async function handleDelete(p: Program & { _mock?: boolean }) {
-    if (!confirm(`Delete "${p.name}"?`)) return;
+    const confirmMsg = p._mock
+      ? `Hide "${p.name}"? It'll move to Hidden Built-in Programs below, where you can restore or permanently delete it.`
+      : `Delete "${p.name}"?`;
+    if (!confirm(confirmMsg)) return;
     try {
       if (p._mock) {
         await hideMockProgram(p.id);
+        setHiddenMockIds((prev) => [...prev, p.id]);
       } else {
         await deleteProgram(p.id);
       }
       setPrograms(prev => prev.filter(x => x.id !== p.id));
-      toast.success('Deleted');
+      toast.success(p._mock ? 'Hidden' : 'Deleted');
     } catch { toast.error('Failed to delete'); }
   }
 
@@ -308,13 +327,23 @@ export default function ProgramsPage() {
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
-                  <button
-                    onClick={() => handleDelete(p)}
-                    title="Delete"
-                    className="p-2 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {(p as { _mock?: boolean })._mock ? (
+                    <button
+                      onClick={() => handleDelete(p)}
+                      title="Hide (move to Hidden Built-in Programs — can restore later)"
+                      className="p-2 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors"
+                    >
+                      <EyeOff className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleDelete(p)}
+                      title="Delete"
+                      className="p-2 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             </Card>
@@ -326,7 +355,7 @@ export default function ProgramsPage() {
         <Card className="p-4 mt-4">
           <p className="text-sm font-bold text-white mb-1">Hidden Built-in Programs</p>
           <p className="text-xs text-text-secondary mb-3">
-            Deleted from this list before. They still exist in the app’s code — restore one to bring it back.
+            Hidden from the list above but not gone — restore one to bring it back, or delete it forever.
           </p>
           <div className="space-y-2">
             {hiddenMockIds.map((id) => {
@@ -334,9 +363,19 @@ export default function ProgramsPage() {
               return (
                 <div key={id} className="flex items-center justify-between gap-2 py-1.5">
                   <span className="text-sm text-white">{mock?.name ?? id}</span>
-                  <Button size="sm" variant="secondary" onClick={() => handleRestoreMock(id)} loading={restoring === id}>
-                    Restore
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => handleRestoreMock(id)} loading={restoring === id}>
+                      Restore
+                    </Button>
+                    <button
+                      onClick={() => handleDeleteForever(id, mock?.name ?? id)}
+                      title="Delete forever"
+                      className="p-2 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors disabled:opacity-50"
+                      disabled={deletingForever === id}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
