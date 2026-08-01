@@ -136,11 +136,19 @@ export default function ProgramDetailPage() {
     if (el) requestAnimationFrame(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
   }, [isEnrolled, loading, nextAbsIdx]);
 
+  const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
+  // Admin can also lock specific programs to members-only via
+  // MembershipConfig.lockedProgramIds (Admin → Membership), independently
+  // of a program's own isPremium flag — e.g. to temporarily gate a
+  // normally-free program without editing the program itself.
+  const isLockedByConfig = !!membershipConfig?.enabled && !!program?.id
+    && (membershipConfig.lockedProgramIds ?? []).includes(program.id);
+
   const handleEnroll = async (force = false) => {
     if (!user || !program) return;
     // Defense-in-depth — the button that calls this is already hidden
     // behind isMembershipLocked, but never trust a client-side gate alone.
-    if (program.isPremium && !hasMembership) return;
+    if ((program.isPremium || isLockedByConfig) && !hasMembership) return;
     if (hasDifferentProgram && !force) {
       setSwitchModal(true);
       return;
@@ -164,14 +172,13 @@ export default function ProgramDetailPage() {
   };
 
   const hasPurchased = !!(program?.id && profile?.purchasedProgramIds?.includes(program.id));
-  const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
   const needsPurchase = !!program?.price && program.price > 0 && !hasPurchased && !hasMembership;
   // program.isPremium was previously admin-toggleable (Admin → Programs)
   // but never actually checked anywhere — the toggle showed a "Premium"
   // badge and did nothing else, so marking a program premium never
   // actually restricted access to it. Unlike `price` (a one-time purchase
   // alternative), isPremium means membership-only with no purchase bypass.
-  const isMembershipLocked = !!program?.isPremium && !hasMembership;
+  const isMembershipLocked = (!!program?.isPremium || isLockedByConfig) && !hasMembership;
 
   const handleBuyProgram = async () => {
     if (!user || !program) return;

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -100,6 +101,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           />
         </AuthProvider>
         </ThemeProvider>
+        <Script id="chirps-config" strategy="afterInteractive">
+          {`window.chirpsConfig = { assistantId: "e663729e-796a-44d9-98a8-316824eebcb0" };`}
+        </Script>
+        <Script src="https://digimetrix.ai/embed.js" strategy="afterInteractive" />
       </body>
     </html>
   );

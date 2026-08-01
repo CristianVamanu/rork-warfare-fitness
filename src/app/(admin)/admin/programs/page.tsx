@@ -74,7 +74,7 @@ export default function ProgramsPage() {
   }, []);
 
   async function handleSetPrice(p: Program & { _mock?: boolean }, price: number) {
-    if (p._mock) { toast.error('Built-in programs cannot be priced — duplicate it first.'); return; }
+    if (p._mock) { toast.error('Built-in programs cannot be priced — click Edit and save it first to make it a real program.'); return; }
     try {
       await updateProgram(p.id, { price });
       setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, price } : x));
@@ -83,7 +83,7 @@ export default function ProgramsPage() {
   }
 
   async function handleTogglePremium(p: Program & { _mock?: boolean }) {
-    if (p._mock) { toast.error('Built-in programs cannot be toggled — duplicate it first.'); return; }
+    if (p._mock) { toast.error('Built-in programs cannot be toggled — click Edit and save it first to make it a real program.'); return; }
     try {
       await updateProgram(p.id, { isPremium: !p.isPremium });
       setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPremium: !x.isPremium } : x));
