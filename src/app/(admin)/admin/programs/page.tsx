@@ -149,6 +149,16 @@ export default function ProgramsPage() {
     finally { setPublishing(null); }
   }
 
+  async function handleUnpublish(p: Program) {
+    setPublishing(p.id);
+    try {
+      await updateProgram(p.id, { isPublic: false, status: 'draft' });
+      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPublic: false } : x));
+      toast.success('Hidden — moved back to Draft, no longer visible to clients');
+    } catch { toast.error('Failed to hide'); }
+    finally { setPublishing(null); }
+  }
+
   async function handleDelete(p: Program & { _mock?: boolean }) {
     const confirmMsg = p._mock
       ? `Hide "${p.name}"? It'll move to Hidden Built-in Programs below, where you can restore or permanently delete it.`
@@ -305,6 +315,16 @@ export default function ProgramsPage() {
                     <Button size="sm" onClick={() => handlePublish(p)} loading={publishing === p.id}>
                       Publish
                     </Button>
+                  )}
+                  {!(p as { _mock?: boolean })._mock && (p.isPublic || p.visibility === 'public') && (
+                    <button
+                      onClick={() => handleUnpublish(p)}
+                      title="Hide (move back to Draft — no longer visible to clients)"
+                      disabled={publishing === p.id}
+                      className="p-2 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors disabled:opacity-50"
+                    >
+                      <EyeOff className="w-4 h-4" />
+                    </button>
                   )}
                   <button
                     onClick={() => handleTogglePremium(p)}

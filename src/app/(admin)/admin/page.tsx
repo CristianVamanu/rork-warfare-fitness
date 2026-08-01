@@ -1222,16 +1222,23 @@ function AdminPageInner() {
     } catch { toast.error('Failed to delete'); }
   }
 
-  // One-time cleanup for videos uploaded before thumbnails were generated —
-  // pulls a frame straight off each hosted video URL and saves it back.
-  async function handleBackfillThumbnails() {
+  // Pulls a frame straight off each hosted video URL and saves it back.
+  // `force: false` only fills in videos with no thumbnail at all (the
+  // original one-time-cleanup use case); `force: true` regenerates every
+  // video's thumbnail, including ones that already have one — needed
+  // because some earlier thumbnails were bad captures (a black/near-black
+  // frame grabbed before the video's decoder had anything buffered) that
+  // still counted as "has a thumbnailUrl" and so never got backfilled.
+  async function handleBackfillThumbnails(force = false) {
     if (!user) return;
-    const missing = exerciseLibrary.filter(e => !e.thumbnailUrl && e.videoUrl);
-    if (missing.length === 0) { toast('Every exercise already has a thumbnail'); return; }
+    const targets = force
+      ? exerciseLibrary.filter(e => e.videoUrl)
+      : exerciseLibrary.filter(e => !e.thumbnailUrl && e.videoUrl);
+    if (targets.length === 0) { toast('Every exercise already has a thumbnail'); return; }
     setBackfillRunning(true);
-    setBackfillProgress({ done: 0, total: missing.length, failed: 0 });
+    setBackfillProgress({ done: 0, total: targets.length, failed: 0 });
     let failed = 0;
-    for (const ex of missing) {
+    for (const ex of targets) {
       try {
         const blob = await extractVideoThumbnailFromUrl(ex.videoUrl);
         if (!blob) throw new Error('no frame');
@@ -1246,9 +1253,9 @@ function AdminPageInner() {
     }
     setBackfillRunning(false);
     if (failed > 0) {
-      toast.error(`Backfilled ${missing.length - failed} of ${missing.length} — ${failed} couldn't be read (likely a CORS-blocked host)`, { duration: 6000 });
+      toast.error(`Backfilled ${targets.length - failed} of ${targets.length} — ${failed} couldn't be read (likely a CORS-blocked host)`, { duration: 6000 });
     } else {
-      toast.success(`Generated thumbnails for ${missing.length} exercise${missing.length !== 1 ? 's' : ''}`);
+      toast.success(`Generated thumbnails for ${targets.length} exercise${targets.length !== 1 ? 's' : ''}`);
     }
   }
 
@@ -3017,10 +3024,23 @@ function AdminPageInner() {
             <p className="text-xs text-text-secondary">Library ({exerciseLibrary.length})</p>
             <div className="flex items-center gap-2">
               {exerciseLibrary.some(e => !e.thumbnailUrl) && (
-                <Button size="sm" variant="ghost" onClick={handleBackfillThumbnails} loading={backfillRunning}>
+                <Button size="sm" variant="ghost" onClick={() => handleBackfillThumbnails(false)} loading={backfillRunning}>
                   {backfillRunning
                     ? `Generating ${backfillProgress.done}/${backfillProgress.total}…`
                     : `Backfill Thumbnails (${exerciseLibrary.filter(e => !e.thumbnailUrl).length})`}
+                </Button>
+              )}
+              {exerciseLibrary.some(e => e.videoUrl) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { if (confirm('Regenerate thumbnails for every video in the library? This replaces existing ones too.')) handleBackfillThumbnails(true); }}
+                  loading={backfillRunning}
+                  title="Re-captures a frame for every video, including ones that already have a thumbnail — fixes bad/black captures"
+                >
+                  {backfillRunning
+                    ? `Generating ${backfillProgress.done}/${backfillProgress.total}…`
+                    : 'Regenerate All Thumbnails'}
                 </Button>
               )}
               <Button size="sm" variant="ghost" onClick={() => startEditEx()}>

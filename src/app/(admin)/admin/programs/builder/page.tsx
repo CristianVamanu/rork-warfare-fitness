@@ -1370,7 +1370,7 @@ function BuilderInner() {
                 >
                   <button
                     onClick={() => setPreviewingId(previewingId === v.id ? null : v.id)}
-                    className="w-14 h-14 rounded-lg overflow-hidden bg-black flex-shrink-0 relative flex items-center justify-center"
+                    className={`w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 relative flex items-center justify-center ${v.thumbnailUrl || previewingId === v.id ? 'bg-black' : 'bg-surface-elevated border border-white/10'}`}
                     title="Preview"
                   >
                     {previewingId === v.id ? (
@@ -1388,7 +1388,7 @@ function BuilderInner() {
                         {v.thumbnailUrl && (
                           <img src={v.thumbnailUrl} alt={v.name} className="absolute inset-0 w-full h-full object-cover" />
                         )}
-                        <Play className="w-5 h-5 text-white relative z-10" />
+                        <Play className={`w-5 h-5 relative z-10 ${v.thumbnailUrl ? 'text-white' : 'text-text-tertiary'}`} />
                       </>
                     )}
                   </button>
