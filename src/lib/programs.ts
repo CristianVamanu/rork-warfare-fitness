@@ -1442,6 +1442,356 @@ export const MOCK_PROGRAMS: Program[] = [
     ],
   },
 
+  // ── P17: Cali 6 — Level Warrior Calisthenics Program ──────────────────
+  // Adapted from a user-supplied 6-level bodyweight program. Structure
+  // preserved exactly as written (Push/Legs/Pull split repeated twice a
+  // week, Sunday off, 40s rest between sets, tempo-driven reps instead of
+  // just chasing rep counts) — each level mapped to 2 weeks so there's
+  // real time to adapt before the next jump in volume/difficulty, rather
+  // than the source's fully self-paced "when you're ready" progression,
+  // which doesn't fit a calendar-based program engine. All exercises stay
+  // strictly bodyweight, matching the source material's intent.
+  {
+    id: 'p17',
+    name: 'Cali 6: Level Warrior Calisthenics Program',
+    description: 'A 12-week, 6-level bodyweight-only program — zero equipment required beyond a pull-up bar (or a sturdy door frame / tree branch / playground bar). Ancient Greek warriors trained this way; gymnasts still build the most aesthetic, injury-resistant physiques on earth doing nothing but calisthenics.\n\nThe split repeats twice a week: Push (chest/triceps/abs) on Monday & Thursday, Legs (thighs/calves/glutes) on Tuesday & Friday, Pull (back/biceps/abs) on Wednesday & Saturday, Sunday off. Six training days a week, every week.\n\nTime under tension is the whole game here — most people spend 20-25 seconds per set and wonder why bodyweight training "doesn\'t build muscle." This program uses a controlled tempo (4-1-2-0 or 3-1-2-0: seconds down / pause at the bottom / seconds up / pause at the top) to keep every set in the 40-80 second range that actually drives growth. Breathe in on the way down, breathe out on the way up — never hold your breath.\n\nLevel 1-2 (Weeks 1-4): Foundation. Learn the tempo, build baseline strength in the six basic patterns.\nLevel 3 (Weeks 5-6): Volume increases, tempo tightens to 3-1-2-0.\nLevel 4-5 (Weeks 7-10): Skill work begins — one-hand push-ups, pistol squats, L-sits, jumping variations. This is where real strength-to-weight-ratio gains show up.\nLevel 6 (Weeks 11-12): Peak difficulty across every movement — if you can complete this level clean, you\'re stronger relative to your bodyweight than most people who\'ve spent years under a barbell.\n\nNo pull-up bar at home? Substitute Pull-Ups/Chin-Ups with inverted rows under a sturdy table, or find a playground/park bar — don\'t skip the pulling work, it\'s half the program. Rest exactly 40 seconds between every set, every level — that\'s deliberate, not a typo; short rest keeps the metabolic demand high while the tempo keeps the tension high.',
+    level: 'beginner',
+    goal: 'general',
+    weeks: 12,
+    daysPerWeek: 6,
+    isPublic: true,
+    isPremium: true,
+    createdBy: 'system',
+    exercises: [
+      { id: 'p17-e1', name: 'Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'chest', notes: '4-1-2-0 tempo: 4s down, 1s pause at the bottom (chest open), 2s up, no pause at the top.' },
+      { id: 'p17-e2', name: 'Dips', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms', notes: 'No dip bars? Use parallel chairs or a sturdy countertop edge.' },
+      { id: 'p17-e3', name: 'Leg Raises', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+      { id: 'p17-e4', name: 'Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core' },
+      { id: 'p17-e5', name: 'Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+      { id: 'p17-e6', name: 'Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+      { id: 'p17-e7', name: 'Lateral Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+      { id: 'p17-e8', name: 'Calf Raises', sets: 3, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+      { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back', notes: 'No bar? Substitute inverted rows under a sturdy table.' },
+      { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+      { id: 'p17-e11', name: 'Scissors', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+      { id: 'p17-e12', name: 'Jackknife', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+    ],
+    // phases[0]'s full 7-day schedule doubles as the top-level `schedule`
+    // fallback for any older code path that reads program.schedule
+    // directly instead of going through phases — same reasoning as P15/P16.
+    schedule: [
+      { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+        { id: 'p17-e1', name: 'Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'chest', notes: '4-1-2-0 tempo: 4s down, 1s pause at the bottom, 2s up, no pause at the top.' },
+        { id: 'p17-e2', name: 'Dips', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms', notes: 'No dip bars? Use parallel chairs or a sturdy countertop edge.' },
+        { id: 'p17-e3', name: 'Leg Raises', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+        { id: 'p17-e4', name: 'Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core' },
+      ] },
+      { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+        { id: 'p17-e5', name: 'Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+        { id: 'p17-e6', name: 'Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+        { id: 'p17-e7', name: 'Lateral Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+        { id: 'p17-e8', name: 'Calf Raises', sets: 3, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+      ] },
+      { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+        { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back', notes: 'No bar? Substitute inverted rows under a sturdy table.' },
+        { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+        { id: 'p17-e11', name: 'Scissors', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+        { id: 'p17-e12', name: 'Jackknife', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+      ] },
+      { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+        { id: 'p17-e1', name: 'Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'chest', notes: '4-1-2-0 tempo throughout.' },
+        { id: 'p17-e2', name: 'Dips', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms' },
+        { id: 'p17-e3', name: 'Leg Raises', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+        { id: 'p17-e4', name: 'Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core' },
+      ] },
+      { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+        { id: 'p17-e5', name: 'Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+        { id: 'p17-e6', name: 'Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+        { id: 'p17-e7', name: 'Lateral Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+        { id: 'p17-e8', name: 'Calf Raises', sets: 3, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+      ] },
+      { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+        { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+        { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+        { id: 'p17-e11', name: 'Scissors', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+        { id: 'p17-e12', name: 'Jackknife', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+      ] },
+      rest(),
+    ],
+    phases: [
+      {
+        id: 'p17-lvl1',
+        label: 'Level 1: Foundation',
+        startWeek: 1,
+        endWeek: 2,
+        schedule: [
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e1', name: 'Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'chest', notes: '4-1-2-0 tempo: 4s down, 1s pause at the bottom, 2s up, no pause at the top. Breathe in on the way down, out on the way up.' },
+            { id: 'p17-e2', name: 'Dips', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms', notes: 'No dip bars? Use parallel chairs or a sturdy countertop edge.' },
+            { id: 'p17-e3', name: 'Leg Raises', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e5', name: 'Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e6', name: 'Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e7', name: 'Lateral Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e8', name: 'Calf Raises', sets: 3, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back', notes: 'No bar? Substitute inverted rows under a sturdy table.' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e11', name: 'Scissors', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e12', name: 'Jackknife', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e1', name: 'Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'chest', notes: '4-1-2-0 tempo throughout.' },
+            { id: 'p17-e2', name: 'Dips', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e3', name: 'Leg Raises', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e5', name: 'Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e6', name: 'Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e7', name: 'Lateral Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e8', name: 'Calf Raises', sets: 3, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e11', name: 'Scissors', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e12', name: 'Jackknife', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p17-lvl2',
+        label: 'Level 2: Building Volume',
+        startWeek: 3,
+        endWeek: 4,
+        schedule: [
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e1', name: 'Push Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'chest', notes: '4-1-2-0 tempo.' },
+            { id: 'p17-e2', name: 'Dips', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e3', name: 'Leg Raises', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 4, reps: '45s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e5', name: 'Lunges', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e6', name: 'Squats', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e7', name: 'Lateral Lunges', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e8', name: 'Calf Raises', sets: 4, reps: '12-14', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e11', name: 'Scissors', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e12', name: 'Jackknife', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e1', name: 'Push Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'chest' },
+            { id: 'p17-e2', name: 'Dips', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e3', name: 'Leg Raises', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 4, reps: '45s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e5', name: 'Lunges', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e6', name: 'Squats', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e7', name: 'Lateral Lunges', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e8', name: 'Calf Raises', sets: 4, reps: '12-14', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e11', name: 'Scissors', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e12', name: 'Jackknife', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p17-lvl3',
+        label: 'Level 3: Tempo Tightens',
+        startWeek: 5,
+        endWeek: 6,
+        schedule: [
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e1', name: 'Push Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'chest', notes: '3-1-2-0 tempo from here on — one second less on the eccentric, form has to be earned.' },
+            { id: 'p17-e2', name: 'Dips', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e3', name: 'Leg Raises', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 5, reps: '50s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e5', name: 'Lunges', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e6', name: 'Squats', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e7', name: 'Lateral Lunges', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e8', name: 'Calf Raises', sets: 5, reps: '14-16', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e11', name: 'Scissors', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e12', name: 'Jackknife', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e1', name: 'Push Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'chest', notes: '3-1-2-0 tempo.' },
+            { id: 'p17-e2', name: 'Dips', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e3', name: 'Leg Raises', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 5, reps: '50s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e5', name: 'Lunges', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e6', name: 'Squats', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e7', name: 'Lateral Lunges', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e8', name: 'Calf Raises', sets: 5, reps: '14-16', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e11', name: 'Scissors', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e12', name: 'Jackknife', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p17-lvl4',
+        label: 'Level 4: Skill Work Begins',
+        startWeek: 7,
+        endWeek: 8,
+        schedule: [
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e13', name: 'One-Hand Push Ups', sets: 3, reps: '4-6', restSeconds: 40, muscleGroup: 'chest', notes: 'Feet wide for a stable base. Not there yet? Do a slow archer push-up as a lead-up.' },
+            { id: 'p17-e14', name: 'Diamond Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms', notes: 'Hands together under the chest, elbows tucked — heavy triceps bias.' },
+            { id: 'p17-e15', name: 'L Sit', sets: 3, reps: '10s', restSeconds: 40, muscleGroup: 'core', notes: 'On parallettes, a bar, or the floor with hands beside your hips.' },
+            { id: 'p17-e4', name: 'Plank', sets: 3, reps: '55s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e16', name: 'Jumping Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs', notes: 'Explosive switch mid-air, land soft.' },
+            { id: 'p17-e17', name: 'Jumping Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e18', name: 'Pistol Squats', sets: 3, reps: '4-6', restSeconds: 40, muscleGroup: 'legs', notes: 'Hold a doorframe or rail for balance if needed — the range matters more than being unassisted.' },
+            { id: 'p17-e19', name: 'Sissy Squats', sets: 3, reps: '4-6', restSeconds: 40, muscleGroup: 'legs', notes: 'Hold something stable, drop the hips straight down, knees traveling forward.' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '12-14', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '12-14', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e20', name: 'Sit Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e21', name: 'Superman Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core', notes: 'Face down, arms and legs extended and lifted — squeeze the whole posterior chain.' },
+          ] },
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e13', name: 'One-Hand Push Ups', sets: 3, reps: '4-6', restSeconds: 40, muscleGroup: 'chest' },
+            { id: 'p17-e14', name: 'Diamond Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e15', name: 'L Sit', sets: 3, reps: '10s', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 3, reps: '55s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e16', name: 'Jumping Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e17', name: 'Jumping Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e18', name: 'Pistol Squats', sets: 3, reps: '4-6', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e19', name: 'Sissy Squats', sets: 3, reps: '4-6', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '12-14', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '12-14', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e20', name: 'Sit Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e21', name: 'Superman Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p17-lvl5',
+        label: 'Level 5: Strength-to-Weight',
+        startWeek: 9,
+        endWeek: 10,
+        schedule: [
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e13', name: 'One-Hand Push Ups', sets: 4, reps: '6-8', restSeconds: 40, muscleGroup: 'chest' },
+            { id: 'p17-e14', name: 'Diamond Push Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e15', name: 'L Sit', sets: 4, reps: '15s', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 4, reps: '60s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e16', name: 'Jumping Lunges', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e17', name: 'Jumping Squats', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e18', name: 'Pistol Squats', sets: 4, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e19', name: 'Sissy Squats', sets: 4, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 4, reps: '14-16', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 4, reps: '14-16', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e20', name: 'Sit Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e21', name: 'Superman Plank', sets: 4, reps: '45s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e13', name: 'One-Hand Push Ups', sets: 4, reps: '6-8', restSeconds: 40, muscleGroup: 'chest' },
+            { id: 'p17-e14', name: 'Diamond Push Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e15', name: 'L Sit', sets: 4, reps: '15s', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 4, reps: '60s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e16', name: 'Jumping Lunges', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e17', name: 'Jumping Squats', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e18', name: 'Pistol Squats', sets: 4, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e19', name: 'Sissy Squats', sets: 4, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 4, reps: '14-16', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 4, reps: '14-16', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e20', name: 'Sit Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e21', name: 'Superman Plank', sets: 4, reps: '45s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p17-lvl6',
+        label: 'Level 6: Peak Warrior',
+        startWeek: 11,
+        endWeek: 12,
+        schedule: [
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e13', name: 'One-Hand Push Ups', sets: 5, reps: '8-10', restSeconds: 40, muscleGroup: 'chest', notes: 'If you can do these clean for 5x8-10, you\'re pushing more relative strength than most lifters ever build.' },
+            { id: 'p17-e14', name: 'Diamond Push Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e15', name: 'L Sit', sets: 5, reps: '20s', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 5, reps: '60s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e16', name: 'Jumping Lunges', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e17', name: 'Jumping Squats', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e18', name: 'Pistol Squats', sets: 5, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e19', name: 'Sissy Squats', sets: 5, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 5, reps: '16-18', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 5, reps: '16-18', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e20', name: 'Sit Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e21', name: 'Superman Plank', sets: 5, reps: '50s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e13', name: 'One-Hand Push Ups', sets: 5, reps: '8-10', restSeconds: 40, muscleGroup: 'chest' },
+            { id: 'p17-e14', name: 'Diamond Push Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e15', name: 'L Sit', sets: 5, reps: '20s', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 5, reps: '60s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e16', name: 'Jumping Lunges', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e17', name: 'Jumping Squats', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e18', name: 'Pistol Squats', sets: 5, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e19', name: 'Sissy Squats', sets: 5, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 5, reps: '16-18', restSeconds: 40, muscleGroup: 'back', notes: 'Final week — push every set as close to clean failure as your form allows.' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 5, reps: '16-18', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e20', name: 'Sit Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e21', name: 'Superman Plank', sets: 5, reps: '50s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+    ],
+  },
+
 ];
 
 /** Look up a mock program by id. Returns null if not found. */
