@@ -1,0 +1,203 @@
+{
+  "id": "alpha-bulk-90",
+  "name": "Alpha Bulk: 90-Day Muscle Mass Protocol",
+  "description": "A 90-day, 3-phase hypertrophy program built for maximum muscle growth from minimum time in the gym — 3 full-body-split sessions a week, deliberately low volume, so you still have the recovery capacity for martial arts or combat sports training at least twice weekly.\n\nThe method: mechanical tension — not endless sets — is what actually drives growth. Every set is taken close to true failure with a strict 3-0-3-0 tempo (3 seconds down, no pause, 3 seconds up, no pause) to maximize time under tension. Fewer, harder sets beat more, easier ones.\n\nPhase 1 (Weeks 1-4): Foundation. Learn the tempo, build the mind-muscle connection, establish your working weights.\n\nPhase 2 (Weeks 5-7): Escalation. Same low volume, more technical/unilateral exercise variety, pushed closer to true failure on every set.\n\nWeek 8: Deload. Same movement patterns, roughly half the effort — this is what makes Phase 3 sustainable instead of a burnout risk. Don't skip it.\n\nPhase 3 (Weeks 9-13): Peak Intensity. Train the last set of key lifts to true failure, with one drop set worked in on the hardest day — still only 3 sessions a week, still room for your combat training.\n\nForm notes: engage the target muscle before you move, keep tension constant through the whole rep, and breathe in a steady rhythm — never hold your breath through a slow rep. Rest 2-3 minutes between compound lifts (squats, presses, rows, deadlifts), 1.5-2 minutes between isolation work — recovery between sets is what keeps every rep high-quality, not wasted time.",
+  "level": "intermediate",
+  "goal": "hypertrophy",
+  "weeks": 13,
+  "daysPerWeek": 3,
+  "isPublic": true,
+  "isPremium": true,
+  "createdBy": "system",
+  "exercises": [
+    { "id": "ab-e1", "name": "Slight Incline Smith Press", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "chest", "notes": "3-0-3-0 tempo. Engage the chest before you unrack — last 2-3 reps should be genuinely hard." },
+    { "id": "ab-e2", "name": "Squat (Free Weight or Smith)", "sets": 2, "reps": 10, "restSeconds": 150, "muscleGroup": "legs", "notes": "Chest up, knees tracking over toes. 3-0-3-0 tempo — no bouncing at the bottom." },
+    { "id": "ab-e3", "name": "Lat Pulldown", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "back", "notes": "Pull to the chest, squeeze the lats at the bottom, control the return." },
+    { "id": "ab-e4", "name": "Seated Machine Shoulder Press", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "shoulders", "notes": "Core tight, avoid locking out the elbows at the top." },
+    { "id": "ab-e5", "name": "Triceps Rope Pushdowns", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "Elbows stay pinned to your sides the whole set." },
+    { "id": "ab-e6", "name": "Lying Hamstring Curl", "sets": 2, "reps": 10, "restSeconds": 120, "muscleGroup": "legs", "notes": "Squeeze the hamstrings hard at the top, lower under full control." },
+    { "id": "ab-e7", "name": "Dual Dumbbell Row", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "back", "notes": "Pull to the waist, lead with the elbow, keep the back flat." },
+    { "id": "ab-e8", "name": "Seated Dumbbell Curls (One Arm at a Time)", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "Full stretch at the bottom, hard squeeze at the top." },
+    { "id": "ab-e9", "name": "Seated Calf Raise", "sets": 3, "reps": 12, "restSeconds": 60, "muscleGroup": "legs" },
+    { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+  ],
+  "schedule": [
+    { "label": "Chest, Shoulders, Triceps, Abs", "isRest": false, "exercises": [
+      { "id": "ab-e1", "name": "Slight Incline Smith Press", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "chest", "notes": "3-0-3-0 tempo (3s down, 3s up, no pauses). Engage the chest before you unrack." },
+      { "id": "ab-e11", "name": "Dips (Chest Focus)", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "chest", "notes": "Lean forward to bias the chest. Elbows to ~90°, don't lock out at the top." },
+      { "id": "ab-e12", "name": "Standing Dumbbell Lateral Raises", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "shoulders", "notes": "Raise to shoulder height, slight bend in the elbow, no swinging." },
+      { "id": "ab-e4", "name": "Seated Machine Shoulder Press", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "shoulders", "notes": "Core tight, avoid locking out at the top." },
+      { "id": "ab-e13", "name": "Lying Dumbbell Triceps Extensions", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "Lower behind the head under control, extend back to full lockout." },
+      { "id": "ab-e5", "name": "Triceps Rope Pushdowns", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "Elbows pinned to your sides the whole set." },
+      { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+    ] },
+    { "label": "Rest", "isRest": true, "exercises": [] },
+    { "label": "Legs (Quads, Hamstrings, Glutes, Calves)", "isRest": false, "exercises": [
+      { "id": "ab-e6", "name": "Lying Hamstring Curl", "sets": 2, "reps": 10, "restSeconds": 120, "muscleGroup": "legs", "notes": "Squeeze at the top, lower under full control." },
+      { "id": "ab-e2", "name": "Squat (Free Weight or Smith)", "sets": 2, "reps": 10, "restSeconds": 150, "muscleGroup": "legs", "notes": "Chest up, knees tracking over toes, no bouncing at the bottom." },
+      { "id": "ab-e14", "name": "Leg Extension", "sets": 2, "reps": 10, "restSeconds": 90, "muscleGroup": "legs", "notes": "Pause and squeeze the quads at the top." },
+      { "id": "ab-e15", "name": "Dumbbell Stiff-Leg Deadlift", "sets": 2, "reps": 10, "restSeconds": 120, "muscleGroup": "legs", "notes": "Hinge at the hips, slight knee bend, lower until you feel the hamstring stretch." },
+      { "id": "ab-e16", "name": "Abductor Machine", "sets": 2, "reps": 10, "restSeconds": 90, "muscleGroup": "legs" },
+      { "id": "ab-e9", "name": "Seated Calf Raise", "sets": 3, "reps": 12, "restSeconds": 60, "muscleGroup": "legs" },
+      { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+    ] },
+    { "label": "Rest", "isRest": true, "exercises": [] },
+    { "label": "Back, Biceps, Rear Delts, Abs", "isRest": false, "exercises": [
+      { "id": "ab-e3", "name": "Lat Pulldown", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "back", "notes": "Pull to the chest, squeeze the lats, control the return." },
+      { "id": "ab-e7", "name": "Dual Dumbbell Row", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "back", "notes": "Pull to the waist, lead with the elbow, keep the back flat." },
+      { "id": "ab-e17", "name": "Mid-Back Row Machine", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "back" },
+      { "id": "ab-e18", "name": "Reverse Pec Deck (Rear Delts)", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "shoulders", "notes": "Squeeze the rear delts, slight bend in the elbows throughout." },
+      { "id": "ab-e8", "name": "Seated Dumbbell Curls (One Arm at a Time)", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "Full stretch at the bottom, hard squeeze at the top." },
+      { "id": "ab-e19", "name": "Hammer Dumbbell Curls", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms" },
+      { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+    ] },
+    { "label": "Rest", "isRest": true, "exercises": [] },
+    { "label": "Rest", "isRest": true, "exercises": [] }
+  ],
+  "phases": [
+    {
+      "id": "ab-ph1",
+      "label": "Phase 1: Foundation",
+      "startWeek": 1,
+      "endWeek": 4,
+      "schedule": [
+        { "label": "Chest, Shoulders, Triceps, Abs", "isRest": false, "exercises": [
+          { "id": "ab-e1", "name": "Slight Incline Smith Press", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "chest", "notes": "3-0-3-0 tempo (3s down, 3s up, no pauses). Engage the chest before you unrack." },
+          { "id": "ab-e11", "name": "Dips (Chest Focus)", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "chest", "notes": "Lean forward to bias the chest. Elbows to ~90°, don't lock out at the top." },
+          { "id": "ab-e12", "name": "Standing Dumbbell Lateral Raises", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "shoulders", "notes": "Raise to shoulder height, slight bend in the elbow, no swinging." },
+          { "id": "ab-e4", "name": "Seated Machine Shoulder Press", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "shoulders", "notes": "Core tight, avoid locking out at the top." },
+          { "id": "ab-e13", "name": "Lying Dumbbell Triceps Extensions", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "Lower behind the head under control, extend back to full lockout." },
+          { "id": "ab-e5", "name": "Triceps Rope Pushdowns", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "Elbows pinned to your sides the whole set." },
+          { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+        ] },
+        { "label": "Rest", "isRest": true, "exercises": [] },
+        { "label": "Legs (Quads, Hamstrings, Glutes, Calves)", "isRest": false, "exercises": [
+          { "id": "ab-e6", "name": "Lying Hamstring Curl", "sets": 2, "reps": 10, "restSeconds": 120, "muscleGroup": "legs", "notes": "Squeeze at the top, lower under full control." },
+          { "id": "ab-e2", "name": "Squat (Free Weight or Smith)", "sets": 2, "reps": 10, "restSeconds": 150, "muscleGroup": "legs", "notes": "Chest up, knees tracking over toes, no bouncing at the bottom." },
+          { "id": "ab-e14", "name": "Leg Extension", "sets": 2, "reps": 10, "restSeconds": 90, "muscleGroup": "legs", "notes": "Pause and squeeze the quads at the top." },
+          { "id": "ab-e15", "name": "Dumbbell Stiff-Leg Deadlift", "sets": 2, "reps": 10, "restSeconds": 120, "muscleGroup": "legs", "notes": "Hinge at the hips, slight knee bend, lower until you feel the hamstring stretch." },
+          { "id": "ab-e16", "name": "Abductor Machine", "sets": 2, "reps": 10, "restSeconds": 90, "muscleGroup": "legs" },
+          { "id": "ab-e9", "name": "Seated Calf Raise", "sets": 3, "reps": 12, "restSeconds": 60, "muscleGroup": "legs" },
+          { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+        ] },
+        { "label": "Rest", "isRest": true, "exercises": [] },
+        { "label": "Back, Biceps, Rear Delts, Abs", "isRest": false, "exercises": [
+          { "id": "ab-e3", "name": "Lat Pulldown", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "back", "notes": "Pull to the chest, squeeze the lats, control the return." },
+          { "id": "ab-e7", "name": "Dual Dumbbell Row", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "back", "notes": "Pull to the waist, lead with the elbow, keep the back flat." },
+          { "id": "ab-e17", "name": "Mid-Back Row Machine", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "back" },
+          { "id": "ab-e18", "name": "Reverse Pec Deck (Rear Delts)", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "shoulders", "notes": "Squeeze the rear delts, slight bend in the elbows throughout." },
+          { "id": "ab-e8", "name": "Seated Dumbbell Curls (One Arm at a Time)", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "Full stretch at the bottom, hard squeeze at the top." },
+          { "id": "ab-e19", "name": "Hammer Dumbbell Curls", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms" },
+          { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+        ] },
+        { "label": "Rest", "isRest": true, "exercises": [] },
+        { "label": "Rest", "isRest": true, "exercises": [] }
+      ]
+    },
+    {
+      "id": "ab-ph2",
+      "label": "Phase 2: Escalation",
+      "startWeek": 5,
+      "endWeek": 7,
+      "schedule": [
+        { "label": "Chest, Shoulders, Triceps, Abs", "isRest": false, "exercises": [
+          { "id": "ab-e20", "name": "Low-Incline Dumbbell Press", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "chest", "notes": "Same tempo, heavier load than Phase 1 — the last 2 reps should be genuinely hard." },
+          { "id": "ab-e21", "name": "Pec Deck Machine", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "chest", "notes": "Full stretch at the back, squeeze hard at the front." },
+          { "id": "ab-e4", "name": "Seated Machine Shoulder Press", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "shoulders" },
+          { "id": "ab-e22", "name": "EZ Bar Skull Crushers", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "Elbows stay stacked over the shoulders, lower to the forehead under control." },
+          { "id": "ab-e23", "name": "Single-Arm Cable Triceps Extensions", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "Unilateral — focus on full extension each rep." },
+          { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+        ] },
+        { "label": "Rest", "isRest": true, "exercises": [] },
+        { "label": "Legs (Quads, Hamstrings, Glutes, Calves)", "isRest": false, "exercises": [
+          { "id": "ab-e24", "name": "Seated Hamstring Curl", "sets": 2, "reps": 10, "restSeconds": 120, "muscleGroup": "legs" },
+          { "id": "ab-e25", "name": "Hack Squat", "sets": 2, "reps": 10, "restSeconds": 150, "muscleGroup": "legs", "notes": "Back flat against the pad, control the descent — no bouncing." },
+          { "id": "ab-e14", "name": "Leg Extension", "sets": 2, "reps": 10, "restSeconds": 90, "muscleGroup": "legs" },
+          { "id": "ab-e16", "name": "Abductor Machine", "sets": 2, "reps": 10, "restSeconds": 90, "muscleGroup": "legs" },
+          { "id": "ab-e26", "name": "Standing Calf Raises", "sets": 3, "reps": 12, "restSeconds": 60, "muscleGroup": "legs" },
+          { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+        ] },
+        { "label": "Rest", "isRest": true, "exercises": [] },
+        { "label": "Back, Biceps, Rear Delts, Abs", "isRest": false, "exercises": [
+          { "id": "ab-e27", "name": "Pull-Ups (Assisted if needed)", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "back", "notes": "Full dead hang at the bottom, chin over the bar at the top." },
+          { "id": "ab-e28", "name": "One-Arm Dumbbell Row", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "back" },
+          { "id": "ab-e29", "name": "T-Bar Row", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "back" },
+          { "id": "ab-e18", "name": "Reverse Pec Deck (Rear Delts)", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "shoulders" },
+          { "id": "ab-e30", "name": "EZ Bar Preacher Curls", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "No swinging — the preacher pad enforces strict form, use it." },
+          { "id": "ab-e31", "name": "Concentration Curls", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "Slow and deliberate — this is a mind-muscle-connection exercise." },
+          { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+        ] },
+        { "label": "Rest", "isRest": true, "exercises": [] },
+        { "label": "Rest", "isRest": true, "exercises": [] }
+      ]
+    },
+    {
+      "id": "ab-deload",
+      "label": "Deload / Recovery Week",
+      "startWeek": 8,
+      "endWeek": 8,
+      "schedule": [
+        { "label": "Light Upper Body", "isRest": false, "exercises": [
+          { "id": "ab-e1", "name": "Slight Incline Smith Press", "sets": 1, "reps": 10, "restSeconds": 120, "muscleGroup": "chest", "notes": "Deload week — lighter weight, focus purely on tempo and form." },
+          { "id": "ab-e4", "name": "Seated Machine Shoulder Press", "sets": 1, "reps": 10, "restSeconds": 120, "muscleGroup": "shoulders" },
+          { "id": "ab-e5", "name": "Triceps Rope Pushdowns", "sets": 1, "reps": 10, "restSeconds": 60, "muscleGroup": "arms" },
+          { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 2, "reps": 12, "restSeconds": 45, "muscleGroup": "core" }
+        ] },
+        { "label": "Rest", "isRest": true, "exercises": [] },
+        { "label": "Light Legs", "isRest": false, "exercises": [
+          { "id": "ab-e2", "name": "Squat (Free Weight or Smith)", "sets": 1, "reps": 10, "restSeconds": 120, "muscleGroup": "legs", "notes": "Deload week — lighter weight, focus purely on tempo and form." },
+          { "id": "ab-e14", "name": "Leg Extension", "sets": 1, "reps": 10, "restSeconds": 60, "muscleGroup": "legs" },
+          { "id": "ab-e9", "name": "Seated Calf Raise", "sets": 2, "reps": 12, "restSeconds": 45, "muscleGroup": "legs" },
+          { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 2, "reps": 12, "restSeconds": 45, "muscleGroup": "core" }
+        ] },
+        { "label": "Rest", "isRest": true, "exercises": [] },
+        { "label": "Light Back & Arms", "isRest": false, "exercises": [
+          { "id": "ab-e3", "name": "Lat Pulldown", "sets": 1, "reps": 10, "restSeconds": 120, "muscleGroup": "back", "notes": "Deload week — lighter weight, focus purely on tempo and form." },
+          { "id": "ab-e8", "name": "Seated Dumbbell Curls (One Arm at a Time)", "sets": 1, "reps": 10, "restSeconds": 60, "muscleGroup": "arms" },
+          { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 2, "reps": 12, "restSeconds": 45, "muscleGroup": "core" }
+        ] },
+        { "label": "Rest", "isRest": true, "exercises": [] },
+        { "label": "Rest", "isRest": true, "exercises": [] }
+      ]
+    },
+    {
+      "id": "ab-ph3",
+      "label": "Phase 3: Peak Intensity",
+      "startWeek": 9,
+      "endWeek": 13,
+      "schedule": [
+        { "label": "Chest, Shoulders, Triceps, Abs", "isRest": false, "exercises": [
+          { "id": "ab-e32", "name": "Barbell Bench Press", "sets": 2, "reps": 8, "restSeconds": 180, "muscleGroup": "chest", "notes": "Take the last set to true failure — the last 2-3 reps should feel genuinely maximal." },
+          { "id": "ab-e4", "name": "Seated Machine Shoulder Press", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "shoulders" },
+          { "id": "ab-e33", "name": "Incline Dumbbell Flyes", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "chest", "notes": "Slight bend in the elbows, full stretch at the bottom." },
+          { "id": "ab-e34", "name": "Cable Lateral Raises", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "shoulders" },
+          { "id": "ab-e35", "name": "Overhead Triceps Extension", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms" },
+          { "id": "ab-e36", "name": "Triceps Dips", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "arms", "notes": "Final set: drop set — on failure, reduce assistance/weight and continue to a second failure point." },
+          { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+        ] },
+        { "label": "Rest", "isRest": true, "exercises": [] },
+        { "label": "Legs (Quads, Hamstrings, Glutes, Calves)", "isRest": false, "exercises": [
+          { "id": "ab-e37", "name": "Front Squat", "sets": 2, "reps": 10, "restSeconds": 180, "muscleGroup": "legs", "notes": "The hardest lift of the week — prioritize depth and control over the weight on the bar." },
+          { "id": "ab-e38", "name": "Walking Lunges", "sets": 2, "reps": 10, "restSeconds": 120, "muscleGroup": "legs", "notes": "10 reps per leg." },
+          { "id": "ab-e39", "name": "Bulgarian Split Squat", "sets": 2, "reps": 10, "restSeconds": 120, "muscleGroup": "legs", "notes": "10 reps per leg — back knee nearly touches the ground." },
+          { "id": "ab-e40", "name": "Seated Leg Curl", "sets": 2, "reps": 10, "restSeconds": 90, "muscleGroup": "legs" },
+          { "id": "ab-e41", "name": "Leg Press", "sets": 2, "reps": 10, "restSeconds": 120, "muscleGroup": "legs" },
+          { "id": "ab-e26", "name": "Standing Calf Raises", "sets": 3, "reps": 12, "restSeconds": 60, "muscleGroup": "legs" },
+          { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+        ] },
+        { "label": "Rest", "isRest": true, "exercises": [] },
+        { "label": "Back, Biceps, Rear Delts, Abs", "isRest": false, "exercises": [
+          { "id": "ab-e27", "name": "Pull-Ups (Assisted if needed)", "sets": 2, "reps": 8, "restSeconds": 150, "muscleGroup": "back", "notes": "Take the last set as close to failure as clean form allows." },
+          { "id": "ab-e28", "name": "One-Arm Dumbbell Row", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "back" },
+          { "id": "ab-e29", "name": "T-Bar Row", "sets": 2, "reps": 8, "restSeconds": 120, "muscleGroup": "back" },
+          { "id": "ab-e18", "name": "Reverse Pec Deck (Rear Delts)", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "shoulders" },
+          { "id": "ab-e30", "name": "EZ Bar Preacher Curls", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms" },
+          { "id": "ab-e31", "name": "Concentration Curls", "sets": 2, "reps": 8, "restSeconds": 90, "muscleGroup": "arms", "notes": "Final set: push to true failure — slow and controlled, no swinging even as it gets hard." },
+          { "id": "ab-e10", "name": "Abs — Exercise of Choice", "sets": 3, "reps": 15, "restSeconds": 45, "muscleGroup": "core" }
+        ] },
+        { "label": "Rest", "isRest": true, "exercises": [] },
+        { "label": "Rest", "isRest": true, "exercises": [] }
+      ]
+    }
+  ]
+}

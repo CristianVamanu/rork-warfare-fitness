@@ -137,6 +137,9 @@ export default function ProgramDetailPage() {
 
   const handleEnroll = async (force = false) => {
     if (!user || !program) return;
+    // Defense-in-depth — the button that calls this is already hidden
+    // behind isMembershipLocked, but never trust a client-side gate alone.
+    if (program.isPremium && !hasMembership) return;
     if (hasDifferentProgram && !force) {
       setSwitchModal(true);
       return;
@@ -161,6 +164,12 @@ export default function ProgramDetailPage() {
   const hasPurchased = !!(program?.id && profile?.purchasedProgramIds?.includes(program.id));
   const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
   const needsPurchase = !!program?.price && program.price > 0 && !hasPurchased && !hasMembership;
+  // program.isPremium was previously admin-toggleable (Admin → Programs)
+  // but never actually checked anywhere — the toggle showed a "Premium"
+  // badge and did nothing else, so marking a program premium never
+  // actually restricted access to it. Unlike `price` (a one-time purchase
+  // alternative), isPremium means membership-only with no purchase bypass.
+  const isMembershipLocked = !!program?.isPremium && !hasMembership;
 
   const handleBuyProgram = async () => {
     if (!user || !program) return;
@@ -313,6 +322,17 @@ export default function ProgramDetailPage() {
               )}
               <Button variant="ghost" fullWidth size="sm" onClick={() => router.push('/training')}>
                 <RotateCcw className="w-3.5 h-3.5" /> Switch Program
+              </Button>
+            </div>
+          ) : isMembershipLocked ? (
+            <div className="p-4 bg-surface border border-accent/30 rounded-2xl text-center">
+              <Lock className="w-6 h-6 text-accent mx-auto mb-1.5" />
+              <p className="text-sm font-bold text-white">Members Only</p>
+              <p className="text-xs text-text-secondary mt-0.5 mb-3">
+                This program is included with an active membership. Subscribe to unlock it.
+              </p>
+              <Button size="sm" fullWidth onClick={() => router.push('/profile')}>
+                <Crown className="w-4 h-4" /> View Plans
               </Button>
             </div>
           ) : needsPurchase ? (
