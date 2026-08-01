@@ -371,6 +371,27 @@ export default function ProgramsPage() {
         </div>
       )}
 
+      {programs.some((p) => !p._mock && !p.isPublic && p.visibility !== 'coaching' && p.visibility !== 'public') && (
+        <Card className="p-4 mt-4">
+          <p className="text-sm font-bold text-white mb-1">Hidden / Draft Programs</p>
+          <p className="text-xs text-text-secondary mb-3">
+            Unpublished — not visible to clients. Restore to publish them again.
+          </p>
+          <div className="space-y-2">
+            {programs
+              .filter((p) => !p._mock && !p.isPublic && p.visibility !== 'coaching' && p.visibility !== 'public')
+              .map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-2 py-1.5">
+                  <span className="text-sm text-white">{p.name}</span>
+                  <Button size="sm" variant="secondary" onClick={() => handlePublish(p)} loading={publishing === p.id}>
+                    Restore
+                  </Button>
+                </div>
+              ))}
+          </div>
+        </Card>
+      )}
+
       {hiddenMockIds.length > 0 && (
         <Card className="p-4 mt-4">
           <p className="text-sm font-bold text-white mb-1">Hidden Built-in Programs</p>
