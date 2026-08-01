@@ -32,7 +32,7 @@ import { getSecret } from '@/lib/secrets';
 const COLLECTIONS = [
   'users', 'events', 'meals', 'waterLogs', 'workoutLogs', 'weightLogs', 'habitLogs',
   'programs', 'posts', 'notifications', 'coachingApplications', 'config',
-  'prPosts', 'progressPhotos', 'pushSubscriptions', 'userPreferences', 'exerciseLibrary',
+  'prPosts', 'progressPhotos', 'userPreferences', 'exerciseLibrary',
 ] as const;
 
 async function authorize(req: NextRequest) {
@@ -80,6 +80,14 @@ export async function POST(req: NextRequest) {
       return { id: c.id, ...c.data(), messages: msgsSnap.docs.map((m) => ({ id: m.id, ...m.data() })) };
     }));
     dump.conversations = conversations;
+
+    // pushSubscriptions/{userId}/devices/{deviceId} — a subcollection, not a
+    // top-level collection, so it needs a collectionGroup query rather than
+    // db.collection(name).get() like the flat COLLECTIONS list above.
+    const devicesSnap = await db.collectionGroup('devices').get();
+    dump.pushSubscriptions = devicesSnap.docs
+      .filter((d) => d.ref.parent.parent?.parent.id === 'pushSubscriptions')
+      .map((d) => ({ id: d.id, userId: d.ref.parent.parent?.id, ...d.data() }));
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `backup-${timestamp}.json`;

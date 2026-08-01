@@ -38,13 +38,16 @@ export async function POST(req: NextRequest) {
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
 
+  // One device doc per registered browser/device at
+  // pushSubscriptions/{userId}/devices/{deviceId} — a user with
+  // notifications enabled on more than one device gets sent to all of them.
   let docs;
   if (userId) {
-    const docSnap = await db.collection('pushSubscriptions').doc(userId).get();
-    docs = docSnap.exists ? [docSnap] : [];
+    const devicesSnap = await db.collection('pushSubscriptions').doc(userId).collection('devices').get();
+    docs = devicesSnap.docs;
   } else {
-    const col = await db.collection('pushSubscriptions').get();
-    docs = col.docs;
+    const devicesSnap = await db.collectionGroup('devices').get();
+    docs = devicesSnap.docs.filter((d) => d.ref.parent.parent?.parent.id === 'pushSubscriptions');
   }
 
   const payload = JSON.stringify({ title, body });
@@ -52,11 +55,28 @@ export async function POST(req: NextRequest) {
     docs.map(async (d) => {
       const sub = d.data()?.subscription;
       if (!sub) return;
-      await webpush.sendNotification(sub, payload);
+      try {
+        await webpush.sendNotification(sub, payload);
+      } catch (err) {
+        // 404/410 means the browser/OS has permanently revoked this
+        // subscription (uninstalled PWA, cleared permissions, etc.) —
+        // every future send would fail identically forever, so the doc is
+        // dead weight. Deleting it here is the only place this ever gets
+        // cleaned up; nothing else in the app prunes stale subscriptions.
+        const statusCode = (err as { statusCode?: number })?.statusCode;
+        if (statusCode === 404 || statusCode === 410) {
+          await d.ref.delete().catch(() => {});
+        }
+        throw err;
+      }
     })
   );
 
   const sent = results.filter((r) => r.status === 'fulfilled').length;
   const failed = results.filter((r) => r.status === 'rejected').length;
+  if (failed > 0) {
+    console.error(`[push/send] ${failed} of ${docs.length} notifications failed:`,
+      results.filter((r) => r.status === 'rejected').map((r) => (r as PromiseRejectedResult).reason?.message ?? r));
+  }
   return NextResponse.json({ sent, failed });
 }

@@ -24,6 +24,20 @@ service cloud.firestore {
       return isAuthed() && (callerRole() == 'admin' || callerRole() == 'trainer');
     }
 
+    // A trainer's staff access is meant to be scoped to their own assigned
+    // clients (see users/{userId}.trainerId, already used to filter
+    // programs/channels elsewhere) — not every client in the install. Admin
+    // still sees everything. Used for the client-owned collections below
+    // (goals, PT test results, progress photos) where a trainer previously
+    // got blanket isStaff() access to every user's data regardless of who
+    // that user's assigned trainer actually is.
+    function isAdminOrOwnTrainer(clientUserId) {
+      return isAdmin() || (
+        isAuthed() && callerRole() == 'trainer' &&
+        get(/databases/$(database)/documents/users/$(clientUserId)).data.get('trainerId', null) == uid()
+      );
+    }
+
     // True until the one-time /install wizard finishes — createAdminUser()
     // writes role:'admin' directly on the very first user doc, before any
     // admin account (and therefore any isAdmin() caller) exists yet. Scoping
@@ -390,7 +404,10 @@ service cloud.firestore {
     }
 
     // ── Push subscriptions ────────────────────────────────────────────────
-    match /pushSubscriptions/{userId} {
+    // One doc per registered device at .../devices/{deviceId} — not one doc
+    // per user — so subscribing on a second device doesn't silently
+    // overwrite the first device's subscription.
+    match /pushSubscriptions/{userId}/devices/{deviceId} {
       allow read, write: if isAuthed() && uid() == userId;
       allow read: if isAdmin();
     }
@@ -445,29 +462,30 @@ service cloud.firestore {
 
     // ── Client goals (trainer/admin sets, client checks in on progress) ───
     match /goals/{goalId} {
-      allow read: if isAuthed() && (resource.data.userId == uid() || isStaff());
-      allow create: if isStaff();
+      allow read: if isAuthed() && (resource.data.userId == uid() || isAdminOrOwnTrainer(resource.data.userId));
+      allow create: if isAdminOrOwnTrainer(request.resource.data.userId);
       // Client can only touch currentValue on their own goal (status is
       // still coach-controlled — e.g. marking it missed); staff can edit
-      // anything.
+      // anything for their own clients.
       allow update: if isAuthed() && (
-        isStaff() ||
+        isAdminOrOwnTrainer(resource.data.userId) ||
         (resource.data.userId == uid() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentValue']))
       );
-      allow delete: if isStaff();
+      allow delete: if isAdminOrOwnTrainer(resource.data.userId);
     }
 
     // ── PT test results (self-logged, read by owner + staff) ────────────────
     match /ptTestResults/{resultId} {
-      allow read: if isAuthed() && (resource.data.userId == uid() || isStaff());
+      allow read: if isAuthed() && (resource.data.userId == uid() || isAdminOrOwnTrainer(resource.data.userId));
       allow create: if isAuthed() && request.resource.data.userId == uid();
       allow update: if false;
-      allow delete: if isAuthed() && (resource.data.userId == uid() || isStaff());
+      allow delete: if isAuthed() && (resource.data.userId == uid() || isAdminOrOwnTrainer(resource.data.userId));
     }
 
-    // Body progress photos — private to the owning user and staff (admin/trainer) only.
+    // Body progress photos — private to the owning user and their own
+    // assigned trainer (or admin) only.
     match /progressPhotos/{photoId} {
-      allow read:   if isAuthed() && (resource.data.userId == uid() || isStaff());
+      allow read:   if isAuthed() && (resource.data.userId == uid() || isAdminOrOwnTrainer(resource.data.userId));
       allow create: if isAuthed() && request.resource.data.userId == uid();
       allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }

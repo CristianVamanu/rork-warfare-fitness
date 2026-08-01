@@ -24,7 +24,6 @@ const USER_FIELD_COLLECTIONS = [
 /** Docs keyed directly by uid — a straight doc().delete(), no query needed. */
 const USER_ID_DOC_COLLECTIONS = [
   'users',
-  'pushSubscriptions',
   'userPreferences',
 ] as const;
 
@@ -122,6 +121,17 @@ export async function deleteUserCompletely(app: App, db: Firestore, uid: string)
       await ref.delete();
       firestoreDocsDeleted++;
     }
+  }
+
+  // pushSubscriptions lives at pushSubscriptions/{uid}/devices/{deviceId}
+  // (one doc per device, not per user) — a subcollection, which Firestore
+  // never cascade-deletes on its own even if a parent doc existed.
+  const devicesSnap = await db.collection('pushSubscriptions').doc(uid).collection('devices').get();
+  if (!devicesSnap.empty) {
+    const batch = db.batch();
+    devicesSnap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    firestoreDocsDeleted += devicesSnap.size;
   }
 
   await deleteStorageFolder(app, `users/${uid}/`);
