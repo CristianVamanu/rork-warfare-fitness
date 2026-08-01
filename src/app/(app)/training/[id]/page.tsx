@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { getIdToken } from 'firebase/auth';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 import {
   Play, Clock, Target, Dumbbell, Moon, CheckCircle, CheckCircle2, ChevronLeft,
   AlertTriangle, RotateCcw, Lock, Crown,
@@ -156,6 +157,7 @@ export default function ProgramDetailPage() {
       await refreshProfile();
     } catch (err) {
       console.error('[Enroll] failed:', err);
+      toast.error('Could not enroll — please try again.');
     } finally {
       setEnrolling(false);
     }
@@ -183,8 +185,13 @@ export default function ProgramDetailPage() {
       });
       const data = await res.json() as { url?: string; error?: string };
       if (data.url) window.location.href = data.url;
-      else { setPurchasing(false); }
-    } catch {
+      else {
+        toast.error(data.error || 'Could not start checkout — please try again.');
+        setPurchasing(false);
+      }
+    } catch (err) {
+      console.error('[BuyProgram] failed:', err);
+      toast.error('Could not start checkout — please try again.');
       setPurchasing(false);
     }
   };
