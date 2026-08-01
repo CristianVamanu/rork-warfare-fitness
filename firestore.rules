@@ -56,6 +56,53 @@ service cloud.firestore {
         || request.resource.data.activeProgram.get('lastCompletedDayIndex', -1) < trialDayLimit();
     }
 
+    // Mirrors isMembershipLocked in training/[id]/page.tsx — a program is
+    // members-only if its own Firestore doc has isPremium:true, or its id
+    // is in the admin's lockedProgramIds list. Only covers programs that
+    // actually have a Firestore doc (i.e. have been promoted via Admin ->
+    // Programs at least once, which is required to set isPremium in the
+    // first place) — a built-in program's isPremium flag that only exists
+    // in app code can't be checked here, since these rules only ever see
+    // Firestore data. Promoting a premium program (clicking its crown/price
+    // control) is what makes this actually enforced instead of just a
+    // client-side suggestion.
+    function programIsMembersOnly(programId) {
+      return (exists(/databases/$(database)/documents/programs/$(programId))
+          && get(/databases/$(database)/documents/programs/$(programId)).data.get('isPremium', false) == true)
+        || (exists(/databases/$(database)/documents/config/membership)
+          && get(/databases/$(database)/documents/config/membership).data.get('lockedProgramIds', []).hasAny([programId]));
+    }
+
+    // Same idea for a program with a one-time price set (pay-per-program,
+    // independent of membership) — only meaningful for a promoted program
+    // doc, same limitation as programIsMembersOnly above.
+    function programPrice(programId) {
+      return exists(/databases/$(database)/documents/programs/$(programId))
+        ? get(/databases/$(database)/documents/programs/$(programId)).data.get('price', 0)
+        : 0;
+    }
+
+    // Enrolling in (or switching to) a members-only or priced program
+    // requires an active membership/coaching subscription, or — for a
+    // priced program — a prior purchase. Previously nothing server-side
+    // checked either of these; it was purely a client-side UI decision, so
+    // any signed-in user could write straight into a gated program's
+    // activeProgram field for free via the Firestore SDK directly,
+    // bypassing the app UI entirely.
+    function premiumEnrollAllowed() {
+      return !('activeProgram' in request.resource.data.diff(resource.data).affectedKeys())
+        || !('programId' in request.resource.data.activeProgram)
+        || resource.data.get('membership', {}).get('status', 'none') == 'active'
+        || resource.data.get('coaching', {}).get('status', 'none') == 'active'
+        || (
+          !programIsMembersOnly(request.resource.data.activeProgram.programId)
+          && (
+            programPrice(request.resource.data.activeProgram.programId) <= 0
+            || resource.data.get('purchasedProgramIds', []).hasAny([request.resource.data.activeProgram.programId])
+          )
+        );
+    }
+
     // ── System config ─────────────────────────────────────────────────────
     // installer doc must be publicly readable (checked before auth exists)
     match /system/installer {
@@ -121,7 +168,8 @@ service cloud.firestore {
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(
             ['role', 'membership', 'coaching', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan']
           ) &&
-          activeProgramWriteAllowed())
+          activeProgramWriteAllowed() &&
+          premiumEnrollAllowed())
       );
       allow delete: if isAdmin();
     }
