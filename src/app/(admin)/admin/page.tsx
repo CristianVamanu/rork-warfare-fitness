@@ -3683,6 +3683,18 @@ function AdminPageInner() {
               </div>
             </label>
 
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Programs to show on landing page</label>
+              <Input
+                type="number"
+                min="0"
+                value={landingForm.programsToShow || ''}
+                onChange={e => setLandingForm(f => ({ ...f, programsToShow: parseInt(e.target.value, 10) || 0 }))}
+                placeholder="0 = show all"
+              />
+              <p className="text-xs text-text-tertiary mt-1">Limits the Programs section to this many cards. Leave at 0 to show every published program.</p>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-text-secondary mb-1 block">Final CTA Headline</label>

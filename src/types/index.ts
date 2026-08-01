@@ -349,6 +349,7 @@ export interface LandingPageConfig {
   finalCtaHeadline: string;
   finalCtaSubtext: string;
   showPublicLeaderboard?: boolean; // opt-in — shows top athletes (name, level, streak only) on the logged-out landing page
+  programsToShow?: number; // how many programs to display in the landing page's Programs section — unset/0 means show all
   // Empty by default and hidden until an admin adds real ones — inventing
   // fake customer quotes and presenting them as genuine is deceptive
   // marketing regardless of which app it's on, so this only ever shows

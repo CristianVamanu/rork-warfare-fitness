@@ -40,6 +40,7 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   finalCtaHeadline: 'Ready to stop guessing and start training?',
   finalCtaSubtext: 'Take the 2-minute quiz, get matched instantly, and try it free for 7 days.',
   showPublicLeaderboard: true,
+  programsToShow: 0,
   testimonials: [],
 };
 

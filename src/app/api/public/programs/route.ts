@@ -19,23 +19,29 @@ export async function GET() {
     const app = getAdminApp();
     let firestorePrograms: Program[] = [];
     let hiddenIds = new Set<string>();
+    let deletedIds = new Set<string>();
+    let programsToShow = 0;
 
     if (app) {
       const db = getAdminDb(app);
-      const [progsSnap, hiddenSnap] = await Promise.all([
+      const [progsSnap, hiddenSnap, deletedSnap, configSnap] = await Promise.all([
         db.collection('programs').where('isPublic', '==', true).get(),
         db.collection('config').doc('hiddenMocks').get(),
+        db.collection('config').doc('deletedMocks').get(),
+        db.collection('system').doc('config').get(),
       ]);
       firestorePrograms = progsSnap.docs
         .map((d) => ({ id: d.id, ...(d.data() as Omit<Program, 'id'>) }))
         .filter((p) => (p as Program & { visibility?: string }).visibility !== 'coaching');
       hiddenIds = new Set((hiddenSnap.data()?.ids as string[]) ?? []);
+      deletedIds = new Set((deletedSnap.data()?.ids as string[]) ?? []);
+      programsToShow = (configSnap.data()?.landingPage?.programsToShow as number) || 0;
     }
 
     const fpIds = new Set(firestorePrograms.map((p) => p.id));
-    const mocks = MOCK_PROGRAMS.filter((p) => !fpIds.has(p.id) && !hiddenIds.has(p.id));
+    const mocks = MOCK_PROGRAMS.filter((p) => !fpIds.has(p.id) && !hiddenIds.has(p.id) && !deletedIds.has(p.id));
 
-    const programs = [...firestorePrograms, ...mocks].map((p) => ({
+    let programs = [...firestorePrograms, ...mocks].map((p) => ({
       id: p.id,
       name: p.name,
       description: p.description,
@@ -46,6 +52,8 @@ export async function GET() {
       imageUrl: p.imageUrl ?? null,
       targetGender: p.targetGender ?? 'anyone',
     }));
+
+    if (programsToShow > 0) programs = programs.slice(0, programsToShow);
 
     return NextResponse.json({ programs });
   } catch (err) {
