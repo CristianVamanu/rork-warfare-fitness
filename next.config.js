@@ -46,6 +46,26 @@ const withPWA = require('next-pwa')({
       urlPattern: ({ request }) => request.mode === 'navigate',
       handler: 'NetworkOnly',
     },
+    // next-pwa's bundled defaults match video files with /\.(?:mp4)$/ —
+    // requires the URL to literally END in ".mp4". Firebase Storage and R2
+    // download URLs always have `?alt=media&token=...` (or similar) appended
+    // after the extension, so exercise-library videos never match that rule
+    // and fall through to the generic cross-origin NetworkFirst handler,
+    // which has no rangeRequests support. <video> elements always fetch via
+    // HTTP Range requests, and Workbox can't correctly serve/cache a partial
+    // response without that option — surfaces as "no-response" errors and
+    // videos failing to load/play. Matching on pathname (which strips the
+    // query string) instead, with rangeRequests enabled, fixes this for
+    // every video host the app uses.
+    {
+      urlPattern: ({ url }) => /\.(?:mp4|mov|webm|m4v)$/i.test(url.pathname),
+      handler: 'CacheFirst',
+      options: {
+        rangeRequests: true,
+        cacheName: 'remote-video-assets',
+        expiration: { maxEntries: 48, maxAgeSeconds: 24 * 60 * 60 },
+      },
+    },
     ...require('next-pwa/cache'),
   ],
 });
