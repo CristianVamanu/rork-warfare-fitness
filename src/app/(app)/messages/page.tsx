@@ -23,6 +23,11 @@ export default function MessagesPage() {
   const [msgText, setMsgText] = useState('');
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // A real 1:1 Coaching client actually has a dedicated human coach on the
+  // other end of this same conversation system — "Support" (the default,
+  // self-serve framing for everyone else) would be a downgrade for them.
+  const isCoachingClient = profile?.coaching?.status === 'active';
+  const conversationLabel = isCoachingClient ? 'Your Coach' : 'Support';
 
   useEffect(() => {
     if (!user) return;
@@ -90,7 +95,7 @@ export default function MessagesPage() {
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <div className="flex-1">
-                <p className="text-sm font-bold text-white">Support</p>
+                <p className="text-sm font-bold text-white">{conversationLabel}</p>
                 <p className="text-xs text-text-secondary">Replies may take a moment</p>
               </div>
               <button
@@ -122,7 +127,7 @@ export default function MessagesPage() {
                 value={msgText}
                 onChange={e => setMsgText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                placeholder="Reply…"
+                placeholder={isCoachingClient ? "Reply to your coach…" : "Reply…"}
                 className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
               />
               <Button onClick={handleSend} loading={sending} disabled={!msgText.trim()}>
@@ -152,11 +157,11 @@ export default function MessagesPage() {
                       className="w-10 h-10 rounded-full bg-danger/20 flex items-center justify-center text-danger text-sm font-bold flex-shrink-0 cursor-pointer"
                       onClick={() => openConversation(conv)}
                     >
-                      S
+                      {isCoachingClient ? 'C' : 'S'}
                     </div>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openConversation(conv)}>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-white">Support</p>
+                        <p className="text-sm font-medium text-white">{conversationLabel}</p>
                         {conv.unreadByUser && <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
                       </div>
                       <p className="text-xs text-text-secondary truncate">{conv.lastMessage || 'No messages yet'}</p>
