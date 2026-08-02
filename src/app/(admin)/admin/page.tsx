@@ -248,16 +248,6 @@ function AdminPageInner() {
   const [showMembershipPlanForm, setShowMembershipPlanForm] = useState(false);
   const [editingMembershipPlan, setEditingMembershipPlan] = useState<MembershipPlan | null>(null);
   const [membershipPlanForm, setMembershipPlanForm] = useState<{ name: string; description: string; priceMonthly: string; price3mo: string; price6mo: string; price12mo: string; currency: string; features: string; active: boolean; featureAccess: string[] }>({ name: '', description: '', priceMonthly: '', price3mo: '', price6mo: '', price12mo: '', currency: 'USD', features: '', active: true, featureAccess: [] });
-  // The edit form renders ABOVE the plan list, inside the same card — with
-  // enough plans on the page, clicking a lower plan's pencil icon opened
-  // the form off the top of the viewport with no visual feedback at all,
-  // reading as "nothing happens." Scroll it into view on open instead.
-  const membershipPlanFormRef = useRef<HTMLDivElement>(null);
-  // Same fix applied to Coaching Plans and the Exercise Library edit form —
-  // both render their form above the list, so editing a lower item needs
-  // an explicit scroll or it opens off-screen above the fold.
-  const coachingPlanFormRef = useRef<HTMLDivElement>(null);
-  const exFormRef = useRef<HTMLDivElement>(null);
 
   // ── Analytics state (real visitor data pulled from Cloudflare's edge) ──────
   const [analytics, setAnalytics] = useState<{
@@ -824,8 +814,114 @@ function AdminPageInner() {
       featureAccess: plan.featureAccess ?? [],
     });
     setShowPlanForm(true);
-    setTimeout(() => coachingPlanFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
+
+  function renderCoachingPlanForm() {
+    return (
+      <>
+                  <p className="text-sm font-bold text-white">{editingPlan ? 'Edit Plan' : 'New Coaching Plan'}</p>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
+                    <input
+                      value={planForm.name}
+                      onChange={e => setPlanForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="e.g. 1:1 Personal Coaching"
+                      className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Description</label>
+                    <textarea
+                      value={planForm.description}
+                      onChange={e => setPlanForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder="What clients get with this plan…"
+                      rows={2}
+                      className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Price / Month</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={planForm.priceMonthly}
+                          onChange={e => setPlanForm(f => ({ ...f, priceMonthly: e.target.value }))}
+                          placeholder="99.00"
+                          className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Currency</label>
+                      <select
+                        value={planForm.currency}
+                        onChange={e => setPlanForm(f => ({ ...f, currency: e.target.value }))}
+                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                      >
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Features (one per line)</label>
+                    <textarea
+                      value={planForm.features}
+                      onChange={e => setPlanForm(f => ({ ...f, features: e.target.value }))}
+                      placeholder={"Weekly check-in calls\nPersonalised training plan\nDirect messaging with coach"}
+                      rows={4}
+                      className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Tool Access</label>
+                    <p className="text-xs text-text-tertiary mb-2">
+                      Leave all unchecked to grant every feature (default). Check specific ones to restrict this plan to only those.
+                    </p>
+                    <div className="space-y-1.5">
+                      {[
+                        { id: 'barcode', label: 'Barcode Scanner' },
+                        { id: 'nutrition-ai', label: 'AI Food Analyzer' },
+                        { id: 'meal-planner', label: 'AI Meal Planner' },
+                        { id: 'premium-programs', label: 'Premium Training Plans' },
+                      ].map(({ id, label }) => (
+                        <label key={id} className="flex items-center gap-2.5 py-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={planForm.featureAccess.includes(id)}
+                            onChange={() => togglePlanFeatureAccess(id)}
+                            className="w-4 h-4 accent-accent"
+                          />
+                          <span className="text-sm text-white">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-white">Active</p>
+                      <p className="text-xs text-text-secondary">Visible to clients for purchase</p>
+                    </div>
+                    <button
+                      onClick={() => setPlanForm(f => ({ ...f, active: !f.active }))}
+                      className={`w-11 h-6 rounded-full transition-colors relative ${planForm.active ? 'bg-accent' : 'bg-surface-elevated'}`}
+                    >
+                      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${planForm.active ? 'left-6' : 'left-1'}`} />
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" fullWidth onClick={() => { setShowPlanForm(false); setEditingPlan(null); }}>Cancel</Button>
+                    <Button fullWidth loading={savingPlans} disabled={!planForm.name.trim() || !planForm.priceMonthly} onClick={handleSavePlan}>
+                      {editingPlan ? 'Save' : 'Create'}
+                    </Button>
+                  </div>
+      </>
+    );
+  }
+
 
   function togglePlanFeatureAccess(id: string) {
     setPlanForm(f => ({
@@ -900,8 +996,155 @@ function AdminPageInner() {
       featureAccess: plan.featureAccess ?? [],
     });
     setShowMembershipPlanForm(true);
-    setTimeout(() => membershipPlanFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
+
+  function renderMembershipPlanForm() {
+    return (
+      <>
+                  <p className="text-sm font-bold text-white">{editingMembershipPlan ? 'Edit Plan' : 'New Membership Plan'}</p>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
+                    <input
+                      value={membershipPlanForm.name}
+                      onChange={e => setMembershipPlanForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="e.g. Conquer"
+                      className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Description</label>
+                    <textarea
+                      value={membershipPlanForm.description}
+                      onChange={e => setMembershipPlanForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder="What members get with this plan…"
+                      rows={2}
+                      className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Price / Month (optional)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={membershipPlanForm.priceMonthly}
+                          onChange={e => setMembershipPlanForm(f => ({ ...f, priceMonthly: e.target.value }))}
+                          placeholder="49.00"
+                          className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Currency</label>
+                      <select
+                        value={membershipPlanForm.currency}
+                        onChange={e => setMembershipPlanForm(f => ({ ...f, currency: e.target.value }))}
+                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                      >
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Longer Terms (optional — leave blank to not offer that term)</label>
+                    <p className="text-[11px] text-text-tertiary mb-2">Total price for the whole term, not per month — e.g. $250 for 6 months billed once every 6 months.</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={membershipPlanForm.price3mo}
+                          onChange={e => setMembershipPlanForm(f => ({ ...f, price3mo: e.target.value }))}
+                          placeholder="3 months"
+                          className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={membershipPlanForm.price6mo}
+                          onChange={e => setMembershipPlanForm(f => ({ ...f, price6mo: e.target.value }))}
+                          placeholder="6 months"
+                          className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={membershipPlanForm.price12mo}
+                          onChange={e => setMembershipPlanForm(f => ({ ...f, price12mo: e.target.value }))}
+                          placeholder="12 months"
+                          className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Features (one per line, shown on the pricing card)</label>
+                    <textarea
+                      value={membershipPlanForm.features}
+                      onChange={e => setMembershipPlanForm(f => ({ ...f, features: e.target.value }))}
+                      placeholder={"Full access to all training programs\nAI food analyzer\nCommunity & leaderboard access"}
+                      rows={4}
+                      className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Tool Access</label>
+                    <p className="text-xs text-text-tertiary mb-2">
+                      Leave all unchecked to grant every feature (default). Check specific ones to restrict this plan to only those.
+                    </p>
+                    <div className="space-y-1.5">
+                      {[
+                        { id: 'barcode', label: 'Barcode Scanner' },
+                        { id: 'nutrition-ai', label: 'AI Food Analyzer' },
+                        { id: 'meal-planner', label: 'AI Meal Planner' },
+                        { id: 'premium-programs', label: 'Premium Training Plans' },
+                      ].map(({ id, label }) => (
+                        <label key={id} className="flex items-center gap-2.5 py-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={membershipPlanForm.featureAccess.includes(id)}
+                            onChange={() => toggleMembershipPlanFeatureAccess(id)}
+                            className="w-4 h-4 accent-accent"
+                          />
+                          <span className="text-sm text-white">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-white">Active</p>
+                      <p className="text-xs text-text-secondary">Visible to non-members for purchase</p>
+                    </div>
+                    <button
+                      onClick={() => setMembershipPlanForm(f => ({ ...f, active: !f.active }))}
+                      className={`w-11 h-6 rounded-full transition-colors relative ${membershipPlanForm.active ? 'bg-accent' : 'bg-surface-elevated'}`}
+                    >
+                      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membershipPlanForm.active ? 'left-6' : 'left-1'}`} />
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" fullWidth onClick={() => { setShowMembershipPlanForm(false); setEditingMembershipPlan(null); }}>Cancel</Button>
+                    <Button
+                      fullWidth
+                      loading={savingMembershipPlans}
+                      disabled={!membershipPlanForm.name.trim() || ![membershipPlanForm.priceMonthly, membershipPlanForm.price3mo, membershipPlanForm.price6mo, membershipPlanForm.price12mo].some(v => parseFloat(v) > 0)}
+                      onClick={handleSaveMembershipPlan}
+                    >
+                      {editingMembershipPlan ? 'Save' : 'Create'}
+                    </Button>
+                  </div>
+      </>
+    );
+  }
+
 
   function toggleMembershipPlanFeatureAccess(id: string) {
     setMembershipPlanForm(f => ({
@@ -1203,7 +1446,45 @@ function AdminPageInner() {
     setExFile(null);
     setExUploadProgress(0);
     setShowExForm(true);
-    setTimeout(() => exFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  }
+
+  // Shared by both the "Add Single" form (top of the list) and the inline
+  // edit form (rendered in place of whichever row you clicked the pencil
+  // on) — no scrolling either way since the form now opens exactly where
+  // you are instead of somewhere else on the page.
+  function renderExerciseForm() {
+    return (
+      <>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-white">{editingEx ? 'Edit Exercise' : 'New Exercise'}</h3>
+          <button onClick={() => setShowExForm(false)}><XIcon className="w-4 h-4 text-text-secondary" /></button>
+        </div>
+        <Input placeholder="Exercise name (e.g. Barbell Back Squat)" value={exForm.name} onChange={e => setExForm(f => ({ ...f, name: e.target.value }))} />
+        <Input placeholder="Aliases — comma separated (e.g. squat, back squat, bb squat)" value={exForm.aliases} onChange={e => setExForm(f => ({ ...f, aliases: e.target.value }))} />
+        <Input placeholder="Muscle groups — comma separated (e.g. Quadriceps, Glutes)" value={exForm.muscleGroups} onChange={e => setExForm(f => ({ ...f, muscleGroups: e.target.value }))} />
+        <Input placeholder="Equipment — comma separated (e.g. Barbell, Rack)" value={exForm.equipment} onChange={e => setExForm(f => ({ ...f, equipment: e.target.value }))} />
+        <div>
+          <label className="text-xs text-text-secondary mb-1 block">Video file (MP4, MOV, WebM)</label>
+          <input
+            type="file"
+            accept="video/*"
+            className="text-sm text-text-secondary w-full"
+            onChange={e => setExFile(e.target.files?.[0] ?? null)}
+          />
+          {editingEx?.videoUrl && !exFile && (
+            <p className="text-xs text-text-tertiary mt-1">Current video on file — upload a new one to replace it.</p>
+          )}
+        </div>
+        {savingEx && exUploadProgress > 0 && exUploadProgress < 100 && (
+          <div className="w-full bg-white/10 rounded-full h-1.5">
+            <div className="bg-accent h-1.5 rounded-full transition-all" style={{ width: `${exUploadProgress}%` }} />
+          </div>
+        )}
+        <Button onClick={handleSaveEx} loading={savingEx} className="w-full">
+          {savingEx ? (exUploadProgress > 0 ? `Uploading ${exUploadProgress}%…` : 'Saving…') : 'Save Exercise'}
+        </Button>
+      </>
+    );
   }
 
   async function handleSaveEx() {
@@ -2368,7 +2649,6 @@ function AdminPageInner() {
                     setEditingMembershipPlan(null);
                     setMembershipPlanForm({ name: '', description: '', priceMonthly: '', price3mo: '', price6mo: '', price12mo: '', currency: 'USD', features: '', active: true, featureAccess: [] });
                     setShowMembershipPlanForm(true);
-                    setTimeout(() => membershipPlanFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
                   }}>
                     <Plus className="w-3.5 h-3.5" /> New Plan
                   </Button>
@@ -2377,148 +2657,9 @@ function AdminPageInner() {
                   Create as many pricing tiers as you want — users pick one and pay instantly. Each plan controls its own price and which tools it unlocks (Tool Access below). Leave Tool Access unchecked to grant every feature.
                 </p>
 
-                {showMembershipPlanForm && (
-                  <div ref={membershipPlanFormRef} className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
-                    <p className="text-sm font-bold text-white">{editingMembershipPlan ? 'Edit Plan' : 'New Membership Plan'}</p>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
-                      <input
-                        value={membershipPlanForm.name}
-                        onChange={e => setMembershipPlanForm(f => ({ ...f, name: e.target.value }))}
-                        placeholder="e.g. Conquer"
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Description</label>
-                      <textarea
-                        value={membershipPlanForm.description}
-                        onChange={e => setMembershipPlanForm(f => ({ ...f, description: e.target.value }))}
-                        placeholder="What members get with this plan…"
-                        rows={2}
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-text-secondary mb-1 block">Price / Month (optional)</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={membershipPlanForm.priceMonthly}
-                            onChange={e => setMembershipPlanForm(f => ({ ...f, priceMonthly: e.target.value }))}
-                            placeholder="49.00"
-                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-text-secondary mb-1 block">Currency</label>
-                        <select
-                          value={membershipPlanForm.currency}
-                          onChange={e => setMembershipPlanForm(f => ({ ...f, currency: e.target.value }))}
-                          className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                        >
-                          <option value="USD">USD</option>
-                          <option value="EUR">EUR</option>
-                          <option value="GBP">GBP</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Longer Terms (optional — leave blank to not offer that term)</label>
-                      <p className="text-[11px] text-text-tertiary mb-2">Total price for the whole term, not per month — e.g. $250 for 6 months billed once every 6 months.</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={membershipPlanForm.price3mo}
-                            onChange={e => setMembershipPlanForm(f => ({ ...f, price3mo: e.target.value }))}
-                            placeholder="3 months"
-                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                          />
-                        </div>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={membershipPlanForm.price6mo}
-                            onChange={e => setMembershipPlanForm(f => ({ ...f, price6mo: e.target.value }))}
-                            placeholder="6 months"
-                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                          />
-                        </div>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={membershipPlanForm.price12mo}
-                            onChange={e => setMembershipPlanForm(f => ({ ...f, price12mo: e.target.value }))}
-                            placeholder="12 months"
-                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Features (one per line, shown on the pricing card)</label>
-                      <textarea
-                        value={membershipPlanForm.features}
-                        onChange={e => setMembershipPlanForm(f => ({ ...f, features: e.target.value }))}
-                        placeholder={"Full access to all training programs\nAI food analyzer\nCommunity & leaderboard access"}
-                        rows={4}
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Tool Access</label>
-                      <p className="text-xs text-text-tertiary mb-2">
-                        Leave all unchecked to grant every feature (default). Check specific ones to restrict this plan to only those.
-                      </p>
-                      <div className="space-y-1.5">
-                        {[
-                          { id: 'barcode', label: 'Barcode Scanner' },
-                          { id: 'nutrition-ai', label: 'AI Food Analyzer' },
-                          { id: 'meal-planner', label: 'AI Meal Planner' },
-                          { id: 'premium-programs', label: 'Premium Training Plans' },
-                        ].map(({ id, label }) => (
-                          <label key={id} className="flex items-center gap-2.5 py-1 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={membershipPlanForm.featureAccess.includes(id)}
-                              onChange={() => toggleMembershipPlanFeatureAccess(id)}
-                              className="w-4 h-4 accent-accent"
-                            />
-                            <span className="text-sm text-white">{label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-white">Active</p>
-                        <p className="text-xs text-text-secondary">Visible to non-members for purchase</p>
-                      </div>
-                      <button
-                        onClick={() => setMembershipPlanForm(f => ({ ...f, active: !f.active }))}
-                        className={`w-11 h-6 rounded-full transition-colors relative ${membershipPlanForm.active ? 'bg-accent' : 'bg-surface-elevated'}`}
-                      >
-                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membershipPlanForm.active ? 'left-6' : 'left-1'}`} />
-                      </button>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" fullWidth onClick={() => { setShowMembershipPlanForm(false); setEditingMembershipPlan(null); }}>Cancel</Button>
-                      <Button
-                        fullWidth
-                        loading={savingMembershipPlans}
-                        disabled={!membershipPlanForm.name.trim() || ![membershipPlanForm.priceMonthly, membershipPlanForm.price3mo, membershipPlanForm.price6mo, membershipPlanForm.price12mo].some(v => parseFloat(v) > 0)}
-                        onClick={handleSaveMembershipPlan}
-                      >
-                        {editingMembershipPlan ? 'Save' : 'Create'}
-                      </Button>
-                    </div>
+                {showMembershipPlanForm && !editingMembershipPlan && (
+                  <div className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+                    {renderMembershipPlanForm()}
                   </div>
                 )}
 
@@ -2527,6 +2668,11 @@ function AdminPageInner() {
                 ) : (
                   <div className="space-y-3">
                     {membershipPlans.map((plan) => (
+                      editingMembershipPlan?.id === plan.id && showMembershipPlanForm ? (
+                        <div key={plan.id} className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+                          {renderMembershipPlanForm()}
+                        </div>
+                      ) : (
                       <div key={plan.id} className={`p-4 rounded-2xl border ${plan.active ? 'border-accent/20 bg-accent/5' : 'border-white/8 opacity-60'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -2566,6 +2712,7 @@ function AdminPageInner() {
                           </div>
                         </div>
                       </div>
+                      )
                     ))}
                   </div>
                 )}
@@ -2582,114 +2729,15 @@ function AdminPageInner() {
                     setEditingPlan(null);
                     setPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] });
                     setShowPlanForm(true);
-                    setTimeout(() => coachingPlanFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
                   }}>
                     <Plus className="w-3.5 h-3.5" /> New Plan
                   </Button>
                 </div>
                 <p className="text-xs text-text-secondary">Separate from Membership Plans above — these are reviewed manually via a coaching application, not purchased instantly. Coaching programs (marked 1:1) are unlocked by any active plan.</p>
 
-                {showPlanForm && (
-                  <div ref={coachingPlanFormRef} className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
-                    <p className="text-sm font-bold text-white">{editingPlan ? 'Edit Plan' : 'New Coaching Plan'}</p>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
-                      <input
-                        value={planForm.name}
-                        onChange={e => setPlanForm(f => ({ ...f, name: e.target.value }))}
-                        placeholder="e.g. 1:1 Personal Coaching"
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Description</label>
-                      <textarea
-                        value={planForm.description}
-                        onChange={e => setPlanForm(f => ({ ...f, description: e.target.value }))}
-                        placeholder="What clients get with this plan…"
-                        rows={2}
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-text-secondary mb-1 block">Price / Month</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={planForm.priceMonthly}
-                            onChange={e => setPlanForm(f => ({ ...f, priceMonthly: e.target.value }))}
-                            placeholder="99.00"
-                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-text-secondary mb-1 block">Currency</label>
-                        <select
-                          value={planForm.currency}
-                          onChange={e => setPlanForm(f => ({ ...f, currency: e.target.value }))}
-                          className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                        >
-                          <option value="USD">USD</option>
-                          <option value="EUR">EUR</option>
-                          <option value="GBP">GBP</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Features (one per line)</label>
-                      <textarea
-                        value={planForm.features}
-                        onChange={e => setPlanForm(f => ({ ...f, features: e.target.value }))}
-                        placeholder={"Weekly check-in calls\nPersonalised training plan\nDirect messaging with coach"}
-                        rows={4}
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Tool Access</label>
-                      <p className="text-xs text-text-tertiary mb-2">
-                        Leave all unchecked to grant every feature (default). Check specific ones to restrict this plan to only those.
-                      </p>
-                      <div className="space-y-1.5">
-                        {[
-                          { id: 'barcode', label: 'Barcode Scanner' },
-                          { id: 'nutrition-ai', label: 'AI Food Analyzer' },
-                          { id: 'meal-planner', label: 'AI Meal Planner' },
-                          { id: 'premium-programs', label: 'Premium Training Plans' },
-                        ].map(({ id, label }) => (
-                          <label key={id} className="flex items-center gap-2.5 py-1 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={planForm.featureAccess.includes(id)}
-                              onChange={() => togglePlanFeatureAccess(id)}
-                              className="w-4 h-4 accent-accent"
-                            />
-                            <span className="text-sm text-white">{label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-white">Active</p>
-                        <p className="text-xs text-text-secondary">Visible to clients for purchase</p>
-                      </div>
-                      <button
-                        onClick={() => setPlanForm(f => ({ ...f, active: !f.active }))}
-                        className={`w-11 h-6 rounded-full transition-colors relative ${planForm.active ? 'bg-accent' : 'bg-surface-elevated'}`}
-                      >
-                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${planForm.active ? 'left-6' : 'left-1'}`} />
-                      </button>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" fullWidth onClick={() => { setShowPlanForm(false); setEditingPlan(null); }}>Cancel</Button>
-                      <Button fullWidth loading={savingPlans} disabled={!planForm.name.trim() || !planForm.priceMonthly} onClick={handleSavePlan}>
-                        {editingPlan ? 'Save' : 'Create'}
-                      </Button>
-                    </div>
+                {showPlanForm && !editingPlan && (
+                  <div className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+                    {renderCoachingPlanForm()}
                   </div>
                 )}
 
@@ -2698,6 +2746,11 @@ function AdminPageInner() {
                 ) : (
                   <div className="space-y-3">
                     {coachingPlans.map((plan) => (
+                      editingPlan?.id === plan.id && showPlanForm ? (
+                        <div key={plan.id} className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+                          {renderCoachingPlanForm()}
+                        </div>
+                      ) : (
                       <div key={plan.id} className={`p-4 rounded-2xl border ${plan.active ? 'border-accent/20 bg-accent/5' : 'border-white/8 opacity-60'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -2727,6 +2780,7 @@ function AdminPageInner() {
                           </div>
                         </div>
                       </div>
+                      )
                     ))}
                   </div>
                 )}
@@ -3121,36 +3175,9 @@ function AdminPageInner() {
             </div>
           </div>
 
-          {showExForm && (
-            <div ref={exFormRef} className="p-4 space-y-3 rounded-2xl bg-surface border border-accent/30">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white">{editingEx ? 'Edit Exercise' : 'New Exercise'}</h3>
-                <button onClick={() => setShowExForm(false)}><XIcon className="w-4 h-4 text-text-secondary" /></button>
-              </div>
-              <Input placeholder="Exercise name (e.g. Barbell Back Squat)" value={exForm.name} onChange={e => setExForm(f => ({ ...f, name: e.target.value }))} />
-              <Input placeholder="Aliases — comma separated (e.g. squat, back squat, bb squat)" value={exForm.aliases} onChange={e => setExForm(f => ({ ...f, aliases: e.target.value }))} />
-              <Input placeholder="Muscle groups — comma separated (e.g. Quadriceps, Glutes)" value={exForm.muscleGroups} onChange={e => setExForm(f => ({ ...f, muscleGroups: e.target.value }))} />
-              <Input placeholder="Equipment — comma separated (e.g. Barbell, Rack)" value={exForm.equipment} onChange={e => setExForm(f => ({ ...f, equipment: e.target.value }))} />
-              <div>
-                <label className="text-xs text-text-secondary mb-1 block">Video file (MP4, MOV, WebM)</label>
-                <input
-                  type="file"
-                  accept="video/*"
-                  className="text-sm text-text-secondary w-full"
-                  onChange={e => setExFile(e.target.files?.[0] ?? null)}
-                />
-                {editingEx?.videoUrl && !exFile && (
-                  <p className="text-xs text-text-tertiary mt-1">Current video on file — upload a new one to replace it.</p>
-                )}
-              </div>
-              {savingEx && exUploadProgress > 0 && exUploadProgress < 100 && (
-                <div className="w-full bg-white/10 rounded-full h-1.5">
-                  <div className="bg-accent h-1.5 rounded-full transition-all" style={{ width: `${exUploadProgress}%` }} />
-                </div>
-              )}
-              <Button onClick={handleSaveEx} loading={savingEx} className="w-full">
-                {savingEx ? (exUploadProgress > 0 ? `Uploading ${exUploadProgress}%…` : 'Saving…') : 'Save Exercise'}
-              </Button>
+          {showExForm && !editingEx && (
+            <div className="p-4 space-y-3 rounded-2xl bg-surface border border-accent/30">
+              {renderExerciseForm()}
             </div>
           )}
 
@@ -3175,34 +3202,40 @@ function AdminPageInner() {
           ) : (
             <div className="space-y-2">
               {exerciseLibrary.map(ex => (
-                <Card key={ex.id} className="p-3 flex items-center gap-3">
-                  <button
-                    onClick={() => setPreviewVideo(ex.videoUrl)}
-                    className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 relative overflow-hidden transition-colors ${ex.thumbnailUrl ? 'bg-black' : 'bg-white/10 hover:bg-accent/20'}`}
-                  >
-                    {ex.thumbnailUrl && (
-                      <img src={ex.thumbnailUrl} alt={ex.name} className="absolute inset-0 w-full h-full object-cover" />
-                    )}
-                    <Play className={`w-5 h-5 relative z-10 ${ex.thumbnailUrl ? 'text-white' : 'text-accent'}`} />
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{ex.name}</p>
-                    <p className="text-xs text-text-secondary truncate">
-                      {[...ex.muscleGroups, ...ex.equipment].join(' · ')}
-                    </p>
-                    {ex.aliases.length > 0 && (
-                      <p className="text-xs text-text-tertiary truncate">Also: {ex.aliases.join(', ')}</p>
-                    )}
+                editingEx?.id === ex.id && showExForm ? (
+                  <div key={ex.id} className="p-4 space-y-3 rounded-2xl bg-surface border border-accent/30">
+                    {renderExerciseForm()}
                   </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <button onClick={() => startEditEx(ex)} className="p-2.5 rounded-lg hover:bg-white/10 transition-colors">
-                      <Edit2 className="w-4 h-4 text-text-secondary" />
+                ) : (
+                  <Card key={ex.id} className="p-3 flex items-center gap-3">
+                    <button
+                      onClick={() => setPreviewVideo(ex.videoUrl)}
+                      className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 relative overflow-hidden transition-colors ${ex.thumbnailUrl ? 'bg-black' : 'bg-white/10 hover:bg-accent/20'}`}
+                    >
+                      {ex.thumbnailUrl && (
+                        <img src={ex.thumbnailUrl} alt={ex.name} className="absolute inset-0 w-full h-full object-cover" />
+                      )}
+                      <Play className={`w-5 h-5 relative z-10 ${ex.thumbnailUrl ? 'text-white' : 'text-accent'}`} />
                     </button>
-                    <button onClick={() => handleDeleteEx(ex.id)} className="p-2.5 rounded-lg hover:bg-red-500/20 transition-colors">
-                      <Trash2 className="w-4 h-4 text-red-400" />
-                    </button>
-                  </div>
-                </Card>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{ex.name}</p>
+                      <p className="text-xs text-text-secondary truncate">
+                        {[...ex.muscleGroups, ...ex.equipment].join(' · ')}
+                      </p>
+                      {ex.aliases.length > 0 && (
+                        <p className="text-xs text-text-tertiary truncate">Also: {ex.aliases.join(', ')}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <button onClick={() => startEditEx(ex)} className="p-2.5 rounded-lg hover:bg-white/10 transition-colors">
+                        <Edit2 className="w-4 h-4 text-text-secondary" />
+                      </button>
+                      <button onClick={() => handleDeleteEx(ex.id)} className="p-2.5 rounded-lg hover:bg-red-500/20 transition-colors">
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                      </button>
+                    </div>
+                  </Card>
+                )
               ))}
             </div>
           )}
