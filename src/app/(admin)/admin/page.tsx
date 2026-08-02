@@ -13,7 +13,7 @@ import {
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getIdToken } from 'firebase/auth';
-import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
+import { uploadVideo, deleteVideo, type StorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail, extractVideoThumbnailFromUrl } from '@/lib/videoThumbnail';
 import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_B2B_TERMS } from '@/lib/legalDefaults';
 import {
@@ -1214,12 +1214,17 @@ function AdminPageInner() {
       let videoUrl = editingEx?.videoUrl ?? '';
       let thumbnailUrl = editingEx?.thumbnailUrl;
       if (exFile) {
+        const oldVideoUrl = editingEx?.videoUrl;
+        const oldThumbnailUrl = editingEx?.thumbnailUrl;
         videoUrl = await uploadVideo(storageProvider, user, exFile, 'exerciseLibrary', setExUploadProgress);
         const thumbBlob = await extractVideoThumbnail(exFile).catch(() => null);
         if (thumbBlob) {
           const thumbFile = new File([thumbBlob], 'thumb.jpg', { type: 'image/jpeg' });
           thumbnailUrl = await uploadVideo(storageProvider, user, thumbFile, 'exerciseLibrary').catch(() => thumbnailUrl);
         }
+        // Clean up the files being replaced now that the new ones are safely uploaded.
+        if (oldVideoUrl && oldVideoUrl !== videoUrl) deleteVideo(storageProvider, user, oldVideoUrl);
+        if (oldThumbnailUrl && oldThumbnailUrl !== thumbnailUrl) deleteVideo(storageProvider, user, oldThumbnailUrl);
       }
       const payload = {
         name: exForm.name.trim(),
@@ -1246,10 +1251,15 @@ function AdminPageInner() {
 
   async function handleDeleteEx(id: string) {
     if (!confirm('Delete this exercise from the library?')) return;
+    const ex = exerciseLibrary.find(e => e.id === id);
     try {
       await deleteExerciseVideo(id);
       setExerciseLibrary(prev => prev.filter(e => e.id !== id));
       toast.success('Deleted');
+      if (user && ex) {
+        deleteVideo(storageProvider, user, ex.videoUrl);
+        deleteVideo(storageProvider, user, ex.thumbnailUrl);
+      }
     } catch { toast.error('Failed to delete'); }
   }
 

@@ -1,5 +1,5 @@
 import { getIdToken, type User } from 'firebase/auth';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 
 export type StorageProvider = 'firebase' | 'r2';
@@ -75,6 +75,28 @@ export async function uploadVideo(
   return provider === 'r2'
     ? uploadToR2(user, file, folder, onProgress)
     : uploadToFirebaseStorage(file, folder, onProgress);
+}
+
+/** Best-effort delete of a previously-uploaded file (video or thumbnail) by
+ * its public URL — so replacing/removing an exercise video doesn't leave the
+ * old file orphaned in storage forever. Never throws: a failed cleanup
+ * shouldn't block the save/delete the admin actually asked for. */
+export async function deleteVideo(provider: StorageProvider, user: User, url: string | undefined): Promise<void> {
+  if (!url) return;
+  try {
+    if (provider === 'r2') {
+      const token = await getIdToken(user);
+      await fetch('/api/admin/r2-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ url }),
+      });
+    } else {
+      await deleteObject(ref(storage, url));
+    }
+  } catch (err) {
+    console.error('[uploadVideo] Failed to delete old file', url, err);
+  }
 }
 
 /** Uploads user-generated content (e.g. PR wall posts) via the user-scoped

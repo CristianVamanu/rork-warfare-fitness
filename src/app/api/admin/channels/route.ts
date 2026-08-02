@@ -107,7 +107,10 @@ export async function DELETE(req: NextRequest) {
     const { id } = await req.json() as { id: string };
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
-    await result.db.collection('channels').doc(id).delete();
+    // recursiveDelete also removes posts/{postId}/replies and members —
+    // a plain doc delete only removed the channel itself, orphaning every
+    // subcollection underneath it permanently.
+    await result.db.recursiveDelete(result.db.collection('channels').doc(id));
     return NextResponse.json({ ok: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
