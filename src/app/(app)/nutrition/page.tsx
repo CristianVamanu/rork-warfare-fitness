@@ -285,7 +285,7 @@ function NutritionPageInner() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-white">
-                  {(waterMl / 1000).toFixed(1)}L
+                  {(waterMl / 1000).toFixed(2)}L
                   <span className="text-text-secondary font-normal"> / {goals.water / 1000}L</span>
                 </span>
                 {waterLogs.length > 0 && (
