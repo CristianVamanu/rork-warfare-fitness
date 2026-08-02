@@ -666,7 +666,7 @@ function AdminPageInner() {
       // thread they can reply in, not just a one-way alert.
       await sendNotification({
         userId: goalModalUser.id,
-        title: 'New goal from your coach',
+        title: 'New goal set for you',
         body: goalForm.targetValue
           ? `${goalForm.title} — target: ${goalForm.targetValue}${goalForm.unit ? ` ${goalForm.unit}` : ''}`
           : goalForm.title,

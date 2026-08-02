@@ -146,7 +146,7 @@ export default function NotificationsPage() {
           <div className="flex flex-col items-center justify-center py-20">
             <BellOff className="w-12 h-12 text-text-tertiary mb-4" />
             <p className="text-white font-bold">No notifications yet</p>
-            <p className="text-text-secondary text-sm mt-1">Your coach's updates will appear here.</p>
+            <p className="text-text-secondary text-sm mt-1">Updates will appear here.</p>
           </div>
         ) : visibleNotifs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">

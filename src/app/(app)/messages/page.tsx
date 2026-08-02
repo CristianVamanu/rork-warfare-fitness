@@ -90,7 +90,7 @@ export default function MessagesPage() {
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <div className="flex-1">
-                <p className="text-sm font-bold text-white">Your Coach</p>
+                <p className="text-sm font-bold text-white">Support</p>
                 <p className="text-xs text-text-secondary">Replies may take a moment</p>
               </div>
               <button
@@ -122,7 +122,7 @@ export default function MessagesPage() {
                 value={msgText}
                 onChange={e => setMsgText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                placeholder="Reply to your coach…"
+                placeholder="Reply…"
                 className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
               />
               <Button onClick={handleSend} loading={sending} disabled={!msgText.trim()}>
@@ -138,7 +138,7 @@ export default function MessagesPage() {
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16">
             <MessageSquare className="w-12 h-12 text-text-tertiary mx-auto mb-3" />
             <p className="text-white font-bold">No messages yet</p>
-            <p className="text-text-secondary text-sm mt-1">Your coach will reach out to you here.</p>
+            <p className="text-text-secondary text-sm mt-1">Messages will appear here.</p>
           </motion.div>
         ) : (
           <div className="space-y-2">
@@ -152,11 +152,11 @@ export default function MessagesPage() {
                       className="w-10 h-10 rounded-full bg-danger/20 flex items-center justify-center text-danger text-sm font-bold flex-shrink-0 cursor-pointer"
                       onClick={() => openConversation(conv)}
                     >
-                      C
+                      S
                     </div>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openConversation(conv)}>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-white">Your Coach</p>
+                        <p className="text-sm font-medium text-white">Support</p>
                         {conv.unreadByUser && <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
                       </div>
                       <p className="text-xs text-text-secondary truncate">{conv.lastMessage || 'No messages yet'}</p>

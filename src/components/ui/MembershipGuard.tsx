@@ -105,7 +105,7 @@ function LockedScreen({ trialDays }: { trialDays: number }) {
 
       {plans.length === 0 ? (
         <Card className="p-6 text-center max-w-sm w-full">
-          <p className="text-xs text-text-tertiary">Already a member? Ask your coach to grant you access.</p>
+          <p className="text-xs text-text-tertiary">Already a member? Contact support for access.</p>
         </Card>
       ) : (
         <div className="space-y-3 max-w-sm w-full">

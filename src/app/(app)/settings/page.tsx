@@ -48,7 +48,7 @@ export default function SettingsPage() {
         toast.success('Push notifications disabled');
       } else {
         if (!vapidKey) {
-          toast.error('Push notifications not configured by your trainer yet.');
+          toast.error('Push notifications are not set up yet.');
           return;
         }
         const ok = await subscribeToPush(user.uid, vapidKey);
@@ -220,7 +220,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-white">Push Notifications</p>
-                <p className="text-xs text-text-secondary">{pushSubscribed ? 'Enabled — you will receive coach alerts' : 'Disabled — tap to enable'}</p>
+                <p className="text-xs text-text-secondary">{pushSubscribed ? 'Enabled — you will receive alerts' : 'Disabled — tap to enable'}</p>
               </div>
               <button
                 onClick={handlePushToggle}

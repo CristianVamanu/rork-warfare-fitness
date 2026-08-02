@@ -594,7 +594,7 @@ export default function ProfilePage() {
                 )}
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-white">Messages from Coach</p>
+                <p className="text-sm font-medium text-white">Messages</p>
                 <p className="text-xs text-text-secondary">{unreadMessages > 0 ? `${unreadMessages} unread` : 'View your conversations'}</p>
               </div>
             </Card>

@@ -170,7 +170,7 @@ export default function GoalsPage() {
             <Card className="p-10 text-center">
               <Target className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
               <p className="text-white font-bold">No goals yet</p>
-              <p className="text-text-secondary text-sm mt-1">Your coach hasn&apos;t set any goals for you yet.</p>
+              <p className="text-text-secondary text-sm mt-1">No goals have been set for you yet.</p>
             </Card>
           )
         ) : (

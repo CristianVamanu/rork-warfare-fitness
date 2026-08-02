@@ -519,7 +519,7 @@ export default function ChannelPage() {
         <div className="fixed bottom-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
           <div className="px-4 py-3 max-w-2xl mx-auto w-full flex items-center gap-2 text-sm text-text-secondary">
             <Megaphone className="w-4 h-4 flex-shrink-0" />
-            Announcement-only channel — only your coach can post here.
+            Announcement-only channel — only admins can post here.
           </div>
         </div>
       ) : (

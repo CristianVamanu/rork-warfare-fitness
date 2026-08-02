@@ -21,7 +21,7 @@ export default function BannedPage() {
       </div>
       <h1 className="text-2xl font-black text-white mb-2">Account Suspended</h1>
       <p className="text-text-secondary text-sm max-w-xs mb-8">
-        Your account has been suspended. Please contact your coach or trainer for more information.
+        Your account has been suspended. Please contact support for more information.
       </p>
       <Button variant="danger" onClick={handleSignOut}>Sign Out</Button>
     </div>

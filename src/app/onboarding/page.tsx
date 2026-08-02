@@ -821,7 +821,7 @@ function OnboardingPageInner() {
               })()}
             </div>
           )}
-          <p className="text-sm text-text-secondary text-center">A personal welcome from your coach.</p>
+          <p className="text-sm text-text-secondary text-center">A personal welcome to get you started.</p>
           <Button fullWidth onClick={() => { setShowVideoModal(false); router.replace('/dashboard'); }}>
             Let&apos;s Go! →
           </Button>
@@ -1045,7 +1045,7 @@ function StepMedicalHistory({ data, onChange }: { data: MedicalHistoryAnswers; o
     <div>
       <h1 className="text-2xl font-black text-white mb-1">Health screening</h1>
       <p className="text-text-secondary text-sm mb-5">
-        Answer every question below (Yes/No) so your coach can train around any medical considerations — shared only with your coach.
+        Answer every question below (Yes/No) so your program can work around any medical considerations — kept private to your account.
       </p>
       <Card className="p-4 divide-y divide-white/5">
         <YesNoField label="Do you practice sports/exercise?" value={data.practicesSports} onChange={(v) => onChange({ practicesSports: v })} detail={data.sportsDetail} onDetailChange={(v) => onChange({ sportsDetail: v })} detailPlaceholder="Which sport(s)?" />

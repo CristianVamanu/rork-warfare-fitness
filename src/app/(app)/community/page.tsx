@@ -97,7 +97,7 @@ function CommunityPageInner() {
               <Card className="p-10 text-center">
                 <Hash className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
                 <p className="text-white font-bold">No channels yet</p>
-                <p className="text-text-secondary text-sm mt-1">Your trainer will create channels soon.</p>
+                <p className="text-text-secondary text-sm mt-1">Channels will appear here soon.</p>
               </Card>
             ) : (
               <div className="space-y-2">

@@ -216,7 +216,7 @@ function NutritionPageInner() {
                   <Beef className="w-4 h-4 text-accent" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-white">Your Coach&apos;s Nutrition Plan</p>
+                  <p className="text-sm font-bold text-white">Your Nutrition Plan</p>
                   <p className="text-xs text-text-secondary">
                     {profile.assignedNutritionPlan.calories}kcal · {profile.assignedNutritionPlan.protein}p / {profile.assignedNutritionPlan.carbs}c / {profile.assignedNutritionPlan.fat}f
                   </p>

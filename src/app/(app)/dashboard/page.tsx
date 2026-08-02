@@ -648,7 +648,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Goals</span>
-                    <p className="text-sm font-bold text-white">{activeGoalCount} active {activeGoalCount === 1 ? 'goal' : 'goals'} from your coach</p>
+                    <p className="text-sm font-bold text-white">{activeGoalCount} active {activeGoalCount === 1 ? 'goal' : 'goals'}</p>
                     <p className="text-[10px] text-text-tertiary mt-0.5">Tap to check in on your progress</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
