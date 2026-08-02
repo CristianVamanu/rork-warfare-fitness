@@ -3156,9 +3156,12 @@ function AdminPageInner() {
                 <Card key={ex.id} className="p-3 flex items-center gap-3">
                   <button
                     onClick={() => setPreviewVideo(ex.videoUrl)}
-                    className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 hover:bg-accent/20 transition-colors"
+                    className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 relative overflow-hidden transition-colors ${ex.thumbnailUrl ? 'bg-black' : 'bg-white/10 hover:bg-accent/20'}`}
                   >
-                    <Play className="w-5 h-5 text-accent" />
+                    {ex.thumbnailUrl && (
+                      <img src={ex.thumbnailUrl} alt={ex.name} className="absolute inset-0 w-full h-full object-cover" />
+                    )}
+                    <Play className={`w-5 h-5 relative z-10 ${ex.thumbnailUrl ? 'text-white' : 'text-accent'}`} />
                   </button>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{ex.name}</p>
