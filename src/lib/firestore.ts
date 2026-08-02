@@ -1799,7 +1799,7 @@ function normalizeActivityDoc(d: { id: string; data: () => Record<string, unknow
   } else if (type === 'WATER_LOGGED') {
     const ml = Number(payload.amountMl ?? 0);
     label = 'Water logged';
-    sub = ml >= 1000 ? `${(ml / 1000).toFixed(1)} L` : `${ml} ml`;
+    sub = ml >= 1000 ? `${(ml / 1000).toFixed(2)} L` : `${ml} ml`;
   } else if (type === 'WEIGHT_RECORDED') {
     const kg = Number(payload.weightKg ?? 0);
     label = 'Weight recorded';

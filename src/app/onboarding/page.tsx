@@ -815,6 +815,7 @@ function OnboardingPageInner() {
                     autoPlay
                     playsInline
                     webkit-playsinline="true"
+                    crossOrigin="anonymous"
                     className="w-full h-full object-contain"
                   />
                 );

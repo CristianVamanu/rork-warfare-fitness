@@ -253,6 +253,11 @@ function AdminPageInner() {
   // the form off the top of the viewport with no visual feedback at all,
   // reading as "nothing happens." Scroll it into view on open instead.
   const membershipPlanFormRef = useRef<HTMLDivElement>(null);
+  // Same fix applied to Coaching Plans and the Exercise Library edit form —
+  // both render their form above the list, so editing a lower item needs
+  // an explicit scroll or it opens off-screen above the fold.
+  const coachingPlanFormRef = useRef<HTMLDivElement>(null);
+  const exFormRef = useRef<HTMLDivElement>(null);
 
   // ── Analytics state (real visitor data pulled from Cloudflare's edge) ──────
   const [analytics, setAnalytics] = useState<{
@@ -819,6 +824,7 @@ function AdminPageInner() {
       featureAccess: plan.featureAccess ?? [],
     });
     setShowPlanForm(true);
+    setTimeout(() => coachingPlanFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
 
   function togglePlanFeatureAccess(id: string) {
@@ -1197,6 +1203,7 @@ function AdminPageInner() {
     setExFile(null);
     setExUploadProgress(0);
     setShowExForm(true);
+    setTimeout(() => exFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
 
   async function handleSaveEx() {
@@ -2561,14 +2568,19 @@ function AdminPageInner() {
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
                     <Trophy className="w-4 h-4 text-accent" /> Coaching Plans <span className="text-xs font-normal text-text-tertiary">(1:1 application)</span>
                   </h2>
-                  <Button size="sm" onClick={() => { setEditingPlan(null); setPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] }); setShowPlanForm(true); }}>
+                  <Button size="sm" onClick={() => {
+                    setEditingPlan(null);
+                    setPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] });
+                    setShowPlanForm(true);
+                    setTimeout(() => coachingPlanFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+                  }}>
                     <Plus className="w-3.5 h-3.5" /> New Plan
                   </Button>
                 </div>
                 <p className="text-xs text-text-secondary">Separate from Membership Plans above — these are reviewed manually via a coaching application, not purchased instantly. Coaching programs (marked 1:1) are unlocked by any active plan.</p>
 
                 {showPlanForm && (
-                  <div className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+                  <div ref={coachingPlanFormRef} className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
                     <p className="text-sm font-bold text-white">{editingPlan ? 'Edit Plan' : 'New Coaching Plan'}</p>
                     <div>
                       <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
@@ -3100,7 +3112,7 @@ function AdminPageInner() {
           </div>
 
           {showExForm && (
-            <Card className="p-4 space-y-3 border border-accent/30">
+            <div ref={exFormRef} className="p-4 space-y-3 rounded-2xl bg-surface border border-accent/30">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-white">{editingEx ? 'Edit Exercise' : 'New Exercise'}</h3>
                 <button onClick={() => setShowExForm(false)}><XIcon className="w-4 h-4 text-text-secondary" /></button>
@@ -3129,7 +3141,7 @@ function AdminPageInner() {
               <Button onClick={handleSaveEx} loading={savingEx} className="w-full">
                 {savingEx ? (exUploadProgress > 0 ? `Uploading ${exUploadProgress}%…` : 'Saving…') : 'Save Exercise'}
               </Button>
-            </Card>
+            </div>
           )}
 
           {/* ── Library list ─────────────────────────────────────────────────── */}
