@@ -273,7 +273,7 @@ export default function ProgressPage() {
           </div>
           <Card className="p-4">
             <p className="text-xs text-text-tertiary mb-3 flex items-center gap-1.5">
-              <Lock className="w-3 h-3" /> Private — only visible to you and your coach
+              <Lock className="w-3 h-3" /> Private — only visible to you
             </p>
             {compareMode && (
               <p className="text-xs text-accent mb-3">

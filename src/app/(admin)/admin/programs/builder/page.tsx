@@ -1381,6 +1381,7 @@ function BuilderInner() {
                         loop
                         autoPlay
                         playsInline
+                        crossOrigin="anonymous"
                         className="w-full h-full object-cover"
                       />
                     ) : (

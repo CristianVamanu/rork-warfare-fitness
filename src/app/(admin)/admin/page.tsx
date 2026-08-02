@@ -3137,7 +3137,7 @@ function AdminPageInner() {
             <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setPreviewVideo(null)}>
               <div className="relative w-full max-w-lg" onClick={e => e.stopPropagation()}>
                 <button className="absolute -top-8 right-0 text-white" onClick={() => setPreviewVideo(null)}><XIcon className="w-5 h-5" /></button>
-                <video src={previewVideo} controls autoPlay className="w-full rounded-xl" />
+                <video src={previewVideo} controls autoPlay crossOrigin="anonymous" className="w-full rounded-xl" />
               </div>
             </div>
           )}
@@ -3582,7 +3582,7 @@ function AdminPageInner() {
               <p className="text-[11px] text-text-tertiary mb-2">A short walkthrough of the app. Adds a "Watch Demo" link near the hero CTA that opens it in a lightbox — visitors who want proof before signing up can see the product working without leaving the page.</p>
               <div className="flex items-center gap-3">
                 {landingForm.heroDemoVideoUrl && (
-                  <video src={landingForm.heroDemoVideoUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted />
+                  <video src={landingForm.heroDemoVideoUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted crossOrigin="anonymous" />
                 )}
                 <div className="flex flex-col gap-1.5">
                   <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-white/10 text-xs font-bold text-white cursor-pointer hover:border-accent/40 transition-colors">
@@ -3825,7 +3825,7 @@ function AdminPageInner() {
               <label className="text-xs text-text-secondary mb-1 block">Hero Demo Video (optional — shown as a "Watch Demo" player instead of the static image)</label>
               <div className="flex items-center gap-3">
                 {b2bForm.heroDemoVideoUrl && (
-                  <video src={b2bForm.heroDemoVideoUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted />
+                  <video src={b2bForm.heroDemoVideoUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted crossOrigin="anonymous" />
                 )}
                 <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-elevated border border-border text-xs font-medium text-white cursor-pointer">
                   <input type="file" accept="video/*" className="hidden" onChange={handleB2bVideoUpload} disabled={uploadingB2bVideo} />

@@ -1091,6 +1091,7 @@ function ExerciseInfoButton({ videoUrl, tip, name }: { videoUrl?: string; tip?: 
               autoPlay
               playsInline
               preload="auto"
+              crossOrigin="anonymous"
               className="w-full h-full object-cover"
             />
           )
@@ -1112,6 +1113,7 @@ function ExerciseInfoButton({ videoUrl, tip, name }: { videoUrl?: string; tip?: 
                 loop
                 autoPlay
                 playsInline
+                crossOrigin="anonymous"
                 className="w-full rounded-2xl bg-black"
               />
             )}

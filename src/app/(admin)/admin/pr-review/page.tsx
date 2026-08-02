@@ -122,7 +122,7 @@ export default function PRReviewPage() {
                   {post.mediaUrl && (
                     <div className="rounded-xl overflow-hidden mb-3 bg-black">
                       {post.mediaType === 'video' ? (
-                        <video src={post.mediaUrl} controls className="w-full max-h-72" />
+                        <video src={post.mediaUrl} controls crossOrigin="anonymous" className="w-full max-h-72" />
                       ) : (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={post.mediaUrl} alt={post.exerciseName} className="w-full max-h-72 object-cover" />

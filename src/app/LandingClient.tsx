@@ -574,6 +574,7 @@ export default function LandingPage({
             controls
             autoPlay
             playsInline
+            crossOrigin="anonymous"
           />
         )}
       </Modal>
