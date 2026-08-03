@@ -1340,6 +1340,79 @@ function AdminPageInner() {
     setShowChannelForm(true);
   }
 
+  function renderChannelForm() {
+    return (
+      <>
+        <h3 className="text-sm font-bold text-white">{editingChannel ? 'Edit Channel' : 'Create Channel'}</h3>
+        <div className="flex gap-2">
+          <input
+            value={channelForm.emoji}
+            onChange={e => setChannelForm(f => ({ ...f, emoji: e.target.value }))}
+            placeholder="📢"
+            maxLength={2}
+            className="w-14 text-center bg-surface border border-white/10 rounded-xl px-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+          />
+          <input
+            value={channelForm.name}
+            onChange={e => setChannelForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="Channel name"
+            className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+        </div>
+        <input
+          value={channelForm.description}
+          onChange={e => setChannelForm(f => ({ ...f, description: e.target.value }))}
+          placeholder="Description (optional)"
+          className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+        />
+        <div>
+          <label className="text-xs text-text-secondary mb-1.5 block">Slow Mode</label>
+          <div className="flex gap-2">
+            {([0, 7, 21, 30] as const).map(d => (
+              <button
+                key={d}
+                onClick={() => setChannelForm(f => ({ ...f, slowModeDays: d }))}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${channelForm.slowModeDays === d ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}
+              >
+                {d === 0 ? 'Off' : `${d}d`}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-white">Photo Upload</p>
+            <p className="text-xs text-text-secondary">Allow users to attach images</p>
+          </div>
+          <button
+            onClick={() => setChannelForm(f => ({ ...f, photoUploadEnabled: !f.photoUploadEnabled }))}
+            className={`w-11 h-6 rounded-full transition-colors relative ${channelForm.photoUploadEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.photoUploadEnabled ? 'left-6' : 'left-1'}`} />
+          </button>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-white">Allow User Posts</p>
+            <p className="text-xs text-text-secondary">Off = announcement-only, only admin/trainer can post</p>
+          </div>
+          <button
+            onClick={() => setChannelForm(f => ({ ...f, allowUserPosts: !f.allowUserPosts }))}
+            className={`w-11 h-6 rounded-full transition-colors relative ${channelForm.allowUserPosts ? 'bg-accent' : 'bg-surface-elevated'}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.allowUserPosts ? 'left-6' : 'left-1'}`} />
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="ghost" fullWidth onClick={() => { setShowChannelForm(false); setEditingChannel(null); }}>Cancel</Button>
+          <Button fullWidth loading={savingChannel} disabled={!channelForm.name.trim()} onClick={handleSaveChannel}>
+            {editingChannel ? 'Save' : 'Create'}
+          </Button>
+        </div>
+      </>
+    );
+  }
+
   async function loadNotifConfig() {
     setNotifLoading(true);
     try {
@@ -1457,7 +1530,7 @@ function AdminPageInner() {
       <>
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-white">{editingEx ? 'Edit Exercise' : 'New Exercise'}</h3>
-          <button onClick={() => setShowExForm(false)}><XIcon className="w-4 h-4 text-text-secondary" /></button>
+          <button onClick={() => { setShowExForm(false); setEditingEx(null); }}><XIcon className="w-4 h-4 text-text-secondary" /></button>
         </div>
         <Input placeholder="Exercise name (e.g. Barbell Back Squat)" value={exForm.name} onChange={e => setExForm(f => ({ ...f, name: e.target.value }))} />
         <Input placeholder="Aliases — comma separated (e.g. squat, back squat, bb squat)" value={exForm.aliases} onChange={e => setExForm(f => ({ ...f, aliases: e.target.value }))} />
@@ -1519,6 +1592,7 @@ function AdminPageInner() {
       await saveExerciseVideo(payload, editingEx?.id);
       toast.success(editingEx ? 'Exercise updated' : 'Exercise added to library');
       setShowExForm(false);
+      setEditingEx(null);
       await loadExerciseLibrary();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -2249,74 +2323,9 @@ function AdminPageInner() {
             </Button>
           </div>
 
-          {showChannelForm && (
+          {showChannelForm && !editingChannel && (
             <Card className="p-5 space-y-3 border-accent/30">
-              <h3 className="text-sm font-bold text-white">{editingChannel ? 'Edit Channel' : 'Create Channel'}</h3>
-              <div className="flex gap-2">
-                <input
-                  value={channelForm.emoji}
-                  onChange={e => setChannelForm(f => ({ ...f, emoji: e.target.value }))}
-                  placeholder="📢"
-                  maxLength={2}
-                  className="w-14 text-center bg-surface border border-white/10 rounded-xl px-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                />
-                <input
-                  value={channelForm.name}
-                  onChange={e => setChannelForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="Channel name"
-                  className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-                />
-              </div>
-              <input
-                value={channelForm.description}
-                onChange={e => setChannelForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Description (optional)"
-                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-              />
-              <div>
-                <label className="text-xs text-text-secondary mb-1.5 block">Slow Mode</label>
-                <div className="flex gap-2">
-                  {([0, 7, 21, 30] as const).map(d => (
-                    <button
-                      key={d}
-                      onClick={() => setChannelForm(f => ({ ...f, slowModeDays: d }))}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${channelForm.slowModeDays === d ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}
-                    >
-                      {d === 0 ? 'Off' : `${d}d`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-white">Photo Upload</p>
-                  <p className="text-xs text-text-secondary">Allow users to attach images</p>
-                </div>
-                <button
-                  onClick={() => setChannelForm(f => ({ ...f, photoUploadEnabled: !f.photoUploadEnabled }))}
-                  className={`w-11 h-6 rounded-full transition-colors relative ${channelForm.photoUploadEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
-                >
-                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.photoUploadEnabled ? 'left-6' : 'left-1'}`} />
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-white">Allow User Posts</p>
-                  <p className="text-xs text-text-secondary">Off = announcement-only, only admin/trainer can post</p>
-                </div>
-                <button
-                  onClick={() => setChannelForm(f => ({ ...f, allowUserPosts: !f.allowUserPosts }))}
-                  className={`w-11 h-6 rounded-full transition-colors relative ${channelForm.allowUserPosts ? 'bg-accent' : 'bg-surface-elevated'}`}
-                >
-                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.allowUserPosts ? 'left-6' : 'left-1'}`} />
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" fullWidth onClick={() => { setShowChannelForm(false); setEditingChannel(null); }}>Cancel</Button>
-                <Button fullWidth loading={savingChannel} disabled={!channelForm.name.trim()} onClick={handleSaveChannel}>
-                  {editingChannel ? 'Save' : 'Create'}
-                </Button>
-              </div>
+              {renderChannelForm()}
             </Card>
           )}
 
@@ -2330,6 +2339,11 @@ function AdminPageInner() {
           ) : (
             <div className="space-y-2">
               {channels.map(ch => (
+                editingChannel?.id === ch.id && showChannelForm ? (
+                  <Card key={ch.id} className="p-5 space-y-3 border-accent/30">
+                    {renderChannelForm()}
+                  </Card>
+                ) : (
                 <Card key={ch.id} className="p-4">
                   <div className="flex items-center gap-3">
                     <span className="text-xl">{ch.emoji || '#'}</span>
@@ -2352,6 +2366,7 @@ function AdminPageInner() {
                     </div>
                   </div>
                 </Card>
+                )
               ))}
             </div>
           )}
