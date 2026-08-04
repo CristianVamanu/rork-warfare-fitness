@@ -8,7 +8,7 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
-  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target,
+  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -293,6 +293,7 @@ function AdminPageInner() {
   // ── Exercise library state ────────────────────────────────────────────────
   const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseVideo[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
+  const [exSearchQuery, setExSearchQuery] = useState('');
   const [showExForm, setShowExForm] = useState(false);
   const [editingEx, setEditingEx] = useState<ExerciseVideo | null>(null);
   const [exForm, setExForm] = useState({ name: '', aliases: '', muscleGroups: '', equipment: '' });
@@ -1967,6 +1968,14 @@ function AdminPageInner() {
     URL.revokeObjectURL(url);
   }
 
+  const exSearchQueryLower = exSearchQuery.trim().toLowerCase();
+  const filteredExerciseLibrary = exSearchQueryLower
+    ? exerciseLibrary.filter(ex =>
+        ex.name.toLowerCase().includes(exSearchQueryLower) ||
+        ex.aliases.some(a => a.toLowerCase().includes(exSearchQueryLower))
+      )
+    : exerciseLibrary;
+
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'overview', label: 'Overview', icon: Activity },
     { id: 'programs', label: 'Programs', icon: Dumbbell },
@@ -3197,6 +3206,18 @@ function AdminPageInner() {
             </div>
           )}
 
+          {exerciseLibrary.length > 0 && (
+            <div className="relative">
+              <Search className="w-4 h-4 text-text-tertiary absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                value={exSearchQuery}
+                onChange={e => setExSearchQuery(e.target.value)}
+                placeholder="Search exercises by name or alias…"
+                className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+              />
+            </div>
+          )}
+
           {/* ── Library list ─────────────────────────────────────────────────── */}
           {previewVideo && (
             <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setPreviewVideo(null)}>
@@ -3215,9 +3236,14 @@ function AdminPageInner() {
               <p className="text-text-secondary text-sm">No exercises yet.</p>
               <p className="text-text-tertiary text-xs mt-1">Use bulk upload above to get started.</p>
             </Card>
+          ) : filteredExerciseLibrary.length === 0 ? (
+            <Card className="p-8 text-center">
+              <Search className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
+              <p className="text-text-secondary text-sm">No exercises match &quot;{exSearchQuery}&quot;.</p>
+            </Card>
           ) : (
             <div className="space-y-2">
-              {exerciseLibrary.map(ex => (
+              {filteredExerciseLibrary.map(ex => (
                 editingEx?.id === ex.id && showExForm ? (
                   <div key={ex.id} className="p-4 space-y-3 rounded-2xl bg-surface border border-accent/30">
                     {renderExerciseForm()}
