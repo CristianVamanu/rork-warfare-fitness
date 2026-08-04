@@ -8,7 +8,8 @@ import { ArrowLeft, Sparkles, Flame, Beef, ChevronDown, Plus, Loader2 } from 'lu
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { logMealAction } from '@/lib/actions';
+import { logMealAction, consumeAiTaste } from '@/lib/actions';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PaywallGate } from '@/components/ui/PaywallGate';
@@ -29,6 +30,7 @@ const EXAMPLE_CHIPS = ['eggs, spinach, cheese', 'chicken, rice, broccoli', 'oats
 export default function MealPlannerPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { tasteAvailable } = useFeatureAccess('meal-planner');
   const [ingredients, setIngredients] = useState('');
   const [loading, setLoading] = useState(false);
   const [meals, setMeals] = useState<MealIdea[] | null>(null);
@@ -49,6 +51,7 @@ export default function MealPlannerPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to generate ideas');
       setMeals(data.meals);
+      if (tasteAvailable) consumeAiTaste(user.uid, 'meal-planner').catch(console.error);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong');
     } finally {

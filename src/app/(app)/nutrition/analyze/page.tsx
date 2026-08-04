@@ -9,7 +9,8 @@ import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayMeals, getUserGoals } from '@/lib/firestore';
-import { logMealAction } from '@/lib/actions';
+import { logMealAction, consumeAiTaste } from '@/lib/actions';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PaywallGate } from '@/components/ui/PaywallGate';
@@ -66,6 +67,7 @@ function AnalyzeFoodPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const { tasteAvailable } = useFeatureAccess('nutrition-ai');
   const fileRef = useRef<HTMLInputElement>(null);
   const galleryFileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -125,6 +127,7 @@ function AnalyzeFoodPageInner() {
       if (typeof data.remaining === 'number') setRemaining(data.remaining);
       if (!res.ok) throw new Error(data.error || text || `HTTP ${res.status}`);
       setResult(data);
+      if (tasteAvailable) consumeAiTaste(user.uid, 'nutrition-ai').catch(console.error);
     } catch (err: unknown) {
       const msg = (err as Error)?.message || String(err);
       toast.error(`Analysis failed: ${msg}`, { duration: 8000 });

@@ -197,6 +197,13 @@ export interface UserProfile {
   // day without breaking the streak — spent (available -> false) the moment
   // it actually saves a gap, not just for holding one.
   streakFreeze?: { available: boolean; lastGrantedAt: unknown; lastUsedAt?: unknown };
+  // Taste-then-paywall: a non-member gets exactly one real, successful use of
+  // each locked AI tool before the paywall shows on subsequent visits —
+  // people convert far better after they've already seen the tool work for
+  // them. Keyed by the same feature id PaywallGate/MembershipConfig use
+  // ('barcode' | 'nutrition-ai' | 'meal-planner'). Set true only after an
+  // actual successful result, not just for opening the page.
+  aiTaste?: Record<string, boolean>;
   activeProgram?: ActiveProgram;
   onboardingComplete?: boolean;
   onboarding?: OnboardingData;

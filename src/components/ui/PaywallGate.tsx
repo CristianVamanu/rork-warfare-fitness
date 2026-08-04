@@ -1,14 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Lock, Star, Crown } from 'lucide-react';
-import { getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
+import { useState } from 'react';
+import { Lock, Star, Crown, Sparkles } from 'lucide-react';
 import { startPlanCheckout } from '@/lib/checkout';
 import { getPlanBillingPeriods, planHasAnyPrice } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Card } from './Card';
 import { Button } from './Button';
-import type { MembershipConfig, MembershipPlan } from '@/types';
 
 interface Props {
   feature?: string; // 'barcode' | 'nutrition-ai' | 'meal-planner' | undefined (means fullLock check only)
@@ -25,65 +24,42 @@ interface Props {
  * A non-member hitting a locked feature sees every active plan to choose
  * from; a member whose plan doesn't cover it sees an upgrade prompt
  * instead of a duplicate "subscribe" flow.
+ *
+ * Taste-then-paywall: a non-member's first visit to a locked AI tool (one
+ * that hasn't been tasted yet — see useFeatureAccess) renders through
+ * instead of blocking, with a small banner instead of a full wall. The page
+ * itself calls consumeAiTaste() after an actual successful result, which
+ * flips `tasted` true and the wall shows on the next visit.
  */
 export function PaywallGate({ feature, programId, children }: Props) {
   const { user, profile } = useAuth();
-  const [config, setConfig] = useState<MembershipConfig | null>(null);
-  const [plans, setPlans] = useState<MembershipPlan[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [subscribingId, setSubscribingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    Promise.all([
-      getMembershipConfig().catch(() => null),
-      getMembershipPlans().catch(() => []),
-    ])
-      .then(([cfg, mp]) => { setConfig(cfg); setPlans(mp); })
-      .finally(() => setLoaded(true));
-  }, []);
+  const { loaded, config, plans, hasMembership, inTrial, isLocked, tasteAvailable } = useFeatureAccess(feature, programId);
 
   if (!loaded) return null;
+  if (!config || !config.enabled || inTrial) return <>{children}</>;
 
-  // Active coaching is a higher-priced add-on tier, not an alternative to
-  // membership — it grants at least everything a regular membership does.
-  const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
-
-  // Check free trial: if user joined within trialDays, treat as member —
-  // full access to every feature regardless of plan, no exceptions.
-  const trialDays = config?.trialDays ?? 0;
-  const inTrial = (() => {
-    if (!trialDays || !profile?.createdAt) return false;
-    const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
-    const ms = Date.now() - created.getTime();
-    return ms < trialDays * 24 * 60 * 60 * 1000;
-  })();
-
-  if (!config || !config.enabled || inTrial) {
-    return <>{children}</>;
-  }
-
-  // Paying member — check their specific plan's feature access
   if (hasMembership) {
+    if (!isLocked) return <>{children}</>;
     const activePlan = profile?.membership?.planId
       ? plans.find((p) => p.id === profile.membership!.planId) ?? null
       : null;
-    const planRestricts = !!activePlan?.featureAccess && activePlan.featureAccess.length > 0;
-
-    if (!planRestricts) return <>{children}</>; // no plan on file, or plan grants everything
-
-    const featureAllowed = !feature || activePlan!.featureAccess.includes(feature);
-    const programAllowed = !programId || activePlan!.featureAccess.includes('premium-programs');
-    if (featureAllowed && programAllowed) return <>{children}</>;
-    return <PlanUpgradeScreen planName={activePlan!.name} />;
+    return <PlanUpgradeScreen planName={activePlan?.name ?? 'current'} />;
   }
 
-  // Non-member — does this specific tool require a paid plan at all?
-  const isLocked =
-    config.fullLock ||
-    (feature && (config.lockedFeatures ?? []).includes(feature)) ||
-    (programId && (config.lockedProgramIds ?? []).includes(programId));
-
   if (!isLocked) return <>{children}</>;
+
+  if (tasteAvailable) {
+    return (
+      <>
+        <div className="mx-4 mt-3 p-2.5 rounded-xl bg-accent-muted border border-accent/20 flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+          <p className="text-xs text-accent font-medium">Your free try of this tool — upgrade after to keep using it.</p>
+        </div>
+        {children}
+      </>
+    );
+  }
 
   async function handleSubscribe(planId: string) {
     if (!user) return;
@@ -95,6 +71,7 @@ export function PaywallGate({ feature, programId, children }: Props) {
   }
 
   const activePlans = plans.filter((p) => p.active && planHasAnyPrice(p));
+  const trialDays = config.trialDays ?? 0;
   const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
 
   return (

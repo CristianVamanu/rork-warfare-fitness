@@ -11,7 +11,8 @@ import {
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { logMealAction } from '@/lib/actions';
+import { logMealAction, consumeAiTaste } from '@/lib/actions';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
@@ -41,6 +42,7 @@ type CameraState = 'idle' | 'initializing' | 'scanning' | 'denied' | 'error';
 export default function BarcodePage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { tasteAvailable } = useFeatureAccess('barcode');
   const videoRef = useRef<HTMLVideoElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const readerRef = useRef<any>(null);
@@ -216,6 +218,7 @@ export default function BarcodePage() {
       if (typeof data.remaining === 'number') setRemaining(data.remaining);
       if (!res.ok) throw new Error(data.error || 'Product not found');
       setResult(data.nutrition);
+      if (tasteAvailable) consumeAiTaste(user.uid, 'barcode').catch(console.error);
       setProductName(data.name || data.nutrition?.name || 'Product');
       setNutriScoreGrade(data.nutriScoreGrade ?? null);
       setNovaGroup(data.novaGroup ?? null);

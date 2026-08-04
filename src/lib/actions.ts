@@ -268,3 +268,15 @@ export async function recordWeight(userId: string, weightKg: number): Promise<vo
     currentWeightKg: weightKg,
   }, { merge: true }).catch(console.error);
 }
+
+// ---------------------------------------------------------------------------
+// Taste-then-paywall
+// ---------------------------------------------------------------------------
+
+/** Marks a locked AI tool's one-time free taste as used — call only after an
+ * actual successful result, not just for opening the page. */
+export async function consumeAiTaste(userId: string, feature: string): Promise<void> {
+  await setDoc(doc(db, 'users', userId), {
+    aiTaste: { [feature]: true },
+  }, { merge: true });
+}
