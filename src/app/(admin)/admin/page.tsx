@@ -264,7 +264,7 @@ function AdminPageInner() {
 
   // ── Notifications state ────────────────────────────────────────────────────
   const DEFAULT_NOTIF_CONFIG: NotificationConfig = {
-    rules: { missed_workout: false, streak_reminder: false },
+    rules: { missed_workout: false, streak_reminder: false, weekly_recap: false },
     aiMotivationEnabled: false,
     aiMotivationSchedule: 'daily',
   };
@@ -1477,7 +1477,7 @@ function AdminPageInner() {
         const sentCount = data.sent?.length ?? 0;
         if (sentCount === 0 && data.debug) {
           const { rulesEnabled, aiEnabled, usersConsidered, usersWithActiveProgram } = data.debug;
-          const noRulesOn = !rulesEnabled?.missed_workout && !rulesEnabled?.streak_reminder && !aiEnabled;
+          const noRulesOn = !rulesEnabled?.missed_workout && !rulesEnabled?.streak_reminder && !rulesEnabled?.weekly_recap && !aiEnabled;
           toast(
             noRulesOn
               ? `0 sent — no rules are enabled. Toggle a rule and click "Save Rules" first, then Run Now.`
@@ -2439,6 +2439,7 @@ function AdminPageInner() {
                 {[
                   { id: 'missed_workout', label: 'Missed Workout', desc: 'Notify users who haven\'t logged a workout in 24h while on an active program', icon: Dumbbell, color: 'text-yellow-400' },
                   { id: 'streak_reminder', label: 'Streak Celebration', desc: 'Remind users with an active streak to keep going', icon: Flame, color: 'text-orange-400' },
+                  { id: 'weekly_recap', label: 'Weekly Recap', desc: 'Sunday digest of the week\'s workouts, volume, and streak — sent only to users who trained that week', icon: TrendingUp, color: 'text-blue-400' },
                 ].map(({ id, label, desc, icon: Icon, color }) => (
                   <div key={id} className="flex items-start gap-3 py-1">
                     <div className="w-8 h-8 rounded-lg bg-surface-elevated flex items-center justify-center flex-shrink-0 mt-0.5">

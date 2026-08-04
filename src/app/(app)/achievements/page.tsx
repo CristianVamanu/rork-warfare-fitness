@@ -6,7 +6,17 @@ import { Lock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
-import { ACHIEVEMENT_DEFS, type AchievementDef } from '@/lib/achievements';
+import { ACHIEVEMENT_DEFS, achievementProgress, achievementRemaining, type AchievementDef } from '@/lib/achievements';
+
+// Singular/plural unit per achievement category, for "2 workouts away" /
+// "1 day away" style near-miss copy.
+const UNIT_LABEL: Record<AchievementDef['category'], [string, string]> = {
+  workouts: ['workout', 'workouts'],
+  streak: ['day', 'days'],
+  power: ['power level', 'power levels'],
+  time: ['', ''],
+  nutrition: ['meal', 'meals'],
+};
 
 const CATEGORY_LABELS: Record<AchievementDef['category'], string> = {
   workouts: 'Workout Milestones',
@@ -19,6 +29,13 @@ const CATEGORY_LABELS: Record<AchievementDef['category'], string> = {
 export default function AchievementsPage() {
   const { profile } = useAuth();
   const earned = new Set(profile?.achievements ?? []);
+
+  const statParams = {
+    totalWorkouts: profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0,
+    streak: profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0,
+    powerLevel: profile?.powerLevel ?? profile?.stats?.powerLevel ?? 0,
+    totalMealsLogged: profile?.stats?.totalMealsLogged ?? 0,
+  };
 
   const categories = Array.from(new Set(ACHIEVEMENT_DEFS.map((d) => d.category)));
 
@@ -44,6 +61,13 @@ export default function AchievementsPage() {
             <div className="grid grid-cols-2 gap-2.5">
               {ACHIEVEMENT_DEFS.filter((d) => d.category === cat).map((def, i) => {
                 const unlocked = earned.has(def.id);
+                // Near-miss copy — only for numeric-target achievements that
+                // are genuinely close (70%+), so it reads as "almost there"
+                // rather than cluttering every locked card in the grid.
+                const progress = unlocked ? null : achievementProgress(def.id, statParams);
+                const remaining = unlocked ? null : achievementRemaining(def.id, statParams);
+                const showNearMiss = !unlocked && progress !== null && progress >= 0.7 && remaining !== null;
+                const [singular, plural] = UNIT_LABEL[def.category];
                 return (
                   <motion.div
                     key={def.id}
@@ -63,6 +87,11 @@ export default function AchievementsPage() {
                       </div>
                       <p className="text-xs font-bold text-white">{def.title}</p>
                       <p className="text-[10px] text-text-secondary mt-0.5 leading-snug">{def.desc}</p>
+                      {showNearMiss && (
+                        <p className="text-[10px] font-bold text-accent mt-1">
+                          {remaining} {remaining === 1 ? singular : plural} away
+                        </p>
+                      )}
                     </Card>
                   </motion.div>
                 );

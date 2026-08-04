@@ -141,6 +141,19 @@ export async function POST(req: NextRequest) {
         return new Date().getUTCHours();
       }
     };
+    // Weekly recap fires once a week (Sunday, same target hour as the daily
+    // rules) rather than running as its own separate cron/route — reuses the
+    // exact same per-user timezone gating already proven working here
+    // instead of standing up new schedule infrastructure for one rule.
+    const localDayFor = (timezone: string | undefined): number => {
+      try {
+        const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone || 'UTC', weekday: 'short' }).format(new Date());
+        return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(parts);
+      } catch {
+        return new Date().getUTCDay();
+      }
+    };
+    const WEEKLY_RECAP_DAY = 0; // Sunday
 
     // Identity-based framing — onboarding captures the user's actual goal
     // and it's never referenced again anywhere after that. Quoting it back
@@ -184,8 +197,20 @@ export async function POST(req: NextRequest) {
             return createdAt && createdAt.toMillis() >= oneDayAgo.toMillis();
           });
           if (!hasRecentWorkout) {
+            // Personalize with how long it's actually been and what they've
+            // already put in, instead of the same generic line regardless —
+            // specific reactivation copy out-performs boilerplate.
+            const lastWorkoutDate = u.statsCache?.lastWorkoutDate as string | undefined;
+            const daysSince = lastWorkoutDate
+              ? Math.round((new Date(today + 'T00:00:00Z').getTime() - new Date(lastWorkoutDate + 'T00:00:00Z').getTime()) / 86_400_000)
+              : null;
+            const totalWorkouts = u.statsCache?.totalWorkouts ?? 0;
+            const gapPhrase = daysSince && daysSince > 1
+              ? `It's been ${daysSince} days since your last session`
+              : "You haven't logged a workout today";
+            const historyPhrase = totalWorkouts >= 5 ? ` — don't let ${totalWorkouts} sessions of progress stall out` : '';
             const title = "Don't break the chain!";
-            const body = `${identityFor(u.fitnessGoal)} don't skip today. Get back on track with ${u.activeProgram.programName}.`;
+            const body = `${identityFor(u.fitnessGoal)}: ${gapPhrase}${historyPhrase}. Get back on track with ${u.activeProgram.programName}.`;
             await db.collection('notifications').add({
               userId: u.id, trainerId: u.trainerId ?? null,
               title, body, type: 'auto_missed_workout', read: false, createdAt: Timestamp.now(),
@@ -214,6 +239,37 @@ export async function POST(req: NextRequest) {
             });
             await sendPush(u.id, title, body);
             sent.push(`streak:${u.id}`);
+          }
+        }
+
+        // Rule: weekly_recap — a "highlight reel" of the week's wins
+        // (workouts, volume, streak) delivered on a fixed cadence. Variable-
+        // reward digests like this are a proven re-engagement trigger, and
+        // everything it needs (a week-bounded events query + statsCache) is
+        // already exactly the data the other rules above use.
+        if (rules['weekly_recap'] && (force || localDayFor(u.timezone) === WEEKLY_RECAP_DAY)) {
+          const weekAgoTs = Timestamp.fromDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+          const weekEventsSnap = await db.collection('events')
+            .where('userId', '==', u.id)
+            .where('type', '==', 'WORKOUT_COMPLETED')
+            .get();
+          const weekWorkouts = weekEventsSnap.docs.filter((d) => {
+            const createdAt = d.data().createdAt as FirebaseFirestore.Timestamp | undefined;
+            return createdAt && createdAt.toMillis() >= weekAgoTs.toMillis();
+          });
+          if (weekWorkouts.length > 0) {
+            const weekVolume = weekWorkouts.reduce((sum, d) => sum + (Number(d.data().payload?.totalWeightLifted) || 0), 0);
+            const streak = u.statsCache?.streak ?? u.stats?.streak ?? 0;
+            const title = `📊 Your week: ${weekWorkouts.length} session${weekWorkouts.length !== 1 ? 's' : ''} down`;
+            const volumePhrase = weekVolume > 0 ? `, ${Math.round(weekVolume).toLocaleString()}kg moved` : '';
+            const streakPhrase = streak > 0 ? `, ${streak}-day streak held` : '';
+            const body = `${weekWorkouts.length} workout${weekWorkouts.length !== 1 ? 's' : ''}${volumePhrase}${streakPhrase}. Keep it up this week, ${u.displayName ?? 'champ'}.`;
+            await db.collection('notifications').add({
+              userId: u.id, trainerId: u.trainerId ?? null,
+              title, body, type: 'auto_weekly_recap', read: false, createdAt: Timestamp.now(),
+            });
+            await sendPush(u.id, title, body);
+            sent.push(`weekly_recap:${u.id}`);
           }
         }
 
