@@ -291,3 +291,25 @@ html.light .bg-gradient-to-r.text-transparent { -webkit-text-fill-color: transpa
 @media (prefers-reduced-motion: reduce) {
   .flame-ignite, .ignite-flash { animation: none; }
 }
+
+/* Subtle floating/depth effect for dashboard tiles — pure CSS transform +
+   box-shadow (both GPU-composited, no layout/repaint cost), so it's free
+   performance-wise. Static lift on all devices (shows on mobile, where
+   :hover never fires) with a slightly stronger lift + press-down on
+   hover/tap for pointer devices. */
+.card-float {
+  box-shadow: 0 3px 10px -4px rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.25);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.card-float:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px -6px rgba(0, 0, 0, 0.45), 0 2px 6px -2px rgba(0, 0, 0, 0.3);
+}
+.card-float:active {
+  transform: translateY(-1px) scale(0.98);
+  box-shadow: 0 2px 6px -3px rgba(0, 0, 0, 0.35);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-float { transition: none; }
+  .card-float:hover, .card-float:active { transform: none; }
+}

@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, Moon, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, subscribeTodayWorkoutCount, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
+import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, subscribeTodayWorkoutCount, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
 import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix, getProgramDayForDow, getNextSession } from '@/lib/programs';
@@ -20,7 +20,6 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -40,7 +39,6 @@ export default function DashboardPage() {
   const router = useRouter();
   const [waterMl, setWaterMl] = useState<number | null>(null);
   const [calories, setCalories] = useState<number | null>(null);
-  const [leaderboardTop, setLeaderboardTop] = useState<LeaderboardEntry[]>([]);
   const [myRank, setMyRank] = useState<number | null>(null);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
@@ -103,7 +101,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     getLeaderboard(200).then((entries) => {
-      setLeaderboardTop(entries.slice(0, 3));
       const myIdx = entries.findIndex((e) => e.id === user.uid);
       setMyRank(myIdx === -1 ? null : myIdx + 1);
     }).catch(() => {});
@@ -330,7 +327,7 @@ export default function DashboardPage() {
 
           {/* Streak — hero tile, flame centered behind the number */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-2">
-            <Card className="p-4 h-full flex flex-col bg-gradient-to-br from-surface-elevated to-surface relative overflow-hidden">
+            <Card className="p-4 h-full flex flex-col bg-gradient-to-br from-surface-elevated to-surface relative overflow-hidden card-float">
               <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide relative">Streak</span>
 
               <div className="flex-1 flex items-center justify-center relative">
@@ -463,7 +460,7 @@ export default function DashboardPage() {
             never padded with empty space either. */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} className="mb-3">
             {activeProgram ? (
-              <Card className="p-5 h-full relative overflow-hidden flex flex-col">
+              <Card className="p-5 h-full relative overflow-hidden flex flex-col card-float">
                 <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
                   <Dumbbell className="w-28 h-28 text-accent" />
                 </div>
@@ -595,7 +592,7 @@ export default function DashboardPage() {
               </Card>
             ) : (
               <Link href="/training" className="block h-full">
-                <Card className="p-4 h-full relative overflow-hidden hover:border-accent/20 transition-colors flex flex-col justify-center">
+                <Card className="p-4 h-full relative overflow-hidden hover:border-accent/20 transition-colors flex flex-col justify-center card-float">
                   <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
                     <Dumbbell className="w-28 h-28 text-accent" />
                   </div>
@@ -613,7 +610,7 @@ export default function DashboardPage() {
           {/* Rank */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-1">
             <Link href="/community?tab=leaderboard" className="block h-full">
-              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors">
+              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors card-float">
                 <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Leaderboard</span>
                 <p className="text-xl font-black text-accent leading-tight mt-0.5">{myRank ? `#${myRank}` : '—'}</p>
                 <p className="text-[10px] text-text-tertiary mt-0.5">Lvl {powerLevel} · {profile?.xp ?? 0} XP</p>
@@ -624,7 +621,7 @@ export default function DashboardPage() {
           {/* PR Wall teaser */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-1">
             <Link href="/community/prs" className="block h-full">
-              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors">
+              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors card-float">
                 <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR Wall</span>
                 <span className="text-lg mt-0.5">🏅</span>
                 <p className="text-[10px] text-text-tertiary mt-0.5">Post a lift, get verified</p>
@@ -635,7 +632,7 @@ export default function DashboardPage() {
           {/* Breathing / meditation widget */}
           <motion.div variants={stagger.item} className="col-span-4 row-span-1">
             <Link href="/breathing" className="block h-full">
-              <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors relative overflow-hidden">
+              <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors relative overflow-hidden card-float">
                 <div className="relative w-11 h-11 flex-shrink-0 flex items-center justify-center">
                   <motion.div
                     animate={{ scale: [0.6, 1, 0.6], opacity: [0.5, 0.9, 0.5] }}
@@ -663,7 +660,7 @@ export default function DashboardPage() {
           {activeGoalCount > 0 && (
             <motion.div variants={stagger.item} className="col-span-4 row-span-1">
               <Link href="/goals" className="block h-full">
-                <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors">
+                <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors card-float">
                   <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
                     <Target className="w-5 h-5 text-accent" />
                   </div>
@@ -682,7 +679,7 @@ export default function DashboardPage() {
           {progressPhotos.length > 0 && (
             <motion.div variants={stagger.item} className="col-span-4 row-span-1">
               <Link href="/progress" className="block h-full">
-                <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors">
+                <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors card-float">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={progressPhotos[0].photoUrl} alt="" className="w-11 h-11 rounded-xl object-cover flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -699,7 +696,7 @@ export default function DashboardPage() {
           {/* Weekly volume — real numbers only, no invented daily breakdown */}
           {weeklySummary && (weeklySummary.workoutsCompleted > 0 || weeklySummary.volumeKg > 0) && (
             <motion.div variants={stagger.item} className="col-span-4 row-span-1">
-              <Card className="p-3.5 h-full flex items-center justify-between relative overflow-hidden">
+              <Card className="p-3.5 h-full flex items-center justify-between relative overflow-hidden card-float">
                 <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
                   <TrendingUp className="w-20 h-20 text-accent" />
                 </div>
@@ -743,7 +740,7 @@ export default function DashboardPage() {
                 <motion.div
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.95 }}
-                  className={`h-full flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-br ${action.from} ${action.to} border ${action.border}`}
+                  className={`h-full flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-br ${action.from} ${action.to} border ${action.border} card-float`}
                 >
                   <action.icon className={`w-5 h-5 ${action.color}`} strokeWidth={2.25} />
                   <span className="text-[9px] font-medium text-text-secondary text-center leading-tight">{action.label}</span>
@@ -751,52 +748,6 @@ export default function DashboardPage() {
               </Link>
             </motion.div>
           ))}
-        </motion.div>
-
-        {/* Leaderboard preview — kept full-width; ranked list doesn't compress into a tile */}
-        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-white">Leaderboard</h2>
-            <Link href="/community?tab=leaderboard" className="text-xs text-accent flex items-center gap-0.5">
-              Full board <ChevronRight className="w-3 h-3" />
-            </Link>
-          </div>
-          <Link href="/community?tab=leaderboard">
-            <Card className="p-4 relative overflow-hidden hover:border-accent/20 transition-colors">
-              <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
-                <Trophy className="w-28 h-28 text-accent" />
-              </div>
-              {myRank && (
-                <div className="flex items-center gap-3 mb-3 pb-3 border-b border-white/8">
-                  <div className="w-9 h-9 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-black text-accent">#{myRank}</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white">Your Rank</p>
-                    <p className="text-xs text-text-secondary">Out of {leaderboardTop.length > 0 ? 'active athletes' : '—'}</p>
-                  </div>
-                </div>
-              )}
-              {leaderboardTop.length === 0 ? (
-                <p className="text-text-secondary text-sm text-center py-2">Complete a workout to join the leaderboard</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {leaderboardTop.map((entry, i) => (
-                    <div key={entry.id} className="flex items-center gap-3">
-                      <span className={`text-sm font-black w-5 flex-shrink-0 ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-gray-300' : 'text-orange-400'}`}>
-                        {i + 1}
-                      </span>
-                      <span className="text-sm text-white flex-1 truncate flex items-center gap-1">
-                        {entry.displayName}
-                        <QuestBadgeRow questIds={entry.questsCompleted} max={2} />
-                      </span>
-                      <span className="text-xs text-text-tertiary flex-shrink-0">Lvl {entry.powerLevel} · {entry.xp} XP</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </Link>
         </motion.div>
 
         {/* Personal Trackers — fasting timer + custom "days without" streaks; kept
