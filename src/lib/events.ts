@@ -7,6 +7,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
@@ -17,6 +18,8 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { EventType, StatsCache } from '@/types';
+
+const STREAK_FREEZE_GRANT_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface EventPayload extends Record<string, unknown> {}
 
@@ -137,7 +140,20 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
     }
   });
 
-  const streak = computeStreak(workoutDays);
+  // Streak freeze — one grace day every 7 days that absorbs a single missed
+  // day without breaking the streak. Re-grant is computed here (not on a
+  // cron) so it self-heals on the next event regardless of when the user
+  // comes back.
+  const userSnap = await getDoc(doc(db, 'users', userId));
+  const existingFreeze = userSnap.data()?.streakFreeze as
+    | { available: boolean; lastGrantedAt: Timestamp | null; lastUsedAt?: Timestamp }
+    | undefined;
+  const now = Date.now();
+  const lastGrantedMs = existingFreeze?.lastGrantedAt?.toMillis?.() ?? 0;
+  const dueForRegrant = now - lastGrantedMs >= STREAK_FREEZE_GRANT_INTERVAL_MS;
+  const freezeAvailable = !existingFreeze || existingFreeze.available || dueForRegrant;
+
+  const { streak, freezeConsumed } = computeStreak(workoutDays, freezeAvailable);
 
   const statsCache: StatsCache = {
     totalWorkouts,
@@ -148,11 +164,21 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
     cacheDate: new Date().toLocaleDateString('sv-SE'),
   };
 
-  await setDoc(doc(db, 'users', userId), { statsCache }, { merge: true });
+  await setDoc(doc(db, 'users', userId), {
+    statsCache,
+    streakFreeze: {
+      available: freezeConsumed ? false : freezeAvailable,
+      lastGrantedAt: dueForRegrant ? serverTimestamp() : (existingFreeze?.lastGrantedAt ?? serverTimestamp()),
+      ...(freezeConsumed ? { lastUsedAt: serverTimestamp() } : {}),
+    },
+  }, { merge: true });
   return statsCache;
 }
 
-function computeStreak(workoutDays: Set<string>): number {
+function computeStreak(
+  workoutDays: Set<string>,
+  freezeAvailable: boolean
+): { streak: number; freezeConsumed: boolean } {
   const checkDate = new Date();
   checkDate.setHours(0, 0, 0, 0);
   const todayKey = `${checkDate.getFullYear()}-${checkDate.getMonth()}-${checkDate.getDate()}`;
@@ -162,14 +188,20 @@ function computeStreak(workoutDays: Set<string>): number {
   }
 
   let streak = 0;
+  let freezeConsumed = false;
   for (let i = 0; i < 60; i++) {
     const key = `${checkDate.getFullYear()}-${checkDate.getMonth()}-${checkDate.getDate()}`;
     if (workoutDays.has(key)) {
       streak++;
       checkDate.setDate(checkDate.getDate() - 1);
+    } else if (freezeAvailable && !freezeConsumed && streak > 0) {
+      // Only spends the freeze mid-streak (streak > 0) — an unused freeze
+      // shouldn't fabricate a streak out of zero consecutive days.
+      freezeConsumed = true;
+      checkDate.setDate(checkDate.getDate() - 1);
     } else {
       break;
     }
   }
-  return streak;
+  return { streak, freezeConsumed };
 }

@@ -193,6 +193,10 @@ export interface UserProfile {
   lastLoginAt?: unknown;
   goals?: UserGoals;
   statsCache?: StatsCache;  // derived — computed by events engine
+  // One freeze grants automatically every 7 days and absorbs a single missed
+  // day without breaking the streak — spent (available -> false) the moment
+  // it actually saves a gap, not just for holding one.
+  streakFreeze?: { available: boolean; lastGrantedAt: unknown; lastUsedAt?: unknown };
   activeProgram?: ActiveProgram;
   onboardingComplete?: boolean;
   onboarding?: OnboardingData;

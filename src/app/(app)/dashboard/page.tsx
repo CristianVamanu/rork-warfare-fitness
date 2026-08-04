@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, Moon, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
+import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, subscribeTodayWorkoutCount, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
 import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix, getProgramDayForDow, getNextSession } from '@/lib/programs';
@@ -50,6 +50,7 @@ export default function DashboardPage() {
   const [adjustingWater, setAdjustingWater] = useState(false);
   const [activeGoalCount, setActiveGoalCount] = useState(0);
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
+  const [todayWorkoutCount, setTodayWorkoutCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -123,14 +124,20 @@ export default function DashboardPage() {
   // broken. Derive the *real* state here from the day-gap instead of
   // trusting the cached number on its own: 0 days = trained today, 1 day =
   // still salvageable today (the one grace day), 2+ days = the streak is
-  // dead until a fresh workout starts a new one.
+  // dead until a fresh workout starts a new one — UNLESS a streak freeze
+  // is available, which absorbs exactly one missed day and pushes the dead
+  // threshold out by one, matching computeStreak()'s own freeze logic in
+  // src/lib/events.ts. Without this, a server-side freeze save would be
+  // invisible: the UI would still show the streak as dead.
   const lastWorkoutDateStr = profile?.statsCache?.lastWorkoutDate as string | undefined;
   const daysSinceLastWorkout = lastWorkoutDateStr
     ? Math.round((new Date(localDateStr + 'T00:00:00').getTime() - new Date(lastWorkoutDateStr + 'T00:00:00').getTime()) / 86_400_000)
     : null;
-  const streakBroken = daysSinceLastWorkout !== null && daysSinceLastWorkout >= 2;
+  const freezeAvailable = profile?.streakFreeze?.available ?? true;
+  const streakBroken = daysSinceLastWorkout !== null && daysSinceLastWorkout >= (freezeAvailable ? 3 : 2);
   const streak = streakBroken ? 0 : (profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0);
   const streakAtRisk = !loading && streak > 0 && !workedOutToday;
+  const streakSavedByFreeze = daysSinceLastWorkout === 2 && freezeAvailable && streak > 0;
 
   const WATER_STEP_ML = 250;
 
@@ -183,7 +190,7 @@ export default function DashboardPage() {
   const FLAME_COPY: Record<FlameState, string> = {
     unlit: 'Light it — finish your first workout',
     blazing: 'Blazing — keep it going',
-    flickering: 'Flickering — train today to keep it lit',
+    flickering: streakSavedByFreeze ? '🧊 Freeze saved your streak — train today to keep it' : 'Flickering — train today to keep it lit',
     out: "Flame's out — start a new streak today",
   };
 
@@ -252,6 +259,14 @@ export default function DashboardPage() {
     getWeeklySummary(user.uid).then(setWeeklySummary).catch(() => {});
   }, [user]);
 
+  // Ambient social-proof ticker — live, not a one-time fetch, so it feels
+  // like a real active community rather than a stale number.
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeTodayWorkoutCount(setTodayWorkoutCount);
+    return () => unsub();
+  }, [user]);
+
   const activeProgramId = profile?.activeProgram?.programId;
   useEffect(() => {
     if (!activeProgramId) { setResolvedProgram(null); return; }
@@ -302,6 +317,12 @@ export default function DashboardPage() {
               <span className={tier.color}>⚡</span> Lvl {powerLevel} · {tier.title}
             </Badge>
           </div>
+          {todayWorkoutCount !== null && todayWorkoutCount >= 3 && (
+            <p className="text-xs text-accent mt-1.5 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+              {todayWorkoutCount} people have trained today
+            </p>
+          )}
         </motion.div>
 
         {/* Bento Grid — the glanceable stuff, sized by how much it matters */}

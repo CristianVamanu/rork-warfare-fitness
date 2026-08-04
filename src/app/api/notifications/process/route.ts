@@ -142,6 +142,19 @@ export async function POST(req: NextRequest) {
       }
     };
 
+    // Identity-based framing — onboarding captures the user's actual goal
+    // and it's never referenced again anywhere after that. Quoting it back
+    // ("people building muscle don't skip Tuesday") sustains habits better
+    // than a generic "champ" placeholder, since it's identity-based rather
+    // than outcome-based motivation.
+    const IDENTITY_LABEL: Record<string, string> = {
+      'lose-fat': 'People cutting fat',
+      'build-muscle': 'People building muscle',
+      recomposition: 'People recomping',
+      strength: 'Strength athletes',
+    };
+    const identityFor = (fitnessGoal: string | undefined) => IDENTITY_LABEL[fitnessGoal ?? ''] ?? 'Champions';
+
     for (const user of users) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const u = user as any;
@@ -172,7 +185,7 @@ export async function POST(req: NextRequest) {
           });
           if (!hasRecentWorkout) {
             const title = "Don't break the chain!";
-            const body = `You haven't logged a workout today. Get back on track with ${u.activeProgram.programName}.`;
+            const body = `${identityFor(u.fitnessGoal)} don't skip today. Get back on track with ${u.activeProgram.programName}.`;
             await db.collection('notifications').add({
               userId: u.id, trainerId: u.trainerId ?? null,
               title, body, type: 'auto_missed_workout', read: false, createdAt: Timestamp.now(),
@@ -194,7 +207,7 @@ export async function POST(req: NextRequest) {
           const streakLive = lastWorkoutDate === today || lastWorkoutDate === yesterday;
           if (streak > 0 && streakLive) {
             const title = `🔥 ${streak}-day streak!`;
-            const body = `You're on a roll, ${u.displayName ?? 'champ'}! Keep showing up every day.`;
+            const body = `${identityFor(u.fitnessGoal)} keep showing up. Don't stop now, ${u.displayName ?? 'champ'}.`;
             await db.collection('notifications').add({
               userId: u.id, trainerId: u.trainerId ?? null,
               title, body, type: 'auto_streak', read: false, createdAt: Timestamp.now(),

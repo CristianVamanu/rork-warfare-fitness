@@ -1409,6 +1409,20 @@ export function subscribeLeaderboard(
   }, (err) => console.error('[Firestore] subscribeLeaderboard error:', err));
 }
 
+// Live "N people trained today" count for the dashboard's ambient social-proof
+// ticker. Uses statsCache.lastWorkoutDate (date-only — the finest-grained
+// workout timestamp readable client-side; the `events` collection that has
+// real per-workout timestamps is locked to each user's own events by rule)
+// rather than faking hour-level precision the data doesn't actually have.
+export function subscribeTodayWorkoutCount(onUpdate: (count: number) => void): () => void {
+  const todayStr = new Date().toLocaleDateString('sv-SE');
+  const q = query(collection(db, 'users'), orderBy('lastActive', 'desc'), limit(300));
+  return onSnapshot(q, (snap) => {
+    const count = snap.docs.filter((d) => !d.data().banned && d.data().statsCache?.lastWorkoutDate === todayStr).length;
+    onUpdate(count);
+  }, (err) => console.error('[Firestore] subscribeTodayWorkoutCount error:', err));
+}
+
 // ── PR Wall — community-posted personal records with a trust/verification badge ──
 import type { VerificationLevel, PRPost } from '@/types';
 
