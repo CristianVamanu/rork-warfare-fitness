@@ -1058,6 +1058,33 @@ export async function saveMembershipConfig(data: Partial<MembershipConfig>) {
 }
 
 // ---------------------------------------------------------------------------
+// Exercise category/equipment taxonomy — stored at config/exerciseTaxonomy.
+// The admin panel's own MUSCLE_CATEGORIES/EQUIPMENT_OPTIONS constants are
+// the default set; this doc only exists once an admin adds or removes a
+// value, so a fresh install with no doc yet just falls back to the built-in
+// defaults instead of showing an empty picker.
+// ---------------------------------------------------------------------------
+
+export interface ExerciseTaxonomy {
+  muscleGroups: string[];
+  equipment: string[];
+}
+
+export async function getExerciseTaxonomy(): Promise<ExerciseTaxonomy | null> {
+  const snap = await getDoc(doc(db, 'config', 'exerciseTaxonomy'));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return {
+    muscleGroups: (data.muscleGroups as string[]) ?? [],
+    equipment: (data.equipment as string[]) ?? [],
+  };
+}
+
+export async function saveExerciseTaxonomy(taxonomy: ExerciseTaxonomy) {
+  await setDoc(doc(db, 'config', 'exerciseTaxonomy'), taxonomy);
+}
+
+// ---------------------------------------------------------------------------
 // Membership plans — multiple, fully admin-editable pricing tiers, each with
 // its own feature access. Stored at config/membershipPlans, same shape as
 // coachingPlans but intentionally a separate collection: coaching plans are

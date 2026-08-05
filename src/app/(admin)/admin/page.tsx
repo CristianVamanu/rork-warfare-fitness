@@ -26,6 +26,7 @@ import {
   getCoachingPlans, saveCoachingPlans, assignCoachingPlan, revokeCoachingPlan,
   getMembershipPlans, saveMembershipPlans,
   getExerciseVideos, saveExerciseVideo, deleteExerciseVideo, updateExerciseVideoThumbnail,
+  getExerciseTaxonomy, saveExerciseTaxonomy,
   assignNutritionPlan,
   getCoachingApplications, approveCoachingApplication, rejectCoachingApplication,
   getProgressPhotos,
@@ -295,6 +296,15 @@ function AdminPageInner() {
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [exSearchQuery, setExSearchQuery] = useState('');
   const [exCategoryFilter, setExCategoryFilter] = useState<string | null>(null);
+  // Admin-manageable on top of the built-in defaults below — starts as the
+  // defaults, then getExerciseTaxonomy() overwrites with the saved lists
+  // once an admin has actually added/removed anything.
+  const [muscleCategories, setMuscleCategories] = useState<string[]>(MUSCLE_CATEGORIES);
+  const [equipmentOptions, setEquipmentOptions] = useState<string[]>(EQUIPMENT_OPTIONS);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [newCategoryInput, setNewCategoryInput] = useState('');
+  const [newEquipmentInput, setNewEquipmentInput] = useState('');
+  const [savingTaxonomy, setSavingTaxonomy] = useState(false);
   const [showExForm, setShowExForm] = useState(false);
   const [editingEx, setEditingEx] = useState<ExerciseVideo | null>(null);
   const [exForm, setExForm] = useState({ name: '', aliases: '', muscleGroups: '', equipment: '' });
@@ -1503,6 +1513,61 @@ function AdminPageInner() {
     setLibraryLoading(true);
     try { setExerciseLibrary(await getExerciseVideos()); } catch { /* noop */ }
     finally { setLibraryLoading(false); }
+    try {
+      const taxonomy = await getExerciseTaxonomy();
+      if (taxonomy) {
+        if (taxonomy.muscleGroups.length > 0) setMuscleCategories(taxonomy.muscleGroups);
+        if (taxonomy.equipment.length > 0) setEquipmentOptions(taxonomy.equipment);
+      }
+    } catch { /* noop — falls back to the built-in defaults */ }
+  }
+
+  async function addCategory(kind: 'muscleGroups' | 'equipment', value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const current = kind === 'muscleGroups' ? muscleCategories : equipmentOptions;
+    if (current.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+      toast.error(`"${trimmed}" already exists`);
+      return;
+    }
+    const next = [...current, trimmed];
+    setSavingTaxonomy(true);
+    try {
+      await saveExerciseTaxonomy({
+        muscleGroups: kind === 'muscleGroups' ? next : muscleCategories,
+        equipment: kind === 'equipment' ? next : equipmentOptions,
+      });
+      if (kind === 'muscleGroups') { setMuscleCategories(next); setNewCategoryInput(''); }
+      else { setEquipmentOptions(next); setNewEquipmentInput(''); }
+    } catch {
+      toast.error('Failed to save — try again');
+    } finally {
+      setSavingTaxonomy(false);
+    }
+  }
+
+  async function removeCategory(kind: 'muscleGroups' | 'equipment', value: string) {
+    const inUse = kind === 'muscleGroups'
+      ? exerciseLibrary.filter(ex => ex.muscleGroups.includes(value)).length
+      : exerciseLibrary.filter(ex => ex.equipment.includes(value)).length;
+    if (inUse > 0 && !confirm(`"${value}" is still tagged on ${inUse} exercise${inUse !== 1 ? 's' : ''}. Removing it from the list won't untag those exercises — just hides it from the picker for future edits. Continue?`)) {
+      return;
+    }
+    const current = kind === 'muscleGroups' ? muscleCategories : equipmentOptions;
+    const next = current.filter(c => c !== value);
+    setSavingTaxonomy(true);
+    try {
+      await saveExerciseTaxonomy({
+        muscleGroups: kind === 'muscleGroups' ? next : muscleCategories,
+        equipment: kind === 'equipment' ? next : equipmentOptions,
+      });
+      if (kind === 'muscleGroups') setMuscleCategories(next);
+      else setEquipmentOptions(next);
+    } catch {
+      toast.error('Failed to save — try again');
+    } finally {
+      setSavingTaxonomy(false);
+    }
   }
 
   function startEditEx(ex?: ExerciseVideo) {
@@ -1544,7 +1609,7 @@ function AdminPageInner() {
         <div>
           <label className="text-xs text-text-secondary mb-1.5 block">Muscle Groups</label>
           <div className="flex flex-wrap gap-1.5">
-            {MUSCLE_CATEGORIES.map(cat => {
+            {muscleCategories.map(cat => {
               const selected = exForm.muscleGroups.split(',').map(s => s.trim()).filter(Boolean).includes(cat);
               return (
                 <button
@@ -1569,7 +1634,7 @@ function AdminPageInner() {
         <div>
           <label className="text-xs text-text-secondary mb-1.5 block">Equipment</label>
           <div className="flex flex-wrap gap-1.5">
-            {EQUIPMENT_OPTIONS.map(eq => {
+            {equipmentOptions.map(eq => {
               const selected = exForm.equipment.split(',').map(s => s.trim()).filter(Boolean).includes(eq);
               return (
                 <button
@@ -2037,7 +2102,7 @@ function AdminPageInner() {
   // possible — e.g. a "Cardio" chip showing 40 exercises when only 5 are
   // real cardio moves is the exact signal that those 35 are miscategorized.
   const exCategoryCounts: Record<string, number> = {};
-  for (const cat of MUSCLE_CATEGORIES) {
+  for (const cat of muscleCategories) {
     exCategoryCounts[cat] = exerciseLibrary.filter(ex => ex.muscleGroups.includes(cat)).length;
   }
   const uncategorizedCount = exerciseLibrary.filter(ex => ex.muscleGroups.length === 0).length;
@@ -3129,7 +3194,7 @@ function AdminPageInner() {
                   onChange={e => setBulkCategory(e.target.value)}
                   className="w-full bg-surface-elevated border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
                 >
-                  {MUSCLE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {muscleCategories.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
@@ -3139,7 +3204,7 @@ function AdminPageInner() {
                   onChange={e => setBulkEquipment(e.target.value)}
                   className="w-full bg-surface-elevated border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
                 >
-                  {EQUIPMENT_OPTIONS.map(e => <option key={e} value={e}>{e}</option>)}
+                  {equipmentOptions.map(e => <option key={e} value={e}>{e}</option>)}
                 </select>
               </div>
             </div>
@@ -3296,7 +3361,7 @@ function AdminPageInner() {
                 >
                   All ({exerciseLibrary.length})
                 </button>
-                {MUSCLE_CATEGORIES.map(cat => (
+                {muscleCategories.map(cat => (
                   <button
                     key={cat}
                     onClick={() => setExCategoryFilter(exCategoryFilter === cat ? null : cat)}
@@ -3318,6 +3383,54 @@ function AdminPageInner() {
                   </button>
                 )}
               </div>
+
+              <button
+                onClick={() => setShowCategoryManager(v => !v)}
+                className="text-xs text-accent hover:underline flex items-center gap-1"
+              >
+                {showCategoryManager ? 'Hide' : 'Manage'} categories &amp; equipment
+              </button>
+
+              {showCategoryManager && (
+                <Card className="p-4 space-y-4 border border-accent/20">
+                  {([
+                    ['muscleGroups', 'Muscle Group Categories', muscleCategories, newCategoryInput, setNewCategoryInput] as const,
+                    ['equipment', 'Equipment Types', equipmentOptions, newEquipmentInput, setNewEquipmentInput] as const,
+                  ]).map(([kind, label, list, inputValue, setInputValue]) => (
+                    <div key={kind}>
+                      <p className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-2">{label}</p>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {list.map(item => (
+                          <span key={item} className="pl-3 pr-1.5 py-1.5 rounded-lg text-xs font-bold bg-surface-elevated text-white flex items-center gap-1.5">
+                            {item}
+                            <button
+                              onClick={() => removeCategory(kind, item)}
+                              disabled={savingTaxonomy}
+                              className="p-0.5 rounded hover:bg-danger/20 hover:text-danger transition-colors disabled:opacity-50"
+                              title={`Remove ${item}`}
+                            >
+                              <XIcon className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                        {list.length === 0 && <p className="text-xs text-text-tertiary">None yet.</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          value={inputValue}
+                          onChange={e => setInputValue(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') addCategory(kind, inputValue); }}
+                          placeholder={`Add a new ${kind === 'muscleGroups' ? 'category' : 'equipment type'}…`}
+                          className="flex-1 bg-surface border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                        />
+                        <Button size="sm" onClick={() => addCategory(kind, inputValue)} loading={savingTaxonomy} disabled={!inputValue.trim()}>
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </Card>
+              )}
             </>
           )}
 
