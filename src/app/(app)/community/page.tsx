@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame, Medal } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getChannels, subscribeLeaderboard, type LeaderboardEntry } from '@/lib/firestore';
+import { getChannels, subscribeLeaderboard, subscribeNearbyLeaderboard, type LeaderboardEntry } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -30,6 +30,11 @@ function CommunityPageInner() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [lbLoading, setLbLoading] = useState(true);
+  // Default to "Near You" for anyone who's actually trained — a global
+  // top-10 dominated by outliers motivates less than seeing people at a
+  // similar level. Brand-new users (powerLevel 0) start on Global since
+  // "near you" at level 0 is meaningless.
+  const [lbScope, setLbScope] = useState<'global' | 'nearby'>('nearby');
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<'channels' | 'leaderboard'>(
     searchParams.get('tab') === 'leaderboard' ? 'leaderboard' : 'channels'
@@ -42,12 +47,21 @@ function CommunityPageInner() {
   }, [effectiveTrainerId]);
 
   useEffect(() => {
-    const unsub = subscribeLeaderboard((entries) => {
+    if (lbScope === 'global' || !(profile?.powerLevel ?? 0)) {
+      setLbLoading(true);
+      const unsub = subscribeLeaderboard((entries) => {
+        setLeaderboard(entries);
+        setLbLoading(false);
+      }, 10);
+      return unsub;
+    }
+    setLbLoading(true);
+    const unsub = subscribeNearbyLeaderboard(profile?.powerLevel ?? 0, (entries) => {
       setLeaderboard(entries);
       setLbLoading(false);
     }, 10);
     return unsub;
-  }, []);
+  }, [lbScope, profile?.powerLevel]);
 
   const medalColors = [
     'bg-yellow-400 text-black',
@@ -139,10 +153,26 @@ function CommunityPageInner() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Trophy className="w-4 h-4 text-accent" />
-              <h2 className="text-base font-bold text-white">Top Athletes</h2>
+              <h2 className="text-base font-bold text-white">{lbScope === 'nearby' && (profile?.powerLevel ?? 0) > 0 ? 'Near You' : 'Top Athletes'}</h2>
               <span className="text-xs text-text-tertiary ml-auto">Live</span>
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             </div>
+
+            {(profile?.powerLevel ?? 0) > 0 && (
+              <div className="flex gap-1.5">
+                {([['nearby', 'Near You'], ['global', 'Global']] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => setLbScope(value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                      lbScope === value ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary hover:text-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {lbLoading ? (
               <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-16 rounded-2xl" />)}</div>
@@ -156,13 +186,14 @@ function CommunityPageInner() {
               const isMe = entry.id === user?.uid;
               return (
                 <motion.div key={entry.id} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
-                  <Card className={`p-4 ${i < 3 ? 'border-accent/20' : ''} ${isMe ? 'border-accent/40 bg-accent/5' : ''}`}>
+                  <Card className={`p-4 ${lbScope === 'global' && i < 3 ? 'border-accent/20' : ''} ${isMe ? 'border-accent/40 bg-accent/5' : ''}`}>
                     <div className="flex items-center gap-3">
-                      {/* Rank badge */}
+                      {/* Rank badge — "Near You" is proximity-sorted, not rank-sorted, so
+                          medals (which claim "this is the actual #1/2/3") would be misleading */}
                       <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0 ${
-                        i < 3 ? medalColors[i] : 'bg-surface-elevated text-text-secondary'
+                        lbScope === 'global' && i < 3 ? medalColors[i] : 'bg-surface-elevated text-text-secondary'
                       }`}>
-                        {i < 3 ? medals[i] : i + 1}
+                        {lbScope === 'global' && i < 3 ? medals[i] : i + 1}
                       </div>
 
                       {/* Name + stats */}

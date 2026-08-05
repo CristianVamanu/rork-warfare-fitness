@@ -1409,6 +1409,38 @@ export function subscribeLeaderboard(
   }, (err) => console.error('[Firestore] subscribeLeaderboard error:', err));
 }
 
+// "Near You" — a global top-10 is dominated by outliers a typical user can
+// never realistically catch, which motivates less than seeing people at a
+// similar level. Reuses the same broad 200-user snapshot as the global
+// board (no new query/index) and buckets it around the caller's own power
+// level instead, widening the band if too few peers fall inside it so the
+// list never comes back emptier than the caller can see makes sense.
+export function subscribeNearbyLeaderboard(
+  myPowerLevel: number,
+  onUpdate: (entries: LeaderboardEntry[]) => void,
+  limitCount = 10,
+): () => void {
+  const q = query(collection(db, 'users'), orderBy('xp', 'desc'), limit(200));
+  return onSnapshot(q, (snap) => {
+    const all = snap.docs
+      .filter((d) => !d.data().banned)
+      .map((d) => mapToLeaderboardEntry(d.id, d.data()))
+      .filter((e) => e.totalWorkouts > 0);
+
+    let band = 10;
+    let nearby: LeaderboardEntry[] = [];
+    while (band <= 1000) {
+      nearby = all.filter((e) => Math.abs(e.powerLevel - myPowerLevel) <= band);
+      if (nearby.length >= limitCount || band >= 1000) break;
+      band *= 2;
+    }
+    // Closest power level first, not highest XP — "near you" means
+    // proximity, the global board already covers the XP-ranked view.
+    nearby.sort((a, b) => Math.abs(a.powerLevel - myPowerLevel) - Math.abs(b.powerLevel - myPowerLevel));
+    onUpdate(nearby.slice(0, limitCount));
+  }, (err) => console.error('[Firestore] subscribeNearbyLeaderboard error:', err));
+}
+
 // Live "N people trained today" count for the dashboard's ambient social-proof
 // ticker. Uses statsCache.lastWorkoutDate (date-only — the finest-grained
 // workout timestamp readable client-side; the `events` collection that has
