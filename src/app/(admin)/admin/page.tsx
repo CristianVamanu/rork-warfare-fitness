@@ -294,6 +294,7 @@ function AdminPageInner() {
   const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseVideo[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [exSearchQuery, setExSearchQuery] = useState('');
+  const [exCategoryFilter, setExCategoryFilter] = useState<string | null>(null);
   const [showExForm, setShowExForm] = useState(false);
   const [editingEx, setEditingEx] = useState<ExerciseVideo | null>(null);
   const [exForm, setExForm] = useState({ name: '', aliases: '', muscleGroups: '', equipment: '' });
@@ -1969,12 +1970,25 @@ function AdminPageInner() {
   }
 
   const exSearchQueryLower = exSearchQuery.trim().toLowerCase();
-  const filteredExerciseLibrary = exSearchQueryLower
-    ? exerciseLibrary.filter(ex =>
-        ex.name.toLowerCase().includes(exSearchQueryLower) ||
-        ex.aliases.some(a => a.toLowerCase().includes(exSearchQueryLower))
-      )
-    : exerciseLibrary;
+  const filteredExerciseLibrary = exerciseLibrary
+    .filter(ex => !exSearchQueryLower ||
+      ex.name.toLowerCase().includes(exSearchQueryLower) ||
+      ex.aliases.some(a => a.toLowerCase().includes(exSearchQueryLower))
+    )
+    .filter(ex => {
+      if (!exCategoryFilter) return true;
+      if (exCategoryFilter === '__uncategorized__') return ex.muscleGroups.length === 0;
+      return ex.muscleGroups.includes(exCategoryFilter);
+    });
+
+  // Live per-category counts so curating a messy library is actually
+  // possible — e.g. a "Cardio" chip showing 40 exercises when only 5 are
+  // real cardio moves is the exact signal that those 35 are miscategorized.
+  const exCategoryCounts: Record<string, number> = {};
+  for (const cat of MUSCLE_CATEGORIES) {
+    exCategoryCounts[cat] = exerciseLibrary.filter(ex => ex.muscleGroups.includes(cat)).length;
+  }
+  const uncategorizedCount = exerciseLibrary.filter(ex => ex.muscleGroups.length === 0).length;
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'overview', label: 'Overview', icon: Activity },
@@ -3207,15 +3221,52 @@ function AdminPageInner() {
           )}
 
           {exerciseLibrary.length > 0 && (
-            <div className="relative">
-              <Search className="w-4 h-4 text-text-tertiary absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                value={exSearchQuery}
-                onChange={e => setExSearchQuery(e.target.value)}
-                placeholder="Search exercises by name or alias…"
-                className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-              />
-            </div>
+            <>
+              <div className="relative">
+                <Search className="w-4 h-4 text-text-tertiary absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  value={exSearchQuery}
+                  onChange={e => setExSearchQuery(e.target.value)}
+                  placeholder="Search exercises by name or alias…"
+                  className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                />
+              </div>
+
+              {/* Category chips — counts make miscategorized exercises visible at
+                  a glance (a "Cardio" chip with 40 when only 5 belong there is
+                  exactly the signal a messy library needs to get curated). */}
+              <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+                <button
+                  onClick={() => setExCategoryFilter(null)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors flex-shrink-0 ${
+                    exCategoryFilter === null ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary hover:text-white'
+                  }`}
+                >
+                  All ({exerciseLibrary.length})
+                </button>
+                {MUSCLE_CATEGORIES.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setExCategoryFilter(exCategoryFilter === cat ? null : cat)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors flex-shrink-0 ${
+                      exCategoryFilter === cat ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary hover:text-white'
+                    }`}
+                  >
+                    {cat} ({exCategoryCounts[cat]})
+                  </button>
+                ))}
+                {uncategorizedCount > 0 && (
+                  <button
+                    onClick={() => setExCategoryFilter(exCategoryFilter === '__uncategorized__' ? null : '__uncategorized__')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors flex-shrink-0 ${
+                      exCategoryFilter === '__uncategorized__' ? 'bg-accent text-black' : 'bg-danger/10 text-danger hover:bg-danger/20'
+                    }`}
+                  >
+                    Uncategorized ({uncategorizedCount})
+                  </button>
+                )}
+              </div>
+            </>
           )}
 
           {/* ── Library list ─────────────────────────────────────────────────── */}
@@ -3239,7 +3290,11 @@ function AdminPageInner() {
           ) : filteredExerciseLibrary.length === 0 ? (
             <Card className="p-8 text-center">
               <Search className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
-              <p className="text-text-secondary text-sm">No exercises match &quot;{exSearchQuery}&quot;.</p>
+              <p className="text-text-secondary text-sm">
+                No exercises
+                {exSearchQuery ? ` match "${exSearchQuery}"` : ''}
+                {exCategoryFilter === '__uncategorized__' ? ' are uncategorized' : exCategoryFilter ? ` in ${exCategoryFilter}` : ''}.
+              </p>
             </Card>
           ) : (
             <div className="space-y-2">
