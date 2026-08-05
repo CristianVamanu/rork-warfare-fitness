@@ -1536,8 +1536,60 @@ function AdminPageInner() {
         </div>
         <Input placeholder="Exercise name (e.g. Barbell Back Squat)" value={exForm.name} onChange={e => setExForm(f => ({ ...f, name: e.target.value }))} />
         <Input placeholder="Aliases — comma separated (e.g. squat, back squat, bb squat)" value={exForm.aliases} onChange={e => setExForm(f => ({ ...f, aliases: e.target.value }))} />
-        <Input placeholder="Muscle groups — comma separated (e.g. Quadriceps, Glutes)" value={exForm.muscleGroups} onChange={e => setExForm(f => ({ ...f, muscleGroups: e.target.value }))} />
-        <Input placeholder="Equipment — comma separated (e.g. Barbell, Rack)" value={exForm.equipment} onChange={e => setExForm(f => ({ ...f, equipment: e.target.value }))} />
+
+        {/* Tap-to-select chips instead of free text — typing "chest" vs "Chest"
+            silently didn't match the canonical MUSCLE_CATEGORIES list used by
+            the library's filter chips, which is exactly why existing
+            exercises couldn't be cleanly reassigned to a category. */}
+        <div>
+          <label className="text-xs text-text-secondary mb-1.5 block">Muscle Groups</label>
+          <div className="flex flex-wrap gap-1.5">
+            {MUSCLE_CATEGORIES.map(cat => {
+              const selected = exForm.muscleGroups.split(',').map(s => s.trim()).filter(Boolean).includes(cat);
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => {
+                    const current = exForm.muscleGroups.split(',').map(s => s.trim()).filter(Boolean);
+                    const next = selected ? current.filter(c => c !== cat) : [...current, cat];
+                    setExForm(f => ({ ...f, muscleGroups: next.join(', ') }));
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    selected ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary hover:text-white'
+                  }`}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs text-text-secondary mb-1.5 block">Equipment</label>
+          <div className="flex flex-wrap gap-1.5">
+            {EQUIPMENT_OPTIONS.map(eq => {
+              const selected = exForm.equipment.split(',').map(s => s.trim()).filter(Boolean).includes(eq);
+              return (
+                <button
+                  key={eq}
+                  type="button"
+                  onClick={() => {
+                    const current = exForm.equipment.split(',').map(s => s.trim()).filter(Boolean);
+                    const next = selected ? current.filter(c => c !== eq) : [...current, eq];
+                    setExForm(f => ({ ...f, equipment: next.join(', ') }));
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    selected ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary hover:text-white'
+                  }`}
+                >
+                  {eq}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div>
           <label className="text-xs text-text-secondary mb-1 block">Video file (MP4, MOV, WebM)</label>
           <input
