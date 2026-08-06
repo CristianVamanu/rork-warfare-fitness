@@ -1792,6 +1792,337 @@ export const MOCK_PROGRAMS: Program[] = [
     ],
   },
 
+  // ── P18: Kettlebell Warfare — 90-Day Protocol ────────────────────────────
+  {
+    id: 'p18',
+    name: 'Kettlebell Warfare: 90-Day Protocol',
+    description: 'Kettlebell Warfare is a 90-day kettlebell-only training system built to forge a stronger, leaner, and more athletic body. Through progressive strength, conditioning, and full-body functional training, you\'ll build muscle, burn fat, improve endurance, and develop real-world power using nothing more than kettlebells. Whether your goal is better performance or a complete physique transformation, this program is designed to deliver measurable results.\n\nSix training days a week, one true rest day: Strength, Conditioning, Lower Body, Upper Body, Full Body Power, and an optional Conditioning/Mobility day built around the get-up and carries. Every movement pattern that actually matters gets covered — push, pull, squat, hinge, carry, and rotation — so nothing gets neglected over 90 days.\n\nPhase 1 (Weeks 1-3): Foundation. Learn every pattern, build baseline work capacity, moderate loads and rest periods so your technique locks in before the volume climbs.\n\nPhase 2 (Weeks 4-6): Build. More volume, tighter rest periods, and the Snatch and Clean & Press enter the rotation once your foundational patterns are solid.\n\nWeek 7: Deload. Same movements, roughly half the working sets — this is what makes Phase 4 sustainable instead of a burnout risk. Don\'t skip it.\n\nPhase 4 (Weeks 8-10): Intensification. Heavier loads on strength days, denser conditioning with shorter rest, and the Push Press joins the program.\n\nPhase 5 (Weeks 11-12): Peak. The heaviest loads, longest carries, and highest density of the entire program — this is where 90 days of built work capacity actually gets spent.\n\nWeek 13: Test & Taper. Volume drops, and a dedicated Benchmark Test Day puts a number on what changed: a timed 100-swing test, a max clean get-up, and a max farmer\'s carry hold — the same kind of standards you were building toward from day one. Log your numbers and compare them to where you started.\n\nEvery exercise on this program is a real kettlebell movement — swings, goblet squats, cleans, presses, snatches, rows, lunges, Turkish get-ups, carries, deadlifts, high pulls, windmills, and halos — no machines, no barbells, no gym required beyond a couple of kettlebells and floor space.',
+    level: 'intermediate',
+    goal: 'general',
+    weeks: 13,
+    daysPerWeek: 6,
+    isPublic: true,
+    isPremium: true,
+    createdBy: 'system',
+    targetGender: 'anyone',
+    exercises: [
+      { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+      { id: 'p18-e2', name: 'Kettlebell Swing', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+      { id: 'p18-e3', name: 'Kettlebell Single-Arm Swing', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+      { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back' },
+      { id: 'p18-e5', name: 'Kettlebell Single-Leg Deadlift', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+      { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back' },
+      { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'shoulders' },
+      { id: 'p18-e8', name: 'Kettlebell Push Press', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'shoulders' },
+      { id: 'p18-e9', name: 'Kettlebell Halo', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'shoulders' },
+      { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'shoulders' },
+      { id: 'p18-e11', name: 'Kettlebell Reverse Lunge', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+      { id: 'p18-e12', name: 'Kettlebell Walking Lunge', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+      { id: 'p18-e13', name: 'Kettlebell Suitcase Carry', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'core' },
+      { id: 'p18-e14', name: 'Kettlebell Farmer\'s Carry', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'core' },
+      { id: 'p18-e15', name: 'Kettlebell Front Rack Carry', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'core' },
+      { id: 'p18-e16', name: 'Kettlebell Overhead Carry', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'core' },
+      { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'core' },
+      { id: 'p18-e18', name: 'Kettlebell Clean', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+      { id: 'p18-e19', name: 'Kettlebell Single-Arm Clean', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+      { id: 'p18-e20', name: 'Kettlebell Clean & Press', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+      { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+      { id: 'p18-e22', name: 'Kettlebell Snatch', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+    ],
+    // phases[0]'s schedule doubles as the top-level `schedule` fallback,
+    // same convention used by the other long/phased programs in this file.
+    schedule:
+    [
+      { label: 'Strength', isRest: false, exercises: [
+        { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'legs', notes: 'Pause 1 second at the bottom of every rep — no bouncing out of the hole.' },
+        { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'back', notes: 'Hinge at the hips, not the knees. Keep the bell close to your shins the whole rep.' },
+        { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 6, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Press per side. Brace your core hard before every rep — no leaning back.' },
+        { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back', notes: 'Row per side. Pull with your elbow, not your hand.' },
+        { id: 'p18-e9', name: 'Kettlebell Halo', sets: 2, reps: 8, restSeconds: 45, muscleGroup: 'shoulders', notes: 'Halo per direction. Keep this light — it is a shoulder-prep move, not a strength move.' },
+      ] },
+      { label: 'Conditioning', isRest: false, exercises: [
+        { id: 'p18-e2', name: 'Kettlebell Swing', sets: 5, reps: 15, restSeconds: 45, muscleGroup: 'full-body', notes: 'Hike the bell back like a football snap, then snap your hips forward — the arms are along for the ride.' },
+        { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 3, reps: 10, restSeconds: 45, muscleGroup: 'shoulders', notes: 'Pull per side. Lead with the elbow, keep the bell close to your body.' },
+        { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 12, restSeconds: 45, muscleGroup: 'legs' },
+      ] },
+      { label: 'Lower Body', isRest: false, exercises: [
+        { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+        { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back' },
+        { id: 'p18-e11', name: 'Kettlebell Reverse Lunge', sets: 3, reps: 8, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg. Keep your torso tall the whole way down.' },
+        { id: 'p18-e13', name: 'Kettlebell Suitcase Carry', sets: 3, reps: 30, restSeconds: 60, muscleGroup: 'core', notes: 'Distance/time per side, in seconds walked. Keep your ribs stacked over your hips — no leaning toward the weight.' },
+      ] },
+      { label: 'Upper Body', isRest: false, exercises: [
+        { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Per side.' },
+        { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back', notes: 'Per side.' },
+        { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 60, muscleGroup: 'core', notes: 'Per side. Go slow — this is a mobility move first, a strength move second.' },
+        { id: 'p18-e9', name: 'Kettlebell Halo', sets: 2, reps: 10, restSeconds: 45, muscleGroup: 'shoulders' },
+      ] },
+      { label: 'Full Body Power', isRest: false, exercises: [
+        { id: 'p18-e18', name: 'Kettlebell Clean', sets: 3, reps: 6, restSeconds: 75, muscleGroup: 'full-body', notes: 'Per side. Keep the bell close on the way up — a clean that swings out and slams your wrist means the weight is too heavy or the tempo is too fast.' },
+        { id: 'p18-e2', name: 'Kettlebell Swing', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+        { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+      ] },
+      { label: 'Optional Conditioning / Mobility', isRest: false, exercises: [
+        { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 3, reps: 3, restSeconds: 60, muscleGroup: 'full-body', notes: 'Reps per side, slow and controlled. This is the one exercise on the whole program where speed is never the goal.' },
+        { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 45, muscleGroup: 'core' },
+        { id: 'p18-e14', name: 'Kettlebell Farmer\'s Carry', sets: 3, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: 'Time walked per set. Grip is the limiter here, not your legs — when it fails, set the bells down and rest.' },
+      ] },
+      rest(),
+    ],
+    phases: [
+      {
+        id: 'p18-ph1',
+        label: 'Phase 1: Foundation',
+        startWeek: 1,
+        endWeek: 3,
+        schedule:
+          [
+            { label: 'Strength', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'legs', notes: 'Pause 1 second at the bottom of every rep — no bouncing out of the hole.' },
+              { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'back', notes: 'Hinge at the hips, not the knees. Keep the bell close to your shins the whole rep.' },
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 6, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Press per side. Brace your core hard before every rep — no leaning back.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back', notes: 'Row per side. Pull with your elbow, not your hand.' },
+              { id: 'p18-e9', name: 'Kettlebell Halo', sets: 2, reps: 8, restSeconds: 45, muscleGroup: 'shoulders', notes: 'Halo per direction. Keep this light — it is a shoulder-prep move, not a strength move.' },
+            ] },
+            { label: 'Conditioning', isRest: false, exercises: [
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 5, reps: 15, restSeconds: 45, muscleGroup: 'full-body', notes: 'Hike the bell back like a football snap, then snap your hips forward — the arms are along for the ride.' },
+              { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 3, reps: 10, restSeconds: 45, muscleGroup: 'shoulders', notes: 'Pull per side. Lead with the elbow, keep the bell close to your body.' },
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 12, restSeconds: 45, muscleGroup: 'legs' },
+            ] },
+            { label: 'Lower Body', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+              { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back' },
+              { id: 'p18-e11', name: 'Kettlebell Reverse Lunge', sets: 3, reps: 8, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg. Keep your torso tall the whole way down.' },
+              { id: 'p18-e13', name: 'Kettlebell Suitcase Carry', sets: 3, reps: 30, restSeconds: 60, muscleGroup: 'core', notes: 'Distance/time per side, in seconds walked. Keep your ribs stacked over your hips — no leaning toward the weight.' },
+            ] },
+            { label: 'Upper Body', isRest: false, exercises: [
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back', notes: 'Per side.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 60, muscleGroup: 'core', notes: 'Per side. Go slow — this is a mobility move first, a strength move second.' },
+              { id: 'p18-e9', name: 'Kettlebell Halo', sets: 2, reps: 10, restSeconds: 45, muscleGroup: 'shoulders' },
+            ] },
+            { label: 'Full Body Power', isRest: false, exercises: [
+              { id: 'p18-e18', name: 'Kettlebell Clean', sets: 3, reps: 6, restSeconds: 75, muscleGroup: 'full-body', notes: 'Per side. Keep the bell close on the way up — a clean that swings out and slams your wrist means the weight is too heavy or the tempo is too fast.' },
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+            ] },
+            { label: 'Optional Conditioning / Mobility', isRest: false, exercises: [
+              { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 3, reps: 3, restSeconds: 60, muscleGroup: 'full-body', notes: 'Reps per side, slow and controlled. This is the one exercise on the whole program where speed is never the goal.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 45, muscleGroup: 'core' },
+              { id: 'p18-e14', name: 'Kettlebell Farmer\'s Carry', sets: 3, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: 'Time walked per set. Grip is the limiter here, not your legs — when it fails, set the bells down and rest.' },
+            ] },
+            rest(),
+          ],
+      },
+      {
+        id: 'p18-ph2',
+        label: 'Phase 2: Build',
+        startWeek: 4,
+        endWeek: 6,
+        schedule:
+          [
+            { label: 'Strength', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 4, reps: 8, restSeconds: 60, muscleGroup: 'legs', notes: 'Progressive overload: once you complete all 4 sets of 8 with clean form, add weight next session.' },
+              { id: 'p18-e5', name: 'Kettlebell Single-Leg Deadlift', sets: 3, reps: 6, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg. This will humble your balance before it challenges your hamstrings — go slow.' },
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 4, reps: 6, restSeconds: 60, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 4, reps: 10, restSeconds: 45, muscleGroup: 'back', notes: 'Per side.' },
+            ] },
+            { label: 'Conditioning', isRest: false, exercises: [
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 5, reps: 20, restSeconds: 40, muscleGroup: 'full-body' },
+              { id: 'p18-e3', name: 'Kettlebell Single-Arm Swing', sets: 3, reps: 10, restSeconds: 40, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 3, reps: 12, restSeconds: 40, muscleGroup: 'shoulders', notes: 'Per side.' },
+            ] },
+            { label: 'Lower Body', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 4, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+              { id: 'p18-e5', name: 'Kettlebell Single-Leg Deadlift', sets: 3, reps: 8, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg.' },
+              { id: 'p18-e12', name: 'Kettlebell Walking Lunge', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs', notes: 'Steps per side.' },
+              { id: 'p18-e15', name: 'Kettlebell Front Rack Carry', sets: 3, reps: 30, restSeconds: 60, muscleGroup: 'core', notes: 'Time per set. Racked bells hammer your core and upper back far more than a swinging carry does.' },
+            ] },
+            { label: 'Upper Body', isRest: false, exercises: [
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 4, reps: 8, restSeconds: 60, muscleGroup: 'shoulders', notes: 'Per side. Add weight once every set hits 8 clean reps.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 4, reps: 10, restSeconds: 45, muscleGroup: 'back', notes: 'Per side.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 3, reps: 6, restSeconds: 45, muscleGroup: 'core', notes: 'Per side.' },
+              { id: 'p18-e8', name: 'Kettlebell Push Press', sets: 3, reps: 6, restSeconds: 60, muscleGroup: 'shoulders', notes: 'Per side. Use your legs to drive the first few inches — this is about moving more weight overhead, not pure shoulder strength.' },
+            ] },
+            { label: 'Full Body Power', isRest: false, exercises: [
+              { id: 'p18-e20', name: 'Kettlebell Clean & Press', sets: 4, reps: 5, restSeconds: 75, muscleGroup: 'full-body', notes: 'Per side. Two skills in one rep — clean it clean, then press it clean. Don’t rush the transition.' },
+              { id: 'p18-e19', name: 'Kettlebell Single-Arm Clean', sets: 3, reps: 8, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+            ] },
+            { label: 'Optional Conditioning / Mobility', isRest: false, exercises: [
+              { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 3, reps: 4, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e22', name: 'Kettlebell Snatch', sets: 3, reps: 6, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side. Punch your hand through at the top — don’t muscle the bell up with your arm.' },
+              { id: 'p18-e16', name: 'Kettlebell Overhead Carry', sets: 3, reps: 25, restSeconds: 60, muscleGroup: 'core', notes: 'Time per side. If your arm shakes and drops, that’s the set — don’t force it.' },
+            ] },
+            rest(),
+          ],
+      },
+      {
+        id: 'p18-ph3',
+        label: 'Phase 3: Deload',
+        startWeek: 7,
+        endWeek: 7,
+        schedule:
+          [
+            { label: 'Strength (Deload)', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'legs', notes: 'Deload week — same movements, roughly half the working sets. This is what makes Phase 4 sustainable instead of a burnout risk. Do not skip it.' },
+              { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'back' },
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 2, reps: 6, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 2, reps: 10, restSeconds: 75, muscleGroup: 'back', notes: 'Per side.' },
+            ] },
+            { label: 'Conditioning (Deload)', isRest: false, exercises: [
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'full-body' },
+              { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 2, reps: 10, restSeconds: 60, muscleGroup: 'shoulders', notes: 'Per side.' },
+            ] },
+            { label: 'Lower Body (Deload)', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 2, reps: 10, restSeconds: 75, muscleGroup: 'legs' },
+              { id: 'p18-e11', name: 'Kettlebell Reverse Lunge', sets: 2, reps: 8, restSeconds: 75, muscleGroup: 'legs', notes: 'Per leg.' },
+              { id: 'p18-e13', name: 'Kettlebell Suitcase Carry', sets: 2, reps: 30, restSeconds: 75, muscleGroup: 'core', notes: 'Per side.' },
+            ] },
+            { label: 'Upper Body (Deload)', isRest: false, exercises: [
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 2, reps: 10, restSeconds: 75, muscleGroup: 'back', notes: 'Per side.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 60, muscleGroup: 'core', notes: 'Per side. Use this week to actually clean up your form — slow everything down.' },
+            ] },
+            { label: 'Full Body (Deload)', isRest: false, exercises: [
+              { id: 'p18-e18', name: 'Kettlebell Clean', sets: 2, reps: 6, restSeconds: 90, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 2, reps: 15, restSeconds: 60, muscleGroup: 'full-body' },
+            ] },
+            { label: 'Optional Mobility', isRest: false, exercises: [
+              { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 2, reps: 3, restSeconds: 75, muscleGroup: 'full-body', notes: 'Per side, unweighted or very light — pure movement quality this week.' },
+              { id: 'p18-e9', name: 'Kettlebell Halo', sets: 2, reps: 8, restSeconds: 60, muscleGroup: 'shoulders' },
+              { id: 'p18-e14', name: 'Kettlebell Farmer\'s Carry', sets: 2, reps: 40, restSeconds: 75, muscleGroup: 'core', notes: 'Light load, per side — active recovery for your grip and posture.' },
+            ] },
+            rest(),
+          ],
+      },
+      {
+        id: 'p18-ph4',
+        label: 'Phase 4: Intensification',
+        startWeek: 8,
+        endWeek: 10,
+        schedule:
+          [
+            { label: 'Strength', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 4, reps: 6, restSeconds: 90, muscleGroup: 'legs', notes: 'Heavier, lower reps than Phase 2 — this is a true strength block. Last set should be genuinely hard by rep 5-6.' },
+              { id: 'p18-e5', name: 'Kettlebell Single-Leg Deadlift', sets: 4, reps: 6, restSeconds: 75, muscleGroup: 'legs', notes: 'Per leg.' },
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 4, reps: 5, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 4, reps: 8, restSeconds: 60, muscleGroup: 'back', notes: 'Per side, heavier than Phase 2.' },
+            ] },
+            { label: 'Conditioning', isRest: false, exercises: [
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 6, reps: 20, restSeconds: 30, muscleGroup: 'full-body', notes: 'Density day: shorter rest than any prior phase. If your form breaks down, the rest period wins — extend it rather than let reps go sloppy.' },
+              { id: 'p18-e3', name: 'Kettlebell Single-Arm Swing', sets: 4, reps: 12, restSeconds: 30, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 4, reps: 12, restSeconds: 30, muscleGroup: 'shoulders', notes: 'Per side.' },
+            ] },
+            { label: 'Lower Body', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 4, reps: 8, restSeconds: 60, muscleGroup: 'legs' },
+              { id: 'p18-e5', name: 'Kettlebell Single-Leg Deadlift', sets: 4, reps: 6, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg.' },
+              { id: 'p18-e12', name: 'Kettlebell Walking Lunge', sets: 4, reps: 10, restSeconds: 60, muscleGroup: 'legs', notes: 'Steps per side.' },
+              { id: 'p18-e15', name: 'Kettlebell Front Rack Carry', sets: 4, reps: 30, restSeconds: 60, muscleGroup: 'core', notes: 'Time per set — heavier load than Phase 2.' },
+            ] },
+            { label: 'Upper Body', isRest: false, exercises: [
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 4, reps: 6, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Per side, heavier than Phase 2.' },
+              { id: 'p18-e8', name: 'Kettlebell Push Press', sets: 4, reps: 6, restSeconds: 60, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 4, reps: 8, restSeconds: 45, muscleGroup: 'back', notes: 'Per side.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 3, reps: 6, restSeconds: 45, muscleGroup: 'core', notes: 'Per side.' },
+            ] },
+            { label: 'Full Body Power', isRest: false, exercises: [
+              { id: 'p18-e20', name: 'Kettlebell Clean & Press', sets: 4, reps: 5, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side, tighter rest than Phase 2 — same weight, more work capacity demanded.' },
+              { id: 'p18-e22', name: 'Kettlebell Snatch', sets: 4, reps: 6, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 4, reps: 15, restSeconds: 40, muscleGroup: 'full-body' },
+            ] },
+            { label: 'Optional Conditioning / Mobility', isRest: false, exercises: [
+              { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 4, reps: 3, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side, heavier bell than Phase 2 if your form has been clean.' },
+              { id: 'p18-e19', name: 'Kettlebell Single-Arm Clean', sets: 3, reps: 8, restSeconds: 45, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e16', name: 'Kettlebell Overhead Carry', sets: 4, reps: 25, restSeconds: 60, muscleGroup: 'core', notes: 'Per side.' },
+            ] },
+            rest(),
+          ],
+      },
+      {
+        id: 'p18-ph5',
+        label: 'Phase 5: Peak',
+        startWeek: 11,
+        endWeek: 12,
+        schedule:
+          [
+            { label: 'Strength', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 5, reps: 5, restSeconds: 90, muscleGroup: 'legs', notes: 'Peak block — heaviest bell you own, lowest reps of the whole program. Every rep should look identical from the first to the last.' },
+              { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 5, reps: 5, restSeconds: 90, muscleGroup: 'back', notes: 'Heaviest deadlift bell of the program, if form has stayed clean through Phase 4.' },
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 5, reps: 5, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 4, reps: 8, restSeconds: 60, muscleGroup: 'back', notes: 'Per side.' },
+            ] },
+            { label: 'Conditioning', isRest: false, exercises: [
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 6, reps: 20, restSeconds: 25, muscleGroup: 'full-body', notes: 'Highest density of the program. Time yourself — this is a number worth writing down and beating next week.' },
+              { id: 'p18-e3', name: 'Kettlebell Single-Arm Swing', sets: 5, reps: 12, restSeconds: 25, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 4, reps: 12, restSeconds: 25, muscleGroup: 'shoulders', notes: 'Per side.' },
+            ] },
+            { label: 'Lower Body', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 5, reps: 6, restSeconds: 75, muscleGroup: 'legs' },
+              { id: 'p18-e5', name: 'Kettlebell Single-Leg Deadlift', sets: 4, reps: 6, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg.' },
+              { id: 'p18-e12', name: 'Kettlebell Walking Lunge', sets: 4, reps: 12, restSeconds: 60, muscleGroup: 'legs', notes: 'Steps per side, heaviest bells of the program.' },
+              { id: 'p18-e15', name: 'Kettlebell Front Rack Carry', sets: 4, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: 'Longest carry time of the program, per set.' },
+            ] },
+            { label: 'Upper Body', isRest: false, exercises: [
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 5, reps: 5, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e8', name: 'Kettlebell Push Press', sets: 4, reps: 5, restSeconds: 60, muscleGroup: 'shoulders', notes: 'Per side, heaviest of the program.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 4, reps: 8, restSeconds: 45, muscleGroup: 'back', notes: 'Per side.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 3, reps: 6, restSeconds: 45, muscleGroup: 'core', notes: 'Per side.' },
+            ] },
+            { label: 'Full Body Power', isRest: false, exercises: [
+              { id: 'p18-e20', name: 'Kettlebell Clean & Press', sets: 5, reps: 4, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side, heaviest bell you can move with a clean transition.' },
+              { id: 'p18-e22', name: 'Kettlebell Snatch', sets: 5, reps: 6, restSeconds: 50, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 5, reps: 15, restSeconds: 35, muscleGroup: 'full-body' },
+            ] },
+            { label: 'Optional Conditioning / Mobility', isRest: false, exercises: [
+              { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 5, reps: 3, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side — heaviest get-up bell of the program, if earned.' },
+              { id: 'p18-e19', name: 'Kettlebell Single-Arm Clean', sets: 4, reps: 8, restSeconds: 40, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e16', name: 'Kettlebell Overhead Carry', sets: 4, reps: 30, restSeconds: 60, muscleGroup: 'core', notes: 'Per side, longest overhead carry of the program.' },
+            ] },
+            rest(),
+          ],
+      },
+      {
+        id: 'p18-ph6',
+        label: 'Phase 6: Test & Taper',
+        startWeek: 13,
+        endWeek: 13,
+        schedule:
+          [
+            { label: 'Strength (Taper)', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 6, restSeconds: 90, muscleGroup: 'legs', notes: 'Taper week — lighter than Phase 5, just enough to stay sharp before the benchmark day.' },
+              { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 3, reps: 6, restSeconds: 90, muscleGroup: 'back' },
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 5, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Per side.' },
+            ] },
+            { label: 'Benchmark Test Day', isRest: false, exercises: [
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 1, reps: 100, restSeconds: 0, muscleGroup: 'full-body', notes: 'Timed test: 100 total swings, as fast as good form allows. Write down your time and compare it to how this felt back in Week 1 — this is the number that proves the last 90 days worked.' },
+              { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 1, reps: 5, restSeconds: 90, muscleGroup: 'full-body', notes: 'Test: heaviest clean get-up per side you can perform with textbook form. Log the weight.' },
+              { id: 'p18-e14', name: 'Kettlebell Farmer\'s Carry', sets: 1, reps: 60, restSeconds: 0, muscleGroup: 'core', notes: 'Test: max time carrying your heaviest comfortable pair, per side. Log the time.' },
+            ] },
+            { label: 'Lower Body (Taper)', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'legs' },
+              { id: 'p18-e11', name: 'Kettlebell Reverse Lunge', sets: 2, reps: 8, restSeconds: 75, muscleGroup: 'legs', notes: 'Per leg.' },
+              { id: 'p18-e13', name: 'Kettlebell Suitcase Carry', sets: 2, reps: 30, restSeconds: 75, muscleGroup: 'core', notes: 'Per side.' },
+            ] },
+            { label: 'Upper Body (Taper)', isRest: false, exercises: [
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 6, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 3, reps: 8, restSeconds: 60, muscleGroup: 'back', notes: 'Per side.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 60, muscleGroup: 'core', notes: 'Per side.' },
+            ] },
+            { label: 'Full Body (Light)', isRest: false, exercises: [
+              { id: 'p18-e18', name: 'Kettlebell Clean', sets: 3, reps: 6, restSeconds: 75, muscleGroup: 'full-body', notes: 'Per side, light — this is a movement-quality day, not another strength test.' },
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+            ] },
+            { label: 'Optional Mobility', isRest: false, exercises: [
+              { id: 'p18-e9', name: 'Kettlebell Halo', sets: 2, reps: 8, restSeconds: 45, muscleGroup: 'shoulders' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 45, muscleGroup: 'core', notes: 'Per side.' },
+              { id: 'p18-e14', name: 'Kettlebell Farmer\'s Carry', sets: 2, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: 'Light, per side — celebratory lap, not a grind.' },
+            ] },
+            rest(),
+          ],
+      },
+    ],
+  },
 ];
 
 /** Look up a mock program by id. Returns null if not found. */
