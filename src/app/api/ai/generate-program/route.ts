@@ -171,20 +171,29 @@ export async function POST(req: NextRequest) {
             phaseSchedules.push(fixSchedule(phaseData.schedule));
           }
 
+          // The model's plan JSON occasionally omits `weeks`, or `daysPerWeek`
+          // disagrees with how many training days a phase call actually
+          // produced (each phase is its own separate completion, so nothing
+          // forces them to agree) — fall back / reconcile against what was
+          // actually generated so the saved program's stats aren't
+          // silently wrong.
+          const weeks = Number(plan.weeks) || 8;
+          const actualDaysPerWeek = phaseSchedules[0]?.filter((d) => !d.isRest).length || daysPerWeek;
+
           const program = {
             name: plan.name,
             description: plan.description,
             level: plan.level,
             goal: plan.goal,
             targetGender: plan.targetGender,
-            weeks: plan.weeks,
-            daysPerWeek,
+            weeks,
+            daysPerWeek: actualDaysPerWeek,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             phases: planPhases.map((p, i) => ({
               id: `ai-ph${i + 1}`,
               label: p.label || `Phase ${i + 1}`,
               startWeek: Number(p.startWeek) || 1,
-              endWeek: Number(p.endWeek) || plan.weeks || 8,
+              endWeek: Number(p.endWeek) || weeks,
               schedule: phaseSchedules[i],
             })),
             // phases[0]'s schedule doubles as the top-level `schedule`

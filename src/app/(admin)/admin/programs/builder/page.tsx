@@ -13,6 +13,7 @@ import {
   matchExercisesToVideos, getExerciseVideos, getSystemConfig, saveExerciseVideo,
 } from '@/lib/firestore';
 import { getMockProgram } from '@/lib/programs';
+import { parseDistance } from '@/lib/distance';
 import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
 import { getIdToken } from 'firebase/auth';
@@ -1159,6 +1160,20 @@ function BuilderInner() {
                                   onChange={e => updateEx(activeDay, ex.id, { reps: e.target.value })}
                                   placeholder="e.g. 500m, 5km, 1 mile"
                                 />
+                                {/* Text that doesn't parse as a distance silently falls back to
+                                    being read as a plain number of MINUTES elsewhere — this hint
+                                    is the only thing standing between a forgotten unit ("50"
+                                    instead of "50m") and a workout that quietly runs an 8-hour
+                                    timer instead of a 500m row. */}
+                                {(() => {
+                                  const repsStr = String(ex.reps).trim();
+                                  const parsed = parseDistance(ex.reps);
+                                  if (!repsStr) return null;
+                                  if (parsed) {
+                                    return <p className="text-[10px] text-accent mt-1">✓ {parsed.value}{parsed.unit === 'm' ? 'm' : ` ${parsed.unit}`} target</p>;
+                                  }
+                                  return <p className="text-[10px] text-amber-400 mt-1">⚠ Not recognized as a distance — add a unit like m, km, or mi, or clear the field to use Duration only.</p>;
+                                })()}
                               </div>
                             </>
                           ) : !ex.isHiit ? (
