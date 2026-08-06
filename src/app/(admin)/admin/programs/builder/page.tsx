@@ -423,11 +423,45 @@ function BuilderInner() {
       if (!res.ok) throw new Error(data.error || 'Failed');
 
       const p = data.program;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawPhases: any[] = Array.isArray(p.phases) ? p.phases : [];
 
-      // Collect all exercise names and match to library videos
-      const allExNames: string[] = (p.schedule ?? [])
-        .flatMap((d: BDay) => (d.exercises ?? []).map((e: BEx) => e.name).filter(Boolean));
+      // Collect exercise names across every phase's schedule (or the flat
+      // schedule if the model didn't return phases) and match them all to
+      // library videos in one batch.
+      const allSchedulesRaw: BDay[][] = rawPhases.length > 0
+        ? rawPhases.map((ph) => ph.schedule ?? [])
+        : [p.schedule ?? []];
+      const allExNames: string[] = allSchedulesRaw
+        .flatMap((s) => s.flatMap((d: BDay) => (d.exercises ?? []).map((e: BEx) => e.name).filter(Boolean)));
       const videoMap = allExNames.length > 0 ? await matchExercisesToVideos(allExNames).catch(() => ({})) : {};
+
+      const normalizeSchedule = (rawSchedule: BDay[]): BDay[] => (rawSchedule || []).map((d: BDay) => ({
+        label: d.label || (d.isRest ? 'Rest' : 'Training Day'),
+        isRest: !!d.isRest,
+        dayNote: d.dayNote || '',
+        exercises: (d.exercises || []).map((e: BEx) => ({
+          id: Math.random().toString(36).slice(2),
+          name: e.name || '',
+          muscleGroup: normalizeMuscleGroup(e.muscleGroup),
+          sets: Number(e.sets) || 3,
+          reps: String(e.reps || '8-12'),
+          rpe: Number(e.rpe) || 8,
+          restSeconds: Number(e.restSeconds) || 90,
+          notes: e.notes || '',
+          isCardio: !!e.isCardio,
+          cardioDurationSeconds: (e as BEx).cardioDurationSeconds,
+          videoUrl: (videoMap as Record<string, string>)[e.name] ?? '',
+        })),
+      }));
+
+      const phases: BPhase[] = rawPhases.map((ph, i) => ({
+        id: Math.random().toString(36).slice(2),
+        label: ph.label || `Phase ${i + 1}`,
+        startWeek: Number(ph.startWeek) || 1,
+        endWeek: Number(ph.endWeek) || p.weeks || 8,
+        schedule: normalizeSchedule(ph.schedule),
+      }));
 
       setProg({
         name: p.name || '',
@@ -439,25 +473,8 @@ function BuilderInner() {
         visibility: 'public',
         targetGender: (p.targetGender === 'male' || p.targetGender === 'female') ? p.targetGender : 'anyone',
         imageUrl: '',
-        schedule: (p.schedule || []).map((d: BDay) => ({
-          label: d.label || (d.isRest ? 'Rest' : 'Training Day'),
-          isRest: !!d.isRest,
-          dayNote: d.dayNote || '',
-          exercises: (d.exercises || []).map((e: BEx) => ({
-            id: Math.random().toString(36).slice(2),
-            name: e.name || '',
-            muscleGroup: normalizeMuscleGroup(e.muscleGroup),
-            sets: Number(e.sets) || 3,
-            reps: String(e.reps || '8-12'),
-            rpe: Number(e.rpe) || 8,
-            restSeconds: Number(e.restSeconds) || 90,
-            notes: e.notes || '',
-            isCardio: !!e.isCardio,
-            cardioDurationSeconds: (e as BEx).cardioDurationSeconds,
-            videoUrl: (videoMap as Record<string, string>)[e.name] ?? '',
-          })),
-        })),
-        phases: [],
+        schedule: phases.length > 0 ? phases[0].schedule : normalizeSchedule(p.schedule),
+        phases,
       });
       setAiGenerated(true);
       setActiveDay(0);

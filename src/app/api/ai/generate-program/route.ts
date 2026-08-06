@@ -3,40 +3,54 @@ import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { verifyAdmin } from '@/lib/verifyAdmin';
 
-const SYSTEM_PROMPT = `You are an elite strength and conditioning coach with 20+ years of experience. Generate a detailed, periodized workout program based on the trainer's description.
+const SYSTEM_PROMPT = `You are an elite strength and conditioning coach with 20+ years of experience. Generate a detailed, genuinely PERIODIZED workout program based on the trainer's description — not one static week repeated for the whole program length. Real programs progress: volume, intensity, complexity, and exercise selection should all change meaningfully from the first phase to the last, with a deload where the program length calls for one.
 
 Return ONLY valid JSON with this exact structure (no markdown, no extra text):
 {
   "name": "Program Name",
-  "description": "2-3 sentence description of the program philosophy and goals",
+  "description": "2-4 sentence description of the program philosophy, goals, and how it progresses phase to phase",
   "level": "beginner" | "intermediate" | "advanced",
   "goal": "strength" | "hypertrophy" | "endurance" | "weight-loss" | "general",
   "targetGender": "male" | "female" | "anyone",
   "weeks": <number 4-16>,
   "daysPerWeek": <number 2-6>,
-  "schedule": [
+  "phases": [
     {
-      "label": "Day label e.g. Push Day / Pull Day / Rest",
-      "isRest": false,
-      "dayNote": "Brief coaching note for this training day",
-      "exercises": [
+      "label": "e.g. Phase 1: Foundation",
+      "startWeek": <number, 1-indexed inclusive>,
+      "endWeek": <number, 1-indexed inclusive>,
+      "schedule": [
         {
-          "name": "Exercise name",
-          "muscleGroup": "Primary muscle group",
-          "sets": <number>,
-          "reps": "e.g. 5 or 8-12 or 3-5",
-          "rpe": <number 6-10>,
-          "restSeconds": <number 30-300>,
-          "notes": "How-to-perform tip, max 12 words, e.g. 'Keep chest up, drive through heels'",
-          "isCardio": <true only for running/cycling/rowing/elliptical/similar steady-state or interval cardio work, false for everything else>
+          "label": "Day label e.g. Push Day / Pull Day / Rest",
+          "isRest": false,
+          "dayNote": "Brief coaching note for this training day",
+          "exercises": [
+            {
+              "name": "Exercise name",
+              "muscleGroup": "Primary muscle group",
+              "sets": <number>,
+              "reps": "e.g. 5 or 8-12 or 3-5",
+              "rpe": <number 6-10>,
+              "restSeconds": <number 30-300>,
+              "notes": "How-to-perform tip, max 12 words, e.g. 'Keep chest up, drive through heels'",
+              "isCardio": <true only for running/cycling/rowing/elliptical/similar steady-state or interval cardio work, false for everything else>
+            }
+          ]
         }
       ]
     }
   ]
 }
 
+PHASE RULES:
+- Programs of 4-5 weeks: 2 phases (e.g. Foundation, then Intensification).
+- Programs of 6-9 weeks: 3 phases (e.g. Foundation, Build, Peak), with a deload built into the final week of one phase or as its own short phase if the length allows.
+- Programs of 10-16 weeks: 4-6 phases, ALWAYS including at least one explicit deload/recovery week (roughly half the working sets/volume of the phase around it, same movements) — never string more than 6 weeks of straight progression without one.
+- startWeek/endWeek across all phases must exactly cover 1 through the program's total "weeks" with no gaps or overlaps.
+- Every phase must have a genuinely distinct schedule reflecting its purpose — do NOT reuse an identical schedule across phases with only the label changed. Later phases should show real progression from earlier ones: more sets/working volume, less rest, heavier target loads implied by lower rep ranges, more advanced exercise variations or unilateral/single-limb work, and/or added complexity (supersets noted in "notes", tighter rest periods, etc). A deload phase/week does the opposite: same or similar movements, meaningfully reduced volume.
+- Each phase's schedule array must have EXACTLY 7 elements (Day 1 through Day 7).
+
 RULES:
-- schedule array must have EXACTLY 7 elements (Day 1 through Day 7)
 - Day labels must NOT reference weekdays (Monday, Tuesday, etc.) — use theme-based names like "Push Day", "Pull Day", "Leg Day", "Rest", "Active Recovery"
 - Rest days: isRest=true, empty exercises array, label="Rest"
 - Training days: isRest=false, 3-8 exercises per day
@@ -63,7 +77,10 @@ export async function POST(req: NextRequest) {
 
     const response = await openai.chat.completions.create({
       model,
-      max_tokens: 4000,
+      // A multi-phase program (up to 6 phases × 7 days × up to 8 exercises)
+      // is meaningfully larger than the old single-schedule output — 4000
+      // risked silent truncation/invalid JSON on longer programs.
+      max_tokens: 12000,
       temperature: 0.7,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -75,11 +92,30 @@ export async function POST(req: NextRequest) {
     const content = response.choices[0]?.message?.content ?? '{}';
     const program = JSON.parse(content);
 
-    // Ensure schedule has exactly 7 days
-    if (!Array.isArray(program.schedule) || program.schedule.length !== 7) {
-      const days = program.schedule ?? [];
+    const fixSchedule = (raw: unknown): unknown[] => {
+      const days = Array.isArray(raw) ? raw : [];
       while (days.length < 7) days.push({ label: 'Rest', isRest: true, dayNote: '', exercises: [] });
-      program.schedule = days.slice(0, 7);
+      return days.slice(0, 7);
+    };
+
+    if (Array.isArray(program.phases) && program.phases.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      program.phases = (program.phases as any[]).map((p, i) => ({
+        id: `ai-ph${i + 1}`,
+        label: p.label || `Phase ${i + 1}`,
+        startWeek: Number(p.startWeek) || 1,
+        endWeek: Number(p.endWeek) || program.weeks || 8,
+        schedule: fixSchedule(p.schedule),
+      }));
+      // phases[0]'s schedule doubles as the top-level `schedule` fallback for
+      // any code path that reads program.schedule directly instead of going
+      // through phases — same convention used by every hand-built phased
+      // program already in the app.
+      program.schedule = program.phases[0].schedule;
+    } else {
+      // Model didn't return phases (short program, or fell back on an older
+      // shape) — repair the flat schedule the same way as before.
+      program.schedule = fixSchedule(program.schedule);
     }
 
     return NextResponse.json({ program });
