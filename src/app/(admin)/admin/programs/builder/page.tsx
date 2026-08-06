@@ -13,7 +13,6 @@ import {
   matchExercisesToVideos, getExerciseVideos, getSystemConfig, saveExerciseVideo,
 } from '@/lib/firestore';
 import { getMockProgram } from '@/lib/programs';
-import { parseDistance } from '@/lib/distance';
 import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
 import { getIdToken } from 'firebase/auth';
@@ -1151,7 +1150,12 @@ function BuilderInner() {
                                   // found, swaps the plain countdown timer for a stopwatch + pace
                                   // tracker — same mechanism a distance-run exercise already uses.
                                   // Leaving it blank keeps the exercise as a flat duration timer.
-                                  value={parseDistance(ex.reps) ? ex.reps : ''}
+                                  //
+                                  // Bound directly to ex.reps (not gated behind parseDistance) —
+                                  // gating it reset the field to blank on every keystroke that
+                                  // didn't yet parse as a complete distance ("5", "50", "500"),
+                                  // making it look impossible to type anything at all.
+                                  value={ex.reps}
                                   onChange={e => updateEx(activeDay, ex.id, { reps: e.target.value })}
                                   placeholder="e.g. 500m, 5km, 1 mile"
                                 />
