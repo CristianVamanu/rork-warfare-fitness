@@ -2123,6 +2123,230 @@ export const MOCK_PROGRAMS: Program[] = [
       },
     ],
   },
+  // ── P19: French Foreign Legion: 90-Day Protocol ──────────────────────────
+  {
+    id: 'p19',
+    name: 'French Foreign Legion: 90-Day Protocol',
+    description: 'Not an official French Foreign Legion training plan — a realistic civilian program built to develop the strength, endurance, work capacity, and mental toughness Legionnaires train for. 90 days, 3 phases, 6 days a week, gym + rucksack + open ground.\n\nPhase 1 (Weeks 1-4): Foundation. Build the base — full-body strength, easy running, short rucks, and bodyweight conditioning — before load and pace start climbing.\n\nPhase 2 (Weeks 5-8): Build. Heavier lifts, interval running, longer/heavier ruck marches, and military-style conditioning circuits. This is where the volume and intensity really start to bite.\n\nWeek 9: Deload. Same movement patterns, meaningfully lighter — the reset that makes the final push survivable instead of a burnout risk. Don\'t skip it.\n\nPhase 3 (Weeks 10-13): Legion Ready. Peak strength work, hill sprints and tempo runs, your heaviest ruck marches, and a full Legion Challenge finale in the last training day of every week: timed 10K, max pull-ups, max push-ups and sit-ups in 2 minutes, a farmer carry test, and a full-body conditioning gauntlet.\n\nRucking progression targets 20-35kg over 5-20km on mixed terrain; running progression covers 1.5K, 5K, and 10K paces through easy runs, tempo runs, intervals, and fartlek work. Build toward 15-20 strict pull-ups, 80-100 push-ups, and 80+ sit-ups by the final phase. Train hard, recover on purpose, and respect the load progression — it\'s deliberate.',
+    level: 'advanced',
+    goal: 'endurance',
+    weeks: 13,
+    daysPerWeek: 6,
+    isPublic: true,
+    createdBy: 'system',
+    exercises: [
+      { id: 'p19-e1', name: 'Barbell Back Squat', sets: 4, reps: 8, restSeconds: 120, muscleGroup: 'legs' },
+      { id: 'p19-e2', name: 'Push-Up', sets: 4, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+      { id: 'p19-e3', name: 'Pull-Up', sets: 4, reps: 6, restSeconds: 90, muscleGroup: 'back', notes: 'Use a band or box-assist if needed — build toward strict reps.' },
+      { id: 'p19-e4', name: 'Dumbbell Row', sets: 4, reps: 12, restSeconds: 75, muscleGroup: 'back' },
+      { id: 'p19-e5', name: 'Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+      { id: 'p19-e6', name: 'Easy Run', sets: 1, reps: 30, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K at a conversational pace — this is base-building, not a test.' },
+      { id: 'p19-e7', name: 'Ruck March', sets: 1, reps: 60, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K, 15-20kg pack, steady pace on mixed terrain.' },
+      { id: 'p19-e8', name: 'Burpee', sets: 4, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+      { id: 'p19-e9', name: 'Box Jump', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+      { id: 'p19-e10', name: 'Bear Crawl', sets: 3, reps: '30s', restSeconds: 45, muscleGroup: 'full-body' },
+      { id: 'p19-e11', name: 'Kettlebell Swing', sets: 4, reps: 20, restSeconds: 45, muscleGroup: 'full-body' },
+      { id: 'p19-e12', name: 'Romanian Deadlift', sets: 4, reps: 10, restSeconds: 90, muscleGroup: 'legs' },
+    ],
+    schedule: [
+      { label: 'Full-Body Strength', isRest: false, exercises: [
+        { id: 'p19-e1', name: 'Barbell Back Squat', sets: 4, reps: 8, restSeconds: 120, muscleGroup: 'legs' },
+        { id: 'p19-e2', name: 'Push-Up', sets: 4, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+        { id: 'p19-e4', name: 'Dumbbell Row', sets: 4, reps: 12, restSeconds: 75, muscleGroup: 'back' },
+        { id: 'p19-e5', name: 'Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      { label: 'Easy Run + Core', isRest: false, exercises: [
+        { id: 'p19-e6', name: 'Easy Run', sets: 1, reps: 30, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K conversational pace.' },
+        { id: 'p19-e13', name: 'Hanging Knee Raise', sets: 3, reps: 12, restSeconds: 45, muscleGroup: 'core' },
+        { id: 'p19-e14', name: 'Russian Twist', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      { label: 'Upper Body + Pull-Up Progression', isRest: false, exercises: [
+        { id: 'p19-e3', name: 'Pull-Up', sets: 4, reps: 6, restSeconds: 90, muscleGroup: 'back', notes: 'Assisted if needed — track reps every session.' },
+        { id: 'p19-e15', name: 'Overhead Press', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'shoulders' },
+        { id: 'p19-e2', name: 'Push-Up', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+        { id: 'p19-e16', name: 'Farmer\'s Carry', sets: 3, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: 'Heavy dumbbells or kettlebells, 40m per set.' },
+      ] },
+      { label: 'Ruck March', isRest: false, exercises: [
+        { id: 'p19-e7', name: 'Ruck March', sets: 1, reps: 60, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K, 15-20kg pack, steady pace, mixed terrain if possible.' },
+      ] },
+      { label: 'Lower Body + Core', isRest: false, exercises: [
+        { id: 'p19-e12', name: 'Romanian Deadlift', sets: 4, reps: 10, restSeconds: 90, muscleGroup: 'legs' },
+        { id: 'p19-e17', name: 'Walking Lunge', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'legs', notes: 'Per leg.' },
+        { id: 'p19-e18', name: 'Step-Up', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg — use a bench or box.' },
+        { id: 'p19-e5', name: 'Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      { label: 'Conditioning Circuit', isRest: false, exercises: [
+        { id: 'p19-e8', name: 'Burpee', sets: 4, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+        { id: 'p19-e9', name: 'Box Jump', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+        { id: 'p19-e10', name: 'Bear Crawl', sets: 3, reps: '30s', restSeconds: 45, muscleGroup: 'full-body' },
+        { id: 'p19-e19', name: 'Mountain Climbers', sets: 3, reps: 30, restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      rest(),
+    ],
+    phases: [
+      {
+        id: 'p19-ph1',
+        label: 'Phase 1: Foundation',
+        startWeek: 1,
+        endWeek: 4,
+        schedule: [
+          { label: 'Full-Body Strength', isRest: false, exercises: [
+            { id: 'p19-e1', name: 'Barbell Back Squat', sets: 4, reps: 8, restSeconds: 120, muscleGroup: 'legs' },
+            { id: 'p19-e2', name: 'Push-Up', sets: 4, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+            { id: 'p19-e4', name: 'Dumbbell Row', sets: 4, reps: 12, restSeconds: 75, muscleGroup: 'back' },
+            { id: 'p19-e5', name: 'Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Easy Run + Core', isRest: false, exercises: [
+            { id: 'p19-e6', name: 'Easy Run', sets: 1, reps: 30, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K conversational pace — build the aerobic base.' },
+            { id: 'p19-e13', name: 'Hanging Knee Raise', sets: 3, reps: 12, restSeconds: 45, muscleGroup: 'core' },
+            { id: 'p19-e14', name: 'Russian Twist', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Upper Body + Pull-Up Progression', isRest: false, exercises: [
+            { id: 'p19-e3', name: 'Pull-Up', sets: 4, reps: 6, restSeconds: 90, muscleGroup: 'back', notes: 'Assisted if needed — log reps every session, chase strict form first.' },
+            { id: 'p19-e15', name: 'Overhead Press', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'shoulders' },
+            { id: 'p19-e2', name: 'Push-Up', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+            { id: 'p19-e16', name: 'Farmer\'s Carry', sets: 3, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: 'Heavy dumbbells or kettlebells, 40m per set.' },
+          ] },
+          { label: 'Ruck March', isRest: false, exercises: [
+            { id: 'p19-e7', name: 'Ruck March', sets: 1, reps: 60, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Week 1-2: 5K @ 15kg. Week 3-4: 8K @ 18-20kg. Steady pace, mixed terrain if possible.' },
+          ] },
+          { label: 'Lower Body + Core', isRest: false, exercises: [
+            { id: 'p19-e12', name: 'Romanian Deadlift', sets: 4, reps: 10, restSeconds: 90, muscleGroup: 'legs' },
+            { id: 'p19-e17', name: 'Walking Lunge', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'legs', notes: 'Per leg.' },
+            { id: 'p19-e18', name: 'Step-Up', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg — use a bench or box.' },
+            { id: 'p19-e5', name: 'Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Conditioning Circuit', isRest: false, exercises: [
+            { id: 'p19-e8', name: 'Burpee', sets: 4, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+            { id: 'p19-e9', name: 'Box Jump', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+            { id: 'p19-e10', name: 'Bear Crawl', sets: 3, reps: '30s', restSeconds: 45, muscleGroup: 'full-body' },
+            { id: 'p19-e19', name: 'Mountain Climbers', sets: 3, reps: 30, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p19-ph2',
+        label: 'Phase 2: Build',
+        startWeek: 5,
+        endWeek: 8,
+        schedule: [
+          { label: 'Heavy Full-Body Strength', isRest: false, exercises: [
+            { id: 'p19-e20', name: 'Front Squat', sets: 5, reps: 6, restSeconds: 150, muscleGroup: 'legs' },
+            { id: 'p19-e21', name: 'Conventional Deadlift', sets: 4, reps: 5, restSeconds: 180, muscleGroup: 'back' },
+            { id: 'p19-e15', name: 'Overhead Press', sets: 4, reps: 6, restSeconds: 120, muscleGroup: 'shoulders' },
+            { id: 'p19-e5', name: 'Plank', sets: 3, reps: '60s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Interval Running + Core', isRest: false, exercises: [
+            { id: 'p19-e22', name: 'Interval Run (400m Repeats)', sets: 8, reps: '400m', restSeconds: 90, muscleGroup: 'cardio', isCardio: true, notes: '8x400m at 5K race pace, jog-recover between reps.' },
+            { id: 'p19-e13', name: 'Hanging Knee Raise', sets: 4, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+            { id: 'p19-e14', name: 'Russian Twist', sets: 4, reps: 25, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Upper Body + Weighted Pull-Ups', isRest: false, exercises: [
+            { id: 'p19-e3', name: 'Weighted Pull-Up', sets: 5, reps: 5, restSeconds: 120, muscleGroup: 'back', notes: 'Add light weight if strict bodyweight reps are solid; otherwise max strict reps.' },
+            { id: 'p19-e23', name: 'Bench Press', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'chest' },
+            { id: 'p19-e2', name: 'Push-Up', sets: 3, reps: 25, restSeconds: 45, muscleGroup: 'chest' },
+            { id: 'p19-e16', name: 'Farmer\'s Carry', sets: 4, reps: 50, restSeconds: 60, muscleGroup: 'core', notes: '50m per set, heavier load than Phase 1.' },
+          ] },
+          { label: 'Ruck March', isRest: false, exercises: [
+            { id: 'p19-e7', name: 'Ruck March', sets: 1, reps: 90, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Week 5-6: 10K @ 22-25kg. Week 7-8: 12K @ 25-28kg. Push the pace on flat sections.' },
+          ] },
+          { label: 'Lower Body + Loaded Carries', isRest: false, exercises: [
+            { id: 'p19-e1', name: 'Barbell Back Squat', sets: 5, reps: 6, restSeconds: 150, muscleGroup: 'legs' },
+            { id: 'p19-e12', name: 'Romanian Deadlift', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'legs' },
+            { id: 'p19-e24', name: 'Sandbag Carry', sets: 4, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: '40m per set, heaviest sandbag you can control.' },
+            { id: 'p19-e18', name: 'Step-Up', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg, weighted vest if available.' },
+          ] },
+          { label: 'Military Conditioning Circuit', isRest: false, exercises: [
+            { id: 'p19-e25', name: 'Thruster', sets: 4, reps: 12, restSeconds: 60, muscleGroup: 'full-body' },
+            { id: 'p19-e26', name: 'Shuttle Run', sets: 5, reps: '40m', restSeconds: 45, muscleGroup: 'cardio', isCardio: true },
+            { id: 'p19-e11', name: 'Kettlebell Swing', sets: 4, reps: 20, restSeconds: 45, muscleGroup: 'full-body' },
+            { id: 'p19-e8', name: 'Burpee', sets: 4, reps: 20, restSeconds: 45, muscleGroup: 'full-body' },
+          ] },
+          rest(),
+        ],
+      },
+      // Deload — same movement patterns as Phase 2, meaningfully lighter.
+      // Going straight from Build into the heaviest ruck loads and the
+      // Legion Challenge finale without a break is exactly the kind of
+      // burnout risk this program is designed to avoid.
+      {
+        id: 'p19-deload',
+        label: 'Week 9: Deload',
+        startWeek: 9,
+        endWeek: 9,
+        schedule: [
+          { label: 'Light Full-Body', isRest: false, exercises: [
+            { id: 'p19-e1', name: 'Barbell Back Squat', sets: 3, reps: 8, restSeconds: 120, muscleGroup: 'legs', notes: '~60% of your Phase 2 working weight.' },
+            { id: 'p19-e2', name: 'Push-Up', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'chest' },
+            { id: 'p19-e4', name: 'Dumbbell Row', sets: 3, reps: 10, restSeconds: 75, muscleGroup: 'back' },
+            { id: 'p19-e5', name: 'Plank', sets: 2, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Easy Run', isRest: false, exercises: [
+            { id: 'p19-e6', name: 'Easy Run', sets: 1, reps: 20, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Short and easy — no pace targets this week.' },
+          ] },
+          { label: 'Light Upper Body', isRest: false, exercises: [
+            { id: 'p19-e3', name: 'Pull-Up', sets: 3, reps: 5, restSeconds: 90, muscleGroup: 'back', notes: 'Bodyweight only, stop well short of failure.' },
+            { id: 'p19-e15', name: 'Overhead Press', sets: 3, reps: 8, restSeconds: 90, muscleGroup: 'shoulders', notes: '~60% of your Phase 2 working weight.' },
+          ] },
+          { label: 'Short Ruck', isRest: false, exercises: [
+            { id: 'p19-e7', name: 'Ruck March', sets: 1, reps: 45, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K, light load (~15kg), easy pace.' },
+          ] },
+          { label: 'Light Lower Body', isRest: false, exercises: [
+            { id: 'p19-e12', name: 'Romanian Deadlift', sets: 3, reps: 10, restSeconds: 90, muscleGroup: 'legs', notes: '~60% of your Phase 2 working weight.' },
+            { id: 'p19-e17', name: 'Walking Lunge', sets: 2, reps: 10, restSeconds: 75, muscleGroup: 'legs', notes: 'Per leg, bodyweight.' },
+          ] },
+          { label: 'Mobility + Light Conditioning', isRest: false, exercises: [
+            { id: 'p19-e19', name: 'Mountain Climbers', sets: 2, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+            { id: 'p19-e10', name: 'Bear Crawl', sets: 2, reps: '20s', restSeconds: 45, muscleGroup: 'full-body' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p19-ph3',
+        label: 'Phase 3: Legion Ready',
+        startWeek: 10,
+        endWeek: 13,
+        schedule: [
+          { label: 'Peak Strength', isRest: false, exercises: [
+            { id: 'p19-e1', name: 'Barbell Back Squat', sets: 5, reps: 4, restSeconds: 180, muscleGroup: 'legs' },
+            { id: 'p19-e21', name: 'Conventional Deadlift', sets: 5, reps: 3, restSeconds: 210, muscleGroup: 'back' },
+            { id: 'p19-e23', name: 'Bench Press', sets: 4, reps: 5, restSeconds: 150, muscleGroup: 'chest' },
+            { id: 'p19-e5', name: 'Plank', sets: 3, reps: '75s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Tempo Run + Hill Sprints', isRest: false, exercises: [
+            { id: 'p19-e27', name: 'Tempo Run', sets: 1, reps: 25, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K at a "comfortably hard" pace you could hold for the full distance.' },
+            { id: 'p19-e28', name: 'Hill Sprint', sets: 6, reps: '30s', restSeconds: 90, muscleGroup: 'cardio', isCardio: true, notes: 'Walk back down for recovery.' },
+          ] },
+          { label: 'Max Pull-Ups + Upper Strength', isRest: false, exercises: [
+            { id: 'p19-e3', name: 'Weighted Pull-Up', sets: 5, reps: 5, restSeconds: 120, muscleGroup: 'back', notes: 'Working toward 15-20 strict bodyweight reps by the final week.' },
+            { id: 'p19-e15', name: 'Overhead Press', sets: 4, reps: 6, restSeconds: 120, muscleGroup: 'shoulders' },
+            { id: 'p19-e2', name: 'Push-Up', sets: 4, reps: 25, restSeconds: 45, muscleGroup: 'chest', notes: 'Working toward 80-100 total reps across sets by the final week.' },
+          ] },
+          { label: 'Heavy Ruck March', isRest: false, exercises: [
+            { id: 'p19-e7', name: 'Ruck March', sets: 1, reps: 150, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Week 10-11: 15K @ 28-30kg. Week 12-13: 18-20K @ 30-35kg. Mixed terrain, sustained pace.' },
+          ] },
+          { label: 'Lower Strength + Loaded Carry Gauntlet', isRest: false, exercises: [
+            { id: 'p19-e20', name: 'Front Squat', sets: 5, reps: 5, restSeconds: 150, muscleGroup: 'legs' },
+            { id: 'p19-e24', name: 'Sandbag Carry', sets: 4, reps: 60, restSeconds: 60, muscleGroup: 'core', notes: '60m per set, heaviest sandbag you can control.' },
+            { id: 'p19-e16', name: 'Farmer\'s Carry', sets: 4, reps: 60, restSeconds: 60, muscleGroup: 'core', notes: '60m per set, heaviest pair you can control.' },
+          ] },
+          // The last training day of every week in this phase — culminates
+          // in the full Legion Challenge in week 13.
+          { label: 'Legion Challenge', isRest: false, exercises: [
+            { id: 'p19-e29', name: 'Timed 10K Run', sets: 1, reps: 60, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Race it. Log your time and try to beat it each week.' },
+            { id: 'p19-e30', name: 'Max Pull-Ups (AMRAP)', sets: 1, reps: 1, restSeconds: 120, muscleGroup: 'back', notes: 'One all-out set to failure, strict form.' },
+            { id: 'p19-e31', name: 'Max Push-Ups (2 min)', sets: 1, reps: 1, restSeconds: 120, muscleGroup: 'chest', notes: 'As many strict reps as possible in 2 minutes.' },
+            { id: 'p19-e32', name: 'Max Sit-Ups (2 min)', sets: 1, reps: 1, restSeconds: 120, muscleGroup: 'core', notes: 'As many strict reps as possible in 2 minutes.' },
+            { id: 'p19-e16', name: 'Farmer\'s Carry Test', sets: 1, reps: 100, restSeconds: 0, muscleGroup: 'core', notes: 'Heaviest pair you can carry, max distance in one unbroken set.' },
+            { id: 'p19-e8', name: 'Full-Body Conditioning Gauntlet', sets: 5, reps: 15, restSeconds: 30, muscleGroup: 'full-body', notes: 'Burpees — 5 rounds of 15, 30s rest between rounds. The Legion finisher.' },
+          ] },
+          rest(),
+        ],
+      },
+    ],
+  },
 ];
 
 /** Look up a mock program by id. Returns null if not found. */
