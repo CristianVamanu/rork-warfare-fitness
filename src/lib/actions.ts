@@ -13,6 +13,7 @@ import {
   increment,
   serverTimestamp,
 } from 'firebase/firestore';
+import type { DistanceUnit } from '@/lib/distance';
 import { auth, db } from './firebase';
 import { createEvent } from './events';
 import { incrementProgramWorkouts } from './firestore';
@@ -66,7 +67,7 @@ interface SetLog {
   weight: number; reps: number; completed: boolean;
   // Only present for distance-mode sets (ruck marches, timed runs) — see
   // parseDistance() in the training session page.
-  distanceValue?: number; distanceUnit?: 'mi' | 'km'; elapsedSeconds?: number;
+  distanceValue?: number; distanceUnit?: DistanceUnit; elapsedSeconds?: number;
 }
 interface ExerciseLog { name: string; sets: SetLog[] }
 

@@ -21,6 +21,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { WeightSlider } from '@/components/workout/WeightSlider';
 import { PlateCalculatorButton } from '@/components/workout/PlateCalculator';
 import type { Exercise, Program } from '@/types';
+import { parseDistance, type DistanceUnit } from '@/lib/distance';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ interface ExState {
   cardioDurationSeconds: number;
   isDistance: boolean;
   targetDistanceValue: number;
-  targetDistanceUnit: 'mi' | 'km';
+  targetDistanceUnit: DistanceUnit;
   isHiit: boolean;
   hiitWorkSeconds: number;
   hiitRestSeconds: number;
@@ -70,16 +71,6 @@ interface ExState {
 // distance+stopwatch logging UI instead of a fixed-duration countdown.
 // Returns null for anything that isn't phrased as a distance (e.g. "20 min",
 // a plain rep count), so those keep using the existing duration timer.
-function parseDistance(reps: number | string): { value: number; unit: 'mi' | 'km' } | null {
-  const str = String(reps).toLowerCase();
-  const match = str.match(/([\d.]+)\s*(mi|mile|miles|km|kilometer|kilometers|k)\b/);
-  if (!match) return null;
-  const value = parseFloat(match[1]);
-  if (isNaN(value)) return null;
-  const unit: 'mi' | 'km' = match[2].startsWith('mi') ? 'mi' : 'km';
-  return { value, unit };
-}
-
 // ─── Defaults ───────────────────────────────────────────────────────────────
 
 const DEFAULT_EXERCISES: Exercise[] = [
@@ -461,7 +452,7 @@ function formatPace(totalSeconds: number, distance: number): string {
 interface DistanceLogRowProps {
   setNum: number;
   targetDistanceValue: number;
-  targetDistanceUnit: 'mi' | 'km';
+  targetDistanceUnit: DistanceUnit;
   isActive: boolean;
   isPending: boolean;
   isCompleted: boolean;

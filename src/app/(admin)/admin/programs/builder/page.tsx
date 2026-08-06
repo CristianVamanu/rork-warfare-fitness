@@ -13,6 +13,7 @@ import {
   matchExercisesToVideos, getExerciseVideos, getSystemConfig, saveExerciseVideo,
 } from '@/lib/firestore';
 import { getMockProgram } from '@/lib/programs';
+import { parseDistance } from '@/lib/distance';
 import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
 import { getIdToken } from 'firebase/auth';
@@ -1134,13 +1135,28 @@ function BuilderInner() {
                             />
                           </div>
                           {ex.isCardio && !ex.isHiit ? (
-                            <div>
-                              <label className="text-[10px] text-text-tertiary mb-1 block">Duration</label>
-                              <CardioDurationInput
-                                valueSeconds={ex.cardioDurationSeconds ?? (typeof ex.reps === 'number' ? ex.reps * 60 : (parseInt(String(ex.reps), 10) || 30) * 60)}
-                                onChange={sec => updateEx(activeDay, ex.id, { cardioDurationSeconds: sec })}
-                              />
-                            </div>
+                            <>
+                              <div>
+                                <label className="text-[10px] text-text-tertiary mb-1 block">Duration</label>
+                                <CardioDurationInput
+                                  valueSeconds={ex.cardioDurationSeconds ?? (typeof ex.reps === 'number' ? ex.reps * 60 : (parseInt(String(ex.reps), 10) || 30) * 60)}
+                                  onChange={sec => updateEx(activeDay, ex.id, { cardioDurationSeconds: sec })}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-text-tertiary mb-1 block">Target Distance (optional)</label>
+                                <Input
+                                  // The session player parses a distance target straight out of
+                                  // this same `reps` field (e.g. "500m", "5km", "1 mile") and, when
+                                  // found, swaps the plain countdown timer for a stopwatch + pace
+                                  // tracker — same mechanism a distance-run exercise already uses.
+                                  // Leaving it blank keeps the exercise as a flat duration timer.
+                                  value={parseDistance(ex.reps) ? ex.reps : ''}
+                                  onChange={e => updateEx(activeDay, ex.id, { reps: e.target.value })}
+                                  placeholder="e.g. 500m, 5km, 1 mile"
+                                />
+                              </div>
+                            </>
                           ) : !ex.isHiit ? (
                             <div>
                               <label className="text-[10px] text-text-tertiary mb-1 block">Reps / Range</label>
