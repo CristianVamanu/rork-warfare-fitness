@@ -1657,6 +1657,20 @@ function AdminPageInner() {
         </div>
         <div>
           <label className="text-xs text-text-secondary mb-1 block">Video file (MP4, MOV, WebM)</label>
+          {editingEx?.videoUrl && !exFile && (
+            <button
+              type="button"
+              onClick={() => setPreviewVideo(editingEx.videoUrl)}
+              className={`w-full h-28 mb-2 rounded-xl flex items-center justify-center relative overflow-hidden transition-colors ${editingEx.thumbnailUrl ? 'bg-black' : 'bg-white/10 hover:bg-accent/20'}`}
+            >
+              {editingEx.thumbnailUrl && (
+                <img src={editingEx.thumbnailUrl} alt={editingEx.name} className="absolute inset-0 w-full h-full object-cover" />
+              )}
+              <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center ${editingEx.thumbnailUrl ? 'bg-black/50' : ''}`}>
+                <Play className={`w-5 h-5 ${editingEx.thumbnailUrl ? 'text-white' : 'text-accent'}`} />
+              </div>
+            </button>
+          )}
           <input
             type="file"
             accept="video/*"
@@ -1664,7 +1678,7 @@ function AdminPageInner() {
             onChange={e => setExFile(e.target.files?.[0] ?? null)}
           />
           {editingEx?.videoUrl && !exFile && (
-            <p className="text-xs text-text-tertiary mt-1">Current video on file — upload a new one to replace it.</p>
+            <p className="text-xs text-text-tertiary mt-1">Tap the preview above to confirm this is the right clip — upload a new file to replace it.</p>
           )}
         </div>
         {savingEx && exUploadProgress > 0 && exUploadProgress < 100 && (
