@@ -426,7 +426,23 @@ function BuilderInner() {
         body: JSON.stringify({ prompt: aiPrompt }),
         signal: controller.signal,
       });
-      const data = await res.json();
+      // A reverse-proxy/CDN timeout in front of the server returns an HTML
+      // error page instead of the route's actual JSON response — res.json()
+      // on that throws a raw "Unexpected token '<'... is not valid JSON"
+      // that's meaningless to the user. Read as text first so that failure
+      // mode gets a real explanation instead of a crash.
+      const rawText = await res.text();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let data: { program?: any; error?: string };
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        throw new Error(
+          res.ok
+            ? 'Server returned an unexpected response — likely a proxy/gateway timeout before generation finished. Try a shorter prompt or fewer weeks.'
+            : `Server error (${res.status}) — likely a proxy/gateway timeout before generation finished. Try a shorter prompt or fewer weeks.`
+        );
+      }
       if (!res.ok) throw new Error(data.error || 'Failed');
 
       const p = data.program;

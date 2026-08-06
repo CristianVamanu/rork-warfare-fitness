@@ -45,7 +45,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no extra text):
 PHASE RULES:
 - Programs of 4-5 weeks: 2 phases (e.g. Foundation, then Intensification).
 - Programs of 6-9 weeks: 3 phases (e.g. Foundation, Build, Peak), with a deload built into the final week of one phase or as its own short phase if the length allows.
-- Programs of 10-16 weeks: 4-6 phases, ALWAYS including at least one explicit deload/recovery week (roughly half the working sets/volume of the phase around it, same movements) — never string more than 6 weeks of straight progression without one.
+- Programs of 10-16 weeks: 4 phases, ALWAYS including at least one explicit deload/recovery week (roughly half the working sets/volume of the phase around it, same movements) — never string more than 6 weeks of straight progression without one.
 - startWeek/endWeek across all phases must exactly cover 1 through the program's total "weeks" with no gaps or overlaps.
 - Every phase must have a genuinely distinct schedule reflecting its purpose — do NOT reuse an identical schedule across phases with only the label changed. Later phases should show real progression from earlier ones: more sets/working volume, less rest, heavier target loads implied by lower rep ranges, more advanced exercise variations or unilateral/single-limb work, and/or added complexity (supersets noted in "notes", tighter rest periods, etc). A deload phase/week does the opposite: same or similar movements, meaningfully reduced volume.
 - Each phase's schedule array must have EXACTLY 7 elements (Day 1 through Day 7).
@@ -78,13 +78,12 @@ export async function POST(req: NextRequest) {
     const response = await openai.chat.completions.create({
       model,
       // A multi-phase program is meaningfully larger than the old
-      // single-schedule output — 4000 risked truncation on longer programs,
-      // but 12000 made the request slow enough to hit a silent timeout
-      // somewhere in the network path (reported as "generating... nothing
-      // happens", no error at all). 8000 is the middle ground: enough
-      // headroom for a 5-6 phase program with 4-6 exercises/day, without
-      // pushing generation time so high it risks the same failure mode.
-      max_tokens: 8000,
+      // single-schedule output. 12000 hung silently on a network timeout;
+      // 8000 then surfaced as a proxy/gateway timeout returning an HTML
+      // error page instead of JSON — still too slow. Phases are now capped
+      // at 4 max, so 6000 has real headroom without pushing generation
+      // time back into timeout territory.
+      max_tokens: 6000,
       temperature: 0.7,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
