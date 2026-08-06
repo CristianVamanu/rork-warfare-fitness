@@ -91,7 +91,13 @@ export async function POST(req: NextRequest) {
     // which defeats an idle-timeout-based proxy even on a slow generation.
     const stream = await openai.chat.completions.create({
       model,
-      max_tokens: 6000,
+      // A full 16-week, 4-phase, 7-day/phase program with 4-6 exercises per
+      // day (plus notes) easily runs past 6000 tokens of JSON — the model
+      // was getting cut off mid-object, JSON.parse then threw, and that
+      // truncation was reported as a generic "Failed to generate program",
+      // indistinguishable from a real timeout. gpt-4o-mini's actual output
+      // cap is 16384; stay just under it.
+      max_tokens: 16000,
       temperature: 0.7,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -105,9 +111,11 @@ export async function POST(req: NextRequest) {
     const body = new ReadableStream({
       async start(controller) {
         let full = '';
+        let finishReason: string | null = null;
         try {
           for await (const chunk of stream) {
             const delta = chunk.choices[0]?.delta?.content ?? '';
+            if (chunk.choices[0]?.finish_reason) finishReason = chunk.choices[0].finish_reason;
             if (delta) {
               full += delta;
               // Newline-delimited progress pings keep the connection actively
@@ -142,8 +150,13 @@ export async function POST(req: NextRequest) {
           // just keep-alive dots, everything after is the real payload.
           controller.enqueue(encoder.encode('\n__RESULT__\n' + JSON.stringify({ program })));
         } catch (err) {
-          console.error('[generate-program] stream error:', err);
-          controller.enqueue(encoder.encode('\n__RESULT__\n' + JSON.stringify({ error: 'Failed to generate program' })));
+          const truncated = finishReason === 'length';
+          console.error('[generate-program] stream error:', err, truncated ? '(hit max_tokens)' : '');
+          controller.enqueue(encoder.encode('\n__RESULT__\n' + JSON.stringify({
+            error: truncated
+              ? 'The program was too long to generate in one go — try fewer weeks/days per week, or a shorter prompt.'
+              : 'Failed to generate program',
+          })));
         } finally {
           controller.close();
         }
