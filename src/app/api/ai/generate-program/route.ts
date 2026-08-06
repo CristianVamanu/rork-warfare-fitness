@@ -75,14 +75,22 @@ export async function POST(req: NextRequest) {
     const openai = new OpenAI({ apiKey });
     const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 
-    const response = await openai.chat.completions.create({
+    const fixSchedule = (raw: unknown): unknown[] => {
+      const days = Array.isArray(raw) ? raw : [];
+      while (days.length < 7) days.push({ label: 'Rest', isRest: true, dayNote: '', exercises: [] });
+      return days.slice(0, 7);
+    };
+
+    // Streamed instead of one buffered request-response: most proxy/gateway
+    // timeouts (nginx's proxy_read_timeout, Cloudflare, etc.) trigger on no
+    // bytes flowing for N seconds, not total request duration — repeatedly
+    // shrinking max_tokens only bought marginal time and the exact same
+    // "Unexpected token... not valid JSON" (an HTML timeout error page
+    // instead of this route's response) kept recurring. Streaming keeps
+    // bytes flowing to the client the whole time OpenAI is generating,
+    // which defeats an idle-timeout-based proxy even on a slow generation.
+    const stream = await openai.chat.completions.create({
       model,
-      // A multi-phase program is meaningfully larger than the old
-      // single-schedule output. 12000 hung silently on a network timeout;
-      // 8000 then surfaced as a proxy/gateway timeout returning an HTML
-      // error page instead of JSON — still too slow. Phases are now capped
-      // at 4 max, so 6000 has real headroom without pushing generation
-      // time back into timeout territory.
       max_tokens: 6000,
       temperature: 0.7,
       messages: [
@@ -90,38 +98,59 @@ export async function POST(req: NextRequest) {
         { role: 'user', content: prompt },
       ],
       response_format: { type: 'json_object' },
+      stream: true,
     });
 
-    const content = response.choices[0]?.message?.content ?? '{}';
-    const program = JSON.parse(content);
+    const encoder = new TextEncoder();
+    const body = new ReadableStream({
+      async start(controller) {
+        let full = '';
+        try {
+          for await (const chunk of stream) {
+            const delta = chunk.choices[0]?.delta?.content ?? '';
+            if (delta) {
+              full += delta;
+              // Newline-delimited progress pings keep the connection actively
+              // flowing without being part of the final JSON payload itself.
+              controller.enqueue(encoder.encode('.'));
+            }
+          }
 
-    const fixSchedule = (raw: unknown): unknown[] => {
-      const days = Array.isArray(raw) ? raw : [];
-      while (days.length < 7) days.push({ label: 'Rest', isRest: true, dayNote: '', exercises: [] });
-      return days.slice(0, 7);
-    };
+          const program = JSON.parse(full);
 
-    if (Array.isArray(program.phases) && program.phases.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      program.phases = (program.phases as any[]).map((p, i) => ({
-        id: `ai-ph${i + 1}`,
-        label: p.label || `Phase ${i + 1}`,
-        startWeek: Number(p.startWeek) || 1,
-        endWeek: Number(p.endWeek) || program.weeks || 8,
-        schedule: fixSchedule(p.schedule),
-      }));
-      // phases[0]'s schedule doubles as the top-level `schedule` fallback for
-      // any code path that reads program.schedule directly instead of going
-      // through phases — same convention used by every hand-built phased
-      // program already in the app.
-      program.schedule = program.phases[0].schedule;
-    } else {
-      // Model didn't return phases (short program, or fell back on an older
-      // shape) — repair the flat schedule the same way as before.
-      program.schedule = fixSchedule(program.schedule);
-    }
+          if (Array.isArray(program.phases) && program.phases.length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            program.phases = (program.phases as any[]).map((p, i) => ({
+              id: `ai-ph${i + 1}`,
+              label: p.label || `Phase ${i + 1}`,
+              startWeek: Number(p.startWeek) || 1,
+              endWeek: Number(p.endWeek) || program.weeks || 8,
+              schedule: fixSchedule(p.schedule),
+            }));
+            // phases[0]'s schedule doubles as the top-level `schedule`
+            // fallback for any code path that reads program.schedule
+            // directly instead of going through phases — same convention
+            // used by every hand-built phased program already in the app.
+            program.schedule = program.phases[0].schedule;
+          } else {
+            // Model didn't return phases (short program, or fell back on an
+            // older shape) — repair the flat schedule the same way as before.
+            program.schedule = fixSchedule(program.schedule);
+          }
 
-    return NextResponse.json({ program });
+          // A control marker the client splits on — everything before it is
+          // just keep-alive dots, everything after is the real payload.
+          controller.enqueue(encoder.encode('\n__RESULT__\n' + JSON.stringify({ program })));
+        } catch (err) {
+          console.error('[generate-program] stream error:', err);
+          controller.enqueue(encoder.encode('\n__RESULT__\n' + JSON.stringify({ error: 'Failed to generate program' })));
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   } catch (err) {
     console.error('[generate-program]', err);
     return NextResponse.json({ error: 'Failed to generate program' }, { status: 500 });

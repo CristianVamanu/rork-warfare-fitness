@@ -426,24 +426,33 @@ function BuilderInner() {
         body: JSON.stringify({ prompt: aiPrompt }),
         signal: controller.signal,
       });
-      // A reverse-proxy/CDN timeout in front of the server returns an HTML
-      // error page instead of the route's actual JSON response — res.json()
-      // on that throws a raw "Unexpected token '<'... is not valid JSON"
-      // that's meaningless to the user. Read as text first so that failure
-      // mode gets a real explanation instead of a crash.
-      const rawText = await res.text();
+      // The route streams its response — bytes keep flowing to the client
+      // the whole time OpenAI is generating, which defeats an idle-timeout
+      // proxy/gateway that would otherwise kill a long-held silent request
+      // and hand back an HTML error page instead of real JSON. Everything
+      // before the __RESULT__ marker is just keep-alive filler; the actual
+      // payload is the JSON after it.
+      if (!res.body) throw new Error('No response body');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let raw = '';
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        raw += decoder.decode(value, { stream: true });
+      }
+      const marker = raw.indexOf('__RESULT__');
+      const payload = marker === -1 ? raw : raw.slice(marker + '__RESULT__'.length);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: { program?: any; error?: string };
       try {
-        data = JSON.parse(rawText);
+        data = JSON.parse(payload);
       } catch {
-        throw new Error(
-          res.ok
-            ? 'Server returned an unexpected response — likely a proxy/gateway timeout before generation finished. Try a shorter prompt or fewer weeks.'
-            : `Server error (${res.status}) — likely a proxy/gateway timeout before generation finished. Try a shorter prompt or fewer weeks.`
-        );
+        throw new Error('Server returned an unexpected response — the connection may have dropped before generation finished. Try a shorter prompt or fewer weeks.');
       }
-      if (!res.ok) throw new Error(data.error || 'Failed');
+      if (data.error) throw new Error(data.error);
+      if (!data.program) throw new Error('No program returned');
 
       const p = data.program;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
