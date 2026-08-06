@@ -211,7 +211,22 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    return new Response(body, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        // nginx buffers proxied responses by default (proxy_buffering on) —
+        // it can hold the entire stream of keep-alive dots until its buffer
+        // fills or the response ends, defeating streaming outright and
+        // making bytes arrive in one delayed burst instead of continuously.
+        // That's indistinguishable from a real stall to the client's idle
+        // timeout. This header tells nginx to forward each chunk the moment
+        // it arrives, no config change needed on the server side.
+        'X-Accel-Buffering': 'no',
+        // Some hosting layers also transform/buffer based on this; belt and
+        // braces alongside X-Accel-Buffering.
+        'Cache-Control': 'no-cache, no-transform',
+      },
+    });
   } catch (err) {
     console.error('[generate-program]', err);
     return NextResponse.json({ error: 'Failed to generate program' }, { status: 500 });
