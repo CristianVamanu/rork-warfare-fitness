@@ -414,10 +414,19 @@ function BuilderInner() {
     setAiLoading(true);
     // A multi-phase program can genuinely take a while to generate — but
     // without a cap, a dropped/stalled connection just spins forever with
-    // no feedback ("generating... nothing happens"). 100s covers a real
-    // slow generation while still failing loud instead of silent.
+    // no feedback ("generating... nothing happens"). This needs to be an
+    // IDLE timeout (reset every time a chunk actually arrives), not a flat
+    // total-duration one — a flat 100s cutoff was exactly why longer
+    // prompts kept failing while short ones worked: the stream was still
+    // healthy and making progress, just past 100s of *total* elapsed time.
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 100_000);
+    let idleTimeoutId: ReturnType<typeof setTimeout> = setTimeout(() => {}, 0);
+    const IDLE_TIMEOUT_MS = 45_000;
+    const resetIdleTimeout = () => {
+      clearTimeout(idleTimeoutId);
+      idleTimeoutId = setTimeout(() => controller.abort(), IDLE_TIMEOUT_MS);
+    };
+    resetIdleTimeout();
     try {
       const token = await getIdToken(user);
       const res = await fetch('/api/ai/generate-program', {
@@ -440,6 +449,7 @@ function BuilderInner() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+        resetIdleTimeout(); // still receiving bytes — not actually stuck
         raw += decoder.decode(value, { stream: true });
       }
       const marker = raw.indexOf('__RESULT__');
@@ -518,7 +528,7 @@ function BuilderInner() {
         ? 'Generation timed out — try a shorter/simpler prompt, or fewer weeks.'
         : (err instanceof Error ? err.message : 'AI generation failed'));
     } finally {
-      clearTimeout(timeoutId);
+      clearTimeout(idleTimeoutId);
       setAiLoading(false);
     }
   }
