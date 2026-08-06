@@ -1204,7 +1204,37 @@ function BuilderInner() {
                             <label className="text-[10px] text-text-tertiary mb-1 block">Demo Video</label>
                             {ex.videoUrl ? (
                               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-white/10">
-                                <Video className="w-4 h-4 text-accent flex-shrink-0" />
+                                {(() => {
+                                  const libEntry = videoLibrary.find(v => v.videoUrl === ex.videoUrl);
+                                  const isPreviewing = previewingId === ex.id;
+                                  return (
+                                    <button
+                                      onClick={() => setPreviewingId(isPreviewing ? null : ex.id)}
+                                      className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 relative flex items-center justify-center ${libEntry?.thumbnailUrl || isPreviewing ? 'bg-black' : 'bg-surface-elevated border border-white/10'}`}
+                                      title="Preview"
+                                    >
+                                      {isPreviewing ? (
+                                        <video
+                                          key={ex.videoUrl}
+                                          src={ex.videoUrl}
+                                          muted
+                                          loop
+                                          autoPlay
+                                          playsInline
+                                          crossOrigin="anonymous"
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <>
+                                          {libEntry?.thumbnailUrl && (
+                                            <img src={libEntry.thumbnailUrl} alt={ex.name} className="absolute inset-0 w-full h-full object-cover" />
+                                          )}
+                                          <Play className={`w-4 h-4 relative z-10 ${libEntry?.thumbnailUrl ? 'text-white' : 'text-text-tertiary'}`} />
+                                        </>
+                                      )}
+                                    </button>
+                                  );
+                                })()}
                                 <span className="text-xs text-text-secondary truncate flex-1">Video attached</span>
                                 <button
                                   onClick={() => openVideoPicker(ex.id)}
