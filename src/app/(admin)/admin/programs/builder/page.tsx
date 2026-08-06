@@ -412,12 +412,19 @@ function BuilderInner() {
   async function generateWithAI() {
     if (!aiPrompt.trim() || !user) return;
     setAiLoading(true);
+    // A multi-phase program can genuinely take a while to generate — but
+    // without a cap, a dropped/stalled connection just spins forever with
+    // no feedback ("generating... nothing happens"). 100s covers a real
+    // slow generation while still failing loud instead of silent.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 100_000);
     try {
       const token = await getIdToken(user);
       const res = await fetch('/api/ai/generate-program', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ prompt: aiPrompt }),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
@@ -481,8 +488,12 @@ function BuilderInner() {
       setActivePhase(0);
       toast.success('Program generated! Review and edit before saving.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'AI generation failed');
+      const isTimeout = err instanceof DOMException && err.name === 'AbortError';
+      toast.error(isTimeout
+        ? 'Generation timed out — try a shorter/simpler prompt, or fewer weeks.'
+        : (err instanceof Error ? err.message : 'AI generation failed'));
     } finally {
+      clearTimeout(timeoutId);
       setAiLoading(false);
     }
   }

@@ -53,7 +53,7 @@ PHASE RULES:
 RULES:
 - Day labels must NOT reference weekdays (Monday, Tuesday, etc.) — use theme-based names like "Push Day", "Pull Day", "Leg Day", "Rest", "Active Recovery"
 - Rest days: isRest=true, empty exercises array, label="Rest"
-- Training days: isRest=false, 3-8 exercises per day
+- Training days: isRest=false, 4-6 exercises per day (keep this tight — a multi-phase program already has a lot of days to cover, and shorter, focused sessions read as more deliberate coaching than padding every day to 8 exercises)
 - Include compound movements first, isolation after
 - RPE 6-7 = easy/moderate, 8 = hard, 9 = very hard, 10 = max
 - Rest 60-90s for hypertrophy, 120-180s for strength, 30-60s for metabolic
@@ -77,10 +77,14 @@ export async function POST(req: NextRequest) {
 
     const response = await openai.chat.completions.create({
       model,
-      // A multi-phase program (up to 6 phases × 7 days × up to 8 exercises)
-      // is meaningfully larger than the old single-schedule output — 4000
-      // risked silent truncation/invalid JSON on longer programs.
-      max_tokens: 12000,
+      // A multi-phase program is meaningfully larger than the old
+      // single-schedule output — 4000 risked truncation on longer programs,
+      // but 12000 made the request slow enough to hit a silent timeout
+      // somewhere in the network path (reported as "generating... nothing
+      // happens", no error at all). 8000 is the middle ground: enough
+      // headroom for a 5-6 phase program with 4-6 exercises/day, without
+      // pushing generation time so high it risks the same failure mode.
+      max_tokens: 8000,
       temperature: 0.7,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
