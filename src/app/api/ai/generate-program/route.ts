@@ -78,8 +78,20 @@ export async function POST(req: NextRequest) {
   if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
 
   try {
-    const { prompt } = await req.json();
+    const { prompt, documentText } = await req.json();
     if (!prompt) return NextResponse.json({ error: 'Prompt required' }, { status: 400 });
+
+    // Uploaded reference document (e.g. a real training program PDF) gets
+    // folded into both the plan call and every phase call — the plan needs
+    // it to pick a genuinely matching structure (block/phase count, weekly
+    // pattern), and each phase call needs it again to pull real exercises
+    // and formats from the source rather than inventing generic ones.
+    // Truncated further here on top of extract-document's own cap: it's
+    // now embedded in N+1 separate completions (1 plan + 1 per phase), so
+    // keeping each embed smaller matters more than it did for a single call.
+    const docContext: string = typeof documentText === 'string' && documentText.trim()
+      ? `\n\nReference document (a real training program to base this closely on — extract genuine structure, exercises, and formats from it rather than inventing generic ones; adapt only where equipment/context requires it):\n"""\n${documentText.slice(0, 6000)}\n"""`
+      : '';
 
     const apiKey = await getSecret('OPENAI_API_KEY');
     if (!apiKey) return NextResponse.json({ error: 'OpenAI not configured. Set OPENAI_API_KEY in Vercel environment variables.' }, { status: 500 });
@@ -119,7 +131,7 @@ export async function POST(req: NextRequest) {
             temperature: 0.7,
             messages: [
               { role: 'system', content: PLAN_SYSTEM_PROMPT },
-              { role: 'user', content: prompt },
+              { role: 'user', content: prompt + docContext },
             ],
             response_format: { type: 'json_object' },
             stream: true,
@@ -145,7 +157,7 @@ export async function POST(req: NextRequest) {
             const priorSummary = phaseSchedules.length > 0
               ? `\n\nPrior phase(s) already used exercises including: ${phaseSchedules.flat().flatMap((d: BDay) => (d.exercises ?? []).map((e: BDay) => e.name)).slice(0, 20).join(', ')}. Vary selection where the phase's progression calls for it.`
               : '';
-            const userMsg = `Overall program: "${prompt}"\n\nProgram name: ${plan.name}\nProgram goal: ${plan.goal}, level: ${plan.level}\n\nNow write the schedule for: ${ph.label} (weeks ${ph.startWeek}-${ph.endWeek})\nThis phase's focus: ${ph.focus}${priorSummary}`;
+            const userMsg = `Overall program: "${prompt}"\n\nProgram name: ${plan.name}\nProgram goal: ${plan.goal}, level: ${plan.level}\n\nNow write the schedule for: ${ph.label} (weeks ${ph.startWeek}-${ph.endWeek})\nThis phase's focus: ${ph.focus}${priorSummary}${docContext}`;
 
             const phaseStream = await openai.chat.completions.create({
               model,

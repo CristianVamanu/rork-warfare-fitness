@@ -1,11 +1,11 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Sparkles, ChevronLeft, Plus, Trash2, ChevronUp, ChevronDown, Save,
-  Users, CheckCircle, Loader2, Moon, Dumbbell, AlertCircle, Video, Search, X, Play, Upload,
+  Users, CheckCircle, Loader2, Moon, Dumbbell, AlertCircle, Video, Search, X, Play, Upload, FileText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -263,6 +263,9 @@ function BuilderInner() {
 
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiDoc, setAiDoc] = useState<{ name: string; text: string; truncated: boolean } | null>(null);
+  const [aiDocExtracting, setAiDocExtracting] = useState(false);
+  const aiDocInputRef = useRef<HTMLInputElement>(null);
   const [aiGenerated, setAiGenerated] = useState(false);
 
   const [saving, setSaving] = useState(false);
@@ -417,6 +420,30 @@ function BuilderInner() {
       .catch(() => {});
   }, []);
 
+  async function handleAiDocUpload(file: File) {
+    if (!user) return;
+    setAiDocExtracting(true);
+    try {
+      const token = await getIdToken(user);
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/ai/extract-document', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to read file');
+      setAiDoc({ name: file.name, text: data.text, truncated: data.truncated });
+      if (data.truncated) toast(`Only the first part of "${file.name}" was used (it's a long document) — the program will still be based on it.`, { icon: '📄' });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to read file');
+    } finally {
+      setAiDocExtracting(false);
+      if (aiDocInputRef.current) aiDocInputRef.current.value = '';
+    }
+  }
+
   async function generateWithAI() {
     if (!aiPrompt.trim() || !user) return;
     setAiLoading(true);
@@ -440,7 +467,7 @@ function BuilderInner() {
       const res = await fetch('/api/ai/generate-program', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ prompt: aiPrompt }),
+        body: JSON.stringify({ prompt: aiPrompt, documentText: aiDoc?.text }),
         signal: controller.signal,
       });
       // The route streams its response — bytes keep flowing to the client
@@ -776,7 +803,7 @@ function BuilderInner() {
           {aiGenerated && <Badge variant="accent">Generated</Badge>}
         </div>
         <p className="text-xs text-text-secondary mb-3">
-          Describe the program and AI will build a complete weekly schedule with exercises, sets, reps, RPE, and rest times. You can edit everything after.
+          Describe the program and AI will build a complete weekly schedule with exercises, sets, reps, RPE, and rest times. You can edit everything after. Optionally attach a real program (PDF or .txt) and the AI will base the structure and exercises closely on it instead of inventing generic ones.
         </p>
         <div className="space-y-2">
           <textarea
@@ -786,6 +813,35 @@ function BuilderInner() {
             rows={3}
             className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
           />
+          <input
+            ref={aiDocInputRef}
+            type="file"
+            accept=".pdf,.txt,application/pdf,text/plain"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleAiDocUpload(f); }}
+          />
+          {aiDoc ? (
+            <div className="flex items-center gap-2 px-3 py-2 bg-background border border-white/10 rounded-xl">
+              <FileText className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+              <span className="text-xs text-white truncate flex-1">{aiDoc.name}</span>
+              {aiDoc.truncated && <span className="text-[10px] text-amber-400 flex-shrink-0">truncated</span>}
+              <button
+                onClick={() => setAiDoc(null)}
+                className="text-text-tertiary hover:text-white transition-colors flex-shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => aiDocInputRef.current?.click()}
+              disabled={aiDocExtracting}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 border border-dashed border-white/15 rounded-xl text-xs text-text-secondary hover:text-white hover:border-white/25 transition-colors disabled:opacity-50"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              {aiDocExtracting ? 'Reading document…' : 'Attach a document (optional)'}
+            </button>
+          )}
           <Button
             fullWidth
             onClick={generateWithAI}
