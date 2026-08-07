@@ -8,7 +8,7 @@ import {
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { createTenant } from './tenants';
-import { getSystemConfig } from './firestore';
+import { resolveTrainerId } from './firestore';
 
 export async function signUp(
   email: string,
@@ -26,14 +26,10 @@ export async function signUp(
   await updateProfile(credential.user, { displayName });
   console.log('[Auth] updateProfile succeeded');
 
-  // Resolve trainerId from system config (set during install)
-  let trainerId: string | undefined;
-  try {
-    const cfg = await getSystemConfig();
-    trainerId = (cfg?.trainerId as string) ?? undefined;
-  } catch {
-    // Non-fatal: trainerId will be undefined for legacy installs
-  }
+  // Shared with AuthContext's ensureUserDoc(), which can race this same
+  // write right after createUserWithEmailAndPassword — see the comment
+  // there for why the two must resolve trainerId identically.
+  const trainerId = await resolveTrainerId();
 
   const userData = {
     displayName,
@@ -41,7 +37,7 @@ export async function signUp(
     photoURL: null,
     weightUnit,
     role: 'user',
-    trainerId: trainerId ?? null,
+    trainerId,
     createdAt: serverTimestamp(),
     lastActive: serverTimestamp(),
     onboardingComplete: false,

@@ -233,14 +233,28 @@ function OnboardingPageInner() {
   // the app because their onboarding was left incomplete), the account step
   // is skipped entirely since there's nothing left to create.
   //
-  // Frozen to whatever it was on the FIRST render, not recomputed live from
-  // `user` — the account gets created at ACCOUNT_STEP (the last step), and
-  // the instant that signup succeeds, `user` flips from null to truthy
-  // mid-flow, which flipped `needsAccount` false and shrank TOTAL_STEPS
-  // from 11 to 10 without `step` (still 10, i.e. "step 11") ever adjusting
-  // — showing "Step 11 of 10" for the rest of that render. The step count
-  // for a given onboarding session should never change out from under it.
-  const [needsAccount] = useState(() => !user);
+  // Frozen once auth state is actually known, not recomputed live from
+  // `user` on every render — the account gets created at ACCOUNT_STEP (the
+  // last step), and the instant that signup succeeds, `user` flips from
+  // null to truthy mid-flow, which flipped `needsAccount` false and shrank
+  // TOTAL_STEPS from 11 to 10 without `step` (still 10, i.e. "step 11")
+  // ever adjusting — showing "Step 11 of 10" for the rest of that render.
+  //
+  // Can't just capture `!user` in a useState initializer on first render:
+  // Firebase's onAuthStateChanged is always async, so `user` is guaranteed
+  // null on this component's very first render even for an ALREADY signed-in
+  // visitor (e.g. redirected here mid-onboarding) — that would permanently
+  // lock needsAccount to true and make handleFinish() call signUp() again
+  // for an already-authenticated user instead of reusing them, creating a
+  // second account. Resolved once via effect, gated on authLoading having
+  // actually finished (the `authLoading` early-return below also blocks
+  // rendering the real quiz body until this has a value, so there's no
+  // visible flash defaulting to the wrong step count either).
+  const [needsAccount, setNeedsAccount] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!authLoading && needsAccount === null) setNeedsAccount(!user);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading]);
   const TOTAL_STEPS = needsAccount ? 11 : 10;
   const ACCOUNT_STEP = 10;
 
@@ -663,7 +677,7 @@ function OnboardingPageInner() {
     );
   }
 
-  if (authLoading) return <FullPageSpinner />;
+  if (authLoading || needsAccount === null) return <FullPageSpinner />;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">

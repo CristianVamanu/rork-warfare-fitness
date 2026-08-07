@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, onSnapshot, runTransaction } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { getUserDoc, getSystemConfig } from '@/lib/firestore';
+import { getUserDoc, resolveTrainerId } from '@/lib/firestore';
 import { getTenant } from '@/lib/tenants';
 import { checkAndRunMigration } from '@/lib/migration';
 import type { UserProfile, Tenant } from '@/types';
@@ -41,31 +41,31 @@ const AuthContext = createContext<AuthContextValue>({
 async function ensureUserDoc(firebaseUser: User): Promise<void> {
   const ref = doc(db, 'users', firebaseUser.uid);
 
-  // Resolved BEFORE the transaction, matching signUp()'s own resolution
-  // (src/lib/auth.ts) exactly. This function and signUp() both race to
-  // create the same fresh user doc right after createUserWithEmailAndPassword
-  // — onAuthStateChanged fires immediately, so this can run concurrently with
-  // signUp()'s own explicit doc write. Firestore's security rules forbid
-  // `trainerId` from ever being CHANGED on an update (by design — it's how a
-  // client could otherwise grant itself access to another trainer's tenant).
-  // This function used to omit trainerId entirely, which was fine on its
-  // own — but if it won the race and created the doc FIRST, signUp()'s
-  // later write became an update (the doc now exists) that was setting
-  // trainerId for the first time, which the rules read as "changing" a
-  // forbidden field and rejected outright with permission-denied. Resolving
-  // it the same way here means whichever write wins, the value is
-  // consistent, so the other write's "change" is actually a no-op diff.
-  let trainerId: string | null = null;
-  try {
-    const cfg = await getSystemConfig();
-    trainerId = (cfg?.trainerId as string) ?? null;
-  } catch {
-    // Non-fatal: trainerId will be null for legacy installs / offline
-  }
-
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     if (snap.exists()) return;
+
+    // Resolved via the SAME shared helper signUp() uses (src/lib/auth.ts),
+    // not a separate copy of the same logic — this function and signUp()
+    // both race to create the same fresh user doc right after
+    // createUserWithEmailAndPassword (onAuthStateChanged fires immediately,
+    // so this can run concurrently with signUp()'s own explicit doc write).
+    // Firestore's security rules forbid trainerId from ever being CHANGED
+    // on an update (by design — it's how a client could otherwise grant
+    // itself access to another trainer's tenant). If the two writers
+    // resolved trainerId differently (or one omitted it), whichever write
+    // landed second — now an update, since the doc exists — would get
+    // rejected as an unauthorized "change". A shared resolver guarantees
+    // agreement instead of relying on two copies staying in sync by hand.
+    //
+    // Called here, inside the transaction after the existence check, not
+    // before it — this is the ensureUserDoc() safety-net path that also
+    // runs on every ordinary login/session-restore for already-onboarded
+    // users, where snap.exists() is true and trainerId is never used;
+    // resolving it up front would cost every login an extra Firestore read
+    // (up to the full 3s timeout on a slow network) for a value that gets
+    // thrown away immediately.
+    const trainerId = await resolveTrainerId();
 
     console.info('[Auth] Creating missing Firestore doc for', firebaseUser.uid);
     tx.set(ref, {

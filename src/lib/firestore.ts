@@ -137,6 +137,23 @@ export async function getSystemConfig() {
   return snap.exists() ? snap.data() : null;
 }
 
+// Shared by src/lib/auth.ts's signUp() and AuthContext's ensureUserDoc() —
+// both create a fresh user doc right after createUserWithEmailAndPassword
+// and can race each other (onAuthStateChanged fires immediately). Firestore
+// rules forbid trainerId from ever changing on update, so if the two
+// writers resolved it differently, whichever write landed second would get
+// rejected as an unauthorized "change" to an already-set field. A single
+// shared resolver makes that agreement structural instead of relying on two
+// independent copies of the same three lines staying in sync by hand.
+export async function resolveTrainerId(): Promise<string | null> {
+  try {
+    const cfg = await getSystemConfig();
+    return (cfg?.trainerId as string) ?? null;
+  } catch {
+    return null; // Non-fatal: trainerId will be null for legacy installs / offline
+  }
+}
+
 export async function getInstallerStatus() {
   try {
     const snap = await getDoc(doc(db, 'system', 'installer'));
