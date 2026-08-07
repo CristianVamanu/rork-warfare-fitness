@@ -1140,47 +1140,62 @@ function BuilderInner() {
                             )}
                           </div>
                           {ex.isCardio && !ex.isHiit ? (
-                            <>
-                              <div>
-                                <label className="text-[10px] text-text-tertiary mb-1 block">Duration</label>
-                                <CardioDurationInput
-                                  valueSeconds={ex.cardioDurationSeconds ?? (typeof ex.reps === 'number' ? ex.reps * 60 : (parseInt(String(ex.reps), 10) || 30) * 60)}
-                                  onChange={sec => updateEx(activeDay, ex.id, { cardioDurationSeconds: sec })}
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[10px] text-text-tertiary mb-1 block">Target Distance (optional)</label>
-                                <Input
-                                  // The session player parses a distance target straight out of
-                                  // this same `reps` field (e.g. "500m", "5km", "1 mile") and, when
-                                  // found, swaps the plain countdown timer for a stopwatch + pace
-                                  // tracker — same mechanism a distance-run exercise already uses.
-                                  // Leaving it blank keeps the exercise as a flat duration timer.
-                                  //
-                                  // Bound directly to ex.reps (not gated behind parseDistance) —
-                                  // gating it reset the field to blank on every keystroke that
-                                  // didn't yet parse as a complete distance ("5", "50", "500"),
-                                  // making it look impossible to type anything at all.
-                                  value={ex.reps}
-                                  onChange={e => updateEx(activeDay, ex.id, { reps: e.target.value })}
-                                  placeholder="e.g. 500m, 5km, 1 mile"
-                                />
-                                {/* Text that doesn't parse as a distance silently falls back to
-                                    being read as a plain number of MINUTES elsewhere — this hint
-                                    is the only thing standing between a forgotten unit ("50"
-                                    instead of "50m") and a workout that quietly runs an 8-hour
-                                    timer instead of a 500m row. */}
-                                {(() => {
-                                  const repsStr = String(ex.reps).trim();
-                                  const parsed = parseDistance(ex.reps);
-                                  if (!repsStr) return null;
-                                  if (parsed) {
-                                    return <p className="text-[10px] text-accent mt-1">✓ {parsed.value}{parsed.unit === 'm' ? 'm' : ` ${parsed.unit}`} target</p>;
-                                  }
-                                  return <p className="text-[10px] text-amber-400 mt-1">⚠ Not recognized as a distance — add a unit like m, km, or mi, or clear the field to use Duration only.</p>;
-                                })()}
-                              </div>
-                            </>
+                            <div className="col-span-2">
+                              {/* Time and distance are mutually exclusive — a rep is timed OR
+                                  distance-tracked, never both. Showing both inputs at once
+                                  (the old version) was genuinely confusing: nothing said which
+                                  one actually controlled what happens in the workout. This mode
+                                  toggle shows exactly one, and switching modes clears the other
+                                  so there's no stale/conflicting value left behind. */}
+                              {(() => {
+                                const distanceMode = !!parseDistance(ex.reps);
+                                return (
+                                  <>
+                                    <div className="flex gap-1.5 mb-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => updateEx(activeDay, ex.id, { reps: '8' })}
+                                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${!distanceMode ? 'bg-accent text-white' : 'bg-surface border border-white/10 text-text-secondary'}`}
+                                      >
+                                        Timed
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateEx(activeDay, ex.id, { reps: '' })}
+                                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${distanceMode ? 'bg-accent text-white' : 'bg-surface border border-white/10 text-text-secondary'}`}
+                                      >
+                                        Distance
+                                      </button>
+                                    </div>
+                                    {!distanceMode ? (
+                                      <div>
+                                        <label className="text-[10px] text-text-tertiary mb-1 block">Duration (per rep)</label>
+                                        <CardioDurationInput
+                                          valueSeconds={ex.cardioDurationSeconds ?? 60}
+                                          onChange={sec => updateEx(activeDay, ex.id, { cardioDurationSeconds: sec })}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        <label className="text-[10px] text-text-tertiary mb-1 block">Target Distance (per rep)</label>
+                                        <Input
+                                          // The session player parses this straight out of the
+                                          // `reps` field and, when found, swaps the plain
+                                          // countdown timer for a stopwatch + pace tracker.
+                                          value={ex.reps}
+                                          onChange={e => updateEx(activeDay, ex.id, { reps: e.target.value })}
+                                          placeholder="e.g. 500m, 5km, 1 mile"
+                                          autoFocus
+                                        />
+                                        {String(ex.reps).trim() && !parseDistance(ex.reps) && (
+                                          <p className="text-[10px] text-amber-400 mt-1">⚠ Not recognized yet — needs a unit, e.g. &quot;500m&quot;, &quot;5km&quot;, &quot;1 mile&quot;.</p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </div>
                           ) : !ex.isHiit ? (
                             <div>
                               <label className="text-[10px] text-text-tertiary mb-1 block">Reps / Range</label>
