@@ -515,22 +515,6 @@ export default function ProfilePage() {
           </Card>
         </motion.div>
 
-        {/* PT Test — simplified military-style fitness test tracker */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.157 }}>
-          <Link href="/pt-test">
-            <Card className="p-4 flex items-center gap-3.5 hover:border-accent/30 transition-colors">
-              <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
-                <Trophy className="w-5 h-5 text-accent" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white">PT Test</p>
-                <p className="text-xs text-text-secondary mt-0.5">Push-ups, sit-ups, timed run — see how you score</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-            </Card>
-          </Link>
-        </motion.div>
-
         {/* Progress Hub */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
           <Link href="/progress">

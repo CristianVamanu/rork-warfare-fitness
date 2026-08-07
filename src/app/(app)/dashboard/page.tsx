@@ -613,7 +613,7 @@ export default function DashboardPage() {
               content like the leaderboard or weekly stats. */}
           {[
             { icon: Dumbbell, label: 'Workout', href: '/training', from: 'from-purple-400/20', to: 'to-purple-400/5', border: 'border-purple-400/20', color: 'text-purple-300' },
-            { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', from: 'from-green-400/20', to: 'to-green-400/5', border: 'border-green-400/20', color: 'text-green-300' },
+            { icon: Apple, label: 'Log Food', href: '/nutrition', from: 'from-green-400/20', to: 'to-green-400/5', border: 'border-green-400/20', color: 'text-green-300' },
             { icon: Camera, label: 'Scan & Go', href: '/training/scan-go', from: 'from-blue-400/20', to: 'to-blue-400/5', border: 'border-blue-400/20', color: 'text-blue-300' },
             { icon: CheckSquare, label: 'Habits', href: '/habits', from: 'from-indigo-400/20', to: 'to-indigo-400/5', border: 'border-indigo-400/20', color: 'text-indigo-300' },
             { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner', from: 'from-orange-400/20', to: 'to-orange-400/5', border: 'border-orange-400/20', color: 'text-orange-300' },
