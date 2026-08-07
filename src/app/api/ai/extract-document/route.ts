@@ -48,6 +48,16 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error('[extract-document]', err);
-    return NextResponse.json({ error: 'Failed to read that file' }, { status: 500 });
+    // This route is admin-gated (verifyAdmin above), so surfacing the
+    // underlying reason is a debugging aid, not a leak — a generic 500 for
+    // every failure mode (password-protected PDF, corrupted file, a real
+    // server error) made it impossible for an admin to tell "your file is
+    // encrypted" from "something's actually broken" without checking logs.
+    const name = err instanceof Error ? err.constructor.name : '';
+    const message = err instanceof Error ? err.message : String(err);
+    const friendly = /password/i.test(name) || /password/i.test(message)
+      ? 'This PDF is password-protected — remove the password and try again.'
+      : `Failed to read that file${message ? ` (${message})` : ''}`;
+    return NextResponse.json({ error: friendly }, { status: 500 });
   }
 }

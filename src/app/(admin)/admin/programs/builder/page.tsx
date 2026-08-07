@@ -319,6 +319,14 @@ function BuilderInner() {
   }
 
   useEffect(() => {
+    // Navigating between programs in the builder reuses this same component
+    // instance (only `programId` changes) rather than remounting — without
+    // this, an AI prompt/uploaded document attached while generating one
+    // program would silently persist and get sent along with the next,
+    // unrelated program's generation.
+    setAiPrompt('');
+    setAiDoc(null);
+    setAiGenerated(false);
     if (!programId) return;
     getProgram(programId)
       .then((p) => {
