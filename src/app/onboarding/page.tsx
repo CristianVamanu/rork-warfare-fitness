@@ -59,7 +59,11 @@ const EQUIPMENT: { value: EquipmentType; label: string; sub: string; icon: React
   { value: 'minimal',   label: 'Minimal Equipment', sub: 'Bodyweight + pull-up bar',              icon: Package },
 ];
 
-const DAYS = [2, 3, 4, 5, 6];
+// 2 (and 1) deliberately excluded — zero programs in the catalog are built
+// for that few days/week, so offering it just set an expectation the
+// matcher could never actually meet exactly. 3 stays: real programs exist
+// for it (Beginner Full Body, Alpha Bulk).
+const DAYS = [3, 4, 5, 6];
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -1028,7 +1032,7 @@ function StepDays({ selected, onSelect }: { selected: number | null; onSelect: (
     <div>
       <h1 className="text-2xl font-black text-white mb-1">Days per week</h1>
       <p className="text-text-secondary text-sm mb-5">How many days can you commit to training?</p>
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         {DAYS.map((d) => (
           <button
             key={d}
