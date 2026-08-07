@@ -1,29 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdmin } from '@/lib/verifyAdmin';
-import { createRequire } from 'node:module';
-import path from 'node:path';
 
 export const runtime = 'nodejs';
-
-// pdf-parse (built on pdfjs-dist) locates its worker script relative to its
-// OWN bundled module location at runtime. Next.js's webpack bundling for
-// API routes moves that code into .next/server/chunks/ without copying the
-// sibling pdf.worker.mjs asset alongside it, so the library's own relative
-// lookup 404s — surfaces as "Setting up fake worker failed: Cannot find
-// module '.../chunks/pdf.worker.mjs'" even though the real file exists
-// untouched in node_modules the whole time. Pointing it at that real,
-// on-disk path explicitly sidesteps the bundler entirely — `next start`
-// (not `output: 'standalone'`) keeps node_modules on disk at runtime, so
-// this is a real, always-resolvable path, not a guess.
-let workerConfigured = false;
-async function ensurePdfWorkerConfigured() {
-  if (workerConfigured) return;
-  const { PDFParse } = await import('pdf-parse');
-  const require = createRequire(import.meta.url);
-  const workerPath = path.join(path.dirname(require.resolve('pdf-parse')), 'pdf.worker.mjs');
-  PDFParse.setWorker(workerPath);
-  workerConfigured = true;
-}
 
 // Capped well under the plan/phase calls' own prompt budget — this text
 // gets embedded in every one of those calls (plan + one per phase), so an
@@ -48,8 +26,16 @@ export async function POST(req: NextRequest) {
     if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
       // Dynamic import: pdf-parse pulls in a fair chunk of code that's only
       // needed on this one route — no reason to load it into every other
-      // route's cold start.
-      await ensurePdfWorkerConfigured();
+      // route's cold start. pdf-parse is marked as a serverComponentsExternalPackage
+      // in next.config.js so it's a genuine `require('pdf-parse')` from
+      // node_modules at runtime, not bundled into this chunk — that's what
+      // lets it correctly locate its own worker script relative to its real
+      // on-disk location. (An earlier attempt to also resolve that path
+      // manually here via require.resolve() backfired: called from inside
+      // this bundled route file, require.resolve() gets intercepted by
+      // webpack's own resolver and returns its internal numeric module ID
+      // instead of a real path — "path must be of type string, received
+      // type number" was that module ID, not a bug in pdf-parse itself.)
       const { PDFParse } = await import('pdf-parse');
       const parser = new PDFParse({ data: buf });
       const parsed = await parser.getText();
