@@ -19,7 +19,6 @@ import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, typ
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Modal } from '@/components/ui/Modal';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex, MedicalHistoryAnswers } from '@/types';
@@ -41,11 +40,11 @@ function getYouTubeEmbedUrl(url: string): string | null {
 
 // ─── Step data ────────────────────────────────────────────────────────────────
 
-const GOALS: { value: FitnessGoal; label: string; sub: string; icon: React.ElementType; color: string }[] = [
-  { value: 'lose-fat',      label: 'Lose Fat',       sub: 'Burn fat, maintain muscle',       icon: Flame,      color: 'text-orange-400 bg-orange-400/10' },
-  { value: 'build-muscle',  label: 'Build Muscle',   sub: 'Maximize hypertrophy',            icon: Dumbbell,   color: 'text-purple-400 bg-purple-400/10' },
-  { value: 'recomposition', label: 'Recomposition',  sub: 'Build muscle & lose fat',         icon: RefreshCw,  color: 'text-blue-400 bg-blue-400/10' },
-  { value: 'strength',      label: 'Get Stronger',   sub: 'Maximal strength & power',        icon: Zap,        color: 'text-accent bg-accent-muted' },
+const GOALS: { value: FitnessGoal; label: string; sub: string; icon: React.ElementType }[] = [
+  { value: 'lose-fat',      label: 'Lose Fat',       sub: 'Burn fat, maintain muscle',       icon: Flame },
+  { value: 'build-muscle',  label: 'Build Muscle',   sub: 'Maximize hypertrophy',            icon: Dumbbell },
+  { value: 'recomposition', label: 'Recomposition',  sub: 'Build muscle & lose fat',         icon: RefreshCw },
+  { value: 'strength',      label: 'Get Stronger',   sub: 'Maximal strength & power',        icon: Zap },
 ];
 
 const EXPERIENCE: { value: ExperienceLevel; label: string; sub: string }[] = [
@@ -704,7 +703,19 @@ function OnboardingPageInner() {
           <span className="text-xs text-text-secondary">Step {step + 1} of {TOTAL_STEPS}</span>
           <div className="w-9" />
         </div>
-        <ProgressBar value={step + 1} max={TOTAL_STEPS} color="accent" size="sm" />
+        {/* Segmented — one dash per step, filled solid through the current
+            one — reads as "how far into the mission" at a glance instead of
+            a single continuous bar that doesn't communicate step count. */}
+        <div className="flex gap-1">
+          {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+            <div
+              key={i}
+              className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+                i < step ? 'bg-accent' : i === step ? 'bg-accent/45' : 'bg-white/10'
+              }`}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Content */}
@@ -856,6 +867,73 @@ function OnboardingPageInner() {
 
 // ─── Step components ───────────────────────────────────────────────────────────
 
+// Shared selection-tile language across Goal/Experience/Equipment — icon
+// badge, bold label, a real checkmark badge instead of a bare icon on
+// select, and a stronger glow on the active state. `layout="grid"` stacks
+// icon-above-label for short single-line options (Goal); `layout="row"`
+// keeps icon-beside-text for options that carry a longer description
+// (Experience, Equipment) where stacking would force awkward line wraps.
+function OptionTile({
+  selected, onClick, icon: Icon, label, sub, layout = 'row',
+}: {
+  selected: boolean;
+  onClick: () => void;
+  icon?: React.ElementType;
+  label: string;
+  sub?: string;
+  layout?: 'row' | 'grid';
+}) {
+  const base = `w-full text-left rounded-2xl border transition-all ${
+    selected
+      ? 'border-accent bg-gradient-to-br from-accent/15 to-transparent shadow-[0_0_0_1px_rgba(245,166,35,0.15)]'
+      : 'border-white/8 bg-surface hover:border-white/20'
+  }`;
+
+  if (layout === 'grid') {
+    return (
+      <button onClick={onClick} className={`${base} p-4 flex flex-col gap-3 min-h-[104px]`}>
+        {Icon && (
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${selected ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}>
+            <Icon className="w-[18px] h-[18px]" />
+          </div>
+        )}
+        <div className="flex items-end justify-between gap-2">
+          <div>
+            <p className="font-bold text-white text-sm leading-tight">{label}</p>
+            {sub && <p className="text-[11px] text-text-secondary mt-0.5 leading-snug">{sub}</p>}
+          </div>
+          {selected && (
+            <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
+              <CheckCircle className="w-3.5 h-3.5 text-black" strokeWidth={3} />
+            </div>
+          )}
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <button onClick={onClick} className={`${base} p-4 flex items-center gap-4`}>
+      {Icon && (
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${selected ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}>
+          <Icon className="w-5 h-5" />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="font-bold text-white text-sm">{label}</p>
+        {sub && <p className="text-xs text-text-secondary mt-0.5">{sub}</p>}
+      </div>
+      {selected ? (
+        <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
+          <CheckCircle className="w-4 h-4 text-black" strokeWidth={3} />
+        </div>
+      ) : (
+        <div className="w-6 h-6 rounded-full border-2 border-white/15 flex-shrink-0" />
+      )}
+    </button>
+  );
+}
+
 function StepGoal({
   selected, onSelect, sex, onSex, age, onAge, showSexPicker, showAgeInput,
 }: {
@@ -880,11 +958,15 @@ function StepGoal({
           {showSexPicker && (
             <div className="grid grid-cols-2 gap-2 mb-3">
               {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
-                <button key={value} onClick={() => onSex(value)} className="w-full">
-                  <Card className={`p-3 text-center transition-colors ${sex === value ? 'border-accent bg-accent/5' : ''}`}>
-                    <Icon className="w-4 h-4 mx-auto mb-1 text-text-secondary" />
-                    <p className="text-xs font-medium text-white">{label}</p>
-                  </Card>
+                <button
+                  key={value}
+                  onClick={() => onSex(value)}
+                  className={`p-3 text-center rounded-xl border transition-all ${
+                    sex === value ? 'border-accent bg-accent/10' : 'border-white/8 bg-surface-elevated hover:border-white/20'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 mx-auto mb-1 ${sex === value ? 'text-accent' : 'text-text-secondary'}`} />
+                  <p className="text-xs font-medium text-white">{label}</p>
                 </button>
               ))}
             </div>
@@ -904,20 +986,17 @@ function StepGoal({
 
       <h1 className="text-2xl font-black text-white mb-1">What&apos;s your goal?</h1>
       <p className="text-text-secondary text-sm mb-5">This determines your program structure and intensity.</p>
-      <div className="space-y-3">
-        {GOALS.map(({ value, label, sub, icon: Icon, color }) => (
-          <button key={value} onClick={() => onSelect(value)} className="w-full text-left">
-            <Card className={`p-4 flex items-center gap-4 transition-colors ${selected === value ? 'border-accent bg-accent/5' : ''}`}>
-              <div className={`p-2.5 rounded-xl ${color}`}>
-                <Icon className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="font-bold text-white">{label}</p>
-                <p className="text-xs text-text-secondary">{sub}</p>
-              </div>
-              {selected === value && <CheckCircle className="w-5 h-5 text-accent ml-auto flex-shrink-0" />}
-            </Card>
-          </button>
+      <div className="grid grid-cols-2 gap-3">
+        {GOALS.map(({ value, label, sub, icon: Icon }) => (
+          <OptionTile
+            key={value}
+            layout="grid"
+            icon={Icon}
+            label={label}
+            sub={sub}
+            selected={selected === value}
+            onClick={() => onSelect(value)}
+          />
         ))}
       </div>
     </div>
@@ -931,15 +1010,13 @@ function StepExperience({ selected, onSelect }: { selected: ExperienceLevel | nu
       <p className="text-text-secondary text-sm mb-5">Be honest — this shapes your rep schemes and exercise complexity.</p>
       <div className="space-y-3">
         {EXPERIENCE.map(({ value, label, sub }) => (
-          <button key={value} onClick={() => onSelect(value)} className="w-full text-left">
-            <Card className={`p-4 flex items-center justify-between transition-colors ${selected === value ? 'border-accent bg-accent/5' : ''}`}>
-              <div>
-                <p className="font-bold text-white">{label}</p>
-                <p className="text-xs text-text-secondary">{sub}</p>
-              </div>
-              {selected === value && <CheckCircle className="w-5 h-5 text-accent flex-shrink-0" />}
-            </Card>
-          </button>
+          <OptionTile
+            key={value}
+            label={label}
+            sub={sub}
+            selected={selected === value}
+            onClick={() => onSelect(value)}
+          />
         ))}
       </div>
     </div>
@@ -982,18 +1059,14 @@ function StepEquipment({ selected, onSelect }: { selected: EquipmentType | null;
       <p className="text-text-secondary text-sm mb-5">Your program will only use what you have available.</p>
       <div className="space-y-3">
         {EQUIPMENT.map(({ value, label, sub, icon: Icon }) => (
-          <button key={value} onClick={() => onSelect(value)} className="w-full text-left">
-            <Card className={`p-4 flex items-center gap-4 transition-colors ${selected === value ? 'border-accent bg-accent/5' : ''}`}>
-              <div className="p-2.5 rounded-xl bg-surface-elevated">
-                <Icon className="w-5 h-5 text-text-secondary" />
-              </div>
-              <div>
-                <p className="font-bold text-white">{label}</p>
-                <p className="text-xs text-text-secondary">{sub}</p>
-              </div>
-              {selected === value && <CheckCircle className="w-5 h-5 text-accent ml-auto flex-shrink-0" />}
-            </Card>
-          </button>
+          <OptionTile
+            key={value}
+            icon={Icon}
+            label={label}
+            sub={sub}
+            selected={selected === value}
+            onClick={() => onSelect(value)}
+          />
         ))}
       </div>
     </div>
