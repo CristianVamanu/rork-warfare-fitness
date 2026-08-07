@@ -538,8 +538,6 @@ function DistanceLogRow({
     );
   }
 
-  const currentPace = formatPace(elapsed, parseFloat(distanceInput) || targetDistanceValue);
-
   return (
     <motion.div
       layout
@@ -574,7 +572,15 @@ function DistanceLogRow({
             {formatClock(elapsed)}
           </motion.p>
           <p className="text-xs text-text-tertiary mt-1">
-            {running ? `Running… ${currentPace}/${targetDistanceUnit} pace` : elapsed > 0 ? 'Paused' : 'Tap ▶ to start your stopwatch'}
+            {/* No live pace here — without real distance tracking (GPS)
+                mid-run, the only "pace" available while running would be
+                elapsed time divided by the TARGET distance, which assumes
+                you've already covered the whole thing at every instant.
+                That's meaningless, not an estimate — showing nothing is
+                more honest than showing a fake number. Real pace is
+                calculated once, after the run, from the actual distance
+                logged below (see the completed-state pace display above). */}
+            {running ? 'Running…' : elapsed > 0 ? 'Paused' : 'Tap ▶ to start your stopwatch'}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
