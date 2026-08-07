@@ -183,6 +183,13 @@ function BuilderInner() {
   const [activeDay, setActiveDay] = useState(0);
   const [activePhase, setActivePhase] = useState(0);
   const [expandedEx, setExpandedEx] = useState<string | null>(null);
+  // Explicit per-exercise Timed/Distance mode for cardio exercises — can't
+  // be derived purely from whether `reps` currently parses as a distance,
+  // because an empty/in-progress distance string ("", "5") doesn't parse
+  // either, which made the toggle look broken: clicking "Distance" cleared
+  // reps to '' expecting the view to switch, but '' isn't a valid distance
+  // so the derived mode silently stayed "Timed" and nothing appeared to happen.
+  const [cardioModeOverride, setCardioModeOverride] = useState<Record<string, 'timed' | 'distance'>>({});
 
   // Every day-editing helper below reads/writes through these two functions
   // instead of touching prog.schedule directly, so the exact same editor UI
@@ -1148,20 +1155,32 @@ function BuilderInner() {
                                   toggle shows exactly one, and switching modes clears the other
                                   so there's no stale/conflicting value left behind. */}
                               {(() => {
-                                const distanceMode = !!parseDistance(ex.reps);
+                                // Default the mode from whatever's already saved (a program
+                                // loaded from Firestore has real data, no override needed yet);
+                                // once the admin explicitly clicks a mode button, that choice
+                                // wins regardless of what `reps` currently contains.
+                                const distanceMode = cardioModeOverride[ex.id] === 'distance'
+                                  || (cardioModeOverride[ex.id] === undefined && !!parseDistance(ex.reps));
                                 return (
                                   <>
                                     <div className="flex gap-1.5 mb-2">
                                       <button
                                         type="button"
-                                        onClick={() => updateEx(activeDay, ex.id, { reps: '8' })}
+                                        onClick={() => {
+                                          setCardioModeOverride(prev => ({ ...prev, [ex.id]: 'timed' }));
+                                          if (parseDistance(ex.reps)) updateEx(activeDay, ex.id, { reps: '8' });
+                                        }}
                                         className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${!distanceMode ? 'bg-accent text-white' : 'bg-surface border border-white/10 text-text-secondary'}`}
                                       >
                                         Timed
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => updateEx(activeDay, ex.id, { reps: '' })}
+                                        onClick={() => {
+                                          setCardioModeOverride(prev => ({ ...prev, [ex.id]: 'distance' }));
+                                          if (parseDistance(ex.reps)) return;
+                                          updateEx(activeDay, ex.id, { reps: '' });
+                                        }}
                                         className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${distanceMode ? 'bg-accent text-white' : 'bg-surface border border-white/10 text-text-secondary'}`}
                                       >
                                         Distance
