@@ -135,7 +135,14 @@ const nextConfig = {
     ],
   },
   experimental: {
-    serverComponentsExternalPackages: ['firebase-admin'],
+    // pdf-parse (built on pdfjs-dist) locates its worker script relative to
+    // its own module location at runtime — webpack bundling it into a
+    // .next/server/chunks/*.js file breaks that lookup because the sibling
+    // pdf.worker.mjs asset doesn't get copied alongside it. Marking it
+    // external keeps it as a plain `require('pdf-parse')` from node_modules
+    // at runtime instead, where the worker file sits right where the
+    // library expects it.
+    serverComponentsExternalPackages: ['firebase-admin', 'pdf-parse'],
   },
 };
 
