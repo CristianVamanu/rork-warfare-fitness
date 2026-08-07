@@ -48,8 +48,23 @@ rm -rf "$PREVIOUS"
 if [ -e .next ]; then mv .next "$PREVIOUS"; fi
 mv "$STAGING" .next
 
-echo "==> Swapping in the new service worker files (old worker/workbox chunks removed first so nothing stale lingers)"
-rm -f public/workbox-*.js public/workbox-*.js.map public/worker-*.js public/worker-*.js.map
+echo "==> Swapping in the new service worker files"
+# Every workbox-*.js/worker-*.js filename is content-hashed and unique per
+# build, so there's no actual collision risk in leaving old ones in place —
+# only sw.js itself needs to be the single, current pointer (it's served
+# with Cache-Control: no-cache specifically so browsers always revalidate
+# it). Deleting the previous deploy's workbox/worker files immediately (the
+# old behavior) broke any browser tab whose service worker hadn't finished
+# updating yet: the moment the NEXT deploy ran, that not-yet-updated worker
+# permanently lost the one file it still needed to import, surfacing as
+# "importScripts...404" and a broken service worker — reported multiple
+# times across tonight's deploys before this was traced back here. Only
+# sw.js/sw.js.map get replaced immediately; old workbox/worker chunks are
+# now pruned by AGE (find -mtime), not by "is this the previous deploy",
+# giving any lagging service worker realistic time to self-update via the
+# no-cache sw.js + skipWaiting/clientsClaim path already in place before
+# its dependency actually disappears.
+find public -maxdepth 1 -mtime +3 \( -name 'workbox-*.js' -o -name 'workbox-*.js.map' -o -name 'worker-*.js' -o -name 'worker-*.js.map' \) -delete
 mv "$PWA_STAGING"/sw.js public/sw.js
 mv "$PWA_STAGING"/sw.js.map public/sw.js.map 2>/dev/null || true
 mv "$PWA_STAGING"/workbox-*.js public/ 2>/dev/null || true
