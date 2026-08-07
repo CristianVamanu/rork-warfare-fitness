@@ -232,7 +232,15 @@ function OnboardingPageInner() {
   // signup). If someone arrives here already logged in (e.g. redirected by
   // the app because their onboarding was left incomplete), the account step
   // is skipped entirely since there's nothing left to create.
-  const needsAccount = !user;
+  //
+  // Frozen to whatever it was on the FIRST render, not recomputed live from
+  // `user` — the account gets created at ACCOUNT_STEP (the last step), and
+  // the instant that signup succeeds, `user` flips from null to truthy
+  // mid-flow, which flipped `needsAccount` false and shrank TOTAL_STEPS
+  // from 11 to 10 without `step` (still 10, i.e. "step 11") ever adjusting
+  // — showing "Step 11 of 10" for the rest of that render. The step count
+  // for a given onboarding session should never change out from under it.
+  const [needsAccount] = useState(() => !user);
   const TOTAL_STEPS = needsAccount ? 11 : 10;
   const ACCOUNT_STEP = 10;
 

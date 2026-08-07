@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, onSnapshot, runTransaction } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { getUserDoc } from '@/lib/firestore';
+import { getUserDoc, getSystemConfig } from '@/lib/firestore';
 import { getTenant } from '@/lib/tenants';
 import { checkAndRunMigration } from '@/lib/migration';
 import type { UserProfile, Tenant } from '@/types';
@@ -40,6 +40,29 @@ const AuthContext = createContext<AuthContextValue>({
 // document, not a separate client-side read that can go stale.
 async function ensureUserDoc(firebaseUser: User): Promise<void> {
   const ref = doc(db, 'users', firebaseUser.uid);
+
+  // Resolved BEFORE the transaction, matching signUp()'s own resolution
+  // (src/lib/auth.ts) exactly. This function and signUp() both race to
+  // create the same fresh user doc right after createUserWithEmailAndPassword
+  // — onAuthStateChanged fires immediately, so this can run concurrently with
+  // signUp()'s own explicit doc write. Firestore's security rules forbid
+  // `trainerId` from ever being CHANGED on an update (by design — it's how a
+  // client could otherwise grant itself access to another trainer's tenant).
+  // This function used to omit trainerId entirely, which was fine on its
+  // own — but if it won the race and created the doc FIRST, signUp()'s
+  // later write became an update (the doc now exists) that was setting
+  // trainerId for the first time, which the rules read as "changing" a
+  // forbidden field and rejected outright with permission-denied. Resolving
+  // it the same way here means whichever write wins, the value is
+  // consistent, so the other write's "change" is actually a no-op diff.
+  let trainerId: string | null = null;
+  try {
+    const cfg = await getSystemConfig();
+    trainerId = (cfg?.trainerId as string) ?? null;
+  } catch {
+    // Non-fatal: trainerId will be null for legacy installs / offline
+  }
+
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     if (snap.exists()) return;
@@ -52,6 +75,7 @@ async function ensureUserDoc(firebaseUser: User): Promise<void> {
       photoURL: firebaseUser.photoURL ?? null,
       weightUnit: 'kg',
       role: 'user',
+      trainerId,
       onboardingComplete: false,
       createdAt: serverTimestamp(),
       lastActive: serverTimestamp(),
