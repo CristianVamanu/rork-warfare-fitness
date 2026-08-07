@@ -1440,7 +1440,10 @@ function WorkoutSessionPageInner() {
       if (allDone) {
         const isLastEx = exIdx === exStates.length - 1;
         if (ex.isCardio) {
-          // Cardio: no rest timer, short delay then continue
+          // Finished the whole exercise (last rep done) — no rest screen
+          // before moving on to a DIFFERENT exercise. Rest BETWEEN reps of
+          // this same exercise is handled separately below and no longer
+          // shares this condition (see comment there).
           setTimeout(() => {
             if (isLastEx) {
               setCompleteModal(true);
@@ -1459,8 +1462,15 @@ function WorkoutSessionPageInner() {
           const advanceTimer = setTimeout(advanceToNext, ex.restSeconds * 1000);
           (window as Window & { __advanceTimer?: NodeJS.Timeout }).__advanceTimer = advanceTimer;
         }
-      } else if (!ex.isCardio) {
-        // Non-cardio: start rest between sets
+      } else if (!ex.isHiit) {
+        // Rest between reps/sets of the same exercise — this covers plain
+        // strength sets AND multi-rep cardio (interval repeats like "8x400m"
+        // or "5x2min bike"). Only HIIT is excluded: its work/rest rounds are
+        // handled internally by HiitTimerRow, so a separate rest screen here
+        // would double up. This used to key off `!ex.isCardio`, which also
+        // caught isDistance exercises (they're isCardio too) — meaning every
+        // distance interval ran back-to-back with zero rest between reps,
+        // defeating the entire point of interval training.
         startRest(ex.restSeconds);
       }
     },

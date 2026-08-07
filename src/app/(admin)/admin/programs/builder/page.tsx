@@ -1126,13 +1126,18 @@ function BuilderInner() {
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] text-text-tertiary mb-1 block">Sets</label>
+                            <label className="text-[10px] text-text-tertiary mb-1 block">{ex.isCardio && !ex.isHiit ? 'Sets (interval reps)' : 'Sets'}</label>
                             <Input
                               type="number"
                               value={ex.sets}
                               onChange={e => updateEx(activeDay, ex.id, { sets: Math.max(1, Number(e.target.value)) })}
                               min={1} max={20}
                             />
+                            {ex.isCardio && !ex.isHiit && ex.sets > 1 && (
+                              <p className="text-[10px] text-text-tertiary mt-1">
+                                E.g. 8 sets + 400m target + 90s rest = &quot;8x400m&quot; interval repeats, resting between each.
+                              </p>
+                            )}
                           </div>
                           {ex.isCardio && !ex.isHiit ? (
                             <>
