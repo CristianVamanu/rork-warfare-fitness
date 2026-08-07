@@ -52,9 +52,16 @@ export default function TrainingPage() {
   const workedOutToday = completedWorkouts > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
 
   const [resolvedActive, setResolvedActive] = useState<Program | null>(null);
-  const pct = activeProgram
-    ? Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100)
+  // Clamped to 100: getScheduleForWeek has no "program finished" concept of
+  // its own — once a user's position runs past the program's last defined
+  // week, it just keeps repeating that final phase's schedule rather than
+  // stopping, so completedWorkouts can keep climbing past totalWorkouts.
+  // Without clamping, that read as "112%" or "9/8 sessions" instead of a
+  // completed program.
+  const pct = activeProgram && activeProgram.totalWorkouts > 0
+    ? Math.min(100, Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
+  const programFinished = !!activeProgram && activeProgram.completedWorkouts >= activeProgram.totalWorkouts;
 
   // Shared resolver (Firestore-first, seed fallback) — this used to prefer
   // the built-in seed copy over the admin's saved Firestore edits, the
@@ -121,7 +128,7 @@ export default function TrainingPage() {
                 <Dumbbell className="w-32 h-32 text-accent" />
               </div>
               <Badge variant="accent" className="mb-3">
-                {activeProgram.completedWorkouts}/{activeProgram.totalWorkouts} sessions
+                {programFinished ? '🎉 Program complete' : `${activeProgram.completedWorkouts}/${activeProgram.totalWorkouts} sessions`}
               </Badge>
               <h3 className="text-xl font-black text-white">{activeProgram.programName}</h3>
               {todayDay && (

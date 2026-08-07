@@ -813,18 +813,28 @@ export async function incrementProgramWorkouts(userId: string, dayIndex?: number
   // "done" after one calendar week. Recomputing from the schedule here also
   // self-heals any user whose stored count was inflated by the old formula
   // the next time they finish a workout.
+  //
+  // totalWorkouts (the denominator) gets recomputed here too, not just at
+  // enrollment — enrollInProgram only sets it once, so if an admin later
+  // edits this program's phases/weeks while someone's already enrolled,
+  // their stored denominator went stale and progress% could silently read
+  // past 100% or freeze early. Recomputing it fresh on every completion
+  // keeps it in sync the same way completedTraining already self-heals.
   let completedTraining = newLastCompleted + 1;
+  let totalWorkouts: number | undefined;
   try {
     const resolved = await resolveProgram(activeProgram.programId);
     if (resolved) {
-      const { countTrainingSlotsThrough } = await import('./programs');
+      const { countTrainingSlotsThrough, getTotalTrainingDays } = await import('./programs');
       completedTraining = countTrainingSlotsThrough(resolved, newLastCompleted);
+      totalWorkouts = getTotalTrainingDays(resolved);
     }
   } catch { /* fall back to slot count rather than blocking the workout save */ }
 
   await updateDoc(doc(db, 'users', userId), {
     'activeProgram.completedWorkouts': completedTraining,
     'activeProgram.lastCompletedDayIndex': newLastCompleted,
+    ...(totalWorkouts !== undefined ? { 'activeProgram.totalWorkouts': totalWorkouts } : {}),
     lastActive: serverTimestamp(),
   });
 }

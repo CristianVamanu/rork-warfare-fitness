@@ -284,7 +284,13 @@ export default function ProgramDetailPage() {
                       ? `✓ Day ${Math.max(1, completedWorkouts)} complete`
                       : `${completedWorkouts} workouts done`}
                   </span>
-                  <span className="text-text-tertiary">{activeProgram.totalWorkouts - completedWorkouts} remaining</span>
+                  <span className="text-text-tertiary">
+                    {/* Clamped: completedWorkouts can run past totalWorkouts once a
+                        user trains beyond the program's last defined week (see
+                        training/page.tsx's programFinished for why) — without this,
+                        "remaining" could show as negative. */}
+                    {Math.max(0, activeProgram.totalWorkouts - completedWorkouts)} remaining
+                  </span>
                 </div>
                 <ProgressBar
                   value={completedWorkouts}
