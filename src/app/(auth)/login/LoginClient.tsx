@@ -72,9 +72,9 @@ export default function LoginClient({
     >
       {/* Logo — links back to the public homepage */}
       <Link href="/" className="flex flex-col items-center mb-8">
-        <div className={`w-24 h-24 rounded-2xl flex items-center justify-center mb-4 shadow-glow-accent overflow-hidden ${logoUrl ? '' : 'bg-accent'}`}>
+        <div className={`w-36 h-36 rounded-2xl flex items-center justify-center mb-4 shadow-glow-accent overflow-hidden ${logoUrl ? '' : 'bg-accent'}`}>
           {logoUrl ? (
-            <Image src={logoUrl} alt={appName} width={96} height={96} className="w-full h-full object-cover" onError={() => setLogoUrl(null)} />
+            <Image src={logoUrl} alt={appName} width={144} height={144} className="w-full h-full object-cover" onError={() => setLogoUrl(null)} />
           ) : (
             <span className="text-2xl font-black text-black">{appName[0]}</span>
           )}
