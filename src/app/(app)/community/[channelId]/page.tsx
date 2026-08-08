@@ -5,15 +5,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown, Megaphone } from 'lucide-react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/lib/firebase';
 import { compressImage } from '@/lib/imageCompress';
+import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getChannels, getChannelPosts, createChannelPost, deleteChannelPost,
   likeChannelPost, getPostReplies, createReply, getUserLastPostInChannel,
-  pinChannelPost, unpinChannelPost,
+  pinChannelPost, unpinChannelPost, getSystemConfig,
 } from '@/lib/firestore';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -287,9 +286,9 @@ export default function ChannelPage() {
     setUploadingImage(true);
     try {
       const compressed = await compressImage(file);
-      const storageRef = ref(storage, `community/${channelId}/${user.uid}_${Date.now()}_${compressed.name}`);
-      await uploadBytes(storageRef, compressed);
-      const url = await getDownloadURL(storageRef);
+      const cfg = await getSystemConfig().catch(() => null);
+      const provider = (cfg?.storageProvider as StorageProvider) || 'firebase';
+      const url = await uploadUserContent(provider, user, compressed, 'community');
       setPendingImageURL(url);
       toast.success('Image ready — tap send to post');
     } catch {

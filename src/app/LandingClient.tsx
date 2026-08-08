@@ -272,11 +272,11 @@ export default function LandingPage({
       <nav className="relative max-w-5xl mx-auto px-5 py-5">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center overflow-hidden flex-shrink-0">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0 ${logoUrl ? '' : 'bg-accent'}`}>
               {logoUrl ? (
-                <Image src={logoUrl} alt={appName} width={36} height={36} className="w-full h-full object-cover" />
+                <Image src={logoUrl} alt={appName} width={56} height={56} className="w-full h-full object-cover" onError={() => setLogoUrl(null)} />
               ) : (
-                <span className="text-base font-black text-black">{appName[0]}</span>
+                <span className="text-xl font-black text-black">{appName[0]}</span>
               )}
             </div>
             <span className="text-base font-black text-white tracking-tight">{appName}</span>

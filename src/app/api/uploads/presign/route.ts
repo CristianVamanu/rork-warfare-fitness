@@ -16,7 +16,7 @@ import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getR2Client, r2PublicUrl } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
 
-const ALLOWED_ROOTS = ['prPosts', 'progressPhotos'];
+const ALLOWED_ROOTS = ['prPosts', 'progressPhotos', 'community'];
 
 export async function POST(req: NextRequest) {
   try {

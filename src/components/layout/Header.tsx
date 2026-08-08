@@ -16,13 +16,27 @@ interface HeaderProps {
   showBack?: boolean;
 }
 
+// Cached in localStorage so every load after the first paints the real
+// logo/name immediately instead of the fallback letter flashing for a
+// beat while getSystemConfig() resolves — this header renders on nearly
+// every in-app screen, so that flash was constant, not a one-off.
+function readCachedBranding(): { logoUrl: string | null; appName: string } {
+  if (typeof window === 'undefined') return { logoUrl: null, appName: 'Warfare Fitness' };
+  try {
+    const cached = window.localStorage.getItem('branding');
+    if (cached) return JSON.parse(cached);
+  } catch { /* ignore — fall through to defaults */ }
+  return { logoUrl: null, appName: 'Warfare Fitness' };
+}
+
 export function Header({ title, showActions = true, rightElement, showBack = false }: HeaderProps) {
   const { user, profile } = useAuth();
   const router = useRouter();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [appName, setAppName] = useState<string>('Warfare Fitness');
+  const [{ logoUrl: cachedLogoUrl, appName: cachedAppName }] = useState(readCachedBranding);
+  const [logoUrl, setLogoUrl] = useState<string | null>(cachedLogoUrl);
+  const [appName, setAppName] = useState<string>(cachedAppName);
 
   useEffect(() => {
     // system/config is publicly readable (branding needs to render before
@@ -31,8 +45,13 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
     // initializing, so the read got permission-denied and silently never
     // retried, leaving the logo/name stuck on their fallback forever.
     getSystemConfig().then(cfg => {
-      if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string);
-      if (cfg?.appName) setAppName(cfg.appName as string);
+      const nextLogoUrl = (cfg?.logoUrl as string) || null;
+      const nextAppName = (cfg?.appName as string) || 'Warfare Fitness';
+      setLogoUrl(nextLogoUrl);
+      setAppName(nextAppName);
+      try {
+        window.localStorage.setItem('branding', JSON.stringify({ logoUrl: nextLogoUrl, appName: nextAppName }));
+      } catch { /* localStorage unavailable (private mode, quota) — not worth failing over */ }
     }).catch(() => {});
   }, []);
 
@@ -75,11 +94,11 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center overflow-hidden">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden ${logoUrl ? '' : 'bg-accent'}`}>
               {logoUrl ? (
-                <Image src={logoUrl} alt="Logo" width={28} height={28} className="w-full h-full object-cover" />
+                <Image src={logoUrl} alt="Logo" width={40} height={40} className="w-full h-full object-cover" onError={() => setLogoUrl(null)} />
               ) : (
-                <span className="text-xs font-black" style={{ color: 'var(--btn-primary-text)' }}>W</span>
+                <span className="text-sm font-black" style={{ color: 'var(--btn-primary-text)' }}>W</span>
               )}
             </div>
             <span className="text-sm font-bold text-foreground whitespace-nowrap">{appName}</span>
