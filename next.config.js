@@ -116,8 +116,51 @@ function getAppVersion() {
   return `${y}.${m}.${d}.${hm}`;
 }
 
+// A security scan flagged every response as missing standard security
+// headers (HSTS, CSP, X-Content-Type-Options, X-Frame-Options,
+// Referrer-Policy, Permissions-Policy) plus a leaked X-Powered-By: Next.js
+// header — all fixed below. The CSP is deliberately permissive on
+// script/style (`unsafe-inline`/`unsafe-eval`) since Next.js's hydration
+// and Sentry's instrumentation both rely on inline scripts; it still
+// blocks the actual attack this class of header exists to stop — a
+// malicious/compromised third-party script tag loading from an arbitrary
+// external origin — which a completely absent CSP does nothing to prevent.
+// Checkout is a full-page redirect to Stripe's hosted page (see
+// src/lib/checkout.ts's window.location.href), not an embedded iframe, so
+// no frame-src/frame-ancestors allowance for Stripe is needed.
+const SECURITY_HEADERS = [
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  // Camera is genuinely used (barcode scan, food photo, scan-a-gym) so it's
+  // allowed for this origin only; everything else this app never uses is
+  // denied outright rather than left to browser defaults.
+  { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(), payment=(self)' },
+  {
+    key: 'Content-Security-Policy',
+    value: [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https:",
+      "media-src 'self' https: blob:",
+      "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io",
+      "frame-src 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join('; '),
+  },
+];
+
 const nextConfig = {
   reactStrictMode: true,
+  // Removes the X-Powered-By: Next.js response header — free reconnaissance
+  // for an attacker (framework + implied version range) with zero upside.
+  poweredByHeader: false,
   // Lets deploy.sh build into a staging directory instead of overwriting
   // the live .next that the running server is still lazily loading route
   // bundles from (see deploy.sh for the full rationale). Unset at runtime,
@@ -143,6 +186,10 @@ const nextConfig = {
   // the current deploy instead of possibly running one build behind it.
   async headers() {
     return [
+      {
+        source: '/:path*',
+        headers: SECURITY_HEADERS,
+      },
       {
         source: '/sw.js',
         headers: [
