@@ -46,6 +46,35 @@ const withPWA = require('next-pwa')({
       urlPattern: ({ request }) => request.mode === 'navigate',
       handler: 'NetworkOnly',
     },
+    // The rule above only matches a hard/full page load — App Router
+    // client-side transitions (clicking a <Link>, router.push, e.g.
+    // switching between /training/[id] program pages) fetch the RSC
+    // payload via plain fetch(), request.mode 'cors'/'same-origin', NOT
+    // 'navigate'. Those fell through to next-pwa's bundled "others"
+    // catch-all below (NetworkFirst, 10s timeout) — reported as program
+    // switching taking a very long time, and confirmed by a real
+    // "no-response" Workbox error on a /training/[id] navigation.
+    // Matching every same-origin non-API request here, before the
+    // next-pwa spread, and forcing NetworkOnly closes that gap. Static
+    // assets (JS/CSS/images/fonts) are already matched by next-pwa's more
+    // specific earlier default rules, so this only catches the leftover
+    // document/RSC requests that should never be served from cache.
+    {
+      urlPattern: ({ url }) => url.origin === self.location.origin && !url.pathname.startsWith('/api/'),
+      handler: 'NetworkOnly',
+    },
+    // Firestore traffic must never be served from cache — without this,
+    // next-pwa's bundled cross-origin catch-all (NetworkFirst, 1 hour
+    // cache) can serve a stale Firestore read for up to an hour after an
+    // admin edits content, e.g. a shortened program description still
+    // showing the old, longer text. Scoped to Firestore's own hostname
+    // specifically (not a blanket **.googleapis.com match) so it doesn't
+    // shadow the Firebase Storage video-caching rule right below, which
+    // also lives under googleapis.com.
+    {
+      urlPattern: ({ url }) => url.hostname === 'firestore.googleapis.com',
+      handler: 'NetworkOnly',
+    },
     // next-pwa's bundled defaults match video files with /\.(?:mp4)$/ —
     // requires the URL to literally END in ".mp4". Firebase Storage and R2
     // download URLs always have `?alt=media&token=...` (or similar) appended
