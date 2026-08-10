@@ -477,7 +477,7 @@ export default function ChannelPage() {
       <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto"
-        style={{ paddingBottom: `${COMPOSE_HEIGHT + 64 + 16}px` }}
+        style={{ paddingBottom: `calc(${COMPOSE_HEIGHT + 64 + 16}px + env(safe-area-inset-bottom, 0px))` }}
       >
         <div className="px-4 py-4 space-y-3 max-w-2xl mx-auto w-full">
           {/* Pinned post banner */}
@@ -529,7 +529,7 @@ export default function ChannelPage() {
             exit={{ opacity: 0, scale: 0.8, y: 8 }}
             onClick={() => { postsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); setUnreadCount(0); }}
             className="fixed z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-accent text-black text-xs font-bold shadow-lg"
-            style={{ bottom: `${COMPOSE_HEIGHT + 64 + 12}px`, left: '50%', transform: 'translateX(-50%)' }}
+            style={{ bottom: `calc(${COMPOSE_HEIGHT + 64 + 12}px + env(safe-area-inset-bottom, 0px))`, left: '50%', transform: 'translateX(-50%)' }}
           >
             <ChevronsDown className="w-3.5 h-3.5" />
             Jump to latest{unreadCount > 0 ? ` · ${unreadCount} new` : ''}
@@ -539,14 +539,14 @@ export default function ChannelPage() {
 
       {/* ── Compose box (fixed above tab bar) ── */}
       {channel.allowUserPosts === false && !isAdmin ? (
-        <div className="fixed bottom-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
+        <div className="fixed above-bottom-nav left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
           <div className="px-4 py-3 max-w-2xl mx-auto w-full flex items-center gap-2 text-sm text-text-secondary">
             <Megaphone className="w-4 h-4 flex-shrink-0" />
             Announcement-only channel — only admins can post here.
           </div>
         </div>
       ) : (
-      <div className="fixed bottom-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
+      <div className="fixed above-bottom-nav left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
         <div className="px-4 py-2 max-w-2xl mx-auto w-full space-y-1.5">
           {isBlocked && (
             <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-400/10 rounded-lg px-3 py-2">

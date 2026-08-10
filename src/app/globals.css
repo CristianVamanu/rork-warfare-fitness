@@ -108,6 +108,16 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* BottomNav's real rendered height is its content (~4rem) PLUS its own
+   pb-safe inset on devices with a home indicator — anything fixed-
+   positioned above it (e.g. the community compose bar) needs to add that
+   same inset on top of the plain 4rem offset, or it sits underneath the
+   nav's safe-area padding with no visible gap on notch/home-indicator
+   devices. */
+.above-bottom-nav {
+  bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
