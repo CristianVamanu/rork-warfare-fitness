@@ -141,12 +141,15 @@ const SECURITY_HEADERS = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // digimetrix.ai is the live chat widget (see layout.tsx) — needs its
+      // own script explicitly allowed, plus its API host in connect-src for
+      // the widget-config fetch it makes on load.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://digimetrix.ai",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https:",
       "media-src 'self' https: blob:",
-      "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io",
+      "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai",
       "frame-src 'none'",
       "object-src 'none'",
       "base-uri 'self'",
