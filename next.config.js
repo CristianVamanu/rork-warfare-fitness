@@ -135,6 +135,11 @@ const SECURITY_HEADERS = [
   // allowed for this origin only; everything else this app never uses is
   // denied outright rather than left to browser defaults.
   { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(), payment=(self)' },
+  // Isolates this origin's browsing context from other tabs/windows opened
+  // via window.open() — safe to set unconditionally here since this app
+  // has no popup-based OAuth flow (only email/password sign-in, see
+  // src/lib/auth.ts) that COOP could otherwise interfere with.
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
 ];
 
 const nextConfig = {
