@@ -119,15 +119,13 @@ function getAppVersion() {
 // A security scan flagged every response as missing standard security
 // headers (HSTS, CSP, X-Content-Type-Options, X-Frame-Options,
 // Referrer-Policy, Permissions-Policy) plus a leaked X-Powered-By: Next.js
-// header — all fixed below. The CSP is deliberately permissive on
-// script/style (`unsafe-inline`/`unsafe-eval`) since Next.js's hydration
-// and Sentry's instrumentation both rely on inline scripts; it still
-// blocks the actual attack this class of header exists to stop — a
-// malicious/compromised third-party script tag loading from an arbitrary
-// external origin — which a completely absent CSP does nothing to prevent.
-// Checkout is a full-page redirect to Stripe's hosted page (see
+// header — all fixed below. Content-Security-Policy is NOT here — it needs
+// a fresh nonce per request (so an attacker can't just read a static CSP
+// and forge a matching inline script), which a static next.config.js
+// header can't provide. It's generated per-request in src/middleware.ts
+// instead. Checkout is a full-page redirect to Stripe's hosted page (see
 // src/lib/checkout.ts's window.location.href), not an embedded iframe, so
-// no frame-src/frame-ancestors allowance for Stripe is needed.
+// no frame-src/frame-ancestors allowance for Stripe is needed there.
 const SECURITY_HEADERS = [
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -137,26 +135,6 @@ const SECURITY_HEADERS = [
   // allowed for this origin only; everything else this app never uses is
   // denied outright rather than left to browser defaults.
   { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(), payment=(self)' },
-  {
-    key: 'Content-Security-Policy',
-    value: [
-      "default-src 'self'",
-      // digimetrix.ai is the live chat widget (see layout.tsx) — needs its
-      // own script explicitly allowed, plus its API host in connect-src for
-      // the widget-config fetch it makes on load.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://digimetrix.ai",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https:",
-      "media-src 'self' https: blob:",
-      "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai",
-      "frame-src 'none'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'none'",
-    ].join('; '),
-  },
 ];
 
 const nextConfig = {
@@ -192,6 +170,13 @@ const nextConfig = {
       {
         source: '/:path*',
         headers: SECURITY_HEADERS,
+      },
+      // Keeps /admin out of search indexes without naming it in the public
+      // robots.txt (see src/app/robots.ts) — a security scan flagged
+      // listing an admin panel's exact path there as free reconnaissance.
+      {
+        source: '/admin/:path*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
       },
       {
         source: '/sw.js',

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
+import { headers } from 'next/headers';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -62,6 +63,11 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Set by src/middleware.ts on every request — required to authorize the
+  // inline/third-party <Script> tags below under the nonce-based CSP (a
+  // static nonce baked into the HTML wouldn't protect against anything,
+  // since an attacker could just read it out of the page source).
+  const nonce = headers().get('x-nonce') ?? undefined;
   return (
     <html lang="en" className="dark">
       <head>
@@ -101,10 +107,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           />
         </AuthProvider>
         </ThemeProvider>
-        <Script id="chirps-config" strategy="afterInteractive">
+        <Script id="chirps-config" strategy="afterInteractive" nonce={nonce}>
           {`window.chirpsConfig = { assistantId: "e663729e-796a-44d9-98a8-316824eebcb0" };`}
         </Script>
-        <Script src="https://digimetrix.ai/embed.js" strategy="afterInteractive" />
+        <Script src="https://digimetrix.ai/embed.js" strategy="afterInteractive" nonce={nonce} />
       </body>
     </html>
   );
