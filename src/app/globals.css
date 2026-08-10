@@ -115,7 +115,7 @@ body {
    nav's safe-area padding with no visible gap on notch/home-indicator
    devices. */
 .above-bottom-nav {
-  bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(4rem + 10px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Custom scrollbar */

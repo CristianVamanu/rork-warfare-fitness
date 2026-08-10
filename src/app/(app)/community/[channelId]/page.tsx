@@ -477,7 +477,7 @@ export default function ChannelPage() {
       <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto"
-        style={{ paddingBottom: `calc(${COMPOSE_HEIGHT + 64 + 16}px + env(safe-area-inset-bottom, 0px))` }}
+        style={{ paddingBottom: `calc(${COMPOSE_HEIGHT + 64 + 26}px + env(safe-area-inset-bottom, 0px))` }}
       >
         <div className="px-4 py-4 space-y-3 max-w-2xl mx-auto w-full">
           {/* Pinned post banner */}
@@ -529,7 +529,7 @@ export default function ChannelPage() {
             exit={{ opacity: 0, scale: 0.8, y: 8 }}
             onClick={() => { postsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); setUnreadCount(0); }}
             className="fixed z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-accent text-black text-xs font-bold shadow-lg"
-            style={{ bottom: `calc(${COMPOSE_HEIGHT + 64 + 12}px + env(safe-area-inset-bottom, 0px))`, left: '50%', transform: 'translateX(-50%)' }}
+            style={{ bottom: `calc(${COMPOSE_HEIGHT + 64 + 22}px + env(safe-area-inset-bottom, 0px))`, left: '50%', transform: 'translateX(-50%)' }}
           >
             <ChevronsDown className="w-3.5 h-3.5" />
             Jump to latest{unreadCount > 0 ? ` · ${unreadCount} new` : ''}
