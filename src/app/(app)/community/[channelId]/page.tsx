@@ -10,7 +10,7 @@ import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  getChannels, getChannelPosts, subscribeChannelPosts, createChannelPost, deleteChannelPost,
+  getChannels, subscribeChannelPosts, createChannelPost, deleteChannelPost,
   likeChannelPost, getPostReplies, createReply, getUserLastPostInChannel,
   pinChannelPost, unpinChannelPost, getSystemConfig,
 } from '@/lib/firestore';
@@ -329,18 +329,18 @@ export default function ChannelPage() {
       setText('');
       setPendingImageURL(null);
       if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
-      const updated = await getChannelPosts(channelId);
-      setPosts(updated);
+      // No follow-up getChannelPosts()/setPosts() here — the live
+      // subscribeChannelPosts listener already picks up this post as soon
+      // as Firestore commits it. Re-fetching separately used to throw
+      // "Failed to post" on any transient network hiccup even though the
+      // post itself had already gone through successfully.
       if (channel && channel.slowModeDays > 0) {
         setSlowModeBlocked(new Date(Date.now() + channel.slowModeDays * 86400000));
       }
-      toast.success('Posted!');
       setTimeout(() => {
         postsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         setShowJumpToLatest(false);
         setUnreadCount(0);
-        const newest = updated[updated.length - 1];
-        if (newest) localStorage.setItem(lastReadKey, newest.id);
       }, 100);
     } catch { toast.error('Failed to post'); }
     finally { setPosting(false); }
@@ -359,13 +359,25 @@ export default function ChannelPage() {
   async function handleDelete(post: ChannelPost) {
     try {
       await deleteChannelPost(channelId, post.id);
-      setPosts(prev => prev.filter(p => p.id !== post.id));
       // If the pinned post was deleted, clear pinnedPostId from channel state
       if (channel?.pinnedPostId === post.id) {
         setChannel(prev => prev ? { ...prev, pinnedPostId: undefined } : prev);
       }
       toast.success('Post deleted');
-    } catch { toast.error('Failed to delete'); }
+    } catch {
+      // The live subscribeChannelPosts listener is the source of truth for
+      // `posts` now — a flaky connection can make deleteChannelPost's
+      // promise reject even though the delete was already durably queued
+      // and goes on to succeed server-side, which used to show "Failed to
+      // delete" on a post that had, in fact, just been deleted. Only surface
+      // the error if the post is still actually present a moment later.
+      setTimeout(() => {
+        setPosts(prev => {
+          if (prev.some(p => p.id === post.id)) toast.error('Failed to delete');
+          return prev;
+        });
+      }, 1500);
+    }
   }
 
   async function handlePin(post: ChannelPost, pin: boolean) {
@@ -434,7 +446,7 @@ export default function ChannelPage() {
   const pinnedPost = channel.pinnedPostId ? posts.find(p => p.id === channel.pinnedPostId) : null;
 
   // Height of the compose box (approx) so the post list doesn't hide behind it
-  const COMPOSE_HEIGHT = channel.photoUploadEnabled ? 80 : 72;
+  const COMPOSE_HEIGHT = channel.photoUploadEnabled ? 68 : 60;
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -535,7 +547,7 @@ export default function ChannelPage() {
         </div>
       ) : (
       <div className="fixed bottom-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
-        <div className="px-4 py-3 max-w-2xl mx-auto w-full space-y-2">
+        <div className="px-4 py-2 max-w-2xl mx-auto w-full space-y-1.5">
           {isBlocked && (
             <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-400/10 rounded-lg px-3 py-2">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
@@ -567,11 +579,11 @@ export default function ChannelPage() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingImage}
-                className="p-2.5 rounded-xl bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors flex-shrink-0 disabled:opacity-50"
+                className="p-2 rounded-xl bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors flex-shrink-0 disabled:opacity-50"
               >
                 {uploadingImage
-                  ? <Loader2 className="w-5 h-5 animate-spin" />
-                  : <ImageIcon className="w-5 h-5" />
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <ImageIcon className="w-4 h-4" />
                 }
               </button>
             )}
@@ -582,20 +594,21 @@ export default function ChannelPage() {
               placeholder={isBlocked ? 'Slow mode active…' : 'Share something…'}
               disabled={isBlocked}
               rows={1}
-              className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent/50 disabled:opacity-40"
-              style={{ maxHeight: 96, overflowY: 'auto' }}
+              className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent/50 disabled:opacity-40"
+              style={{ maxHeight: 80, overflowY: 'auto' }}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(); } }}
               onInput={e => {
                 const t = e.currentTarget;
                 t.style.height = 'auto';
-                t.style.height = Math.min(t.scrollHeight, 96) + 'px';
+                t.style.height = Math.min(t.scrollHeight, 80) + 'px';
               }}
             />
             <Button
               onClick={handlePost}
               loading={posting}
               disabled={!canSend}
-              className="flex-shrink-0"
+              size="sm"
+              className="flex-shrink-0 !px-2.5 !py-2"
             >
               <Send className="w-4 h-4" />
             </Button>
