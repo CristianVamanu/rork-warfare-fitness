@@ -94,9 +94,9 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <div className={`w-[3.25rem] h-[3.25rem] rounded-lg flex items-center justify-center overflow-hidden ${logoUrl ? '' : 'bg-accent'}`}>
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden ${logoUrl ? '' : 'bg-accent'}`}>
               {logoUrl ? (
-                <Image src={logoUrl} alt="Logo" width={52} height={52} className="w-full h-full object-cover" onError={() => setLogoUrl(null)} />
+                <Image src={logoUrl} alt="Logo" width={40} height={40} className="w-full h-full object-cover" onError={() => setLogoUrl(null)} />
               ) : (
                 <span className="text-sm font-black" style={{ color: 'var(--btn-primary-text)' }}>W</span>
               )}
