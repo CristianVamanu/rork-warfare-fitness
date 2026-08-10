@@ -10,7 +10,7 @@ import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  getChannels, getChannelPosts, createChannelPost, deleteChannelPost,
+  getChannels, getChannelPosts, subscribeChannelPosts, createChannelPost, deleteChannelPost,
   likeChannelPost, getPostReplies, createReply, getUserLastPostInChannel,
   pinChannelPost, unpinChannelPost, getSystemConfig,
 } from '@/lib/firestore';
@@ -211,17 +211,29 @@ export default function ChannelPage() {
     if (!channelId) return;
     Promise.all([
       getChannels(trainerId ?? undefined),
-      getChannelPosts(channelId),
       user ? getUserLastPostInChannel(channelId, user.uid) : Promise.resolve(null),
-    ]).then(([chs, ps, lastPost]) => {
+    ]).then(([chs, lastPost]) => {
       const ch = chs.find(c => c.id === channelId) ?? null;
       setChannel(ch);
-      setPosts(ps);
       if (ch && ch.slowModeDays > 0 && lastPost) {
         const unlocksAt = new Date(lastPost.getTime() + ch.slowModeDays * 86400000);
         if (unlocksAt > new Date()) setSlowModeBlocked(unlocksAt);
       }
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => {});
+
+    // Live listener (not a one-shot fetch) — otherwise a user sitting in a
+    // channel never sees a message someone else posts until they navigate
+    // away and back.
+    let firstSnapshot = true;
+    const unsub = subscribeChannelPosts(
+      channelId,
+      (ps) => {
+        setPosts(ps);
+        if (firstSnapshot) { firstSnapshot = false; setLoading(false); }
+      },
+      () => setLoading(false),
+    );
+    return () => unsub();
   }, [channelId, trainerId, user]);
 
   // Resume where the user left off instead of always jumping to the very

@@ -1356,6 +1356,26 @@ export async function getChannelPosts(channelId: string): Promise<ChannelPost[]>
   return snap.docs.map((d) => ({ id: d.id, channelId, ...d.data() }) as ChannelPost).reverse();
 }
 
+// Live version of getChannelPosts — a user sitting in a channel while
+// someone else posts previously never saw the new message until they
+// navigated away and back (the page only fetched once on mount), which
+// reads as broken chat rather than a static community wall. Mirrors the
+// same query/ordering as the one-shot version above.
+export function subscribeChannelPosts(
+  channelId: string,
+  onUpdate: (posts: ChannelPost[]) => void,
+  onError?: (err: Error) => void,
+): () => void {
+  const q = query(collection(db, 'channels', channelId, 'posts'), orderBy('createdAt', 'desc'), limit(50));
+  return onSnapshot(
+    q,
+    (snap) => {
+      onUpdate(snap.docs.map((d) => ({ id: d.id, channelId, ...d.data() }) as ChannelPost).reverse());
+    },
+    (err) => onError?.(err),
+  );
+}
+
 export async function createChannelPost(channelId: string, data: {
   userId: string; userDisplayName: string; userPhotoURL?: string;
   content: string; imageURL?: string;

@@ -403,7 +403,7 @@ export default function LandingPage({
               </Button>
             </Link>
             {!quickSex && (
-              <p className="text-[11px] text-text-tertiary text-center mt-2">Select your sex to continue.</p>
+              <p className="text-[11px] text-text-tertiary text-center mt-2">Select your gender to continue.</p>
             )}
           </div>
 

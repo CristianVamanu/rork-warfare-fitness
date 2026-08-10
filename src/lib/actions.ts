@@ -11,6 +11,7 @@ import {
   setDoc,
   updateDoc,
   increment,
+  runTransaction,
   serverTimestamp,
 } from 'firebase/firestore';
 import type { DistanceUnit } from '@/lib/distance';
@@ -123,48 +124,63 @@ export async function completeWorkout(
   let newQuests: string[] = [];
 
   try {
-    const snap = await getDoc(doc(db, 'users', userId));
-    const data = snap.data() ?? {};
-    const prevXP = (data.xp as number) ?? 0;
-    const totalXP = prevXP + xpEarned;
-    newPowerLevel = xpToPowerLevel(totalXP);
-
-    const statsCache = data.statsCache as Record<string, number> | undefined;
-    const totalWorkouts = (statsCache?.totalWorkouts ?? (data.stats as Record<string, number>)?.totalWorkouts ?? 0) + 1;
-    const streak = statsCache?.streak ?? (data.stats as Record<string, number>)?.streak ?? 0;
-
     const now = new Date();
     const workoutHour = now.getHours();
     const isWeekend = now.getDay() === 0 || now.getDay() === 6;
-
-    await setDoc(doc(db, 'users', userId), {
-      xp: totalXP,
-      powerLevel: newPowerLevel,
-      lastActive: serverTimestamp(),
-    }, { merge: true });
-
-    // Eagerly update statsCache so the dashboard reflects changes immediately
     const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD local
-    const lastWorkoutDate = (statsCache as Record<string, unknown> | undefined)?.lastWorkoutDate as string | undefined;
     const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('sv-SE');
-    let newStreak: number;
-    if (lastWorkoutDate === today) {
-      newStreak = streak; // same day — streak unchanged
-    } else if (lastWorkoutDate === yesterday) {
-      newStreak = streak + 1; // consecutive day — extend streak
-    } else {
-      newStreak = 1; // gap or first workout — start at 1
-    }
 
-    updateDoc(doc(db, 'users', userId), {
-      'statsCache.totalWorkouts': increment(1),
-      'statsCache.streak': newStreak,
-      'statsCache.lastWorkoutDate': today,
-      'statsCache.cacheDate': today,
-      'stats.totalWeightLifted': increment(totalWeightLifted),
-      'stats.totalWorkouts': increment(1),
-    }).catch(() => {
-      // Non-critical; background recompute will self-correct
+    let totalWorkouts = 0;
+    let newStreak = 1;
+    let prevTotalWeightLifted = 0;
+    let totalMealsLogged = 0;
+
+    // Wrapped in a transaction so two workouts finished in quick succession
+    // (double-tap "finish", two open tabs) can't both read the same
+    // pre-write xp/streak and independently overwrite each other — the
+    // transaction re-reads and retries automatically on write conflict,
+    // so both completions' XP/streak deltas are always preserved.
+    const userRef = doc(db, 'users', userId);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(userRef);
+      const data = snap.data() ?? {};
+      const prevXP = (data.xp as number) ?? 0;
+      const totalXP = prevXP + xpEarned;
+      newPowerLevel = xpToPowerLevel(totalXP);
+
+      const statsCache = data.statsCache as Record<string, number> | undefined;
+      const prevStats = data.stats as Record<string, number> | undefined;
+      totalWorkouts = (statsCache?.totalWorkouts ?? prevStats?.totalWorkouts ?? 0) + 1;
+      const streak = statsCache?.streak ?? prevStats?.streak ?? 0;
+      const lastWorkoutDate = (statsCache as Record<string, unknown> | undefined)?.lastWorkoutDate as string | undefined;
+      prevTotalWeightLifted = prevStats?.totalWeightLifted ?? 0;
+      totalMealsLogged = prevStats?.totalMealsLogged ?? 0;
+
+      if (lastWorkoutDate === today) {
+        newStreak = streak; // same day — streak unchanged
+      } else if (lastWorkoutDate === yesterday) {
+        newStreak = streak + 1; // consecutive day — extend streak
+      } else {
+        newStreak = 1; // gap or first workout — start at 1
+      }
+
+      tx.set(userRef, {
+        xp: totalXP,
+        powerLevel: newPowerLevel,
+        lastActive: serverTimestamp(),
+        statsCache: {
+          ...(statsCache ?? {}),
+          totalWorkouts,
+          streak: newStreak,
+          lastWorkoutDate: today,
+          cacheDate: today,
+        },
+        stats: {
+          ...(data.stats as Record<string, unknown> ?? {}),
+          totalWeightLifted: ((data.stats as Record<string, number>)?.totalWeightLifted ?? 0) + totalWeightLifted,
+          totalWorkouts,
+        },
+      }, { merge: true });
     });
 
     // Check achievements after updating power level — use newStreak (the
@@ -181,8 +197,6 @@ export async function completeWorkout(
     });
     sendAchievementEmail(newAchievements);
 
-    const prevTotalWeightLifted = (data.stats as Record<string, number> | undefined)?.totalWeightLifted ?? 0;
-    const totalMealsLogged = (data.stats as Record<string, number> | undefined)?.totalMealsLogged ?? 0;
     newQuests = await checkAndAwardQuests(userId, {
       totalWorkouts,
       streak: newStreak,
@@ -241,9 +255,14 @@ export async function logMealAction(
   // like 'stats.totalMealsLogged' as a literal field name rather than a
   // nested path, silently writing to the wrong place. Only updateDoc
   // reliably resolves dotted paths to nested fields.
+  //
+  // increment(1) (not the locally-computed totalMealsLogged literal) so two
+  // meals logged back-to-back can't race on the same pre-write read and
+  // have the second write clobber the first's count instead of adding to
+  // it — increment() is a server-side atomic op, immune to that.
   updateDoc(doc(db, 'users', userId), {
     lastActive: serverTimestamp(),
-    'stats.totalMealsLogged': totalMealsLogged,
+    'stats.totalMealsLogged': increment(1),
   }).catch(console.error);
 }
 
