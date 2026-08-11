@@ -25,15 +25,24 @@ export function middleware(request: NextRequest) {
   const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://digimetrix.ai`,
+    // style-src is a fallback for browsers that don't understand the
+    // style-src-elem/style-src-attr split below (per spec, those two only
+    // override style-src in browsers that support them) — kept strict, no
+    // unsafe-inline, since it only matters for older engines that also
+    // don't understand the narrower directives.
+    "style-src 'self' https://fonts.googleapis.com",
+    // <style> tags/stylesheets: same-origin and Google Fonts only, no
+    // unsafe-inline — this app doesn't inject raw <style> blocks.
+    "style-src-elem 'self' https://fonts.googleapis.com",
     // Framer Motion (used extensively across this app) animates by writing
     // directly to elements' style="" attributes at runtime — CSP has no
     // nonce/hash mechanism for that, only an allow-or-block unsafe-inline
     // toggle, so this one has to stay permissive or every animation on the
-    // site breaks. Real-world exposure is much lower than script-src's
-    // used to be: a style-only injection can deface layout, but can't
-    // execute JS or exfiltrate data the way an unsafe-inline script-src
-    // could.
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    // site breaks. Scoping unsafe-inline to style-src-attr specifically
+    // (rather than the old blanket style-src) means an attacker-injected
+    // <style> block is still blocked outright — only inline style=""
+    // attribute writes are exempt, which is genuinely all this app needs.
+    "style-src-attr 'unsafe-inline'",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
     "media-src 'self' https: blob:",

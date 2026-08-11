@@ -176,11 +176,16 @@ const nextConfig = {
         source: '/:path*',
         headers: SECURITY_HEADERS,
       },
-      // Keeps /admin out of search indexes without naming it in the public
-      // robots.txt (see src/app/robots.ts) — a security scan flagged
-      // listing an admin panel's exact path there as free reconnaissance.
+      // Keeps every authenticated route out of search indexes without
+      // naming any of them in the public robots.txt (see src/app/robots.ts)
+      // — a security scan flagged listing exact authenticated paths there
+      // as free reconnaissance for enumerating hidden areas of the site.
       {
-        source: '/admin/:path*',
+        source: '/:path(admin|dashboard|training|nutrition|community|settings|install)/:rest*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      },
+      {
+        source: '/api/:path*',
         headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
       },
       {
