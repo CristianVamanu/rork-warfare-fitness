@@ -7,7 +7,7 @@ import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown, CheckCircle2,
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, resolveProgram, getHiddenMockIds, getUserCustomPrograms } from '@/lib/firestore';
-import { MOCK_PROGRAMS, stripWeekdayPrefix, getProgramDayForDow, getNextSession } from '@/lib/programs';
+import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -75,17 +75,16 @@ export default function TrainingPage() {
   }, [activeProgram]);
 
   // getNextSession skips stale rest slots (deadlock fix) — same shared
-  // logic as the dashboard card and program detail page.
-  const nextSession = resolvedActive && activeProgram && !workedOutToday
+  // logic as the dashboard card and program detail page. Always points at
+  // the next not-yet-completed day regardless of workedOutToday — training
+  // twice in one day is allowed, not blocked until the calendar date rolls
+  // over (see training/[id]/page.tsx for the full rationale).
+  const nextSession = resolvedActive && activeProgram
     ? getNextSession(resolvedActive, lastCompleted, profile?.statsCache?.lastWorkoutDate)
     : null;
-  const nextAbsIdx = activeProgram
-    ? (workedOutToday ? lastCompleted : (nextSession?.index ?? lastCompleted + 1))
-    : 0;
-  const todayDay = workedOutToday
-    ? (resolvedActive ? getProgramDayForDow(resolvedActive, lastCompleted) : null)
-    : (nextSession?.day ?? null);
-  const isRestToday = !workedOutToday && (nextSession?.isRestToday ?? false);
+  const nextAbsIdx = activeProgram ? (nextSession?.index ?? lastCompleted + 1) : 0;
+  const todayDay = nextSession?.day ?? null;
+  const isRestToday = nextSession?.isRestToday ?? false;
 
   useEffect(() => {
     Promise.all([getPrograms(), getHiddenMockIds().catch(() => [] as string[])])
@@ -133,9 +132,7 @@ export default function TrainingPage() {
               <h3 className="text-xl font-black text-white">{activeProgram.programName}</h3>
               {todayDay && (
                 <p className="text-text-secondary text-sm mt-1">
-                  {workedOutToday
-                    ? `Completed: ${stripWeekdayPrefix(todayDay.label)}`
-                    : `Today: ${isRestToday ? '😴 Rest Day' : stripWeekdayPrefix(todayDay.label)}`}
+                  Next: {isRestToday ? '😴 Rest Day' : stripWeekdayPrefix(todayDay.label)}
                 </p>
               )}
               <div className="mt-4 space-y-2">
@@ -145,35 +142,33 @@ export default function TrainingPage() {
                 </div>
                 <ProgressBar value={activeProgram.completedWorkouts} max={activeProgram.totalWorkouts} color="accent" size="sm" />
               </div>
-              {/* Three-way state, matching the dashboard card and program
-                  detail page exactly — this previously only branched on
-                  rest day, so it still said "Start Today's Workout" after
-                  the session was already done, contradicting both other
-                  screens. */}
+              {/* Non-blocking acknowledgment — training more than once a day
+                  is allowed, so the "Start next workout" CTA below always
+                  shows alongside this, not instead of it. */}
               {workedOutToday && (
                 <div className="mt-4 p-3 bg-success/10 border border-success/30 rounded-xl flex items-center gap-2.5">
                   <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-white">Day {Math.max(1, completedWorkouts)} Complete!</p>
-                    <p className="text-xs text-text-secondary">Come back tomorrow for Day {completedWorkouts + 1}</p>
+                    <p className="text-sm font-bold text-white">Day {Math.max(1, completedWorkouts)} complete</p>
                   </div>
                 </div>
               )}
               <div className="flex gap-2 mt-4 flex-wrap">
-                {workedOutToday ? (
-                  <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                    <RotateCcw className="w-4 h-4" /> Repeat Today
-                  </Button>
-                ) : todayDay && !isRestToday ? (
+                {todayDay && !isRestToday ? (
                   <Button size="sm" onClick={() => {
                     router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`);
                   }}>
-                    <Play className="w-4 h-4" /> Start Today&apos;s Workout
+                    <Play className="w-4 h-4" /> Start Next Workout
                   </Button>
                 ) : (
                   <div className="flex items-center gap-2 text-sm text-text-secondary">
                     <Moon className="w-4 h-4" /> Rest day — recover well
                   </div>
+                )}
+                {workedOutToday && (
+                  <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${lastCompleted}`)}>
+                    <RotateCcw className="w-4 h-4" /> Repeat Today
+                  </Button>
                 )}
                 <Button size="sm" variant="secondary" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
                   View Program

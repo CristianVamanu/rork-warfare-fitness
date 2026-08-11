@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, subscribeTodayWorkoutCount, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
 import { logWaterAction } from '@/lib/actions';
-import { getMockProgram, stripWeekdayPrefix, getProgramDayForDow, getNextSession } from '@/lib/programs';
+import { getMockProgram, stripWeekdayPrefix, getNextSession } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
@@ -229,22 +229,19 @@ export default function DashboardPage() {
   // stale rest slots (deadlock fix) and only reports isRestToday when the
   // user actually trained yesterday, so a rest day is shown for exactly one
   // real day instead of trapping the pointer forever.
-  const nextSession = programSource && !workedOutToday
+  // Always points at the next not-yet-completed session, regardless of
+  // workedOutToday — training more than once in a day used to be blocked
+  // entirely (this card only offered "Repeat Today" once workedOutToday
+  // was true, with no way to actually start the next session until the
+  // calendar date rolled over, up to a ~24h wait). getNextSession already
+  // advances past lastCompleted and correctly honors/skips a stale rest
+  // day via lastWorkoutDate.
+  const nextSession = programSource
     ? getNextSession(programSource, lastCompleted, profile?.statsCache?.lastWorkoutDate)
     : null;
-  // nextAbsIdx: absolute slot index the user should do next (or just did today)
-  const nextAbsIdx = workedOutToday ? lastCompleted : (nextSession?.index ?? lastCompleted + 1);
-  const todayDay = workedOutToday
-    ? (programSource ? getProgramDayForDow(programSource, lastCompleted) : null)
-    : (nextSession?.day ?? null);
-  const isRestToday = !workedOutToday && (nextSession?.isRestToday ?? false);
-  // After today's session is done, preview what's next — fills the card
-  // (which spans 3 grid rows) instead of leaving a dead gap under the
-  // congrats message, and answers the natural next question anyway.
-  const upcomingSession = programSource && workedOutToday
-    ? getNextSession(programSource, lastCompleted, profile?.statsCache?.lastWorkoutDate)
-    : null;
-  const upcomingDay = upcomingSession?.day ?? null;
+  const nextAbsIdx = nextSession?.index ?? lastCompleted + 1;
+  const todayDay = nextSession?.day ?? null;
+  const isRestToday = nextSession?.isRestToday ?? false;
   const programPct = activeProgram
     ? Math.min(100, Math.round((completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
@@ -480,7 +477,7 @@ export default function DashboardPage() {
                   <h3 className="text-base font-bold text-white">{activeProgram.programName}</h3>
                   {workedOutToday && completedWorkouts > 0 ? (
                     <p className="text-sm text-success mt-0.5">
-                      🎉 Great work! Come back tomorrow for Day {completedWorkouts + 1}.
+                      🎉 Great work on Day {Math.max(1, completedWorkouts)}!
                       {activeProgram.totalWorkouts - completedWorkouts > 0 &&
                         ` ${activeProgram.totalWorkouts - completedWorkouts} session${activeProgram.totalWorkouts - completedWorkouts !== 1 ? 's' : ''} remaining.`
                       }
@@ -495,7 +492,7 @@ export default function DashboardPage() {
                       header and the progress bar. Listing every exercise for
                       today fills that space with the thing the user actually
                       opens this card to know: what's in the session. */}
-                  {!workedOutToday && !isRestToday && (todayDay?.exercises?.length ?? 0) > 0 && (
+                  {!isRestToday && (todayDay?.exercises?.length ?? 0) > 0 && (
                     <div className="mt-3 space-y-1.5">
                       {todayDay!.exercises.slice(0, 4).map((ex) => (
                         <div key={ex.id} className="flex items-center justify-between text-xs">
@@ -515,35 +512,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                   )}
-                  {/* Same idea for the day-complete state: the congrats line
-                      alone left the tall card mostly empty, so preview what
-                      tomorrow holds in that space instead. */}
-                  {workedOutToday && completedWorkouts > 0 && upcomingDay && (
-                    <div className="mt-3">
-                      <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-wide mb-1.5">
-                        Next workout: {upcomingDay.isRest ? 'Rest Day' : stripWeekdayPrefix(upcomingDay.label)}
-                      </p>
-                      {upcomingDay.isRest ? (
-                        <p className="text-xs text-text-secondary flex items-center gap-1.5"><Moon className="w-3 h-3" /> Recovery — let your muscles grow.</p>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {upcomingDay.exercises.slice(0, 4).map((ex) => (
-                            <div key={ex.id} className="flex items-center justify-between text-xs">
-                              <span className="flex items-center gap-1.5 text-text-secondary min-w-0">
-                                <Dumbbell className="w-3 h-3 text-text-tertiary flex-shrink-0" />
-                                <span className="truncate">{ex.name}</span>
-                              </span>
-                              <span className="text-text-tertiary flex-shrink-0 ml-2">{ex.sets}×{ex.reps}</span>
-                            </div>
-                          ))}
-                          {upcomingDay.exercises.length > 4 && (
-                            <p className="text-[11px] text-text-tertiary">+{upcomingDay.exercises.length - 4} more in session</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {!workedOutToday && !isRestToday && personalBest && (
+                  {!isRestToday && personalBest && (
                     <div className="mt-2 flex items-center gap-1.5 p-2 bg-accent/5 border border-accent/20 rounded-lg">
                       <Trophy className="w-3.5 h-3.5 text-accent flex-shrink-0" />
                       <p className="text-xs text-accent">
@@ -572,13 +541,14 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                         <Moon className="w-3.5 h-3.5" /> Rest day
                       </div>
-                    ) : workedOutToday && completedWorkouts > 0 ? (
-                      <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                        <RotateCcw className="w-3.5 h-3.5" /> Repeat Today
-                      </Button>
                     ) : (
                       <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                        <Play className="w-4 h-4" /> Start Workout
+                        <Play className="w-4 h-4" /> {workedOutToday ? 'Start Next Workout' : 'Start Workout'}
+                      </Button>
+                    )}
+                    {workedOutToday && completedWorkouts > 0 && (
+                      <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${lastCompleted}`)}>
+                        <RotateCcw className="w-3.5 h-3.5" /> Repeat Today
                       </Button>
                     )}
                     <Button size="sm" variant="ghost" onClick={() => router.push(`/training/${activeProgram.programId}`)}>

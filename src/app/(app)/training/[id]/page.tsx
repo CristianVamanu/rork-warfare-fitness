@@ -11,7 +11,7 @@ import {
   AlertTriangle, RotateCcw, Lock, Crown,
 } from 'lucide-react';
 import { resolveProgram, enrollInProgram, getMembershipConfig } from '@/lib/firestore';
-import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix, getScheduleForWeek, getProgramDayForDow, getNextSession } from '@/lib/programs';
+import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix, getScheduleForWeek, getNextSession } from '@/lib/programs';
 import { getProgramDayLimit } from '@/lib/membership';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
@@ -73,6 +73,14 @@ export default function ProgramDetailPage() {
     : (completedWorkouts > 0 ? completedWorkouts - 1 : -1);
 
   // workedOutToday: did the user complete a workout today (for this or any program)?
+  // Purely informational now (shown as a small "nice work" banner) — it no
+  // longer blocks progression. It used to force the whole page to show
+  // "come back tomorrow" and hide the next day's session entirely, which
+  // meant finishing a workout at any time of day locked the user out of
+  // starting their next one until the calendar date rolled over — up to a
+  // full ~24h wait for someone who trained first thing in the morning.
+  // Nothing about program structure requires that; a user who wants to
+  // train twice in one day should be able to.
   const workedOutToday = completedWorkouts > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
 
   const hasDifferentProgram = !!activeProgram && !isEnrolled;
@@ -98,19 +106,19 @@ export default function ProgramDetailPage() {
   // getNextSession skips stale rest slots (deadlock fix) — same shared
   // logic as the dashboard card and training list, so all three screens
   // always agree on what the user should do next.
-  const nextSession = program && isEnrolled && !workedOutToday
+  // Always points at the next NOT-YET-completed day, regardless of whether
+  // the user already trained today — getNextSession already advances past
+  // lastCompleted and correctly skips a stale rest day using
+  // lastWorkoutDate, so there's no need to freeze progress on workedOutToday.
+  const nextSession = program && isEnrolled
     ? getNextSession(program, lastCompleted, profile?.statsCache?.lastWorkoutDate)
     : null;
-  const nextAbsIdx = isEnrolled
-    ? (workedOutToday ? lastCompleted : (nextSession?.index ?? lastCompleted + 1))
-    : 0;
+  const nextAbsIdx = isEnrolled ? (nextSession?.index ?? lastCompleted + 1) : 0;
   const todayDayIndex = nextAbsIdx % scheduleLen; // which slot in the 7-day template
   const currentWeek = Math.floor(nextAbsIdx / scheduleLen); // 0-based week the user is in
   // Use whichever is larger: program's declared weeks or the user's actual progress
   const totalWeeks = Math.max(program?.weeks || 1, currentWeek + 1);
-  // Never locks a day already completed (workedOutToday means nextAbsIdx
-  // points at what was just finished, not the next new day).
-  const nextIsLocked = isEnrolled && !workedOutToday && nextAbsIdx >= dayLimit;
+  const nextIsLocked = isEnrolled && nextAbsIdx >= dayLimit;
 
   // The FULL program, every week, in one flat list — previously paginated
   // one week at a time behind arrow buttons, which meant the trial day-lock
@@ -120,10 +128,8 @@ export default function ProgramDetailPage() {
   const allWeeks: { week: number; days: ProgramDay[] }[] = program
     ? Array.from({ length: totalWeeks }, (_, w) => ({ week: w + 1, days: getScheduleForWeek(program, w + 1) ?? [] }))
     : [];
-  const todayDay: ProgramDay | null = workedOutToday
-    ? (program ? getProgramDayForDow(program, lastCompleted) : null)
-    : (nextSession?.day ?? null);
-  const isRestToday = isEnrolled && !workedOutToday && (nextSession?.isRestToday ?? false);
+  const todayDay: ProgramDay | null = nextSession?.day ?? null;
+  const isRestToday = isEnrolled && (nextSession?.isRestToday ?? false);
 
   // Auto-scroll to today's slot once the full list has rendered — a 12+
   // week program is a long scroll, and nobody wants to hunt for "today"
@@ -307,6 +313,21 @@ export default function ProgramDetailPage() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
           {isEnrolled ? (
             <div className="space-y-2">
+              {/* Non-blocking acknowledgment — training more than once a day
+                  is allowed, so this never hides the CTA below it. */}
+              {workedOutToday && (
+                <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-success/10 border border-success/30">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-success">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Day {Math.max(1, completedWorkouts)} complete
+                  </span>
+                  <button
+                    onClick={() => router.push(`/training/session?programId=${program.id}&dow=${lastCompleted}`)}
+                    className="flex items-center gap-1 text-xs text-text-secondary hover:text-white transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Repeat
+                  </button>
+                </div>
+              )}
               {nextIsLocked ? (
                 <div className="p-4 bg-surface border border-accent/30 rounded-2xl text-center">
                   <Lock className="w-6 h-6 text-accent mx-auto mb-1.5" />
@@ -318,17 +339,6 @@ export default function ProgramDetailPage() {
                     <Crown className="w-4 h-4" /> View Plans
                   </Button>
                 </div>
-              ) : workedOutToday ? (
-                <div className="p-4 bg-success/10 border border-success/30 rounded-2xl text-center">
-                  <CheckCircle2 className="w-6 h-6 text-success mx-auto mb-1.5" />
-                  <p className="text-sm font-bold text-white">Day {Math.max(1, completedWorkouts)} Complete!</p>
-                  <p className="text-xs text-text-secondary mt-0.5">
-                    Come back tomorrow for Day {completedWorkouts + 1}
-                  </p>
-                  <Button size="sm" variant="ghost" className="mt-2" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
-                    <RotateCcw className="w-3.5 h-3.5" /> Repeat Today
-                  </Button>
-                </div>
               ) : todayDay && !isRestToday ? (
                 <Button fullWidth size="lg" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
                   <Play className="w-5 h-5" /> Start — {stripWeekdayPrefix(todayDay.label ?? '')}
@@ -336,8 +346,8 @@ export default function ProgramDetailPage() {
               ) : (
                 <div className="p-4 bg-surface border border-white/8 rounded-2xl text-center">
                   <Moon className="w-5 h-5 text-text-tertiary mx-auto mb-1" />
-                  <p className="text-sm text-text-secondary">Rest day today</p>
-                  <p className="text-xs text-text-tertiary mt-0.5">Come back tomorrow</p>
+                  <p className="text-sm text-text-secondary">Rest day</p>
+                  <p className="text-xs text-text-tertiary mt-0.5">Recovery is part of the program too.</p>
                 </div>
               )}
               <Button variant="ghost" fullWidth size="sm" onClick={() => router.push('/training')}>
@@ -370,25 +380,25 @@ export default function ProgramDetailPage() {
           )}
         </motion.div>
 
-        {/* Today's Workout — hidden once the trial's day-limit is hit;
-            the CTA above already explains the lock and offers to subscribe. */}
+        {/* Next Workout — hidden once the trial's day-limit is hit; the CTA
+            above already explains the lock and offers to subscribe.
+            Always the next not-yet-completed day, startable immediately
+            regardless of whether the user already trained today. */}
         {isEnrolled && todayDay && !nextIsLocked && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
-            <h2 className="text-base font-bold text-white mb-3">Today&apos;s Workout</h2>
-            <Card className={`p-4 ${workedOutToday ? 'border-success/30' : isRestToday ? 'border-white/5' : 'border-accent/30'}`}>
+            <h2 className="text-base font-bold text-white mb-3">Next Workout</h2>
+            <Card className={`p-4 ${isRestToday ? 'border-white/5' : 'border-accent/30'}`}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  {workedOutToday ? (
-                    <CheckCircle2 className="w-4 h-4 text-success" />
-                  ) : isRestToday ? (
+                  {isRestToday ? (
                     <Moon className="w-4 h-4 text-text-tertiary" />
                   ) : (
                     <Dumbbell className="w-4 h-4 text-accent" />
                   )}
                   <span className="text-sm font-bold text-white">{stripWeekdayPrefix(todayDay.label)}</span>
-                  {workedOutToday ? <Badge variant="success">Done</Badge> : isRestToday ? <Badge variant="muted">Rest</Badge> : null}
+                  {isRestToday ? <Badge variant="muted">Rest</Badge> : null}
                 </div>
-                {!isRestToday && !workedOutToday && (
+                {!isRestToday && (
                   <Button size="sm" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
                     <Play className="w-4 h-4" /> Start
                   </Button>
@@ -398,8 +408,8 @@ export default function ProgramDetailPage() {
                 <div className="space-y-2 mt-2">
                   {todayDay.exercises.map((ex, i) => (
                     <div key={ex.id ?? i} className="flex items-center justify-between text-sm">
-                      <CheckCircle className={`w-3 h-3 flex-shrink-0 ${workedOutToday ? 'text-success' : 'text-text-tertiary'}`} />
-                      <span className={`flex-1 ml-2 ${workedOutToday ? 'text-text-secondary line-through' : 'text-text-secondary'}`}>{ex.name}</span>
+                      <CheckCircle className="w-3 h-3 flex-shrink-0 text-text-tertiary" />
+                      <span className="flex-1 ml-2 text-text-secondary">{ex.name}</span>
                       <span className="text-text-tertiary text-xs">{ex.sets}×{ex.reps}</span>
                     </div>
                   ))}
@@ -445,9 +455,13 @@ export default function ProgramDetailPage() {
                       const absoluteDay = weekIdx * scheduleLen + idx;
                       // Is this slot the one the user is currently on?
                       const isToday = isEnrolled && weekIdx === currentWeek && idx === todayDayIndex;
+                      // nextAbsIdx always points at the next not-yet-done day now
+                      // (see workedOutToday above), so anything before it —
+                      // including "today"'s slot once nextAbsIdx has moved past
+                      // it — is genuinely completed. No separate workedOutToday
+                      // check needed here anymore.
                       const isPast = isEnrolled && absoluteDay < nextAbsIdx && !isToday;
-                      const isDoneToday = isToday && workedOutToday;
-                      const isCompleted = (isPast || isDoneToday) && !day.isRest;
+                      const isCompleted = isPast && !day.isRest;
                       const isExpanded = expandedDay === absoluteDay;
 
                       const isUpcoming = isEnrolled && !isToday && !isPast;
