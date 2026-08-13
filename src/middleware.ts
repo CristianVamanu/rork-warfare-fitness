@@ -25,23 +25,19 @@ export function middleware(request: NextRequest) {
   const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://digimetrix.ai`,
-    // style-src is a fallback for browsers that don't understand the
-    // style-src-elem/style-src-attr split below (per spec, those two only
-    // override style-src in browsers that support them) — kept strict, no
-    // unsafe-inline, since it only matters for older engines that also
-    // don't understand the narrower directives.
-    "style-src 'self' https://fonts.googleapis.com",
-    // <style> tags/stylesheets: same-origin and Google Fonts only, no
-    // unsafe-inline — this app doesn't inject raw <style> blocks.
-    "style-src-elem 'self' https://fonts.googleapis.com",
-    // Framer Motion (used extensively across this app) animates by writing
-    // directly to elements' style="" attributes at runtime — CSP has no
-    // nonce/hash mechanism for that, only an allow-or-block unsafe-inline
-    // toggle, so this one has to stay permissive or every animation on the
-    // site breaks. Scoping unsafe-inline to style-src-attr specifically
-    // (rather than the old blanket style-src) means an attacker-injected
-    // <style> block is still blocked outright — only inline style=""
-    // attribute writes are exempt, which is genuinely all this app needs.
+    // A prior attempt scoped unsafe-inline to style-src-attr only, on the
+    // assumption this app never injects raw <style> blocks — that was
+    // wrong. Framer Motion (AnimatePresence/layout animations) and the
+    // digimetrix.ai chat widget both inject actual <style> elements at
+    // runtime, which style-src-elem governs, not style-src-attr — the
+    // scoped version blocked those outright (observed live: "Applying
+    // inline style violates... style-src-elem", widget/animations broken
+    // in production). unsafe-inline has to cover both style-src-elem and
+    // style-src-attr for this app to render correctly; style-src is kept
+    // as the combined fallback for browsers that don't support the elem/
+    // attr split at all.
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "style-src-attr 'unsafe-inline'",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
