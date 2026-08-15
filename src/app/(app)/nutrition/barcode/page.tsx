@@ -283,7 +283,7 @@ export default function BarcodePage() {
         </div>
       </div>
 
-      <div className="px-4 py-6 space-y-5 max-w-lg mx-auto">
+      <div className="px-4 py-6 space-y-5 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
         {remaining !== null && (
           <p className={`text-xs font-semibold text-center ${remaining === 0 ? 'text-red-400' : 'text-text-tertiary'}`}>
             {remaining === 0 ? 'No scans left today — try again tomorrow' : `${remaining} scan${remaining === 1 ? '' : 's'} left today`}

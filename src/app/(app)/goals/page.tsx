@@ -151,7 +151,7 @@ export default function GoalsPage() {
   return (
     <div>
       <Header title="My Goals" showBack />
-      <div className="px-4 py-4 max-w-lg mx-auto space-y-3">
+      <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-3">
         {weightGoal && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <WeightGoalCard

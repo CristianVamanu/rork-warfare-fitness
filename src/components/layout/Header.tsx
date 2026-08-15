@@ -78,7 +78,7 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
       style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--border-subtle)' }}
       className="sticky top-0 z-30 backdrop-blur-xl border-b"
     >
-      <div className="flex items-center justify-between px-4 py-3 max-w-lg mx-auto">
+      <div className="flex items-center justify-between px-4 py-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
         {title ? (
           <div className="flex items-center gap-1">
             {showBack && (

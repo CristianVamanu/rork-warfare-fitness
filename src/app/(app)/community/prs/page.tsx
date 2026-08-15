@@ -54,7 +54,7 @@ export default function PRWallPage() {
     <div className="min-h-screen bg-background pb-24">
       <Header title="PR Wall" showBack />
       <PaywallGate feature="pr-wall" noTaste>
-      <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
+      <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-4">
         {isBanned ? (
           <Card className="p-4 border-danger/30">
             <p className="text-sm text-danger font-bold mb-1">You can&apos;t post to the PR Wall</p>

@@ -162,7 +162,7 @@ function RestPill({ seconds, total, onSkip, onExtend }: RestPillProps) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 80, scale: 0.9 }}
       transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-      className="fixed bottom-24 left-4 right-4 z-50 max-w-lg mx-auto"
+      className="fixed bottom-24 left-4 right-4 z-50 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto"
     >
       <div className="bg-surface-elevated border border-white/12 rounded-2xl p-4 shadow-xl">
         <div className="flex items-center gap-4">
@@ -1634,7 +1634,7 @@ function WorkoutSessionPageInner() {
     <div className="min-h-screen bg-background flex flex-col">
       {/* ── Sticky header ─────────────────────────────────────────────── */}
       <div className="sticky top-0 z-30 bg-background/90 backdrop-blur-xl border-b border-white/8">
-        <div className="px-4 py-3 max-w-lg mx-auto">
+        <div className="px-4 py-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-2">
             <button
               onClick={() => setQuitModal(true)}
@@ -1674,7 +1674,7 @@ function WorkoutSessionPageInner() {
 
       {/* ── Body ──────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto pb-40">
-        <div className="px-4 py-4 max-w-lg mx-auto space-y-3">
+        <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-3">
           {/* Exercise title card */}
           <AnimatePresence mode="wait">
             <motion.div
@@ -1785,7 +1785,7 @@ function WorkoutSessionPageInner() {
 
       {/* ── Finish Workout button (shown when all sets done) ─────────── */}
       {allExercisesDone && !completeModal && (
-        <div className="fixed bottom-20 left-4 right-4 z-50 max-w-lg mx-auto">
+        <div className="fixed bottom-20 left-4 right-4 z-50 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <Button fullWidth size="lg" onClick={() => setCompleteModal(true)}>
               <CheckCircle className="w-5 h-5" /> Finish Workout
@@ -1796,7 +1796,7 @@ function WorkoutSessionPageInner() {
 
       {/* ── Exercise nav ──────────────────────────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-xl border-t border-white/8 pb-safe">
-        <div className="px-4 py-3 max-w-lg mx-auto flex items-center gap-3">
+        <div className="px-4 py-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"

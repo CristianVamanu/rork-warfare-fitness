@@ -165,7 +165,7 @@ export default function ScanAndGoPage() {
   return (
     <div>
       <Header title="Scan & Go" showBack />
-      <div className="px-4 py-4 space-y-5 max-w-lg mx-auto">
+      <div className="px-4 py-4 space-y-5 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
         {!result && (
           <>
             <Card className="p-5 text-center">

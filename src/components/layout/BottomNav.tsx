@@ -22,7 +22,7 @@ export function BottomNav() {
       style={{ backgroundColor: 'var(--nav-bg)', borderColor: 'var(--border-subtle)' }}
       className="fixed bottom-0 inset-x-0 z-40 backdrop-blur-xl border-t pb-safe"
     >
-      <div className="flex items-center justify-around px-2 py-2 max-w-lg mx-auto">
+      <div className="flex items-center justify-around px-2 py-2 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
         {navItems.map(({ href, icon: Icon, label }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
           return (

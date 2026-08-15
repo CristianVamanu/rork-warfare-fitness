@@ -296,7 +296,7 @@ export default function PtTestPage() {
       return (
         <div>
           <Header title={`${std.label} Result`} showBack />
-          <div className="px-4 py-6 max-w-lg mx-auto text-center">
+          <div className="px-4 py-6 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto text-center">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
               <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${result.standardPassed ? 'bg-accent-muted' : 'bg-white/5'}`}>
                 <Target className={`w-8 h-8 ${result.standardPassed ? 'text-accent' : 'text-text-secondary'}`} />
@@ -329,7 +329,7 @@ export default function PtTestPage() {
     return (
       <div>
         <Header title="PT Test Result" showBack />
-        <div className="px-4 py-6 max-w-lg mx-auto text-center">
+        <div className="px-4 py-6 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto text-center">
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
             <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-4">
               <Trophy className="w-8 h-8 text-accent" />
@@ -365,7 +365,7 @@ export default function PtTestPage() {
   return (
     <div>
       <Header title="PT Test" showBack />
-      <div className="px-4 py-4 max-w-lg mx-auto space-y-5">
+      <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-5">
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setStandardId('generic')}
