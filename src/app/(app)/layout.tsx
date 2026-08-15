@@ -8,6 +8,7 @@ import { BottomNav } from '@/components/layout/BottomNav';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { PwaInstallBanner } from '@/components/ui/PwaInstallBanner';
 import { MembershipGuard } from '@/components/ui/MembershipGuard';
+import { AppBackground } from '@/components/ui/AppBackground';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
@@ -47,8 +48,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const hideNav = pathname === '/banned';
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="pb-24 max-w-lg mx-auto">
+    // No bg-background here — redundant with <body>'s own background-color
+    // (same var(--background) token), which is all that's needed as the
+    // fallback base paint before/around AppBackground's fixed decorative
+    // layer underneath.
+    <div className="min-h-screen">
+      <AppBackground />
+      <main className="pb-24 max-w-lg mx-auto relative">
         <MembershipGuard pathname={pathname}>{children}</MembershipGuard>
       </main>
       {!hideNav && <BottomNav />}

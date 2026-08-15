@@ -118,6 +118,73 @@ body {
   bottom: calc(4rem + 10px + env(safe-area-inset-bottom, 0px));
 }
 
+/* App background — subtle tech-grid + drifting glow orbs, rendered behind
+   the content column. Only visible in the empty side margins on wide/
+   desktop viewports; on mobile the content column covers the full width
+   so this is never seen. Kept very low-opacity so it reads as texture,
+   not decoration competing with real content. */
+.app-bg-grid {
+  background-image:
+    linear-gradient(rgba(var(--accent-rgb), 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--accent-rgb), 0.06) 1px, transparent 1px);
+  background-size: 56px 56px;
+  /* Fades the grid out toward the center so it never competes with the
+     actual content column that sits there. */
+  mask-image: radial-gradient(ellipse 60% 60% at center, transparent 40%, black 100%);
+  -webkit-mask-image: radial-gradient(ellipse 60% 60% at center, transparent 40%, black 100%);
+}
+
+.app-bg-orb {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.22) 0%, rgba(var(--accent-rgb), 0) 70%);
+  filter: blur(40px);
+  will-change: transform;
+}
+
+.app-bg-orb-1 {
+  width: 42vw;
+  height: 42vw;
+  top: -10%;
+  left: -12%;
+  animation: app-bg-drift-1 26s ease-in-out infinite;
+}
+
+.app-bg-orb-2 {
+  width: 36vw;
+  height: 36vw;
+  bottom: -14%;
+  right: -10%;
+  animation: app-bg-drift-2 32s ease-in-out infinite;
+}
+
+.app-bg-orb-3 {
+  width: 24vw;
+  height: 24vw;
+  top: 40%;
+  left: 65%;
+  animation: app-bg-drift-3 22s ease-in-out infinite;
+}
+
+@keyframes app-bg-drift-1 {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(4vw, 5vh); }
+}
+
+@keyframes app-bg-drift-2 {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-3vw, -6vh); }
+}
+
+@keyframes app-bg-drift-3 {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-5vw, 3vh); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-bg-orb { animation: none; }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
