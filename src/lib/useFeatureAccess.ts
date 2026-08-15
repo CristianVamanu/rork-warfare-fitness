@@ -57,8 +57,15 @@ export function useFeatureAccess(feature?: string, programId?: string): FeatureA
     return ms < trialDays * 24 * 60 * 60 * 1000;
   })();
 
+  // Admins/trainers always bypass — same exception MembershipGuard already
+  // makes for the full-app paywall. Without this, an admin previewing a
+  // feature they haven't personally subscribed to (they manage the
+  // platform, they don't buy their own plans) hits the same "Members Only"
+  // wall a real non-member would, with no way through it.
+  const isStaff = profile?.role === 'admin' || profile?.role === 'trainer';
+
   let isLocked = false;
-  if (config && config.enabled && !inTrial) {
+  if (!isStaff && config && config.enabled && !inTrial) {
     if (hasMembership) {
       const activePlan = profile?.membership?.planId
         ? plans.find((p) => p.id === profile.membership!.planId) ?? null
