@@ -79,6 +79,12 @@ function AnalyzeFoodPageInner() {
   const [todayCalories, setTodayCalories] = useState(0);
   const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
   const [remaining, setRemaining] = useState<number | null>(null);
+  // The model estimates calories/macros for the whole portion shown in the
+  // photo, with no way to correct it when the guess is off (e.g. "I only
+  // ate half of what's on the plate," or the AI mis-estimated a larger
+  // portion than what's actually there). This scales its raw estimate
+  // before it's shown or logged.
+  const [portionPct, setPortionPct] = useState(100);
 
   useEffect(() => {
     if (!user) return;
@@ -127,6 +133,7 @@ function AnalyzeFoodPageInner() {
       if (typeof data.remaining === 'number') setRemaining(data.remaining);
       if (!res.ok) throw new Error(data.error || text || `HTTP ${res.status}`);
       setResult(data);
+      setPortionPct(100);
       if (tasteAvailable) consumeAiTaste(user.uid, 'nutrition-ai').catch(console.error);
     } catch (err: unknown) {
       const msg = (err as Error)?.message || String(err);
@@ -136,9 +143,18 @@ function AnalyzeFoodPageInner() {
     }
   };
 
+  const portionScale = portionPct / 100;
+  const scaledResult = result ? {
+    ...result,
+    calories: Math.round(result.calories * portionScale),
+    protein: Math.round(result.protein * portionScale * 10) / 10,
+    carbs: Math.round(result.carbs * portionScale * 10) / 10,
+    fat: Math.round(result.fat * portionScale * 10) / 10,
+  } : null;
+
   const addToLog = async () => {
-    if (!result || !user) return;
-    const projectedCalories = todayCalories + result.calories;
+    if (!scaledResult || !user) return;
+    const projectedCalories = todayCalories + scaledResult.calories;
     if (projectedCalories > goals.calories) {
       const over = projectedCalories - goals.calories;
       const ok = window.confirm(
@@ -148,8 +164,8 @@ function AnalyzeFoodPageInner() {
     }
     setSaving(true);
     try {
-      await logMealAction(user.uid, { ...result, mealType });
-      toast.success(`${result.name} added to ${mealType}`);
+      await logMealAction(user.uid, { ...scaledResult, mealType });
+      toast.success(`${scaledResult.name} added to ${mealType}`);
       router.back();
     } catch (err: unknown) {
       const e = err as Error & { code?: string };
@@ -159,8 +175,8 @@ function AnalyzeFoodPageInner() {
     }
   };
 
-  const caloriesAfter = result ? todayCalories + result.calories : todayCalories;
-  const willExceed = result && caloriesAfter > goals.calories;
+  const caloriesAfter = scaledResult ? todayCalories + scaledResult.calories : todayCalories;
+  const willExceed = scaledResult && caloriesAfter > goals.calories;
 
   return (
     <PaywallGate feature="nutrition-ai">
@@ -249,7 +265,7 @@ function AnalyzeFoodPageInner() {
 
         {/* Result Card */}
         <AnimatePresence>
-          {result && (
+          {result && scaledResult && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -258,14 +274,37 @@ function AnalyzeFoodPageInner() {
               <Card className="p-5 space-y-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-lg font-black text-white">{result.name}</h3>
-                    <p className="text-2xl font-black text-accent mt-1">{result.calories} kcal</p>
+                    <h3 className="text-lg font-black text-white">{scaledResult.name}</h3>
+                    <p className="text-2xl font-black text-accent mt-1">{scaledResult.calories} kcal</p>
                     <p className="text-xs text-text-secondary mt-0.5">
                       Today: {todayCalories} → {caloriesAfter} / {goals.calories} kcal
                     </p>
                   </div>
                   <div className={`p-2 rounded-xl ${willExceed ? 'bg-red-400/10' : 'bg-green-400/10'}`}>
                     <span className="text-xl">{willExceed ? '⚠️' : '✅'}</span>
+                  </div>
+                </div>
+
+                {/* Portion adjuster — the AI estimates the whole photographed
+                    portion with no way to correct it (e.g. only half the
+                    plate was actually eaten). 100% = AI's raw estimate. */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs text-text-secondary">Portion actually eaten</p>
+                    <span className="text-xs font-bold text-white">{portionPct}%</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {[50, 75, 100, 150, 200].map((pct) => (
+                      <button
+                        key={pct}
+                        onClick={() => setPortionPct(pct)}
+                        className={`flex-1 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                          portionPct === pct ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'
+                        }`}
+                      >
+                        {pct}%
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -280,9 +319,9 @@ function AnalyzeFoodPageInner() {
 
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { icon: Beef, label: 'Protein', value: result.protein, unit: 'g', color: 'text-red-400', bg: 'bg-red-400/10' },
-                    { icon: Wheat, label: 'Carbs', value: result.carbs, unit: 'g', color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-                    { icon: Flame, label: 'Fat', value: result.fat, unit: 'g', color: 'text-orange-400', bg: 'bg-orange-400/10' },
+                    { icon: Beef, label: 'Protein', value: scaledResult.protein, unit: 'g', color: 'text-red-400', bg: 'bg-red-400/10' },
+                    { icon: Wheat, label: 'Carbs', value: scaledResult.carbs, unit: 'g', color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+                    { icon: Flame, label: 'Fat', value: scaledResult.fat, unit: 'g', color: 'text-orange-400', bg: 'bg-orange-400/10' },
                   ].map(({ icon: Icon, label, value, unit, color, bg }) => (
                     <div key={label} className={`p-3 ${bg} rounded-xl text-center`}>
                       <Icon className={`w-4 h-4 ${color} mx-auto mb-1`} />

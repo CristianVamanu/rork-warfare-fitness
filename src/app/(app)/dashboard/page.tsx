@@ -15,6 +15,7 @@ import { getLevelTier } from '@/lib/xp';
 import { Card } from '@/components/ui/Card';
 import { FastingWidget } from '@/components/dashboard/FastingWidget';
 import { DaysWithoutWidget } from '@/components/dashboard/DaysWithoutWidget';
+import { WeekProgressLine } from '@/components/dashboard/WeekProgressLine';
 import { Header } from '@/components/layout/Header';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -242,6 +243,11 @@ export default function DashboardPage() {
   const nextAbsIdx = nextSession?.index ?? lastCompleted + 1;
   const todayDay = nextSession?.day ?? null;
   const isRestToday = nextSession?.isRestToday ?? false;
+  // Every program's schedule template is enforced to be exactly 7 entries
+  // (see programs.ts) — this maps nextAbsIdx onto "which day of the
+  // CURRENT week of the program" for WeekProgressLine below.
+  const weekScheduleLen = (programSource?.phases?.[0]?.schedule ?? programSource?.schedule)?.length || 7;
+  const todayDayIndex = nextAbsIdx % weekScheduleLen;
   const programPct = activeProgram
     ? Math.min(100, Math.round((completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
@@ -275,6 +281,7 @@ export default function DashboardPage() {
   return (
     <div>
       <Header />
+      {activeProgram && <WeekProgressLine currentDayIndex={todayDayIndex} daysLength={weekScheduleLen} />}
       <div className="px-4 py-4 space-y-5">
         {/* Streak Urgency Banner */}
         {streakAtRisk && (

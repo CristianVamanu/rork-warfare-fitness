@@ -63,6 +63,10 @@ export default function BarcodePage() {
   const [labels, setLabels] = useState<string[]>([]);
   const [showScoreDetail, setShowScoreDetail] = useState(false);
   const [mealType, setMealType] = useState<MealType>('snack');
+  // OpenFoodFacts always returns values per 100g — logging that raw meant
+  // scanning a whole box of cereal and hitting "Add to Log" always recorded
+  // exactly 100g's worth, with no way to say "I actually ate 250g of this."
+  const [servingGrams, setServingGrams] = useState(100);
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -208,6 +212,7 @@ export default function BarcodePage() {
     setAdditives([]);
     setNutrientLevels(null);
     setLabels([]);
+    setServingGrams(100);
     try {
       if (!user) throw new Error('Not signed in');
       const token = await getIdToken(user);
@@ -233,16 +238,24 @@ export default function BarcodePage() {
     }
   };
 
+  // OpenFoodFacts figures are always per 100g — scale by the serving size
+  // the user actually entered before it's shown or logged.
+  const servingScale = servingGrams / 100;
+  const scaledCalories = result ? Math.round(result.calories * servingScale) : 0;
+  const scaledProtein = result ? Math.round(result.protein * servingScale * 10) / 10 : 0;
+  const scaledCarbs = result ? Math.round(result.carbs * servingScale * 10) / 10 : 0;
+  const scaledFat = result ? Math.round(result.fat * servingScale * 10) / 10 : 0;
+
   const addToLog = async () => {
     if (!result || !user) return;
     setSaving(true);
     try {
       await logMealAction(user.uid, {
         name: productName || result.name,
-        calories: result.calories,
-        protein: result.protein,
-        carbs: result.carbs,
-        fat: result.fat,
+        calories: scaledCalories,
+        protein: scaledProtein,
+        carbs: scaledCarbs,
+        fat: scaledFat,
         mealType,
       });
       toast.success('Added to log!');
@@ -414,8 +427,8 @@ export default function BarcodePage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h3 className="text-lg font-black text-white">{productName || result.name}</h3>
-                    <p className="text-2xl font-black text-accent mt-1">{result.calories} kcal</p>
-                    <p className="text-xs text-text-secondary mt-0.5">per 100g</p>
+                    <p className="text-2xl font-black text-accent mt-1">{scaledCalories} kcal</p>
+                    <p className="text-xs text-text-secondary mt-0.5">for {servingGrams}g ({result.calories} kcal per 100g)</p>
                   </div>
                   {(nutriScoreGrade || novaGroup) && (
                     <button onClick={() => setShowScoreDetail(true)} className="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -426,11 +439,43 @@ export default function BarcodePage() {
                   )}
                 </div>
 
+                {/* Serving size — OpenFoodFacts only ever gives per-100g
+                    figures; without this, logging a whole package always
+                    recorded exactly 100g's worth regardless of how much was
+                    actually eaten. */}
+                <div>
+                  <p className="text-xs text-text-secondary mb-1.5">Amount eaten</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={1}
+                      value={servingGrams}
+                      onChange={(e) => setServingGrams(Math.max(0, Number(e.target.value) || 0))}
+                      className="w-24 bg-surface-elevated border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent/40"
+                    />
+                    <span className="text-sm text-text-secondary">grams</span>
+                    <div className="flex gap-1.5 ml-auto">
+                      {[100, 200, 300].map((g) => (
+                        <button
+                          key={g}
+                          onClick={() => setServingGrams(g)}
+                          className={`px-2.5 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                            servingGrams === g ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'
+                          }`}
+                        >
+                          {g}g
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { icon: Beef, label: 'Protein', value: result.protein, color: 'text-red-400', bg: 'bg-red-400/10' },
-                    { icon: Wheat, label: 'Carbs', value: result.carbs, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-                    { icon: Flame, label: 'Fat', value: result.fat, color: 'text-orange-400', bg: 'bg-orange-400/10' },
+                    { icon: Beef, label: 'Protein', value: scaledProtein, color: 'text-red-400', bg: 'bg-red-400/10' },
+                    { icon: Wheat, label: 'Carbs', value: scaledCarbs, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+                    { icon: Flame, label: 'Fat', value: scaledFat, color: 'text-orange-400', bg: 'bg-orange-400/10' },
                   ].map(({ icon: Icon, label, value, color, bg }) => (
                     <div key={label} className={`p-3 ${bg} rounded-xl text-center`}>
                       <Icon className={`w-4 h-4 ${color} mx-auto mb-1`} />
@@ -454,7 +499,7 @@ export default function BarcodePage() {
                   ))}
                 </div>
 
-                <Button fullWidth size="lg" loading={saving} onClick={addToLog}>
+                <Button fullWidth size="lg" loading={saving} disabled={servingGrams <= 0} onClick={addToLog}>
                   Add to Log
                 </Button>
               </Card>
