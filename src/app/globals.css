@@ -125,8 +125,8 @@ body {
    not decoration competing with real content. */
 .app-bg-grid {
   background-image:
-    linear-gradient(rgba(var(--accent-rgb), 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(var(--accent-rgb), 0.06) 1px, transparent 1px);
+    linear-gradient(rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px);
   background-size: 56px 56px;
   /* Fades the grid out toward the center so it never competes with the
      actual content column that sits there. */
@@ -137,7 +137,7 @@ body {
 .app-bg-orb {
   position: absolute;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.22) 0%, rgba(var(--accent-rgb), 0) 70%);
+  background: radial-gradient(circle, rgb(var(--accent-rgb) / 0.22) 0%, rgb(var(--accent-rgb) / 0) 70%);
   filter: blur(40px);
   will-change: transform;
 }
