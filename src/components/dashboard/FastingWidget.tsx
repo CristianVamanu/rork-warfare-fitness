@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Timer, Flame, X, Quote } from 'lucide-react';
+import { Timer, Flame, X, Quote, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { startFasting, stopFasting } from '@/lib/firestore';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -46,6 +47,13 @@ function formatDuration(ms: number): string {
 
 export function FastingWidget() {
   const { user, profile } = useAuth();
+  // No `noTaste` equivalent needed here — this widget never calls
+  // consumeAiTaste, so the same one-visit-forever loophole PaywallGate
+  // guards against with its noTaste prop would apply here too if left
+  // unhandled. Checked directly (not `tasteAvailable`) so a locked plan
+  // always renders the compact locked tile below, dashboard-grid-sized
+  // rather than PaywallGate's full-page upsell layout.
+  const { loaded: accessLoaded, isLocked: fastingLocked } = useFeatureAccess('fasting');
   const [now, setNow] = useState(Date.now());
   const [startModal, setStartModal] = useState(false);
   const [detailModal, setDetailModal] = useState(false);
@@ -89,6 +97,20 @@ export function FastingWidget() {
       setStopping(false);
     }
   };
+
+  if (accessLoaded && fastingLocked) {
+    return (
+      <Card className="p-4 flex items-center gap-3 opacity-70">
+        <div className="p-2.5 rounded-xl bg-blue-400/10">
+          <Lock className="w-5 h-5 text-blue-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-white">Fasting</p>
+          <p className="text-xs text-text-secondary">Included on select plans</p>
+        </div>
+      </Card>
+    );
+  }
 
   if (!fasting) {
     return (

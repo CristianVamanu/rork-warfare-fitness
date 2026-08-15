@@ -13,6 +13,13 @@ interface Props {
   feature?: string; // 'barcode' | 'nutrition-ai' | 'meal-planner' | undefined (means fullLock check only)
   programId?: string;
   children: React.ReactNode;
+  // The one-time "taste" grace period only actually ends once the caller
+  // explicitly calls consumeAiTaste() after a successful result (the AI
+  // tool pages do this). Features with no such callback — community,
+  // quests, breathing, etc. — would otherwise show the taste banner
+  // forever and never actually lock, since `tasted` would never flip
+  // true. Set this for any feature that isn't wired up to consumeAiTaste.
+  noTaste?: boolean;
 }
 
 /**
@@ -31,7 +38,7 @@ interface Props {
  * itself calls consumeAiTaste() after an actual successful result, which
  * flips `tasted` true and the wall shows on the next visit.
  */
-export function PaywallGate({ feature, programId, children }: Props) {
+export function PaywallGate({ feature, programId, children, noTaste }: Props) {
   const { user, profile } = useAuth();
   const [subscribingId, setSubscribingId] = useState<string | null>(null);
   const { loaded, config, plans, hasMembership, inTrial, isLocked, tasteAvailable } = useFeatureAccess(feature, programId);
@@ -49,7 +56,7 @@ export function PaywallGate({ feature, programId, children }: Props) {
 
   if (!isLocked) return <>{children}</>;
 
-  if (tasteAvailable) {
+  if (tasteAvailable && !noTaste) {
     return (
       <>
         <div className="mx-4 mt-3 p-2.5 rounded-xl bg-accent-muted border border-accent/20 flex items-center gap-2">

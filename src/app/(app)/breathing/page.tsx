@@ -8,6 +8,7 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 
 // ─── Breathing methods ──────────────────────────────────────────────────────
 // Each phase drives both the visual guide's scale target and its duration —
@@ -230,6 +231,7 @@ export default function BreathingPage() {
   return (
     <div>
       {step !== 'session' && <Header title="Breathing" showBack />}
+      <PaywallGate feature="breathing" noTaste>
 
       {step === 'method' && (
         <div className="px-4 py-4 space-y-3 max-w-lg mx-auto">
@@ -362,6 +364,7 @@ export default function BreathingPage() {
           </motion.div>
         </div>
       )}
+      </PaywallGate>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import Link from 'next/link';
 import type { Channel } from '@/types';
 
@@ -104,7 +105,7 @@ function CommunityPageInner() {
 
         {/* Channels tab */}
         {tab === 'channels' && (
-          <>
+          <PaywallGate feature="community" noTaste>
             {loading ? (
               <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-2xl" />)}</div>
             ) : channels.length === 0 ? (
@@ -145,11 +146,12 @@ function CommunityPageInner() {
                 ))}
               </div>
             )}
-          </>
+          </PaywallGate>
         )}
 
         {/* Leaderboard tab */}
         {tab === 'leaderboard' && (
+          <PaywallGate feature="leaderboard" noTaste>
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Trophy className="w-4 h-4 text-accent" />
@@ -232,6 +234,7 @@ function CommunityPageInner() {
               );
             })}
           </div>
+          </PaywallGate>
         )}
       </div>
     </div>

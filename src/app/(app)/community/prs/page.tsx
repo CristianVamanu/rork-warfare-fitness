@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import { subscribePRFeed, createPRPost, likePRPost, deletePRPost, getSystemConfig } from '@/lib/firestore';
 import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import type { PRPost } from '@/types';
@@ -52,6 +53,7 @@ export default function PRWallPage() {
   return (
     <div className="min-h-screen bg-background pb-24">
       <Header title="PR Wall" showBack />
+      <PaywallGate feature="pr-wall" noTaste>
       <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
         {isBanned ? (
           <Card className="p-4 border-danger/30">
@@ -102,6 +104,7 @@ export default function PRWallPage() {
           ))
         )}
       </div>
+      </PaywallGate>
     </div>
   );
 }

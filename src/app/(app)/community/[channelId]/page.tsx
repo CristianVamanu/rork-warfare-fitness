@@ -18,6 +18,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import type { Channel, ChannelPost } from '@/types';
 
 function toDate(ts: unknown): Date | null {
@@ -449,6 +450,7 @@ export default function ChannelPage() {
   const COMPOSE_HEIGHT = channel.photoUploadEnabled ? 68 : 60;
 
   return (
+    <PaywallGate feature="community" noTaste>
     <div className="flex flex-col min-h-screen bg-background">
       {/* ── Header ── */}
       <div className="sticky top-0 z-30 bg-background/90 backdrop-blur-xl border-b border-white/8">
@@ -675,5 +677,6 @@ export default function ChannelPage() {
         )}
       </AnimatePresence>
     </div>
+    </PaywallGate>
   );
 }

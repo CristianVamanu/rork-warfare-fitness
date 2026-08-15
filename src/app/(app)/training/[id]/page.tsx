@@ -13,6 +13,7 @@ import {
 import { resolveProgram, enrollInProgram, getMembershipConfig } from '@/lib/firestore';
 import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix, getScheduleForWeek, getNextSession } from '@/lib/programs';
 import { getProgramDayLimit } from '@/lib/membership';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -149,12 +150,24 @@ export default function ProgramDetailPage() {
   // normally-free program without editing the program itself.
   const isLockedByConfig = !!membershipConfig?.enabled && !!program?.id
     && (membershipConfig.lockedProgramIds ?? []).includes(program.id);
+  // Only pass a programId to the hook for programs that actually need
+  // gating — passing it unconditionally would make useFeatureAccess treat
+  // every program as needing the 'premium-programs' entitlement, locking
+  // ordinary free programs out for any member whose plan restricts tools
+  // at all. This also correctly folds in per-plan tiering (a Conquer
+  // subscriber's plan.featureAccess can omit 'premium-programs' while a
+  // Vanguard/Hero plan's includes it or is left unrestricted) and honors
+  // the free trial the same way every other gated feature does — the
+  // previous plain `!hasMembership` check locked premium programs even
+  // during an active trial, which was itself a real bug.
+  const gatedProgramId = program && (program.isPremium || isLockedByConfig) ? program.id : undefined;
+  const { isLocked: programAccessLocked } = useFeatureAccess(undefined, gatedProgramId);
 
   const handleEnroll = async (force = false) => {
     if (!user || !program) return;
     // Defense-in-depth — the button that calls this is already hidden
     // behind isMembershipLocked, but never trust a client-side gate alone.
-    if ((program.isPremium || isLockedByConfig) && !hasMembership) return;
+    if (programAccessLocked) return;
     if (hasDifferentProgram && !force) {
       setSwitchModal(true);
       return;
@@ -184,7 +197,7 @@ export default function ProgramDetailPage() {
   // badge and did nothing else, so marking a program premium never
   // actually restricted access to it. Unlike `price` (a one-time purchase
   // alternative), isPremium means membership-only with no purchase bypass.
-  const isMembershipLocked = (!!program?.isPremium || isLockedByConfig) && !hasMembership;
+  const isMembershipLocked = programAccessLocked;
 
   const handleBuyProgram = async () => {
     if (!user || !program) return;
@@ -359,7 +372,9 @@ export default function ProgramDetailPage() {
               <Lock className="w-6 h-6 text-accent mx-auto mb-1.5" />
               <p className="text-sm font-bold text-white">Members Only</p>
               <p className="text-xs text-text-secondary mt-0.5 mb-3">
-                This program is included with an active membership. Subscribe to unlock it.
+                {hasMembership
+                  ? "Your current plan doesn't include this program. Upgrade to unlock it."
+                  : 'This program is included with an active membership. Subscribe to unlock it.'}
               </p>
               <Button size="sm" fullWidth onClick={() => router.push('/profile')}>
                 <Crown className="w-4 h-4" /> View Plans

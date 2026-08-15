@@ -47,6 +47,37 @@ import { getPlanBillingPeriods } from '@/lib/utils';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'settings';
 
+// Shared by both plan editors (CoachingPlan's Tool Access and
+// MembershipPlan's Tool Access) — feature ids here must match what
+// PaywallGate/useFeatureAccess check against on the gated pages
+// themselves (community, quests, breathing pages; the leaderboard tab
+// within community; FastingWidget on the dashboard).
+const TOOL_ACCESS_OPTIONS = [
+  { id: 'barcode', label: 'Barcode Scanner' },
+  { id: 'nutrition-ai', label: 'AI Food Analyzer' },
+  { id: 'meal-planner', label: 'AI Meal Planner' },
+  { id: 'premium-programs', label: 'Premium Training Plans' },
+  { id: 'community', label: 'Community' },
+  { id: 'leaderboard', label: 'Leaderboard' },
+  { id: 'pr-wall', label: 'PR Wall' },
+  { id: 'quests', label: 'Quests & Achievements' },
+  { id: 'fasting', label: 'Fasting Timer' },
+  { id: 'breathing', label: 'Breathing Exercises' },
+] as const;
+
+const LOCKABLE_FEATURE_OPTIONS = [
+  { id: 'barcode', label: 'Barcode Scanner', desc: 'Nutrition lookup via product barcode' },
+  { id: 'nutrition-ai', label: 'AI Food Analyzer', desc: 'Photo-based nutrition analysis' },
+  { id: 'meal-planner', label: 'AI Meal Planner', desc: 'Generates a full daily meal plan' },
+  { id: 'premium-programs', label: 'Premium Training Plans', desc: 'Programs marked as Premium require membership' },
+  { id: 'community', label: 'Community', desc: 'Channels — browsing and posting' },
+  { id: 'leaderboard', label: 'Leaderboard', desc: 'Power-level rankings' },
+  { id: 'pr-wall', label: 'PR Wall', desc: 'Personal-record posts feed' },
+  { id: 'quests', label: 'Quests & Achievements', desc: 'Quest tracking and achievement badges' },
+  { id: 'fasting', label: 'Fasting Timer', desc: 'Intermittent fasting tracker on the dashboard' },
+  { id: 'breathing', label: 'Breathing Exercises', desc: 'Guided breathing sessions' },
+] as const;
+
 interface SecretStatusUI {
   key: string;
   configured: boolean;
@@ -894,12 +925,7 @@ function AdminPageInner() {
                       Leave all unchecked to grant every feature (default). Check specific ones to restrict this plan to only those.
                     </p>
                     <div className="space-y-1.5">
-                      {[
-                        { id: 'barcode', label: 'Barcode Scanner' },
-                        { id: 'nutrition-ai', label: 'AI Food Analyzer' },
-                        { id: 'meal-planner', label: 'AI Meal Planner' },
-                        { id: 'premium-programs', label: 'Premium Training Plans' },
-                      ].map(({ id, label }) => (
+                      {TOOL_ACCESS_OPTIONS.map(({ id, label }) => (
                         <label key={id} className="flex items-center gap-2.5 py-1 cursor-pointer">
                           <input
                             type="checkbox"
@@ -1112,12 +1138,7 @@ function AdminPageInner() {
                       Leave all unchecked to grant every feature (default). Check specific ones to restrict this plan to only those.
                     </p>
                     <div className="space-y-1.5">
-                      {[
-                        { id: 'barcode', label: 'Barcode Scanner' },
-                        { id: 'nutrition-ai', label: 'AI Food Analyzer' },
-                        { id: 'meal-planner', label: 'AI Meal Planner' },
-                        { id: 'premium-programs', label: 'Premium Training Plans' },
-                      ].map(({ id, label }) => (
+                      {TOOL_ACCESS_OPTIONS.map(({ id, label }) => (
                         <label key={id} className="flex items-center gap-2.5 py-1 cursor-pointer">
                           <input
                             type="checkbox"
@@ -2782,12 +2803,7 @@ function AdminPageInner() {
                     <Shield className="w-4 h-4 text-accent" /> Lockable Features
                   </h2>
                   <p className="text-xs text-text-secondary">Non-members see a paywall on these features.</p>
-                  {[
-                    { id: 'barcode', label: 'Barcode Scanner', desc: 'Nutrition lookup via product barcode' },
-                    { id: 'nutrition-ai', label: 'AI Food Analyzer', desc: 'Photo-based nutrition analysis' },
-                    { id: 'meal-planner', label: 'AI Meal Planner', desc: 'Generates a full daily meal plan' },
-                    { id: 'premium-programs', label: 'Premium Training Plans', desc: 'Programs marked as Premium require membership' },
-                  ].map(({ id, label, desc }) => (
+                  {LOCKABLE_FEATURE_OPTIONS.map(({ id, label, desc }) => (
                     <div key={id} className="flex items-center justify-between py-1">
                       <div>
                         <p className="text-sm font-medium text-white">{label}</p>
