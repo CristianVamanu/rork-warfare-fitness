@@ -75,8 +75,13 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
 
   return (
     <header
-      style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--border-subtle)' }}
-      className="sticky top-0 z-30 backdrop-blur-xl border-b"
+      // Transparent instead of an opaque --header-bg fill — lets
+      // AppBackground's grid/orbs show through instead of the header
+      // reading as a separate solid block sitting on top of it. Still
+      // sticky + backdrop-blur, so scrolled content underneath stays
+      // legible (frosted-glass, not a hard-edged bar) without a border
+      // to draw a line between "header" and "background."
+      className="sticky top-0 z-30 backdrop-blur-xl"
     >
       <div className="flex items-center justify-between px-4 py-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
         {title ? (

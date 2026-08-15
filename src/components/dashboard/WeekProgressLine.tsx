@@ -24,7 +24,7 @@ export function WeekProgressLine({ currentDayIndex, daysLength = 7 }: WeekProgre
     // this at a guessed pixel offset under it would drift out of alignment
     // depending on content. It just sits in normal flow directly below
     // Header in the dashboard's own JSX instead.
-    <div className="px-4 pt-3 pb-4 border-b border-white/8">
+    <div className="px-4 pt-3 pb-4">
       <div className="relative flex items-center justify-between max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
         {/* Base connecting line */}
         <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-px bg-white/10" />
