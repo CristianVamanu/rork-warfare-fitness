@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage, refundUsage, getRemainingUsage } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, refundUsage, getRemainingUsage, resolveLocalDate } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 
 const DAILY_LIMIT = 10;
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const app = getAdminApp();
   if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
 
-  const remaining = await getRemainingUsage(app, authCheck.uid, 'scan-and-go', DAILY_LIMIT);
+  const remaining = await getRemainingUsage(app, authCheck.uid, 'scan-and-go', DAILY_LIMIT, resolveLocalDate(req));
   return NextResponse.json({ remaining, dailyLimit: DAILY_LIMIT });
 }
 
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     const app = getAdminApp();
     if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
-    const usage = await checkAndIncrementUsage(app, uid, 'scan-and-go', DAILY_LIMIT);
+    const usage = await checkAndIncrementUsage(app, uid, 'scan-and-go', DAILY_LIMIT, resolveLocalDate(req));
     if (!usage.allowed) {
       return NextResponse.json({ error: `Daily limit reached (${DAILY_LIMIT}/day). Try again tomorrow.`, remaining: 0 }, { status: 429 });
     }
@@ -135,12 +135,12 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
       parsed = JSON.parse(content);
     } catch {
       console.error('[scan-and-go] Model returned unparseable JSON:', content);
-      await refundUsage(app, uid, 'scan-and-go');
+      await refundUsage(app, uid, 'scan-and-go', resolveLocalDate(req));
       return NextResponse.json({ error: "Couldn't read the AI's response — try again.", remaining: usage.remaining + 1 }, { status: 502 });
     }
 
     if (!parsed.exercises || parsed.exercises.length === 0) {
-      await refundUsage(app, uid, 'scan-and-go');
+      await refundUsage(app, uid, 'scan-and-go', resolveLocalDate(req));
       return NextResponse.json({ error: "Couldn't identify any usable equipment or exercises from those photos — try again with clearer shots.", remaining: usage.remaining + 1 }, { status: 422 });
     }
 
@@ -154,8 +154,8 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
     console.error('[scan-and-go] Error:', err);
     let remaining: number | undefined;
     if (usageApp) {
-      await refundUsage(usageApp, uid, 'scan-and-go');
-      remaining = await getRemainingUsage(usageApp, uid, 'scan-and-go', DAILY_LIMIT);
+      await refundUsage(usageApp, uid, 'scan-and-go', resolveLocalDate(req));
+      remaining = await getRemainingUsage(usageApp, uid, 'scan-and-go', DAILY_LIMIT, resolveLocalDate(req));
     }
     const message = err instanceof Error ? err.message : 'Scan failed';
     return NextResponse.json({ error: message, remaining }, { status: 500 });

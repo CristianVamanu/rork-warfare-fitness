@@ -26,6 +26,13 @@ async function initWebPush() {
 }
 
 export async function POST(req: NextRequest) {
+  // Fail closed if CRON_SECRET isn't configured — the previous check
+  // compared against `Bearer ${undefined}`, which a literal
+  // "Authorization: Bearer undefined" header satisfies, letting anyone
+  // trigger a push send to any user with no real secret set at all.
+  if (!process.env.CRON_SECRET) {
+    return NextResponse.json({ error: 'Server not configured' }, { status: 503 });
+  }
   const auth = req.headers.get('authorization');
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

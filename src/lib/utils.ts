@@ -85,3 +85,10 @@ export function kgToLbs(kg: number): number {
 export function lbsToKg(lbs: number): number {
   return Math.round(lbs / 2.20462 * 10) / 10;
 }
+
+// Sent alongside daily-usage-limited AI/scan endpoints so the server can key
+// the reset boundary off the user's own local date instead of the server's
+// UTC date — see resolveLocalDate() in src/lib/usageLimit.ts.
+export function localDateHeader(): Record<string, string> {
+  return { 'x-local-date': new Date().toLocaleDateString('sv-SE') };
+}

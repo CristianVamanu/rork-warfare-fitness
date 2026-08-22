@@ -2479,28 +2479,6 @@ export function getScheduleForWeek(program: Program, weekNumber: number): Progra
 }
 
 /**
- * Returns the ProgramDay for the current user based on days since enrollment.
- * Falls back to day-of-week logic for legacy users without programStartDate.
- */
-export function getProgramDayForUser(
-  program: Program,
-  programStartDate?: string
-): ProgramDay | null {
-  if (!program.schedule?.length && !program.phases?.length) return null;
-
-  if (programStartDate) {
-    const start = new Date(programStartDate);
-    const dayIndex = Math.floor((Date.now() - start.getTime()) / 86400000);
-    return getProgramDayForDow(program, dayIndex);
-  }
-  // fallback to DOW for existing users without programStartDate
-  return getProgramDayForDow(program, (() => {
-    const d = new Date().getDay();
-    return d === 0 ? 6 : d - 1;
-  })());
-}
-
-/**
  * Returns the ProgramDay for a given absolute day index since enrollment
  * (not day-of-week — despite the name, callers pass a running count of
  * training days/sessions), resolving through phases first if the program

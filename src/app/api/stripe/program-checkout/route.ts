@@ -28,6 +28,17 @@ export async function POST(req: NextRequest) {
     const program = progSnap.data() as Program;
     if (!program.price || program.price <= 0) return NextResponse.json({ error: 'Program price not set' }, { status: 400 });
 
+    // Unlike plan-checkout (which already rejects a duplicate subscription
+    // attempt), this had no equivalent check — a double-click or a retry on
+    // a slow connection could create two separate Checkout Sessions for the
+    // same one-time program purchase, charging the user twice for
+    // something they already own.
+    const userSnap = await db.collection('users').doc(userId).get();
+    const purchasedIds = (userSnap.data()?.purchasedProgramIds ?? []) as string[];
+    if (purchasedIds.includes(programId)) {
+      return NextResponse.json({ error: 'You already own this program.' }, { status: 400 });
+    }
+
     const stripe = await getStripe();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
 

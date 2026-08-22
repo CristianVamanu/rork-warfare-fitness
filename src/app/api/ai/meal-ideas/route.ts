@@ -4,8 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, resolveLocalDate } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
+import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
 
 const DEFAULT_DAILY_LIMIT = 15;
 
@@ -54,9 +55,17 @@ export async function POST(req: NextRequest) {
 
     const app = getAdminApp();
     if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
+
+    // The PaywallGate on this tool client-side ('meal-planner') was
+    // UI-only — this endpoint never checked membership/plan access, only
+    // a daily count, so anyone with a valid token could call it directly
+    // regardless of plan. See verifyFeatureAccess.
+    const access = await verifyFeatureAccess(app, uid, 'meal-planner');
+    if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
+
     const cfgSnap = await getAdminDb(app).collection('system').doc('config').get();
     const dailyLimit = (cfgSnap.data()?.mealIdeasDailyLimit as number) || DEFAULT_DAILY_LIMIT;
-    const usage = await checkAndIncrementUsage(app, uid, 'meal-ideas', dailyLimit);
+    const usage = await checkAndIncrementUsage(app, uid, 'meal-ideas', dailyLimit, resolveLocalDate(req));
     if (!usage.allowed) {
       return NextResponse.json(
         { error: `Daily limit reached (${dailyLimit}/day). Try again tomorrow.` },

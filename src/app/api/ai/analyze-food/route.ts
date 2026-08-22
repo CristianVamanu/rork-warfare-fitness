@@ -4,8 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage, getRemainingUsage, refundUsage, resolveConfiguredDailyLimit } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, getRemainingUsage, refundUsage, resolveConfiguredDailyLimit, resolveLocalDate } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
+import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
 
 const DEFAULT_DAILY_ANALYSIS_LIMIT = 20;
 const resolveDailyLimit = (app: NonNullable<ReturnType<typeof getAdminApp>>) =>
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
   if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
 
   const dailyLimit = await resolveDailyLimit(app);
-  const remaining = await getRemainingUsage(app, authCheck.uid, 'food-analysis', dailyLimit);
+  const remaining = await getRemainingUsage(app, authCheck.uid, 'food-analysis', dailyLimit, resolveLocalDate(req));
   return NextResponse.json({ remaining, dailyLimit });
 }
 
@@ -38,6 +39,16 @@ export async function POST(req: NextRequest) {
   let usageApp: ReturnType<typeof getAdminApp> = null;
 
   try {
+    const app = getAdminApp();
+    if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
+
+    // The PaywallGate on this tool client-side ('nutrition-ai') was
+    // UI-only — this endpoint never checked membership/plan access, only
+    // a daily count, so anyone with a valid token could call it directly
+    // regardless of plan. See verifyFeatureAccess.
+    const access = await verifyFeatureAccess(app, uid, 'nutrition-ai');
+    if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
+
     const apiKey = await getSecret('OPENAI_API_KEY');
     if (!apiKey) {
       console.error('[analyze-food] OPENAI_API_KEY not configured');
@@ -52,10 +63,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 });
     }
 
-    const app = getAdminApp();
-    if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
     const dailyLimit = await resolveDailyLimit(app);
-    const usage = await checkAndIncrementUsage(app, uid, 'food-analysis', dailyLimit);
+    const usage = await checkAndIncrementUsage(app, uid, 'food-analysis', dailyLimit, resolveLocalDate(req));
     if (!usage.allowed) {
       return NextResponse.json(
         { error: `Daily analysis limit reached (${dailyLimit}/day). Try again tomorrow.`, remaining: 0 },
@@ -108,9 +117,9 @@ All values should be in grams (except calories in kcal). Estimate for a typical 
     console.error('[analyze-food] Error:', err);
     let remaining: number | undefined;
     if (usageApp) {
-      await refundUsage(usageApp, uid, 'food-analysis');
+      await refundUsage(usageApp, uid, 'food-analysis', resolveLocalDate(req));
       const dailyLimit = await resolveDailyLimit(usageApp);
-      remaining = await getRemainingUsage(usageApp, uid, 'food-analysis', dailyLimit);
+      remaining = await getRemainingUsage(usageApp, uid, 'food-analysis', dailyLimit, resolveLocalDate(req));
     }
     const message = err instanceof Error ? err.message : 'Analysis failed';
     return NextResponse.json({ error: message, remaining }, { status: 500 });

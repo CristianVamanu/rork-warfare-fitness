@@ -48,13 +48,17 @@ async function generateMotivation(userName: string, streak: number): Promise<{ t
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify the cron secret so only Vercel's scheduler can trigger this
+    // Verify the cron secret so only Vercel's scheduler can trigger this —
+    // fails closed if it isn't configured at all, rather than skipping the
+    // check entirely, which let anyone unauthenticated trigger a full
+    // notification/email sweep over every user, repeatedly.
     const secret = process.env.CRON_SECRET;
-    if (secret) {
-      const auth = req.headers.get('authorization');
-      if (auth !== `Bearer ${secret}`) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
+    if (!secret) {
+      return NextResponse.json({ error: 'Server not configured' }, { status: 503 });
+    }
+    const auth = req.headers.get('authorization');
+    if (auth !== `Bearer ${secret}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const app = getAdminApp();

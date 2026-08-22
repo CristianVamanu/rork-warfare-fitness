@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp } from '@/lib/firebase-admin';
-import { getRemainingUsage, resolveConfiguredDailyLimit } from '@/lib/usageLimit';
+import { getRemainingUsage, resolveConfiguredDailyLimit, resolveLocalDate } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 
 const DEFAULT_DAILY_SCAN_LIMIT = 20;
@@ -18,6 +18,6 @@ export async function GET(req: NextRequest) {
   if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
 
   const dailyLimit = await resolveConfiguredDailyLimit(app, 'barcodeScanDailyLimit', DEFAULT_DAILY_SCAN_LIMIT);
-  const remaining = await getRemainingUsage(app, authCheck.uid, 'barcode', dailyLimit);
+  const remaining = await getRemainingUsage(app, authCheck.uid, 'barcode', dailyLimit, resolveLocalDate(req));
   return NextResponse.json({ remaining, dailyLimit });
 }

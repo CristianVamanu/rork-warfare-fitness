@@ -150,9 +150,10 @@ function NutritionPageInner() {
   };
 
   const removeMeal = async (meal: Meal) => {
+    if (!user) return;
     if (!window.confirm(`Remove "${meal.name}"?`)) return;
     try {
-      await deleteMeal(meal.id);
+      await deleteMeal(meal.id, user.uid);
       setMeals((prev) => prev.filter((m) => m.id !== meal.id));
       toast.success('Meal removed');
     } catch (err: unknown) {

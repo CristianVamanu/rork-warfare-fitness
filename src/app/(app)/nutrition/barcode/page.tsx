@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { PaywallGate } from '@/components/ui/PaywallGate';
+import { localDateHeader } from '@/lib/utils';
 import type { NutritionAnalysis } from '@/types';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -74,7 +75,7 @@ export default function BarcodePage() {
   useEffect(() => {
     if (!user) return;
     getIdToken(user)
-      .then((token) => fetch('/api/nutrition/barcode/usage', { headers: { Authorization: `Bearer ${token}` } }))
+      .then((token) => fetch('/api/nutrition/barcode/usage', { headers: { Authorization: `Bearer ${token}`, ...localDateHeader() } }))
       .then((res) => res.json())
       .then((data: { remaining?: number }) => { if (typeof data.remaining === 'number') setRemaining(data.remaining); })
       .catch(() => {});
@@ -217,7 +218,7 @@ export default function BarcodePage() {
       if (!user) throw new Error('Not signed in');
       const token = await getIdToken(user);
       const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, ...localDateHeader() },
       });
       const data = await res.json();
       if (typeof data.remaining === 'number') setRemaining(data.remaining);

@@ -15,6 +15,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  runTransaction,
   deleteDoc,
   collection,
   query,
@@ -277,28 +278,43 @@ export async function stopFasting(userId: string): Promise<void> {
 // "Days Without" streak goals (quit smoking, quit porn, custom, etc.)
 // ---------------------------------------------------------------------------
 
+// All three below use runTransaction (not a plain getDoc-then-updateDoc)
+// because that read-modify-write pattern is a classic lost-update race:
+// two tabs (or a fast double-tap) reading the same array both compute
+// their own "next" array from the same stale snapshot, and whichever
+// write lands second silently discards the first's change. A transaction
+// re-reads and retries automatically on conflict instead.
 export async function addDaysWithoutGoal(userId: string, label: string): Promise<void> {
-  const snap = await getDoc(doc(db, 'users', userId));
-  const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
   const goal: DaysWithoutGoal = {
     id: Math.random().toString(36).slice(2),
     label: label.trim().slice(0, 40),
     startedAt: Timestamp.now(),
   };
-  await updateDoc(doc(db, 'users', userId), { daysWithoutGoals: [...goals, goal] });
+  const userRef = doc(db, 'users', userId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(userRef);
+    const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
+    tx.update(userRef, { daysWithoutGoals: [...goals, goal] });
+  });
 }
 
 export async function resetDaysWithoutGoal(userId: string, goalId: string): Promise<void> {
-  const snap = await getDoc(doc(db, 'users', userId));
-  const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
-  const updated = goals.map((g) => g.id === goalId ? { ...g, startedAt: Timestamp.now() } : g);
-  await updateDoc(doc(db, 'users', userId), { daysWithoutGoals: updated });
+  const userRef = doc(db, 'users', userId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(userRef);
+    const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
+    const updated = goals.map((g) => g.id === goalId ? { ...g, startedAt: Timestamp.now() } : g);
+    tx.update(userRef, { daysWithoutGoals: updated });
+  });
 }
 
 export async function deleteDaysWithoutGoal(userId: string, goalId: string): Promise<void> {
-  const snap = await getDoc(doc(db, 'users', userId));
-  const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
-  await updateDoc(doc(db, 'users', userId), { daysWithoutGoals: goals.filter((g) => g.id !== goalId) });
+  const userRef = doc(db, 'users', userId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(userRef);
+    const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
+    tx.update(userRef, { daysWithoutGoals: goals.filter((g) => g.id !== goalId) });
+  });
 }
 
 export async function getUserGoals(uid: string): Promise<UserGoals> {
@@ -378,19 +394,29 @@ export async function getTodayMeals(userId: string, localDateStr?: string): Prom
  * Deletes a meal. Tries events collection first (post-migration id), then
  * falls back to legacy meals collection (pre-migration id).
  */
-export async function deleteMeal(id: string) {
-  try {
-    await deleteDoc(doc(db, 'events', id));
-    return;
-  } catch {
-    // Event doc not found — fall through to legacy collection
-  }
-  try {
+export async function deleteMeal(id: string, userId: string) {
+  // Firestore's deleteDoc on a doc that doesn't exist succeeds silently
+  // (it's a no-op, not an error) — the previous try/catch here assumed a
+  // missing 'events' doc would throw and fall through to the legacy
+  // 'meals' collection, but it never did. Any pre-migration meal id just
+  // "succeeded" without deleting anything, and the meal reappeared on the
+  // next load. Checking existence first makes the fallback actually reachable.
+  const eventRef = doc(db, 'events', id);
+  const eventSnap = await getDoc(eventRef);
+  if (eventSnap.exists()) {
+    await deleteDoc(eventRef);
+  } else {
     await deleteDoc(doc(db, 'meals', id));
-  } catch (err) {
-    console.error('[Firestore] deleteMeal failed for id', id, err);
-    throw err;
   }
+  // logMealAction increments this on create; without a matching decrement
+  // here, repeatedly logging-then-deleting meals inflates
+  // totalMealsLogged forever, unlocking nutrition achievements/quests for
+  // meals that no longer exist.
+  await updateDoc(doc(db, 'users', userId), {
+    'stats.totalMealsLogged': increment(-1),
+  }).catch(() => {
+    // Non-critical — background recompute self-heals the count
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -858,12 +884,30 @@ export async function enrollInProgram(
   await updateDoc(userRef, updates as any);
 }
 
+// Currently unused (no UI wires up "leave program" without switching to
+// another one), but kept aligned with enrollInProgram's non-destructive
+// design rather than left as dead code that would silently wipe progress
+// with no way to recover it the moment something DOES call it.
 export async function unenrollProgram(userId: string) {
-  await setDoc(
-    doc(db, 'users', userId),
-    { activeProgram: deleteField(), lastActive: serverTimestamp() },
-    { merge: true }
-  );
+  const userRef = doc(db, 'users', userId);
+  const snap = await getDoc(userRef);
+  const current = snap.data()?.activeProgram as
+    | { programId?: string; programName?: string; enrolledAt?: unknown; programStartDate?: string; completedWorkouts?: number; totalWorkouts?: number; lastCompletedDayIndex?: number }
+    | undefined;
+
+  const updates: Record<string, unknown> = { activeProgram: deleteField(), lastActive: serverTimestamp() };
+  if (current?.programId) {
+    updates[`programProgress.${current.programId}`] = {
+      programName: current.programName ?? '',
+      enrolledAt: current.enrolledAt ?? serverTimestamp(),
+      programStartDate: current.programStartDate,
+      completedWorkouts: current.completedWorkouts ?? 0,
+      totalWorkouts: current.totalWorkouts ?? 0,
+      ...(current.lastCompletedDayIndex !== undefined ? { lastCompletedDayIndex: current.lastCompletedDayIndex } : {}),
+    };
+  }
+
+  await setDoc(userRef, updates, { merge: true });
 }
 
 /**
@@ -1161,20 +1205,16 @@ export async function getHiddenMockIds(): Promise<string[]> {
   return snap.exists() ? ((snap.data().ids as string[]) ?? []) : [];
 }
 
+// arrayUnion/arrayRemove (not a getDoc-then-setDoc read-modify-write) —
+// atomic set-membership ops, immune to the lost-update race where two
+// concurrent calls both read the same array and the second write drops
+// whatever the first one added/removed.
 export async function hideMockProgram(id: string) {
-  const snap = await getDoc(doc(db, 'config', 'hiddenMocks'));
-  const ids: string[] = snap.exists() ? (snap.data().ids ?? []) : [];
-  if (!ids.includes(id)) {
-    await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: [...ids, id] }, { merge: true });
-  }
+  await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: arrayUnion(id) }, { merge: true });
 }
 
 export async function unhideMockProgram(id: string) {
-  const snap = await getDoc(doc(db, 'config', 'hiddenMocks'));
-  const ids: string[] = snap.exists() ? (snap.data().ids ?? []) : [];
-  if (ids.includes(id)) {
-    await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: ids.filter((x) => x !== id) }, { merge: true });
-  }
+  await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: arrayRemove(id) }, { merge: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -1189,11 +1229,7 @@ export async function getDeletedMockIds(): Promise<string[]> {
 }
 
 export async function permanentlyDeleteMockProgram(id: string) {
-  const snap = await getDoc(doc(db, 'config', 'deletedMocks'));
-  const ids: string[] = snap.exists() ? (snap.data().ids ?? []) : [];
-  if (!ids.includes(id)) {
-    await setDoc(doc(db, 'config', 'deletedMocks'), { ids: [...ids, id] }, { merge: true });
-  }
+  await setDoc(doc(db, 'config', 'deletedMocks'), { ids: arrayUnion(id) }, { merge: true });
 }
 
 // ---------------------------------------------------------------------------

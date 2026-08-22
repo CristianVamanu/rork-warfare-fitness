@@ -13,6 +13,7 @@ import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PaywallGate } from '@/components/ui/PaywallGate';
+import { localDateHeader } from '@/lib/utils';
 
 interface MealIdea {
   name: string;
@@ -45,7 +46,7 @@ export default function MealPlannerPage() {
       const token = await getIdToken(user);
       const res = await fetch('/api/ai/meal-ideas', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...localDateHeader() },
         body: JSON.stringify({ ingredients }),
       });
       const data = await res.json();

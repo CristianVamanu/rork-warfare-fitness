@@ -2,8 +2,9 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage, refundUsage, getRemainingUsage, resolveConfiguredDailyLimit } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, refundUsage, getRemainingUsage, resolveConfiguredDailyLimit, resolveLocalDate } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
+import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
 
 const DEFAULT_DAILY_SCAN_LIMIT = 20;
 
@@ -65,8 +66,16 @@ export async function GET(req: NextRequest) {
 
     const app = getAdminApp();
     if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
+
+    // The PaywallGate on this tool client-side ('barcode') was UI-only —
+    // this endpoint itself never checked membership/plan access, only a
+    // daily count. Anyone with a valid Firebase token could call it
+    // directly regardless of plan. See verifyFeatureAccess for the details.
+    const access = await verifyFeatureAccess(app, uid, 'barcode');
+    if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
+
     const dailyLimit = await resolveConfiguredDailyLimit(app, 'barcodeScanDailyLimit', DEFAULT_DAILY_SCAN_LIMIT);
-    const usage = await checkAndIncrementUsage(app, uid, 'barcode', dailyLimit);
+    const usage = await checkAndIncrementUsage(app, uid, 'barcode', dailyLimit, resolveLocalDate(req));
     if (!usage.allowed) {
       return NextResponse.json(
         { error: `Daily scan limit reached (${dailyLimit}/day). Try again tomorrow.`, remaining: 0 },
@@ -80,7 +89,7 @@ export async function GET(req: NextRequest) {
     // "code" (e.g. from a stray QR scan) breaks the OpenFoodFacts URL and
     // surfaces as a confusing low-level fetch/URL error to the user.
     if (!/^\d{6,14}$/.test(code)) {
-      await refundUsage(app, uid, 'barcode');
+      await refundUsage(app, uid, 'barcode', resolveLocalDate(req));
       return NextResponse.json({ error: 'Invalid barcode format', remaining: usage.remaining + 1 }, { status: 400 });
     }
 
@@ -99,7 +108,7 @@ export async function GET(req: NextRequest) {
       // has real gaps) — refunded like any other failed attempt rather
       // than silently burning one of the user's limited daily scans on a
       // product that was simply never barcoded in the first place.
-      await refundUsage(app, uid, 'barcode');
+      await refundUsage(app, uid, 'barcode', resolveLocalDate(req));
       return NextResponse.json({ error: 'Product not found', remaining: usage.remaining + 1 }, { status: 404 });
     }
 
@@ -141,9 +150,9 @@ export async function GET(req: NextRequest) {
     console.error('Barcode lookup error:', err);
     let remaining: number | undefined;
     if (usageApp) {
-      await refundUsage(usageApp, uid, 'barcode');
+      await refundUsage(usageApp, uid, 'barcode', resolveLocalDate(req));
       const dailyLimit = await resolveConfiguredDailyLimit(usageApp, 'barcodeScanDailyLimit', DEFAULT_DAILY_SCAN_LIMIT);
-      remaining = await getRemainingUsage(usageApp, uid, 'barcode', dailyLimit);
+      remaining = await getRemainingUsage(usageApp, uid, 'barcode', dailyLimit, resolveLocalDate(req));
     }
     return NextResponse.json({ error: 'Lookup failed', remaining }, { status: 500 });
   }

@@ -168,10 +168,19 @@ export async function completeWorkout(
         xp: totalXP,
         powerLevel: newPowerLevel,
         lastActive: serverTimestamp(),
+        // streak deliberately NOT written here — recomputeStatsCache
+        // (already triggered by emit()/createEvent() above) independently
+        // computes it from the full 60-day event history with freeze
+        // logic, and its write used to race this one: whichever finished
+        // last won, so a freeze-extended streak could get silently reset
+        // by this simpler incremental calculation completing after it.
+        // newStreak is still computed above and used for the immediate
+        // achievement/quest checks below, which need a value synchronously
+        // rather than waiting on that async recompute — it's just no
+        // longer persisted from two places.
         statsCache: {
           ...(statsCache ?? {}),
           totalWorkouts,
-          streak: newStreak,
           lastWorkoutDate: today,
           cacheDate: today,
         },

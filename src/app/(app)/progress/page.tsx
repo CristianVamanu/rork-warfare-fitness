@@ -8,6 +8,7 @@ import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target, Camera, Lock, Tr
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserWorkouts, getWeightHistory, getSystemConfig, subscribeProgressPhotos, createProgressPhoto, deleteProgressPhoto } from '@/lib/firestore';
 import { recordWeight } from '@/lib/actions';
+import { lbsToKg } from '@/lib/utils';
 import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import { getLevelTier, xpToNextLevel } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
@@ -144,10 +145,17 @@ export default function ProgressPage() {
     minutes: volumeByDay[d] ?? 0,
   }));
 
+  const weightUnit = (profile?.weightUnit as 'kg' | 'lbs') ?? 'kg';
+
   const handleLogWeight = async () => {
     if (!user || !weightInput) return;
-    const kg = parseFloat(weightInput);
-    if (isNaN(kg) || kg < 20 || kg > 400) {
+    const entered = parseFloat(weightInput);
+    // recordWeight always expects kg — the input/label below is in the
+    // user's own unit, so an lbs user typing "180" must be converted
+    // before saving, or it's stored as 180kg (~397 lbs) and corrupts
+    // every weight-based chart/calculation downstream.
+    const kg = weightUnit === 'lbs' ? lbsToKg(entered) : entered;
+    if (isNaN(entered) || kg < 20 || kg > 400) {
       toast.error('Enter a valid weight');
       return;
     }
@@ -443,15 +451,13 @@ export default function ProgressPage() {
       <Modal open={weightModal} onClose={() => setWeightModal(false)} title="Log Body Weight">
         <div className="space-y-4">
           <div>
-            <label className="text-xs text-text-secondary mb-2 block">Weight (kg)</label>
+            <label className="text-xs text-text-secondary mb-2 block">Weight ({weightUnit})</label>
             <input
               type="number"
               step="0.1"
-              min="20"
-              max="400"
               value={weightInput}
               onChange={(e) => setWeightInput(e.target.value)}
-              placeholder="e.g. 82.5"
+              placeholder={weightUnit === 'lbs' ? 'e.g. 180' : 'e.g. 82.5'}
               className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:border-accent/50"
               autoFocus
             />

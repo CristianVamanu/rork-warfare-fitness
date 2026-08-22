@@ -11,7 +11,7 @@ import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, resolveLocalDate } from '@/lib/usageLimit';
 
 export async function POST(req: NextRequest) {
   // No current caller in the app uses this route, but it was reachable by
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   const app = getAdminApp();
   if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
-  const usage = await checkAndIncrementUsage(app, authCheck.uid, 'ai-chat', 30);
+  const usage = await checkAndIncrementUsage(app, authCheck.uid, 'ai-chat', 30, resolveLocalDate(req));
   if (!usage.allowed) {
     return NextResponse.json({ error: 'Daily limit reached. Try again tomorrow.' }, { status: 429 });
   }

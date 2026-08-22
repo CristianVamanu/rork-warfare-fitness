@@ -14,6 +14,7 @@ import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PaywallGate } from '@/components/ui/PaywallGate';
+import { localDateHeader } from '@/lib/utils';
 import type { NutritionAnalysis, UserGoals, Meal } from '@/types';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -94,11 +95,45 @@ function AnalyzeFoodPageInner() {
       setGoals(g);
     });
     getIdToken(user)
-      .then((token) => fetch('/api/ai/analyze-food', { headers: { Authorization: `Bearer ${token}` } }))
+      .then((token) => fetch('/api/ai/analyze-food', { headers: { Authorization: `Bearer ${token}`, ...localDateHeader() } }))
       .then((res) => res.json())
       .then((data: { remaining?: number }) => { if (typeof data.remaining === 'number') setRemaining(data.remaining); })
       .catch(() => {});
   }, [user]);
+
+  // Defined before handleFile (and wrapped in useCallback with real deps)
+  // on purpose — handleFile's own useCallback closes over this function,
+  // and an empty dependency array previously froze that closure at
+  // first-render, back when `user` (from useAuth(), which resolves
+  // asynchronously) was still null. Every photo picked afterward — on a
+  // hard refresh or direct navigation to this page — called that frozen
+  // closure's copy of analyzeImage, which still saw user=null and just
+  // showed "Not signed in" forever, never actually analyzing anything.
+  const analyzeImage = useCallback(async (base64Image: string) => {
+    if (!user) { toast.error('Not signed in'); return; }
+    setAnalyzing(true);
+    setResult(null);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/ai/analyze-food', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...localDateHeader() },
+        body: JSON.stringify({ base64Image }),
+      });
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (typeof data.remaining === 'number') setRemaining(data.remaining);
+      if (!res.ok) throw new Error(data.error || text || `HTTP ${res.status}`);
+      setResult(data);
+      setPortionPct(100);
+      if (tasteAvailable) consumeAiTaste(user.uid, 'nutrition-ai').catch(console.error);
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message || String(err);
+      toast.error(`Analysis failed: ${msg}`, { duration: 8000 });
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [user, tasteAvailable]);
 
   const handleFile = useCallback((file: File) => {
     const reader = new FileReader();
@@ -115,33 +150,7 @@ function AnalyzeFoodPageInner() {
       }
     };
     reader.readAsDataURL(file);
-  }, []);
-
-  const analyzeImage = async (base64Image: string) => {
-    if (!user) { toast.error('Not signed in'); return; }
-    setAnalyzing(true);
-    setResult(null);
-    try {
-      const token = await getIdToken(user);
-      const res = await fetch('/api/ai/analyze-food', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ base64Image }),
-      });
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : {};
-      if (typeof data.remaining === 'number') setRemaining(data.remaining);
-      if (!res.ok) throw new Error(data.error || text || `HTTP ${res.status}`);
-      setResult(data);
-      setPortionPct(100);
-      if (tasteAvailable) consumeAiTaste(user.uid, 'nutrition-ai').catch(console.error);
-    } catch (err: unknown) {
-      const msg = (err as Error)?.message || String(err);
-      toast.error(`Analysis failed: ${msg}`, { duration: 8000 });
-    } finally {
-      setAnalyzing(false);
-    }
-  };
+  }, [analyzeImage]);
 
   const portionScale = portionPct / 100;
   const scaledResult = result ? {

@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { localDateHeader } from '@/lib/utils';
 import type { Exercise } from '@/types';
 
 const MAX_PHOTOS = 6;
@@ -77,7 +78,7 @@ export default function ScanAndGoPage() {
   useEffect(() => {
     if (!user) return;
     getIdToken(user)
-      .then((token) => fetch('/api/ai/scan-and-go', { headers: { Authorization: `Bearer ${token}` } }))
+      .then((token) => fetch('/api/ai/scan-and-go', { headers: { Authorization: `Bearer ${token}`, ...localDateHeader() } }))
       .then((res) => res.json())
       .then((data: { remaining?: number }) => { if (typeof data.remaining === 'number') setRemaining(data.remaining); })
       .catch(() => {});
@@ -110,7 +111,7 @@ export default function ScanAndGoPage() {
       const token = await getIdToken(user);
       const res = await fetch('/api/ai/scan-and-go', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...localDateHeader() },
         body: JSON.stringify({
           // Full data URLs (not just the base64 payload) — resizeImage
           // always re-encodes as JPEG via canvas, but its catch fallback
