@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff, Download, Trash2 } from 'lucide-react';
+import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff, Download, Trash2, Cookie } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
@@ -16,6 +16,7 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { getStoredConsent, resetCookieConsent, COOKIE_CONSENT_EVENT } from '@/components/ui/CookieConsent';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -30,6 +31,15 @@ export default function SettingsPage() {
   const [deleteAccountModal, setDeleteAccountModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [cookieChoice, setCookieChoice] = useState<'accepted' | 'rejected' | null>(null);
+
+  useEffect(() => {
+    setCookieChoice(getStoredConsent());
+    const onChange = () => setCookieChoice(getStoredConsent());
+    window.addEventListener(COOKIE_CONSENT_EVENT, onChange);
+    return () => window.removeEventListener(COOKIE_CONSENT_EVENT, onChange);
+  }, []);
+  const cookieChoiceLabel = cookieChoice === 'accepted' ? 'Accepted' : cookieChoice === 'rejected' ? 'Rejected' : 'Not set';
 
   useEffect(() => {
     getCurrentSubscription().then(sub => setPushSubscribed(!!sub));
@@ -253,7 +263,7 @@ export default function SettingsPage() {
             </button>
             <button
               onClick={() => setDeleteAccountModal(true)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-danger/5 transition-colors text-left"
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-danger/5 transition-colors text-left border-b border-white/8"
             >
               <div className="p-2 bg-danger/10 rounded-lg">
                 <Trash2 className="w-4 h-4 text-danger" />
@@ -261,6 +271,18 @@ export default function SettingsPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-danger">Delete My Account</p>
                 <p className="text-xs text-text-secondary">Permanently erase your account and all your data</p>
+              </div>
+            </button>
+            <button
+              onClick={() => { resetCookieConsent(); toast.success('Cookie banner will show again — refresh or navigate to see it.'); }}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors text-left"
+            >
+              <div className="p-2 bg-surface-elevated rounded-lg">
+                <Cookie className="w-4 h-4 text-text-secondary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white">Manage Cookies</p>
+                <p className="text-xs text-text-secondary">Change your cookie preference (currently: {cookieChoiceLabel})</p>
               </div>
             </button>
           </Card>

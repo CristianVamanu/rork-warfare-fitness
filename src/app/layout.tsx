@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import Script from 'next/script';
 import { headers } from 'next/headers';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -9,6 +8,7 @@ import { getSystemConfig } from '@/lib/firestore';
 import { ServiceWorkerUpdater } from '@/components/ui/ServiceWorkerUpdater';
 import { ChunkErrorReloader } from '@/components/ui/ChunkErrorReloader';
 import { CookieConsent } from '@/components/ui/CookieConsent';
+import { ConsentGatedScripts } from '@/components/ui/ConsentGatedScripts';
 
 export async function generateMetadata(): Promise<Metadata> {
   const cfg = await getSystemConfig().catch(() => null);
@@ -107,10 +107,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           />
         </AuthProvider>
         </ThemeProvider>
-        <Script id="chirps-config" strategy="afterInteractive" nonce={nonce}>
-          {`window.chirpsConfig = { assistantId: "e663729e-796a-44d9-98a8-316824eebcb0" };`}
-        </Script>
-        <Script src="https://digimetrix.ai/embed.js" strategy="afterInteractive" nonce={nonce} />
+        <ConsentGatedScripts nonce={nonce} />
       </body>
     </html>
   );
