@@ -361,7 +361,7 @@ function AnalyzeFoodPageInner() {
           <Card glass className="p-4 flex items-start gap-3">
             <AlertCircle className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-white">Powered by GPT-4o Vision</p>
+              <p className="text-sm font-medium text-white">Powered by Warfare Fitness</p>
               <p className="text-xs text-text-secondary mt-1">
                 Take a clear photo of your meal for the most accurate nutritional analysis.
                 Works best with whole plates and distinct food items.
