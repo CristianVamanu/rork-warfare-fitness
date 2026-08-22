@@ -52,7 +52,14 @@ export function middleware(request: NextRequest) {
     // to cache, reported live as repeated CSP violations + "no-response"
     // Workbox errors.
     "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com",
-    "frame-src 'none'",
+    // Firebase Auth opens a hidden same-project iframe at
+    // <project>.firebaseapp.com/__/auth/iframe as part of its normal init
+    // (session persistence / cross-tab auth-state sync) — this fires even
+    // for plain email/password sign-in, not just OAuth popups. It's
+    // Firebase's own domain for this project, so allowing it here is safe;
+    // 'none' was blocking it outright (seen live as a framing CSP violation
+    // on every page load).
+    "frame-src https://*.firebaseapp.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
