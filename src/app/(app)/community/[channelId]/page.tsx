@@ -451,7 +451,7 @@ export default function ChannelPage() {
 
   return (
     <PaywallGate feature="community" noTaste>
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen">
       {/* ── Header ── */}
       <div className="sticky top-0 z-30 bg-background/90 backdrop-blur-xl border-b border-white/8">
         <div className="flex items-center gap-3 px-4 py-3 max-w-2xl mx-auto w-full">

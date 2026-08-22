@@ -128,10 +128,14 @@ body {
     linear-gradient(rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px),
     linear-gradient(90deg, rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px);
   background-size: 56px 56px;
-  /* Fades the grid out toward the center so it never competes with the
-     actual content column that sits there. */
-  mask-image: radial-gradient(ellipse 60% 60% at center, transparent 40%, black 100%);
-  -webkit-mask-image: radial-gradient(ellipse 60% 60% at center, transparent 40%, black 100%);
+  /* Softly fades the grid toward the center so it never competes with
+     dense/colorful content, while still letting a faint trace of it bleed
+     into the content column's own gaps (page padding, space between
+     cards) — a hard cutoff here made text-light pages (Community, PR Wall,
+     the simple list pages) look like a flat black rectangle dropped onto
+     the textured page instead of blending with it. */
+  mask-image: radial-gradient(ellipse 70% 70% at center, transparent 10%, black 85%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at center, transparent 10%, black 85%);
 }
 
 .app-bg-orb {

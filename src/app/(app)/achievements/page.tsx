@@ -40,7 +40,7 @@ export default function AchievementsPage() {
   const categories = Array.from(new Set(ACHIEVEMENT_DEFS.map((d) => d.category)));
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen pb-24">
       <Header title="Achievements" showBack />
       <div className="px-4 pt-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-5">
         <Card className="p-4 flex items-center justify-between">

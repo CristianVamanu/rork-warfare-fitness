@@ -83,7 +83,7 @@ export default function MealPlannerPage() {
 
   return (
     <PaywallGate feature="meal-planner">
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen pb-24">
       <div className="px-4 pt-12 pb-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
         <button onClick={() => router.back()} className="p-2 -ml-2 rounded-xl text-text-secondary hover:text-white transition-colors">
           <ArrowLeft className="w-5 h-5" />
