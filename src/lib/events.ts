@@ -32,14 +32,19 @@ export async function createEvent(data: {
   userId: string;
   trainerId: string;
   payload: EventPayload;
+  // Backdates the event for manual entries logged against a past date (e.g.
+  // "log this meal for yesterday") — omit for the normal case of logging
+  // something that just happened, which always uses the server clock.
+  createdAt?: Date;
 }): Promise<string> {
   let lastErr: unknown;
+  const { createdAt: backdatedAt, ...rest } = data;
 
   for (let attempt = 0; attempt <= 1; attempt++) {
     try {
       const ref = await addDoc(collection(db, 'events'), {
-        ...data,
-        createdAt: serverTimestamp(),
+        ...rest,
+        createdAt: backdatedAt ? Timestamp.fromDate(backdatedAt) : serverTimestamp(),
       });
       // Non-blocking stats recompute
       recomputeStatsCache(data.userId).catch((err) =>

@@ -17,11 +17,12 @@ import {
 import type { DistanceUnit } from '@/lib/distance';
 import { auth, db } from './firebase';
 import { createEvent } from './events';
-import { incrementProgramWorkouts, syncLeaderboardPublic } from './firestore';
+import { incrementProgramWorkouts, syncLeaderboardPublic, updateUserGoals } from './firestore';
 import { calcWorkoutXP, xpToPowerLevel } from './xp';
+import { estimateNutritionTargets } from './tdee';
 import { checkAndAwardAchievements, ACHIEVEMENT_DEFS } from './achievements';
 import { checkAndAwardQuests } from './quests';
-import type { EventType } from '@/types';
+import type { EventType, FitnessGoal, ExperienceLevel, OnboardingData } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,9 +56,10 @@ async function emit(
   type: EventType,
   userId: string,
   trainerId: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  createdAt?: Date
 ): Promise<string> {
-  return createEvent({ type, userId, trainerId, payload });
+  return createEvent({ type, userId, trainerId, payload, createdAt });
 }
 
 // ---------------------------------------------------------------------------
@@ -246,10 +248,11 @@ export async function logMealAction(
     carbs: number;
     fat: number;
     mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
-  }
+  },
+  loggedAt?: Date
 ): Promise<void> {
   const trainerId = await getTrainerId(userId);
-  await emit('MEAL_LOGGED', userId, trainerId, { ...meal });
+  await emit('MEAL_LOGGED', userId, trainerId, { ...meal }, loggedAt);
 
   const snap = await getDoc(doc(db, 'users', userId));
   const data = snap.data() ?? {};
@@ -309,6 +312,34 @@ export async function recordWeight(userId: string, weightKg: number): Promise<vo
     lastActive: serverTimestamp(),
     currentWeightKg: weightKg,
   }, { merge: true }).catch(console.error);
+
+  // Weight is a direct input to the BMR calculation nutrition targets are
+  // derived from — without recalculating here, calorie/macro goals set once
+  // at onboarding silently drift out of date as the user's weight changes,
+  // no matter how long they keep logging weigh-ins.
+  try {
+    const snap = await getDoc(doc(db, 'users', userId));
+    const data = snap.data();
+    const goal = data?.fitnessGoal as FitnessGoal | undefined;
+    const experience = data?.experience as ExperienceLevel | undefined;
+    const onboarding = data?.onboarding as OnboardingData | undefined;
+    const trainingDays = onboarding?.trainingDays;
+    if (goal && experience && trainingDays) {
+      const biometrics = onboarding?.sex && onboarding?.age && onboarding?.heightCm
+        ? { sex: onboarding.sex, age: onboarding.age, heightCm: onboarding.heightCm, weightKg }
+        : undefined;
+      const targets = estimateNutritionTargets(goal, experience, trainingDays, biometrics);
+      await updateUserGoals(userId, {
+        calories: targets.calories,
+        protein: targets.protein,
+        carbs: targets.carbs,
+        fat: targets.fat,
+        water: targets.water,
+      });
+    }
+  } catch (err) {
+    console.error('[Actions] Nutrition target recalc failed:', err);
+  }
 }
 
 // ---------------------------------------------------------------------------
