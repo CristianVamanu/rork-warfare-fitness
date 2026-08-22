@@ -762,16 +762,60 @@ export async function getPosts(limitCount = 20, trainerId?: string) {
 // Program enrollment
 // ---------------------------------------------------------------------------
 
+// Switching programs used to be destructive: it always reset
+// completedWorkouts to 0 and deleted lastCompletedDayIndex, so a user who'd
+// gotten to Week 6 of one program and tried a different one for a day lost
+// that position permanently. Now every program's progress is preserved
+// under `programProgress[programId]` the moment the user switches away from
+// it, and switching BACK to a program restores its saved position instead
+// of starting over — `activeProgram` still mirrors whichever program is
+// currently active (unchanged shape), so every existing screen that reads
+// `profile.activeProgram.*` keeps working with no further changes.
 export async function enrollInProgram(
   userId: string,
   program: { id: string; name: string; weeks: number; daysPerWeek: number }
 ) {
+  const userRef = doc(db, 'users', userId);
+  const snap = await getDoc(userRef);
+  const data = snap.data() ?? {};
+  const current = data.activeProgram as
+    | { programId?: string; programName?: string; enrolledAt?: unknown; programStartDate?: string; completedWorkouts?: number; totalWorkouts?: number; lastCompletedDayIndex?: number }
+    | undefined;
+  const savedProgress = (data.programProgress ?? {}) as Record<string, {
+    programName: string; enrolledAt?: unknown; programStartDate?: string;
+    completedWorkouts: number; totalWorkouts: number; lastCompletedDayIndex?: number;
+  }>;
+
+  const updates: Record<string, unknown> = {};
+
+  // Save the program we're leaving, if any and if it's actually a
+  // different one (re-enrolling in the same program is a no-op switch).
+  // This also opportunistically "migrates" an existing user's first-ever
+  // switch — they never had a programProgress map before this change, but
+  // whatever's live in activeProgram right now is captured here regardless.
+  if (current?.programId && current.programId !== program.id) {
+    updates[`programProgress.${current.programId}`] = {
+      programName: current.programName ?? '',
+      enrolledAt: current.enrolledAt ?? serverTimestamp(),
+      programStartDate: current.programStartDate,
+      completedWorkouts: current.completedWorkouts ?? 0,
+      totalWorkouts: current.totalWorkouts ?? 0,
+      ...(current.lastCompletedDayIndex !== undefined ? { lastCompletedDayIndex: current.lastCompletedDayIndex } : {}),
+    };
+  }
+
+  // Resume the target program's own saved position if it has one;
+  // otherwise this is a genuinely fresh start for it.
+  const saved = program.id === current?.programId ? undefined : savedProgress[program.id];
+
   // Count REAL training days from the resolved schedule (phase-aware, rest
   // slots excluded) rather than trusting weeks × daysPerWeek — the two
   // drift apart on phased programs, and completedWorkouts (see
   // incrementProgramWorkouts) counts actual training sessions, so the
-  // denominator must use the same unit or progress % lies.
-  let totalWorkouts = program.weeks * program.daysPerWeek;
+  // denominator must use the same unit or progress % lies. Recomputed even
+  // for a resumed program in case an admin edited its schedule since the
+  // last time the user was on it.
+  let totalWorkouts = saved?.totalWorkouts ?? program.weeks * program.daysPerWeek;
   try {
     const resolved = await resolveProgram(program.id);
     if (resolved) {
@@ -779,24 +823,39 @@ export async function enrollInProgram(
       totalWorkouts = getTotalTrainingDays(resolved);
     }
   } catch { /* offline etc. — the approximation above is an acceptable fallback */ }
+
   // updateDoc (not setDoc+merge) — dotted field paths only reliably resolve
   // to nested fields with updateDoc; setDoc's merge doesn't parse dotted
   // string keys as paths, so a previous version of this using setDoc wrote
   // nothing where the rest of the app expected it (enroll/switch appeared
-  // to silently do nothing). This also lets us explicitly delete any
-  // leftover lastCompletedDayIndex from a prior enrollment in the same
-  // write, so completedWorkouts (derived from it elsewhere) can't desync
-  // from stale progress on re-enroll/switch.
-  await updateDoc(doc(db, 'users', userId), {
-    'activeProgram.programId': program.id,
-    'activeProgram.programName': program.name,
-    'activeProgram.enrolledAt': serverTimestamp(),
-    'activeProgram.programStartDate': new Date().toISOString(),
-    'activeProgram.completedWorkouts': 0,
-    'activeProgram.totalWorkouts': totalWorkouts,
-    'activeProgram.lastCompletedDayIndex': deleteField(),
-    lastActive: serverTimestamp(),
-  });
+  // to silently do nothing).
+  updates['activeProgram.programId'] = program.id;
+  updates['activeProgram.programName'] = program.name;
+  updates['activeProgram.enrolledAt'] = saved?.enrolledAt ?? serverTimestamp();
+  updates['activeProgram.programStartDate'] = saved?.programStartDate ?? new Date().toISOString();
+  updates['activeProgram.completedWorkouts'] = saved?.completedWorkouts ?? 0;
+  updates['activeProgram.totalWorkouts'] = totalWorkouts;
+  // Explicitly deleted when there's no saved position (fresh start), same
+  // as before — completedWorkouts (derived from it elsewhere) can't desync
+  // from stale progress left over from whatever was active previously.
+  updates['activeProgram.lastCompletedDayIndex'] = saved?.lastCompletedDayIndex !== undefined
+    ? saved.lastCompletedDayIndex
+    : deleteField();
+  // The program being resumed is no longer "unswitched-from" progress —
+  // clear its now-stale saved snapshot so activeProgram is unambiguously
+  // the live source of truth for it again (avoids the two ever drifting
+  // apart while it's the active one).
+  if (program.id in savedProgress) {
+    updates[`programProgress.${program.id}`] = deleteField();
+  }
+  updates['lastActive'] = serverTimestamp();
+
+  // Firestore's UpdateData typing can't express a dynamically-built object
+  // of dotted field paths (some deleteField() sentinels, some plain
+  // values) — this is the same shape of update every other dotted-path
+  // write in this file does inline, just built up conditionally first.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await updateDoc(userRef, updates as any);
 }
 
 export async function unenrollProgram(userId: string) {
@@ -807,16 +866,84 @@ export async function unenrollProgram(userId: string) {
   );
 }
 
+/**
+ * All programs the user has ever made progress on, keyed by programId —
+ * merges the live `activeProgram` (if any) with the saved `programProgress`
+ * map, for a "My Programs" screen that needs to show every program's
+ * position regardless of which one is currently active.
+ */
+export async function getAllProgramProgress(userId: string): Promise<Record<string, {
+  programName: string; completedWorkouts: number; totalWorkouts: number;
+  lastCompletedDayIndex?: number; isActive: boolean;
+}>> {
+  const snap = await getDoc(doc(db, 'users', userId));
+  const data = snap.data() ?? {};
+  const active = data.activeProgram as { programId?: string; programName?: string; completedWorkouts?: number; totalWorkouts?: number; lastCompletedDayIndex?: number } | undefined;
+  const saved = (data.programProgress ?? {}) as Record<string, { programName: string; completedWorkouts: number; totalWorkouts: number; lastCompletedDayIndex?: number }>;
+
+  const result: Record<string, { programName: string; completedWorkouts: number; totalWorkouts: number; lastCompletedDayIndex?: number; isActive: boolean }> = {};
+  for (const [id, p] of Object.entries(saved)) {
+    result[id] = { ...p, isActive: false };
+  }
+  if (active?.programId) {
+    result[active.programId] = {
+      programName: active.programName ?? '',
+      completedWorkouts: active.completedWorkouts ?? 0,
+      totalWorkouts: active.totalWorkouts ?? 0,
+      lastCompletedDayIndex: active.lastCompletedDayIndex,
+      isActive: true,
+    };
+  }
+  return result;
+}
+
 // lastCompletedDayIndex is the single source of truth for program progress;
 // completedWorkouts is always derived from it (index + 1 = count of unique
 // days done) in the same write, rather than tracked as a separately
 // incremented counter — the previous version updated them independently,
 // which meant any code path that forgot to touch one of them (or an
 // enrollment reset that missed clearing the other) let them drift apart.
-export async function incrementProgramWorkouts(userId: string, dayIndex?: number) {
+export async function incrementProgramWorkouts(userId: string, dayIndex?: number, programId?: string) {
   const snap = await getDoc(doc(db, 'users', userId));
   if (!snap.exists() || !snap.data()?.activeProgram) return;
   const activeProgram = snap.data()?.activeProgram;
+  // If the user switched to a DIFFERENT program between starting and
+  // finishing this workout, activeProgram no longer belongs to the program
+  // this workout was actually for — writing into it would silently corrupt
+  // whichever program happens to be active now instead of the one just
+  // trained. Record the completion into that program's OWN saved snapshot
+  // instead, so it's never lost, without touching the (unrelated) currently
+  // active program at all.
+  if (programId && activeProgram?.programId && activeProgram.programId !== programId) {
+    const savedProgress = (snap.data()?.programProgress ?? {}) as Record<string, {
+      programName?: string; completedWorkouts?: number; totalWorkouts?: number; lastCompletedDayIndex?: number;
+    }>;
+    const prior = savedProgress[programId];
+    const priorLastCompleted = prior?.lastCompletedDayIndex ?? -1;
+    if (dayIndex !== undefined && dayIndex <= priorLastCompleted) return; // repeat, not a new day
+    const newLastCompleted = dayIndex !== undefined ? dayIndex : priorLastCompleted + 1;
+    let completedTraining = newLastCompleted + 1;
+    let totalWorkouts = prior?.totalWorkouts ?? 0;
+    try {
+      const resolved = await resolveProgram(programId);
+      if (resolved) {
+        const { countTrainingSlotsThrough, getTotalTrainingDays } = await import('./programs');
+        completedTraining = countTrainingSlotsThrough(resolved, newLastCompleted);
+        totalWorkouts = getTotalTrainingDays(resolved);
+      }
+    } catch { /* fall back to slot count rather than blocking the workout save */ }
+    await updateDoc(doc(db, 'users', userId), {
+      [`programProgress.${programId}`]: {
+        programName: prior?.programName ?? '',
+        completedWorkouts: completedTraining,
+        totalWorkouts,
+        lastCompletedDayIndex: newLastCompleted,
+      },
+      lastActive: serverTimestamp(),
+    });
+    return;
+  }
+
   const lastCompleted: number = activeProgram?.lastCompletedDayIndex ?? -1;
   // Only advance when doing a genuinely new (later) day, not a repeat
   const isNewDay = dayIndex === undefined || dayIndex > lastCompleted;

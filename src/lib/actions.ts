@@ -115,7 +115,7 @@ export async function completeWorkout(
   // a workout can't cancel this write mid-flight and silently drop progress —
   // dayIndex prevents counting repeats of the same day.
   if (programId) {
-    await incrementProgramWorkouts(userId, dayIndex).catch(console.error);
+    await incrementProgramWorkouts(userId, dayIndex, programId).catch(console.error);
   }
 
   // Update XP + powerLevel

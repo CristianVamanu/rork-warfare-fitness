@@ -8,9 +8,9 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import {
   Play, Clock, Target, Dumbbell, Moon, CheckCircle, CheckCircle2, ChevronLeft,
-  AlertTriangle, RotateCcw, Lock, Crown,
+  Save, RotateCcw, Lock, Crown,
 } from 'lucide-react';
-import { resolveProgram, enrollInProgram, getMembershipConfig } from '@/lib/firestore';
+import { resolveProgram, enrollInProgram, getMembershipConfig, getAllProgramProgress } from '@/lib/firestore';
 import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix, getScheduleForWeek, getNextSession } from '@/lib/programs';
 import { getProgramDayLimit } from '@/lib/membership';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
@@ -53,10 +53,22 @@ export default function ProgramDetailPage() {
   const [purchasing, setPurchasing] = useState(false);
   const [membershipConfig, setMembershipConfig] = useState<MembershipConfig | null>(null);
   const [membershipLoaded, setMembershipLoaded] = useState(false);
+  // Saved position from a previous stint on this exact program, if this
+  // isn't the currently active one — lets the CTA say "Resume — Week X Day
+  // Y" instead of "Switch to This Program" when there's real progress to
+  // pick back up, per the non-destructive program-switching redesign.
+  const [savedProgress, setSavedProgress] = useState<{ completedWorkouts: number; lastCompletedDayIndex?: number } | null>(null);
 
   useEffect(() => {
     getMembershipConfig().then(setMembershipConfig).catch(() => setMembershipConfig(null)).finally(() => setMembershipLoaded(true));
   }, []);
+
+  useEffect(() => {
+    if (!user || !id) { setSavedProgress(null); return; }
+    getAllProgramProgress(user.uid)
+      .then((all) => setSavedProgress(id in all && !all[id].isActive ? all[id] : null))
+      .catch(() => setSavedProgress(null));
+  }, [user, id, enrolling]);
 
   // Infinity until membership config has actually loaded — treating an
   // unloaded config as "no limit" avoids a flash of locked days that then
@@ -390,7 +402,9 @@ export default function ProgramDetailPage() {
           ) : (
             <Button fullWidth size="lg" loading={enrolling} onClick={() => handleEnroll(false)}>
               <Play className="w-5 h-5" />
-              {hasDifferentProgram ? 'Switch to This Program' : 'Start Program'}
+              {savedProgress
+                ? `Resume — ${savedProgress.completedWorkouts} workouts done`
+                : hasDifferentProgram ? 'Switch to This Program' : 'Start Program'}
             </Button>
           )}
         </motion.div>
@@ -584,23 +598,30 @@ export default function ProgramDetailPage() {
         )}
       </div>
 
-      {/* Switch Program Modal */}
-      <Modal open={switchModal} onClose={() => setSwitchModal(false)} title="Switch Program?">
+      {/* Switch Program Modal — switching no longer destroys progress:
+          enrollInProgram saves the outgoing program's position under
+          programProgress[programId] and restores the target program's own
+          saved position if it has one, so this is now a reassurance dialog
+          rather than a destructive-action warning. */}
+      <Modal open={switchModal} onClose={() => setSwitchModal(false)} title={`Switch to ${program.name}?`}>
         <div className="space-y-4">
-          <div className="flex items-start gap-3 p-3 bg-amber-400/10 border border-amber-400/20 rounded-xl">
-            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 p-3 bg-accent/10 border border-accent/20 rounded-xl">
+            <Save className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-white">You are currently enrolled in</p>
-              <p className="text-sm text-accent font-bold">{activeProgram?.programName}</p>
-              <p className="text-xs text-text-secondary mt-1">
-                Switching will reset your progress ({activeProgram?.completedWorkouts ?? 0} workouts completed).
+              <p className="text-sm text-text-secondary">
+                Your <span className="text-white font-medium">{activeProgram?.programName}</span> progress
+                ({activeProgram?.completedWorkouts ?? 0} workouts completed) will be saved.
+                You can resume it anytime from My Programs.
+                {savedProgress && (
+                  <> You'll pick up {program.name} right where you left off ({savedProgress.completedWorkouts} workouts done).</>
+                )}
               </p>
             </div>
           </div>
           <div className="flex gap-3">
             <Button variant="ghost" fullWidth onClick={() => setSwitchModal(false)}>Cancel</Button>
             <Button fullWidth loading={enrolling} onClick={() => handleEnroll(true)}>
-              Switch to {program.name}
+              Switch Program
             </Button>
           </div>
         </div>

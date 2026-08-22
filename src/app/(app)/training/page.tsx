@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getPrograms, resolveProgram, getHiddenMockIds, getUserCustomPrograms } from '@/lib/firestore';
+import { getPrograms, resolveProgram, getHiddenMockIds, getUserCustomPrograms, getAllProgramProgress } from '@/lib/firestore';
 import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
@@ -52,6 +52,23 @@ export default function TrainingPage() {
   const workedOutToday = completedWorkouts > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
 
   const [resolvedActive, setResolvedActive] = useState<Program | null>(null);
+  // Saved (non-active) per-program progress, keyed by programId — powers
+  // the "Continue — Week X • Day Y" line on programs other than the
+  // currently active one, so switching away and back is visibly
+  // non-destructive right from this browse list.
+  const [savedProgressMap, setSavedProgressMap] = useState<Record<string, { completedWorkouts: number }>>({});
+  useEffect(() => {
+    if (!user) { setSavedProgressMap({}); return; }
+    getAllProgramProgress(user.uid)
+      .then((all) => {
+        const nonActive: Record<string, { completedWorkouts: number }> = {};
+        for (const [pid, p] of Object.entries(all)) {
+          if (!p.isActive) nonActive[pid] = { completedWorkouts: p.completedWorkouts };
+        }
+        setSavedProgressMap(nonActive);
+      })
+      .catch(() => setSavedProgressMap({}));
+  }, [user, activeProgram?.programId]);
   // Clamped to 100: getScheduleForWeek has no "program finished" concept of
   // its own — once a user's position runs past the program's last defined
   // week, it just keeps repeating that final phase's schedule rather than
@@ -215,6 +232,9 @@ export default function TrainingPage() {
                                 {prog.level}
                               </Badge>
                               {isActive && <Badge variant="success">Active</Badge>}
+                              {!isActive && savedProgressMap[prog.id] && (
+                                <Badge variant="muted">Continue — {savedProgressMap[prog.id].completedWorkouts} done</Badge>
+                              )}
                             </div>
                             <h3 className="font-bold text-white">{prog.name}</h3>
                             <p className="text-xs text-text-secondary mt-1 line-clamp-2">{prog.description}</p>
@@ -285,6 +305,9 @@ export default function TrainingPage() {
                                 {prog.level}
                               </Badge>
                               {isActive && <Badge variant="success">Active</Badge>}
+                              {!isActive && savedProgressMap[prog.id] && (
+                                <Badge variant="muted">Continue — {savedProgressMap[prog.id].completedWorkouts} done</Badge>
+                              )}
                               {(prog as { isPremium?: boolean }).isPremium && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
                               {(prog as { targetGender?: string }).targetGender && (prog as { targetGender?: string }).targetGender !== 'anyone' && (
                                 <Badge variant="muted">{(prog as { targetGender?: string }).targetGender}</Badge>

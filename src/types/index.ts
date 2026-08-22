@@ -72,6 +72,18 @@ export interface ActiveProgram {
   lastCompletedDayIndex?: number;  // absolute day index (0-based) of the last non-repeated day completed
 }
 
+// Saved position for a program the user isn't currently active on — same
+// fields as ActiveProgram minus programId (that's the map key) since it's
+// otherwise the exact same shape mirrored to/from `activeProgram` on switch.
+export interface ProgramProgressSnapshot {
+  programName: string;
+  enrolledAt: unknown;
+  programStartDate?: string;
+  completedWorkouts: number;
+  totalWorkouts: number;
+  lastCompletedDayIndex?: number;
+}
+
 export type FitnessGoal = 'lose-fat' | 'build-muscle' | 'recomposition' | 'strength';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 export type EquipmentType = 'home' | 'full-gym' | 'minimal';
@@ -205,6 +217,17 @@ export interface UserProfile {
   // actual successful result, not just for opening the page.
   aiTaste?: Record<string, boolean>;
   activeProgram?: ActiveProgram;
+  // Per-program progress snapshots, keyed by programId — every program the
+  // user has ever enrolled in keeps its own saved position here, so
+  // switching `activeProgram` to a different program never has to destroy
+  // progress the way overwriting a single global pointer used to. Whichever
+  // program is currently active is mirrored into `activeProgram` above (so
+  // every existing screen that reads `profile.activeProgram.*` keeps
+  // working unchanged) — this map is the actual source of truth for a
+  // program's progress once the user has switched away from it at least
+  // once. A program the user has never switched away from yet may not have
+  // an entry here at all; its live progress is simply `activeProgram`.
+  programProgress?: Record<string, ProgramProgressSnapshot>;
   onboardingComplete?: boolean;
   onboarding?: OnboardingData;
   // One-time flag — the streak flame's "ignition" welcome animation on the
