@@ -19,6 +19,7 @@ import {
   limit,
   query,
   serverTimestamp,
+  setDoc,
   Timestamp,
   updateDoc,
   where,
@@ -214,6 +215,8 @@ export async function rebuildStatsCache(userId: string) {
 export async function checkAndRunMigration(userId: string): Promise<void> {
   try {
     const userSnap = await getDoc(doc(db, 'users', userId));
+    await backfillLeaderboardPublic(userId, userSnap.data());
+
     if (userSnap.data()?.migrationCompletedAt) return; // already migrated
 
     // Check if there's any legacy data worth migrating
@@ -236,5 +239,37 @@ export async function checkAndRunMigration(userId: string): Promise<void> {
     }
   } catch (err) {
     console.error('[Migration] checkAndRunMigration failed for', userId, err);
+  }
+}
+
+// One-time backfill for users created before the leaderboardPublic split
+// (see firestore.rules / firestore.ts syncLeaderboardPublic — `users/{uid}`
+// is now locked to owner + admin/own-trainer, so the leaderboard reads a
+// separate public mirror instead). Runs on every login but is a no-op once
+// the doc exists, so it self-heals for every pre-existing account the first
+// time they sign back in without needing a one-off admin script.
+async function backfillLeaderboardPublic(userId: string, userData: Record<string, unknown> | undefined): Promise<void> {
+  try {
+    const pubSnap = await getDoc(doc(db, 'leaderboardPublic', userId));
+    if (pubSnap.exists()) return;
+    const data = userData ?? {};
+    const stats = (data.stats as Record<string, number> | undefined) ?? {};
+    const statsCache = (data.statsCache as Record<string, number> | undefined) ?? {};
+    await setDoc(doc(db, 'leaderboardPublic', userId), {
+      displayName: (data.displayName as string) ?? 'Athlete',
+      xp: (data.xp as number) ?? 0,
+      powerLevel: (data.powerLevel as number) ?? stats.powerLevel ?? 1,
+      streak: statsCache.streak ?? stats.streak ?? 0,
+      totalWorkouts: statsCache.totalWorkouts ?? stats.totalWorkouts ?? 0,
+      totalWeightLifted: stats.totalWeightLifted ?? 0,
+      questsCompleted: (data.questsCompleted as string[]) ?? [],
+      // `banned` is intentionally NOT written here — the security rules
+      // forbid clients setting it (only the server-side ban-user route can),
+      // so including it would make this whole write fail the allowlist
+      // check. A banned user's leaderboardPublic doc gets `banned: true`
+      // from that route directly, independent of this backfill.
+    }, { merge: true });
+  } catch (err) {
+    console.error('[Migration] backfillLeaderboardPublic failed for', userId, err);
   }
 }

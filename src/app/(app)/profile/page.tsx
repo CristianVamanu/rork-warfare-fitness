@@ -9,7 +9,7 @@ import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  updateUserDoc, getUserConversations, getMembershipConfig, getCoachingPlans, getMembershipPlans,
+  updateUserDoc, syncLeaderboardPublic, getUserConversations, getMembershipConfig, getCoachingPlans, getMembershipPlans,
   submitCoachingApplication, getUserCoachingApplication,
 } from '@/lib/firestore';
 import { startCoachingCheckout, startPlanCheckout } from '@/lib/checkout';
@@ -120,6 +120,7 @@ export default function ProfilePage() {
     setSaving(true);
     try {
       await updateUserDoc(user.uid, { displayName: displayName.trim() });
+      await syncLeaderboardPublic(user.uid, { displayName: displayName.trim() });
       await refreshProfile();
       setEditModal(false);
       toast.success('Profile updated!');

@@ -154,7 +154,12 @@ service cloud.firestore {
     // channels. Trade-off: email is technically readable by any signed-in
     // member via direct Firestore calls, not just through the app UI.
     match /users/{userId} {
-      allow read:   if isAuthed();
+      // Full profile docs hold email, biometrics, goals, membership/coaching
+      // status and Stripe subscription ids — readable only by the owner and
+      // admin/own-trainer. Anything other users need (leaderboard, "N people
+      // trained today") is mirrored client-side into the separate
+      // leaderboardPublic/{userId} doc below, which is field-limited by rule.
+      allow read:   if isAuthed() && (uid() == userId || isAdminOrOwnTrainer(userId));
       // trainerId is deliberately allowed here (unlike role/membership/
       // purchasedProgramIds) — signUp() always writes it (possibly null),
       // and unlike those other fields it doesn't grant admin or paid access
@@ -186,6 +191,23 @@ service cloud.firestore {
           premiumEnrollAllowed())
       );
       allow delete: if isAdmin();
+    }
+
+    // ── Leaderboard (public mirror) ──────────────────────────────────────
+    // Field-limited copy of the leaderboard-relevant subset of a user's doc
+    // (see src/lib/firestore.ts syncLeaderboardPublic) — readable by anyone
+    // signed in, unlike the full users/{userId} doc above. `banned` is
+    // deliberately excluded from the client-writable allowlist: only the
+    // server-side ban-user route (firebase-admin, bypasses these rules) can
+    // set it, so a banned user can't self-unban by writing to their own doc.
+    match /leaderboardPublic/{userId} {
+      allow read: if isAuthed();
+      allow write: if isAdmin() || (
+        isAuthed() && uid() == userId &&
+        request.resource.data.keys().hasOnly(
+          ['displayName', 'xp', 'powerLevel', 'streak', 'totalWorkouts', 'totalWeightLifted', 'questsCompleted', 'lastWorkoutDate']
+        )
+      );
     }
 
     // ── Tenants ───────────────────────────────────────────────────────────

@@ -131,6 +131,11 @@ export async function checkAndAwardQuests(userId: string, stats: QuestProgressIn
         { questsCompleted: arrayUnion(...newlyCompleted) },
         { merge: true }
       );
+      await setDoc(
+        doc(db, 'leaderboardPublic', userId),
+        { questsCompleted: arrayUnion(...newlyCompleted) },
+        { merge: true }
+      ).catch((err) => console.error('[Quests] leaderboardPublic sync failed:', err));
     }
     return newlyCompleted;
   } catch (err) {

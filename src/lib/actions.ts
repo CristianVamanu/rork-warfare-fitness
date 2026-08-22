@@ -17,7 +17,7 @@ import {
 import type { DistanceUnit } from '@/lib/distance';
 import { auth, db } from './firebase';
 import { createEvent } from './events';
-import { incrementProgramWorkouts } from './firestore';
+import { incrementProgramWorkouts, syncLeaderboardPublic } from './firestore';
 import { calcWorkoutXP, xpToPowerLevel } from './xp';
 import { checkAndAwardAchievements, ACHIEVEMENT_DEFS } from './achievements';
 import { checkAndAwardQuests } from './quests';
@@ -190,6 +190,19 @@ export async function completeWorkout(
           totalWorkouts,
         },
       }, { merge: true });
+
+      // Mirror the leaderboard-relevant subset onto the public, field-limited
+      // doc other users are actually allowed to read (see firestore.rules —
+      // `users/{uid}` is locked to owner + admin/own-trainer). Streak is
+      // deliberately excluded, matching statsCache above — it's synced solely
+      // by recomputeStatsCache to avoid the same race.
+      void syncLeaderboardPublic(userId, {
+        xp: totalXP,
+        powerLevel: newPowerLevel,
+        totalWorkouts,
+        totalWeightLifted: prevTotalWeightLifted + totalWeightLifted,
+        lastWorkoutDate: today,
+      });
     });
 
     // Check achievements after updating power level — use newStreak (the

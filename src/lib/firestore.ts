@@ -1611,11 +1611,26 @@ function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): Leade
     displayName: (data.displayName as string) || 'Athlete',
     xp: (data.xp as number) ?? 0,
     powerLevel: (data.powerLevel as number) ?? 0,
-    streak: (data.statsCache as Record<string, number> | undefined)?.streak ?? (data.stats as Record<string, number> | undefined)?.streak ?? 0,
-    totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? (data.stats as Record<string, number> | undefined)?.totalWorkouts ?? 0,
-    totalWeightLifted: (data.stats as Record<string, number> | undefined)?.totalWeightLifted ?? 0,
+    streak: (data.streak as number) ?? 0,
+    totalWorkouts: (data.totalWorkouts as number) ?? 0,
+    totalWeightLifted: (data.totalWeightLifted as number) ?? 0,
     questsCompleted: (data.questsCompleted as string[]) ?? [],
   };
+}
+
+// Public, field-limited mirror of the private `users/{uid}` doc — see
+// firestore.rules. `users/{uid}` is readable only by its owner and
+// admin/own-trainer, so anything shown to OTHER users (leaderboard, today's
+// workout count) must be read from here instead. Never mirror `banned` from
+// client code — only the server-side ban-user route (firebase-admin, bypasses
+// rules) is allowed to set it, so a banned user can't self-unban by writing
+// to their own doc.
+export async function syncLeaderboardPublic(userId: string, patch: Record<string, unknown>): Promise<void> {
+  try {
+    await setDoc(doc(db, 'leaderboardPublic', userId), patch, { merge: true });
+  } catch (err) {
+    console.error('[Firestore] syncLeaderboardPublic failed:', err);
+  }
 }
 
 // NOTE: This app is currently single-tenant (one trainer per install), so the
@@ -1624,7 +1639,7 @@ function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): Leade
 // trainerId and the live admin uid made them silently invisible) and adds no
 // value with only one trainer. Revisit if true multi-tenant coaching ships.
 export async function getLeaderboard(limitCount = 10): Promise<LeaderboardEntry[]> {
-  const snap = await getDocs(query(collection(db, 'users'), orderBy('xp', 'desc'), limit(200)));
+  const snap = await getDocs(query(collection(db, 'leaderboardPublic'), orderBy('xp', 'desc'), limit(200)));
   const entries = snap.docs
     .filter((d) => !d.data().banned)
     .map((d) => mapToLeaderboardEntry(d.id, d.data()))
@@ -1636,7 +1651,7 @@ export function subscribeLeaderboard(
   onUpdate: (entries: LeaderboardEntry[]) => void,
   limitCount = 10,
 ): () => void {
-  const q = query(collection(db, 'users'), orderBy('xp', 'desc'), limit(200));
+  const q = query(collection(db, 'leaderboardPublic'), orderBy('xp', 'desc'), limit(200));
   return onSnapshot(q, (snap) => {
     const entries = snap.docs
       .filter((d) => !d.data().banned)
@@ -1657,7 +1672,7 @@ export function subscribeNearbyLeaderboard(
   onUpdate: (entries: LeaderboardEntry[]) => void,
   limitCount = 10,
 ): () => void {
-  const q = query(collection(db, 'users'), orderBy('xp', 'desc'), limit(200));
+  const q = query(collection(db, 'leaderboardPublic'), orderBy('xp', 'desc'), limit(200));
   return onSnapshot(q, (snap) => {
     const all = snap.docs
       .filter((d) => !d.data().banned)
@@ -1685,9 +1700,9 @@ export function subscribeNearbyLeaderboard(
 // rather than faking hour-level precision the data doesn't actually have.
 export function subscribeTodayWorkoutCount(onUpdate: (count: number) => void): () => void {
   const todayStr = new Date().toLocaleDateString('sv-SE');
-  const q = query(collection(db, 'users'), orderBy('lastActive', 'desc'), limit(300));
+  const q = query(collection(db, 'leaderboardPublic'), orderBy('lastWorkoutDate', 'desc'), limit(300));
   return onSnapshot(q, (snap) => {
-    const count = snap.docs.filter((d) => !d.data().banned && d.data().statsCache?.lastWorkoutDate === todayStr).length;
+    const count = snap.docs.filter((d) => !d.data().banned && d.data().lastWorkoutDate === todayStr).length;
     onUpdate(count);
   }, (err) => console.error('[Firestore] subscribeTodayWorkoutCount error:', err));
 }
