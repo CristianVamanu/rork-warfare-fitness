@@ -45,6 +45,31 @@ const withPWA = require('next-pwa')({
     {
       urlPattern: ({ request }) => request.mode === 'navigate',
       handler: 'NetworkOnly',
+      options: {
+        // Workbox's NetworkOnly re-throws as an unhandled "no-response"
+        // rejection whenever the underlying fetch doesn't resolve to a
+        // Response — that includes a genuinely failed request, but also a
+        // harmless one: the browser/Next.js aborting this exact navigation
+        // because the user already navigated elsewhere before it finished.
+        // The aborted case is common and cosmetic (the browser discards the
+        // cancelled navigation on its own either way), but it was spamming
+        // the console identically to a real failure. Supplying a fallback
+        // response here suppresses that rethrow in both cases; for a
+        // cancelled navigation nothing sees the response (already
+        // discarded), and for a genuine failure this now shows a minimal
+        // "you're offline" page instead of the browser's default error
+        // interstitial — a small UX improvement, not a behavior change to
+        // the deliberate never-serve-stale-cache policy above.
+        plugins: [
+          {
+            handlerDidError: async () =>
+              new Response(
+                '<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding:3rem 1rem;color:#666"><p>You\'re offline. Check your connection and try again.</p></body></html>',
+                { status: 503, headers: { 'Content-Type': 'text/html' } }
+              ),
+          },
+        ],
+      },
     },
     // The rule above only matches a hard/full page load — App Router
     // client-side transitions (clicking a <Link>, router.push, e.g.
@@ -73,6 +98,20 @@ const withPWA = require('next-pwa')({
     // also lives under googleapis.com.
     {
       urlPattern: ({ url }) => url.hostname === 'firestore.googleapis.com',
+      handler: 'NetworkOnly',
+    },
+    // Firebase Auth's SDK lazily loads https://apis.google.com/js/api.js on
+    // init (a redirect/cross-tab helper it preloads even for plain
+    // email/password auth) — the CSP's connect-src correctly blocks it since
+    // this app never uses it, but it was falling through to next-pwa's
+    // bundled cross-origin NetworkFirst default, which tried to cache the
+    // (CSP-blocked) response and logged a second, noisier "no-response"
+    // Workbox error on top of the CSP violation. Routing it to NetworkOnly
+    // instead skips the caching attempt entirely — the request still fails
+    // exactly the same (nothing here changes what the CSP blocks), it just
+    // no longer doubles up the console noise.
+    {
+      urlPattern: ({ url }) => url.hostname === 'apis.google.com',
       handler: 'NetworkOnly',
     },
     // next-pwa's bundled defaults match video files with /\.(?:mp4)$/ —
