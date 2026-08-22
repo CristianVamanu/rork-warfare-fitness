@@ -42,7 +42,16 @@ export function middleware(request: NextRequest) {
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
     "media-src 'self' https: blob:",
-    "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co",
+    // fonts.gstatic.com is also needed here, not just in font-src — the PWA
+    // service worker's CacheFirst strategy for the "others" catch-all
+    // fetches font files via the Fetch API to populate its cache, and
+    // fetch() calls are governed by connect-src regardless of what the
+    // resource actually is. font-src alone only covers the browser's own
+    // native @font-face loading, not a script-initiated fetch of the same
+    // URL — missing this here blocked every woff2 the service worker tried
+    // to cache, reported live as repeated CSP violations + "no-response"
+    // Workbox errors.
+    "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com",
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
