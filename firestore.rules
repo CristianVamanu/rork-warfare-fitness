@@ -148,11 +148,6 @@ service cloud.firestore {
     }
 
     // ── Users ─────────────────────────────────────────────────────────────
-    // Read is open to any authenticated user (not just self/admin) so the
-    // leaderboard can query the whole users collection — this is a single
-    // community app where members already see each other's names/stats in
-    // channels. Trade-off: email is technically readable by any signed-in
-    // member via direct Firestore calls, not just through the app UI.
     match /users/{userId} {
       // Full profile docs hold email, biometrics, goals, membership/coaching
       // status and Stripe subscription ids — readable only by the owner and
