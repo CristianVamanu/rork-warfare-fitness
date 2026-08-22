@@ -416,7 +416,7 @@ export default function ChannelPage() {
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen max-w-2xl mx-auto w-full">
-        <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-white/8">
+        <div className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/8">
           <div className="flex items-center gap-3 px-4 py-3">
             <button onClick={() => router.back()} className="p-2 rounded-xl text-text-secondary">
               <ChevronLeft className="w-5 h-5" />
@@ -432,7 +432,7 @@ export default function ChannelPage() {
   if (!channel) {
     return (
       <div className="flex flex-col min-h-screen max-w-2xl mx-auto w-full">
-        <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-white/8">
+        <div className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/8">
           <div className="flex items-center gap-3 px-4 py-3">
             <button onClick={() => router.back()} className="p-2 rounded-xl text-text-secondary"><ChevronLeft className="w-5 h-5" /></button>
             <p className="text-white font-bold">Channel not found</p>
@@ -453,7 +453,11 @@ export default function ChannelPage() {
     <PaywallGate feature="community" noTaste>
     <div className="flex flex-col min-h-screen">
       {/* ── Header ── */}
-      <div className="sticky top-0 z-30 bg-background/90 backdrop-blur-xl border-b border-white/8">
+      {/* Transparent (not an opaque bg-background fill) so the app
+          background's grid texture shows through, same as the shared
+          Header component elsewhere — this was a flat black bar sitting
+          on top of the grid instead of blending into it. */}
+      <div className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/8">
         <div className="flex items-center gap-3 px-4 py-3 max-w-2xl mx-auto w-full">
           <button
             onClick={() => router.back()}
