@@ -2068,18 +2068,32 @@ export async function submitCoachingApplication(data: {
     createdAt: serverTimestamp(),
   });
 
-  // Notify every admin so they know to review it.
-  const adminSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
-  await Promise.all(
-    adminSnap.docs.map((d) => sendNotification({
-      userId: d.id,
-      title: 'New 1:1 Coaching Application',
-      body: `${data.userName} applied for "${data.planName}". Review it in Admin → Coaching Apps.`,
-      type: 'manual',
-      actionLabel: 'Review Application',
-      actionUrl: '/admin?tab=coaching',
-    }))
-  );
+  // Notify the admin so they know to review it. A regular user can't run a
+  // `where('role','==','admin')` query against /users — Firestore rejects
+  // the whole query since it can't prove every possible matching doc is
+  // readable by this caller, even though the notification create rule
+  // itself would allow it. That used to throw here, AFTER the application
+  // doc above had already been saved — so the user saw "Failed to submit"
+  // on an application that actually went through. This is a single-tenant
+  // install (one admin), so instead of listing /users, notify the admin id
+  // already public on system/config — same source messages/page.tsx's
+  // fallback resolves to, and no extra read permissions needed.
+  try {
+    const cfg = await getSystemConfig();
+    const adminId = (cfg?.trainerId as string) || (cfg?.adminUid as string) || null;
+    if (adminId) {
+      await sendNotification({
+        userId: adminId,
+        title: 'New 1:1 Coaching Application',
+        body: `${data.userName} applied for "${data.planName}". Review it in Admin → Coaching Apps.`,
+        type: 'manual',
+        actionLabel: 'Review Application',
+        actionUrl: '/admin?tab=coaching',
+      });
+    }
+  } catch (err) {
+    console.error('[Firestore] Failed to notify admin of new coaching application:', err);
+  }
 
   return ref.id;
 }
