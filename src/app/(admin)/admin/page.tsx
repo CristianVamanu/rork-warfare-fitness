@@ -627,7 +627,7 @@ function AdminPageInner() {
     const text = msgText.trim();
     setMsgText('');
     try {
-      await sendMessage(activeConv.id, user.uid, profile.displayName, text, true);
+      await sendMessage(activeConv.id, user.uid, profile.displayName, text, true, activeConv.userId);
       setConversations(prev => prev.map(c => c.id === activeConv.id ? { ...c, lastMessage: text, unreadByUser: true } : c));
     } catch { toast.error('Failed to send message'); setMsgText(text); }
     finally { setSendingMsg(false); }

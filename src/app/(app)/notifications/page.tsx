@@ -26,6 +26,7 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   coaching_rejected: XCircle,
   pr_approved: BadgeCheck,
   pr_rejected: XCircle,
+  message: MessageSquare,
 };
 
 const TYPE_COLOR: Record<string, string> = {
@@ -38,6 +39,7 @@ const TYPE_COLOR: Record<string, string> = {
   coaching_rejected: 'text-danger bg-danger/10',
   pr_approved: 'text-accent bg-accent-muted',
   pr_rejected: 'text-danger bg-danger/10',
+  message: 'text-blue-400 bg-blue-400/10',
 };
 
 function timeAgo(ts: unknown): string {

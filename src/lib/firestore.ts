@@ -1398,7 +1398,13 @@ export async function sendMessage(
   senderId: string,
   senderName: string,
   content: string,
-  isFromAdmin: boolean
+  isFromAdmin: boolean,
+  // Only needed for an admin/coach reply — used to also raise an in-app
+  // notification for the client, same as every other coach-initiated
+  // action (goal_assigned, coaching_approved, etc). The reverse direction
+  // (a user messaging support) doesn't notify admins this way; they see it
+  // via the conversation list's own unread state instead.
+  recipientUserId?: string
 ) {
   await addDoc(collection(db, 'conversations', convId, 'messages'), {
     senderId,
@@ -1412,6 +1418,16 @@ export async function sendMessage(
     lastMessageAt: serverTimestamp(),
     ...(isFromAdmin ? { unreadByUser: true } : { unreadByAdmin: true }),
   });
+  if (isFromAdmin && recipientUserId) {
+    await sendNotification({
+      userId: recipientUserId,
+      title: `New message from ${senderName}`,
+      body: content.length > 120 ? `${content.slice(0, 117)}...` : content,
+      type: 'message',
+      actionUrl: '/messages',
+      actionLabel: 'View Message',
+    }).catch((err) => console.error('[Firestore] sendMessage notification failed:', err));
+  }
 }
 
 export async function deleteConversation(convId: string) {
