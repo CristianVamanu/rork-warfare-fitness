@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff, Download, Trash2, Cookie } from 'lucide-react';
+import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff, Download, Trash2, Cookie, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
@@ -32,6 +32,7 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [cookieChoice, setCookieChoice] = useState<'accepted' | 'rejected' | null>(null);
+  const [updating2FA, setUpdating2FA] = useState(false);
 
   useEffect(() => {
     setCookieChoice(getStoredConsent());
@@ -136,7 +137,36 @@ export default function SettingsPage() {
     }
   };
 
+  const toggle2FA = async () => {
+    if (!user) return;
+    setUpdating2FA(true);
+    const enabling = !profile?.twoFactorEnabled;
+    try {
+      await updateUserDoc(user.uid, { twoFactorEnabled: enabling });
+      await refreshProfile();
+      toast.success(enabling ? 'Two-factor authentication enabled' : 'Two-factor authentication disabled');
+    } catch {
+      toast.error('Failed to update');
+    } finally {
+      setUpdating2FA(false);
+    }
+  };
+
   const sections = [
+    {
+      title: 'Security',
+      items: [
+        {
+          icon: ShieldCheck,
+          label: 'Two-Factor Authentication',
+          description: profile?.twoFactorEnabled
+            ? 'On — a code is emailed to you at login'
+            : 'Off — add an email code at login for extra security',
+          action: toggle2FA,
+          rightLabel: updating2FA ? '...' : (profile?.twoFactorEnabled ? 'Turn off' : 'Turn on'),
+        },
+      ],
+    },
     {
       title: 'Preferences',
       items: [

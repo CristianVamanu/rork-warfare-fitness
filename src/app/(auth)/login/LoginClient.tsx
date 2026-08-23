@@ -11,6 +11,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { signIn } from '@/lib/auth';
+import { getTrustedDevice } from '@/lib/twoFactor';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -44,8 +45,32 @@ export default function LoginClient({
     setLoading(true);
     try {
       console.log('[Login] Calling signIn...');
-      await signIn(data.email, data.password);
-      console.log('[Login] signIn succeeded — navigating to /dashboard');
+      const user = await signIn(data.email, data.password);
+      console.log('[Login] signIn succeeded — checking 2FA status');
+      // Ask the server whether this account needs a code — either it
+      // doesn't have 2FA on at all, or this exact browser was already
+      // remembered from a previous verification. Either way skips straight
+      // to the dashboard; otherwise a code has just been emailed and the
+      // verify screen takes over.
+      try {
+        const idToken = await user.getIdToken();
+        const trusted = getTrustedDevice(user.uid);
+        const res = await fetch('/api/auth/2fa/login-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify(trusted ?? {}),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok && body.required) {
+          router.replace('/verify-2fa');
+          return;
+        }
+      } catch (twoFaErr) {
+        // Non-fatal — if the 2FA check itself fails, fail open rather than
+        // locking someone out of their own account over a transient error.
+        console.error('[Login] 2FA check failed, continuing without it:', twoFaErr);
+      }
+      console.log('[Login] navigating to /dashboard');
       router.replace('/dashboard');
     } catch (err: unknown) {
       const e = err as Error & { code?: string };

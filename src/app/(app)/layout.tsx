@@ -30,6 +30,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.replace('/banned');
       return;
     }
+    // A code was just issued at login and hasn't been verified yet — block
+    // every other route until it is (or a fresh code is requested and
+    // verified), not just whichever screen initiated the check. Without
+    // this a signed-in-but-unverified session could reach real data just
+    // by navigating directly to another URL instead of following the
+    // redirect the login page already gave it.
+    if (profile?.twoFactorPendingSince && pathname !== '/verify-2fa') {
+      router.replace('/verify-2fa');
+      return;
+    }
     if (
       profile &&
       profile.role !== 'admin' &&
@@ -45,7 +55,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (profile === null) return <FullPageSpinner />;
 
-  const hideNav = pathname === '/banned';
+  const hideNav = pathname === '/banned' || pathname === '/verify-2fa';
 
   return (
     // No bg-background here — redundant with <body>'s own background-color

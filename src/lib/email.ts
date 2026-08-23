@@ -127,6 +127,19 @@ export function trialEndingEmailHtml(name: string, daysLeft: number, appName: st
   `);
 }
 
+export function twoFactorCodeEmailHtml(code: string, appName: string): string {
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#fff;">Your sign-in code</h1>
+    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#bbb;">
+      Enter this code to finish signing in. It expires in 10 minutes.
+    </p>
+    <p style="margin:0;font-size:36px;font-weight:900;letter-spacing:0.15em;color:#F5A623;text-align:center;">${code}</p>
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#888;">
+      Didn't try to sign in? You can safely ignore this email — your password wasn't shared.
+    </p>
+  `);
+}
+
 export function paymentFailedEmailHtml(name: string, appName: string, appUrl: string): string {
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Your last payment didn't go through</h1>

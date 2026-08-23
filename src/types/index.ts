@@ -245,6 +245,13 @@ export interface UserProfile {
   weightGoal?: WeightGoal;
   purchasedProgramIds?: string[];
   banned?: boolean;
+  // Email-code 2FA, opt-in via Settings. twoFactorPendingSince is set the
+  // moment a code is issued at login and cleared on successful verification
+  // — (app)/layout.tsx redirects to /verify-2fa whenever it's set, so a
+  // user can't navigate past the code screen just by hitting back/a
+  // bookmark while a login is mid-verification.
+  twoFactorEnabled?: boolean;
+  twoFactorPendingSince?: unknown;
   membership?: {
     status: 'active' | 'none';
     expiresAt?: unknown;
