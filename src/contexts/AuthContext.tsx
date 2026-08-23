@@ -148,11 +148,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             },
           );
           profileUnsubRef.current = unsub;
+
+          // Non-blocking stats migration — moved inside this same
+          // getIdToken(true) chain (it used to fire immediately, outside
+          // it) so its own Firestore reads get the same token-propagation
+          // protection as everything else here, instead of racing ahead of
+          // the connection's auth handshake on a brand-new sign-in.
+          checkAndRunMigration(uid).catch(console.error);
         });
     });
-
-    // Non-blocking stats migration
-    checkAndRunMigration(uid).catch(console.error);
   };
 
   const refreshProfile = async () => {

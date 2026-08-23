@@ -608,7 +608,13 @@ function OnboardingPageInner() {
 
   const isGenerating = status === 'generating' || status === 'saving';
 
-  if (status === 'done' && revealProgram && !showVideoModal) {
+  // Was previously `&& !showVideoModal`, which hid this whole reveal screen
+  // the instant the welcome-video modal opened — with nothing else to fall
+  // back on, the component then rendered the raw step-1 onboarding form
+  // underneath the (modal) video, looking exactly like onboarding had reset
+  // back to the start. The reveal screen should stay put as the backdrop
+  // while the video modal sits on top of it, same as any other modal here.
+  if (status === 'done' && revealProgram) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 text-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="max-w-sm w-full">
@@ -690,6 +696,43 @@ function OnboardingPageInner() {
             Let&apos;s Go <ChevronRight className="w-4 h-4" />
           </Button>
         </motion.div>
+
+        {/* Video Greeting Modal — lives here (not the step-form return
+            below) since this reveal screen is now the backdrop while it's
+            open, not swapped out for the raw onboarding form. */}
+        <Modal open={showVideoModal} onClose={() => { setShowVideoModal(false); router.replace('/dashboard'); }} title="Welcome to the Team! 🎉">
+          <div className="space-y-4">
+            {videoGreetingUrl && (
+              <div className="rounded-xl overflow-hidden bg-black aspect-video">
+                {(() => {
+                  const embedUrl = getYouTubeEmbedUrl(videoGreetingUrl);
+                  return embedUrl ? (
+                    <iframe
+                      src={embedUrl}
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <video
+                      src={videoGreetingUrl}
+                      controls
+                      autoPlay
+                      playsInline
+                      webkit-playsinline="true"
+                      crossOrigin="anonymous"
+                      className="w-full h-full object-contain"
+                    />
+                  );
+                })()}
+              </div>
+            )}
+            <p className="text-sm text-text-secondary text-center">A personal welcome to get you started.</p>
+            <Button fullWidth onClick={() => { setShowVideoModal(false); router.replace('/dashboard'); }}>
+              Let&apos;s Go! →
+            </Button>
+          </div>
+        </Modal>
       </div>
     );
   }
@@ -844,41 +887,6 @@ function OnboardingPageInner() {
           </Button>
         )}
       </div>
-
-      {/* Video Greeting Modal */}
-      <Modal open={showVideoModal} onClose={() => { setShowVideoModal(false); router.replace('/dashboard'); }} title="Welcome to the Team! 🎉">
-        <div className="space-y-4">
-          {videoGreetingUrl && (
-            <div className="rounded-xl overflow-hidden bg-black aspect-video">
-              {(() => {
-                const embedUrl = getYouTubeEmbedUrl(videoGreetingUrl);
-                return embedUrl ? (
-                  <iframe
-                    src={embedUrl}
-                    className="w-full h-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                ) : (
-                  <video
-                    src={videoGreetingUrl}
-                    controls
-                    autoPlay
-                    playsInline
-                    webkit-playsinline="true"
-                    crossOrigin="anonymous"
-                    className="w-full h-full object-contain"
-                  />
-                );
-              })()}
-            </div>
-          )}
-          <p className="text-sm text-text-secondary text-center">A personal welcome to get you started.</p>
-          <Button fullWidth onClick={() => { setShowVideoModal(false); router.replace('/dashboard'); }}>
-            Let&apos;s Go! →
-          </Button>
-        </div>
-      </Modal>
     </div>
   );
 }

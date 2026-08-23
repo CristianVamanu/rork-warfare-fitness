@@ -59,7 +59,12 @@ export function middleware(request: NextRequest) {
     // Firebase's own domain for this project, so allowing it here is safe;
     // 'none' was blocking it outright (seen live as a framing CSP violation
     // on every page load).
-    "frame-src https://*.firebaseapp.com",
+    // youtube.com/youtube-nocookie.com — the onboarding welcome-video modal
+    // embeds an admin-configured YouTube URL (system/config.videoGreetingUrl)
+    // as an iframe; without this it's silently blocked by the CSP with no
+    // visible error beyond the console, reported live as "the welcome video
+    // doesn't show" right after finishing onboarding.
+    "frame-src https://*.firebaseapp.com https://www.youtube.com https://www.youtube-nocookie.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
