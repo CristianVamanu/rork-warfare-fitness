@@ -103,16 +103,20 @@ const withPWA = require('next-pwa')({
     // Firebase Auth's SDK lazily loads https://apis.google.com/js/api.js on
     // init (a redirect/cross-tab helper it preloads even for plain
     // email/password auth) — the CSP's connect-src correctly blocks it since
-    // this app never uses it, but it was falling through to next-pwa's
-    // bundled cross-origin NetworkFirst default, which tried to cache the
-    // (CSP-blocked) response and logged a second, noisier "no-response"
-    // Workbox error on top of the CSP violation. Routing it to NetworkOnly
-    // instead skips the caching attempt entirely — the request still fails
-    // exactly the same (nothing here changes what the CSP blocks), it just
-    // no longer doubles up the console noise.
+    // this app never uses it. Routing it to NetworkOnly (rather than
+    // falling through to next-pwa's bundled cross-origin NetworkFirst
+    // default) stopped it from being cached/retried, but NetworkOnly still
+    // re-throws as an unhandled "no-response" rejection when the fetch
+    // itself fails — which it always will here, by design (CSP blocks it).
+    // A handlerDidError fallback (same technique as the navigate rule
+    // above) suppresses that: nothing about the CSP block changes, this
+    // just stops it from being logged as an error every time.
     {
       urlPattern: ({ url }) => url.hostname === 'apis.google.com',
       handler: 'NetworkOnly',
+      options: {
+        plugins: [{ handlerDidError: async () => new Response('', { status: 204 }) }],
+      },
     },
     // next-pwa's bundled defaults match video files with /\.(?:mp4)$/ —
     // requires the URL to literally END in ".mp4". Firebase Storage and R2
