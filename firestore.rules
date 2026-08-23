@@ -214,8 +214,11 @@ service cloud.firestore {
 
     // ── Events — single write path for all activity tracking ─────────────
     match /events/{eventId} {
-      // Read: own events or admin
-      allow read: if isAuthed() && (resource.data.userId == uid() || isAdmin());
+      // Read: own events, admin, or that event's own trainer — needed for
+      // the admin panel's client profile modal (Training Activity: recent
+      // workout history), same scoping already used for goals/PT
+      // results/progress photos below.
+      allow read: if isAuthed() && (resource.data.userId == uid() || isAdminOrOwnTrainer(resource.data.userId));
 
       // Create: userId must match caller; required fields must be present
       allow create: if isAuthed()

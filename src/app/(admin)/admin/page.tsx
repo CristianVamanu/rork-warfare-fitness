@@ -29,7 +29,7 @@ import {
   getExerciseTaxonomy, saveExerciseTaxonomy,
   assignNutritionPlan,
   getCoachingApplications, approveCoachingApplication, rejectCoachingApplication,
-  getProgressPhotos,
+  getProgressPhotos, getUserWorkouts,
   createGoal, getClientGoals, setGoalStatus, deleteGoal,
   getTrainerLeads, updateTrainerLeadStatus,
 } from '@/lib/firestore';
@@ -182,6 +182,8 @@ interface UserData {
   banned?: boolean;
   statsCache?: { totalWorkouts?: number; streak?: number };
   stats?: { totalWorkouts?: number };
+  xp?: number;
+  powerLevel?: number;
   activeProgram?: { programName?: string; completedWorkouts?: number; totalWorkouts?: number };
   createdAt?: unknown;
   lastLoginAt?: unknown;
@@ -195,6 +197,14 @@ interface UserData {
   heightCm?: number;
   currentWeightKg?: number;
   medicalHistory?: MedicalHistoryAnswers;
+}
+
+interface AdminClientWorkout {
+  id: string;
+  duration?: number;
+  totalWeightLifted?: number;
+  exercises?: unknown[];
+  completedAt: unknown;
 }
 
 function formatLastLogin(ts: unknown): string {
@@ -381,6 +391,7 @@ function AdminPageInner() {
   const [nutritionModalUser, setNutritionModalUser] = useState<UserData | null>(null);
   const [profileDetailUser, setProfileDetailUser] = useState<UserData | null>(null);
   const [profileDetailPhotos, setProfileDetailPhotos] = useState<ProgressPhoto[]>([]);
+  const [profileDetailWorkouts, setProfileDetailWorkouts] = useState<AdminClientWorkout[]>([]);
   const [nutritionTrainerNotes, setNutritionTrainerNotes] = useState('');
   const [nutritionDraft, setNutritionDraft] = useState<Omit<NutritionPlan, 'assignedAt' | 'assignedBy'> | null>(null);
   const [generatingNutrition, setGeneratingNutrition] = useState(false);
@@ -482,10 +493,14 @@ function AdminPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Load this client's private progress photos whenever the profile modal opens
+  // Load this client's private progress photos + recent workout history
+  // whenever the profile modal opens — previously this modal only showed
+  // onboarding answers and the health screening, nothing about what the
+  // client has actually been doing in training.
   useEffect(() => {
-    if (!profileDetailUser) { setProfileDetailPhotos([]); return; }
+    if (!profileDetailUser) { setProfileDetailPhotos([]); setProfileDetailWorkouts([]); return; }
     getProgressPhotos(profileDetailUser.id).then(setProfileDetailPhotos).catch(() => setProfileDetailPhotos([]));
+    getUserWorkouts(profileDetailUser.id, 10).then((w) => setProfileDetailWorkouts(w as AdminClientWorkout[])).catch(() => setProfileDetailWorkouts([]));
   }, [profileDetailUser]);
 
   // ── Tab loaders ─────────────────────────────────────────────────────────────
@@ -4524,6 +4539,41 @@ function AdminPageInner() {
                 <div className="pt-1.5 border-t border-white/5">
                   <p className="text-text-tertiary text-xs mb-0.5">Limitations</p>
                   <p className="text-white text-xs">{profileDetailUser.limitations}</p>
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-4 space-y-3">
+              <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wide">Training Activity</h3>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2.5 bg-surface-elevated rounded-xl">
+                  <p className="text-sm font-bold text-white">{profileDetailUser.powerLevel ?? 0}</p>
+                  <p className="text-[10px] text-text-tertiary">Power Level</p>
+                </div>
+                <div className="p-2.5 bg-surface-elevated rounded-xl">
+                  <p className="text-sm font-bold text-white">{profileDetailUser.statsCache?.streak ?? 0}d</p>
+                  <p className="text-[10px] text-text-tertiary">Streak</p>
+                </div>
+                <div className="p-2.5 bg-surface-elevated rounded-xl">
+                  <p className="text-sm font-bold text-white">{profileDetailUser.statsCache?.totalWorkouts ?? profileDetailUser.stats?.totalWorkouts ?? 0}</p>
+                  <p className="text-[10px] text-text-tertiary">Total Workouts</p>
+                </div>
+              </div>
+              {profileDetailWorkouts.length === 0 ? (
+                <p className="text-xs text-text-tertiary">No workouts logged yet.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-text-tertiary uppercase tracking-wide">Recent Sessions</p>
+                  {profileDetailWorkouts.map((w) => {
+                    const ts = w.completedAt as { toDate?: () => Date } | null;
+                    const d = ts?.toDate?.();
+                    return (
+                      <div key={w.id} className="flex items-center justify-between text-xs px-3 py-2 bg-surface-elevated rounded-lg">
+                        <span className="text-white">{w.duration ? `${w.duration} min` : 'Session'} · {Array.isArray(w.exercises) ? w.exercises.length : 0} exercises</span>
+                        <span className="text-text-tertiary">{d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </Card>
