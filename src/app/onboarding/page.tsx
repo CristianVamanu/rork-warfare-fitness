@@ -459,10 +459,24 @@ function OnboardingPageInner() {
           }
         }
         const finalProgram = program!;
-        await enrollInProgram(activeUser.uid, {
-          id: finalProgram.id, name: finalProgram.name, weeks: finalProgram.weeks, daysPerWeek: finalProgram.daysPerWeek,
-        });
-        setRevealProgram(finalProgram);
+        try {
+          await enrollInProgram(activeUser.uid, {
+            id: finalProgram.id, name: finalProgram.name, weeks: finalProgram.weeks, daysPerWeek: finalProgram.daysPerWeek,
+          });
+          setRevealProgram(finalProgram);
+        } catch (err) {
+          // A preselected (or matched) program can legitimately be
+          // members-only/priced — firestore.rules correctly refuses to
+          // enroll a brand-new, non-paying account into one. That's
+          // expected, not a bug, but it used to take the ENTIRE
+          // Promise.all below down with it: nutritionTask/saveTask/
+          // weightTask have nothing to do with program access and
+          // shouldn't fail just because this one did. Onboarding now
+          // finishes without a program instead of leaving the account
+          // half-set-up (no goals, onboardingComplete still false) — the
+          // user can subscribe/purchase and pick one from /training after.
+          console.error('[Onboarding] Program enrollment failed — continuing without one:', err);
+        }
       })();
 
       // Nutrition targets: deterministic math server-side (near-instant,
