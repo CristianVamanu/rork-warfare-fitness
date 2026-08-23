@@ -19,7 +19,7 @@ import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_B2B_TERMS } from '@/lib/
 import {
   getSystemConfig, setSystemConfig,
   getAllUsers, setUserRole, setUserTrainer,
-  getAdminConversations, getOrCreateConversation, subscribeMessages, sendMessage, markConversationRead, deleteConversation,
+  subscribeAdminConversations, getOrCreateConversation, subscribeMessages, sendMessage, markConversationRead, deleteConversation,
   getMembershipConfig, saveMembershipConfig,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
   getChannels, createChannel, updateChannel, deleteChannel,
@@ -506,7 +506,6 @@ function AdminPageInner() {
   // ── Tab loaders ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (tab === 'clients' && users.length === 0) loadUsers();
-    if (tab === 'messages' && conversations.length === 0) loadConversations();
     if (tab === 'membership') { loadMembership(); loadCoachingPlans(); loadMembershipPlans(); }
     if (tab === 'coaching') loadCoachingApplications();
     if (tab === 'notifications') loadNotifConfig();
@@ -607,13 +606,20 @@ function AdminPageInner() {
     finally { setClientsLoading(false); }
   }
 
-  async function loadConversations() {
+  // Live — a client starting or replying to a "Message Support" thread now
+  // shows up here immediately. This used to be a one-time fetch gated on
+  // "tab === messages && conversations.length === 0", so a new conversation
+  // created after the admin had already visited the tab once (leaving
+  // conversations at []) never appeared until the tab was left and reopened.
+  useEffect(() => {
     if (!user) return;
     setConvsLoading(true);
-    try { setConversations(await getAdminConversations(user.uid)); }
-    catch { toast.error('Failed to load conversations'); }
-    finally { setConvsLoading(false); }
-  }
+    const unsub = subscribeAdminConversations(user.uid, (convs) => {
+      setConversations(convs);
+      setConvsLoading(false);
+    });
+    return unsub;
+  }, [user]);
 
   async function openConversation(conv: Conversation) {
     setActiveConv(conv);

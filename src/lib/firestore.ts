@@ -1367,6 +1367,24 @@ export async function getAdminConversations(adminId: string): Promise<Conversati
   return docs;
 }
 
+// Live version of getAdminConversations — a client starting a new "Message
+// Support" thread (or sending a follow-up) now shows up in the admin panel
+// immediately instead of only after leaving/re-entering the Messages tab
+// (loadConversations() was a one-time fetch, only ever called once per tab
+// visit since it's gated on conversations.length === 0).
+export function subscribeAdminConversations(adminId: string, onUpdate: (convs: Conversation[]) => void): () => void {
+  const q = query(collection(db, 'conversations'), where('adminId', '==', adminId));
+  return onSnapshot(q, (snap) => {
+    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Conversation));
+    docs.sort((a, b) => {
+      const ta = (a.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+      const tb = (b.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+      return tb - ta;
+    });
+    onUpdate(docs);
+  }, (err) => console.error('[Firestore] subscribeAdminConversations error:', err));
+}
+
 export async function getUserConversations(userId: string): Promise<Conversation[]> {
   const q = query(collection(db, 'conversations'), where('userId', '==', userId));
   const snap = await getDocs(q);
