@@ -4,7 +4,8 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
 import nextDynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
-import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target, Camera, Lock, Trash2, GitCompare } from 'lucide-react';
+import Link from 'next/link';
+import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target, Camera, Lock, Trash2, GitCompare, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserWorkouts, getWeightHistory, getSystemConfig, subscribeProgressPhotos, createProgressPhoto, deleteProgressPhoto } from '@/lib/firestore';
 import { recordWeight } from '@/lib/actions';
@@ -418,7 +419,12 @@ export default function ProgressPage() {
         {/* Recent Workouts Summary */}
         {!loading && workouts.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <h2 className="text-base font-bold text-white mb-3">Recent Sessions</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold text-white">Recent Sessions</h2>
+              <Link href="/progress/history" className="text-xs font-medium text-accent flex items-center gap-0.5 hover:underline">
+                Full history <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
             <div className="space-y-2">
               {workouts.slice(0, 5).map((w) => {
                 const ts = w.completedAt as { toDate?: () => Date } | null;
