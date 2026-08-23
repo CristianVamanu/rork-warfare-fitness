@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Modal } from '@/components/ui/Modal';
+import { BeforeAfterSlider } from '@/components/progress/BeforeAfterSlider';
 import toast from 'react-hot-toast';
 
 // recharts is a large dependency — load it only when this page actually
@@ -337,21 +338,13 @@ export default function ProgressPage() {
           </Card>
           {compareMode && comparePhotos.length === 2 && (
             <Card className="p-4 mt-3">
-              <div className="grid grid-cols-2 gap-2">
-                {comparePhotos.map((p, i) => {
-                  const date = photoDate(p);
-                  return (
-                    <div key={p.id}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.photoUrl} alt={i === 0 ? 'Before' : 'After'} className="w-full rounded-xl object-cover" />
-                      <p className="text-xs text-text-secondary text-center mt-1.5">
-                        {date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
-                        {p.weightKg && ` · ${p.weightKg}kg`}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
+              <BeforeAfterSlider
+                beforeUrl={comparePhotos[0].photoUrl}
+                afterUrl={comparePhotos[1].photoUrl}
+                beforeLabel={photoDate(comparePhotos[0])?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) ?? 'Before'}
+                afterLabel={photoDate(comparePhotos[1])?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) ?? 'After'}
+              />
+              <p className="text-center text-[10px] text-text-tertiary mt-2">Drag the handle to compare</p>
               {(() => {
                 const [a, b] = comparePhotos;
                 const dA = photoDate(a), dB = photoDate(b);
