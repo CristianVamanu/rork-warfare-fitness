@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getUserWorkouts } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
-import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 
 interface SetLog {
@@ -51,11 +50,13 @@ function formatSet(s: SetLog): string {
 
 export default function WorkoutHistoryPage() {
   const { user, profile } = useAuth();
-  const [loading, setLoading] = useState(true);
   const [workouts, setWorkouts] = useState<WorkoutEntry[]>([]);
   const [monthCursor, setMonthCursor] = useState(() => {
     const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d;
   });
+  // Only used when a day has more than one logged workout (rare) — picking
+  // between them before showing the detail modal. A single-workout day
+  // skips straight to the modal instead of making that pick pointless.
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [detailWorkout, setDetailWorkout] = useState<WorkoutEntry | null>(null);
 
@@ -64,9 +65,7 @@ export default function WorkoutHistoryPage() {
     // Deep enough history for a real calendar view — the dashboard/progress
     // summary only ever needed the last handful of sessions, but "see my
     // full history" implies more than 30.
-    getUserWorkouts(user.uid, 300)
-      .then((w) => setWorkouts(w as WorkoutEntry[]))
-      .finally(() => setLoading(false));
+    getUserWorkouts(user.uid, 300).then((w) => setWorkouts(w as WorkoutEntry[]));
   }, [user]);
 
   const byDay = useMemo(() => {
@@ -98,6 +97,16 @@ export default function WorkoutHistoryPage() {
   const monthLabel = monthCursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const todayKey = dateKey(new Date());
   const selectedWorkouts = selectedDay ? (byDay.get(selectedDay) ?? []) : [];
+
+  function openDay(key: string | null) {
+    if (!key) return;
+    const dayWorkouts = byDay.get(key) ?? [];
+    if (dayWorkouts.length === 1) {
+      setDetailWorkout(dayWorkouts[0]);
+    } else if (dayWorkouts.length > 1) {
+      setSelectedDay(key);
+    }
+  }
 
   return (
     <div>
@@ -136,7 +145,7 @@ export default function WorkoutHistoryPage() {
                 <button
                   key={i}
                   disabled={!hasWorkout}
-                  onClick={() => setSelectedDay(cell.key)}
+                  onClick={() => openDay(cell.key)}
                   className={`aspect-square rounded-lg text-xs flex flex-col items-center justify-center gap-0.5 transition-colors ${
                     isSelected ? 'bg-accent text-black font-bold' :
                     hasWorkout ? 'bg-accent-muted text-accent font-semibold hover:bg-accent/30' :
@@ -150,13 +159,19 @@ export default function WorkoutHistoryPage() {
           </div>
         </Card>
 
+        {!workouts.length ? null : !byDay.size ? null : (
+          <p className="text-center text-xs text-text-tertiary">Tap a highlighted date to see that session&apos;s details.</p>
+        )}
+
+        {/* Only shown for a day with more than one logged workout — picks
+            which one to open before showing the detail modal. */}
         {selectedDay && (
           <div className="space-y-2">
             <p className="text-xs text-text-tertiary uppercase tracking-wide">
               {new Date(selectedDay + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
             </p>
             {selectedWorkouts.map((w) => (
-              <Card key={w.id} className="p-3 flex items-center gap-3 cursor-pointer" onClick={() => setDetailWorkout(w)}>
+              <Card key={w.id} className="p-3 flex items-center gap-3 cursor-pointer" onClick={() => { setDetailWorkout(w); setSelectedDay(null); }}>
                 <div className="p-2 bg-accent-muted rounded-xl flex-shrink-0">
                   <Dumbbell className="w-4 h-4 text-accent" />
                 </div>
@@ -168,40 +183,6 @@ export default function WorkoutHistoryPage() {
             ))}
           </div>
         )}
-
-        <div>
-          <h2 className="text-sm font-bold text-white mb-2">All Sessions</h2>
-          {loading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-16 rounded-2xl" />
-              <Skeleton className="h-16 rounded-2xl" />
-            </div>
-          ) : workouts.length === 0 ? (
-            <Card className="p-6 text-center text-text-secondary text-sm">No workouts logged yet</Card>
-          ) : (
-            <div className="space-y-2">
-              {workouts.map((w) => {
-                const d = toDate(w.completedAt);
-                return (
-                  <Card key={w.id} className="p-3 flex items-center gap-3 cursor-pointer" onClick={() => setDetailWorkout(w)}>
-                    <div className="p-2 bg-accent-muted rounded-xl flex-shrink-0">
-                      <Dumbbell className="w-4 h-4 text-accent" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white">
-                        {w.duration ? `${w.duration} min session` : 'Workout Session'}
-                      </p>
-                      <p className="text-xs text-text-secondary">
-                        {w.exercises?.length ?? 0} exercises
-                        {d && ` · ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
-                      </p>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
       </div>
 
       <Modal open={!!detailWorkout} onClose={() => setDetailWorkout(null)} title="Workout Detail">
