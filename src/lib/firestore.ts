@@ -1348,6 +1348,31 @@ export async function getUserConversations(userId: string): Promise<Conversation
   return docs;
 }
 
+// Live conversation list — same query as getUserConversations(), just kept
+// open so a coach/admin reply updates the inbox (unread dot, last-message
+// preview) without the user having to leave and come back to this page.
+export function subscribeUserConversations(userId: string, onUpdate: (convs: Conversation[]) => void): () => void {
+  const q = query(collection(db, 'conversations'), where('userId', '==', userId));
+  return onSnapshot(q, (snap) => {
+    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Conversation));
+    docs.sort((a, b) => {
+      const ta = (a.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+      const tb = (b.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+      return tb - ta;
+    });
+    onUpdate(docs);
+  }, (err) => console.error('[Firestore] subscribeUserConversations error:', err));
+}
+
+// Live messages for one open conversation — a coach's reply appears as it's
+// sent instead of only showing up after the user reopens the thread.
+export function subscribeMessages(convId: string, onUpdate: (messages: Message[]) => void): () => void {
+  const q = query(collection(db, 'conversations', convId, 'messages'), orderBy('createdAt', 'asc'));
+  return onSnapshot(q, (snap) => {
+    onUpdate(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)));
+  }, (err) => console.error('[Firestore] subscribeMessages error:', err));
+}
+
 export async function getMessages(convId: string): Promise<Message[]> {
   try {
     const q = query(

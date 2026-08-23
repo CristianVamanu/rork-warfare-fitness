@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { MessageSquare, Send, ChevronLeft, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserConversations, getMessages, sendMessage, markConversationRead, deleteConversation } from '@/lib/firestore';
+import { subscribeUserConversations, subscribeMessages, sendMessage, markConversationRead, deleteConversation } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -31,26 +31,31 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (!user) return;
-    getUserConversations(user.uid)
-      .then(setConversations)
-      .catch(() => toast.error('Failed to load messages'))
-      .finally(() => setLoading(false));
+    setLoading(true);
+    const unsub = subscribeUserConversations(user.uid, (convs) => {
+      setConversations(convs);
+      setLoading(false);
+    });
+    return unsub;
   }, [user]);
 
-  async function openConversation(conv: Conversation) {
-    setActiveConv(conv);
+  // Live messages for whichever conversation is open — a coach's reply now
+  // appears as it's sent instead of only showing up after leaving and
+  // reopening the thread.
+  useEffect(() => {
+    if (!activeConv) { setMessages([]); return; }
     setMsgLoading(true);
-    try {
-      const msgs = await getMessages(conv.id);
+    const unsub = subscribeMessages(activeConv.id, (msgs) => {
       setMessages(msgs);
-      if (conv.unreadByUser) await markConversationRead(conv.id, false);
-      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unreadByUser: false } : c));
-    } catch {
-      toast.error('Failed to load messages');
-    } finally {
       setMsgLoading(false);
-    }
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    });
+    return unsub;
+  }, [activeConv?.id]);
+
+  function openConversation(conv: Conversation) {
+    setActiveConv(conv);
+    if (conv.unreadByUser) markConversationRead(conv.id, false).catch(() => {});
   }
 
   async function handleDelete(conv: Conversation) {
@@ -71,11 +76,10 @@ export default function MessagesPage() {
     const text = msgText.trim();
     setMsgText('');
     try {
+      // No manual refetch/patch needed — the live subscriptions above pick
+      // up this write's effect on both the messages subcollection and the
+      // conversation doc's lastMessage automatically.
       await sendMessage(activeConv.id, user.uid, profile.displayName, text, false);
-      const msgs = await getMessages(activeConv.id);
-      setMessages(msgs);
-      setConversations(prev => prev.map(c => c.id === activeConv.id ? { ...c, lastMessage: text } : c));
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     } catch {
       toast.error('Failed to send');
       setMsgText(text);

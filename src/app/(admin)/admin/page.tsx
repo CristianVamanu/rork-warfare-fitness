@@ -19,7 +19,7 @@ import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_B2B_TERMS } from '@/lib/
 import {
   getSystemConfig, setSystemConfig,
   getAllUsers, setUserRole, setUserTrainer,
-  getAdminConversations, getOrCreateConversation, getMessages, sendMessage, markConversationRead, deleteConversation,
+  getAdminConversations, getOrCreateConversation, subscribeMessages, sendMessage, markConversationRead, deleteConversation,
   getMembershipConfig, saveMembershipConfig,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
   getChannels, createChannel, updateChannel, deleteChannel,
@@ -251,6 +251,20 @@ function AdminPageInner() {
   const [msgText, setMsgText] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Live messages for whichever conversation the admin has open — a
+  // client's incoming message now appears immediately instead of only on
+  // the next manual reopen of the thread.
+  useEffect(() => {
+    if (!activeConv) { setMessages([]); return; }
+    setMsgLoading(true);
+    const unsub = subscribeMessages(activeConv.id, (msgs) => {
+      setMessages(msgs);
+      setMsgLoading(false);
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    });
+    return unsub;
+  }, [activeConv?.id]);
 
   // ── Settings state ─────────────────────────────────────────────────────────
   const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
@@ -588,14 +602,7 @@ function AdminPageInner() {
 
   async function openConversation(conv: Conversation) {
     setActiveConv(conv);
-    setMsgLoading(true);
-    try {
-      const msgs = await getMessages(conv.id);
-      setMessages(msgs);
-      if (conv.unreadByAdmin) await markConversationRead(conv.id, true);
-    } catch { toast.error('Failed to load messages'); }
-    finally { setMsgLoading(false); }
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    if (conv.unreadByAdmin) markConversationRead(conv.id, true).catch(() => {});
   }
 
   async function startConversation(u: UserData) {
@@ -621,10 +628,7 @@ function AdminPageInner() {
     setMsgText('');
     try {
       await sendMessage(activeConv.id, user.uid, profile.displayName, text, true);
-      const msgs = await getMessages(activeConv.id);
-      setMessages(msgs);
       setConversations(prev => prev.map(c => c.id === activeConv.id ? { ...c, lastMessage: text, unreadByUser: true } : c));
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     } catch { toast.error('Failed to send message'); setMsgText(text); }
     finally { setSendingMsg(false); }
   }
