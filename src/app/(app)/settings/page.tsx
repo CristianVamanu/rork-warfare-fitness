@@ -33,6 +33,9 @@ export default function SettingsPage() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [cookieChoice, setCookieChoice] = useState<'accepted' | 'rejected' | null>(null);
   const [updating2FA, setUpdating2FA] = useState(false);
+  const [twoFAEmailModal, setTwoFAEmailModal] = useState(false);
+  const [twoFAEmailInput, setTwoFAEmailInput] = useState('');
+  const [saving2FAEmail, setSaving2FAEmail] = useState(false);
 
   useEffect(() => {
     setCookieChoice(getStoredConsent());
@@ -152,6 +155,28 @@ export default function SettingsPage() {
     }
   };
 
+  const saveTwoFAEmail = async () => {
+    if (!user) return;
+    const trimmed = twoFAEmailInput.trim();
+    if (trimmed && !/^\S+@\S+\.\S+$/.test(trimmed)) {
+      toast.error('Enter a valid email address');
+      return;
+    }
+    setSaving2FAEmail(true);
+    try {
+      // Empty input clears the override, falling back to the account's
+      // login email again — not every user needs a separate address.
+      await updateUserDoc(user.uid, { twoFactorEmail: trimmed || null });
+      await refreshProfile();
+      setTwoFAEmailModal(false);
+      toast.success('2FA notification email updated');
+    } catch {
+      toast.error('Failed to update');
+    } finally {
+      setSaving2FAEmail(false);
+    }
+  };
+
   const sections = [
     {
       title: 'Security',
@@ -164,6 +189,15 @@ export default function SettingsPage() {
             : 'Off — add an email code at login for extra security',
           action: toggle2FA,
           rightLabel: updating2FA ? '...' : (profile?.twoFactorEnabled ? 'Turn off' : 'Turn on'),
+        },
+        {
+          icon: Bell,
+          label: '2FA Notification Email',
+          description: profile?.twoFactorEmail
+            ? `Codes go to ${profile.twoFactorEmail}`
+            : `Codes go to your login email (${user?.email || 'not set'})`,
+          action: () => { setTwoFAEmailInput(profile?.twoFactorEmail || ''); setTwoFAEmailModal(true); },
+          rightLabel: 'Change',
         },
       ],
     },
@@ -362,6 +396,22 @@ export default function SettingsPage() {
               Sign Out
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal open={twoFAEmailModal} onClose={() => setTwoFAEmailModal(false)} title="2FA Notification Email">
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            Sign-in codes go here instead of your account&apos;s login email. Leave blank to use your login email again.
+          </p>
+          <input
+            type="email"
+            value={twoFAEmailInput}
+            onChange={(e) => setTwoFAEmailInput(e.target.value)}
+            placeholder={user?.email || 'you@example.com'}
+            className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent/50"
+          />
+          <Button fullWidth loading={saving2FAEmail} onClick={saveTwoFAEmail}>Save</Button>
         </div>
       </Modal>
 

@@ -46,7 +46,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!user.email) return NextResponse.json({ error: 'No email on file for this account' }, { status: 400 });
+    // Prefer a dedicated notification email over the account's login email
+    // — the login email isn't guaranteed to be a real, monitored inbox.
+    const recipient = (user.twoFactorEmail as string | undefined) || user.email;
+    if (!recipient) return NextResponse.json({ error: 'No email on file for this account' }, { status: 400 });
 
     const code = crypto.randomInt(100000, 1000000).toString();
     await db.collection('twoFactorCodes').doc(uid).set({
@@ -59,7 +62,7 @@ export async function POST(req: NextRequest) {
     const cfgSnap = await db.collection('system').doc('config').get();
     const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
     await sendEmail({
-      to: user.email,
+      to: recipient,
       subject: `Your ${appName} sign-in code`,
       html: twoFactorCodeEmailHtml(code, appName),
     });

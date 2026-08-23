@@ -15,7 +15,7 @@ const RESEND_COOLDOWN_SECONDS = 30;
 
 export default function Verify2FAPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [code, setCode] = useState('');
   const [remember, setRemember] = useState(true);
   const [verifying, setVerifying] = useState(false);
@@ -89,7 +89,7 @@ export default function Verify2FAPage() {
       </div>
       <h1 className="text-2xl font-black text-white mb-2">Check your email</h1>
       <p className="text-text-secondary text-sm max-w-xs mb-6">
-        We sent a 6-digit code to {user?.email || 'your email'}. It expires in 10 minutes.
+        We sent a 6-digit code to {profile?.twoFactorEmail || user?.email || 'your email'}. It expires in 10 minutes.
       </p>
 
       <Card glass className="p-6 w-full max-w-xs space-y-4">

@@ -252,6 +252,11 @@ export interface UserProfile {
   // bookmark while a login is mid-verification.
   twoFactorEnabled?: boolean;
   twoFactorPendingSince?: unknown;
+  // Where codes actually get sent — falls back to the account's login email
+  // when unset. Exists because a login email isn't always a real inbox
+  // (e.g. a domain configured for the app but never hooked up to receive
+  // mail); this lets 2FA codes go somewhere that's actually monitored.
+  twoFactorEmail?: string;
   membership?: {
     status: 'active' | 'none';
     expiresAt?: unknown;
