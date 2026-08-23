@@ -5,6 +5,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, onSnapshot, runTransaction } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { getUserDoc, resolveTrainerId } from '@/lib/firestore';
+import { isPendingSignup } from '@/lib/auth';
 import { getTenant } from '@/lib/tenants';
 import { checkAndRunMigration } from '@/lib/migration';
 import type { UserProfile, Tenant } from '@/types';
@@ -110,9 +111,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // in. Forcing a fresh token here (rather than relying on whatever's
     // cached) closes most of that gap before the first Firestore call.
     firebaseUser.getIdToken(true).catch(() => {}).then(() => {
+      // signUp() just wrote (or is actively writing) this exact doc itself
+      // — running the transactional check-and-create here too is not just
+      // redundant, it's the actual race that was surfacing as a permission
+      // error on new-user onboarding (this transaction's write racing
+      // signUp()'s own write to the same doc). Skipping it here closes
+      // that window entirely instead of relying on the transaction to lose
+      // the race gracefully.
+      const ensureTask = isPendingSignup(uid) ? Promise.resolve() : ensureUserDoc(firebaseUser).catch((err) => console.error('[Auth] ensureUserDoc failed:', err));
       // Guarantee user doc exists first, then open a real-time listener
-      ensureUserDoc(firebaseUser)
-        .catch((err) => console.error('[Auth] ensureUserDoc failed:', err))
+      ensureTask
         .then(() => {
           // Record login time on every session start — ensureUserDoc only sets
           // this once (at account creation, via its merge-and-return-early

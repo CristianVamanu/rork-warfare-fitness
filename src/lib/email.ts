@@ -59,10 +59,15 @@ function escapeHtml(s: string): string {
 }
 
 export function welcomeEmailHtml(name: string, appName: string, appUrl: string): string {
+  // Sent from inside signUp(), before onboarding (program selection, goals,
+  // etc.) has actually run — it used to say "pick a training program",
+  // which read as if nothing had been set up yet even for someone who'd
+  // already chosen or been assigned one during onboarding. Kept generic
+  // instead of assuming any particular setup state.
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Welcome, ${name}. 💪</h1>
     <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
-      Your account is live. Time to pick a training program, log your first meal, and start your streak.
+      Your account is live. Log your first workout, track a meal, and start your streak.
     </p>
     ${button('Open ' + appName, appUrl)}
   `);
