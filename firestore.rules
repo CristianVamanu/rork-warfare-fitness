@@ -324,7 +324,11 @@ service cloud.firestore {
         (
           request.resource.data.adminId == get(/databases/$(database)/documents/users/$(uid())).data.get('trainerId', null) ||
           (exists(/databases/$(database)/documents/system/config) &&
-           request.resource.data.adminId == get(/databases/$(database)/documents/system/config).data.get('trainerId', null))
+           request.resource.data.adminId == get(/databases/$(database)/documents/system/config).data.get('trainerId', null)) ||
+          // Some installs' system/config only ever got adminUid written
+          // (older/manual install path), never trainerId — accept that too.
+          (exists(/databases/$(database)/documents/system/config) &&
+           request.resource.data.adminId == get(/databases/$(database)/documents/system/config).data.get('adminUid', null))
         )
       );
       allow update: if isAuthed() && notTfaPending() && (

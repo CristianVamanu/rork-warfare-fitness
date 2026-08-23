@@ -36,7 +36,9 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (trainerId) return;
-    getSystemConfig().then((cfg) => setFallbackTrainerId((cfg?.trainerId as string) || null)).catch(() => {});
+    // Some installs' system/config never got a trainerId field written (only
+    // adminUid, from an older/manual install path) — fall back to that too.
+    getSystemConfig().then((cfg) => setFallbackTrainerId((cfg?.trainerId as string) || (cfg?.adminUid as string) || null)).catch(() => {});
   }, [trainerId]);
   // A real 1:1 Coaching client actually has a dedicated human coach on the
   // other end of this same conversation system — "Support" (the default,
