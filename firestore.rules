@@ -11,9 +11,20 @@ service cloud.firestore {
       return request.auth.uid;
     }
 
-    // Reads the caller's user doc (one extra read — used only for role checks)
+    // Reads the caller's user doc (one extra read — used only for role checks).
+    // Guarded with exists() first — calling .data on a get() result for a
+    // document that doesn't exist THROWS in Firestore rules, which Firestore
+    // reports to the client as a blanket "permission-denied", not a graceful
+    // false/undefined. isAdmin() (which calls this) runs on every write to
+    // users/{userId}, including a brand-new user's own first self-update
+    // right after signup — if their own doc hadn't fully propagated to this
+    // rule evaluation's view yet (e.g. racing the doc-creation write itself),
+    // this call used to crash the whole rule instead of just resolving to
+    // the sensible default ('user', i.e. not an admin).
     function callerRole() {
-      return get(/databases/$(database)/documents/users/$(uid())).data.get('role', 'user');
+      return exists(/databases/$(database)/documents/users/$(uid()))
+        ? get(/databases/$(database)/documents/users/$(uid())).data.get('role', 'user')
+        : 'user';
     }
 
     function isAdmin() {
@@ -34,6 +45,7 @@ service cloud.firestore {
     function isAdminOrOwnTrainer(clientUserId) {
       return isAdmin() || (
         isAuthed() && callerRole() == 'trainer' &&
+        exists(/databases/$(database)/documents/users/$(clientUserId)) &&
         get(/databases/$(database)/documents/users/$(clientUserId)).data.get('trainerId', null) == uid()
       );
     }
@@ -384,6 +396,7 @@ service cloud.firestore {
       // new application — never another regular user (no spam vector).
       allow create: if isAdmin() ||
         (isAuthed() &&
+          exists(/databases/$(database)/documents/users/$(request.resource.data.userId)) &&
           get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.get('role', 'user') in ['admin', 'trainer']);
       allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }
@@ -447,7 +460,9 @@ service cloud.firestore {
     // Read is authed-only here; the public/pending split (only approved
     // posts + your own pending one) is filtered client-side, not by rule.
     function prBanActive() {
-      let ban = get(/databases/$(database)/documents/users/$(uid())).data.get('prBan', null);
+      let ban = exists(/databases/$(database)/documents/users/$(uid()))
+        ? get(/databases/$(database)/documents/users/$(uid())).data.get('prBan', null)
+        : null;
       return ban != null && (ban.until == null || ban.until > request.time);
     }
 
