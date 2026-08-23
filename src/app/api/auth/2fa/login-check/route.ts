@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { sendEmail, twoFactorCodeEmailHtml } from '@/lib/email';
@@ -12,6 +13,20 @@ const CODE_TTL_MS = 10 * 60 * 1000;
 
 function hashToken(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+// The actual enforcement mechanism: firestore.rules' isAuthed() refuses
+// every request from a token carrying tfaPending:true, regardless of how
+// valid the underlying Firebase Auth session otherwise is. Before this,
+// 2FA was enforced only by a client-side redirect (AppLayout checking
+// twoFactorPendingSince) — a stolen password alone was enough to skip it
+// entirely via a direct SDK/REST call, since Firebase Auth already grants a
+// fully valid session the instant the password matches. Setting/clearing
+// this claim is what actually gates real data access, not just the UI.
+async function setTfaPendingClaim(app: NonNullable<ReturnType<typeof getAdminApp>>, uid: string, pending: boolean) {
+  const auth = getAuth(app);
+  const existing = (await auth.getUser(uid)).customClaims ?? {};
+  await auth.setCustomUserClaims(uid, { ...existing, tfaPending: pending });
 }
 
 /**
@@ -35,16 +50,28 @@ export async function POST(req: NextRequest) {
 
     const userSnap = await db.collection('users').doc(uid).get();
     const user = userSnap.data();
-    if (!user?.twoFactorEnabled) return NextResponse.json({ required: false });
+    if (!user?.twoFactorEnabled) {
+      // Clear defensively — e.g. an account that disabled 2FA after a
+      // previous session left tfaPending:true shouldn't stay locked out.
+      await setTfaPendingClaim(app, uid, false);
+      return NextResponse.json({ required: false });
+    }
 
     if (deviceId && token) {
       const deviceSnap = await db.collection('trustedDevices').doc(uid).collection('devices').doc(deviceId).get();
       const device = deviceSnap.data();
       const expiresAtMs = (device?.expiresAt?.toMillis?.() as number | undefined) ?? 0;
       if (device && device.tokenHash === hashToken(token) && expiresAtMs > Date.now()) {
+        await setTfaPendingClaim(app, uid, false);
         return NextResponse.json({ required: false });
       }
     }
+
+    // From here on a code is genuinely required — mark the session pending
+    // BEFORE returning, so the security rules already refuse this uid's
+    // requests the instant the client sees `required: true`, not just once
+    // it gets around to redirecting to /verify-2fa.
+    await setTfaPendingClaim(app, uid, true);
 
     // Prefer a dedicated notification email over the account's login email
     // — the login email isn't guaranteed to be a real, monitored inbox.

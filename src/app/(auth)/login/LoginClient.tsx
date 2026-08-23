@@ -61,6 +61,11 @@ export default function LoginClient({
           body: JSON.stringify(trusted ?? {}),
         });
         const body = await res.json().catch(() => ({}));
+        // login-check just set (or cleared) this account's tfaPending
+        // custom claim server-side — force-refreshing here picks that up
+        // before the next Firestore call, which is what actually enforces
+        // 2FA (see firestore.rules' notTfaPending()), not just this redirect.
+        await user.getIdToken(true).catch(() => {});
         if (res.ok && body.required) {
           router.replace('/verify-2fa');
           return;

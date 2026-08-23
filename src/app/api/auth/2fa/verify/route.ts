@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 
@@ -49,6 +50,14 @@ export async function POST(req: NextRequest) {
 
     await codeRef.delete();
     await db.collection('users').doc(uid).update({ twoFactorPendingSince: FieldValue.delete() });
+
+    // This is the actual enforcement lift — firestore.rules' isAuthed()
+    // refuses every request from a token carrying tfaPending:true, so the
+    // client's own ID token has to be refreshed (getIdToken(true)) after
+    // this before any Firestore call will actually succeed again.
+    const auth = getAuth(app);
+    const existingClaims = (await auth.getUser(uid)).customClaims ?? {};
+    await auth.setCustomUserClaims(uid, { ...existingClaims, tfaPending: false });
 
     if (!remember) return NextResponse.json({ ok: true });
 

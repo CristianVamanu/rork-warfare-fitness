@@ -46,6 +46,13 @@ export default function Verify2FAPage() {
       if (remember && body.deviceId && body.token) {
         setTrustedDevice(user.uid, { deviceId: body.deviceId, token: body.token });
       }
+      // The server just cleared this account's tfaPending custom claim —
+      // force-refreshing before navigating is what actually lifts the
+      // firestore.rules block on every other collection (notTfaPending()),
+      // not just this redirect. Without it the dashboard's own data fetches
+      // would still get denied until the token happened to refresh on its
+      // own (up to ~1hr later).
+      await user.getIdToken(true).catch(() => {});
       // AuthContext's live profile subscription picks up the cleared
       // twoFactorPendingSince on its own, but navigating immediately avoids
       // sitting on this screen for a snapshot round-trip.
