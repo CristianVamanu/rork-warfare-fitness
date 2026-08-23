@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { MessageSquare, Send, ChevronLeft, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -15,6 +16,15 @@ import type { Conversation, Message } from '@/types';
 
 export default function MessagesPage() {
   const { user, profile, trainerId } = useAuth();
+  const router = useRouter();
+  // Messaging is 1:1 Coaching-only — a self-serve/free user has no assigned
+  // human on the other end of this conversation system, so the whole
+  // feature (nav icon in Header, and this page as a direct-URL fallback)
+  // is hidden from them rather than offered as generic "Support".
+  const isCoachingClient = profile?.coaching?.status === 'active';
+  useEffect(() => {
+    if (profile && !isCoachingClient) router.replace('/dashboard');
+  }, [profile, isCoachingClient, router]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
@@ -40,11 +50,7 @@ export default function MessagesPage() {
     // adminUid, from an older/manual install path) — fall back to that too.
     getSystemConfig().then((cfg) => setFallbackTrainerId((cfg?.trainerId as string) || (cfg?.adminUid as string) || null)).catch(() => {});
   }, [trainerId]);
-  // A real 1:1 Coaching client actually has a dedicated human coach on the
-  // other end of this same conversation system — "Support" (the default,
-  // self-serve framing for everyone else) would be a downgrade for them.
-  const isCoachingClient = profile?.coaching?.status === 'active';
-  const conversationLabel = isCoachingClient ? 'Your Coach' : 'Support';
+  const conversationLabel = 'Your Coach';
 
   useEffect(() => {
     if (!user) return;
@@ -169,7 +175,7 @@ export default function MessagesPage() {
                 value={msgText}
                 onChange={e => setMsgText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                placeholder={isCoachingClient ? "Reply to your coach…" : "Reply…"}
+                placeholder="Reply to your coach…"
                 className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
               />
               <Button onClick={handleSend} loading={sending} disabled={!msgText.trim()}>
@@ -188,7 +194,7 @@ export default function MessagesPage() {
             <p className="text-text-secondary text-sm mt-1 mb-4">Have a question? Reach out and we&apos;ll get back to you.</p>
             {effectiveTrainerId && (
               <Button loading={starting} onClick={handleStartConversation}>
-                Message {isCoachingClient ? 'Your Coach' : 'Support'}
+                Message Your Coach
               </Button>
             )}
           </motion.div>
@@ -209,7 +215,7 @@ export default function MessagesPage() {
                       className="w-10 h-10 rounded-full bg-danger/20 flex items-center justify-center text-danger text-sm font-bold flex-shrink-0 cursor-pointer"
                       onClick={() => openConversation(conv)}
                     >
-                      {isCoachingClient ? 'C' : 'S'}
+                      C
                     </div>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openConversation(conv)}>
                       <div className="flex items-center gap-2">

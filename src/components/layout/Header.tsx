@@ -125,17 +125,19 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
                   </span>
                 )}
               </Link>
-              <Link
-                href="/messages"
-                className="relative p-2 rounded-xl text-text-secondary transition-colors"
-              >
-                <MessageCircle className="w-5 h-5" />
-                {unreadMessages > 0 && (
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
-                    {unreadMessages > 9 ? '9+' : unreadMessages}
-                  </span>
-                )}
-              </Link>
+              {profile?.coaching?.status === 'active' && (
+                <Link
+                  href="/messages"
+                  className="relative p-2 rounded-xl text-text-secondary transition-colors"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  {unreadMessages > 0 && (
+                    <span className="absolute top-1 right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
+                      {unreadMessages > 9 ? '9+' : unreadMessages}
+                    </span>
+                  )}
+                </Link>
+              )}
               <Link href="/settings">
                 <Avatar src={profile?.photoURL} name={profile?.displayName} size="sm" />
               </Link>

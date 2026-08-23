@@ -301,19 +301,18 @@ service cloud.firestore {
       allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }
 
-    // ── Conversations — admin-initiated DMs, or self-service "message
-    // support" ────────────────────────────────────────────────────────────
+    // ── Conversations — admin-initiated DMs, or self-service messaging for
+    // 1:1 Coaching clients only ──────────────────────────────────────────
     match /conversations/{convId} {
       allow read: if isAuthed() && notTfaPending() && (
         resource.data.adminId == uid() ||
         resource.data.userId == uid()
       );
-      // A regular user could never actually reach support before this —
-      // conversations were admin-create-only, so a fresh account had no way
-      // to message in first; only a coach/admin messaging first could ever
-      // open a thread. This lets a user open exactly one thread with their
-      // OWN resolved trainer/admin, naming themselves as userId — never an
-      // arbitrary conversation between two other parties.
+      // Messaging is restricted to 1:1 Coaching clients — a free/self-serve
+      // user has no assigned human on the other end, so the UI hides the
+      // whole feature from them; this is the matching server-side
+      // enforcement so a non-coaching account can't open a thread by
+      // calling the Firestore SDK directly, bypassing the hidden UI.
       // adminId must match either the caller's own resolved trainerId field,
       // or (fallback, for accounts where that field never got set — e.g.
       // pre-existing accounts from before trainerId existed) the install's
@@ -321,6 +320,8 @@ service cloud.firestore {
       // trainerId is meant to mirror anyway.
       allow create: if isAdmin() || (
         isAuthed() && notTfaPending() && request.resource.data.userId == uid() &&
+        exists(/databases/$(database)/documents/users/$(uid())) &&
+        get(/databases/$(database)/documents/users/$(uid())).data.get('coaching', {}).get('status', 'none') == 'active' &&
         (
           request.resource.data.adminId == get(/databases/$(database)/documents/users/$(uid())).data.get('trainerId', null) ||
           (exists(/databases/$(database)/documents/system/config) &&
