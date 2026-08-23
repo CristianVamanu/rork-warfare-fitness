@@ -71,6 +71,22 @@ service cloud.firestore {
         : 999999;
     }
 
+    // Mirrors useFeatureAccess.ts's `inTrial` — a signed-up account is
+    // inside its free trial window for `trialDays` calendar days from
+    // createdAt, same math as the client. During that window every
+    // feature/program lock is bypassed there regardless of isPremium/price;
+    // premiumEnrollAllowed() below needs this same bypass, or a trial user
+    // can never actually enroll in a premium program at all — the client UI
+    // would show it as unlocked while the server refused the write, which
+    // is exactly the bug this closes.
+    function trialActive() {
+      return exists(/databases/$(database)/documents/config/membership) &&
+        get(/databases/$(database)/documents/config/membership).data.get('enabled', false) == true &&
+        get(/databases/$(database)/documents/config/membership).data.get('trialDays', 0) > 0 &&
+        resource.data.get('createdAt', null) != null &&
+        resource.data.createdAt + duration.value(get(/databases/$(database)/documents/config/membership).data.get('trialDays', 0), 'd') > request.time;
+    }
+
     // Only restricts writes that actually move activeProgram's completion
     // pointer forward past the trial cap — enrolling in a new program
     // (which resets lastCompletedDayIndex) or any unrelated field change is
@@ -121,7 +137,11 @@ service cloud.firestore {
         || resource.data.get('membership', {}).get('status', 'none') == 'active'
         || resource.data.get('coaching', {}).get('status', 'none') == 'active'
         || (
-          !programIsMembersOnly(request.resource.data.activeProgram.programId)
+          // trialActive() bypasses ONLY the members-only/locked-program
+          // gate here, matching useFeatureAccess.ts exactly — a one-time
+          // priced program still requires an actual purchase (or price 0)
+          // even during trial; trial isn't a substitute for buying it.
+          (!programIsMembersOnly(request.resource.data.activeProgram.programId) || trialActive())
           && (
             programPrice(request.resource.data.activeProgram.programId) <= 0
             || resource.data.get('purchasedProgramIds', []).hasAny([request.resource.data.activeProgram.programId])
