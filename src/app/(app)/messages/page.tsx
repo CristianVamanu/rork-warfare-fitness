@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { MessageSquare, Send, ChevronLeft, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { subscribeUserConversations, subscribeMessages, sendMessage, markConversationRead, deleteConversation, startSupportConversation } from '@/lib/firestore';
+import { subscribeUserConversations, subscribeMessages, sendMessage, markConversationRead, deleteConversation, startSupportConversation, getSystemConfig } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -23,7 +23,21 @@ export default function MessagesPage() {
   const [msgText, setMsgText] = useState('');
   const [sending, setSending] = useState(false);
   const [starting, setStarting] = useState(false);
+  // trainerId on the account's own doc is resolved once at signup — an
+  // account created before that field existed, or before system/config's
+  // own trainerId was ever set (e.g. a pre-existing admin/install), can
+  // have it permanently missing with no way to backfill itself. Falling
+  // back to reading system/config directly (publicly readable, same value
+  // signup would have resolved anyway) means "Message Support" isn't
+  // silently unavailable just because of stale account data.
+  const [fallbackTrainerId, setFallbackTrainerId] = useState<string | null>(null);
+  const effectiveTrainerId = trainerId || fallbackTrainerId;
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (trainerId) return;
+    getSystemConfig().then((cfg) => setFallbackTrainerId((cfg?.trainerId as string) || null)).catch(() => {});
+  }, [trainerId]);
   // A real 1:1 Coaching client actually has a dedicated human coach on the
   // other end of this same conversation system — "Support" (the default,
   // self-serve framing for everyone else) would be a downgrade for them.
@@ -55,15 +69,15 @@ export default function MessagesPage() {
   }, [activeConv?.id]);
 
   async function handleStartConversation() {
-    if (!user || !profile || !trainerId || starting) return;
+    if (!user || !profile || !effectiveTrainerId || starting) return;
     setStarting(true);
     try {
-      const convId = await startSupportConversation(user.uid, trainerId, profile.displayName, profile.email);
+      const convId = await startSupportConversation(user.uid, effectiveTrainerId, profile.displayName, profile.email);
       // The live subscribeUserConversations listener above will also pick
       // this up, but opening it immediately avoids waiting on that
       // round-trip before the thread appears usable.
       setActiveConv({
-        id: convId, adminId: trainerId, userId: user.uid,
+        id: convId, adminId: effectiveTrainerId, userId: user.uid,
         userDisplayName: profile.displayName, userEmail: profile.email,
         lastMessage: '', lastMessageAt: null, createdAt: null,
         unreadByUser: false, unreadByAdmin: true,
@@ -170,7 +184,7 @@ export default function MessagesPage() {
             <MessageSquare className="w-12 h-12 text-text-tertiary mx-auto mb-3" />
             <p className="text-white font-bold">No messages yet</p>
             <p className="text-text-secondary text-sm mt-1 mb-4">Have a question? Reach out and we&apos;ll get back to you.</p>
-            {trainerId && (
+            {effectiveTrainerId && (
               <Button loading={starting} onClick={handleStartConversation}>
                 Message {isCoachingClient ? 'Your Coach' : 'Support'}
               </Button>
@@ -178,7 +192,7 @@ export default function MessagesPage() {
           </motion.div>
         ) : (
           <div className="space-y-2">
-            {trainerId && (
+            {effectiveTrainerId && (
               <Button variant="ghost" fullWidth loading={starting} onClick={handleStartConversation}>
                 <MessageSquare className="w-3.5 h-3.5" /> New Message
               </Button>

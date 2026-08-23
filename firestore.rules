@@ -314,9 +314,18 @@ service cloud.firestore {
       // open a thread. This lets a user open exactly one thread with their
       // OWN resolved trainer/admin, naming themselves as userId — never an
       // arbitrary conversation between two other parties.
+      // adminId must match either the caller's own resolved trainerId field,
+      // or (fallback, for accounts where that field never got set — e.g.
+      // pre-existing accounts from before trainerId existed) the install's
+      // single global admin from system/config, which every account's
+      // trainerId is meant to mirror anyway.
       allow create: if isAdmin() || (
         isAuthed() && notTfaPending() && request.resource.data.userId == uid() &&
-        request.resource.data.adminId == get(/databases/$(database)/documents/users/$(uid())).data.get('trainerId', null)
+        (
+          request.resource.data.adminId == get(/databases/$(database)/documents/users/$(uid())).data.get('trainerId', null) ||
+          (exists(/databases/$(database)/documents/system/config) &&
+           request.resource.data.adminId == get(/databases/$(database)/documents/system/config).data.get('trainerId', null))
+        )
       );
       allow update: if isAuthed() && notTfaPending() && (
         resource.data.adminId == uid() ||
