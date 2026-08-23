@@ -278,13 +278,23 @@ service cloud.firestore {
       allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }
 
-    // ── Conversations — admin-initiated DMs ──────────────────────────────
+    // ── Conversations — admin-initiated DMs, or self-service "message
+    // support" ────────────────────────────────────────────────────────────
     match /conversations/{convId} {
       allow read: if isAuthed() && (
         resource.data.adminId == uid() ||
         resource.data.userId == uid()
       );
-      allow create: if isAdmin();
+      // A regular user could never actually reach support before this —
+      // conversations were admin-create-only, so a fresh account had no way
+      // to message in first; only a coach/admin messaging first could ever
+      // open a thread. This lets a user open exactly one thread with their
+      // OWN resolved trainer/admin, naming themselves as userId — never an
+      // arbitrary conversation between two other parties.
+      allow create: if isAdmin() || (
+        isAuthed() && request.resource.data.userId == uid() &&
+        request.resource.data.adminId == get(/databases/$(database)/documents/users/$(uid())).data.get('trainerId', null)
+      );
       allow update: if isAuthed() && (
         resource.data.adminId == uid() ||
         resource.data.userId == uid()

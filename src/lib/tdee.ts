@@ -32,6 +32,26 @@ const BASE_CALORIES: Record<ExperienceLevel, number> = {
   advanced:      2600,
 };
 
+// Grams of protein per kg of bodyweight — the actual evidence-based way to
+// set a protein target (commonly cited range: ~1.6-2.2 g/kg for muscle
+// building, higher end favored in a cut to preserve lean mass). This used
+// to be a flat % of total calories instead, which meant protein scaled
+// with whatever the calorie target happened to be rather than the
+// person's actual size — e.g. an 80kg male on build-muscle (30% of a
+// ~2880 kcal target) worked out to 216g, i.e. 2.7 g/kg: well above the
+// accepted range, and it gets worse for anyone lighter running a surplus.
+const PROTEIN_G_PER_KG: Record<FitnessGoal, number> = {
+  'lose-fat':      2.2,
+  'build-muscle':  1.9,
+  'strength':      1.9,
+  'recomposition': 2.0,
+};
+
+// Used only when biometrics were skipped entirely and there's no bodyweight
+// to compute g/kg from — a reasonable flat default rather than reverting to
+// the old %-of-calories method for just this one fallback path.
+const FLAT_PROTEIN_G_NO_BIOMETRICS = 150;
+
 export interface Biometrics {
   sex: BiologicalSex;
   age: number;
@@ -82,21 +102,20 @@ export function estimateNutritionTargets(
   const calorieAdjustment = GOAL_ADJUSTMENT[goal] ?? 0;
   const calories = Math.max(1400, maintenanceCalories + calorieAdjustment);
 
-  // Macro splits per goal (protein-first approach)
-  let proteinRatio: number;
+  // Protein: g/kg bodyweight by goal (see PROTEIN_G_PER_KG above) — fixed
+  // to the person's actual size, not a % of whatever the calorie target
+  // happens to be. Fat still comes off total calories as a ratio; carbs
+  // get whatever's left after protein + fat are both accounted for.
   let fatRatio: number;
+  if (goal === 'lose-fat') fatRatio = 0.25;
+  else if (goal === 'strength') fatRatio = 0.35;
+  else fatRatio = 0.30;
 
-  if (goal === 'lose-fat') {
-    proteinRatio = 0.35; fatRatio = 0.25;
-  } else if (goal === 'build-muscle') {
-    proteinRatio = 0.30; fatRatio = 0.30;
-  } else if (goal === 'strength') {
-    proteinRatio = 0.30; fatRatio = 0.35;
-  } else {
-    proteinRatio = 0.30; fatRatio = 0.30;
-  }
-
-  const carbRatio = 1 - proteinRatio - fatRatio;
+  const protein = biometrics
+    ? Math.round(PROTEIN_G_PER_KG[goal] * biometrics.weightKg)
+    : FLAT_PROTEIN_G_NO_BIOMETRICS;
+  const fat = Math.round((calories * fatRatio) / 9);
+  const carbCalories = Math.max(0, calories - protein * 4 - fat * 9);
 
   return {
     bmr,
@@ -104,10 +123,10 @@ export function estimateNutritionTargets(
     calorieAdjustment,
     usedRealBiometrics,
     calories,
-    protein: Math.round((calories * proteinRatio) / 4),
-    carbs:   Math.round((calories * carbRatio) / 4),
-    fat:     Math.round((calories * fatRatio) / 9),
-    water:   Math.round(trainingDays >= 5 ? 3500 : trainingDays >= 3 ? 3000 : 2500),
+    protein,
+    carbs: Math.round(carbCalories / 4),
+    fat,
+    water: Math.round(trainingDays >= 5 ? 3500 : trainingDays >= 3 ? 3000 : 2500),
   };
 }
 

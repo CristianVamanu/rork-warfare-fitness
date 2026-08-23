@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { MessageSquare, Send, ChevronLeft, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { subscribeUserConversations, subscribeMessages, sendMessage, markConversationRead, deleteConversation } from '@/lib/firestore';
+import { subscribeUserConversations, subscribeMessages, sendMessage, markConversationRead, deleteConversation, startSupportConversation } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import type { Conversation, Message } from '@/types';
 
 export default function MessagesPage() {
-  const { user, profile } = useAuth();
+  const { user, profile, trainerId } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
@@ -22,6 +22,7 @@ export default function MessagesPage() {
   const [msgLoading, setMsgLoading] = useState(false);
   const [msgText, setMsgText] = useState('');
   const [sending, setSending] = useState(false);
+  const [starting, setStarting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // A real 1:1 Coaching client actually has a dedicated human coach on the
   // other end of this same conversation system — "Support" (the default,
@@ -52,6 +53,27 @@ export default function MessagesPage() {
     });
     return unsub;
   }, [activeConv?.id]);
+
+  async function handleStartConversation() {
+    if (!user || !profile || !trainerId || starting) return;
+    setStarting(true);
+    try {
+      const convId = await startSupportConversation(user.uid, trainerId, profile.displayName, profile.email);
+      // The live subscribeUserConversations listener above will also pick
+      // this up, but opening it immediately avoids waiting on that
+      // round-trip before the thread appears usable.
+      setActiveConv({
+        id: convId, adminId: trainerId, userId: user.uid,
+        userDisplayName: profile.displayName, userEmail: profile.email,
+        lastMessage: '', lastMessageAt: null, createdAt: null,
+        unreadByUser: false, unreadByAdmin: true,
+      });
+    } catch {
+      toast.error('Failed to start conversation');
+    } finally {
+      setStarting(false);
+    }
+  }
 
   function openConversation(conv: Conversation) {
     setActiveConv(conv);
@@ -147,10 +169,20 @@ export default function MessagesPage() {
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16">
             <MessageSquare className="w-12 h-12 text-text-tertiary mx-auto mb-3" />
             <p className="text-white font-bold">No messages yet</p>
-            <p className="text-text-secondary text-sm mt-1">Messages will appear here.</p>
+            <p className="text-text-secondary text-sm mt-1 mb-4">Have a question? Reach out and we&apos;ll get back to you.</p>
+            {trainerId && (
+              <Button loading={starting} onClick={handleStartConversation}>
+                Message {isCoachingClient ? 'Your Coach' : 'Support'}
+              </Button>
+            )}
           </motion.div>
         ) : (
           <div className="space-y-2">
+            {trainerId && (
+              <Button variant="ghost" fullWidth loading={starting} onClick={handleStartConversation}>
+                <MessageSquare className="w-3.5 h-3.5" /> New Message
+              </Button>
+            )}
             {conversations.map((conv) => (
               <motion.div key={conv.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
                 <Card
