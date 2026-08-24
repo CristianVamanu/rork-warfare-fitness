@@ -154,9 +154,19 @@ service cloud.firestore {
     // any signed-in user could write straight into a gated program's
     // activeProgram field for free via the Firestore SDK directly,
     // bypassing the app UI entirely.
+    // Only gates a write that's actually newly enrolling/switching into a
+    // program — matched by comparing against the PRE-write programId, not
+    // just checking 'programId' is present. Before this fix, that presence
+    // check meant EVERY subsequent workout-completion write to an already-
+    // enrolled program (advancing completedWorkouts/lastCompletedDayIndex,
+    // not touching programId at all) re-ran the full membership/purchase
+    // gate too — so a membership lapsing mid-program silently froze that
+    // user's progress on every future workout, even though nothing about
+    // their enrollment itself changed.
     function premiumEnrollAllowed() {
       return !('activeProgram' in request.resource.data.diff(resource.data).affectedKeys())
         || !('programId' in request.resource.data.activeProgram)
+        || request.resource.data.activeProgram.programId == resource.data.get('activeProgram', {}).get('programId', null)
         || resource.data.get('membership', {}).get('status', 'none') == 'active'
         || resource.data.get('coaching', {}).get('status', 'none') == 'active'
         || (

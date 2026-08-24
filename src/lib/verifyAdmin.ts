@@ -25,8 +25,18 @@ export async function verifyAdmin(req: NextRequest): Promise<{ uid: string } | {
   if (!app) return { error: 'Firebase Admin not configured', status: 500 };
 
   let uid: string;
+  // These admin API routes use firebase-admin, which bypasses Firestore
+  // rules entirely — notTfaPending() (the actual documented enforcement
+  // mechanism for 2FA) never runs for them. Checking the decoded custom
+  // claim here directly is what closes that: without it, a stolen admin ID
+  // token that hasn't passed its 2FA code yet (tfaPending:true) could still
+  // call ban-user, delete-user, secrets, etc. directly, since only the
+  // Firestore-rules path was ever gated.
   try {
     const decoded = await getAuth(app).verifyIdToken(token);
+    if (decoded.tfaPending === true) {
+      return { error: '2FA verification required', status: 403 };
+    }
     uid = decoded.uid;
   } catch {
     return { error: 'Invalid or expired token', status: 401 };
