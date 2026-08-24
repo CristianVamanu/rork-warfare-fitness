@@ -191,10 +191,16 @@ export async function POST(req: NextRequest) {
         // only (equality-only — no composite index needed) and filter the
         // 24h window client-side, since Firestore compound equality+range
         // queries on different fields require a manually-deployed index.
-        if (rules['missed_workout'] && u.activeProgram) {
+        // 'Any event within the last 24h' only needs the single most recent
+        // one, not the user's entire workout history — an unbounded query
+        // here scaled linearly with each user's lifetime event count on
+        // every single cron run, with no cap on cost/latency as it grows.
+        if (rules['missed_workout'] && u.activeProgram && u.lastAutoMissedWorkoutDate !== today) {
           const eventsSnap = await db.collection('events')
             .where('userId', '==', u.id)
             .where('type', '==', 'WORKOUT_COMPLETED')
+            .orderBy('createdAt', 'desc')
+            .limit(1)
             .get();
           const hasRecentWorkout = eventsSnap.docs.some((d) => {
             const createdAt = d.data().createdAt as FirebaseFirestore.Timestamp | undefined;
@@ -219,6 +225,7 @@ export async function POST(req: NextRequest) {
               userId: u.id, trainerId: u.trainerId ?? null,
               title, body, type: 'auto_missed_workout', read: false, createdAt: Timestamp.now(),
             });
+            await db.collection('users').doc(u.id).update({ lastAutoMissedWorkoutDate: today });
             await sendPush(u.id, title, body);
             sent.push(`missed_workout:${u.id}`);
           }
@@ -230,7 +237,7 @@ export async function POST(req: NextRequest) {
         // number sitting in the cache — gate this on their last workout
         // actually being today or yesterday, or this congratulates people
         // on a streak that's already dead.
-        if (rules['streak_reminder']) {
+        if (rules['streak_reminder'] && u.lastAutoStreakDate !== today) {
           const streak = u.statsCache?.streak ?? u.stats?.streak ?? 0;
           const lastWorkoutDate = u.statsCache?.lastWorkoutDate as string | undefined;
           const streakLive = lastWorkoutDate === today || lastWorkoutDate === yesterday;
@@ -241,6 +248,7 @@ export async function POST(req: NextRequest) {
               userId: u.id, trainerId: u.trainerId ?? null,
               title, body, type: 'auto_streak', read: false, createdAt: Timestamp.now(),
             });
+            await db.collection('users').doc(u.id).update({ lastAutoStreakDate: today });
             await sendPush(u.id, title, body);
             sent.push(`streak:${u.id}`);
           }
@@ -251,11 +259,16 @@ export async function POST(req: NextRequest) {
         // reward digests like this are a proven re-engagement trigger, and
         // everything it needs (a week-bounded events query + statsCache) is
         // already exactly the data the other rules above use.
-        if (rules['weekly_recap'] && (force || localDayFor(u.timezone) === WEEKLY_RECAP_DAY)) {
+        if (rules['weekly_recap'] && u.lastAutoWeeklyRecapDate !== today && (force || localDayFor(u.timezone) === WEEKLY_RECAP_DAY)) {
           const weekAgoTs = Timestamp.fromDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+          // Bounded — nobody realistically logs more than 100 workouts in a
+          // single week, and this used to fetch a user's ENTIRE lifetime
+          // WORKOUT_COMPLETED history just to filter down to the last 7 days.
           const weekEventsSnap = await db.collection('events')
             .where('userId', '==', u.id)
             .where('type', '==', 'WORKOUT_COMPLETED')
+            .orderBy('createdAt', 'desc')
+            .limit(100)
             .get();
           const weekWorkouts = weekEventsSnap.docs.filter((d) => {
             const createdAt = d.data().createdAt as FirebaseFirestore.Timestamp | undefined;
@@ -272,19 +285,21 @@ export async function POST(req: NextRequest) {
               userId: u.id, trainerId: u.trainerId ?? null,
               title, body, type: 'auto_weekly_recap', read: false, createdAt: Timestamp.now(),
             });
+            await db.collection('users').doc(u.id).update({ lastAutoWeeklyRecapDate: today });
             await sendPush(u.id, title, body);
             sent.push(`weekly_recap:${u.id}`);
           }
         }
 
         // Rule: ai_motivation
-        if (aiEnabled) {
+        if (aiEnabled && u.lastAutoAiMotivationDate !== today) {
           const streak = u.statsCache?.streak ?? u.stats?.streak ?? 0;
           const msg = await generateMotivation(u.displayName ?? 'champ', streak);
           await db.collection('notifications').add({
             userId: u.id, trainerId: u.trainerId ?? null,
             title: msg.title, body: msg.body, type: 'ai_motivation', read: false, createdAt: Timestamp.now(),
           });
+          await db.collection('users').doc(u.id).update({ lastAutoAiMotivationDate: today });
           await sendPush(u.id, msg.title, msg.body);
           sent.push(`ai_motivation:${u.id}`);
         }

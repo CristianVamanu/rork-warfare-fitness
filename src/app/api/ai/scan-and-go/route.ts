@@ -6,6 +6,7 @@ import { getSecret } from '@/lib/secrets';
 import { getAdminApp } from '@/lib/firebase-admin';
 import { checkAndIncrementUsage, refundUsage, getRemainingUsage, resolveLocalDate } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
+import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
 
 const DAILY_LIMIT = 10;
 const MAX_IMAGES = 6;
@@ -39,6 +40,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'OpenAI API key not configured. Add it in Admin → Integrations.' }, { status: 500 });
     }
 
+    const appForAccess = getAdminApp();
+    if (!appForAccess) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
+    // Unlike its sibling AI routes (analyze-food, meal-ideas), this endpoint
+    // only ever checked "is this a real logged-in user" + a daily count —
+    // never membership/plan access. Any signed-in user, member or not, got
+    // 10 free GPT-4o-mini vision calls/day (the most expensive AI call type
+    // in the app) indefinitely.
+    const access = await verifyFeatureAccess(appForAccess, uid, 'scan-and-go');
+    if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
+
     const { dataUrls, experience, fitnessGoal, limitations } = await req.json() as {
       dataUrls?: string[]; experience?: string; fitnessGoal?: string; limitations?: string;
     };
@@ -55,8 +66,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid image data' }, { status: 400 });
     }
 
-    const app = getAdminApp();
-    if (!app) return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
+    const app = appForAccess;
     const usage = await checkAndIncrementUsage(app, uid, 'scan-and-go', DAILY_LIMIT, resolveLocalDate(req));
     if (!usage.allowed) {
       return NextResponse.json({ error: `Daily limit reached (${DAILY_LIMIT}/day). Try again tomorrow.`, remaining: 0 }, { status: 429 });

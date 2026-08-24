@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import { localDateHeader } from '@/lib/utils';
 import type { Exercise } from '@/types';
 
@@ -164,6 +165,7 @@ export default function ScanAndGoPage() {
   }
 
   return (
+    <PaywallGate feature="scan-and-go">
     <div>
       <Header title="Scan & Go" showBack />
       <div className="px-4 py-4 space-y-5 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
@@ -273,5 +275,6 @@ export default function ScanAndGoPage() {
         )}
       </div>
     </div>
+    </PaywallGate>
   );
 }

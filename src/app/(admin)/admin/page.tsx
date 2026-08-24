@@ -69,6 +69,7 @@ const LOCKABLE_FEATURE_OPTIONS = [
   { id: 'barcode', label: 'Barcode Scanner', desc: 'Nutrition lookup via product barcode' },
   { id: 'nutrition-ai', label: 'AI Food Analyzer', desc: 'Photo-based nutrition analysis' },
   { id: 'meal-planner', label: 'AI Meal Planner', desc: 'Generates a full daily meal plan' },
+  { id: 'scan-and-go', label: 'Scan & Go', desc: 'Photo-based workout builder from gym equipment' },
   { id: 'premium-programs', label: 'Premium Training Plans', desc: 'Programs marked as Premium require membership' },
   { id: 'community', label: 'Community', desc: 'Channels — browsing and posting' },
   { id: 'leaderboard', label: 'Leaderboard', desc: 'Power-level rankings' },

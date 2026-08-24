@@ -64,6 +64,11 @@ export function welcomeEmailHtml(name: string, appName: string, appUrl: string):
   // which read as if nothing had been set up yet even for someone who'd
   // already chosen or been assigned one during onboarding. Kept generic
   // instead of assuming any particular setup state.
+  // name traces back to displayName, a free-text field the user sets
+  // themselves at signup — unescaped, a display name like <img
+  // src=x onerror=...> would render raw here (self-XSS, since this only
+  // ever mails the account owner's own inbox, but cheap to close).
+  name = escapeHtml(name);
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Welcome, ${name}. 💪</h1>
     <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
@@ -93,6 +98,7 @@ export function trainerLeadEmailHtml(lead: {
 }
 
 export function achievementEmailHtml(name: string, titles: string[], appName: string, appUrl: string): string {
+  name = escapeHtml(name);
   const list = titles.map((t) => `<li style="margin:4px 0;">🏆 ${t}</li>`).join('');
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">New achievement${titles.length > 1 ? 's' : ''}, ${name}!</h1>
@@ -104,6 +110,7 @@ export function achievementEmailHtml(name: string, titles: string[], appName: st
 export function coachingApplicationEmailHtml(
   name: string, status: 'approved' | 'rejected', planName: string, reason: string | undefined, appName: string, appUrl: string,
 ): string {
+  name = escapeHtml(name);
   if (status === 'approved') {
     return shell(appName, `
       <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">You're approved for 1:1 Coaching!</h1>
@@ -123,6 +130,7 @@ export function coachingApplicationEmailHtml(
 }
 
 export function trialEndingEmailHtml(name: string, daysLeft: number, appName: string, appUrl: string): string {
+  name = escapeHtml(name);
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Your trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}</h1>
     <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
@@ -146,6 +154,7 @@ export function twoFactorCodeEmailHtml(code: string, appName: string): string {
 }
 
 export function paymentFailedEmailHtml(name: string, appName: string, appUrl: string): string {
+  name = escapeHtml(name);
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Your last payment didn't go through</h1>
     <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">

@@ -20,7 +20,7 @@ async function uploadToR2(
   const presignRes = await fetch(presignEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ filename: file.name, contentType: file.type, folder, ...extraBody }),
+    body: JSON.stringify({ filename: file.name, contentType: file.type, sizeBytes: file.size, folder, ...extraBody }),
   });
   if (!presignRes.ok) {
     const data = await presignRes.json().catch(() => ({}));
