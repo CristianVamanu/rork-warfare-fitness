@@ -282,7 +282,11 @@ export default function DashboardPage() {
     <div>
       <Header />
       {activeProgram && <WeekProgressLine currentDayIndex={todayDayIndex} daysLength={weekScheduleLen} />}
-      <div className="px-4 py-4 space-y-5">
+      {/* space-y-3 matches the bento grid's own gap-3 between tiles — this
+          used to be space-y-5, so the gap between the last grid tile and the
+          next section (e.g. Personal Trackers) read visibly larger/uneven
+          against the grid's own internal 12px spacing. */}
+      <div className="px-4 py-4 space-y-3">
         {/* Streak Urgency Banner */}
         {streakAtRisk && (
           <motion.div

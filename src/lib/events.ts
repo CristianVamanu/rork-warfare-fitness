@@ -4,7 +4,6 @@
  */
 
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
@@ -40,9 +39,20 @@ export async function createEvent(data: {
   let lastErr: unknown;
   const { createdAt: backdatedAt, ...rest } = data;
 
+  // A fixed, client-generated ID (no network round-trip to allocate one) —
+  // written with setDoc instead of addDoc so the retry below is idempotent.
+  // With addDoc, a request that actually reached Firestore but whose
+  // acknowledgment never made it back to the client (a real risk on flaky
+  // gym wifi/cell) would throw here anyway, and the retry then created a
+  // SECOND event doc for the same logical action — e.g. one real workout
+  // completion counted as 2 in recomputeStatsCache's totalWorkouts, which
+  // just counts WORKOUT_COMPLETED docs. Retrying a setDoc to the same ID
+  // just overwrites identical data instead of duplicating it.
+  const ref = doc(collection(db, 'events'));
+
   for (let attempt = 0; attempt <= 1; attempt++) {
     try {
-      const ref = await addDoc(collection(db, 'events'), {
+      await setDoc(ref, {
         ...rest,
         createdAt: backdatedAt ? Timestamp.fromDate(backdatedAt) : serverTimestamp(),
       });

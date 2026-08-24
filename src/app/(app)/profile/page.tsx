@@ -9,7 +9,7 @@ import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  updateUserDoc, syncLeaderboardPublic, getUserConversations, getMembershipConfig, getCoachingPlans, getMembershipPlans,
+  updateUserDoc, syncLeaderboardPublic, subscribeUserConversations, getMembershipConfig, getCoachingPlans, getMembershipPlans,
   submitCoachingApplication, getUserCoachingApplication,
 } from '@/lib/firestore';
 import { startCoachingCheckout, startPlanCheckout } from '@/lib/checkout';
@@ -48,6 +48,7 @@ export default function ProfilePage() {
   const [editModal, setEditModal] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.displayName || '');
   const [saving, setSaving] = useState(false);
+  const [hasConversation, setHasConversation] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [membershipConfig, setMembershipConfig] = useState<MembershipConfig | null>(null);
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
@@ -65,11 +66,22 @@ export default function ProfilePage() {
     getUserCoachingApplication(user.uid).then(setCoachingApplication).catch(() => {});
   };
 
+  // Live, and gates the tile's visibility (see below) — a member has no
+  // conversation until staff messages them first, so this used to link to
+  // an inbox that opened to nothing, with no explanation why. Matches the
+  // same gating already used for the Messages icon in Header.
   useEffect(() => {
     if (!user) return;
-    getUserConversations(user.uid)
-      .then(convs => setUnreadMessages(convs.filter(c => c.unreadByUser).length))
-      .catch(() => {});
+    const unsub = subscribeUserConversations(user.uid, (convs) => {
+      setHasConversation(convs.length > 0);
+      setUnreadMessages(convs.filter(c => c.unreadByUser).length);
+    });
+    return unsub;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
     getMembershipConfig().then(setMembershipConfig).catch(() => {});
     getCoachingPlans().then(plans => setCoachingPlans(plans.filter(p => p.active))).catch((err) => console.error('[Profile] Failed to load coaching plans:', err));
     getMembershipPlans().then(plans => setMembershipPlans(plans.filter(p => p.active))).catch((err) => console.error('[Profile] Failed to load membership plans:', err));
@@ -564,27 +576,31 @@ export default function ProfilePage() {
           </Link>
         </motion.div>
 
-        {/* Messages from Coach */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-          <Link href="/messages">
-            <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
-              <div className="relative">
-                <div className="p-2 bg-accent-muted rounded-lg">
-                  <MessageSquare className="w-4 h-4 text-accent" />
+        {/* Messages from Admin — hidden entirely until staff has actually
+            messaged this account at least once; previously always shown and
+            linked into an inbox with nothing in it and no explanation why. */}
+        {hasConversation && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+            <Link href="/messages">
+              <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+                <div className="relative">
+                  <div className="p-2 bg-accent-muted rounded-lg">
+                    <MessageSquare className="w-4 h-4 text-accent" />
+                  </div>
+                  {unreadMessages > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white">
+                      {unreadMessages}
+                    </span>
+                  )}
                 </div>
-                {unreadMessages > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white">
-                    {unreadMessages}
-                  </span>
-                )}
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-white">Messages</p>
-                <p className="text-xs text-text-secondary">{unreadMessages > 0 ? `${unreadMessages} unread` : 'View your conversations'}</p>
-              </div>
-            </Card>
-          </Link>
-        </motion.div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-white">Messages</p>
+                  <p className="text-xs text-text-secondary">{unreadMessages > 0 ? `${unreadMessages} unread` : 'View your conversations'}</p>
+                </div>
+              </Card>
+            </Link>
+          </motion.div>
+        )}
 
         {/* Appearance */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.19 }}>
