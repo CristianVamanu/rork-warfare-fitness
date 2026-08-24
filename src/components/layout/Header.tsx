@@ -7,7 +7,7 @@ import { Bell, MessageCircle, ChevronLeft } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAuth } from '@/contexts/AuthContext';
-import { subscribeUserConversations, getUnreadNotificationCount, getSystemConfig } from '@/lib/firestore';
+import { subscribeUserConversations, subscribeAdminConversations, getUnreadNotificationCount, getSystemConfig } from '@/lib/firestore';
 
 interface HeaderProps {
   title?: string;
@@ -56,19 +56,33 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
     }).catch(() => {});
   }, []);
 
+  const isAdmin = profile?.role === 'admin';
+
   // Live — the Messages icon itself must appear the moment staff sends a
   // first message, not just its unread badge, so this can't be the old
   // 30s-poll getUserConversations() (a member sitting on a screen when
   // staff messages them for the first time would otherwise not see the
   // icon appear until the next poll or a reload).
+  //
+  // Admin is always shown the icon (they're the one who starts every
+  // conversation, so "no conversation yet" never applies to them) and its
+  // badge counts unreadByAdmin across every client conversation, not
+  // unreadByUser — the admin is never the "user" side of any conversation.
   useEffect(() => {
     if (!user) return;
+    if (isAdmin) {
+      const unsub = subscribeAdminConversations(user.uid, (convs) => {
+        setHasConversation(true);
+        setUnreadMessages(convs.filter(c => c.unreadByAdmin).length);
+      });
+      return unsub;
+    }
     const unsub = subscribeUserConversations(user.uid, (convs) => {
       setHasConversation(convs.length > 0);
       setUnreadMessages(convs.filter(c => c.unreadByUser).length);
     });
     return unsub;
-  }, [user]);
+  }, [user, isAdmin]);
 
   useEffect(() => {
     if (!user) return;
@@ -137,7 +151,7 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
               </Link>
               {hasConversation && (
                 <Link
-                  href="/messages"
+                  href={isAdmin ? '/admin?tab=messages' : '/messages'}
                   className="relative p-2 rounded-xl text-text-secondary transition-colors"
                 >
                   <MessageCircle className="w-5 h-5" />
