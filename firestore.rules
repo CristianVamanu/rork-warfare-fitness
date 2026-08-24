@@ -301,37 +301,19 @@ service cloud.firestore {
       allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }
 
-    // ── Conversations — admin-initiated DMs, or self-service messaging for
-    // 1:1 Coaching clients only ──────────────────────────────────────────
+    // ── Conversations — staff-initiated only. A member can never create a
+    // conversation (with staff or with another member) — only reply to one
+    // staff already started. adminId must always be a real admin's own uid
+    // (checked below), so a member can't forge a conversation that merely
+    // looks staff-owned. There is no member-to-member path: every doc has
+    // exactly one adminId (must satisfy isAdmin()) and one userId.
+    // ─────────────────────────────────────────────────────────────────────
     match /conversations/{convId} {
       allow read: if isAuthed() && notTfaPending() && (
         resource.data.adminId == uid() ||
         resource.data.userId == uid()
       );
-      // Messaging is restricted to 1:1 Coaching clients — a free/self-serve
-      // user has no assigned human on the other end, so the UI hides the
-      // whole feature from them; this is the matching server-side
-      // enforcement so a non-coaching account can't open a thread by
-      // calling the Firestore SDK directly, bypassing the hidden UI.
-      // adminId must match either the caller's own resolved trainerId field,
-      // or (fallback, for accounts where that field never got set — e.g.
-      // pre-existing accounts from before trainerId existed) the install's
-      // single global admin from system/config, which every account's
-      // trainerId is meant to mirror anyway.
-      allow create: if isAdmin() || (
-        isAuthed() && notTfaPending() && request.resource.data.userId == uid() &&
-        exists(/databases/$(database)/documents/users/$(uid())) &&
-        get(/databases/$(database)/documents/users/$(uid())).data.get('coaching', {}).get('status', 'none') == 'active' &&
-        (
-          request.resource.data.adminId == get(/databases/$(database)/documents/users/$(uid())).data.get('trainerId', null) ||
-          (exists(/databases/$(database)/documents/system/config) &&
-           request.resource.data.adminId == get(/databases/$(database)/documents/system/config).data.get('trainerId', null)) ||
-          // Some installs' system/config only ever got adminUid written
-          // (older/manual install path), never trainerId — accept that too.
-          (exists(/databases/$(database)/documents/system/config) &&
-           request.resource.data.adminId == get(/databases/$(database)/documents/system/config).data.get('adminUid', null))
-        )
-      );
+      allow create: if isAdmin() && notTfaPending() && request.resource.data.adminId == uid();
       allow update: if isAuthed() && notTfaPending() && (
         resource.data.adminId == uid() ||
         resource.data.userId == uid()
@@ -347,8 +329,12 @@ service cloud.firestore {
           get(/databases/$(database)/documents/conversations/$(convId)).data.adminId == uid() ||
           get(/databases/$(database)/documents/conversations/$(convId)).data.userId == uid()
         );
+        // isFromAdmin must match the caller's actual role — otherwise a
+        // member could write isFromAdmin:true and have their own reply
+        // rendered/notified as if it came from staff.
         allow create: if isAuthed() && notTfaPending()
           && request.resource.data.senderId == uid()
+          && request.resource.data.isFromAdmin == isAdmin()
           && (
             isAdmin() ||
             get(/databases/$(database)/documents/conversations/$(convId)).data.userId == uid()

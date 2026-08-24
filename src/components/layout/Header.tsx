@@ -7,7 +7,7 @@ import { Bell, MessageCircle, ChevronLeft } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserConversations, getUnreadNotificationCount, getSystemConfig } from '@/lib/firestore';
+import { subscribeUserConversations, getUnreadNotificationCount, getSystemConfig } from '@/lib/firestore';
 
 interface HeaderProps {
   title?: string;
@@ -32,6 +32,7 @@ function readCachedBranding(): { logoUrl: string | null; appName: string } {
 export function Header({ title, showActions = true, rightElement, showBack = false }: HeaderProps) {
   const { user, profile } = useAuth();
   const router = useRouter();
+  const [hasConversation, setHasConversation] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [{ logoUrl: cachedLogoUrl, appName: cachedAppName }] = useState(readCachedBranding);
@@ -55,19 +56,28 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
     }).catch(() => {});
   }, []);
 
+  // Live — the Messages icon itself must appear the moment staff sends a
+  // first message, not just its unread badge, so this can't be the old
+  // 30s-poll getUserConversations() (a member sitting on a screen when
+  // staff messages them for the first time would otherwise not see the
+  // icon appear until the next poll or a reload).
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeUserConversations(user.uid, (convs) => {
+      setHasConversation(convs.length > 0);
+      setUnreadMessages(convs.filter(c => c.unreadByUser).length);
+    });
+    return unsub;
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-
     const load = () => {
-      getUserConversations(user.uid)
-        .then(convs => { if (!cancelled) setUnreadMessages(convs.filter(c => c.unreadByUser).length); })
-        .catch(() => {});
       getUnreadNotificationCount(user.uid)
         .then(count => { if (!cancelled) setUnreadNotifs(count); })
         .catch(() => {});
     };
-
     load();
     const interval = setInterval(load, 30_000);
     return () => { cancelled = true; clearInterval(interval); };
@@ -125,7 +135,7 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
                   </span>
                 )}
               </Link>
-              {profile?.coaching?.status === 'active' && (
+              {hasConversation && (
                 <Link
                   href="/messages"
                   className="relative p-2 rounded-xl text-text-secondary transition-colors"

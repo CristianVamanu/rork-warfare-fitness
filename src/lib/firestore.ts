@@ -1291,41 +1291,14 @@ export async function saveMembershipPlans(plans: MembershipPlan[]): Promise<void
 }
 
 // ---------------------------------------------------------------------------
-// Conversations — admin-initiated DMs, plus a user-initiated "message
-// support" path (see firestore.rules' conversations create rule — a user
-// can only ever create one naming themselves as userId and their own
-// resolved trainerId as adminId, never an arbitrary conversation).
+// Conversations — staff-initiated only (see firestore.rules' conversations
+// create rule: only isAdmin()). A member can reply to an existing thread
+// but never create one, and never message another member — there is no
+// member-to-member path anywhere in this model (every conversation has
+// exactly one adminId and one userId).
 // ---------------------------------------------------------------------------
 
 import type { Conversation, Message } from '@/types';
-
-export async function startSupportConversation(
-  userId: string,
-  adminId: string,
-  userDisplayName: string,
-  userEmail: string
-): Promise<string> {
-  const q = query(
-    collection(db, 'conversations'),
-    where('adminId', '==', adminId),
-    where('userId', '==', userId)
-  );
-  const snap = await getDocs(q);
-  if (!snap.empty) return snap.docs[0].id;
-
-  const ref = await addDoc(collection(db, 'conversations'), {
-    adminId,
-    userId,
-    userDisplayName,
-    userEmail,
-    lastMessage: '',
-    lastMessageAt: serverTimestamp(),
-    createdAt: serverTimestamp(),
-    unreadByUser: false,
-    unreadByAdmin: true,
-  });
-  return ref.id;
-}
 
 export async function getOrCreateConversation(
   adminId: string,

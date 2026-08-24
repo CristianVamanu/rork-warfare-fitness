@@ -3,11 +3,10 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 import { MessageSquare, Send, ChevronLeft, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { subscribeUserConversations, subscribeMessages, sendMessage, markConversationRead, deleteConversation, startSupportConversation, getSystemConfig } from '@/lib/firestore';
+import { subscribeUserConversations, subscribeMessages, sendMessage, markConversationRead, deleteConversation } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -15,16 +14,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import type { Conversation, Message } from '@/types';
 
 export default function MessagesPage() {
-  const { user, profile, trainerId } = useAuth();
+  const { user, profile } = useAuth();
   const router = useRouter();
-  // Messaging is 1:1 Coaching-only — a self-serve/free user has no assigned
-  // human on the other end of this conversation system, so the whole
-  // feature (nav icon in Header, and this page as a direct-URL fallback)
-  // is hidden from them rather than offered as generic "Support".
-  const isCoachingClient = profile?.coaching?.status === 'active';
-  useEffect(() => {
-    if (profile && !isCoachingClient) router.replace('/dashboard');
-  }, [profile, isCoachingClient, router]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
@@ -32,25 +23,8 @@ export default function MessagesPage() {
   const [msgLoading, setMsgLoading] = useState(false);
   const [msgText, setMsgText] = useState('');
   const [sending, setSending] = useState(false);
-  const [starting, setStarting] = useState(false);
-  // trainerId on the account's own doc is resolved once at signup — an
-  // account created before that field existed, or before system/config's
-  // own trainerId was ever set (e.g. a pre-existing admin/install), can
-  // have it permanently missing with no way to backfill itself. Falling
-  // back to reading system/config directly (publicly readable, same value
-  // signup would have resolved anyway) means "Message Support" isn't
-  // silently unavailable just because of stale account data.
-  const [fallbackTrainerId, setFallbackTrainerId] = useState<string | null>(null);
-  const effectiveTrainerId = trainerId || fallbackTrainerId;
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (trainerId) return;
-    // Some installs' system/config never got a trainerId field written (only
-    // adminUid, from an older/manual install path) — fall back to that too.
-    getSystemConfig().then((cfg) => setFallbackTrainerId((cfg?.trainerId as string) || (cfg?.adminUid as string) || null)).catch(() => {});
-  }, [trainerId]);
-  const conversationLabel = 'Your Coach';
+  const conversationLabel = 'Staff';
 
   useEffect(() => {
     if (!user) return;
@@ -61,6 +35,16 @@ export default function MessagesPage() {
     });
     return unsub;
   }, [user]);
+
+  // Members can never start a conversation themselves — only staff can, by
+  // messaging first (see firestore.rules' conversations create rule, which
+  // now only allows isAdmin()). If this account has no conversation at all,
+  // there's nothing for this page to show; redirect away rather than render
+  // an empty inbox with no way to fill it. This also covers a direct-URL
+  // visit from an account whose Header icon is correctly hidden.
+  useEffect(() => {
+    if (!loading && conversations.length === 0) router.replace('/dashboard');
+  }, [loading, conversations.length, router]);
 
   // Live messages for whichever conversation is open — a coach's reply now
   // appears as it's sent instead of only showing up after leaving and
@@ -75,27 +59,6 @@ export default function MessagesPage() {
     });
     return unsub;
   }, [activeConv?.id]);
-
-  async function handleStartConversation() {
-    if (!user || !profile || !effectiveTrainerId || starting) return;
-    setStarting(true);
-    try {
-      const convId = await startSupportConversation(user.uid, effectiveTrainerId, profile.displayName, profile.email);
-      // The live subscribeUserConversations listener above will also pick
-      // this up, but opening it immediately avoids waiting on that
-      // round-trip before the thread appears usable.
-      setActiveConv({
-        id: convId, adminId: effectiveTrainerId, userId: user.uid,
-        userDisplayName: profile.displayName, userEmail: profile.email,
-        lastMessage: '', lastMessageAt: null, createdAt: null,
-        unreadByUser: false, unreadByAdmin: true,
-      });
-    } catch {
-      toast.error('Failed to start conversation');
-    } finally {
-      setStarting(false);
-    }
-  }
 
   function openConversation(conv: Conversation) {
     setActiveConv(conv);
@@ -175,7 +138,7 @@ export default function MessagesPage() {
                 value={msgText}
                 onChange={e => setMsgText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                placeholder="Reply to your coach…"
+                placeholder="Reply…"
                 className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
               />
               <Button onClick={handleSend} loading={sending} disabled={!msgText.trim()}>
@@ -183,39 +146,25 @@ export default function MessagesPage() {
               </Button>
             </div>
           </div>
-        ) : loading ? (
+        ) : loading || conversations.length === 0 ? (
+          // conversations.length === 0 only ever shows briefly, mid-redirect
+          // (see the effect above) — never a permanent empty/placeholder state.
           <div className="space-y-3">
             {[1,2,3].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}
           </div>
-        ) : conversations.length === 0 ? (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16">
-            <MessageSquare className="w-12 h-12 text-text-tertiary mx-auto mb-3" />
-            <p className="text-white font-bold">No messages yet</p>
-            <p className="text-text-secondary text-sm mt-1 mb-4">Have a question? Reach out and we&apos;ll get back to you.</p>
-            {effectiveTrainerId && (
-              <Button loading={starting} onClick={handleStartConversation}>
-                Message Your Coach
-              </Button>
-            )}
-          </motion.div>
         ) : (
           <div className="space-y-2">
-            {effectiveTrainerId && (
-              <Button variant="ghost" fullWidth loading={starting} onClick={handleStartConversation}>
-                <MessageSquare className="w-3.5 h-3.5" /> New Message
-              </Button>
-            )}
             {conversations.map((conv) => (
-              <motion.div key={conv.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+              <div key={conv.id}>
                 <Card
                   className={`p-4 hover:bg-white/5 transition-colors ${conv.unreadByUser ? 'border-accent/40' : ''}`}
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-10 h-10 rounded-full bg-danger/20 flex items-center justify-center text-danger text-sm font-bold flex-shrink-0 cursor-pointer"
+                      className="w-10 h-10 rounded-full bg-danger/20 flex items-center justify-center text-danger flex-shrink-0 cursor-pointer"
                       onClick={() => openConversation(conv)}
                     >
-                      C
+                      <MessageSquare className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openConversation(conv)}>
                       <div className="flex items-center gap-2">
@@ -233,7 +182,7 @@ export default function MessagesPage() {
                     </button>
                   </div>
                 </Card>
-              </motion.div>
+              </div>
             ))}
           </div>
         )}
