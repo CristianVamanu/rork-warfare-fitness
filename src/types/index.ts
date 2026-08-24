@@ -428,6 +428,11 @@ export interface ChannelPost {
   userId: string;
   userDisplayName: string;
   userPhotoURL?: string;
+  // Denormalized at write time (like userDisplayName) rather than looked up
+  // per-render — a regular member can't read the admin's users/{uid} doc
+  // anyway (see firestore.rules), so this is the only way the badge could
+  // render for anyone but the admin's own client.
+  userIsAdmin?: boolean;
   content: string;
   imageURL?: string;
   likes: string[];

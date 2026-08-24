@@ -1591,7 +1591,7 @@ export function subscribeChannelPosts(
 }
 
 export async function createChannelPost(channelId: string, data: {
-  userId: string; userDisplayName: string; userPhotoURL?: string;
+  userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean;
   content: string; imageURL?: string;
 }): Promise<string> {
   const ref = await addDoc(collection(db, 'channels', channelId, 'posts'), {
@@ -1622,7 +1622,7 @@ export async function getPostReplies(channelId: string, postId: string): Promise
 }
 
 export async function createReply(channelId: string, postId: string, data: {
-  userId: string; userDisplayName: string; userPhotoURL?: string; content: string;
+  userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean; content: string;
 }) {
   await addDoc(collection(db, 'channels', channelId, 'posts', postId, 'replies'), {
     ...data, channelId, likes: [], replyCount: 0, replyTo: postId, createdAt: serverTimestamp(),

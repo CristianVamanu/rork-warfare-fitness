@@ -15,6 +15,7 @@ import {
   pinChannelPost, unpinChannelPost, getSystemConfig,
 } from '@/lib/firestore';
 import { Avatar } from '@/components/ui/Avatar';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -90,7 +91,10 @@ function PostCard({
       <div className="flex items-start gap-3 mb-3">
         <Avatar name={post.userDisplayName} src={post.userPhotoURL} size="md" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-white">{post.userDisplayName}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-bold text-white">{post.userDisplayName}</p>
+            {post.userIsAdmin && <Badge variant="danger">Admin</Badge>}
+          </div>
           <p className="text-xs text-text-tertiary" title={fullTimestamp(post.createdAt)}>{timeAgo(post.createdAt)}</p>
         </div>
         <div className="flex items-center gap-1">
@@ -167,8 +171,9 @@ function PostCard({
             <div key={r.id} className="flex items-start gap-2">
               <Avatar name={r.userDisplayName} src={r.userPhotoURL} size="sm" />
               <div className="flex-1 bg-surface-elevated rounded-xl px-3 py-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <p className="text-xs font-bold text-white">{r.userDisplayName}</p>
+                  {r.userIsAdmin && <Badge variant="danger">Admin</Badge>}
                   <span className="text-xs text-text-tertiary" title={fullTimestamp(r.createdAt)}>{timeAgo(r.createdAt)}</span>
                 </div>
                 <p className="text-sm text-white mt-0.5">{r.content}</p>
@@ -324,6 +329,11 @@ export default function ChannelPage() {
         userId: user.uid,
         userDisplayName: profile.displayName || 'Athlete',
         ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
+        // Deliberately profile.role === 'admin' specifically, not the local
+        // isAdmin (which also covers trainer) — the matching rules check
+        // only recognizes role 'admin' as isAdmin(), so a trainer sending
+        // userIsAdmin:true here would just get the whole write rejected.
+        ...(profile.role === 'admin' ? { userIsAdmin: true } : {}),
         content: text.trim(),
         ...(pendingImageURL ? { imageURL: pendingImageURL } : {}),
       });
@@ -403,6 +413,7 @@ export default function ChannelPage() {
         userId: user.uid,
         userDisplayName: profile.displayName || 'Athlete',
         ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
+        ...(profile.role === 'admin' ? { userIsAdmin: true } : {}),
         content: replyText.trim(),
       });
       setPosts(prev => prev.map(p => p.id === replyTarget.id ? { ...p, replyCount: p.replyCount + 1 } : p));
@@ -492,7 +503,10 @@ export default function ChannelPage() {
               <Pin className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-accent mb-1">Pinned message</p>
-                <p className="text-sm text-white font-bold">{pinnedPost.userDisplayName}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm text-white font-bold">{pinnedPost.userDisplayName}</p>
+                  {pinnedPost.userIsAdmin && <Badge variant="danger">Admin</Badge>}
+                </div>
                 <p className="text-sm text-text-secondary mt-0.5 whitespace-pre-wrap">{pinnedPost.content}</p>
                 {pinnedPost.imageURL && (
                   <img src={pinnedPost.imageURL} alt="pinned" loading="lazy" decoding="async" className="mt-2 rounded-lg w-full object-cover max-h-32" />
