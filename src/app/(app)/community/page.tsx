@@ -57,7 +57,7 @@ function CommunityPageInner() {
       setLiveLoading(false);
       // First load for this tab visit: show everything immediately, no banner.
       setVisibleLiveIds((prev) => prev ?? new Set(items.map((i) => i.id)));
-    }, 30);
+    }, 20);
     return unsub;
   }, [tab]);
   const newLiveCount = visibleLiveIds ? liveItems.filter((i) => !visibleLiveIds.has(i.id)).length : 0;

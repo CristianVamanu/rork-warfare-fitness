@@ -175,7 +175,7 @@ export default function ProgramDetailPage() {
   const gatedProgramId = program && (program.isPremium || isLockedByConfig) ? program.id : undefined;
   const { isLocked: programAccessLocked } = useFeatureAccess(undefined, gatedProgramId);
 
-  const handleEnroll = async (force = false) => {
+  const handleEnroll = async (force = false, restart = false) => {
     if (!user || !program) return;
     // Defense-in-depth — the button that calls this is already hidden
     // behind isMembershipLocked, but never trust a client-side gate alone.
@@ -192,7 +192,7 @@ export default function ProgramDetailPage() {
         name: program.name,
         weeks: program.weeks,
         daysPerWeek: program.daysPerWeek,
-      });
+      }, restart);
       await refreshProfile();
     } catch (err) {
       console.error('[Enroll] failed:', err);
@@ -613,17 +613,33 @@ export default function ProgramDetailPage() {
                 ({activeProgram?.completedWorkouts ?? 0} workouts completed) will be saved.
                 You can resume it anytime from My Programs.
                 {savedProgress && (
-                  <> You'll pick up {program.name} right where you left off ({savedProgress.completedWorkouts} workouts done).</>
+                  <> You also have {savedProgress.completedWorkouts} workout{savedProgress.completedWorkouts === 1 ? '' : 's'} of saved progress on {program.name} — resume it, or start fresh.</>
                 )}
               </p>
             </div>
           </div>
-          <div className="flex gap-3">
-            <Button variant="ghost" fullWidth onClick={() => setSwitchModal(false)}>Cancel</Button>
-            <Button fullWidth loading={enrolling} onClick={() => handleEnroll(true)}>
-              Switch Program
-            </Button>
-          </div>
+          {savedProgress ? (
+            // A genuine choice only makes sense when there's actual saved
+            // progress to choose between — "switching to test a program"
+            // and coming back used to always silently resume old progress,
+            // with no way to actually start clean if that's what you meant.
+            <div className="space-y-2">
+              <Button fullWidth loading={enrolling} onClick={() => handleEnroll(true, false)}>
+                Resume — {savedProgress.completedWorkouts} workouts done
+              </Button>
+              <Button variant="ghost" fullWidth loading={enrolling} onClick={() => handleEnroll(true, true)}>
+                Restart from Day 1
+              </Button>
+              <Button variant="ghost" fullWidth onClick={() => setSwitchModal(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <div className="flex gap-3">
+              <Button variant="ghost" fullWidth onClick={() => setSwitchModal(false)}>Cancel</Button>
+              <Button fullWidth loading={enrolling} onClick={() => handleEnroll(true)}>
+                Switch Program
+              </Button>
+            </div>
+          )}
         </div>
       </Modal>
     </div>

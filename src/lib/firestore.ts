@@ -799,7 +799,14 @@ export async function getPosts(limitCount = 20, trainerId?: string) {
 // `profile.activeProgram.*` keeps working with no further changes.
 export async function enrollInProgram(
   userId: string,
-  program: { id: string; name: string; weeks: number; daysPerWeek: number }
+  program: { id: string; name: string; weeks: number; daysPerWeek: number },
+  // True when the user explicitly chose "Restart from Day 1" over "Resume"
+  // on a program that already has saved progress (either currently active,
+  // or left mid-way via a prior switch — see programProgress below).
+  // Without this, switching away from a program to test another one and
+  // back always silently resumed old progress, which is the right default
+  // but had no escape hatch for someone who genuinely wanted a clean start.
+  restart = false
 ) {
   const userRef = doc(db, 'users', userId);
   const snap = await getDoc(userRef);
@@ -831,8 +838,9 @@ export async function enrollInProgram(
   }
 
   // Resume the target program's own saved position if it has one;
-  // otherwise this is a genuinely fresh start for it.
-  const saved = program.id === current?.programId ? undefined : savedProgress[program.id];
+  // otherwise this is a genuinely fresh start for it. `restart` forces the
+  // fresh-start path even when a saved position exists.
+  const saved = restart || program.id === current?.programId ? undefined : savedProgress[program.id];
 
   // Count REAL training days from the resolved schedule (phase-aware, rest
   // slots excluded) rather than trusting weeks × daysPerWeek — the two
