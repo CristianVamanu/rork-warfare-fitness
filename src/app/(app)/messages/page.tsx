@@ -10,6 +10,7 @@ import { subscribeUserConversations, subscribeMessages, sendMessage, markConvers
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import type { Conversation, Message } from '@/types';
 
@@ -24,7 +25,9 @@ export default function MessagesPage() {
   const [msgText, setMsgText] = useState('');
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const conversationLabel = 'Staff';
+  // Every conversation's staff side is the one admin account — no per-message
+  // sender lookup needed, unlike the member's own name which already varies.
+  const conversationLabel = 'Admin';
 
   useEffect(() => {
     if (!user) return;
@@ -106,7 +109,10 @@ export default function MessagesPage() {
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <div className="flex-1">
-                <p className="text-sm font-bold text-white">{conversationLabel}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-bold text-white">{conversationLabel}</p>
+                  <Badge variant="danger">Admin</Badge>
+                </div>
                 <p className="text-xs text-text-secondary">Replies may take a moment</p>
               </div>
               <button
@@ -169,6 +175,7 @@ export default function MessagesPage() {
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openConversation(conv)}>
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-white">{conversationLabel}</p>
+                        <Badge variant="danger">Admin</Badge>
                         {conv.unreadByUser && <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
                       </div>
                       <p className="text-xs text-text-secondary truncate">{conv.lastMessage || 'No messages yet'}</p>
