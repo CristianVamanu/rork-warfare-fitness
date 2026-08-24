@@ -947,7 +947,18 @@ export async function getAllProgramProgress(userId: string): Promise<Record<stri
 // incremented counter — the previous version updated them independently,
 // which meant any code path that forgot to touch one of them (or an
 // enrollment reset that missed clearing the other) let them drift apart.
-export async function incrementProgramWorkouts(userId: string, dayIndex?: number, programId?: string) {
+// Returned so callers (e.g. completeWorkout's Live Activity post) can tell
+// which program day was just finished and, distinctly, whether that
+// completion just finished the WHOLE program for the first time.
+export interface ProgramProgressResult {
+  programName: string;
+  dayIndex: number; // 0-based, matches lastCompletedDayIndex
+  completedWorkouts: number;
+  totalWorkouts?: number;
+  justFinishedProgram: boolean;
+}
+
+export async function incrementProgramWorkouts(userId: string, dayIndex?: number, programId?: string): Promise<ProgramProgressResult | undefined> {
   const snap = await getDoc(doc(db, 'users', userId));
   if (!snap.exists() || !snap.data()?.activeProgram) return;
   const activeProgram = snap.data()?.activeProgram;
@@ -985,7 +996,13 @@ export async function incrementProgramWorkouts(userId: string, dayIndex?: number
       },
       lastActive: serverTimestamp(),
     });
-    return;
+    return {
+      programName: prior?.programName ?? '',
+      dayIndex: newLastCompleted,
+      completedWorkouts: completedTraining,
+      totalWorkouts,
+      justFinishedProgram: totalWorkouts > 0 && (prior?.completedWorkouts ?? 0) < totalWorkouts && completedTraining >= totalWorkouts,
+    };
   }
 
   const lastCompleted: number = activeProgram?.lastCompletedDayIndex ?? -1;
@@ -1019,12 +1036,23 @@ export async function incrementProgramWorkouts(userId: string, dayIndex?: number
     }
   } catch { /* fall back to slot count rather than blocking the workout save */ }
 
+  const priorCompletedWorkouts: number = activeProgram?.completedWorkouts ?? 0;
+  const resolvedTotalWorkouts = totalWorkouts ?? activeProgram?.totalWorkouts;
+
   await updateDoc(doc(db, 'users', userId), {
     'activeProgram.completedWorkouts': completedTraining,
     'activeProgram.lastCompletedDayIndex': newLastCompleted,
     ...(totalWorkouts !== undefined ? { 'activeProgram.totalWorkouts': totalWorkouts } : {}),
     lastActive: serverTimestamp(),
   });
+
+  return {
+    programName: activeProgram?.programName ?? '',
+    dayIndex: newLastCompleted,
+    completedWorkouts: completedTraining,
+    totalWorkouts: resolvedTotalWorkouts,
+    justFinishedProgram: !!resolvedTotalWorkouts && priorCompletedWorkouts < resolvedTotalWorkouts && completedTraining >= resolvedTotalWorkouts,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1684,6 +1712,52 @@ export async function syncLeaderboardPublic(userId: string, patch: Record<string
   }
 }
 
+// ---------------------------------------------------------------------------
+// Community Live Activity — a deliberately minimal, PUBLIC feed of meaningful
+// training events across the whole community ("what's happening right now",
+// distinct from the Leaderboard's "who's ranked where"). Same pattern as
+// leaderboardPublic above: a separate, field-limited collection rather than
+// exposing anything from the private `events` collection (whose payloads
+// hold exactly the granular stuff — duration, calories, meal contents —
+// this must never show). Never write anything beyond ActivityType/label/
+// displayName/createdAt; no raw stats, no timestamps-of-day, no numbers
+// beyond what the label itself needs (e.g. a PR's weight).
+// ---------------------------------------------------------------------------
+export type CommunityActivityType = 'workout' | 'program_day' | 'program_completed' | 'pr' | 'achievement' | 'quest' | 'streak';
+
+export interface CommunityActivity {
+  id: string;
+  userId: string;
+  displayName: string;
+  type: CommunityActivityType;
+  label: string;
+  createdAt: unknown;
+}
+
+export async function postCommunityActivity(
+  userId: string,
+  displayName: string,
+  type: CommunityActivityType,
+  label: string
+): Promise<void> {
+  try {
+    await addDoc(collection(db, 'communityActivity'), {
+      userId, displayName, type, label, createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    // Best-effort — a failed activity post should never block the
+    // workout/achievement/etc. write that triggered it.
+    console.error('[Firestore] postCommunityActivity failed:', err);
+  }
+}
+
+export function subscribeCommunityActivity(onUpdate: (items: CommunityActivity[]) => void, limitCount = 30): () => void {
+  const q = query(collection(db, 'communityActivity'), orderBy('createdAt', 'desc'), limit(limitCount));
+  return onSnapshot(q, (snap) => {
+    onUpdate(snap.docs.map((d) => ({ id: d.id, ...d.data() } as CommunityActivity)));
+  }, (err) => console.error('[Firestore] subscribeCommunityActivity error:', err));
+}
+
 // NOTE: This app is currently single-tenant (one trainer per install), so the
 // leaderboard intentionally shows every user rather than filtering by
 // trainerId — that filter was fragile (any mismatch between a user's stored
@@ -1832,7 +1906,7 @@ export async function likePRPost(postId: string, userId: string, liked: boolean)
 export async function setPRPostModeration(
   postId: string,
   status: 'pending' | 'approved' | 'rejected',
-  post?: { userId: string; exerciseName: string },
+  post?: { userId: string; exerciseName: string; displayName?: string; weightKg?: number },
 ) {
   await updateDoc(doc(db, 'prPosts', postId), {
     moderationStatus: status,
@@ -1850,6 +1924,14 @@ export async function setPRPostModeration(
       actionLabel: 'View PR Wall',
       actionUrl: '/community/prs',
     }).catch(() => {});
+  }
+
+  // Only an admin-approved PR counts as a real, verified event worth
+  // surfacing community-wide — a pending/rejected submission is unverified
+  // and shouldn't imply "this actually happened" to everyone else.
+  if (post && status === 'approved') {
+    const weightPhrase = post.weightKg ? ` — ${post.weightKg}kg` : '';
+    postCommunityActivity(post.userId, post.displayName || 'A member', 'pr', `hit a new PR: ${post.exerciseName}${weightPhrase}`).catch(() => {});
   }
 }
 

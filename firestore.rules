@@ -270,6 +270,25 @@ service cloud.firestore {
       );
     }
 
+    // ── Community Live Activity (public, minimal) ─────────────────────────
+    // Field-limited, append-only feed — never anything from the private
+    // `events` collection (whose payload holds duration/calories/meal
+    // contents etc). userId must be the caller's own EXCEPT for admin, who
+    // posts on an athlete's behalf when approving a PR (setPRPostModeration
+    // in src/lib/firestore.ts) — the athlete never runs that write
+    // themselves. No update/delete from clients; only admin can clean up.
+    match /communityActivity/{activityId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed()
+        && (request.resource.data.userId == uid() || isAdmin())
+        && request.resource.data.keys().hasOnly(['userId', 'displayName', 'type', 'label', 'createdAt'])
+        && request.resource.data.type in ['workout', 'program_day', 'program_completed', 'pr', 'achievement', 'quest', 'streak']
+        && request.resource.data.label is string && request.resource.data.label.size() <= 200
+        && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 100;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
     // ── Tenants ───────────────────────────────────────────────────────────
     // All authenticated users need to read their trainer's tenant (subscription status)
     match /tenants/{trainerId} {

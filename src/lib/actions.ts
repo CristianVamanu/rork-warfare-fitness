@@ -17,11 +17,11 @@ import {
 import type { DistanceUnit } from '@/lib/distance';
 import { auth, db } from './firebase';
 import { createEvent } from './events';
-import { incrementProgramWorkouts, syncLeaderboardPublic, updateUserGoals } from './firestore';
+import { incrementProgramWorkouts, syncLeaderboardPublic, updateUserGoals, postCommunityActivity } from './firestore';
 import { calcWorkoutXP, xpToPowerLevel } from './xp';
 import { estimateNutritionTargets } from './tdee';
 import { checkAndAwardAchievements, ACHIEVEMENT_DEFS } from './achievements';
-import { checkAndAwardQuests } from './quests';
+import { checkAndAwardQuests, QUEST_DEFS } from './quests';
 import type { EventType, FitnessGoal, ExperienceLevel, OnboardingData } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -31,6 +31,57 @@ import type { EventType, FitnessGoal, ExperienceLevel, OnboardingData } from '@/
 async function getTrainerId(userId: string): Promise<string> {
   const snap = await getDoc(doc(db, 'users', userId));
   return (snap.data()?.trainerId as string) ?? 'unknown';
+}
+
+// Live Activity posts need the athlete's own display name — reads once and
+// falls back to a neutral label rather than blocking/failing the workout
+// completion if the profile read is slow/unavailable.
+async function getDisplayName(userId: string): Promise<string> {
+  try {
+    const snap = await getDoc(doc(db, 'users', userId));
+    return (snap.data()?.displayName as string) || 'A member';
+  } catch {
+    return 'A member';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Live Activity posts — see postCommunityActivity in firestore.ts for the
+// privacy rationale (public, field-limited, never the raw event payload).
+// ---------------------------------------------------------------------------
+
+const STREAK_MILESTONES = [7, 14, 30, 60, 100, 180, 365];
+
+async function postWorkoutActivity(userId: string, programResult: import('./firestore').ProgramProgressResult | undefined): Promise<void> {
+  const displayName = await getDisplayName(userId);
+  if (programResult?.justFinishedProgram) {
+    postCommunityActivity(userId, displayName, 'program_completed', `completed ${programResult.programName || 'a training program'}`);
+  } else if (programResult) {
+    postCommunityActivity(userId, displayName, 'program_day', `completed ${programResult.programName || 'their program'} — Day ${programResult.dayIndex + 1}`);
+  } else {
+    postCommunityActivity(userId, displayName, 'workout', "completed today's workout");
+  }
+}
+
+async function postStreakMilestoneActivity(userId: string, streak: number): Promise<void> {
+  const displayName = await getDisplayName(userId);
+  postCommunityActivity(userId, displayName, 'streak', `reached a ${streak}-day streak`);
+}
+
+async function postAchievementActivities(userId: string, achievementIds: string[]): Promise<void> {
+  const displayName = await getDisplayName(userId);
+  for (const id of achievementIds) {
+    const title = ACHIEVEMENT_DEFS.find((d) => d.id === id)?.title;
+    if (title) postCommunityActivity(userId, displayName, 'achievement', `earned ${title}`);
+  }
+}
+
+async function postQuestActivities(userId: string, questIds: string[]): Promise<void> {
+  const displayName = await getDisplayName(userId);
+  for (const id of questIds) {
+    const title = QUEST_DEFS.find((d) => d.id === id)?.title;
+    if (title) postCommunityActivity(userId, displayName, 'quest', `completed a quest — ${title}`);
+  }
 }
 
 function sendAchievementEmail(achievementIds: string[]): void {
@@ -116,14 +167,16 @@ export async function completeWorkout(
   // Awaited (not fire-and-forget) so a fast navigation right after finishing
   // a workout can't cancel this write mid-flight and silently drop progress —
   // dayIndex prevents counting repeats of the same day.
+  let programResult: import('./firestore').ProgramProgressResult | undefined;
   if (programId) {
-    await incrementProgramWorkouts(userId, dayIndex, programId).catch(console.error);
+    programResult = await incrementProgramWorkouts(userId, dayIndex, programId).catch((err) => { console.error(err); return undefined; });
   }
 
   // Update XP + powerLevel
   let newPowerLevel = 0;
   let newAchievements: string[] = [];
   let newQuests: string[] = [];
+  let streakAdvanced = false;
 
   try {
     const now = new Date();
@@ -162,8 +215,10 @@ export async function completeWorkout(
         newStreak = streak; // same day — streak unchanged
       } else if (lastWorkoutDate === yesterday) {
         newStreak = streak + 1; // consecutive day — extend streak
+        streakAdvanced = true;
       } else {
         newStreak = 1; // gap or first workout — start at 1
+        streakAdvanced = true;
       }
 
       tx.set(userRef, {
@@ -228,6 +283,18 @@ export async function completeWorkout(
       totalWeightLifted: prevTotalWeightLifted + totalWeightLifted,
       totalMealsLogged,
     });
+
+    // Live Activity — best-effort, never blocks the workout result. One
+    // post per meaningful thing that happened this call: the workout/
+    // program-day/program-completion itself (mutually exclusive — never
+    // more than one of these three), any newly-crossed streak milestone,
+    // and one per newly-earned achievement/quest.
+    postWorkoutActivity(userId, programResult).catch(() => {});
+    if (streakAdvanced && STREAK_MILESTONES.includes(newStreak)) {
+      postStreakMilestoneActivity(userId, newStreak).catch(() => {});
+    }
+    if (newAchievements.length > 0) postAchievementActivities(userId, newAchievements).catch(() => {});
+    if (newQuests.length > 0) postQuestActivities(userId, newQuests).catch(() => {});
   } catch (err) {
     console.error('[Actions] XP/Achievement update failed:', err);
   }
