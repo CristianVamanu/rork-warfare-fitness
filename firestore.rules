@@ -270,46 +270,6 @@ service cloud.firestore {
       );
     }
 
-    // ── Warfare Strength Score (public, anonymous-friendly) ────────────────
-    // Standalone viral/acquisition feature — a result is computed client-
-    // side and saved here only when the user chooses to get a shareable
-    // link (see src/lib/strengthScoreStore.ts). Anonymous create is
-    // required (the whole point is a friend-with-no-account can take the
-    // test), so this validates shape/ranges rather than gating on isAuthed()
-    // — same trust model as a self-reported PR post elsewhere in the app;
-    // this is a vanity/motivational score, not security- or payment-
-    // relevant, so there's no server-side recompute. Immutable once
-    // created — no update from any client, matching every other
-    // append-only public collection in this file (communityActivity,
-    // leaderboardPublic writes aside).
-    match /strengthScoreResults/{resultId} {
-      allow read: if true;
-      allow create: if
-        request.resource.data.keys().hasOnly([
-          'displayName', 'age', 'sex', 'bodyweightKg', 'squatKg', 'benchKg', 'deadliftKg',
-          'ohpKg', 'pullupReps', 'score', 'classification', 'strongestLiftKey', 'weakestLiftKey',
-          'relativeStrength', 'isChallenge', 'challengedResultId', 'userId', 'createdAt'
-        ])
-        && request.resource.data.keys().hasAll([
-          'age', 'sex', 'bodyweightKg', 'squatKg', 'benchKg', 'deadliftKg',
-          'score', 'classification', 'isChallenge', 'createdAt'
-        ])
-        && (request.resource.data.displayName == null || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 60))
-        && request.resource.data.age is number && request.resource.data.age >= 5 && request.resource.data.age <= 120
-        && request.resource.data.sex in ['male', 'female']
-        && request.resource.data.bodyweightKg is number && request.resource.data.bodyweightKg > 0 && request.resource.data.bodyweightKg <= 400
-        && request.resource.data.squatKg is number && request.resource.data.squatKg >= 0 && request.resource.data.squatKg <= 600
-        && request.resource.data.benchKg is number && request.resource.data.benchKg >= 0 && request.resource.data.benchKg <= 500
-        && request.resource.data.deadliftKg is number && request.resource.data.deadliftKg >= 0 && request.resource.data.deadliftKg <= 700
-        && (!('ohpKg' in request.resource.data) || request.resource.data.ohpKg == null || (request.resource.data.ohpKg is number && request.resource.data.ohpKg >= 0 && request.resource.data.ohpKg <= 300))
-        && (!('pullupReps' in request.resource.data) || request.resource.data.pullupReps == null || (request.resource.data.pullupReps is number && request.resource.data.pullupReps >= 0 && request.resource.data.pullupReps <= 150))
-        && request.resource.data.score is number && request.resource.data.score >= 0 && request.resource.data.score <= 100
-        && request.resource.data.classification is string && request.resource.data.classification.size() <= 40
-        && (!('userId' in request.resource.data) || request.resource.data.userId == null || (isAuthed() && request.resource.data.userId == uid()));
-      allow update: if false;
-      allow delete: if isAdmin();
-    }
-
     // ── Community Live Activity (public, minimal) ─────────────────────────
     // Field-limited, append-only feed — never anything from the private
     // `events` collection (whose payload holds duration/calories/meal
