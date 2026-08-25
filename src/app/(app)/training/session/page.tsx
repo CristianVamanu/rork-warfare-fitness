@@ -1192,7 +1192,20 @@ function WorkoutSessionPageInner() {
   const [completeModal, setCompleteModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [startTime] = useState(Date.now());
+  // Seeded from sessionStorage when resuming an interrupted session (tab
+  // closed/reloaded) so the logged duration still reflects when the workout
+  // actually started, not when the page happened to reload — otherwise
+  // completeWorkout() would silently undercount the real elapsed time.
+  const [startTime] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(sessionKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as { startTime?: number };
+        if (typeof parsed.startTime === 'number') return parsed.startTime;
+      }
+    } catch { /* ignore */ }
+    return Date.now();
+  });
   const [workoutResult, setWorkoutResult] = useState<{
     duration: number; xpEarned: number; newPowerLevel: number; newAchievements: string[]; newQuests: string[];
   } | null>(null);
@@ -1330,9 +1343,9 @@ function WorkoutSessionPageInner() {
   useEffect(() => {
     if (exStates.length === 0) return;
     try {
-      sessionStorage.setItem(sessionKey, JSON.stringify({ states: exStates, exIdx: currentExIdx }));
+      sessionStorage.setItem(sessionKey, JSON.stringify({ states: exStates, exIdx: currentExIdx, startTime }));
     } catch { /* quota exceeded — ignore */ }
-  }, [exStates, currentExIdx, sessionKey]);
+  }, [exStates, currentExIdx, sessionKey, startTime]);
 
   // ── Rest timer tick ─────────────────────────────────────────────────────
 

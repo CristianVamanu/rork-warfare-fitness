@@ -40,7 +40,16 @@ export default function PRWallPage() {
   const handleLike = (id: string) => {
     if (!user || liked.has(id)) return;
     setLiked((prev) => new Set(prev).add(id));
-    likePRPost(id, user.uid, true).catch(() => {});
+    likePRPost(id, user.uid, true).catch(() => {
+      // Roll back the optimistic like so the UI doesn't keep showing a like
+      // that never actually landed (and permanently block retrying it).
+      setLiked((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      toast.error('Failed to like — try again');
+    });
   };
 
   const isAdmin = profile?.role === 'admin' || profile?.role === 'trainer';
