@@ -31,6 +31,17 @@ npm install
 
 echo "==> Building into $STAGING (live .next untouched)"
 rm -rf "$STAGING" "$PWA_STAGING"
+# tsconfig.json's "include" hardcodes ".next/types/**/*.ts" — the LIVE
+# .next dir, not $NEXT_DIST_DIR — so even though this build's real output
+# goes to .next-staging, the typecheck step still reads whatever type
+# stubs are sitting in the live .next/types from the PREVIOUS build. If
+# that previous build had a route this one no longer does (e.g. a page
+# just got deleted), typecheck fails on "Cannot find module" for a route
+# that doesn't exist anymore — breaking the deploy for a change that was
+# otherwise entirely correct. .next/types is pure build-time scaffolding
+# (the running server never reads it), so it's always safe to clear before
+# building; Next regenerates it fresh for the current route set.
+rm -rf .next/types
 # NEXT_DIST_DIR is read by next.config.js for .next. NEXT_PWA_DEST does the
 # same for next-pwa's own output (sw.js, sw.js.map, workbox-*.js, and the
 # content-hashed custom worker-*.js chunk) — next-pwa writes those straight
