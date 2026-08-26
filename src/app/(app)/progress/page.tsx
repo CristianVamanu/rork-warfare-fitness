@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target, Camera, Lock, Trash2, GitCompare, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserWorkouts, getWeightHistory, getSystemConfig, subscribeProgressPhotos, createProgressPhoto, deleteProgressPhoto } from '@/lib/firestore';
+import { getUserWorkouts, getWeightHistory, getSystemConfig, subscribeProgressPhotos, createProgressPhoto, deleteProgressPhoto, getWeeklySummary, type WeeklySummary } from '@/lib/firestore';
 import { recordWeight } from '@/lib/actions';
 import { lbsToKg } from '@/lib/utils';
 import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
@@ -53,6 +53,7 @@ export default function ProgressPage() {
   const [weightInput, setWeightInput] = useState('');
   const [savingWeight, setSavingWeight] = useState(false);
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoViewer, setPhotoViewer] = useState<ProgressPhoto | null>(null);
   const [compareMode, setCompareMode] = useState(false);
@@ -73,6 +74,7 @@ export default function ProgressPage() {
       .then((w) => setWorkouts(w as WorkoutEntry[]))
       .finally(() => setLoading(false));
     getWeightHistory(user.uid, 30).then(setWeightHistory).catch(() => {});
+    getWeeklySummary(user.uid).then(setWeeklySummary).catch(() => {});
     const unsub = subscribeProgressPhotos(user.uid, setPhotos);
     return unsub;
   }, [user]);
@@ -221,6 +223,35 @@ export default function ProgressPage() {
             </Card>
           ))}
         </motion.div>
+
+        {/* Weekly volume — real numbers only, no invented daily breakdown */}
+        {weeklySummary && (weeklySummary.workoutsCompleted > 0 || weeklySummary.volumeKg > 0) && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }}>
+            <Card className="p-3.5 flex items-center justify-between relative overflow-hidden">
+              <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
+                <TrendingUp className="w-20 h-20 text-accent" />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-accent-muted">
+                  <TrendingUp className="w-4 h-4 text-accent" />
+                </div>
+                <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-wide">This Week</span>
+              </div>
+              <div className="flex items-center gap-5">
+                <div className="text-right">
+                  <p className="text-base font-black text-white leading-none">
+                    {weeklySummary.volumeKg.toLocaleString()}<span className="text-xs font-medium text-text-secondary ml-1">{weightUnit}</span>
+                  </p>
+                  <p className="text-[10px] text-text-tertiary mt-0.5">volume</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-base font-black text-white leading-none">{weeklySummary.workoutsCompleted}</p>
+                  <p className="text-[10px] text-text-tertiary mt-0.5">workouts</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Weight Tracker */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>

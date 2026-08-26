@@ -702,37 +702,6 @@ export default function DashboardPage() {
             </motion.div>
           )}
 
-          {/* Weekly volume — real numbers only, no invented daily breakdown */}
-          {weeklySummary && (weeklySummary.workoutsCompleted > 0 || weeklySummary.volumeKg > 0) && (
-            <motion.div variants={stagger.item} className="col-span-4 row-span-1">
-              <Card className="p-3.5 h-full flex items-center justify-between relative overflow-hidden card-float">
-                <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
-                  <TrendingUp className="w-20 h-20 text-accent" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-accent-muted">
-                    <TrendingUp className="w-4 h-4 text-accent" />
-                  </div>
-                  <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-wide">This Week</span>
-                </div>
-                <div className="flex items-center gap-5">
-                  <div className="text-right">
-                    <p className="text-base font-black text-white leading-none">
-                      {weeklySummary.volumeKg.toLocaleString()}<span className="text-xs font-medium text-text-secondary ml-1">{profile?.weightUnit ?? 'kg'}</span>
-                    </p>
-                    <p className="text-[10px] text-text-tertiary mt-0.5">volume</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-base font-black text-white leading-none">
-                      {weeklySummary.workoutsCompleted}{activeMock?.daysPerWeek ? <span className="text-xs font-medium text-text-secondary ml-1">/{activeMock.daysPerWeek}</span> : null}
-                    </p>
-                    <p className="text-[10px] text-text-tertiary mt-0.5">workouts</p>
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-          )}
-
         </motion.div>
 
         {/* Personal Trackers — fasting timer + custom "days without" streaks; kept
