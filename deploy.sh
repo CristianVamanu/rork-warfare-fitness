@@ -93,4 +93,30 @@ pm2 reload ecosystem.config.js --env production
 echo "==> Cleaning up previous build"
 rm -rf "$PREVIOUS"
 
+echo "==> Ensuring the notifications cron is installed"
+# /api/notifications/process (trial-ending emails, payment-failed reminders,
+# achievement emails) is only ever triggered by vercel.json's Vercel Cron —
+# which does nothing here, since this app runs on our own VPS via pm2, not
+# Vercel. Without a real cron hitting it, those emails silently never send —
+# most importantly the trial-ending reminder, one of the highest-leverage
+# emails for converting a free trial into a paying subscription. This
+# installs (idempotently — checked by marker comment, safe to run every
+# deploy) an hourly crontab entry that calls it the same way Vercel Cron
+# would, reading CRON_SECRET/NEXT_PUBLIC_APP_URL from the same .env file the
+# app itself already loads at runtime rather than hardcoding either.
+CRON_MARKER="# warfare-fitness-notifications-cron"
+if [ -f .env ]; then
+  APP_CRON_SECRET="$(grep -E '^CRON_SECRET=' .env | head -1 | cut -d '=' -f2-)"
+  APP_URL="$(grep -E '^NEXT_PUBLIC_APP_URL=' .env | head -1 | cut -d '=' -f2-)"
+  if [ -n "$APP_CRON_SECRET" ] && [ -n "$APP_URL" ]; then
+    CRON_CMD="curl -fsS -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${APP_URL%/}/api/notifications/process\" >/dev/null 2>&1 ${CRON_MARKER}"
+    ( crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" || true ; echo "0 * * * * ${CRON_CMD}" ) | crontab -
+    echo "    cron installed: hourly POST to /api/notifications/process"
+  else
+    echo "    skipped — CRON_SECRET or NEXT_PUBLIC_APP_URL not set in .env"
+  fi
+else
+  echo "    skipped — no .env file found"
+fi
+
 echo "==> Deploy complete"
