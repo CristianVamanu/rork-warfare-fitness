@@ -1973,7 +1973,15 @@ function AdminPageInner() {
   // here since this is the actual production admin page, not a sandboxed
   // preview that blocks script-driven downloads.
   function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
-    const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    // Guard against CSV/formula injection: a field starting with =, +, -, @
+    // (or tab/CR) is executed as a formula by Excel/Sheets even when
+    // quoted, so prefix such values with a leading apostrophe to force
+    // text interpretation — this is what Google/OWASP recommend.
+    const escape = (v: string | number) => {
+      let s = String(v);
+      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
     const csv = [headers, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
