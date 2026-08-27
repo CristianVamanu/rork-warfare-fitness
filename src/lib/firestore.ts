@@ -175,7 +175,7 @@ export async function setSystemConfig(config: Record<string, unknown>) {
 // reviewed manually in the admin panel (this is a sales-assisted,
 // manually-provisioned offer, not self-serve).
 // ---------------------------------------------------------------------------
-import type { TrainerLead } from '@/types';
+import type { TrainerLead, LandingLead } from '@/types';
 
 export async function createTrainerLead(data: {
   name: string; email: string; businessName?: string; phone?: string; message?: string; clientCount?: string;
@@ -199,6 +199,20 @@ export async function createTrainerLead(data: {
     // Non-fatal — the lead is already saved and visible in the admin panel
     // even if the notification email fails to send.
   });
+}
+
+// ---------------------------------------------------------------------------
+// Landing page exit-intent lead capture — a visitor's email before they
+// abandon the quiz, so there's something to retarget/nurture instead of
+// losing them entirely. See LandingLead in types/index.ts.
+// ---------------------------------------------------------------------------
+export async function createLandingLead(email: string) {
+  await addDoc(collection(db, 'landingLeads'), { email, createdAt: serverTimestamp() });
+}
+
+export async function getLandingLeads(): Promise<LandingLead[]> {
+  const snap = await getDocs(query(collection(db, 'landingLeads'), orderBy('createdAt', 'desc')));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as LandingLead);
 }
 
 export async function getTrainerLeads(): Promise<TrainerLead[]> {

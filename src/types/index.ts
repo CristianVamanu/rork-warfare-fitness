@@ -376,6 +376,16 @@ export interface TrainerLead {
   createdAt: unknown;
 }
 
+// A visitor's email captured by the exit-intent modal on the consumer
+// landing page — before they abandon the quiz/checkout, not a submitted
+// application like TrainerLead. Purely for a later "come back and finish"
+// nudge email; reviewed manually in the admin panel same as trainerLeads.
+export interface LandingLead {
+  id: string;
+  email: string;
+  createdAt: unknown;
+}
+
 export interface LandingFeature {
   title: string;
   desc: string;
@@ -405,6 +415,10 @@ export interface LandingPageConfig {
   heroDemoVideoUrl?: string; // optional product-demo video shown in the hero as a "Watch Demo" player
   heroDemoPosterUrl?: string; // poster frame for the demo video, shown before play + while it loads
   screenshotUrls?: string[]; // real in-app screenshots shown in a "See It In Action" gallery on the landing page
+  // Empty by default and hidden until an admin adds real ones — same
+  // never-fabricate rule as testimonials above, just for member transformation
+  // photos instead of quotes.
+  transformationPhotos?: { imageUrl: string; caption?: string }[];
 }
 
 export interface Channel {

@@ -32,6 +32,7 @@ import {
   getProgressPhotos, getUserWorkouts,
   createGoal, getClientGoals, setGoalStatus, deleteGoal,
   getTrainerLeads, updateTrainerLeadStatus,
+  getLandingLeads,
 } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -41,7 +42,7 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, TrainerLead } from '@/types';
+import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, TrainerLead, LandingLead } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
 import { getPlanBillingPeriods } from '@/lib/utils';
 
@@ -284,6 +285,7 @@ function AdminPageInner() {
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [uploadingDemoVideo, setUploadingDemoVideo] = useState(false);
   const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
+  const [uploadingTransformationPhotos, setUploadingTransformationPhotos] = useState(false);
   const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '', b2bTermsText: '' });
   const [savingLegal, setSavingLegal] = useState(false);
   const [runningBackup, setRunningBackup] = useState(false);
@@ -426,6 +428,8 @@ function AdminPageInner() {
   const [uploadingB2bVideo, setUploadingB2bVideo] = useState(false);
   const [trainerLeads, setTrainerLeads] = useState<TrainerLead[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(false);
+  const [landingLeads, setLandingLeads] = useState<LandingLead[]>([]);
+  const [loadingLandingLeads, setLoadingLandingLeads] = useState(false);
 
   // ── Initial load ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -486,6 +490,8 @@ function AdminPageInner() {
   useEffect(() => {
     setLoadingLeads(true);
     getTrainerLeads().then(setTrainerLeads).catch(() => {}).finally(() => setLoadingLeads(false));
+    setLoadingLandingLeads(true);
+    getLandingLeads().then(setLandingLeads).catch(() => {}).finally(() => setLoadingLandingLeads(false));
   }, []);
 
   // Load real Stripe/OpenAI/etc config status once on mount for the Overview card
@@ -1947,6 +1953,40 @@ function AdminPageInner() {
 
   function removeTestimonial(i: number) {
     setLandingForm(f => ({ ...f, testimonials: (f.testimonials ?? []).filter((_, idx) => idx !== i) }));
+  }
+
+  function updateTransformationPhoto(i: number, patch: Partial<{ caption: string }>) {
+    setLandingForm(f => ({
+      ...f,
+      transformationPhotos: (f.transformationPhotos ?? []).map((p, idx) => idx === i ? { ...p, ...patch } : p),
+    }));
+  }
+
+  function removeTransformationPhoto(i: number) {
+    setLandingForm(f => ({ ...f, transformationPhotos: (f.transformationPhotos ?? []).filter((_, idx) => idx !== i) }));
+  }
+
+  async function handleTransformationPhotosUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length || !user) return;
+    setUploadingTransformationPhotos(true);
+    try {
+      const urls: string[] = [];
+      for (const file of files) {
+        urls.push(await uploadVideo(storageProvider, user, file, 'branding'));
+      }
+      setLandingForm(f => ({
+        ...f,
+        transformationPhotos: [...(f.transformationPhotos ?? []), ...urls.map((imageUrl) => ({ imageUrl, caption: '' }))],
+      }));
+      toast.success(`${urls.length} photo${urls.length > 1 ? 's' : ''} uploaded — click Save Landing Page below to publish`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to upload photos: ${msg}`, { duration: 6000 });
+    } finally {
+      setUploadingTransformationPhotos(false);
+      e.target.value = '';
+    }
   }
 
   async function handleSaveLanding() {
@@ -4002,6 +4042,42 @@ function AdminPageInner() {
                 <Upload className="w-4 h-4" /> {uploadingScreenshots ? 'Uploading…' : 'Add Screenshots'}
               </label>
             </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Member Transformation Photos (optional)</label>
+              <p className="text-[11px] text-text-tertiary mb-2">
+                Real member photos only — this section stays hidden on the landing page until at least one is added here. Visual proof converts far better than copy alone in this niche, so it&apos;s worth adding as soon as you have any real ones.
+              </p>
+              {landingForm.transformationPhotos && landingForm.transformationPhotos.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-2">
+                  {landingForm.transformationPhotos.map((p, i) => (
+                    <div key={p.imageUrl + i} className="relative bg-surface-elevated rounded-xl p-2 space-y-2">
+                      <div className="relative">
+                        <img src={p.imageUrl} alt={`Transformation ${i + 1}`} className="w-full aspect-[3/4] rounded-lg object-cover border border-white/10" />
+                        <button
+                          type="button"
+                          onClick={() => removeTransformationPhoto(i)}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-danger rounded-full flex items-center justify-center"
+                          aria-label={`Remove transformation photo ${i + 1}`}
+                        >
+                          <XIcon className="w-3 h-3 text-white" />
+                        </button>
+                      </div>
+                      <Input
+                        value={p.caption ?? ''}
+                        onChange={e => updateTransformationPhoto(i, { caption: e.target.value })}
+                        placeholder="Caption (optional)"
+                        className="text-xs"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-white/10 text-xs font-bold text-white cursor-pointer hover:border-accent/40 transition-colors">
+                <input type="file" accept="image/*" multiple className="hidden" onChange={handleTransformationPhotosUpload} disabled={uploadingTransformationPhotos} />
+                <Upload className="w-4 h-4" /> {uploadingTransformationPhotos ? 'Uploading…' : 'Add Photos'}
+              </label>
+            </div>
             <div>
               <label className="text-xs text-text-secondary mb-1 block">Badge Text (above headline)</label>
               <Input value={landingForm.badgeText} onChange={e => setLandingForm(f => ({ ...f, badgeText: e.target.value }))} placeholder="Your coach. Your plan. Your results." />
@@ -4437,6 +4513,27 @@ function AdminPageInner() {
                       <option value="contacted">Contacted</option>
                       <option value="closed">Closed</option>
                     </select>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Exit-intent email captures from the consumer landing page */}
+          <Card className="p-5 space-y-3">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-accent" /> Landing Page Leads
+            </h2>
+            <p className="text-xs text-text-secondary">Emails captured by the exit-intent popup on the main landing page before someone left without converting.</p>
+            {loadingLandingLeads ? (
+              <p className="text-xs text-text-tertiary">Loading…</p>
+            ) : landingLeads.length === 0 ? (
+              <p className="text-xs text-text-tertiary">No captures yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {landingLeads.map((lead) => (
+                  <div key={lead.id} className="border border-white/10 rounded-xl p-3">
+                    <p className="text-sm font-medium text-white truncate">{lead.email}</p>
                   </div>
                 ))}
               </div>

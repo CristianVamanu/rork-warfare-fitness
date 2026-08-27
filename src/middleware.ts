@@ -51,7 +51,13 @@ export function middleware(request: NextRequest) {
     // URL — missing this here blocked every woff2 the service worker tried
     // to cache, reported live as repeated CSP violations + "no-response"
     // Workbox errors.
-    "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com",
+    // www.facebook.com/tr is the Meta Pixel's own tracking beacon endpoint;
+    // *.google-analytics.com and *.analytics.google.com are GA4's — both
+    // pixels are loaded (consent-gated) by ConsentGatedScripts and fire
+    // real network requests to these on every trackEvent() call, which
+    // connect-src (not script-src) governs regardless of where the script
+    // that initiated them was loaded from.
+    "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://*.google-analytics.com https://*.analytics.google.com",
     // Firebase Auth opens a hidden same-project iframe at
     // <project>.firebaseapp.com/__/auth/iframe as part of its normal init
     // (session persistence / cross-tab auth-state sync) — this fires even

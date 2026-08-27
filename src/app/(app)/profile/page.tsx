@@ -13,6 +13,7 @@ import {
   submitCoachingApplication, getUserCoachingApplication,
 } from '@/lib/firestore';
 import { startCoachingCheckout, startPlanCheckout } from '@/lib/checkout';
+import { trackEvent } from '@/lib/analytics';
 import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Header } from '@/components/layout/Header';
@@ -32,9 +33,11 @@ function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
     const subscribed = searchParams.get('subscribed');
     if (subscribed === '1') {
       toast.success('Membership activated! Welcome aboard 🎉');
+      trackEvent('Purchase');
       onSuccess();
     } else if (subscribed === 'coaching') {
       toast.success('Coaching plan activated! Your trainer has been notified 🎉');
+      trackEvent('Purchase');
       onSuccess();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

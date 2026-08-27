@@ -507,6 +507,16 @@ service cloud.firestore {
         && (!('message' in request.resource.data) || (request.resource.data.message is string && request.resource.data.message.size() <= 2000));
     }
 
+    match /landingLeads/{leadId} {
+      allow read, update, delete: if isAdmin();
+      // Exit-intent capture on the logged-out consumer landing page — same
+      // reasoning as trainerLeads above: no auth yet at submit time, so this
+      // is locked to the exact expected shape instead of a wide-open create.
+      allow create: if request.resource.data.keys().hasAll(['email', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['email', 'createdAt'])
+        && request.resource.data.email is string && request.resource.data.email.size() > 0 && request.resource.data.email.size() <= 320;
+    }
+
     // ── 1:1 Coaching applications (intake form → admin review) ───────────
     match /coachingApplications/{appId} {
       allow read: if isAuthed() && (resource.data.userId == uid() || isAdmin());

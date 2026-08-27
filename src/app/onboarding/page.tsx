@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { signUp } from '@/lib/auth';
 import { startPlanCheckout, startCoachingCheckout } from '@/lib/checkout';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, resolveProgram } from '@/lib/firestore';
+import { trackEvent } from '@/lib/analytics';
 import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
@@ -395,6 +396,7 @@ function OnboardingPageInner() {
       let activeUser: FirebaseUser;
       if (needsAccount) {
         activeUser = await signUp(email.trim(), password, name.trim(), 'kg');
+        trackEvent('CompleteRegistration');
       } else {
         activeUser = user!;
       }

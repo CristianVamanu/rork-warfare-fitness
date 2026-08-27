@@ -10,8 +10,10 @@ import {
   ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
   Menu, X as XIcon, Clock, BarChart3, Anchor, Compass, Shield, Swords, Footprints, Waves, LifeBuoy, Mountain, PlayCircle,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSystemConfig, getMembershipConfig, getCoachingPlans, getMembershipPlans } from '@/lib/firestore';
+import { getSystemConfig, getMembershipConfig, getCoachingPlans, getMembershipPlans, createLandingLead } from '@/lib/firestore';
+import { trackEvent } from '@/lib/analytics';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -206,6 +208,10 @@ export default function LandingPage({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<PublicProgram | null>(null);
   const [demoOpen, setDemoOpen] = useState(false);
+  const [exitIntentOpen, setExitIntentOpen] = useState(false);
+  const [exitEmail, setExitEmail] = useState('');
+  const [exitSubmitting, setExitSubmitting] = useState(false);
+  const [exitSubmitted, setExitSubmitted] = useState(false);
 
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard');
@@ -224,6 +230,63 @@ export default function LandingPage({
     fetch('/api/public/stats').then((r) => r.json()).then(setStats).catch(() => {});
     fetch('/api/public/programs').then((r) => r.json()).then((d) => setPrograms(d.programs ?? [])).catch(() => {});
   }, []);
+
+  // Exit-intent lead capture — catches a visitor about to leave without
+  // converting, instead of losing them with nothing to retarget/nurture.
+  // Desktop: fires the instant the cursor exits through the TOP of the
+  // viewport (the classic "moving toward the tab bar/back button" motion) —
+  // that's not available on touch devices, so mobile instead gets a
+  // fallback: shown once the visitor has genuinely engaged (scrolled past
+  // the hero) and then been idle-on-page for a while, rather than never
+  // showing at all. Shown at most once per session either way.
+  const SHOWN_KEY = 'wf_exit_intent_shown';
+  useEffect(() => {
+    if (loading || user) return;
+    try {
+      if (sessionStorage.getItem(SHOWN_KEY)) return;
+    } catch { /* private browsing — just skip the session cap */ }
+
+    const trigger = () => {
+      setExitIntentOpen(true);
+      try { sessionStorage.setItem(SHOWN_KEY, '1'); } catch { /* ignore */ }
+    };
+
+    const onMouseLeave = (e: MouseEvent) => {
+      if (e.clientY <= 0) trigger();
+    };
+    document.addEventListener('mouseleave', onMouseLeave);
+
+    let mobileTimer: ReturnType<typeof setTimeout> | null = null;
+    const onScroll = () => {
+      if (mobileTimer || window.scrollY <= window.innerHeight * 0.5) return;
+      mobileTimer = setTimeout(trigger, 20000);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    return () => {
+      document.removeEventListener('mouseleave', onMouseLeave);
+      window.removeEventListener('scroll', onScroll);
+      if (mobileTimer) clearTimeout(mobileTimer);
+    };
+  }, [loading, user]);
+
+  async function handleExitEmailSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!/^\S+@\S+\.\S+$/.test(exitEmail)) {
+      toast.error('Enter a valid email address.');
+      return;
+    }
+    setExitSubmitting(true);
+    try {
+      await createLandingLead(exitEmail.trim());
+      trackEvent('Lead');
+      setExitSubmitted(true);
+    } catch {
+      toast.error('Something went wrong — try again.');
+    } finally {
+      setExitSubmitting(false);
+    }
+  }
 
   const trialDays = membership?.enabled ? (membership.trialDays ?? 0) : 0;
   const discountPercent = getActiveDiscountPercent(membership);
@@ -426,6 +489,25 @@ export default function LandingPage({
             )}
           </div>
 
+          {/* Verifiable trust signals about the product itself — shown
+              unconditionally, unlike the real-usage stats/testimonials below
+              which are correctly gated behind having real data. A brand-new
+              install with zero users yet would otherwise show NO trust
+              signal at all above the fold, right when a cold visitor needs
+              one most. These claims are true regardless of user count, so
+              there's nothing fabricated about showing them from day one. */}
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mt-6">
+            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+              <ShieldCheck className="w-3.5 h-3.5 text-accent" /> Secure checkout
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+              <XCircle className="w-3.5 h-3.5 text-accent" /> Cancel anytime
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+              <CheckCircle2 className="w-3.5 h-3.5 text-accent" /> Matched to you in 2 minutes
+            </div>
+          </div>
+
           {/* Real usage numbers only — hidden below a threshold so a brand
               new install never shows an awkwardly small count. */}
           {stats && stats.totalUsers >= 15 && (
@@ -579,6 +661,33 @@ export default function LandingPage({
         )}
       </Modal>
 
+      {/* Exit-intent email capture — see the effect above for trigger logic. */}
+      <Modal open={exitIntentOpen} onClose={() => setExitIntentOpen(false)} title="Not ready yet?">
+        {exitSubmitted ? (
+          <div className="text-center py-2">
+            <CheckCircle2 className="w-10 h-10 text-accent mx-auto mb-3" />
+            <p className="text-sm text-text-secondary">You&apos;re all set — we&apos;ll send you a link to jump back in anytime.</p>
+          </div>
+        ) : (
+          <form onSubmit={handleExitEmailSubmit} className="space-y-4">
+            <p className="text-sm text-text-secondary leading-relaxed">
+              Leave your email and we&apos;ll send you a link to pick up your program right where you left off. No spam, ever.
+            </p>
+            <input
+              type="email"
+              value={exitEmail}
+              onChange={(e) => setExitEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoFocus
+              className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+            />
+            <Button type="submit" fullWidth loading={exitSubmitting}>
+              Send Me The Link
+            </Button>
+          </form>
+        )}
+      </Modal>
+
       {/* Program detail modal — opened from a card click, shows the full
           description instead of the 2-line clamp, without leaving the page. */}
       <Modal open={!!selectedProgram} onClose={() => setSelectedProgram(null)} title={selectedProgram?.name ?? ''}>
@@ -632,6 +741,38 @@ export default function LandingPage({
               <p className="relative text-sm text-accent font-medium mt-4">— {landing.quoteAuthor}</p>
             )}
           </motion.div>
+        </section>
+      )}
+
+      {/* Real member transformation photos — admin-editable only, never
+          fabricated (see LandingPageConfig.transformationPhotos), hidden
+          entirely until real ones are added in Admin -> Landing Page.
+          Visual, not text, proof — the single highest-converting element in
+          this niche and the one thing pure copy can't substitute for. */}
+      {landing.transformationPhotos && landing.transformationPhotos.length > 0 && (
+        <section className="max-w-5xl mx-auto px-5 pb-16">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl sm:text-3xl font-black text-white">Real Results</h2>
+            <p className="text-text-secondary text-sm mt-2">Real members, real progress — no stock photos.</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {landing.transformationPhotos.map((p, i) => (
+              <motion.div
+                key={p.imageUrl + i}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ duration: 0.35, delay: (i % 4) * 0.05 }}
+                className="rounded-2xl overflow-hidden border border-white/8 bg-surface"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.imageUrl} alt={p.caption ?? 'Member transformation'} className="w-full aspect-[3/4] object-cover" />
+                {p.caption && (
+                  <p className="text-xs text-text-secondary p-3 leading-relaxed">{p.caption}</p>
+                )}
+              </motion.div>
+            ))}
+          </div>
         </section>
       )}
 

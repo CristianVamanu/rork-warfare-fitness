@@ -42,6 +42,7 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   showPublicLeaderboard: true,
   programsToShow: 0,
   testimonials: [],
+  transformationPhotos: [],
 };
 
 // Recommended starting price points for the white-label/B2B offer — a
