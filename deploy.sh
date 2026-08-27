@@ -102,21 +102,28 @@ echo "==> Ensuring the notifications cron is installed"
 # emails for converting a free trial into a paying subscription. This
 # installs (idempotently — checked by marker comment, safe to run every
 # deploy) an hourly crontab entry that calls it the same way Vercel Cron
-# would, reading CRON_SECRET/NEXT_PUBLIC_APP_URL from the same .env file the
-# app itself already loads at runtime rather than hardcoding either.
+# would, reading CRON_SECRET/NEXT_PUBLIC_APP_URL from the same env file
+# `next start` itself loads at runtime (.env.production takes priority,
+# same as Next's own load order — see
+# https://nextjs.org/docs/app/building-your-application/configuring/environment-variables)
+# rather than hardcoding either value.
 CRON_MARKER="# warfare-fitness-notifications-cron"
-if [ -f .env ]; then
-  APP_CRON_SECRET="$(grep -E '^CRON_SECRET=' .env | head -1 | cut -d '=' -f2-)"
-  APP_URL="$(grep -E '^NEXT_PUBLIC_APP_URL=' .env | head -1 | cut -d '=' -f2-)"
+ENV_FILE=""
+if [ -f .env.production ]; then ENV_FILE=".env.production"
+elif [ -f .env ]; then ENV_FILE=".env"
+fi
+if [ -n "$ENV_FILE" ]; then
+  APP_CRON_SECRET="$(grep -E '^CRON_SECRET=' "$ENV_FILE" | head -1 | cut -d '=' -f2-)"
+  APP_URL="$(grep -E '^NEXT_PUBLIC_APP_URL=' "$ENV_FILE" | head -1 | cut -d '=' -f2-)"
   if [ -n "$APP_CRON_SECRET" ] && [ -n "$APP_URL" ]; then
     CRON_CMD="curl -fsS -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${APP_URL%/}/api/notifications/process\" >/dev/null 2>&1 ${CRON_MARKER}"
     ( crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" || true ; echo "0 * * * * ${CRON_CMD}" ) | crontab -
     echo "    cron installed: hourly POST to /api/notifications/process"
   else
-    echo "    skipped — CRON_SECRET or NEXT_PUBLIC_APP_URL not set in .env"
+    echo "    skipped — CRON_SECRET or NEXT_PUBLIC_APP_URL not set in $ENV_FILE"
   fi
 else
-  echo "    skipped — no .env file found"
+  echo "    skipped — no .env.production or .env file found"
 fi
 
 echo "==> Deploy complete"
