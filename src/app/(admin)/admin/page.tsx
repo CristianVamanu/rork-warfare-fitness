@@ -8,7 +8,7 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
-  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search,
+  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -46,7 +46,7 @@ import type { Conversation, Message, MembershipConfig, MembershipPlan, Notificat
 import { DEFAULT_LANDING_CONFIG, DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
 import { getPlanBillingPeriods } from '@/lib/utils';
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'settings';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'settings';
 
 // Shared by both plan editors (CoachingPlan's Tool Access and
 // MembershipPlan's Tool Access) — feature ids here must match what
@@ -1966,6 +1966,29 @@ function AdminPageInner() {
     setLandingForm(f => ({ ...f, transformationPhotos: (f.transformationPhotos ?? []).filter((_, idx) => idx !== i) }));
   }
 
+  // Generic CSV export — quotes every field and escapes embedded quotes so
+  // a comma/quote/newline inside a name or message (e.g. "This is a test")
+  // can't corrupt the column structure when opened in Excel/Brevo's
+  // importer. Triggers a real browser download via a throwaway <a> — safe
+  // here since this is the actual production admin page, not a sandboxed
+  // preview that blocks script-driven downloads.
+  function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
+    const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [headers, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function leadDate(lead: { createdAt: unknown }): string {
+    const ts = lead.createdAt as { toDate?: () => Date } | null;
+    return ts?.toDate?.().toISOString().slice(0, 10) ?? '';
+  }
+
   async function handleTransformationPhotosUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length || !user) return;
@@ -2220,6 +2243,7 @@ function AdminPageInner() {
     { id: 'library', label: 'Library', icon: Video },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     { id: 'integrations', label: 'Integrations', icon: Key },
+    { id: 'leads', label: 'Leads', icon: Mail },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -3837,6 +3861,103 @@ function AdminPageInner() {
         </div>
       )}
 
+      {/* ── Leads ─────────────────────────────────────────────────────────────── */}
+      {tab === 'leads' && (
+        <div className="space-y-5">
+          {/* Trainer demo-request leads */}
+          <Card className="p-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-accent" /> Trainer Leads
+              </h2>
+              {trainerLeads.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => downloadCsv(
+                    'trainer-leads.csv',
+                    ['Name', 'Email', 'Phone', 'Business', 'Client Count', 'Message', 'Status', 'Date'],
+                    trainerLeads.map((l) => [l.name, l.email, l.phone ?? '', l.businessName ?? '', l.clientCount ?? '', l.message ?? '', l.status, leadDate(l)]),
+                  )}
+                >
+                  <Download className="w-3.5 h-3.5" /> Export CSV
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-text-secondary">Demo requests submitted from the /trainers page, newest first.</p>
+            {loadingLeads ? (
+              <p className="text-xs text-text-tertiary">Loading…</p>
+            ) : trainerLeads.length === 0 ? (
+              <p className="text-xs text-text-tertiary">No demo requests yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {trainerLeads.map((lead) => (
+                  <div key={lead.id} className="border border-white/10 rounded-xl p-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white truncate">{lead.name} {lead.businessName ? `· ${lead.businessName}` : ''}</p>
+                      <p className="text-xs text-text-secondary truncate">{lead.email} {lead.phone ? `· ${lead.phone}` : ''} {lead.clientCount ? `· ${lead.clientCount} clients` : ''}</p>
+                      {lead.message && <p className="text-xs text-text-tertiary mt-1">{lead.message}</p>}
+                    </div>
+                    <select
+                      className="bg-surface-elevated border border-border rounded-lg px-2 py-1 text-xs text-white flex-shrink-0"
+                      value={lead.status}
+                      onChange={(e) => {
+                        const status = e.target.value as TrainerLead['status'];
+                        setTrainerLeads(ls => ls.map(l => l.id === lead.id ? { ...l, status } : l));
+                        updateTrainerLeadStatus(lead.id, status).catch(() => toast.error('Failed to update status'));
+                      }}
+                    >
+                      <option value="new">New</option>
+                      <option value="contacted">Contacted</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Exit-intent email captures from the consumer landing page */}
+          <Card className="p-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Mail className="w-4 h-4 text-accent" /> Landing Page Leads
+              </h2>
+              {landingLeads.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => downloadCsv(
+                    'landing-page-leads.csv',
+                    ['Email', 'Date'],
+                    landingLeads.map((l) => [l.email, leadDate(l)]),
+                  )}
+                >
+                  <Download className="w-3.5 h-3.5" /> Export CSV
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-text-secondary">
+              Emails captured by the exit-intent popup on the main landing page before someone left without converting, newest first. Export as CSV to import into Brevo (or any other list).
+            </p>
+            {loadingLandingLeads ? (
+              <p className="text-xs text-text-tertiary">Loading…</p>
+            ) : landingLeads.length === 0 ? (
+              <p className="text-xs text-text-tertiary">No captures yet.</p>
+            ) : (
+              <div className="rounded-xl border border-white/10 divide-y divide-white/5 overflow-hidden">
+                {landingLeads.map((lead) => (
+                  <div key={lead.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-sm font-medium text-white truncate">{lead.email}</span>
+                    <span className="text-xs text-text-tertiary flex-shrink-0">{leadDate(lead)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
       {/* ── Settings ──────────────────────────────────────────────────────────── */}
       {tab === 'settings' && (
         <div className="space-y-5">
@@ -4479,65 +4600,6 @@ function AdminPageInner() {
               <Button variant="ghost" onClick={() => setB2bForm(DEFAULT_B2B_LANDING_CONFIG)}>Reset to Default</Button>
               <Button onClick={handleSaveB2b} loading={savingB2b} fullWidth>Save B2B Landing Page</Button>
             </div>
-          </Card>
-
-          {/* Trainer demo-request leads */}
-          <Card className="p-5 space-y-3">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-accent" /> Trainer Leads
-            </h2>
-            <p className="text-xs text-text-secondary">Demo requests submitted from the /trainers page.</p>
-            {loadingLeads ? (
-              <p className="text-xs text-text-tertiary">Loading…</p>
-            ) : trainerLeads.length === 0 ? (
-              <p className="text-xs text-text-tertiary">No demo requests yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {trainerLeads.map((lead) => (
-                  <div key={lead.id} className="border border-white/10 rounded-xl p-3 flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-white truncate">{lead.name} {lead.businessName ? `· ${lead.businessName}` : ''}</p>
-                      <p className="text-xs text-text-secondary truncate">{lead.email} {lead.phone ? `· ${lead.phone}` : ''} {lead.clientCount ? `· ${lead.clientCount} clients` : ''}</p>
-                      {lead.message && <p className="text-xs text-text-tertiary mt-1">{lead.message}</p>}
-                    </div>
-                    <select
-                      className="bg-surface-elevated border border-border rounded-lg px-2 py-1 text-xs text-white flex-shrink-0"
-                      value={lead.status}
-                      onChange={(e) => {
-                        const status = e.target.value as TrainerLead['status'];
-                        setTrainerLeads(ls => ls.map(l => l.id === lead.id ? { ...l, status } : l));
-                        updateTrainerLeadStatus(lead.id, status).catch(() => toast.error('Failed to update status'));
-                      }}
-                    >
-                      <option value="new">New</option>
-                      <option value="contacted">Contacted</option>
-                      <option value="closed">Closed</option>
-                    </select>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Exit-intent email captures from the consumer landing page */}
-          <Card className="p-5 space-y-3">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-accent" /> Landing Page Leads
-            </h2>
-            <p className="text-xs text-text-secondary">Emails captured by the exit-intent popup on the main landing page before someone left without converting.</p>
-            {loadingLandingLeads ? (
-              <p className="text-xs text-text-tertiary">Loading…</p>
-            ) : landingLeads.length === 0 ? (
-              <p className="text-xs text-text-tertiary">No captures yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {landingLeads.map((lead) => (
-                  <div key={lead.id} className="border border-white/10 rounded-xl p-3">
-                    <p className="text-sm font-medium text-white truncate">{lead.email}</p>
-                  </div>
-                ))}
-              </div>
-            )}
           </Card>
 
           {/* Legal Pages */}
