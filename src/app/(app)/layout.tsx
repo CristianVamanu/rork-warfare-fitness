@@ -55,6 +55,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (profile === null) return <FullPageSpinner />;
 
+  // Mirrors the redirect effect's own conditions above — without this, the
+  // effect only fires AFTER commit, but React already committed `children`
+  // (e.g. the dashboard page) in that same render, and a child's own
+  // effects run BEFORE its parent's. That let a still-pending page's data
+  // fetches (getTodayMeals, getUserWorkouts, etc.) fire and get correctly
+  // denied by firestore.rules' notTfaPending()/banned checks a beat before
+  // the redirect actually happened — a real race, seen live as a burst of
+  // "Missing or insufficient permissions" errors right before landing on
+  // /verify-2fa or /banned. Blocking the render here instead means the
+  // gated page's own effects never mount in the first place.
+  if (profile.banned && pathname !== '/banned') return <FullPageSpinner />;
+  if (profile.twoFactorPendingSince && pathname !== '/verify-2fa') return <FullPageSpinner />;
+
   const hideNav = pathname === '/banned' || pathname === '/verify-2fa';
 
   return (
