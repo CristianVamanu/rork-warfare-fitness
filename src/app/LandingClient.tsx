@@ -183,21 +183,27 @@ export default function LandingPage({
   initialAppName,
   initialLogoUrl,
   initialLanding,
+  initialMembership,
 }: {
   initialAppName: string;
   initialLogoUrl: string | null;
   initialLanding: LandingPageConfig;
+  initialMembership: MembershipConfig | null;
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   // Seeded from a server-side fetch of the same admin-configured Firestore
   // doc this effect below re-fetches — so the very first paint already
   // shows the real headline instead of DEFAULT_LANDING_CONFIG's copy
-  // flashing for a second before the client fetch resolves.
+  // flashing for a second before the client fetch resolves. Same reasoning
+  // for membership: without seeding it, primaryCtaLabel below always
+  // computed off trialDays=0 first (membership starts null) and visibly
+  // swapped labels ("Get Matched Free" -> "Start N-Day Free Trial") the
+  // moment the client-side getMembershipConfig() call resolved.
   const [appName, setAppName] = useState(initialAppName);
   const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl);
   const [landing, setLanding] = useState<LandingPageConfig>(initialLanding);
-  const [membership, setMembership] = useState<MembershipConfig | null>(null);
+  const [membership, setMembership] = useState<MembershipConfig | null>(initialMembership);
   const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
   const [leaderboard, setLeaderboard] = useState<{ displayName: string; powerLevel: number; streak: number; totalWorkouts: number }[]>([]);
@@ -246,9 +252,25 @@ export default function LandingPage({
       if (sessionStorage.getItem(SHOWN_KEY)) return;
     } catch { /* private browsing — just skip the session cap */ }
 
+    // The sessionStorage check above only runs once, when this effect first
+    // attaches its listeners — it does NOT stop the listeners themselves
+    // from firing again afterward. Without this in-memory guard checked
+    // INSIDE trigger() itself, the very first exit-intent correctly opened
+    // the modal and wrote the session flag, but the mouseleave listener
+    // stayed attached and re-opened the modal on every single subsequent
+    // cursor-exit-through-the-top for the rest of the visit — reported live
+    // as the popup reappearing on every cursor move near the top of the
+    // page. Removing the listeners immediately after the first trigger
+    // (not just on unmount) closes both the "keeps reappearing" bug and
+    // the "reappears after dismissing" case, since dismissing the modal
+    // (onClose) doesn't re-run this effect at all.
+    let shown = false;
     const trigger = () => {
+      if (shown) return;
+      shown = true;
       setExitIntentOpen(true);
       try { sessionStorage.setItem(SHOWN_KEY, '1'); } catch { /* ignore */ }
+      cleanup();
     };
 
     const onMouseLeave = (e: MouseEvent) => {
@@ -263,11 +285,12 @@ export default function LandingPage({
     };
     window.addEventListener('scroll', onScroll, { passive: true });
 
-    return () => {
+    function cleanup() {
       document.removeEventListener('mouseleave', onMouseLeave);
       window.removeEventListener('scroll', onScroll);
       if (mobileTimer) clearTimeout(mobileTimer);
-    };
+    }
+    return cleanup;
   }, [loading, user]);
 
   async function handleExitEmailSubmit(e: React.FormEvent) {
@@ -278,9 +301,19 @@ export default function LandingPage({
     }
     setExitSubmitting(true);
     try {
-      await createLandingLead(exitEmail.trim());
+      const email = exitEmail.trim();
+      await createLandingLead(email);
       trackEvent('Lead');
       setExitSubmitted(true);
+      // Best-effort — the popup already promises "we'll send you a link",
+      // so this actually has to fire, not just the Firestore write. Never
+      // blocks the success state on it: a failed send here shouldn't make
+      // an already-captured lead look like the whole thing failed.
+      fetch('/api/email/landing-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      }).catch(() => {});
     } catch {
       toast.error('Something went wrong — try again.');
     } finally {

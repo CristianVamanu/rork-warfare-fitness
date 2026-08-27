@@ -78,6 +78,24 @@ export function welcomeEmailHtml(name: string, appName: string, appUrl: string):
   `);
 }
 
+// Sent to a landing-page visitor who left their email via the exit-intent
+// popup before finishing the quiz/signup — the popup promises "we'll send
+// you a link to jump back in", so this is what actually fulfills that
+// promise. Links straight to /onboarding rather than any saved progress,
+// since the quiz itself is anonymous (see ONBOARDING_DRAFT_KEY in
+// onboarding/page.tsx) and only resumable on the same browser/device via
+// its own localStorage draft — there's no server-side draft tied to this
+// email to deep-link into.
+export function landingLeadFollowupEmailHtml(appName: string, appUrl: string): string {
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Ready when you are.</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      You started building your program on ${appName} — here's your link to pick up right where you left off.
+    </p>
+    ${button('Continue My Program', `${appUrl}/onboarding`)}
+  `);
+}
+
 export function trainerLeadEmailHtml(lead: {
   name: string; email: string; businessName?: string; phone?: string; clientCount?: string; message?: string;
 }, appUrl: string): string {

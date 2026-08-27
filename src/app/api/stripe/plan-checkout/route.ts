@@ -85,7 +85,22 @@ export async function POST(req: NextRequest) {
     // If the user is still inside the app-level free trial, tell Stripe to
     // defer the first charge until the trial actually ends — otherwise
     // "subscribing" during a free trial charges the card immediately.
-    let trialEnd: number | undefined;
+    //
+    // Uses trial_period_days (relative, computed here) rather than an
+    // absolute trial_end timestamp. The trial's real anchor is still
+    // account creation, not checkout time — trialEndMs below is computed
+    // exactly the same way either way — but handing Stripe an absolute
+    // timestamp that's a few minutes (or hours) short of a full N*24h from
+    // now made its own checkout-page day count round DOWN, e.g. a user who
+    // finished onboarding and landed on checkout 10 minutes after signup
+    // saw "6 days free trial" advertised for what both the promo copy and
+    // the backend intended to be a full 7. Ceiling the remaining time into
+    // whole days ourselves before calling Stripe means the number we ask
+    // for is exactly the number Stripe displays and honors — a user who
+    // waited 6 days before subscribing correctly gets 1 day left, not a
+    // fresh 7, but nobody ever sees an advertised day count silently short
+    // itself by one just for checking out slightly later than instant.
+    let trialPeriodDays: number | undefined;
     const trialDays = Number(membershipCfg.trialDays ?? 0);
     if (trialDays > 0) {
       const userSnap = await db.collection('users').doc(userId).get();
@@ -93,8 +108,9 @@ export async function POST(req: NextRequest) {
       const createdAt = typeof createdAtRaw === 'object' && createdAtRaw?.toDate ? createdAtRaw.toDate() : (createdAtRaw ? new Date(createdAtRaw as string) : null);
       if (createdAt) {
         const trialEndMs = createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000;
-        if (trialEndMs > Date.now() + 60 * 1000) {
-          trialEnd = Math.floor(trialEndMs / 1000);
+        const remainingMs = trialEndMs - Date.now();
+        if (remainingMs > 60 * 1000) {
+          trialPeriodDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
         }
       }
     }
@@ -116,7 +132,7 @@ export async function POST(req: NextRequest) {
       ],
       ...(discounts ? { discounts } : { allow_promotion_codes: true }),
       subscription_data: {
-        ...(trialEnd ? { trial_end: trialEnd } : {}),
+        ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),
         metadata: { userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership' },
       },
       metadata: { userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership' },

@@ -33,7 +33,9 @@ import {
   createGoal, getClientGoals, setGoalStatus, deleteGoal,
   getTrainerLeads, updateTrainerLeadStatus,
   getLandingLeads,
+  getAllPrograms, getHiddenMockIds, getDeletedMockIds,
 } from '@/lib/firestore';
+import { MOCK_PROGRAMS } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -239,7 +241,7 @@ function AdminPageInner() {
   const { user, profile, tenant } = useAuth();
   const [tab, setTab] = useState<Tab>(() => {
     const t = searchParams.get('tab');
-    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'community', 'notifications', 'membership', 'coaching', 'library', 'integrations', 'settings'];
+    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'community', 'notifications', 'membership', 'coaching', 'library', 'analytics', 'integrations', 'leads', 'settings'];
     return (valid as string[]).includes(t ?? '') ? (t as Tab) : 'overview';
   });
 
@@ -439,7 +441,21 @@ function AdminPageInner() {
     Promise.all([
       getAllUsers().catch(() => [] as UserData[]),
       getSystemConfig(),
-      Promise.resolve([]), // programs count loaded separately
+      // Mirrors /admin/programs' own counting logic: published Firestore
+      // programs plus whichever built-in seed programs haven't been
+      // hidden/deleted/promoted into a Firestore doc already (promoted ones
+      // would otherwise be double-counted, once as a mock and once as its
+      // own program doc). This card was previously hardcoded to always
+      // read 0 via a stray `Promise.resolve([])` placeholder that was never
+      // replaced with a real fetch.
+      Promise.all([getAllPrograms().catch(() => []), getHiddenMockIds().catch(() => []), getDeletedMockIds().catch(() => [])])
+        .then(([published, hiddenIds, deletedIds]) => {
+          const publishedIds = new Set((published as { id: string }[]).map((p) => p.id));
+          const hidden = new Set(hiddenIds);
+          const deleted = new Set(deletedIds);
+          const visibleMocks = MOCK_PROGRAMS.filter((p) => !publishedIds.has(p.id) && !hidden.has(p.id) && !deleted.has(p.id));
+          return [...(published as unknown[]), ...visibleMocks];
+        }),
       trainerId
         ? getDocs(query(collection(db, 'events'),
             where('trainerId', '==', trainerId),
@@ -627,6 +643,27 @@ function AdminPageInner() {
     });
     return unsub;
   }, [user]);
+
+  // The header's Messages icon links straight to /admin?tab=messages, which
+  // previously always landed on the conversation LIST, not the actual
+  // thread — the admin had to click again to see the message that made the
+  // icon appear in the first place, which read as "this just took me to
+  // the dashboard" instead of into messages. Auto-opens the most recently
+  // active unread conversation the first time this tab loads with unread
+  // messages waiting, same as tapping it manually would. Guarded by a ref
+  // (not state) so it fires at most once per mount — an admin deliberately
+  // going Back to the list (setActiveConv(null)) must stay on the list even
+  // if `conversations` hasn't changed since, not get bounced straight back
+  // into the thread.
+  const autoOpenedUnreadRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedUnreadRef.current || tab !== 'messages' || activeConv || conversations.length === 0) return;
+    const firstUnread = conversations.find((c) => c.unreadByAdmin);
+    if (firstUnread) {
+      autoOpenedUnreadRef.current = true;
+      openConversation(firstUnread);
+    }
+  }, [tab, activeConv, conversations]);
 
   async function openConversation(conv: Conversation) {
     setActiveConv(conv);
