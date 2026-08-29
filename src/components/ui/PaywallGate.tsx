@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock, Star, Crown, Sparkles, ExternalLink } from 'lucide-react';
+import { Lock, Star, Crown, Sparkles, ExternalLink, Check } from 'lucide-react';
 import { startPlanCheckout, openBillingPortal } from '@/lib/checkout';
-import { getPlanBillingPeriods, planHasAnyPrice } from '@/lib/utils';
+import { getPlanBillingPeriods, planHasAnyPrice, getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Card } from './Card';
@@ -61,7 +61,7 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
     const activePlan = profile?.membership?.planId
       ? plans.find((p) => p.id === profile.membership!.planId) ?? null
       : null;
-    return <PlanUpgradeScreen planName={activePlan?.name ?? 'current'} plans={plans} feature={feature} programId={programId} />;
+    return <PlanUpgradeScreen planName={activePlan?.name ?? 'current'} plans={plans} feature={feature} programId={programId} discountPercent={getActiveDiscountPercent(config)} />;
   }
 
   if (!isLocked) return <>{children}</>;
@@ -151,30 +151,39 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
   );
 }
 
-function PlanUpgradeScreen({ planName, plans, feature, programId }: {
-  planName: string; plans: MembershipPlan[]; feature: string | undefined; programId: string | undefined;
+function PlanUpgradeScreen({ planName, plans, feature, programId, discountPercent }: {
+  planName: string; plans: MembershipPlan[]; feature: string | undefined; programId: string | undefined; discountPercent: number;
 }) {
   const { user } = useAuth();
-  const [openingPortal, setOpeningPortal] = useState(false);
+  const [openingPortal, setOpeningPortal] = useState<string | null>(null);
   // Was just a static "upgrade from your profile" message with no actual
   // way to act on it right here — the user had to remember which plan (if
   // any) covers this feature, leave the page, find it in Settings/Profile,
-  // and start the upgrade blind. Lists the plans that actually cover what's
-  // locked and opens Stripe's billing portal directly — the correct path
-  // for an EXISTING subscriber (startPlanCheckout unconditionally rejects
-  // anyone with an active membership; only the portal handles a plan
-  // change/proration for someone already paying).
+  // and start the upgrade blind. Now mirrors the landing page's own pricing
+  // cards (features list, Most Popular badge, discount strike-through) in a
+  // grid instead of a forced stack, same fix already applied to
+  // MembershipGuard's LockedScreen — so this screen looks and reads like
+  // the rest of the pricing UI instead of a stripped-down afterthought.
   const upgradePlans = plans.filter((p) => p.active && planHasAnyPrice(p) && planIncludesFeature(p, feature, programId));
+  const anyMarkedPopular = upgradePlans.some((p) => p.mostPopular);
 
-  async function handleUpgrade() {
+  async function handleUpgrade(planId: string) {
     if (!user) return;
-    setOpeningPortal(true);
+    setOpeningPortal(planId);
+    // Stripe's billing portal — not startPlanCheckout, which unconditionally
+    // rejects anyone with an existing active membership. The portal is the
+    // one place an already-paying member can actually change plans, with
+    // Stripe handling proration; it doesn't accept a "go straight to this
+    // plan" deep link without additional portal configuration, so this
+    // opens the portal generally rather than pretending to jump the member
+    // straight to `planId` — the button below is still labeled per-plan so
+    // the member knows exactly which one to pick once they're there.
     const err = await openBillingPortal(user);
-    if (err) { toast.error(err); setOpeningPortal(false); }
+    if (err) { toast.error(err); setOpeningPortal(null); }
   }
 
   return (
-    <div className="px-4 py-12 flex flex-col items-center justify-center min-h-[40vh]">
+    <div className="px-4 py-12 flex flex-col items-center min-h-[40vh]">
       <div className="text-center max-w-sm w-full mb-5">
         <div className="w-14 h-14 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-4">
           <Lock className="w-7 h-7 text-accent" />
@@ -194,25 +203,59 @@ function PlanUpgradeScreen({ planName, plans, feature, programId }: {
           <p className="text-sm text-text-secondary">No other plan currently covers this feature — check back soon, or contact support.</p>
         </Card>
       ) : (
-        <div className="space-y-3 max-w-sm w-full">
+        <div className={`grid gap-4 items-stretch w-full ${
+          upgradePlans.length >= 3 ? 'max-w-4xl sm:grid-cols-2 lg:grid-cols-3' : upgradePlans.length === 2 ? 'max-w-2xl sm:grid-cols-2' : 'max-w-sm'
+        }`}>
           {upgradePlans.map((plan) => {
-            const displayPeriod = getPlanBillingPeriods(plan)[0];
+            const periods = getPlanBillingPeriods(plan);
+            const displayPeriod = periods[0];
+            const isFeatured = anyMarkedPopular ? !!plan.mostPopular : false;
             return (
-              <Card key={plan.id} className="p-5 border-accent/20">
+              <Card key={plan.id} className={`relative p-5 h-full flex flex-col ${isFeatured ? 'border-2 border-accent' : 'border-accent/20'}`}>
+                {isFeatured && (
+                  <div className="absolute -top-3 left-4 px-2.5 py-0.5 bg-accent rounded-full">
+                    <span className="text-[10px] font-bold text-black uppercase tracking-wide">Most Popular</span>
+                  </div>
+                )}
+                {discountPercent > 0 && (
+                  <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
+                    <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
+                  </div>
+                )}
                 <p className="text-sm font-bold text-white">{plan.name}</p>
-                <p className="text-2xl font-black text-white mt-1">
-                  ${displayPeriod.price.toFixed(2)}
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  {discountPercent > 0 ? (
+                    <>
+                      <span className="text-2xl font-black text-white">${applyDiscount(displayPeriod.price, discountPercent).toFixed(2)}</span>
+                      <span className="text-sm text-text-tertiary line-through">${displayPeriod.price.toFixed(2)}</span>
+                    </>
+                  ) : (
+                    <span className="text-2xl font-black text-white">${displayPeriod.price.toFixed(2)}</span>
+                  )}
                   <span className="text-sm font-medium text-text-secondary">{displayPeriod.months === 1 ? '/mo' : ` / ${displayPeriod.months}mo`}</span>
-                </p>
-                {plan.description && <p className="text-xs text-text-secondary mt-1.5">{plan.description}</p>}
+                </div>
+                {plan.description && <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>}
+                {plan.features.length > 0 && (
+                  <ul className="mt-4 space-y-2">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
+                        <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {f}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-auto pt-4">
+                  <Button fullWidth variant={isFeatured ? 'primary' : 'secondary'} onClick={() => handleUpgrade(plan.id)} loading={openingPortal === plan.id}>
+                    <ExternalLink className="w-4 h-4" /> {openingPortal === plan.id ? 'Opening Billing…' : `Upgrade to ${plan.name}`}
+                  </Button>
+                </div>
               </Card>
             );
           })}
-          <Button fullWidth variant="secondary" onClick={handleUpgrade} loading={openingPortal}>
-            <ExternalLink className="w-4 h-4" /> Upgrade in Billing Portal
-          </Button>
-          <p className="text-[10px] text-text-tertiary text-center">Change plans anytime — prorated automatically by Stripe.</p>
         </div>
+      )}
+      {upgradePlans.length > 0 && (
+        <p className="text-[10px] text-text-tertiary text-center mt-4">Change plans anytime — prorated automatically by Stripe.</p>
       )}
     </div>
   );
