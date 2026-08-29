@@ -75,7 +75,15 @@ export async function POST(req: NextRequest) {
 
     // Load membership config (trial length) + system config (app name) for the trial-ending email
     const membershipCfgSnap = await db.doc('config/membership').get();
-    const trialDays: number = membershipCfgSnap.data()?.trialDays ?? 0;
+    // paidTrialEnabled means there is no free, createdAt-anchored window at
+    // all — access comes only from a Stripe subscription. Emailing "your
+    // free trial ends in 2 days" to someone who never had one (and was
+    // never given one) is both wrong and a support ticket, so the whole
+    // block below is skipped in that mode. A paid trial's real conversion
+    // warning has to come off Stripe's own trial_end / the
+    // customer.subscription.trial_will_end event instead.
+    const membershipCfgData = membershipCfgSnap.data();
+    const trialDays: number = membershipCfgData?.paidTrialEnabled === true ? 0 : (membershipCfgData?.trialDays ?? 0);
     const systemCfgSnap = await db.doc('system/config').get();
     const appName = (systemCfgSnap.data()?.appName as string) || 'Warfare Fitness';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';

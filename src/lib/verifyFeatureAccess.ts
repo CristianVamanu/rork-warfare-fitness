@@ -1,4 +1,5 @@
 import { getAdminDb } from '@/lib/firebase-admin';
+import { isInFreeTrial } from '@/lib/membership';
 import type { App } from 'firebase-admin/app';
 
 /**
@@ -29,18 +30,14 @@ export async function verifyFeatureAccess(
   if (profile.role === 'admin' || profile.role === 'trainer') return { allowed: true };
 
   const configSnap = await db.collection('config').doc('membership').get();
-  const config = configSnap.data() as { enabled?: boolean; trialDays?: number; fullLock?: boolean; lockedFeatures?: string[] } | undefined;
+  const config = configSnap.data() as { enabled?: boolean; trialDays?: number; paidTrialEnabled?: boolean; fullLock?: boolean; lockedFeatures?: string[] } | undefined;
 
   // Membership gating disabled entirely — every feature is free.
   if (!config || !config.enabled) return { allowed: true };
 
-  const trialDays = config.trialDays ?? 0;
-  const inTrial = (() => {
-    if (!trialDays || !profile.createdAt) return false;
-    const created = profile.createdAt.toDate ? profile.createdAt.toDate() : new Date(profile.createdAt);
-    return Date.now() - created.getTime() < trialDays * 24 * 60 * 60 * 1000;
-  })();
-  if (inTrial) return { allowed: true };
+  // Shared with the three client-side call sites — see isInFreeTrial's own
+  // comment for why this must never be re-derived locally again.
+  if (isInFreeTrial(config, profile.createdAt)) return { allowed: true };
 
   const hasMembership = profile.membership?.status === 'active' || profile.coaching?.status === 'active';
 

@@ -7,6 +7,7 @@ import { getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
 import { startPlanCheckout } from '@/lib/checkout';
 import { getPlanBillingPeriods, planHasAnyPrice } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { isInFreeTrial } from '@/lib/membership';
 import { Card } from './Card';
 import { Button } from './Button';
 import type { MembershipConfig, MembershipPlan, PlanBillingPeriodMonths } from '@/types';
@@ -52,16 +53,8 @@ export function MembershipGuard({ pathname, children }: Props) {
   // membership — it grants at least everything a regular membership does.
   const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
 
-  // Check free trial — disabled entirely under a paid trial (see
-  // MembershipConfig.paidTrialEnabled): access there only ever comes from
-  // an actual Stripe subscription, i.e. hasMembership above.
   const trialDays = config?.trialDays ?? 0;
-  const inTrial = (() => {
-    if (config?.paidTrialEnabled) return false;
-    if (!trialDays || !profile?.createdAt) return false;
-    const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
-    return Date.now() - created.getTime() < trialDays * 24 * 60 * 60 * 1000;
-  })();
+  const inTrial = isInFreeTrial(config, profile?.createdAt);
 
   if (hasMembership || inTrial) return <>{children}</>;
 
@@ -81,9 +74,18 @@ function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents }: { trialD
   const [subscribingId, setSubscribingId] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<Record<string, PlanBillingPeriodMonths>>({});
   const trialPrice = ((trialPriceCents ?? 100) / 100).toFixed(2);
+  // Names the price the trial converts INTO, not just the trial price —
+  // "$1.00 for 7 days" alone never said what happens on day 8, which is
+  // both the most important number and the one a customer will dispute a
+  // charge over. Priced off the same featured (first) plan the cards below
+  // lead with; falls back to the bare trial line until plans have loaded.
+  const featuredPrice = plans[0] ? getPlanBillingPeriods(plans[0])[0] : null;
+  const afterTrial = featuredPrice
+    ? ` then $${featuredPrice.price.toFixed(2)}${featuredPrice.months === 1 ? '/mo' : ` every ${featuredPrice.months} months`}`
+    : '';
   const trialLabel = trialDays <= 0 ? '' : paidTrialEnabled
-    ? ` · $${trialPrice} for ${trialDays} days`
-    : ` · ${trialDays}-day free trial`;
+    ? ` · $${trialPrice} for ${trialDays} days,${afterTrial || ' then your plan price applies'}`
+    : ` · ${trialDays}-day free trial${afterTrial ? `,${afterTrial}` : ''}`;
 
   useEffect(() => {
     getMembershipPlans().then((p) => setPlans(p.filter((x) => x.active && planHasAnyPrice(x)))).catch(() => {});

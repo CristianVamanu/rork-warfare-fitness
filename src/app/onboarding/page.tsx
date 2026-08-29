@@ -17,7 +17,7 @@ import { startPlanCheckout, startCoachingCheckout } from '@/lib/checkout';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, resolveProgram } from '@/lib/firestore';
 import { trackEvent } from '@/lib/analytics';
 import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
-import { lbsToKg, kgToLbs } from '@/lib/utils';
+import { lbsToKg, kgToLbs, cmToFtIn, ftInToCm } from '@/lib/utils';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -105,6 +105,7 @@ interface OnboardingDraft {
   weightKg: string;
   targetWeightKg: string;
   weightUnit: 'kg' | 'lbs';
+  heightUnit: 'cm' | 'ftin';
   medicalHistory: MedicalHistoryAnswers;
   targetFocus: OnboardingData['targetFocus'] | null;
   sessionMinutes: OnboardingData['sessionMinutes'] | null;
@@ -148,6 +149,7 @@ function OnboardingPageInner() {
   const [weightKg, setWeightKg] = useState(draft.weightKg ?? '');
   const [targetWeightKg, setTargetWeightKg] = useState(draft.targetWeightKg ?? '');
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(draft.weightUnit ?? 'kg');
+  const [heightUnit, setHeightUnit] = useState<'cm' | 'ftin'>(draft.heightUnit ?? 'cm');
   const [medicalHistory, setMedicalHistory] = useState<MedicalHistoryAnswers>(draft.medicalHistory ?? {});
   const [targetFocus, setTargetFocus] = useState<OnboardingData['targetFocus'] | null>(draft.targetFocus ?? null);
   const [sessionMinutes, setSessionMinutes] = useState<OnboardingData['sessionMinutes'] | null>(draft.sessionMinutes ?? null);
@@ -192,12 +194,12 @@ function OnboardingPageInner() {
     try {
       const draftToSave: OnboardingDraft = {
         step, goal, experience, trainingDays, equipment, limitations,
-        sex, age, heightCm, weightKg, targetWeightKg, weightUnit, medicalHistory,
+        sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory,
         targetFocus, sessionMinutes, trainingStyle, name, email,
       };
       localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(draftToSave));
     } catch { /* ignore — e.g. private browsing storage quota */ }
-  }, [step, goal, experience, trainingDays, equipment, limitations, sex, age, heightCm, weightKg, targetWeightKg, weightUnit, medicalHistory, targetFocus, sessionMinutes, trainingStyle, name, email]);
+  }, [step, goal, experience, trainingDays, equipment, limitations, sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory, targetFocus, sessionMinutes, trainingStyle, name, email]);
 
   // Pre-fills sex/age from the landing page's quick-start selector (now
   // mandatory there — see LandingClient.tsx). Visitors who didn't come
@@ -560,14 +562,19 @@ function OnboardingPageInner() {
       // whatever it was) so the account can still reach the app; the rest
       // of the quiz answers can be re-entered from Settings if truly lost,
       // being stuck unable to sign up at all cannot.
-      const saveTask = (async () => {
+      const saveTask = (async (): Promise<boolean> => {
         try {
           await saveOnboardingData(activeUser.uid, { ...onboardingData, onboardingComplete: true });
+          return true;
         } catch (err) {
           console.error('[Onboarding] Saving full onboarding data failed — writing onboardingComplete only:', err);
-          await updateUserDoc(activeUser.uid, { onboardingComplete: true }).catch((fallbackErr) => {
+          try {
+            await updateUserDoc(activeUser.uid, { onboardingComplete: true });
+            return true;
+          } catch (fallbackErr) {
             console.error('[Onboarding] onboardingComplete fallback write also failed:', fallbackErr);
-          });
+            return false;
+          }
         }
       })();
       // Weight goal is set once, here, at signup — startedAt/estimatedTargetDate
@@ -598,12 +605,17 @@ function OnboardingPageInner() {
       });
 
       setStatus('saving');
-      await Promise.all([programTask, nutritionTask, saveTask, weightTask]);
+      const [, , onboardingSaved] = await Promise.all([programTask, nutritionTask, saveTask, weightTask]);
 
-      // Everything is safely persisted now (saveTask above just completed) —
-      // the draft has done its job and would otherwise linger and prefill
-      // stale answers if this browser/device ever starts onboarding again.
-      clearOnboardingDraft();
+      // ONLY clear the draft once onboardingComplete actually landed. Both
+      // the primary write and its fallback swallow their errors so one
+      // failure can't abort signup — which meant this used to run
+      // unconditionally, wiping every answer even when nothing persisted.
+      // AppLayout then bounced the user straight back to /onboarding with a
+      // blank quiz and an account that already exists, so retrying the
+      // account step gave auth/email-already-in-use: a total dead end.
+      // Keeping the draft lets them resume with their answers intact.
+      if (onboardingSaved) clearOnboardingDraft();
 
       // Refresh profile so layout no longer redirects here, then show the
       // plan reveal — proceedToApp() (triggered by its "Let's Go" button)
@@ -866,6 +878,7 @@ function OnboardingPageInner() {
                 weightKg={weightKg} onWeight={setWeightKg}
                 targetWeightKg={targetWeightKg} onTargetWeight={setTargetWeightKg}
                 weightUnit={weightUnit} onWeightUnit={setWeightUnit}
+                heightUnit={heightUnit} onHeightUnit={setHeightUnit}
                 sexAgeAnswered={sexAgeAnswered} onEditSexAge={() => { setSex(null); setAge(''); }}
               />
             )}
@@ -1383,7 +1396,7 @@ const SEX_OPTIONS: { value: BiologicalSex; label: string; icon: React.ElementTyp
 
 function StepBiometrics({
   sex, onSex, age, onAge, heightCm, onHeight, weightKg, onWeight, targetWeightKg, onTargetWeight,
-  weightUnit, onWeightUnit, sexAgeAnswered, onEditSexAge,
+  weightUnit, onWeightUnit, heightUnit, onHeightUnit, sexAgeAnswered, onEditSexAge,
 }: {
   sex: BiologicalSex | null; onSex: (v: BiologicalSex) => void;
   age: string; onAge: (v: string) => void;
@@ -1391,6 +1404,7 @@ function StepBiometrics({
   weightKg: string; onWeight: (v: string) => void;
   targetWeightKg: string; onTargetWeight: (v: string) => void;
   weightUnit: 'kg' | 'lbs'; onWeightUnit: (v: 'kg' | 'lbs') => void;
+  heightUnit: 'cm' | 'ftin'; onHeightUnit: (v: 'cm' | 'ftin') => void;
   sexAgeAnswered: boolean; onEditSexAge: () => void;
 }) {
   // weightKg/targetWeightKg (the parent's canonical state, used everywhere
@@ -1404,6 +1418,30 @@ function StepBiometrics({
   // kg->lbs->kg conversion didn't land on an exact decimal.
   const [weightText, setWeightText] = useState(() => weightKg ? (weightUnit === 'lbs' ? kgToLbs(parseFloat(weightKg)).toFixed(1) : weightKg) : '');
   const [targetWeightText, setTargetWeightText] = useState(() => targetWeightKg ? (weightUnit === 'lbs' ? kgToLbs(parseFloat(targetWeightKg)).toFixed(1) : targetWeightKg) : '');
+
+  // Same canonical-vs-display split as weight: heightCm (the parent's state,
+  // used for BMI/TDEE/program matching) always stays in cm; these hold the
+  // raw ft/in the user is typing.
+  const initialFtIn = heightCm ? cmToFtIn(parseFloat(heightCm)) : null;
+  const [feetText, setFeetText] = useState(initialFtIn ? String(initialFtIn.ft) : '');
+  const [inchesText, setInchesText] = useState(initialFtIn ? String(initialFtIn.inches) : '');
+
+  function pushFtIn(ftRaw: string, inRaw: string) {
+    const ft = parseFloat(ftRaw);
+    const inches = inRaw === '' ? 0 : parseFloat(inRaw);
+    if (isNaN(ft) || isNaN(inches)) { onHeight(''); return; }
+    onHeight(String(ftInToCm(ft, inches)));
+  }
+  function handleFeetChange(raw: string) { setFeetText(raw); pushFtIn(raw, inchesText); }
+  function handleInchesChange(raw: string) { setInchesText(raw); pushFtIn(feetText, raw); }
+  function handleHeightUnitChange(unit: 'cm' | 'ftin') {
+    if (unit === heightUnit) return;
+    if (unit === 'ftin') {
+      const cm = parseFloat(heightCm);
+      if (!isNaN(cm)) { const { ft, inches } = cmToFtIn(cm); setFeetText(String(ft)); setInchesText(String(inches)); }
+    }
+    onHeightUnit(unit);
+  }
 
   function handleWeightChange(raw: string) {
     setWeightText(raw);
@@ -1479,15 +1517,56 @@ function StepBiometrics({
           </div>
         )}
         <div>
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Height (cm)</label>
-          <input
-            type="number"
-            inputMode="decimal"
-            value={heightCm}
-            onChange={(e) => onHeight(e.target.value)}
-            placeholder="178"
-            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-          />
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-xs font-medium text-text-secondary">Height</label>
+            <div className="flex rounded-lg border border-white/10 overflow-hidden">
+              {([['cm', 'CM'], ['ftin', 'FT']] as const).map(([u, label]) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => handleHeightUnitChange(u)}
+                  className={`px-2 py-0.5 text-[10px] font-bold uppercase transition-colors ${heightUnit === u ? 'bg-accent text-black' : 'text-text-tertiary hover:text-white'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {heightUnit === 'cm' ? (
+            <input
+              type="number"
+              inputMode="decimal"
+              value={heightCm}
+              onChange={(e) => onHeight(e.target.value)}
+              placeholder="178"
+              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+            />
+          ) : (
+            <div className="flex gap-1.5">
+              <div className="relative flex-1">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={feetText}
+                  onChange={(e) => handleFeetChange(e.target.value)}
+                  placeholder="5"
+                  className="w-full bg-surface border border-white/10 rounded-xl pl-3 pr-6 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-text-tertiary pointer-events-none">ft</span>
+              </div>
+              <div className="relative flex-1">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={inchesText}
+                  onChange={(e) => handleInchesChange(e.target.value)}
+                  placeholder="10"
+                  className="w-full bg-surface border border-white/10 rounded-xl pl-3 pr-6 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-text-tertiary pointer-events-none">in</span>
+              </div>
+            </div>
+          )}
         </div>
         <div>
           <div className="flex items-center justify-between mb-1.5">

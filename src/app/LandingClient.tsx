@@ -184,11 +184,13 @@ export default function LandingPage({
   initialLogoUrl,
   initialLanding,
   initialMembership,
+  initialMembershipPlans,
 }: {
   initialAppName: string;
   initialLogoUrl: string | null;
   initialLanding: LandingPageConfig;
   initialMembership: MembershipConfig | null;
+  initialMembershipPlans: MembershipPlan[];
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -205,7 +207,9 @@ export default function LandingPage({
   const [landing, setLanding] = useState<LandingPageConfig>(initialLanding);
   const [membership, setMembership] = useState<MembershipConfig | null>(initialMembership);
   const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
-  const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
+  const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>(
+    () => initialMembershipPlans.filter((p) => p.active && getPlanBillingPeriods(p).length > 0)
+  );
   const [leaderboard, setLeaderboard] = useState<{ displayName: string; powerLevel: number; streak: number; totalWorkouts: number }[]>([]);
   const [stats, setStats] = useState<{ totalUsers: number; totalWorkouts: number } | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -332,7 +336,15 @@ export default function LandingPage({
 
   if (loading || user) return <FullPageSpinner />;
 
-  const subheadline = landing.subheadline.replace('{appName}', appName);
+  // Admin-editable landing copy can reference the live trial settings with
+  // {appName} / {trialDays} / {trialPrice} placeholders, so changing Trial
+  // Days from 7 to 14 (or switching on Paid Trial) updates the marketing
+  // copy too instead of leaving it claiming "free for 7 days" forever.
+  const fillPlaceholders = (text: string) => text
+    .replace(/\{appName\}/g, appName)
+    .replace(/\{trialDays\}/g, String(trialDays))
+    .replace(/\{trialPrice\}/g, `$${trialPrice}`);
+  const subheadline = fillPlaceholders(landing.subheadline);
   // A free trial needs no payment upfront — MembershipGuard grants access
   // automatically for trialDays from account creation, so the CTA can lead
   // straight to registration rather than a paid checkout. A paid trial
@@ -1061,7 +1073,7 @@ export default function LandingPage({
       <section className="relative overflow-hidden max-w-2xl mx-auto px-5 pt-16 pb-20 text-center">
         <GlowOrb className="w-[420px] h-[420px] bg-accent/[0.1] top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 -z-10" />
         <h2 className="text-2xl sm:text-3xl font-black text-white">{landing.finalCtaHeadline}</h2>
-        <p className="text-text-secondary text-sm mt-2 mb-6">{landing.finalCtaSubtext}</p>
+        <p className="text-text-secondary text-sm mt-2 mb-6">{fillPlaceholders(landing.finalCtaSubtext)}</p>
         <Link href="/onboarding">
           <Button size="lg" className="px-10">
             {primaryCtaLabel} <ArrowRight className="w-4 h-4" />

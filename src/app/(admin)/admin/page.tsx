@@ -2227,10 +2227,15 @@ function AdminPageInner() {
   // loaded for the Clients tab. Quotes every field and escapes embedded
   // quotes so a comma or quote in someone's name can't corrupt the file.
   function handleExportClientsCsv() {
-    const csvField = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = [
+    // Routed through the shared downloadCsv helper rather than a local
+    // escaper: the formula-injection guard (a leading =, +, - or @ executes
+    // as a formula in Excel/Sheets even inside quotes) lived only in
+    // downloadCsv, so this exporter — which writes fully attacker-controlled
+    // displayName/email from anyone who can sign up — was still vulnerable.
+    downloadCsv(
+      `clients-${new Date().toISOString().slice(0, 10)}.csv`,
       ['Name', 'Email', 'Fitness Goal', 'Experience', 'Membership Status', 'Total Workouts', 'Streak', 'Joined'],
-      ...clients.map((u) => {
+      clients.map((u) => {
         const uu = u as UserData & { membership?: { status?: string } };
         const joined = (u.createdAt as { toDate?: () => Date } | undefined)?.toDate?.();
         return [
@@ -2244,15 +2249,7 @@ function AdminPageInner() {
           joined ? joined.toLocaleDateString('en-US') : '',
         ];
       }),
-    ];
-    const csv = rows.map((row) => row.map(csvField).join(',')).join('\r\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `clients-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    );
   }
 
   const exSearchQueryLower = exSearchQuery.trim().toLowerCase();
@@ -2915,7 +2912,7 @@ function AdminPageInner() {
                               className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
                             />
                             <p className="text-xs text-text-tertiary mt-1.5">
-                              e.g. $1.00 for {membership.trialDays} days, then the member's chosen plan price applies automatically.
+                              e.g. $1.00 for {membership.trialDays} days, then the member&apos;s chosen plan price applies automatically.
                             </p>
                           </div>
                         )}
@@ -2949,6 +2946,11 @@ function AdminPageInner() {
                   <p className="text-xs text-text-secondary">
                     Applies to the first payment on new membership and coaching plan checkouts while active. Leave at 0% to disable.
                   </p>
+                  {membership.paidTrialEnabled && (membership.discountPercent ?? 0) > 0 && (
+                    <div className="p-2.5 bg-danger/10 border border-danger/20 rounded-xl text-xs text-danger">
+                      <span className="font-bold">Conflicts with Paid Trial.</span> A &ldquo;once&rdquo; discount applies to the first invoice — under a paid trial that&apos;s the trial fee itself, so this discounts the ${((membership.trialPriceCents ?? 100) / 100).toFixed(2)} trial, not the plan price your pricing cards advertise. Members would still be charged full price when the trial converts. Set this back to 0% while Paid Trial is on.
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-text-secondary mb-1 block">Discount %</label>

@@ -67,22 +67,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // From here on a code is genuinely required. setTfaPendingClaim(true) is
-    // deliberately the LAST thing this route does, not the first — it used
-    // to run here, before the email/Firestore writes below, so ANY failure
-    // in between (a missing recipient email, a transient Firestore write
-    // error, an email-send exception) left the claim set to pending with a
-    // non-2xx response going back to the client. LoginClient's own 2FA
-    // check deliberately "fails open" on a non-ok response (so a real 2FA
-    // outage doesn't lock someone out of their own account) — which meant
-    // exactly that failure mode instead silently sent the user straight to
-    // /dashboard while every Firestore read they made from then on got
-    // refused by notTfaPending(), with no code ever having been sent and no
-    // way to see why. Doing every operation that can fail FIRST, and only
-    // marking the account pending once a code has actually been generated,
-    // stored, and (best-effort) emailed, means a failure anywhere above
-    // returns an error response with the claim never having been touched —
-    // the account stays exactly as accessible as it was before this call.
+    // From here on a code is genuinely required. See the note above
+    // setTfaPendingClaim below for why the claim is set where it is —
+    // the ordering of these three steps is load-bearing in both directions.
     const recipient = (user.twoFactorEmail as string | undefined) || user.email;
     if (!recipient) return NextResponse.json({ error: 'No email on file for this account' }, { status: 400 });
 
@@ -94,6 +81,18 @@ export async function POST(req: NextRequest) {
     });
     await db.collection('users').doc(uid).update({ twoFactorPendingSince: FieldValue.serverTimestamp() });
 
+    // Set here — after the code is safely stored, but BEFORE the email —
+    // deliberately. Everything above this line can fail without stranding
+    // the account (that was the original bug: the claim was set first, so a
+    // later failure left it pending forever with no code ever sent, and the
+    // client's fail-open path then walked into a session where every read
+    // was refused). But it must NOT move below sendEmail either: the client
+    // treats a non-ok response as "2FA unavailable, let them in", so a mail
+    // outage with the claim unset would sign a stolen password straight into
+    // the account with 2FA silently skipped. Failing CLOSED on email trouble
+    // is the correct trade — the user retries or uses "Resend code".
+    await setTfaPendingClaim(app, uid, true);
+
     const cfgSnap = await db.collection('system').doc('config').get();
     const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
     await sendEmail({
@@ -102,7 +101,6 @@ export async function POST(req: NextRequest) {
       html: twoFactorCodeEmailHtml(code, appName),
     });
 
-    await setTfaPendingClaim(app, uid, true);
     return NextResponse.json({ required: true });
   } catch (err) {
     console.error('[auth/2fa/login-check] Error:', err);

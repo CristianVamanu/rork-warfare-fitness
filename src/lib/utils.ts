@@ -86,6 +86,21 @@ export function lbsToKg(lbs: number): number {
   return Math.round(lbs / 2.20462 * 10) / 10;
 }
 
+/** Height conversions — cm is the canonical stored unit, exactly like kg is
+ * for body weight. ft/in is display+entry only. */
+export function cmToFtIn(cm: number): { ft: number; inches: number } {
+  const totalInches = cm / 2.54;
+  let ft = Math.floor(totalInches / 12);
+  let inches = Math.round(totalInches - ft * 12);
+  // 11.6" rounds to 12" — carry it rather than rendering 5'12".
+  if (inches === 12) { ft += 1; inches = 0; }
+  return { ft, inches };
+}
+
+export function ftInToCm(ft: number, inches: number): number {
+  return Math.round((ft * 12 + inches) * 2.54 * 10) / 10;
+}
+
 /**
  * Formats a BODY weight for display in the user's own preferred unit.
  *

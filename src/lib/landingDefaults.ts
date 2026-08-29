@@ -38,7 +38,11 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   quoteText: 'Motivation gets you started. A program that adapts to you keeps you going.',
   quoteAuthor: 'The Warfare Fitness difference',
   finalCtaHeadline: 'Ready to stop guessing and start training?',
-  finalCtaSubtext: 'Take the 2-minute quiz, get matched instantly, and try it free for 7 days.',
+  // {trialDays} is substituted from the live membership config at render
+  // time (see fillPlaceholders in LandingClient) — this used to hardcode
+  // "free for 7 days", which silently lied the moment an admin changed the
+  // trial length or switched to a paid trial.
+  finalCtaSubtext: 'Take the 2-minute quiz and get matched instantly — then try it for {trialDays} days.',
   showPublicLeaderboard: true,
   programsToShow: 0,
   testimonials: [],

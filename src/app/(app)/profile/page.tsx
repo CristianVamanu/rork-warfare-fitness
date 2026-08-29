@@ -14,6 +14,7 @@ import {
 } from '@/lib/firestore';
 import { startCoachingCheckout, startPlanCheckout } from '@/lib/checkout';
 import { trackEvent } from '@/lib/analytics';
+import { isInFreeTrial, freeTrialEndsAt } from '@/lib/membership';
 import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Header } from '@/components/layout/Header';
@@ -220,35 +221,21 @@ export default function ProfilePage() {
       })()
     : null;
 
-  // Check free trial — disabled entirely under a paid trial (see
-  // MembershipConfig.paidTrialEnabled), same as useFeatureAccess.ts and
-  // MembershipGuard.tsx: access there only ever comes from an actual
-  // Stripe subscription, never just from account age. This page has its
-  // own separate copy of the same calendar-trial check (not shared with
-  // those two), which is why it kept showing "Free trial — ends <date>"
-  // even after paid trial was turned on elsewhere.
+  const weightUnit = (profile?.weightUnit as 'kg' | 'lbs') ?? 'kg';
   const trialDays = (membershipConfig as (MembershipConfig & { trialDays?: number }) | null)?.trialDays ?? 0;
   const paidTrialEnabled = !!membershipConfig?.paidTrialEnabled;
   const discountPercent = getActiveDiscountPercent(membershipConfig);
-  const inTrial = (() => {
-    if (paidTrialEnabled) return false;
-    if (!trialDays || !profile?.createdAt) return false;
-    const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
-    return Date.now() - created.getTime() < trialDays * 24 * 60 * 60 * 1000;
-  })();
-
-  const trialEndsAt = (() => {
-    if (paidTrialEnabled) return null;
-    if (!trialDays || !profile?.createdAt) return null;
-    const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
-    return new Date(created.getTime() + trialDays * 24 * 60 * 60 * 1000);
-  })();
+  const inTrial = isInFreeTrial(membershipConfig, profile?.createdAt);
+  const trialEndsAt = freeTrialEndsAt(membershipConfig, profile?.createdAt);
 
   const stats = [
     { icon: Dumbbell, label: 'Workouts', value: totalWorkouts, color: 'text-purple-400' },
     { icon: Flame, label: 'Streak', value: `${streak}d`, color: 'text-orange-400' },
     { icon: Zap, label: 'Fitness Level', value: powerLevel, color: 'text-accent' },
-    { icon: Trophy, label: 'Total kg', value: profile?.currentWeightKg ?? profile?.stats?.totalWeightLifted ?? 0, color: 'text-yellow-400' },
+    // Was `currentWeightKg ?? totalWeightLifted` — i.e. it showed the user's
+    // BODY weight under a "total lifted" label for anyone who'd ever logged a
+    // weigh-in, contradicting the badge above that reads totalWeightLifted.
+    { icon: Trophy, label: `Total ${weightUnit}`, value: (profile?.stats?.totalWeightLifted ?? 0).toLocaleString(), color: 'text-yellow-400' },
   ];
 
   // Show membership to all non-admin/trainer users, and also to admin so they can see what users see
@@ -396,16 +383,31 @@ export default function ProfilePage() {
                           </>
                         )
                       ) : (
-                        <>
-                          <Button
-                            fullWidth
-                            onClick={() => handleSubscribeMembershipPlan(plan.id)}
-                            loading={subscribingMembershipPlanId === plan.id}
-                          >
-                            <Crown className="w-4 h-4" /> {subscribingMembershipPlanId === plan.id ? 'Opening Checkout…' : (trialDays > 0 && !inTrial ? (paidTrialEnabled ? `Start for $${((membershipConfig?.trialPriceCents ?? 100) / 100).toFixed(2)}` : 'Start Free Trial') : isActive ? 'Switch to This Plan' : 'Subscribe Now')}
-                          </Button>
-                          <p className="text-[10px] text-text-tertiary text-center mt-2">Secure payment via Stripe. Cancel anytime.</p>
-                        </>
+                        isActive ? (
+                          // Was a "Switch to This Plan" button wired to
+                          // startPlanCheckout — which /api/stripe/plan-checkout
+                          // unconditionally rejects with "You already have an
+                          // active membership", so it could only ever toast an
+                          // error. Plan changes belong in Stripe's own billing
+                          // portal, which handles proration properly.
+                          <>
+                            <Button fullWidth variant="secondary" onClick={handleManageBilling} loading={openingPortal}>
+                              <ExternalLink className="w-4 h-4" /> Change Plan in Billing
+                            </Button>
+                            <p className="text-[10px] text-text-tertiary text-center mt-2">Switch plans from the Stripe billing portal.</p>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              fullWidth
+                              onClick={() => handleSubscribeMembershipPlan(plan.id)}
+                              loading={subscribingMembershipPlanId === plan.id}
+                            >
+                              <Crown className="w-4 h-4" /> {subscribingMembershipPlanId === plan.id ? 'Opening Checkout…' : (trialDays > 0 && !inTrial ? (paidTrialEnabled ? `Start for $${((membershipConfig?.trialPriceCents ?? 100) / 100).toFixed(2)}` : 'Start Free Trial') : 'Subscribe Now')}
+                            </Button>
+                            <p className="text-[10px] text-text-tertiary text-center mt-2">Secure payment via Stripe. Cancel anytime.</p>
+                          </>
+                        )
                       )}
                     </div>
                   </div>

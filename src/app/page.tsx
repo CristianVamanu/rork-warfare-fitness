@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
 
-import { getSystemConfig, getMembershipConfig } from '@/lib/firestore';
+import { getSystemConfig, getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
-import type { LandingPageConfig, MembershipConfig } from '@/types';
+import type { LandingPageConfig, MembershipConfig, MembershipPlan } from '@/types';
 import LandingPage from './LandingClient';
 
 // Fetched here, server-side, so the first HTML the browser ever sees
@@ -16,9 +16,15 @@ import LandingPage from './LandingClient';
 // swapped to "Start N-Day Free Trial" the moment the client-side
 // getMembershipConfig() call resolved a beat later.
 export default async function Page() {
-  const [cfg, membershipConfig] = await Promise.all([
+  // membershipPlans is server-fetched for the same reason as
+  // membershipConfig: the hero's "$X for N days, then $Y/mo" line is priced
+  // off the featured plan, so loading plans client-side left that line
+  // missing for the first second of every visit — the one line that states
+  // what the visitor is actually agreeing to pay.
+  const [cfg, membershipConfig, membershipPlansRaw] = await Promise.all([
     getSystemConfig().catch(() => null),
     getMembershipConfig().catch(() => null),
+    getMembershipPlans().catch(() => [] as MembershipPlan[]),
   ]);
   const initialAppName = (cfg?.appName as string) || 'Warfare Fitness';
   const initialLogoUrl = (cfg?.logoUrl as string) || null;
@@ -32,6 +38,7 @@ export default async function Page() {
       initialLogoUrl={initialLogoUrl}
       initialLanding={initialLanding}
       initialMembership={membershipConfig}
+      initialMembershipPlans={membershipPlansRaw}
     />
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getMembershipConfig, getMembershipPlans } from './firestore';
 import { useAuth } from '@/contexts/AuthContext';
+import { isInFreeTrial } from './membership';
 import type { MembershipConfig, MembershipPlan } from '@/types';
 
 export interface FeatureAccess {
@@ -49,16 +50,7 @@ export function useFeatureAccess(feature?: string, programId?: string): FeatureA
 
   const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
 
-  const trialDays = config?.trialDays ?? 0;
-  const inTrial = (() => {
-    // A paid trial only ever grants access through an actual Stripe
-    // subscription (hasMembership above) — see MembershipConfig.paidTrialEnabled.
-    if (config?.paidTrialEnabled) return false;
-    if (!trialDays || !profile?.createdAt) return false;
-    const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
-    const ms = Date.now() - created.getTime();
-    return ms < trialDays * 24 * 60 * 60 * 1000;
-  })();
+  const inTrial = isInFreeTrial(config, profile?.createdAt);
 
   // Admins/trainers always bypass — same exception MembershipGuard already
   // makes for the full-app paywall. Without this, an admin previewing a

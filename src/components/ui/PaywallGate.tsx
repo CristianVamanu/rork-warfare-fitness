@@ -79,7 +79,22 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
 
   const activePlans = plans.filter((p) => p.active && planHasAnyPrice(p));
   const trialDays = config.trialDays ?? 0;
-  const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
+  // This wall was still promising a FREE trial after paid trial shipped,
+  // while checkout charged trialPriceCents immediately — i.e. it told the
+  // user "Start Free Trial" and then took their money, which is exactly how
+  // you earn a chargeback (and the dispute webhook then revokes their
+  // access too). Mirrors MembershipGuard's LockedScreen wording, including
+  // naming the price the trial converts into.
+  const paidTrialEnabled = !!config.paidTrialEnabled;
+  const trialPrice = ((config.trialPriceCents ?? 100) / 100).toFixed(2);
+  const featuredPrice = activePlans[0] ? getPlanBillingPeriods(activePlans[0])[0] : null;
+  const afterTrial = featuredPrice
+    ? ` then $${featuredPrice.price.toFixed(2)}${featuredPrice.months === 1 ? '/mo' : ` every ${featuredPrice.months} months`}`
+    : '';
+  const trialLabel = trialDays <= 0 ? '' : paidTrialEnabled
+    ? ` · $${trialPrice} for ${trialDays} days,${afterTrial || ' then your plan price applies'}`
+    : ` · ${trialDays}-day free trial${afterTrial ? `,${afterTrial}` : ''}`;
+  const ctaLabel = trialDays <= 0 ? 'Subscribe Now' : paidTrialEnabled ? `Start for $${trialPrice}` : 'Start Free Trial';
 
   return (
     <div className="px-4 py-12 flex flex-col items-center justify-center min-h-[40vh]">
@@ -118,7 +133,7 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
                 </p>
                 {plan.description && <p className="text-xs text-text-secondary mt-1.5">{plan.description}</p>}
                 <Button fullWidth className="mt-4" onClick={() => handleSubscribe(plan.id)} loading={subscribingId === plan.id}>
-                  <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
+                  <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : ctaLabel}
                 </Button>
               </Card>
             );
