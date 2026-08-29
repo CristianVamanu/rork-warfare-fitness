@@ -102,15 +102,20 @@ service cloud.firestore {
     // can never actually enroll in a premium program at all — the client UI
     // would show it as unlocked while the server refused the write, which
     // is exactly the bug this closes.
-    // paidTrialEnabled == true disables this free, createdAt-based bypass
-    // entirely — a MadMuscles-style paid trial only ever grants access via
-    // an actual Stripe subscription (which itself starts in Stripe's own
-    // 'trialing' status, already treated as active membership by the
-    // webhook), never just by having an account for N days without paying.
+    // Deliberately NOT gated on paidTrialEnabled. This helper is used in
+    // exactly one place — premiumEnrollAllowed() — which decides which
+    // program may be ASSIGNED to a user, not whether they may access it.
+    // Access under a paid trial is enforced by fullLock + MembershipGuard
+    // (an unpaid account can't reach /training at all), so assigning a
+    // program is harmless and is a required step of the quiz -> plan
+    // reveal -> checkout funnel: onboarding enrolls the user BEFORE they
+    // ever reach Stripe. Gating this on paidTrialEnabled broke signup
+    // outright — every new account got permission-denied on enrollInProgram
+    // the moment paid trial was switched on, because a brand-new user has
+    // no subscription yet by definition.
     function trialActive() {
       return exists(/databases/$(database)/documents/config/membership) &&
         get(/databases/$(database)/documents/config/membership).data.get('enabled', false) == true &&
-        get(/databases/$(database)/documents/config/membership).data.get('paidTrialEnabled', false) != true &&
         get(/databases/$(database)/documents/config/membership).data.get('trialDays', 0) > 0 &&
         resource.data.get('createdAt', null) != null &&
         resource.data.createdAt + duration.value(get(/databases/$(database)/documents/config/membership).data.get('trialDays', 0), 'd') > request.time;

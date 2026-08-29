@@ -57,7 +57,15 @@ export function middleware(request: NextRequest) {
     // real network requests to these on every trackEvent() call, which
     // connect-src (not script-src) governs regardless of where the script
     // that initiated them was loaded from.
-    "connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://*.google-analytics.com https://*.analytics.google.com",
+    // apis.google.com is Firebase Auth's own lazily-loaded iframe manager
+    // (js/api.js). It's allowed as a SCRIPT via strict-dynamic, but the PWA
+    // service worker intercepts the request and re-issues it as a fetch()
+    // (see next.config.js's NetworkOnly rule for this exact hostname) — and
+    // fetch is governed by connect-src, not script-src, regardless of what
+    // the resource actually is. Without it here the request was blocked
+    // outright, surfacing as a CSP violation plus a "Response with null
+    // body status cannot have body" throw from the SW's own error handler.
+    "connect-src 'self' https://*.googleapis.com https://apis.google.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://*.google-analytics.com https://*.analytics.google.com",
     // Firebase Auth opens a hidden same-project iframe at
     // <project>.firebaseapp.com/__/auth/iframe as part of its normal init
     // (session persistence / cross-tab auth-state sync) — this fires even
