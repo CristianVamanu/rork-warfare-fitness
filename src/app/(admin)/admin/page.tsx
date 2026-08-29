@@ -2947,8 +2947,8 @@ function AdminPageInner() {
                     Applies to the first payment on new membership and coaching plan checkouts while active. Leave at 0% to disable.
                   </p>
                   {membership.paidTrialEnabled && (membership.discountPercent ?? 0) > 0 && (
-                    <div className="p-2.5 bg-danger/10 border border-danger/20 rounded-xl text-xs text-danger">
-                      <span className="font-bold">Conflicts with Paid Trial.</span> A &ldquo;once&rdquo; discount applies to the first invoice — under a paid trial that&apos;s the trial fee itself, so this discounts the ${((membership.trialPriceCents ?? 100) / 100).toFixed(2)} trial, not the plan price your pricing cards advertise. Members would still be charged full price when the trial converts. Set this back to 0% while Paid Trial is on.
+                    <div className="p-2.5 bg-accent/10 border border-accent/20 rounded-xl text-xs text-accent">
+                      Under Paid Trial, this discount is applied so it actually reaches the plan&apos;s real first charge (not just the ${((membership.trialPriceCents ?? 100) / 100).toFixed(2)} trial fee) — the ${((membership.trialPriceCents ?? 100) / 100).toFixed(2)} itself may also pick up a few cents off as a side effect, which is harmless.
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-3">

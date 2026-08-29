@@ -78,7 +78,27 @@ export async function POST(req: NextRequest) {
     const discountPercent = Number(membershipCfg.discountPercent ?? 0);
     const discountExpiresAt = membershipCfg.discountExpiresAt ? new Date(membershipCfg.discountExpiresAt as string) : null;
     if (discountPercent > 0 && discountExpiresAt && discountExpiresAt.getTime() > Date.now()) {
-      const coupon = await stripe.coupons.create({ percent_off: discountPercent, duration: 'once' });
+      // Checkout Sessions can only apply a coupon session-wide, never to one
+      // specific line item — so under a paid trial, a `duration: 'once'`
+      // coupon lands entirely on invoice #1, which contains ONLY the
+      // one-time trial fee (the recurring price hasn't billed yet; it's
+      // deferred by trial_period_days). The coupon is then fully consumed,
+      // and the plan's real first charge — the thing the admin actually
+      // meant to discount — lands at full price. Using a repeating coupon
+      // instead keeps it active long enough to still be attached when that
+      // real first charge fires; sized generously past the longest trial
+      // length (30 days) so this is correct regardless of the configured
+      // Trial Days. It does mean the $1 fee itself picks up a few cents of
+      // discount too as a side effect — harmless, and strictly in the
+      // customer's favor, unlike the plan discount silently doing nothing.
+      const willChargeTrialFeeFirst = membershipCfg.paidTrialEnabled === true
+        && Number(membershipCfg.trialDays ?? 0) > 0
+        && !userSnap.data()?.trialUsedAt;
+      const coupon = await stripe.coupons.create(
+        willChargeTrialFeeFirst
+          ? { percent_off: discountPercent, duration: 'repeating', duration_in_months: 2 }
+          : { percent_off: discountPercent, duration: 'once' }
+      );
       discounts = [{ coupon: coupon.id }];
     }
 
@@ -107,7 +127,18 @@ export async function POST(req: NextRequest) {
         price_data: {
           currency: (plan.currency ?? 'USD').toLowerCase(),
           unit_amount: trialPriceCents,
-          product_data: { name: `${plan.name} — ${trialDays}-day trial` },
+          // Deliberately does NOT call this "N-day trial" — Stripe's own
+          // Checkout UI already puts an auto-generated "N days free" badge
+          // under the RECURRING line item below (driven by
+          // subscription_data.trial_period_days, not any text we control),
+          // since that item's own charge genuinely doesn't start for N
+          // days. Naming this one-time item "{plan} — N-day trial" too put
+          // two lines on the same receipt both claiming to BE the trial —
+          // one for free, one for $1 — reading as a direct contradiction
+          // even though both statements are true (a one-time access fee is
+          // due today; the plan itself is free for N days). Calling this
+          // one what it actually is removes the collision.
+          product_data: { name: `${plan.name} — Trial Access Fee (one-time)` },
         },
       };
     } else if (!paidTrialEnabled && trialDays > 0 && !alreadyUsedTrial) {
