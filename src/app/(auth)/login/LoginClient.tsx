@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
@@ -25,16 +24,17 @@ type FormData = z.infer<typeof schema>;
 
 export default function LoginClient({
   initialAppName,
-  initialLogoUrl,
 }: {
   initialAppName: string;
+  // No longer used — the logo box now always shows the animated brand-mark
+  // video (same as the landing page hero), not the admin-configured static
+  // logo. Kept in the props type so page.tsx doesn't need touching too.
   initialLogoUrl: string | null;
 }) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [appName] = useState(initialAppName);
-  const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -100,14 +100,22 @@ export default function LoginClient({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Logo — links back to the public homepage */}
+      {/* Logo — links back to the public homepage. Same animated brand-mark
+          video as the landing page hero (logo emerging through smoke into
+          flame), at the same size — muted/looped/inline so it autoplays
+          everywhere including iOS Safari, same as there. */}
       <Link href="/" className="flex flex-col items-center mb-8">
-        <div className={`w-36 h-36 rounded-2xl flex items-center justify-center mb-4 shadow-glow-accent overflow-hidden ${logoUrl ? '' : 'bg-accent'}`}>
-          {logoUrl ? (
-            <Image src={logoUrl} alt={appName} width={144} height={144} className="w-full h-full object-cover" onError={() => setLogoUrl(null)} />
-          ) : (
-            <span className="text-2xl font-black text-black">{appName[0]}</span>
-          )}
+        <div className="relative w-32 h-32 mb-4">
+          <video
+            className="relative w-full h-full rounded-2xl object-cover shadow-glow-accent"
+            src="/videos/hero-logo.mp4"
+            poster="/videos/hero-logo-poster.jpg"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+          />
         </div>
         <h1 className="text-2xl font-black text-white tracking-tight">{appName}</h1>
         <p className="text-text-secondary text-sm mt-1">Welcome back</p>
