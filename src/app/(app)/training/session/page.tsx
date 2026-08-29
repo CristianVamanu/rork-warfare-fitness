@@ -1605,7 +1605,7 @@ function WorkoutSessionPageInner() {
           } : {}),
         })),
       }));
-      const result = await completeWorkout(user.uid, logs, duration, programId, dow ?? undefined);
+      const result = await completeWorkout(user.uid, logs, duration, programId, dow ?? undefined, weightUnit === 'lbs' ? 'lbs' : 'kg');
       sessionStorage.removeItem(sessionKey);
       setSaved(true);
       setWorkoutResult({ duration, ...result });

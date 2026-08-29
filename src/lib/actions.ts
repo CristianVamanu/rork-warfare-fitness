@@ -15,6 +15,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import type { DistanceUnit } from '@/lib/distance';
+import { lbsToKg } from '@/lib/utils';
 import { auth, db } from './firebase';
 import { createEvent } from './events';
 import { incrementProgramWorkouts, syncLeaderboardPublic, updateUserGoals, postCommunityActivity } from './firestore';
@@ -138,19 +139,32 @@ export async function completeWorkout(
   duration: number,
   programId?: string,
   dayIndex?: number,
+  // The weights inside `exercises` are entered (and stored, for history/
+  // suggestion display) in whichever unit the user currently has selected —
+  // never normalized. Left alone, that means `stats.totalWeightLifted` (a
+  // single running total accumulated across every workout ever logged) mixes
+  // kg and lbs entries depending on the unit active at the time, and quest
+  // thresholds like "Lift 100,000kg" (titan.ts) end up comparing kg targets
+  // against a number that might actually be ~2.2x too small or too large.
+  // Converting the AGGREGATE figure to kg here (not the per-set numbers,
+  // which stay unit-native for history/suggestion display elsewhere) fixes
+  // this going forward; it can't retroactively fix totals already
+  // accumulated from past lbs-unit workouts without a data migration.
+  weightUnit: 'kg' | 'lbs' = 'kg',
 ): Promise<WorkoutResult> {
   const trainerId = await getTrainerId(userId);
 
   const completedSets = exercises.reduce(
     (s, ex) => s + ex.sets.filter((st) => st.completed).length, 0
   );
-  const totalWeightLifted = exercises.reduce(
+  const totalWeightLiftedRaw = exercises.reduce(
     (sum, ex) =>
       sum + ex.sets
         .filter((s) => s.completed)
         .reduce((s2, s) => s2 + s.weight * s.reps, 0),
     0
   );
+  const totalWeightLifted = weightUnit === 'lbs' ? lbsToKg(totalWeightLiftedRaw) : totalWeightLiftedRaw;
   const calories = Math.round(duration * 8);
   const xpEarned = calcWorkoutXP(duration, completedSets, totalWeightLifted);
 

@@ -2881,7 +2881,18 @@ function AdminPageInner() {
                         {([0, 7, 14, 30] as const).map((d) => (
                           <button
                             key={d}
-                            onClick={() => setMembership(m => ({ ...m, trialDays: d }))}
+                            onClick={() => setMembership(m => ({
+                              ...m,
+                              trialDays: d,
+                              // Paid Trial's own toggle only renders inside
+                              // the trialDays > 0 block below — setting Trial
+                              // Days back to "None" without also clearing this
+                              // hid the only control that could turn it off,
+                              // while leaving Full Platform Lock's toggle
+                              // permanently disabled (it's disabled whenever
+                              // paidTrialEnabled is true), trapping the admin.
+                              paidTrialEnabled: d === 0 ? false : m.paidTrialEnabled,
+                            }))}
                             className={`py-2 rounded-xl text-xs font-bold transition-all border ${membership.trialDays === d ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
                           >
                             {d === 0 ? 'None' : `${d}d`}
