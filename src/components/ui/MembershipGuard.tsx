@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Lock, Star, Crown } from 'lucide-react';
+import { Lock, Star, Crown, Check } from 'lucide-react';
 import { getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
 import { startPlanCheckout } from '@/lib/checkout';
-import { getPlanBillingPeriods, planHasAnyPrice } from '@/lib/utils';
+import { getPlanBillingPeriods, planHasAnyPrice, getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { isInFreeTrial } from '@/lib/membership';
 import { Card } from './Card';
@@ -62,13 +62,13 @@ export function MembershipGuard({ pathname, children }: Props) {
   if (config.fullLock) {
     const freePaths = config.paidTrialEnabled ? ALWAYS_FREE_PATHS : [...ALWAYS_FREE_PATHS, '/dashboard'];
     const isFree = freePaths.some(p => pathname === p || pathname.startsWith(p + '/'));
-    if (!isFree) return <LockedScreen trialDays={trialDays} paidTrialEnabled={!!config.paidTrialEnabled} trialPriceCents={config.trialPriceCents} />;
+    if (!isFree) return <LockedScreen trialDays={trialDays} paidTrialEnabled={!!config.paidTrialEnabled} trialPriceCents={config.trialPriceCents} discountPercent={getActiveDiscountPercent(config)} />;
   }
 
   return <>{children}</>;
 }
 
-function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents }: { trialDays: number; paidTrialEnabled: boolean; trialPriceCents?: number }) {
+function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents, discountPercent }: { trialDays: number; paidTrialEnabled: boolean; trialPriceCents?: number; discountPercent: number }) {
   const { user } = useAuth();
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [subscribingId, setSubscribingId] = useState<string | null>(null);
@@ -124,19 +124,50 @@ function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents }: { trialD
           <p className="text-xs text-text-tertiary">Already a member? Contact support for access.</p>
         </Card>
       ) : (
-        <div className="space-y-3 max-w-sm w-full">
-          {plans.map((plan) => {
+        // Was a single narrow (max-w-sm) stacked column, and unlike the
+        // landing page's own pricing cards, showed no feature list, no
+        // "Most Popular" badge, and no discount strike-through — so a user
+        // hitting this wall after signup had no way to see what they were
+        // actually about to buy, and no way back to the landing page to
+        // check. Mirrors the landing page's card content exactly; grid
+        // (not a forced stack) so plans sit side by side once there's room.
+        <div className={`grid gap-4 items-stretch w-full ${
+          plans.length >= 3 ? 'max-w-4xl sm:grid-cols-2 lg:grid-cols-3' : plans.length === 2 ? 'max-w-2xl sm:grid-cols-2' : 'max-w-sm'
+        }`}>
+          {plans.map((plan, i) => {
             const periods = getPlanBillingPeriods(plan);
             const period = selectedPeriod[plan.id] ?? periods[0]?.months ?? 1;
             const active = periods.find((p) => p.months === period) ?? periods[0];
             return (
-              <Card key={plan.id} className="p-5 border-accent/20">
+              <Card key={plan.id} className={`relative p-5 h-full flex flex-col ${i === 0 ? 'border-2 border-accent' : 'border-accent/20'}`}>
+                {i === 0 && (
+                  <div className="absolute -top-3 left-4 px-2.5 py-0.5 bg-accent rounded-full">
+                    <span className="text-[10px] font-bold text-black uppercase tracking-wide">Most Popular</span>
+                  </div>
+                )}
+                {discountPercent > 0 && (
+                  <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
+                    <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
+                  </div>
+                )}
                 <p className="text-sm font-bold text-white">{plan.name}</p>
-                <p className="text-2xl font-black text-white mt-1">
-                  ${active.price.toFixed(2)}
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  {discountPercent > 0 ? (
+                    <>
+                      <span className="text-2xl font-black text-white">${applyDiscount(active.price, discountPercent).toFixed(2)}</span>
+                      <span className="text-sm text-text-tertiary line-through">${active.price.toFixed(2)}</span>
+                    </>
+                  ) : (
+                    <span className="text-2xl font-black text-white">${active.price.toFixed(2)}</span>
+                  )}
                   <span className="text-sm font-medium text-text-secondary">{active.months === 1 ? '/mo' : ` / ${active.months}mo`}</span>
-                </p>
-                {plan.description && <p className="text-xs text-text-secondary mt-1.5">{plan.description}</p>}
+                </div>
+                {trialDays > 0 && (
+                  <p className="text-[11px] text-accent mt-1 font-medium">
+                    {paidTrialEnabled ? `$${trialPrice} for ${trialDays} days, then this price applies` : `${trialDays}-day free trial, no payment required`}
+                  </p>
+                )}
+                {plan.description && <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>}
                 {periods.length > 1 && (
                   <div className="flex gap-1.5 mt-3 flex-wrap">
                     {periods.map((p) => (
@@ -150,9 +181,20 @@ function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents }: { trialD
                     ))}
                   </div>
                 )}
-                <Button fullWidth className="mt-4" onClick={() => handleSubscribe(plan.id)} loading={subscribingId === plan.id}>
-                  <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : trialDays <= 0 ? 'Subscribe Now' : paidTrialEnabled ? `Start for $${trialPrice}` : 'Start Free Trial'}
-                </Button>
+                {plan.features.length > 0 && (
+                  <ul className="mt-4 space-y-2">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
+                        <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {f}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-auto pt-4">
+                  <Button fullWidth onClick={() => handleSubscribe(plan.id)} loading={subscribingId === plan.id}>
+                    <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : trialDays <= 0 ? 'Subscribe Now' : paidTrialEnabled ? `Start for $${trialPrice}` : 'Start Free Trial'}
+                  </Button>
+                </div>
               </Card>
             );
           })}
