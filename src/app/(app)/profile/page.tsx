@@ -12,7 +12,7 @@ import {
   updateUserDoc, syncLeaderboardPublic, subscribeUserConversations, getMembershipConfig, getCoachingPlans, getMembershipPlans,
   submitCoachingApplication, getUserCoachingApplication,
 } from '@/lib/firestore';
-import { startCoachingCheckout, startPlanCheckout, openBillingPortal } from '@/lib/checkout';
+import { startCoachingCheckout, startPlanCheckout, openBillingPortal, changePlan } from '@/lib/checkout';
 import { trackEvent } from '@/lib/analytics';
 import { isInFreeTrial, freeTrialEndsAt } from '@/lib/membership';
 import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
@@ -163,6 +163,26 @@ export default function ProfilePage() {
     setOpeningPortal(true);
     const err = await openBillingPortal(user);
     if (err) { toast.error(err); setOpeningPortal(false); }
+  };
+
+  const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
+  // Switches the existing subscription's price directly instead of sending
+  // an already-active member to Stripe's billing portal — the portal can't
+  // offer "Update subscription" here since these plans only ever exist as
+  // inline price_data at checkout time, never as permanent Stripe Price
+  // objects the portal could list a catalog from. See
+  // /api/stripe/change-plan's own comment for the full reasoning.
+  const handleSwitchPlan = async (planId: string, periodMonths: PlanBillingPeriodMonths) => {
+    if (!user) return;
+    setChangingPlanId(planId);
+    const err = await changePlan(user, planId, periodMonths);
+    if (err) {
+      toast.error(err);
+    } else {
+      toast.success('Plan updated');
+      await refreshProfile().catch(() => {});
+    }
+    setChangingPlanId(null);
   };
 
   // membership and coaching are two independent Stripe subscriptions a
@@ -372,17 +392,18 @@ export default function ProfilePage() {
                         )
                       ) : (
                         isActive ? (
-                          // Was a "Switch to This Plan" button wired to
-                          // startPlanCheckout — which /api/stripe/plan-checkout
-                          // unconditionally rejects with "You already have an
-                          // active membership", so it could only ever toast an
-                          // error. Plan changes belong in Stripe's own billing
-                          // portal, which handles proration properly.
+                          // Was wired to Stripe's billing portal — which
+                          // can't offer a plan switcher for these plans at
+                          // all (see handleSwitchPlan's comment above), so
+                          // this button dead-ended with no options to pick
+                          // from. Now switches the subscription's price
+                          // directly, same server route the paywall's
+                          // PlanUpgradeScreen uses.
                           <>
-                            <Button fullWidth variant="secondary" onClick={handleManageBilling} loading={openingPortal}>
-                              <ExternalLink className="w-4 h-4" /> Change Plan in Billing
+                            <Button fullWidth variant="secondary" onClick={() => handleSwitchPlan(plan.id, activePeriod.months)} loading={changingPlanId === plan.id}>
+                              <Crown className="w-4 h-4" /> {changingPlanId === plan.id ? 'Updating Plan…' : 'Switch to This Plan'}
                             </Button>
-                            <p className="text-[10px] text-text-tertiary text-center mt-2">Switch plans from the Stripe billing portal.</p>
+                            <p className="text-[10px] text-text-tertiary text-center mt-2">Prorated automatically by Stripe.</p>
                           </>
                         ) : (
                           <>
