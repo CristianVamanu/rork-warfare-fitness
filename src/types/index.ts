@@ -109,8 +109,9 @@ export interface OnboardingData {
 // current weight) and read by the dashboard/goals page to show ongoing
 // progress toward it. Separate from ClientGoal (goals/{goalId} collection)
 // deliberately — that collection is coach/admin-authored only per
-// firestore.rules (`allow create: if isStaff()`), and this one needs to be
-// self-serve at signup, before any coach relationship necessarily exists.
+// firestore.rules (`allow create: if isAdminOrOwnTrainer(...)`), and this
+// one needs to be self-serve at signup, before any coach relationship
+// necessarily exists.
 export interface WeightGoal {
   startWeightKg: number;
   targetWeightKg: number;

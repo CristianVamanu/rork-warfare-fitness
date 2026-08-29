@@ -92,7 +92,7 @@ function GoalCard({ goal, onUpdate }: { goal: ClientGoal; onUpdate: (value: numb
 
 // Self-serve weight goal set at onboarding (UserProfile.weightGoal) — kept
 // separate from ClientGoal below since those are coach/admin-authored only
-// (firestore.rules: allow create: if isStaff()). Progress reads straight
+// (firestore.rules: allow create: if isAdminOrOwnTrainer(...)). Progress reads straight
 // from profile.currentWeightKg, which the progress/profile weigh-in flows
 // already keep updated — no separate check-in mechanism needed here.
 function WeightGoalCard({ startWeightKg, targetWeightKg, currentWeightKg, estimatedTargetDate, direction, weightUnit }: {

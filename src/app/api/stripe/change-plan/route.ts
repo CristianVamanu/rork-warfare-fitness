@@ -52,12 +52,21 @@ function planProductId(planId: string): string {
 
 async function getOrCreatePlanProduct(stripe: Stripe, plan: MembershipPlan): Promise<string> {
   const id = planProductId(plan.id);
-  try {
-    const existing = await stripe.products.retrieve(id);
-    if (existing.active) return existing.id;
-  } catch {
-    // Doesn't exist yet — fall through and create it.
+  const existing = await stripe.products.retrieve(id).catch(() => null);
+
+  if (existing) {
+    // The id is deterministic, so a plan renamed (or archived) in the admin
+    // panel after its Product was first created would otherwise keep the
+    // stale name on every future invoice and in the billing portal forever,
+    // and price_data can't reference an archived product at all. Reactivate
+    // and re-sync the name rather than trying to create a duplicate id
+    // (which Stripe rejects outright).
+    if (!existing.active || existing.name !== plan.name) {
+      await stripe.products.update(id, { active: true, name: plan.name });
+    }
+    return id;
   }
+
   try {
     const product = await stripe.products.create({ id, name: plan.name });
     return product.id;
@@ -65,8 +74,8 @@ async function getOrCreatePlanProduct(stripe: Stripe, plan: MembershipPlan): Pro
     // Lost a create race against a concurrent request for the same plan —
     // the other request's Product now exists under this same id; reuse it
     // rather than erroring the whole switch out.
-    const existing = await stripe.products.retrieve(id).catch(() => null);
-    if (existing) return existing.id;
+    const raced = await stripe.products.retrieve(id).catch(() => null);
+    if (raced) return raced.id;
     throw err;
   }
 }
