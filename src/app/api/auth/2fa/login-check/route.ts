@@ -67,14 +67,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // From here on a code is genuinely required — mark the session pending
-    // BEFORE returning, so the security rules already refuse this uid's
-    // requests the instant the client sees `required: true`, not just once
-    // it gets around to redirecting to /verify-2fa.
-    await setTfaPendingClaim(app, uid, true);
-
-    // Prefer a dedicated notification email over the account's login email
-    // — the login email isn't guaranteed to be a real, monitored inbox.
+    // From here on a code is genuinely required. setTfaPendingClaim(true) is
+    // deliberately the LAST thing this route does, not the first — it used
+    // to run here, before the email/Firestore writes below, so ANY failure
+    // in between (a missing recipient email, a transient Firestore write
+    // error, an email-send exception) left the claim set to pending with a
+    // non-2xx response going back to the client. LoginClient's own 2FA
+    // check deliberately "fails open" on a non-ok response (so a real 2FA
+    // outage doesn't lock someone out of their own account) — which meant
+    // exactly that failure mode instead silently sent the user straight to
+    // /dashboard while every Firestore read they made from then on got
+    // refused by notTfaPending(), with no code ever having been sent and no
+    // way to see why. Doing every operation that can fail FIRST, and only
+    // marking the account pending once a code has actually been generated,
+    // stored, and (best-effort) emailed, means a failure anywhere above
+    // returns an error response with the claim never having been touched —
+    // the account stays exactly as accessible as it was before this call.
     const recipient = (user.twoFactorEmail as string | undefined) || user.email;
     if (!recipient) return NextResponse.json({ error: 'No email on file for this account' }, { status: 400 });
 
@@ -94,6 +102,7 @@ export async function POST(req: NextRequest) {
       html: twoFactorCodeEmailHtml(code, appName),
     });
 
+    await setTfaPendingClaim(app, uid, true);
     return NextResponse.json({ required: true });
   } catch (err) {
     console.error('[auth/2fa/login-check] Error:', err);

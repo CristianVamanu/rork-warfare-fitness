@@ -325,6 +325,10 @@ export default function LandingPage({
   const paidTrialEnabled = !!membership?.paidTrialEnabled;
   const trialPrice = ((membership?.trialPriceCents ?? 100) / 100).toFixed(2);
   const discountPercent = getActiveDiscountPercent(membership);
+  // Same plan the pricing section itself marks "Most Popular" (index 0) —
+  // used to spell out the post-trial price in the hero, since the hero CTA
+  // isn't tied to any specific plan the visitor has picked yet.
+  const featuredPlanPrice = membershipPlans[0] ? getPlanBillingPeriods(membershipPlans[0])[0]?.price ?? null : null;
 
   if (loading || user) return <FullPageSpinner />;
 
@@ -508,6 +512,17 @@ export default function LandingPage({
             </Link>
             {!quickSex && (
               <p className="text-[11px] text-text-tertiary text-center mt-2">Select your gender to continue.</p>
+            )}
+            {/* Spells out exactly what "$X" turns into after the trial —
+                the button alone ("Start for $1.00") doesn't say how long
+                that lasts or what it becomes, which is exactly the kind of
+                ambiguity that gets a checkout screenshotted and complained
+                about. Priced off the featured (first) membership plan,
+                same one the pricing section itself marks "Most Popular". */}
+            {paidTrialEnabled && trialDays > 0 && featuredPlanPrice != null && (
+              <p className="text-[11px] text-text-tertiary text-center mt-2">
+                ${trialPrice} for {trialDays} days, then ${featuredPlanPrice.toFixed(2)}/mo. Cancel anytime.
+              </p>
             )}
           </div>
 

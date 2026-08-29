@@ -2884,7 +2884,7 @@ function AdminPageInner() {
                       <div className="p-3 bg-surface-elevated rounded-xl space-y-3">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm font-medium text-white">Paid Trial (MadMuscles-style)</p>
+                            <p className="text-sm font-medium text-white">Paid Trial</p>
                             <p className="text-xs text-text-secondary mt-0.5">Charge a small fee upfront instead of a free, no-card trial — filters out non-payers and gets you paid from day one.</p>
                           </div>
                           <button
@@ -2915,7 +2915,7 @@ function AdminPageInner() {
                               className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
                             />
                             <p className="text-xs text-text-tertiary mt-1.5">
-                              e.g. $1.00 for {membership.trialDays} days, then the member's chosen plan price applies automatically — same pattern as MadMuscles and most subscription fitness apps.
+                              e.g. $1.00 for {membership.trialDays} days, then the member's chosen plan price applies automatically.
                             </p>
                           </div>
                         )}
