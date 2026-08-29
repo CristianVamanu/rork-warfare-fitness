@@ -24,7 +24,11 @@ export async function GET() {
     if (!app) return NextResponse.json({ entries: [] });
     const db = getAdminDb(app);
 
-    const snap = await db.collection('users').limit(200).get();
+    // Was `.limit(200)` with NO orderBy — Firestore then returns the first
+    // 200 documents by ID (effectively random uids), so the "top 10" was
+    // ranked within an arbitrary slice rather than across the user base:
+    // with thousands of users the actual #1 athlete almost never appeared.
+    const snap = await db.collection('users').orderBy('powerLevel', 'desc').limit(200).get();
     const entries = snap.docs
       .filter((d) => !d.data().banned)
       .map((d) => {

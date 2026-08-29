@@ -19,12 +19,27 @@ const USER_FIELD_COLLECTIONS = [
   'progressPhotos',
   'notifications',
   'coachingApplications',
+  // All of the below were previously missed, leaving a "deleted" account's
+  // data behind — most visibly communityActivity, which is publicly
+  // readable and kept the ex-user's displayName in the Live Activity feed.
+  'communityActivity',
+  'goals',
+  'ptTestResults',
+  // Keyed `${uid}_${date}` but also carries a userId field, so the same
+  // query path works — no doc-id range scan needed.
+  'habitLogs',
 ] as const;
 
 /** Docs keyed directly by uid — a straight doc().delete(), no query needed. */
 const USER_ID_DOC_COLLECTIONS = [
   'users',
   'userPreferences',
+  // The public leaderboard mirror — holds displayName/xp/streak. Without
+  // this, a deleted user stayed listed by name on the public leaderboard
+  // (including the logged-out landing page) indefinitely.
+  'leaderboardPublic',
+  // Any in-flight 2FA code for this account.
+  'twoFactorCodes',
 ] as const;
 
 async function deleteByQuery(db: Firestore, collection: string, field: string, uid: string) {
@@ -123,15 +138,22 @@ export async function deleteUserCompletely(app: App, db: Firestore, uid: string)
     }
   }
 
-  // pushSubscriptions lives at pushSubscriptions/{uid}/devices/{deviceId}
-  // (one doc per device, not per user) — a subcollection, which Firestore
-  // never cascade-deletes on its own even if a parent doc existed.
-  const devicesSnap = await db.collection('pushSubscriptions').doc(uid).collection('devices').get();
-  if (!devicesSnap.empty) {
+  // Subcollections Firestore never cascade-deletes on its own, even once
+  // the parent doc is gone:
+  //  - pushSubscriptions/{uid}/devices/{deviceId} (one doc per device)
+  //  - trustedDevices/{uid}/devices/{deviceId}    (2FA "remember this device")
+  //  - users/{uid}/usage/{feature}_{date}         (daily AI/scan usage counters)
+  for (const [parent, sub] of [
+    ['pushSubscriptions', 'devices'],
+    ['trustedDevices', 'devices'],
+    ['users', 'usage'],
+  ] as const) {
+    const subSnap = await db.collection(parent).doc(uid).collection(sub).get();
+    if (subSnap.empty) continue;
     const batch = db.batch();
-    devicesSnap.docs.forEach((d) => batch.delete(d.ref));
+    subSnap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
-    firestoreDocsDeleted += devicesSnap.size;
+    firestoreDocsDeleted += subSnap.size;
   }
 
   await deleteStorageFolder(app, `users/${uid}/`);

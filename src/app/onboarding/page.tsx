@@ -656,7 +656,12 @@ function OnboardingPageInner() {
         ? await startCoachingCheckout(user, preselectedCoachingPlanId)
         : await startPlanCheckout(user, preselectedPlanId!);
       if (!err) return; // navigated to Stripe
+      // Reset the double-tap guard — without this, a failed checkout showed
+      // the error but left proceedingRef stuck true, so every later tap on
+      // "Let's Go" returned at the guard and the button did nothing.
+      proceedingRef.current = false;
       setError(err);
+      return;
     }
     try {
       const cfg = await getSystemConfig();
@@ -677,32 +682,54 @@ function OnboardingPageInner() {
   // underneath the (modal) video, looking exactly like onboarding had reset
   // back to the start. The reveal screen should stay put as the backdrop
   // while the video modal sits on top of it, same as any other modal here.
-  if (status === 'done' && revealProgram) {
+  // Deliberately gated on `status` ALONE, not `status && revealProgram`.
+  // revealProgram is only set once enrollInProgram SUCCEEDS, and that call
+  // failing is an expected, documented case (a members-only or priced
+  // program legitimately refuses a brand-new non-paying account — see the
+  // catch in programTask above). With the old `&& revealProgram` gate, that
+  // expected failure fell through to the raw step form with status already
+  // 'done' and the draft cleared — no "Let's Go" button, no way forward
+  // short of hand-editing the URL, on an account that had already been
+  // created. The program-specific blocks below are conditional instead, so
+  // the completion screen (nutrition targets, "Let's Go") always renders.
+  if (status === 'done') {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 text-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="max-w-sm w-full">
           <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-5">
             <PartyPopper className="w-8 h-8 text-accent" />
           </div>
-          <p className="text-xs font-bold text-accent uppercase tracking-wide mb-2">Your Personalized Plan</p>
-          <h1 className="text-2xl font-black text-white mb-2">{revealProgram.name}</h1>
-          <p className="text-text-secondary text-sm mb-5 leading-relaxed whitespace-pre-line">{revealProgram.description}</p>
-          <div className="flex items-center justify-center gap-6 mb-6">
-            <div>
-              <p className="text-2xl font-black text-white">{revealProgram.weeks}</p>
-              <p className="text-xs text-text-secondary">weeks</p>
-            </div>
-            <div className="w-px h-8 bg-white/10" />
-            <div>
-              <p className="text-2xl font-black text-white">{revealProgram.daysPerWeek}</p>
-              <p className="text-xs text-text-secondary">days/week</p>
-            </div>
-          </div>
+          {revealProgram ? (
+            <>
+              <p className="text-xs font-bold text-accent uppercase tracking-wide mb-2">Your Personalized Plan</p>
+              <h1 className="text-2xl font-black text-white mb-2">{revealProgram.name}</h1>
+              <p className="text-text-secondary text-sm mb-5 leading-relaxed whitespace-pre-line">{revealProgram.description}</p>
+              <div className="flex items-center justify-center gap-6 mb-6">
+                <div>
+                  <p className="text-2xl font-black text-white">{revealProgram.weeks}</p>
+                  <p className="text-xs text-text-secondary">weeks</p>
+                </div>
+                <div className="w-px h-8 bg-white/10" />
+                <div>
+                  <p className="text-2xl font-black text-white">{revealProgram.daysPerWeek}</p>
+                  <p className="text-xs text-text-secondary">days/week</p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-xs font-bold text-accent uppercase tracking-wide mb-2">You&apos;re All Set</p>
+              <h1 className="text-2xl font-black text-white mb-2">Welcome aboard</h1>
+              <p className="text-text-secondary text-sm mb-6 leading-relaxed">
+                Your profile is ready. Pick the training program you want from the Training tab whenever you&apos;re ready to start.
+              </p>
+            </>
+          )}
 
           {/* The core promise of the whole goal-weight question: a concrete,
               personalized timeline tied to the specific program just
               assigned — not a generic "results vary" hand-wave. */}
-          {revealTimeline && revealTimeline.weeksToGoal > 0 && (
+          {revealProgram && revealTimeline && revealTimeline.weeksToGoal > 0 && (
             <div className="mb-6 p-4 bg-accent/5 border border-accent/20 rounded-2xl text-left flex items-start gap-3">
               {revealTimeline.direction === 'lose'
                 ? <TrendingDown className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />

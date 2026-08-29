@@ -136,10 +136,20 @@ export default function ProgressPage() {
   // Build weekly volume chart from real workouts
   const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const volumeByDay: Record<string, number> = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 };
-  workouts.slice(0, 7).forEach((w) => {
+  // Filtered by DATE, not `.slice(0, 7)`. Taking the 7 most recent sessions
+  // regardless of when they happened plotted them all under a "this week"
+  // framing: someone who trained 7 times across the last 5 weeks saw every
+  // one of them as if it were this week (with same-weekday sessions from
+  // different weeks summed into a single bar), while someone who trained 10
+  // times this week only ever saw 7 of them.
+  const startOfWeek = new Date();
+  startOfWeek.setHours(0, 0, 0, 0);
+  // Week starts Monday, matching the Mon-Sun axis rendered below.
+  startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+  workouts.forEach((w) => {
     const ts = w.completedAt as { toDate?: () => Date } | null;
     const date = ts?.toDate?.();
-    if (date) {
+    if (date && date >= startOfWeek) {
       const key = DOW[date.getDay()];
       volumeByDay[key] = (volumeByDay[key] ?? 0) + (w.duration ?? 30);
     }

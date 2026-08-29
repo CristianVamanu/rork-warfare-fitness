@@ -77,10 +77,18 @@ export default function HabitsPage() {
     }
   }
 
-  // Consecutive-day streak per habit, counting back from today
+  // Consecutive-day streak per habit, counting back from today.
+  // Starting the scan at today and breaking on the first unlogged day meant
+  // a 6-day streak displayed as 0 every morning until the habit was ticked
+  // off — the exact number that makes it feel worth continuing, zeroed at
+  // the moment of most doubt. Today being unlogged is "not done YET", not a
+  // broken streak, so the count starts at yesterday in that case (the same
+  // one-day grace the dashboard's workout streak already applies).
   function streakFor(habit: HabitKey): number {
+    const todayStr = new Date().toLocaleDateString('sv-SE');
+    const doneToday = !!logs.find((l) => l.date === todayStr)?.habits?.[habit];
     let streak = 0;
-    for (let i = 0; i < HISTORY_DAYS; i++) {
+    for (let i = doneToday ? 0 : 1; i < HISTORY_DAYS; i++) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toLocaleDateString('sv-SE');

@@ -506,17 +506,17 @@ export async function getTodayWaterLogs(userId: string, localDateStr?: string): 
 }
 
 export async function deleteWaterLog(id: string) {
-  try {
-    await deleteDoc(doc(db, 'events', id));
-    return;
-  } catch {
-    // Not in events — try legacy
-  }
-  try {
+  // Same fix as deleteMeal above — deleteDoc on a nonexistent doc SUCCEEDS
+  // (it's a no-op, not an error), so the previous try/catch's legacy
+  // fallback was unreachable: a pre-migration waterLogs id "succeeded"
+  // against 'events' without deleting anything, and the entry reappeared on
+  // the next load. Check existence first so the fallback actually runs.
+  const eventRef = doc(db, 'events', id);
+  const eventSnap = await getDoc(eventRef);
+  if (eventSnap.exists()) {
+    await deleteDoc(eventRef);
+  } else {
     await deleteDoc(doc(db, 'waterLogs', id));
-  } catch (err) {
-    console.error('[Firestore] deleteWaterLog failed for id', id, err);
-    throw err;
   }
 }
 

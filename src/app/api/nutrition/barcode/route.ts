@@ -137,7 +137,14 @@ export async function GET(req: NextRequest) {
       labels,
       nutrition: {
         name: product.product_name || 'Unknown Product',
-        calories: Math.round(n['energy-kcal_100g'] || n['energy-kcal'] || 0),
+        // Deliberately NO fallback to `energy-kcal` — that's OpenFoodFacts'
+        // PER-SERVING figure, while every other macro here (and the
+        // client's `servingGrams / 100` scaling) is strictly per-100g.
+        // Mixing them reported a 40g serving's 250 kcal as if it were per
+        // 100g, so a user logging 200g recorded 500 kcal for what is really
+        // ~1250 — and the macros, which have no such fallback, silently
+        // disagreed with the calorie number on the very same card.
+        calories: Math.round(n['energy-kcal_100g'] || 0),
         protein: Math.round((n['proteins_100g'] || 0) * 10) / 10,
         carbs: Math.round((n['carbohydrates_100g'] || 0) * 10) / 10,
         fat: Math.round((n['fat_100g'] || 0) * 10) / 10,

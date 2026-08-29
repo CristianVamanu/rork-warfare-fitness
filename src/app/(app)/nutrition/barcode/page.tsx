@@ -207,6 +207,14 @@ export default function BarcodePage() {
       return;
     }
     setSearching(true);
+    // Clearing the previous product too — every OTHER field was reset here
+    // but `result`/`productName` weren't, so scanning a product that
+    // OpenFoodFacts doesn't have left the PREVIOUS product's full nutrition
+    // card and "Add to Log" button on screen behind the error toast. Tapping
+    // it then logged the old product while the user believed they were
+    // logging the new one.
+    setResult(null);
+    setProductName('');
     setNutriScoreGrade(null);
     setNovaGroup(null);
     setEcoScoreGrade(null);

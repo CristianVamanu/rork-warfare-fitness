@@ -9,7 +9,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { signIn } from '@/lib/auth';
+import { signIn, signOut } from '@/lib/auth';
+import { getUserDoc } from '@/lib/firestore';
 import { getTrustedDevice } from '@/lib/twoFactor';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -52,6 +53,7 @@ export default function LoginClient({
       // remembered from a previous verification. Either way skips straight
       // to the dashboard; otherwise a code has just been emailed and the
       // verify screen takes over.
+      let twoFaCheckFailed = false;
       try {
         const idToken = await user.getIdToken();
         const trusted = getTrustedDevice(user.uid);
@@ -70,10 +72,35 @@ export default function LoginClient({
           router.replace('/verify-2fa');
           return;
         }
+        // A non-ok response means we do NOT know whether this account
+        // needed a code — login-check sets the tfaPending claim as its last
+        // step, so an error anywhere before that leaves 2FA silently
+        // skipped with no pending marker for AppLayout to catch either.
+        if (!res.ok) twoFaCheckFailed = true;
       } catch (twoFaErr) {
-        // Non-fatal — if the 2FA check itself fails, fail open rather than
-        // locking someone out of their own account over a transient error.
-        console.error('[Login] 2FA check failed, continuing without it:', twoFaErr);
+        console.error('[Login] 2FA check failed:', twoFaErr);
+        twoFaCheckFailed = true;
+      }
+
+      // Failing OPEN here defeated the whole feature: any transient error in
+      // the 2FA check handed out a fully-authenticated session with no code
+      // ever requested. Fail closed instead — but only for accounts that
+      // actually have 2FA enabled, so an outage in this check can't lock out
+      // the entire (mostly non-2FA) user base. If we can't even read the
+      // profile to tell, assume the stricter case.
+      if (twoFaCheckFailed) {
+        let requires2fa = true;
+        try {
+          const snap = await getUserDoc(user.uid) as { twoFactorEnabled?: boolean } | null;
+          requires2fa = snap?.twoFactorEnabled === true;
+        } catch {
+          // Couldn't determine — treat as protected rather than waving through.
+        }
+        if (requires2fa) {
+          await signOut().catch(() => {});
+          toast.error("We couldn't send your two-factor code. Please try signing in again.", { duration: 8000 });
+          return;
+        }
       }
       console.log('[Login] navigating to /dashboard');
       router.replace('/dashboard');

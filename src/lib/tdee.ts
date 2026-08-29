@@ -26,10 +26,18 @@ const GOAL_ADJUSTMENT: Record<FitnessGoal, number> = {
   'strength':      +200,
 };
 
-const BASE_CALORIES: Record<ExperienceLevel, number> = {
-  beginner:      2000,
-  intermediate:  2300,
-  advanced:      2600,
+// BMR-scale, NOT maintenance-scale. These are fed into the same
+// `bmr * activityMult` formula as the real Mifflin-St Jeor result below, so
+// maintenance-magnitude numbers here (the previous 2000/2300/2600) got
+// multiplied by the activity factor a second time — a beginner training 3x
+// landed at 2000 x 1.40 = 2800 maintenance and a 3100 kcal build-muscle
+// target, roughly 30% over what Mifflin-St Jeor gives the same person
+// (~1700 BMR -> ~2380 maintenance). Only ever used when the biometrics step
+// was skipped entirely, so real-biometrics users were never affected.
+const BASE_BMR: Record<ExperienceLevel, number> = {
+  beginner:      1600,
+  intermediate:  1700,
+  advanced:      1800,
 };
 
 // Grams of protein per kg of bodyweight — the actual evidence-based way to
@@ -83,7 +91,12 @@ export function estimateNutritionTargets(
   trainingDays: number,
   biometrics?: Biometrics
 ): NutritionTargets {
-  const activityMult = ACTIVITY_MULTIPLIER[trainingDays] ?? 1.55;
+  // Clamped, not `?? 1.55` — the table only has keys 2-6, and that fallback
+  // was the FIVE-day value, so an out-of-range input scored higher than a
+  // real 3- or 4-day trainee: trainingDays=1 got 1.55 vs a 4-day user's
+  // 1.475. Clamping keeps the curve monotonic at both ends.
+  const clampedDays = Math.min(6, Math.max(2, Math.round(trainingDays) || 3));
+  const activityMult = ACTIVITY_MULTIPLIER[clampedDays];
   const usedRealBiometrics = !!biometrics;
 
   let bmr: number;
@@ -94,7 +107,7 @@ export function estimateNutritionTargets(
       : 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
   } else {
     // No biometrics at all (step skipped) — flat per-experience-level guess
-    bmr = BASE_CALORIES[experience] ?? 2200;
+    bmr = BASE_BMR[experience] ?? 1700;
   }
   bmr = Math.round(bmr);
 

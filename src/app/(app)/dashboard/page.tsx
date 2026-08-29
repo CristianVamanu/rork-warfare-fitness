@@ -248,7 +248,10 @@ export default function DashboardPage() {
   // CURRENT week of the program" for WeekProgressLine below.
   const weekScheduleLen = (programSource?.phases?.[0]?.schedule ?? programSource?.schedule)?.length || 7;
   const todayDayIndex = nextAbsIdx % weekScheduleLen;
-  const programPct = activeProgram
+  // Guarded against a zero/missing totalWorkouts — enrollInProgram always
+  // sets it now, but a legacy activeProgram written before that field
+  // existed divides by undefined and renders a literal "NaN%".
+  const programPct = activeProgram && activeProgram.totalWorkouts
     ? Math.min(100, Math.round((completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
 
