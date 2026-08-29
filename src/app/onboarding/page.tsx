@@ -262,6 +262,18 @@ function OnboardingPageInner() {
   const TOTAL_STEPS = needsAccount ? 11 : 10;
   const ACCOUNT_STEP = 10;
 
+  // Set the instant signUp() succeeds inside handleFinish, never cleared —
+  // `needsAccount` itself is frozen once determined (see its own comment
+  // above) and doesn't flip false just because `user` changed mid-flow. If
+  // ANYTHING after account creation threw (a peripheral write failing, a
+  // network blip) and the user hit "Create Account" again, handleFinish
+  // would otherwise call signUp() a second time with the same email/
+  // password — which fails with auth/email-already-in-use for an account
+  // that already exists and already has every answer this quiz collected,
+  // turning a recoverable hiccup into a dead end. Checked first thing in
+  // handleFinish to reuse the already-created account instead.
+  const createdUserRef = useRef<FirebaseUser | null>(null);
+
   const ageNum = parseInt(age, 10);
   const heightNum = parseFloat(heightCm);
   const weightNum = parseFloat(weightKg);
@@ -394,8 +406,11 @@ function OnboardingPageInner() {
       // the user lands back on the account step with every other answer
       // still intact, not a blank quiz.
       let activeUser: FirebaseUser;
-      if (needsAccount) {
+      if (createdUserRef.current) {
+        activeUser = createdUserRef.current;
+      } else if (needsAccount) {
         activeUser = await signUp(email.trim(), password, name.trim(), 'kg');
+        createdUserRef.current = activeUser;
         trackEvent('CompleteRegistration');
       } else {
         activeUser = user!;
@@ -501,14 +516,21 @@ function OnboardingPageInner() {
           };
           nutritionTargets = { ...local, goalLabel: goalLabels[goal], rationale: '' };
         }
-        await updateUserGoals(activeUser.uid, {
-          calories: nutritionTargets.calories,
-          protein: nutritionTargets.protein,
-          carbs: nutritionTargets.carbs,
-          fat: nutritionTargets.fat,
-          water: nutritionTargets.water,
-        });
-        setRevealNutrition(nutritionTargets);
+        try {
+          await updateUserGoals(activeUser.uid, {
+            calories: nutritionTargets.calories,
+            protein: nutritionTargets.protein,
+            carbs: nutritionTargets.carbs,
+            fat: nutritionTargets.fat,
+            water: nutritionTargets.water,
+          });
+          setRevealNutrition(nutritionTargets);
+        } catch (err) {
+          // Same reasoning as programTask below: a brand-new account should
+          // never fail signup entirely over one non-essential write — the
+          // user can set nutrition targets from Settings after the fact.
+          console.error('[Onboarding] Saving nutrition targets failed — continuing without them:', err);
+        }
       })();
 
       // Save onboarding answers + mark complete — doesn't depend on either
@@ -528,25 +550,43 @@ function OnboardingPageInner() {
         ...(sessionMinutes ? { sessionMinutes } : {}),
         ...(trainingStyle ? { trainingStyle } : {}),
       };
-      const saveTask = saveOnboardingData(activeUser.uid, { ...onboardingData, onboardingComplete: true });
+      // onboardingComplete has to actually land, or the account gets stuck
+      // in a redirect loop back to /onboarding forever (see AppLayout) — if
+      // the full write throws for any reason, fall back to writing just
+      // that one boolean by itself (far less likely to hit the same issue,
+      // whatever it was) so the account can still reach the app; the rest
+      // of the quiz answers can be re-entered from Settings if truly lost,
+      // being stuck unable to sign up at all cannot.
+      const saveTask = (async () => {
+        try {
+          await saveOnboardingData(activeUser.uid, { ...onboardingData, onboardingComplete: true });
+        } catch (err) {
+          console.error('[Onboarding] Saving full onboarding data failed — writing onboardingComplete only:', err);
+          await updateUserDoc(activeUser.uid, { onboardingComplete: true }).catch((fallbackErr) => {
+            console.error('[Onboarding] onboardingComplete fallback write also failed:', fallbackErr);
+          });
+        }
+      })();
       // Weight goal is set once, here, at signup — startedAt/estimatedTargetDate
       // are the fixed reference points the goals page measures ongoing
-      // progress against, not recomputed every time weight is logged.
+      // progress against, not recomputed every time weight is logged. Never
+      // fatal — a brand-new account shouldn't fail signup entirely over this
+      // one non-essential write; weight can be logged from Progress after.
       const nowIso = new Date().toISOString().slice(0, 10);
-      const weightTask = biometricsValid
-        ? updateUserDoc(activeUser.uid, {
-            currentWeightKg: weightNum,
-            weightGoal: {
-              startWeightKg: weightNum,
-              targetWeightKg: targetWeightNum,
-              startedAt: nowIso,
-              estimatedTargetDate: timeline && timeline.weeksToGoal > 0
-                ? new Date(Date.now() + timeline.weeksToGoal * 7 * 86400000).toISOString().slice(0, 10)
-                : nowIso,
-              direction: timeline?.direction ?? 'maintain',
-            },
-          })
-        : Promise.resolve();
+      const weightTask = !biometricsValid ? Promise.resolve() : updateUserDoc(activeUser.uid, {
+        currentWeightKg: weightNum,
+        weightGoal: {
+          startWeightKg: weightNum,
+          targetWeightKg: targetWeightNum,
+          startedAt: nowIso,
+          estimatedTargetDate: timeline && timeline.weeksToGoal > 0
+            ? new Date(Date.now() + timeline.weeksToGoal * 7 * 86400000).toISOString().slice(0, 10)
+            : nowIso,
+          direction: timeline?.direction ?? 'maintain',
+        },
+      }).catch((err) => {
+        console.error('[Onboarding] Saving weight goal failed — continuing without it:', err);
+      });
 
       setStatus('saving');
       await Promise.all([programTask, nutritionTask, saveTask, weightTask]);

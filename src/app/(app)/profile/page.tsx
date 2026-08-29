@@ -220,16 +220,25 @@ export default function ProfilePage() {
       })()
     : null;
 
-  // Check free trial
+  // Check free trial — disabled entirely under a paid trial (see
+  // MembershipConfig.paidTrialEnabled), same as useFeatureAccess.ts and
+  // MembershipGuard.tsx: access there only ever comes from an actual
+  // Stripe subscription, never just from account age. This page has its
+  // own separate copy of the same calendar-trial check (not shared with
+  // those two), which is why it kept showing "Free trial — ends <date>"
+  // even after paid trial was turned on elsewhere.
   const trialDays = (membershipConfig as (MembershipConfig & { trialDays?: number }) | null)?.trialDays ?? 0;
+  const paidTrialEnabled = !!membershipConfig?.paidTrialEnabled;
   const discountPercent = getActiveDiscountPercent(membershipConfig);
   const inTrial = (() => {
+    if (paidTrialEnabled) return false;
     if (!trialDays || !profile?.createdAt) return false;
     const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
     return Date.now() - created.getTime() < trialDays * 24 * 60 * 60 * 1000;
   })();
 
   const trialEndsAt = (() => {
+    if (paidTrialEnabled) return null;
     if (!trialDays || !profile?.createdAt) return null;
     const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
     return new Date(created.getTime() + trialDays * 24 * 60 * 60 * 1000);
@@ -349,8 +358,10 @@ export default function ProfilePage() {
                         ))}
                       </div>
                     )}
-                    {trialDays > 0 && !isCurrentPlan && !inTrial && (
-                      <p className="text-xs text-accent mt-1">{trialDays}-day free trial included</p>
+                    {trialDays > 0 && !isCurrentPlan && (paidTrialEnabled || !inTrial) && (
+                      <p className="text-xs text-accent mt-1">
+                        {paidTrialEnabled ? `$${((membershipConfig?.trialPriceCents ?? 100) / 100).toFixed(2)} for ${trialDays} days, then this price applies` : `${trialDays}-day free trial included`}
+                      </p>
                     )}
                     {plan.description && (
                       <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>
@@ -391,7 +402,7 @@ export default function ProfilePage() {
                             onClick={() => handleSubscribeMembershipPlan(plan.id)}
                             loading={subscribingMembershipPlanId === plan.id}
                           >
-                            <Crown className="w-4 h-4" /> {subscribingMembershipPlanId === plan.id ? 'Opening Checkout…' : (trialDays > 0 && !inTrial ? 'Start Free Trial' : isActive ? 'Switch to This Plan' : 'Subscribe Now')}
+                            <Crown className="w-4 h-4" /> {subscribingMembershipPlanId === plan.id ? 'Opening Checkout…' : (trialDays > 0 && !inTrial ? (paidTrialEnabled ? `Start for $${((membershipConfig?.trialPriceCents ?? 100) / 100).toFixed(2)}` : 'Start Free Trial') : isActive ? 'Switch to This Plan' : 'Subscribe Now')}
                           </Button>
                           <p className="text-[10px] text-text-tertiary text-center mt-2">Secure payment via Stripe. Cancel anytime.</p>
                         </>
