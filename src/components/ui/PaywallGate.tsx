@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Lock, Star, Crown, Sparkles, ExternalLink, Check } from 'lucide-react';
-import { startPlanCheckout, openBillingPortal } from '@/lib/checkout';
+import { startPlanCheckout, changePlan } from '@/lib/checkout';
 import { getPlanBillingPeriods, planHasAnyPrice, getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
@@ -168,8 +168,8 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
 function PlanUpgradeScreen({ planName, plans, feature, programId, discountPercent }: {
   planName: string; plans: MembershipPlan[]; feature: string | undefined; programId: string | undefined; discountPercent: number;
 }) {
-  const { user } = useAuth();
-  const [openingPortal, setOpeningPortal] = useState<string | null>(null);
+  const { user, refreshProfile } = useAuth();
+  const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
   // Was just a static "upgrade from your profile" message with no actual
   // way to act on it right here — the user had to remember which plan (if
   // any) covers this feature, leave the page, find it in Settings/Profile,
@@ -181,19 +181,23 @@ function PlanUpgradeScreen({ planName, plans, feature, programId, discountPercen
   const upgradePlans = plans.filter((p) => p.active && planHasAnyPrice(p) && planIncludesFeature(p, feature, programId));
   const anyMarkedPopular = upgradePlans.some((p) => p.mostPopular);
 
-  async function handleUpgrade(planId: string) {
+  async function handleUpgrade(planId: string, periodMonths: 1 | 3 | 6 | 12) {
     if (!user) return;
-    setOpeningPortal(planId);
-    // Stripe's billing portal — not startPlanCheckout, which unconditionally
-    // rejects anyone with an existing active membership. The portal is the
-    // one place an already-paying member can actually change plans, with
-    // Stripe handling proration; it doesn't accept a "go straight to this
-    // plan" deep link without additional portal configuration, so this
-    // opens the portal generally rather than pretending to jump the member
-    // straight to `planId` — the button below is still labeled per-plan so
-    // the member knows exactly which one to pick once they're there.
-    const err = await openBillingPortal(user);
-    if (err) { toast.error(err); setOpeningPortal(null); }
+    setChangingPlanId(planId);
+    // Switches the existing subscription's price directly (with Stripe
+    // prorating the difference) — not the billing portal, which can't offer
+    // a plan switcher here at all (see /api/stripe/change-plan's own
+    // comment: these plans only ever exist as inline price_data, never as
+    // permanent Stripe Price objects the portal could list).
+    const err = await changePlan(user, planId, periodMonths);
+    if (err) {
+      toast.error(err);
+      setChangingPlanId(null);
+    } else {
+      toast.success('Plan updated');
+      await refreshProfile().catch(() => {});
+      setChangingPlanId(null);
+    }
   }
 
   return (
@@ -259,8 +263,8 @@ function PlanUpgradeScreen({ planName, plans, feature, programId, discountPercen
                   </ul>
                 )}
                 <div className="mt-auto pt-4">
-                  <Button fullWidth variant={isFeatured ? 'primary' : 'secondary'} onClick={() => handleUpgrade(plan.id)} loading={openingPortal === plan.id}>
-                    <ExternalLink className="w-4 h-4" /> {openingPortal === plan.id ? 'Opening Billing…' : `Upgrade to ${plan.name}`}
+                  <Button fullWidth variant={isFeatured ? 'primary' : 'secondary'} onClick={() => handleUpgrade(plan.id, displayPeriod.months)} loading={changingPlanId === plan.id}>
+                    <ExternalLink className="w-4 h-4" /> {changingPlanId === plan.id ? 'Updating Plan…' : `Upgrade to ${plan.name}`}
                   </Button>
                 </div>
               </Card>

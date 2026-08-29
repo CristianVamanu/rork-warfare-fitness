@@ -46,6 +46,26 @@ export async function openBillingPortal(user: User): Promise<string | null> {
   }
 }
 
+/** Switches an already-active member to a different plan/billing term, in
+ * place (Stripe prorates the difference) — see /api/stripe/change-plan for
+ * why this doesn't go through the billing portal. Returns an error string
+ * on failure, null on success (caller should refresh the member's profile). */
+export async function changePlan(user: User, planId: string, periodMonths: 1 | 3 | 6 | 12 = 1): Promise<string | null> {
+  try {
+    const token = await getIdToken(user);
+    const res = await fetch('/api/stripe/change-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ planId, periodMonths }),
+    });
+    const data = await res.json() as { ok?: boolean; error?: string };
+    if (data.ok) return null;
+    return data.error ?? 'Failed to change plan';
+  } catch {
+    return 'Failed to change plan';
+  }
+}
+
 /** Opens Stripe Checkout for a specific 1:1 coaching plan. Redirects on success. */
 export async function startCoachingCheckout(user: User, planId: string): Promise<string | null> {
   try {
