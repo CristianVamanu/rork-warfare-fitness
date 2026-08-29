@@ -1609,7 +1609,7 @@ function WorkoutSessionPageInner() {
 
   if (isLockedByTrial) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
         <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-4">
           <Lock className="w-8 h-8 text-accent" />
         </div>
@@ -1629,7 +1629,7 @@ function WorkoutSessionPageInner() {
 
   if (loadingProgram) {
     return (
-      <div className="min-h-screen bg-background flex flex-col px-4 py-8 gap-4 items-center justify-center">
+      <div className="min-h-screen flex flex-col px-4 py-8 gap-4 items-center justify-center">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
@@ -1644,9 +1644,16 @@ function WorkoutSessionPageInner() {
   if (!currentEx) return null;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    // No opaque bg-background fill on the root — that was painting flat
+    // solid black straight over AppLayout's fixed AppBackground grid
+    // texture, which is only ever visible through content that leaves it
+    // transparent. Matches the community channel page's own fix for the
+    // exact same look — root + header both transparent, only the fixed
+    // bottom bar stays translucent (bg-background/95) since it needs to
+    // stay legible over changing content scrolling behind it.
+    <div className="min-h-screen flex flex-col">
       {/* ── Sticky header ─────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-30 bg-background/90 backdrop-blur-xl border-b border-white/8">
+      <div className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/8">
         <div className="px-4 py-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-2">
             <button
