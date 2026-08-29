@@ -117,6 +117,15 @@ export async function POST(req: NextRequest) {
             const planId = session.metadata?.planId;
             const planName = session.metadata?.planName;
             await setSubscriptionStatus(userId, fieldFromMetadata(session.metadata), 'active', expiresAt, planId, planName, subId ?? undefined, false);
+            // Marks this account as having already used its trial (free or
+            // paid) — see plan-checkout's alreadyUsedTrial check, which
+            // stops a cancel-then-resubscribe loop from repeatedly getting
+            // a fresh trial_period_days (and, for a paid trial, the
+            // discounted trial fee) every time.
+            if (session.metadata?.trialUsed === 'true') {
+              const db = getAdminDb();
+              await db?.collection('users').doc(userId).update({ trialUsedAt: FieldValue.serverTimestamp() }).catch(() => {});
+            }
           }
         }
         break;

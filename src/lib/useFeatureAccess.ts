@@ -51,6 +51,9 @@ export function useFeatureAccess(feature?: string, programId?: string): FeatureA
 
   const trialDays = config?.trialDays ?? 0;
   const inTrial = (() => {
+    // A paid trial only ever grants access through an actual Stripe
+    // subscription (hasMembership above) — see MembershipConfig.paidTrialEnabled.
+    if (config?.paidTrialEnabled) return false;
     if (!trialDays || !profile?.createdAt) return false;
     const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
     const ms = Date.now() - created.getTime();

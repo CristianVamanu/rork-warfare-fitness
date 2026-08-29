@@ -322,15 +322,23 @@ export default function LandingPage({
   }
 
   const trialDays = membership?.enabled ? (membership.trialDays ?? 0) : 0;
+  const paidTrialEnabled = !!membership?.paidTrialEnabled;
+  const trialPrice = ((membership?.trialPriceCents ?? 100) / 100).toFixed(2);
   const discountPercent = getActiveDiscountPercent(membership);
 
   if (loading || user) return <FullPageSpinner />;
 
   const subheadline = landing.subheadline.replace('{appName}', appName);
-  // Free trial needs no payment upfront — MembershipGuard grants access
+  // A free trial needs no payment upfront — MembershipGuard grants access
   // automatically for trialDays from account creation, so the CTA can lead
-  // straight to registration rather than a paid checkout.
-  const primaryCtaLabel = trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : landing.ctaPrimaryLabel;
+  // straight to registration rather than a paid checkout. A paid trial
+  // (MembershipConfig.paidTrialEnabled) is the opposite: it only exists to
+  // get a card on file immediately, so both the label and every "no card
+  // required" claim on this page have to say so honestly instead of
+  // copy-pasting the free-trial promise onto a flow that now requires one.
+  const primaryCtaLabel = trialDays <= 0 ? landing.ctaPrimaryLabel
+    : paidTrialEnabled ? `Start for $${trialPrice}`
+    : `Start ${trialDays}-Day Free Trial`;
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
@@ -504,7 +512,7 @@ export default function LandingPage({
           </div>
 
           <div className="flex items-center justify-center gap-4 mt-5 flex-wrap">
-            <p className="text-xs text-text-tertiary">No credit card required</p>
+            <p className="text-xs text-text-tertiary">{paidTrialEnabled ? `Cancel anytime` : 'No credit card required'}</p>
             <span className="text-text-tertiary">·</span>
             <Link href="/login" className="text-xs text-accent font-medium hover:underline">
               {landing.ctaSecondaryLabel}
@@ -842,7 +850,9 @@ export default function LandingPage({
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
             <p className="text-text-secondary text-sm mt-2">
-              {trialDays > 0 ? `Start free — ${trialDays} days on us, no card required.` : 'Simple pricing. Cancel anytime.'}
+              {trialDays <= 0 ? 'Simple pricing. Cancel anytime.'
+                : paidTrialEnabled ? `Try it for $${trialPrice} — ${trialDays} days, then your plan's price.`
+                : `Start free — ${trialDays} days on us, no card required.`}
             </p>
           </div>
           <div className={`grid gap-4 items-stretch ${
@@ -889,7 +899,9 @@ export default function LandingPage({
                   <span className="text-xs text-text-secondary">{displayPeriod.months === 1 ? '/month' : ` / ${displayPeriod.months}mo`}</span>
                 </div>
                 {trialDays > 0 && (
-                  <p className="text-[11px] text-accent mt-1 font-medium">{trialDays}-day free trial, no payment required</p>
+                  <p className="text-[11px] text-accent mt-1 font-medium">
+                    {paidTrialEnabled ? `$${trialPrice} for ${trialDays} days, then this price applies` : `${trialDays}-day free trial, no payment required`}
+                  </p>
                 )}
                 {plan.description && (
                   <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>
@@ -903,7 +915,7 @@ export default function LandingPage({
                 </ul>
                 <Link href={`/onboarding?planId=${plan.id}`} className="block pt-5 mt-auto">
                   <Button fullWidth size="md" variant={i === 0 ? 'primary' : 'secondary'}>
-                    {trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : 'Join Now'} <ArrowRight className="w-4 h-4" />
+                    {trialDays <= 0 ? 'Join Now' : paidTrialEnabled ? `Start for $${trialPrice}` : `Start ${trialDays}-Day Free Trial`} <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
               </motion.div>
@@ -1008,7 +1020,15 @@ export default function LandingPage({
           <h2 className="text-2xl sm:text-3xl font-black text-white">Questions? Answered.</h2>
         </div>
         <div className="rounded-2xl border border-white/8 bg-surface px-5">
-          {FAQ_ITEMS.map((item, i) => (
+          {FAQ_ITEMS.map((item, i) => ({
+            ...item,
+            // The static FAQ copy promises a no-card free trial, which is
+            // the opposite of what a paid trial actually is — overridden
+            // here rather than duplicating the whole FAQ list per mode.
+            a: paidTrialEnabled && i === FAQ_ITEMS.length - 1
+              ? `Try it for $${trialPrice} — that gets you ${trialDays} full days before your plan's real price kicks in. Cancel anytime from your account before then and you won't be charged again.`
+              : item.a,
+          })).map((item, i) => (
             <FaqItem
               key={item.q}
               q={item.q}
@@ -1039,7 +1059,7 @@ export default function LandingPage({
           <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
             <XCircle className="w-3.5 h-3.5 text-accent" /> Cancel anytime
           </div>
-          {trialDays > 0 && (
+          {trialDays > 0 && !paidTrialEnabled && (
             <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
               <CheckCircle2 className="w-3.5 h-3.5 text-accent" /> No card required for trial
             </div>

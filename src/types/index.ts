@@ -239,6 +239,11 @@ export interface UserProfile {
   achievements?: string[];
   questsCompleted?: string[];
   prBan?: { until: unknown /* Timestamp | null; null = indefinite */; bannedAt: unknown };
+  // Set once, server-side only (Stripe webhook), the first time this
+  // account actually uses a trial (free or paid) via Stripe checkout — see
+  // api/stripe/plan-checkout's alreadyUsedTrial check. Never client-writable
+  // (see firestore.rules' self-update blocklist).
+  trialUsedAt?: unknown;
   xp?: number;
   powerLevel?: number;
   currentWeightKg?: number;
@@ -720,9 +725,21 @@ export interface MembershipConfig {
   lockedFeatures?: string[];
   lockedProgramIds?: string[];
   fullLock: boolean; // lock entire app for non-members/non-trial users
-  trialDays: 0 | 7 | 14 | 30; // free trial length; grants full access to every feature regardless of plan
+  trialDays: 0 | 7 | 14 | 30; // trial length; grants full access to every feature regardless of plan
   discountPercent?: number;   // 1-100, applied to new checkouts while active
   discountExpiresAt?: string; // ISO datetime; discount inactive after this
+  // MadMuscles-style paid trial: charge trialPriceCents immediately at
+  // checkout instead of granting `trialDays` of free no-card access. When
+  // this is on, the createdAt-based free-trial bypass (inTrial in
+  // useFeatureAccess.ts/MembershipGuard.tsx, trialActive() in
+  // firestore.rules) is disabled entirely — access is only ever granted
+  // via an actual Stripe subscription (which itself starts in Stripe's
+  // own 'trialing' status for `trialDays`, already treated as active
+  // access by the webhook). Requires fullLock so the paywall/checkout
+  // actually gets shown to someone with no subscription yet — enforced by
+  // the admin UI, not just documented here.
+  paidTrialEnabled?: boolean;
+  trialPriceCents?: number; // e.g. 100 = $1.00, charged once at checkout
 }
 
 export interface MembershipPlan {

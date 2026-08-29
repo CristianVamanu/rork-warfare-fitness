@@ -2874,16 +2874,64 @@ function AdminPageInner() {
                           </button>
                         ))}
                       </div>
-                      <p className="text-xs text-text-tertiary mt-1.5">New members get this many days free before being charged.</p>
+                      <p className="text-xs text-text-tertiary mt-1.5">
+                        {membership.paidTrialEnabled
+                          ? 'New members get this many days on the trial price below before being charged the plan\'s full price.'
+                          : 'New members get this many days free before being charged.'}
+                      </p>
                     </div>
+                    {membership.trialDays > 0 && (
+                      <div className="p-3 bg-surface-elevated rounded-xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-white">Paid Trial (MadMuscles-style)</p>
+                            <p className="text-xs text-text-secondary mt-0.5">Charge a small fee upfront instead of a free, no-card trial — filters out non-payers and gets you paid from day one.</p>
+                          </div>
+                          <button
+                            onClick={() => setMembership(m => ({
+                              ...m,
+                              paidTrialEnabled: !m.paidTrialEnabled,
+                              // A paid trial only ever gets enforced through
+                              // the checkout paywall (LockedScreen) — without
+                              // Full Platform Lock also on, nothing would
+                              // ever prompt payment and the trial fee would
+                              // never actually get charged to anyone.
+                              fullLock: !m.paidTrialEnabled ? true : m.fullLock,
+                            }))}
+                            className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${membership.paidTrialEnabled ? 'bg-accent' : 'bg-surface'}`}
+                          >
+                            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membership.paidTrialEnabled ? 'left-6' : 'left-1'}`} />
+                          </button>
+                        </div>
+                        {membership.paidTrialEnabled && (
+                          <div>
+                            <label className="text-xs text-text-secondary mb-1 block">Trial Price (USD, charged immediately)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={((membership.trialPriceCents ?? 100) / 100).toFixed(2)}
+                              onChange={e => setMembership(m => ({ ...m, trialPriceCents: Math.round((parseFloat(e.target.value) || 0) * 100) }))}
+                              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                            />
+                            <p className="text-xs text-text-tertiary mt-1.5">
+                              e.g. $1.00 for {membership.trialDays} days, then the member's chosen plan price applies automatically — same pattern as MadMuscles and most subscription fitness apps.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-white">Full Platform Lock</p>
-                        <p className="text-xs text-text-secondary mt-0.5">Non-members can only see the dashboard</p>
+                        <p className="text-xs text-text-secondary mt-0.5">
+                          {membership.paidTrialEnabled ? 'Required while Paid Trial is on — non-members must check out to get in.' : 'Non-members can only see the dashboard'}
+                        </p>
                       </div>
                       <button
-                        onClick={() => setMembership(m => ({ ...m, fullLock: !m.fullLock }))}
-                        className={`w-11 h-6 rounded-full transition-colors relative ${membership.fullLock ? 'bg-danger' : 'bg-surface-elevated'}`}
+                        onClick={() => !membership.paidTrialEnabled && setMembership(m => ({ ...m, fullLock: !m.fullLock }))}
+                        disabled={membership.paidTrialEnabled}
+                        className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${membership.fullLock ? 'bg-danger' : 'bg-surface-elevated'} ${membership.paidTrialEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membership.fullLock ? 'left-6' : 'left-1'}`} />
                       </button>

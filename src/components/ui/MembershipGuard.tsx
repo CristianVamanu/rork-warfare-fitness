@@ -11,8 +11,15 @@ import { Card } from './Card';
 import { Button } from './Button';
 import type { MembershipConfig, MembershipPlan, PlanBillingPeriodMonths } from '@/types';
 
-// Pages that are always accessible regardless of membership
-const FREE_PATHS = ['/dashboard', '/settings', '/messages', '/notifications', '/profile', '/banned', '/onboarding', '/goals'];
+// Pages that are always accessible regardless of membership — account
+// management, not "the product" itself. /dashboard is deliberately NOT
+// unconditional (see ALWAYS_FREE_PATHS below): under a free trial it's
+// meant to be visible immediately (there's no paywall to show yet, the
+// trial itself already grants access), but under a paid trial leaving it
+// exempt would let a brand-new signup wander the dashboard shell forever
+// without ever having to check out — the entire point of copying
+// MadMuscles' funnel is a hard paywall right after the quiz.
+const ALWAYS_FREE_PATHS = ['/settings', '/messages', '/notifications', '/profile', '/banned', '/onboarding', '/goals'];
 
 interface Props {
   pathname: string;
@@ -45,9 +52,12 @@ export function MembershipGuard({ pathname, children }: Props) {
   // membership — it grants at least everything a regular membership does.
   const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
 
-  // Check free trial
+  // Check free trial — disabled entirely under a paid trial (see
+  // MembershipConfig.paidTrialEnabled): access there only ever comes from
+  // an actual Stripe subscription, i.e. hasMembership above.
   const trialDays = config?.trialDays ?? 0;
   const inTrial = (() => {
+    if (config?.paidTrialEnabled) return false;
     if (!trialDays || !profile?.createdAt) return false;
     const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
     return Date.now() - created.getTime() < trialDays * 24 * 60 * 60 * 1000;
@@ -57,19 +67,23 @@ export function MembershipGuard({ pathname, children }: Props) {
 
   // Full lock — block everything except safe paths
   if (config.fullLock) {
-    const isFree = FREE_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'));
-    if (!isFree) return <LockedScreen trialDays={trialDays} />;
+    const freePaths = config.paidTrialEnabled ? ALWAYS_FREE_PATHS : [...ALWAYS_FREE_PATHS, '/dashboard'];
+    const isFree = freePaths.some(p => pathname === p || pathname.startsWith(p + '/'));
+    if (!isFree) return <LockedScreen trialDays={trialDays} paidTrialEnabled={!!config.paidTrialEnabled} trialPriceCents={config.trialPriceCents} />;
   }
 
   return <>{children}</>;
 }
 
-function LockedScreen({ trialDays }: { trialDays: number }) {
+function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents }: { trialDays: number; paidTrialEnabled: boolean; trialPriceCents?: number }) {
   const { user } = useAuth();
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [subscribingId, setSubscribingId] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<Record<string, PlanBillingPeriodMonths>>({});
-  const trialLabel = trialDays > 0 ? ` · ${trialDays}-day free trial` : '';
+  const trialPrice = ((trialPriceCents ?? 100) / 100).toFixed(2);
+  const trialLabel = trialDays <= 0 ? '' : paidTrialEnabled
+    ? ` · $${trialPrice} for ${trialDays} days`
+    : ` · ${trialDays}-day free trial`;
 
   useEffect(() => {
     getMembershipPlans().then((p) => setPlans(p.filter((x) => x.active && planHasAnyPrice(x)))).catch(() => {});
@@ -135,7 +149,7 @@ function LockedScreen({ trialDays }: { trialDays: number }) {
                   </div>
                 )}
                 <Button fullWidth className="mt-4" onClick={() => handleSubscribe(plan.id)} loading={subscribingId === plan.id}>
-                  <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : (trialDays > 0 ? 'Start Free Trial' : 'Subscribe Now')}
+                  <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : trialDays <= 0 ? 'Subscribe Now' : paidTrialEnabled ? `Start for $${trialPrice}` : 'Start Free Trial'}
                 </Button>
               </Card>
             );
