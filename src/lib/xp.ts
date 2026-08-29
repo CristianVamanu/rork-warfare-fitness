@@ -35,9 +35,21 @@ export function calcWorkoutXP(
   );
 }
 
-/** Accumulate XP into a power level (1 level per 100 XP). */
+/**
+ * Accumulate XP into a power level (1 level per 100 XP), starting at 1.
+ *
+ * The `+ 1` matters: signup seeds powerLevel to 1 (see auth.ts), but this
+ * used to return `floor(xp/100)`, i.e. 0 for anyone under 100 XP. So a new
+ * user displayed Level 1, finished their first workout worth ~80 XP, and
+ * completeWorkout() overwrote it with 0 — a visible DROP as a reward for
+ * training. Starting the scale at 1 also keeps xpToNextLevel() below
+ * consistent with it: the remainder hits 100 exactly when the level ticks
+ * over, which `max(1, floor(...))` would not have done (that would have
+ * stalled level 1 across the whole 0-199 range while the progress bar
+ * filled and reset at 100).
+ */
 export function xpToPowerLevel(totalXP: number): number {
-  return Math.floor(totalXP / 100);
+  return Math.floor(totalXP / 100) + 1;
 }
 
 /** XP needed to reach the next power level. */

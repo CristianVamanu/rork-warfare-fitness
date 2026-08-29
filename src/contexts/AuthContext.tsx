@@ -82,7 +82,8 @@ async function ensureUserDoc(firebaseUser: User): Promise<void> {
       lastActive: serverTimestamp(),
       stats: {
         streak: 0,
-        powerLevel: 0,
+        // 1, not 0 — matches signUp()'s seed in auth.ts and xpToPowerLevel(0).
+        powerLevel: 1,
         totalWorkouts: 0,
         totalWeightLifted: 0,
       },

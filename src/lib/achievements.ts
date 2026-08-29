@@ -35,7 +35,7 @@ export const ACHIEVEMENT_DEFS: AchievementDef[] = [
   { id: 'power_500',      icon: '🌌', title: 'Mythic',            desc: 'Reach Power Level 500',          category: 'power'    },
   { id: 'power_1000',     icon: '👁️', title: 'Ascended',          desc: 'Reach Power Level 1,000',        category: 'power'    },
   // Time of day
-  { id: 'early_bird',     icon: '🌅', title: 'Early Bird',        desc: 'Complete a workout before 7am',  category: 'time'     },
+  { id: 'early_bird',     icon: '🌅', title: 'Early Bird',        desc: 'Complete a workout between 4am and 7am', category: 'time'     },
   { id: 'night_owl',      icon: '🦉', title: 'Night Owl',         desc: 'Complete a workout after 9pm',   category: 'time'     },
   { id: 'graveyard_shift',icon: '🕛', title: 'Graveyard Shift',   desc: 'Complete a workout between midnight and 4am', category: 'time' },
   { id: 'weekend_warrior',icon: '🌆', title: 'Weekend Warrior',   desc: 'Complete a workout on a Saturday or Sunday', category: 'time' },
@@ -89,7 +89,13 @@ function isEarned(id: string, p: CheckParams): boolean {
   const threshold = ACHIEVEMENT_THRESHOLDS[id];
   if (threshold) return (p[threshold.statKey] as number | undefined ?? 0) >= threshold.target;
   switch (id) {
-    case 'early_bird':     return (p.workoutHour ?? 12) < 7;
+    // The three time-of-day bands are mutually exclusive. early_bird was
+    // `< 7`, which fully contained graveyard_shift's `< 4` — so a 2am
+    // session unlocked BOTH at once and graveyard_shift could never be
+    // earned on its own, making it a redundant duplicate rather than the
+    // rarer badge it's meant to be. Now: 00:00-03:59 graveyard,
+    // 04:00-06:59 early bird, 21:00-23:59 night owl.
+    case 'early_bird':     return (p.workoutHour ?? 12) >= 4 && (p.workoutHour ?? 12) < 7;
     case 'night_owl':      return (p.workoutHour ?? 12) >= 21;
     case 'graveyard_shift':return (p.workoutHour ?? 12) < 4;
     case 'weekend_warrior':return !!p.isWeekend;
