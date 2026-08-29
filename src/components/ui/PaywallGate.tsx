@@ -87,8 +87,20 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
     if (err) setSubscribingId(null);
   }
 
+  // Purchasable plans that actually cover this locked feature — computed
+  // once, up front, and used for BOTH the empty-state check and the map
+  // below. Previously the empty-state check ran against every active plan
+  // while the map separately filtered by feature coverage, so a real plan
+  // set (active plans exist, none of which cover this specific feature)
+  // rendered the "Choose one below" heading over an empty container instead
+  // of the proper empty state.
   const activePlans = plans.filter((p) => p.active && planHasAnyPrice(p));
+  const purchasablePlans = activePlans.filter((p) => planIncludesFeature(p, feature, programId));
   const trialDays = config.trialDays ?? 0;
+  // A user who already used their trial (free or paid) gets full-price CTAs
+  // and no trial copy — trialUsedAt is set once, by the webhook, the first
+  // time either kind of trial actually fires.
+  const effectiveTrialDays = profile?.trialUsedAt ? 0 : trialDays;
   // This wall was still promising a FREE trial after paid trial shipped,
   // while checkout charged trialPriceCents immediately — i.e. it told the
   // user "Start Free Trial" and then took their money, which is exactly how
@@ -97,14 +109,17 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
   // naming the price the trial converts into.
   const paidTrialEnabled = !!config.paidTrialEnabled;
   const trialPrice = ((config.trialPriceCents ?? 100) / 100).toFixed(2);
-  const featuredPrice = activePlans[0] ? getPlanBillingPeriods(activePlans[0])[0] : null;
+  // Follows the admin-set mostPopular flag, same as the badge logic below —
+  // was hardcoded to activePlans[0] regardless of which plan is featured.
+  const featuredPlan = purchasablePlans.find((p) => p.mostPopular) ?? purchasablePlans[0];
+  const featuredPrice = featuredPlan ? getPlanBillingPeriods(featuredPlan)[0] : null;
   const afterTrial = featuredPrice
     ? ` then $${featuredPrice.price.toFixed(2)}${featuredPrice.months === 1 ? '/mo' : ` every ${featuredPrice.months} months`}`
     : '';
-  const trialLabel = trialDays <= 0 ? '' : paidTrialEnabled
-    ? ` · $${trialPrice} for ${trialDays} days,${afterTrial || ' then your plan price applies'}`
-    : ` · ${trialDays}-day free trial${afterTrial ? `,${afterTrial}` : ''}`;
-  const ctaLabel = trialDays <= 0 ? 'Subscribe Now' : paidTrialEnabled ? `Start for $${trialPrice}` : 'Start Free Trial';
+  const trialLabel = effectiveTrialDays <= 0 ? '' : paidTrialEnabled
+    ? ` · $${trialPrice} for ${effectiveTrialDays} days,${afterTrial || ' then your plan price applies'}`
+    : ` · ${effectiveTrialDays}-day free trial${afterTrial ? `,${afterTrial}` : ''}`;
+  const ctaLabel = effectiveTrialDays <= 0 ? 'Subscribe Now' : paidTrialEnabled ? `Start for $${trialPrice}` : 'Start Free Trial';
 
   return (
     <div className="px-4 py-12 flex flex-col items-center justify-center min-h-[40vh]">
@@ -122,14 +137,13 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
         </p>
       </div>
 
-      {activePlans.length === 0 ? (
+      {purchasablePlans.length === 0 ? (
         <Card className="p-6 text-center max-w-sm w-full">
           <p className="text-sm text-text-secondary">No plans are available to purchase right now — check back soon.</p>
         </Card>
       ) : (
         <div className="space-y-3 max-w-sm w-full">
-          {activePlans.map((plan) => {
-            if (!planIncludesFeature(plan, feature, programId)) return null;
+          {purchasablePlans.map((plan) => {
             const displayPeriod = getPlanBillingPeriods(plan)[0];
             return (
               <Card key={plan.id} className="p-5 border-accent/20">

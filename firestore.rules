@@ -197,7 +197,10 @@ service cloud.firestore {
     // installer doc must be publicly readable (checked before auth exists)
     match /system/installer {
       allow read:  if true;
-      allow write: if isAuthed();   // admin is signed in by the time this is written
+      // Only writable before install completes, or by an already-confirmed
+      // admin — otherwise any authed client could flip `installed` back to
+      // false and re-trigger the installer flow.
+      allow write: if isAdmin() || installerNotDone();
     }
 
     // Publicly readable — branding (app name, logo) needs to render on the
@@ -219,7 +222,10 @@ service cloud.firestore {
 
     // Catch-all for any other system docs
     match /system/{doc} {
-      allow read:  if isAuthed();
+      // Firestore rules are additive across match blocks, so this catch-all
+      // must NOT match /system/secrets — otherwise this permissive read
+      // silently overrides that doc's own isAdmin()-only lock above.
+      allow read:  if doc != 'secrets' && isAuthed();
       allow write: if isAdmin();
     }
 

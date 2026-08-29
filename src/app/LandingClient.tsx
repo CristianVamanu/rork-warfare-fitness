@@ -330,10 +330,12 @@ export default function LandingPage({
   const paidTrialEnabled = !!membership?.paidTrialEnabled;
   const trialPrice = ((membership?.trialPriceCents ?? 100) / 100).toFixed(2);
   const discountPercent = getActiveDiscountPercent(membership);
-  // Same plan the pricing section itself marks "Most Popular" (index 0) —
-  // used to spell out the post-trial price in the hero, since the hero CTA
+  // Same plan the pricing section itself marks "Most Popular" — was
+  // hardcoded to index 0 regardless of which plan admin actually flagged.
+  // Used to spell out the post-trial price in the hero, since the hero CTA
   // isn't tied to any specific plan the visitor has picked yet.
-  const featuredPlanPrice = membershipPlans[0] ? getPlanBillingPeriods(membershipPlans[0])[0]?.price ?? null : null;
+  const featuredPlan = (anyPlanMarkedPopular ? membershipPlans.find((p) => p.mostPopular) : membershipPlans[0]) ?? membershipPlans[0];
+  const featuredPlanPrice = featuredPlan ? getPlanBillingPeriods(featuredPlan)[0]?.price ?? null : null;
 
   if (loading || user) return <FullPageSpinner />;
 

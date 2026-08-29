@@ -189,6 +189,7 @@ export async function completeWorkout(
     let newStreak = 1;
     let prevTotalWeightLifted = 0;
     let totalMealsLogged = 0;
+    let totalXP = 0;
 
     // Wrapped in a transaction so two workouts finished in quick succession
     // (double-tap "finish", two open tabs) can't both read the same
@@ -200,7 +201,7 @@ export async function completeWorkout(
       const snap = await tx.get(userRef);
       const data = snap.data() ?? {};
       const prevXP = (data.xp as number) ?? 0;
-      const totalXP = prevXP + xpEarned;
+      totalXP = prevXP + xpEarned;
       newPowerLevel = xpToPowerLevel(totalXP);
 
       const statsCache = data.statsCache as Record<string, number> | undefined;
@@ -225,41 +226,44 @@ export async function completeWorkout(
         xp: totalXP,
         powerLevel: newPowerLevel,
         lastActive: serverTimestamp(),
-        // streak deliberately NOT written here — recomputeStatsCache
-        // (already triggered by emit()/createEvent() above) independently
-        // computes it from the full 60-day event history with freeze
-        // logic, and its write used to race this one: whichever finished
-        // last won, so a freeze-extended streak could get silently reset
-        // by this simpler incremental calculation completing after it.
-        // newStreak is still computed above and used for the immediate
-        // achievement/quest checks below, which need a value synchronously
-        // rather than waiting on that async recompute — it's just no
-        // longer persisted from two places.
+        // streak and totalWorkouts deliberately NOT written here —
+        // recomputeStatsCache (already triggered by emit()/createEvent()
+        // above) independently derives both from the actual event history
+        // (totalWorkouts by counting WORKOUT_COMPLETED docs, streak with its
+        // freeze logic), and its write used to race this one: whichever
+        // finished last won, so this transaction's own incremental count —
+        // based on a merge write, not a true increment() — could stomp a
+        // more current value recomputeStatsCache had just derived, or vice
+        // versa. Both local vars are still computed above and used for the
+        // immediate achievement/quest checks below, which need a value
+        // synchronously rather than waiting on that async recompute — they
+        // just aren't persisted from two places anymore.
         statsCache: {
           ...(statsCache ?? {}),
-          totalWorkouts,
           lastWorkoutDate: today,
           cacheDate: today,
         },
         stats: {
           ...(data.stats as Record<string, unknown> ?? {}),
           totalWeightLifted: ((data.stats as Record<string, number>)?.totalWeightLifted ?? 0) + totalWeightLifted,
-          totalWorkouts,
         },
       }, { merge: true });
+    });
 
-      // Mirror the leaderboard-relevant subset onto the public, field-limited
-      // doc other users are actually allowed to read (see firestore.rules —
-      // `users/{uid}` is locked to owner + admin/own-trainer). Streak is
-      // deliberately excluded, matching statsCache above — it's synced solely
-      // by recomputeStatsCache to avoid the same race.
-      void syncLeaderboardPublic(userId, {
-        xp: totalXP,
-        powerLevel: newPowerLevel,
-        totalWorkouts,
-        totalWeightLifted: prevTotalWeightLifted + totalWeightLifted,
-        lastWorkoutDate: today,
-      });
+    // Mirror the leaderboard-relevant subset onto the public, field-limited
+    // doc other users are actually allowed to read (see firestore.rules —
+    // `users/{uid}` is locked to owner + admin/own-trainer). Streak and
+    // totalWorkouts are deliberately excluded, matching statsCache above —
+    // synced solely by recomputeStatsCache to avoid the same race. Moved
+    // outside the transaction — a runTransaction callback can retry on write
+    // conflict, and this call has its own non-transactional side effect
+    // (writing a separate document), which would otherwise fire once per
+    // retry attempt instead of exactly once per completed workout.
+    void syncLeaderboardPublic(userId, {
+      xp: totalXP,
+      powerLevel: newPowerLevel,
+      totalWeightLifted: prevTotalWeightLifted + totalWeightLifted,
+      lastWorkoutDate: today,
     });
 
     // Check achievements after updating power level — use newStreak (the

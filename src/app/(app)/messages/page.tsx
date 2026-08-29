@@ -49,6 +49,13 @@ export default function MessagesPage() {
     if (!loading && conversations.length === 0) router.replace('/dashboard');
   }, [loading, conversations.length, router]);
 
+  // A member only ever has the one staff conversation (they can't start
+  // their own), so requiring a tap to open it before anything's readable is
+  // pure friction — auto-open it as soon as it loads.
+  useEffect(() => {
+    if (!activeConv && conversations.length === 1) setActiveConv(conversations[0]);
+  }, [conversations, activeConv]);
+
   // Live messages for whichever conversation is open — a coach's reply now
   // appears as it's sent instead of only showing up after leaving and
   // reopening the thread.

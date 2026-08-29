@@ -1064,6 +1064,10 @@ function AdminPageInner() {
         features: membershipPlanForm.features.split('\n').map(f => f.trim()).filter(Boolean),
         active: membershipPlanForm.active,
         featureAccess: membershipPlanForm.featureAccess,
+        // Was dropped entirely on every edit (rebuilt object never carried
+        // it forward), silently un-featuring a plan the moment its price or
+        // description was next touched.
+        mostPopular: editingMembershipPlan?.mostPopular ?? false,
       };
       const updated = editingMembershipPlan
         ? membershipPlans.map(p => p.id === plan.id ? plan : p)
@@ -2961,7 +2965,7 @@ function AdminPageInner() {
                   </p>
                   {membership.paidTrialEnabled && (membership.discountPercent ?? 0) > 0 && (
                     <div className="p-2.5 bg-accent/10 border border-accent/20 rounded-xl text-xs text-accent">
-                      Under Paid Trial, this discount is applied so it actually reaches the plan&apos;s real first charge (not just the ${((membership.trialPriceCents ?? 100) / 100).toFixed(2)} trial fee) — the ${((membership.trialPriceCents ?? 100) / 100).toFixed(2)} itself may also pick up a few cents off as a side effect, which is harmless.
+                      Under Paid Trial, Stripe has no way to discount a later charge from a checkout-time coupon — so this discount is applied to the ${((membership.trialPriceCents ?? 100) / 100).toFixed(2)} trial fee itself instead, not the ongoing plan price, which stays full price after the trial.
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-3">

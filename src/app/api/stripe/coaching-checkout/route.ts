@@ -32,6 +32,14 @@ export async function POST(req: NextRequest) {
     if (!plan) return NextResponse.json({ error: 'Coaching plan not found or inactive' }, { status: 404 });
     if (plan.priceMonthly <= 0) return NextResponse.json({ error: 'Plan price not set' }, { status: 400 });
 
+    // Same guard plan-checkout/program-checkout already have — without it a
+    // double-click or a retry on a slow connection could create two separate
+    // coaching subscriptions for the same user.
+    const userSnap = await db.collection('users').doc(userId).get();
+    if (userSnap.data()?.coaching?.status === 'active') {
+      return NextResponse.json({ error: 'You already have an active coaching subscription.' }, { status: 400 });
+    }
+
     const stripe = await getStripe();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
 

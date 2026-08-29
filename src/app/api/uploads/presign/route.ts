@@ -22,7 +22,11 @@ const ALLOWED_ROOTS = ['prPosts', 'progressPhotos', 'community'];
 // signed-in user could presign a PUT for e.g. text/html or SVG-with-script
 // under their own path. Generous enough for real phone-camera video/photos,
 // small enough to bound storage cost per upload.
+// Excludes image/svg+xml specifically — an SVG can carry a <script>, and
+// it's served back from the public R2 bucket as active content, unlike a
+// real raster image or video.
 const ALLOWED_CONTENT_TYPE = /^(image|video)\//;
+const DISALLOWED_CONTENT_TYPE = /^image\/svg\+xml$/i;
 const MAX_SIZE_BYTES = 200 * 1024 * 1024; // 200MB — covers a real phone video clip
 
 export async function POST(req: NextRequest) {
@@ -42,7 +46,7 @@ export async function POST(req: NextRequest) {
     if (!filename || typeof filename !== 'string') {
       return NextResponse.json({ error: 'filename is required' }, { status: 400 });
     }
-    if (!contentType || typeof contentType !== 'string' || !ALLOWED_CONTENT_TYPE.test(contentType)) {
+    if (!contentType || typeof contentType !== 'string' || !ALLOWED_CONTENT_TYPE.test(contentType) || DISALLOWED_CONTENT_TYPE.test(contentType)) {
       return NextResponse.json({ error: 'Only image or video uploads are allowed' }, { status: 400 });
     }
     if (typeof sizeBytes !== 'number' || sizeBytes <= 0 || sizeBytes > MAX_SIZE_BYTES) {

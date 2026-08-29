@@ -14,9 +14,18 @@ import type { NextRequest } from 'next/server';
 // request) instead, falling back to UTC only when it's genuinely absent
 // (e.g. a future non-browser caller).
 export function resolveLocalDate(req: NextRequest): string {
+  const serverToday = new Date().toISOString().slice(0, 10);
   const header = req.headers.get('x-local-date');
-  if (header && /^\d{4}-\d{2}-\d{2}$/.test(header)) return header;
-  return new Date().toISOString().slice(0, 10);
+  if (!header || !/^\d{4}-\d{2}-\d{2}$/.test(header)) return serverToday;
+
+  // Format-valid alone isn't enough — a client could send any arbitrary
+  // date to reset its own daily counter early. A real local date can only
+  // ever differ from the server's UTC date by one day in either direction
+  // (timezone offset), so clamp anything further out back to server-today.
+  const diffMs = new Date(`${header}T00:00:00Z`).getTime() - new Date(`${serverToday}T00:00:00Z`).getTime();
+  const diffDays = Math.round(diffMs / 86400000);
+  if (Number.isNaN(diffDays) || Math.abs(diffDays) > 1) return serverToday;
+  return header;
 }
 
 /**

@@ -96,27 +96,23 @@ export async function POST(req: NextRequest) {
 
     const r2Client = await getR2Client();
     // Deliberately NOT R2_BUCKET_NAME — that bucket serves public content
-    // (exercise videos, PR Wall photos) and backups containing every
-    // user's full data must never sit somewhere with public read access.
-    // Falls back to R2_BUCKET_NAME only so backups don't silently stop
-    // working for an existing install, but that fallback path logs a loud
-    // warning since it's not actually safe long-term.
+    // (exercise videos, PR Wall photos) and backups containing every user's
+    // full data must never sit somewhere with public read access. Previously
+    // fell back to R2_BUCKET_NAME (with only a console.warn) when
+    // R2_BACKUP_BUCKET_NAME was unset — a warning nobody would ever see
+    // unless they were already watching server logs at that exact moment.
+    // Falls back to the local-disk path below instead, which stays private.
     const backupBucket = await getSecret('R2_BACKUP_BUCKET_NAME');
-    const publicBucket = await getSecret('R2_BUCKET_NAME');
-    const bucket = backupBucket || publicBucket;
-    if (!backupBucket && publicBucket) {
-      console.warn('[admin/backup] R2_BACKUP_BUCKET_NAME not set — falling back to the PUBLIC R2_BUCKET_NAME. Set a dedicated private bucket for backups in Admin -> Integrations -> R2.');
-    }
     let location: string;
 
-    if (r2Client && bucket) {
+    if (r2Client && backupBucket) {
       await r2Client.send(new PutObjectCommand({
-        Bucket: bucket,
+        Bucket: backupBucket,
         Key: `backups/${filename}`,
         Body: json,
         ContentType: 'application/json',
       }));
-      location = backupBucket ? `r2:backups/${filename}` : `r2 (⚠️ public bucket):backups/${filename}`;
+      location = `r2:backups/${filename}`;
     } else {
       const dir = path.join(process.cwd(), 'backups');
       await fs.mkdir(dir, { recursive: true });

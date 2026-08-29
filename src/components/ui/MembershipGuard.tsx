@@ -62,30 +62,39 @@ export function MembershipGuard({ pathname, children }: Props) {
   if (config.fullLock) {
     const freePaths = config.paidTrialEnabled ? ALWAYS_FREE_PATHS : [...ALWAYS_FREE_PATHS, '/dashboard'];
     const isFree = freePaths.some(p => pathname === p || pathname.startsWith(p + '/'));
-    if (!isFree) return <LockedScreen trialDays={trialDays} paidTrialEnabled={!!config.paidTrialEnabled} trialPriceCents={config.trialPriceCents} discountPercent={getActiveDiscountPercent(config)} />;
+    if (!isFree) return <LockedScreen trialDays={trialDays} paidTrialEnabled={!!config.paidTrialEnabled} trialPriceCents={config.trialPriceCents} discountPercent={getActiveDiscountPercent(config)} alreadyUsedTrial={!!profile?.trialUsedAt} />;
   }
 
   return <>{children}</>;
 }
 
-function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents, discountPercent }: { trialDays: number; paidTrialEnabled: boolean; trialPriceCents?: number; discountPercent: number }) {
+function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents, discountPercent, alreadyUsedTrial }: { trialDays: number; paidTrialEnabled: boolean; trialPriceCents?: number; discountPercent: number; alreadyUsedTrial: boolean }) {
   const { user } = useAuth();
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [subscribingId, setSubscribingId] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<Record<string, PlanBillingPeriodMonths>>({});
   const trialPrice = ((trialPriceCents ?? 100) / 100).toFixed(2);
+  // A user who already used their trial (free or paid) gets none of the
+  // trial copy or CTAs a first-timer sees — trialUsedAt, set once by the
+  // webhook the first time either kind fires, is the single source of
+  // truth for that, same as everywhere else this trial state is checked.
+  const effectiveTrialDays = alreadyUsedTrial ? 0 : trialDays;
   // Names the price the trial converts INTO, not just the trial price —
   // "$1.00 for 7 days" alone never said what happens on day 8, which is
   // both the most important number and the one a customer will dispute a
   // charge over. Priced off the same featured (first) plan the cards below
   // lead with; falls back to the bare trial line until plans have loaded.
-  const featuredPrice = plans[0] ? getPlanBillingPeriods(plans[0])[0] : null;
+  // Follows the same admin-set mostPopular flag the cards below use for
+  // their badge, falling back to the first plan only when none is marked —
+  // was hardcoded to plans[0] regardless of which plan is actually featured.
+  const featuredPlan = plans.find((p) => p.mostPopular) ?? plans[0];
+  const featuredPrice = featuredPlan ? getPlanBillingPeriods(featuredPlan)[0] : null;
   const afterTrial = featuredPrice
     ? ` then $${featuredPrice.price.toFixed(2)}${featuredPrice.months === 1 ? '/mo' : ` every ${featuredPrice.months} months`}`
     : '';
-  const trialLabel = trialDays <= 0 ? '' : paidTrialEnabled
-    ? ` · $${trialPrice} for ${trialDays} days,${afterTrial || ' then your plan price applies'}`
-    : ` · ${trialDays}-day free trial${afterTrial ? `,${afterTrial}` : ''}`;
+  const trialLabel = effectiveTrialDays <= 0 ? '' : paidTrialEnabled
+    ? ` · $${trialPrice} for ${effectiveTrialDays} days,${afterTrial || ' then your plan price applies'}`
+    : ` · ${effectiveTrialDays}-day free trial${afterTrial ? `,${afterTrial}` : ''}`;
 
   useEffect(() => {
     getMembershipPlans().then((p) => setPlans(p.filter((x) => x.active && planHasAnyPrice(x)))).catch(() => {});
@@ -165,9 +174,9 @@ function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents, discountPe
                   )}
                   <span className="text-sm font-medium text-text-secondary">{active.months === 1 ? '/mo' : ` / ${active.months}mo`}</span>
                 </div>
-                {trialDays > 0 && (
+                {effectiveTrialDays > 0 && (
                   <p className="text-[11px] text-accent mt-1 font-medium">
-                    {paidTrialEnabled ? `$${trialPrice} for ${trialDays} days, then this price applies` : `${trialDays}-day free trial, no payment required`}
+                    {paidTrialEnabled ? `$${trialPrice} for ${effectiveTrialDays} days, then this price applies` : `${effectiveTrialDays}-day free trial, no payment required`}
                   </p>
                 )}
                 {plan.description && <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>}
@@ -195,7 +204,7 @@ function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents, discountPe
                 )}
                 <div className="mt-auto pt-4">
                   <Button fullWidth onClick={() => handleSubscribe(plan.id)} loading={subscribingId === plan.id}>
-                    <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : trialDays <= 0 ? 'Subscribe Now' : paidTrialEnabled ? `Start for $${trialPrice}` : 'Start Free Trial'}
+                    <Crown className="w-4 h-4" /> {subscribingId === plan.id ? 'Opening Checkout…' : effectiveTrialDays <= 0 ? 'Subscribe Now' : paidTrialEnabled ? `Start for $${trialPrice}` : 'Start Free Trial'}
                   </Button>
                 </div>
               </Card>

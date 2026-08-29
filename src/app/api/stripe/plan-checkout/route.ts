@@ -73,33 +73,37 @@ export async function POST(req: NextRequest) {
 
     // Reuse the same site-wide time-limited discount as the rest of checkout
     let discounts: { coupon: string }[] | undefined;
+    let trialFeeDiscountMultiplier: number | undefined;
     const membershipCfgSnap = await db.collection('config').doc('membership').get();
     const membershipCfg = membershipCfgSnap.data() ?? {};
     const discountPercent = Number(membershipCfg.discountPercent ?? 0);
     const discountExpiresAt = membershipCfg.discountExpiresAt ? new Date(membershipCfg.discountExpiresAt as string) : null;
     if (discountPercent > 0 && discountExpiresAt && discountExpiresAt.getTime() > Date.now()) {
-      // Checkout Sessions can only apply a coupon session-wide, never to one
-      // specific line item — so under a paid trial, a `duration: 'once'`
-      // coupon lands entirely on invoice #1, which contains ONLY the
-      // one-time trial fee (the recurring price hasn't billed yet; it's
-      // deferred by trial_period_days). The coupon is then fully consumed,
-      // and the plan's real first charge — the thing the admin actually
-      // meant to discount — lands at full price. Using a repeating coupon
-      // instead keeps it active long enough to still be attached when that
-      // real first charge fires; sized generously past the longest trial
-      // length (30 days) so this is correct regardless of the configured
-      // Trial Days. It does mean the $1 fee itself picks up a few cents of
-      // discount too as a side effect — harmless, and strictly in the
-      // customer's favor, unlike the plan discount silently doing nothing.
       const willChargeTrialFeeFirst = membershipCfg.paidTrialEnabled === true
         && Number(membershipCfg.trialDays ?? 0) > 0
         && !userSnap.data()?.trialUsedAt;
-      const coupon = await stripe.coupons.create(
-        willChargeTrialFeeFirst
-          ? { percent_off: discountPercent, duration: 'repeating', duration_in_months: 2 }
-          : { percent_off: discountPercent, duration: 'once' }
-      );
-      discounts = [{ coupon: coupon.id }];
+      if (willChargeTrialFeeFirst) {
+        // Checkout Sessions can only apply a coupon session-wide, never to
+        // one specific line item, and a subscription-level coupon can only
+        // target the FIRST invoice ('once') or a fixed number of calendar
+        // MONTHS from attachment ('repeating'/duration_in_months) — neither
+        // lines up with "discount the plan's real first charge" here. The
+        // trial fee's one-time invoice fires immediately at checkout, so a
+        // 'once' coupon lands entirely there instead of on the plan price.
+        // A previous fix tried `duration_in_months: 2` to still be attached
+        // when the real charge lands — but that counts from attachment
+        // (checkout time), not from the real invoice, so for monthly plans
+        // it also silently discounted the SECOND real payment too (an extra
+        // cycle of over-discounting nobody asked for). There's no coupon
+        // shape that reaches exactly the second invoice and no other, so
+        // instead the discount is applied directly to the trial fee itself
+        // — the one charge Stripe guarantees fires exactly once, right now.
+        // The plan's ongoing price is left at full rate under a paid trial.
+        trialFeeDiscountMultiplier = 1 - discountPercent / 100;
+      } else {
+        const coupon = await stripe.coupons.create({ percent_off: discountPercent, duration: 'once' });
+        discounts = [{ coupon: coupon.id }];
+      }
     }
 
     const trialDays = Number(membershipCfg.trialDays ?? 0);
@@ -121,7 +125,10 @@ export async function POST(req: NextRequest) {
 
     if (paidTrialEnabled && trialDays > 0 && !alreadyUsedTrial) {
       trialPeriodDays = trialDays;
-      const trialPriceCents = Math.max(0, Math.round(Number(membershipCfg.trialPriceCents ?? 100)));
+      const baseTrialPriceCents = Math.max(0, Math.round(Number(membershipCfg.trialPriceCents ?? 100)));
+      const trialPriceCents = trialFeeDiscountMultiplier !== undefined
+        ? Math.round(baseTrialPriceCents * trialFeeDiscountMultiplier)
+        : baseTrialPriceCents;
       trialFeeLineItem = {
         quantity: 1,
         price_data: {

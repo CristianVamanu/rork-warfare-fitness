@@ -1,17 +1,41 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
+import { verifyAuthed } from '@/lib/verifyAdmin';
 
 function todayKey() {
   return new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
 }
 
-export async function GET() {
+// Was fully unauthenticated with no rate limiting — anyone could hit it
+// directly to burn OpenAI spend once the daily cache missed. Result is
+// shared across all users (cached at config/dailyTip, one doc per day), so
+// this only needs to gate who can trigger generation, not per-user usage.
+const WINDOW_MS = 60 * 1000;
+const MAX_PER_WINDOW = 5;
+const requestLog = new Map<string, number[]>();
+
+function isRateLimited(key: string): boolean {
+  const now = Date.now();
+  const timestamps = (requestLog.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
+  timestamps.push(now);
+  requestLog.set(key, timestamps);
+  if (requestLog.size > 5000) requestLog.clear();
+  return timestamps.length > MAX_PER_WINDOW;
+}
+
+export async function GET(req: NextRequest) {
+  const check = await verifyAuthed(req);
+  if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
+  if (isRateLimited(check.uid)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
   const dateKey = todayKey();
 
   // Try to serve from Firestore cache first

@@ -38,17 +38,26 @@ export default function PRWallPage() {
   const isBanned = !!profile?.prBan && (banUntil === null || (banUntil?.toDate?.() ?? new Date(0)) > new Date());
 
   const handleLike = (id: string) => {
-    if (!user || liked.has(id)) return;
-    setLiked((prev) => new Set(prev).add(id));
-    likePRPost(id, user.uid, true).catch(() => {
-      // Roll back the optimistic like so the UI doesn't keep showing a like
-      // that never actually landed (and permanently block retrying it).
+    if (!user) return;
+    // Toggle — was a one-way "add only" that permanently blocked unliking
+    // once liked.has(id) was true, even though likePRPost itself already
+    // supports the reverse direction (likedBy: arrayRemove, likeCount: -1).
+    const wasLiked = liked.has(id);
+    const nextLiked = !wasLiked;
+    setLiked((prev) => {
+      const next = new Set(prev);
+      if (nextLiked) next.add(id); else next.delete(id);
+      return next;
+    });
+    likePRPost(id, user.uid, nextLiked).catch(() => {
+      // Roll back the optimistic toggle so the UI doesn't keep showing a
+      // state that never actually landed server-side.
       setLiked((prev) => {
         const next = new Set(prev);
-        next.delete(id);
+        if (wasLiked) next.add(id); else next.delete(id);
         return next;
       });
-      toast.error('Failed to like — try again');
+      toast.error('Failed to update like — try again');
     });
   };
 
@@ -192,7 +201,7 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
           className={`flex items-center gap-1.5 text-xs font-medium ${liked ? 'text-danger' : 'text-text-tertiary'}`}
         >
           <Heart className={`w-4 h-4 ${liked ? 'fill-danger' : ''}`} />
-          {post.likeCount + (liked ? 1 : 0)}
+          {post.likeCount}
         </button>
       </Card>
     </motion.div>

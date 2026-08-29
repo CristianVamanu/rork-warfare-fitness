@@ -238,6 +238,17 @@ export async function POST(req: NextRequest) {
             if (userId) {
               const field = fieldFromMetadata(sub.metadata);
               await setSubscriptionStatus(userId, field, 'none');
+              // Firestore status alone doesn't stop Stripe from continuing
+              // to bill this subscription — a refund/dispute is exactly the
+              // moment we want that to stop, not just hide app access while
+              // the card keeps getting charged every cycle.
+              if (sub.status !== 'canceled') {
+                try {
+                  await stripe.subscriptions.cancel(subId);
+                } catch (cancelErr) {
+                  console.error(`[Stripe webhook] Failed to cancel subscription ${subId} for user ${userId}:`, cancelErr);
+                }
+              }
               console.log(`[Stripe webhook] Revoked ${field} for user ${userId} (${event.type})`);
             }
           }

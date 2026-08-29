@@ -129,6 +129,8 @@ export function coachingApplicationEmailHtml(
   name: string, status: 'approved' | 'rejected', planName: string, reason: string | undefined, appName: string, appUrl: string,
 ): string {
   name = escapeHtml(name);
+  planName = escapeHtml(planName);
+  reason = reason ? escapeHtml(reason) : reason;
   if (status === 'approved') {
     return shell(appName, `
       <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">You're approved for 1:1 Coaching!</h1>

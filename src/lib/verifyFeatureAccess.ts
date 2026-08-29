@@ -63,7 +63,19 @@ export async function verifyFeatureAccess(
   const isLocked = !!config.fullLock || (config.lockedFeatures ?? []).includes(feature);
   if (!isLocked) return { allowed: true };
 
-  const tasted = !!profile.aiTaste?.[feature];
+  // The "taste" grant was only ever written client-side (consumeAiTaste in
+  // actions.ts), never checked-and-set here — so a non-member could just
+  // never call that client function and get this locked feature free,
+  // forever, on every request. Consuming it transactionally here, on the
+  // server, is what actually makes it a ONE-time grant.
+  const userRef = db.collection('users').doc(uid);
+  const tasted = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const alreadyTasted = !!snap.data()?.aiTaste?.[feature];
+    if (alreadyTasted) return true;
+    tx.set(userRef, { aiTaste: { [feature]: true } }, { merge: true });
+    return false;
+  });
   if (!tasted) return { allowed: true };
 
   return { allowed: false, error: 'This feature requires an active membership.', status: 403 };

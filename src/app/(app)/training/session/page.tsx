@@ -1200,8 +1200,16 @@ function WorkoutSessionPageInner() {
     try {
       const saved = sessionStorage.getItem(sessionKey);
       if (saved) {
-        const parsed = JSON.parse(saved) as { startTime?: number };
-        if (typeof parsed.startTime === 'number') return parsed.startTime;
+        const parsed = JSON.parse(saved) as { startTime?: number; lastActiveAt?: number };
+        // A tab can sit open for hours/days without being closed — sessionStorage
+        // survives that, but the cached startTime no longer reflects a real
+        // in-progress workout at that point. Discard it (and log a fresh start)
+        // if the session hasn't been touched in over 4 hours, otherwise a
+        // resumed-after-days session could log a multi-hour "duration" and
+        // award XP for it (calcWorkoutXP has no cap of its own).
+        const STALE_MS = 4 * 60 * 60 * 1000;
+        const isStale = typeof parsed.lastActiveAt === 'number' && Date.now() - parsed.lastActiveAt > STALE_MS;
+        if (typeof parsed.startTime === 'number' && !isStale) return parsed.startTime;
       }
     } catch { /* ignore */ }
     return Date.now();
@@ -1343,7 +1351,7 @@ function WorkoutSessionPageInner() {
   useEffect(() => {
     if (exStates.length === 0) return;
     try {
-      sessionStorage.setItem(sessionKey, JSON.stringify({ states: exStates, exIdx: currentExIdx, startTime }));
+      sessionStorage.setItem(sessionKey, JSON.stringify({ states: exStates, exIdx: currentExIdx, startTime, lastActiveAt: Date.now() }));
     } catch { /* quota exceeded — ignore */ }
   }, [exStates, currentExIdx, sessionKey, startTime]);
 
@@ -1580,7 +1588,10 @@ function WorkoutSessionPageInner() {
     if (!user) return;
     setSaving(true);
     try {
-      const duration = Math.round((Date.now() - startTime) / 60000) || 1;
+      // Hard cap as defense in depth on top of the staleness check above —
+      // no legitimate single workout runs past 5 hours, and calcWorkoutXP
+      // scales linearly off this with no cap of its own.
+      const duration = Math.min(Math.round((Date.now() - startTime) / 60000) || 1, 300);
       const logs = exStates.map((ex) => ({
         name: ex.name,
         sets: ex.sets.map((s) => ({
@@ -1867,7 +1878,14 @@ function WorkoutSessionPageInner() {
             seconds={restSeconds}
             total={restTotal}
             onSkip={skipRest}
-            onExtend={() => setRestSeconds((s) => (s ?? 0) + 30)}
+            onExtend={() => {
+              // restTotal drives the progress ring's percentage — extending
+              // seconds without it made the ring math wrong the moment "+30s"
+              // was tapped (percentage computed against a total that no
+              // longer matched the actual remaining/elapsed time).
+              setRestSeconds((s) => (s ?? 0) + 30);
+              setRestTotal((t) => t + 30);
+            }}
           />
         )}
       </AnimatePresence>
@@ -1920,7 +1938,7 @@ function WorkoutSessionPageInner() {
             <Button fullWidth size="lg" loading={saving} onClick={saveWorkout}>
               Save Workout
             </Button>
-            <Button variant="ghost" fullWidth onClick={() => router.replace('/dashboard')}>
+            <Button variant="ghost" fullWidth onClick={() => { sessionStorage.removeItem(sessionKey); router.replace('/dashboard'); }}>
               Skip Save
             </Button>
           </div>
