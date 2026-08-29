@@ -1,13 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock, Star, Crown, Sparkles } from 'lucide-react';
-import { startPlanCheckout } from '@/lib/checkout';
+import { Lock, Star, Crown, Sparkles, ExternalLink } from 'lucide-react';
+import { startPlanCheckout, openBillingPortal } from '@/lib/checkout';
 import { getPlanBillingPeriods, planHasAnyPrice } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Card } from './Card';
 import { Button } from './Button';
+import toast from 'react-hot-toast';
+import type { MembershipPlan } from '@/types';
+
+/** Does this plan's featureAccess actually cover what's currently locked?
+ * Empty featureAccess list = the plan includes everything (no restriction). */
+function planIncludesFeature(plan: MembershipPlan, feature: string | undefined, programId: string | undefined): boolean {
+  return plan.featureAccess.length === 0
+    || ((!feature || plan.featureAccess.includes(feature))
+      && (!programId || plan.featureAccess.includes('premium-programs')));
+}
 
 interface Props {
   feature?: string; // 'barcode' | 'nutrition-ai' | 'meal-planner' | undefined (means fullLock check only)
@@ -51,7 +61,7 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
     const activePlan = profile?.membership?.planId
       ? plans.find((p) => p.id === profile.membership!.planId) ?? null
       : null;
-    return <PlanUpgradeScreen planName={activePlan?.name ?? 'current'} />;
+    return <PlanUpgradeScreen planName={activePlan?.name ?? 'current'} plans={plans} feature={feature} programId={programId} />;
   }
 
   if (!isLocked) return <>{children}</>;
@@ -119,10 +129,7 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
       ) : (
         <div className="space-y-3 max-w-sm w-full">
           {activePlans.map((plan) => {
-            const includesThis = plan.featureAccess.length === 0
-              || (!feature || plan.featureAccess.includes(feature))
-              && (!programId || plan.featureAccess.includes('premium-programs'));
-            if (!includesThis) return null;
+            if (!planIncludesFeature(plan, feature, programId)) return null;
             const displayPeriod = getPlanBillingPeriods(plan)[0];
             return (
               <Card key={plan.id} className="p-5 border-accent/20">
@@ -144,10 +151,31 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
   );
 }
 
-function PlanUpgradeScreen({ planName }: { planName: string }) {
+function PlanUpgradeScreen({ planName, plans, feature, programId }: {
+  planName: string; plans: MembershipPlan[]; feature: string | undefined; programId: string | undefined;
+}) {
+  const { user } = useAuth();
+  const [openingPortal, setOpeningPortal] = useState(false);
+  // Was just a static "upgrade from your profile" message with no actual
+  // way to act on it right here — the user had to remember which plan (if
+  // any) covers this feature, leave the page, find it in Settings/Profile,
+  // and start the upgrade blind. Lists the plans that actually cover what's
+  // locked and opens Stripe's billing portal directly — the correct path
+  // for an EXISTING subscriber (startPlanCheckout unconditionally rejects
+  // anyone with an active membership; only the portal handles a plan
+  // change/proration for someone already paying).
+  const upgradePlans = plans.filter((p) => p.active && planHasAnyPrice(p) && planIncludesFeature(p, feature, programId));
+
+  async function handleUpgrade() {
+    if (!user) return;
+    setOpeningPortal(true);
+    const err = await openBillingPortal(user);
+    if (err) { toast.error(err); setOpeningPortal(false); }
+  }
+
   return (
     <div className="px-4 py-12 flex flex-col items-center justify-center min-h-[40vh]">
-      <Card className="p-8 text-center max-w-sm w-full border-accent/30">
+      <div className="text-center max-w-sm w-full mb-5">
         <div className="w-14 h-14 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-4">
           <Lock className="w-7 h-7 text-accent" />
         </div>
@@ -157,9 +185,35 @@ function PlanUpgradeScreen({ planName }: { planName: string }) {
         </div>
         <h3 className="text-lg font-black text-white mb-2">Upgrade Needed</h3>
         <p className="text-text-secondary text-sm">
-          Your current <span className="text-white font-medium">{planName}</span> plan doesn&apos;t include this feature. Upgrade your plan from your profile to unlock it.
+          Your current <span className="text-white font-medium">{planName}</span> plan doesn&apos;t include this feature.
         </p>
-      </Card>
+      </div>
+
+      {upgradePlans.length === 0 ? (
+        <Card className="p-6 text-center max-w-sm w-full">
+          <p className="text-sm text-text-secondary">No other plan currently covers this feature — check back soon, or contact support.</p>
+        </Card>
+      ) : (
+        <div className="space-y-3 max-w-sm w-full">
+          {upgradePlans.map((plan) => {
+            const displayPeriod = getPlanBillingPeriods(plan)[0];
+            return (
+              <Card key={plan.id} className="p-5 border-accent/20">
+                <p className="text-sm font-bold text-white">{plan.name}</p>
+                <p className="text-2xl font-black text-white mt-1">
+                  ${displayPeriod.price.toFixed(2)}
+                  <span className="text-sm font-medium text-text-secondary">{displayPeriod.months === 1 ? '/mo' : ` / ${displayPeriod.months}mo`}</span>
+                </p>
+                {plan.description && <p className="text-xs text-text-secondary mt-1.5">{plan.description}</p>}
+              </Card>
+            );
+          })}
+          <Button fullWidth variant="secondary" onClick={handleUpgrade} loading={openingPortal}>
+            <ExternalLink className="w-4 h-4" /> Upgrade in Billing Portal
+          </Button>
+          <p className="text-[10px] text-text-tertiary text-center">Change plans anytime — prorated automatically by Stripe.</p>
+        </div>
+      )}
     </div>
   );
 }

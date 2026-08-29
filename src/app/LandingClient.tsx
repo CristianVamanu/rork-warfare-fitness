@@ -325,6 +325,7 @@ export default function LandingPage({
     }
   }
 
+  const anyPlanMarkedPopular = membershipPlans.some((p) => p.mostPopular);
   const trialDays = membership?.enabled ? (membership.trialDays ?? 0) : 0;
   const paidTrialEnabled = !!membership?.paidTrialEnabled;
   const trialPrice = ((membership?.trialPriceCents ?? 100) / 100).toFixed(2);
@@ -889,6 +890,12 @@ export default function LandingPage({
           }`}>
             {membershipPlans.map((plan, i) => {
               const displayPeriod = getPlanBillingPeriods(plan)[0];
+              // mostPopular is admin-set (Admin -> Membership -> the star
+              // button on a plan); falls back to "just badge the first
+              // plan" only when no admin has ever explicitly chosen one, so
+              // existing installs that never touched this keep behaving
+              // exactly as before.
+              const isFeatured = anyPlanMarkedPopular ? !!plan.mostPopular : i === 0;
               return (
               <motion.div
                 key={plan.id}
@@ -896,11 +903,11 @@ export default function LandingPage({
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: i * 0.05 }}
-                className={`relative rounded-2xl p-5 h-full flex flex-col bg-surface ${i === 0 ? 'border-2 border-accent' : 'border border-white/10'}`}
+                className={`relative rounded-2xl p-5 h-full flex flex-col bg-surface ${isFeatured ? 'border-2 border-accent' : 'border border-white/10'}`}
               >
                 {/* Text label, not just the border color — a color-only cue
                     is easy to miss when someone's quickly scanning prices. */}
-                {i === 0 && (
+                {isFeatured && (
                   <div className="absolute -top-3 left-4 px-2.5 py-0.5 bg-accent rounded-full">
                     <span className="text-[10px] font-bold text-black uppercase tracking-wide">Most Popular</span>
                   </div>
@@ -941,7 +948,7 @@ export default function LandingPage({
                   ))}
                 </ul>
                 <Link href={`/onboarding?planId=${plan.id}`} className="block pt-5 mt-auto">
-                  <Button fullWidth size="md" variant={i === 0 ? 'primary' : 'secondary'}>
+                  <Button fullWidth size="md" variant={isFeatured ? 'primary' : 'secondary'}>
                     {trialDays <= 0 ? 'Join Now' : paidTrialEnabled ? `Start for $${trialPrice}` : `Start ${trialDays}-Day Free Trial`} <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>

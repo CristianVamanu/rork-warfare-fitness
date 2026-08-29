@@ -8,7 +8,7 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
-  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail,
+  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail, Star,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -1076,6 +1076,19 @@ function AdminPageInner() {
       toast.success(editingMembershipPlan ? 'Plan updated' : 'Plan created');
     } catch { toast.error('Failed to save plan'); }
     finally { setSavingMembershipPlans(false); }
+  }
+
+  // At most one plan is "Most Popular" — setting it on one clears it from
+  // every other plan, rather than the admin having to manually un-check the
+  // old one first (which they might just forget to do, leaving two plans
+  // both badged, or leaving mostPopular:true stuck on a plan they meant to
+  // demote once they moved the badge elsewhere).
+  async function handleSetMostPopular(planId: string) {
+    try {
+      const updated = membershipPlans.map(p => ({ ...p, mostPopular: p.id === planId }));
+      await saveMembershipPlans(updated);
+      setMembershipPlans(updated);
+    } catch { toast.error('Failed to update Most Popular plan'); }
   }
 
   async function handleDeleteMembershipPlan(plan: MembershipPlan) {
@@ -3050,6 +3063,7 @@ function AdminPageInner() {
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-sm font-bold text-white">{plan.name}</p>
                               {plan.active ? <Badge variant="success">Active</Badge> : <Badge variant="muted">Inactive</Badge>}
+                              {plan.mostPopular && <Badge variant="accent">★ Most Popular</Badge>}
                             </div>
                             <p className="text-sm font-black text-accent mt-0.5">
                               {[
@@ -3074,6 +3088,14 @@ function AdminPageInner() {
                             )}
                           </div>
                           <div className="flex gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => handleSetMostPopular(plan.id)}
+                              disabled={plan.mostPopular}
+                              title={plan.mostPopular ? 'This is the Most Popular plan' : 'Mark as Most Popular'}
+                              className={`p-2.5 rounded-lg transition-colors ${plan.mostPopular ? 'text-accent cursor-default' : 'text-text-secondary hover:text-accent hover:bg-accent/10'}`}
+                            >
+                              <Star className="w-3.5 h-3.5" fill={plan.mostPopular ? 'currentColor' : 'none'} />
+                            </button>
                             <button onClick={() => startEditMembershipPlan(plan)} className="p-2.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>

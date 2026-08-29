@@ -758,6 +758,15 @@ export interface MembershipPlan {
   price12mo?: number;
   currency: string; // e.g. 'USD'
   features: string[]; // bullet points shown on the pricing card
+  // Which plan gets the "Most Popular" badge on the landing page and the
+  // in-app paywalls. Previously not a real field at all — every pricing
+  // card just badged whichever plan happened to be array index 0, with no
+  // way for an admin to actually choose which one that was short of
+  // deleting and recreating plans in a different order. At most one plan
+  // should have this true at a time (enforced by the admin toggle, not by
+  // this type) — if none do, callers fall back to index 0 so existing
+  // installs keep behaving exactly as before.
+  mostPopular?: boolean;
   // Which gated tools this plan unlocks — 'barcode' | 'nutrition-ai' |
   // 'meal-planner' | 'premium-programs'. Empty = every feature (the
   // default — a plan only restricts once an admin explicitly picks a

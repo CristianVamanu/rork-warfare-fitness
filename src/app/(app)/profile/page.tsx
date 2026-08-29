@@ -12,7 +12,7 @@ import {
   updateUserDoc, syncLeaderboardPublic, subscribeUserConversations, getMembershipConfig, getCoachingPlans, getMembershipPlans,
   submitCoachingApplication, getUserCoachingApplication,
 } from '@/lib/firestore';
-import { startCoachingCheckout, startPlanCheckout } from '@/lib/checkout';
+import { startCoachingCheckout, startPlanCheckout, openBillingPortal } from '@/lib/checkout';
 import { trackEvent } from '@/lib/analytics';
 import { isInFreeTrial, freeTrialEndsAt } from '@/lib/membership';
 import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
@@ -161,20 +161,8 @@ export default function ProfilePage() {
   const handleManageBilling = async () => {
     if (!user) return;
     setOpeningPortal(true);
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/stripe/create-portal-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json() as { url?: string; error?: string };
-      if (data.url) window.location.href = data.url;
-      else toast.error(data.error ?? 'Failed to open billing portal');
-    } catch {
-      toast.error('Failed to open billing portal');
-    } finally {
-      setOpeningPortal(false);
-    }
+    const err = await openBillingPortal(user);
+    if (err) { toast.error(err); setOpeningPortal(false); }
   };
 
   // membership and coaching are two independent Stripe subscriptions a

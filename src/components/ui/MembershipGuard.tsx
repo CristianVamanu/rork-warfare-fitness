@@ -138,9 +138,12 @@ function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents, discountPe
             const periods = getPlanBillingPeriods(plan);
             const period = selectedPeriod[plan.id] ?? periods[0]?.months ?? 1;
             const active = periods.find((p) => p.months === period) ?? periods[0];
+            // Same admin-set mostPopular flag the landing page uses, same
+            // fallback-to-first-plan when nobody's explicitly chosen one.
+            const isFeatured = plans.some((p) => p.mostPopular) ? !!plan.mostPopular : i === 0;
             return (
-              <Card key={plan.id} className={`relative p-5 h-full flex flex-col ${i === 0 ? 'border-2 border-accent' : 'border-accent/20'}`}>
-                {i === 0 && (
+              <Card key={plan.id} className={`relative p-5 h-full flex flex-col ${isFeatured ? 'border-2 border-accent' : 'border-accent/20'}`}>
+                {isFeatured && (
                   <div className="absolute -top-3 left-4 px-2.5 py-0.5 bg-accent rounded-full">
                     <span className="text-[10px] font-bold text-black uppercase tracking-wide">Most Popular</span>
                   </div>
