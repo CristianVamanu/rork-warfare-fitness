@@ -12,7 +12,7 @@ import {
   updateUserDoc, syncLeaderboardPublic, subscribeUserConversations, getMembershipConfig, getCoachingPlans, getMembershipPlans,
   submitCoachingApplication, getUserCoachingApplication,
 } from '@/lib/firestore';
-import { startCoachingCheckout, startPlanCheckout, openBillingPortal, changePlan } from '@/lib/checkout';
+import { startCoachingCheckout, startPlanCheckout, openBillingPortal, confirmAndChangePlan } from '@/lib/checkout';
 import { trackEvent } from '@/lib/analytics';
 import { isInFreeTrial, freeTrialEndsAt } from '@/lib/membership';
 import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
@@ -172,13 +172,14 @@ export default function ProfilePage() {
   // inline price_data at checkout time, never as permanent Stripe Price
   // objects the portal could list a catalog from. See
   // /api/stripe/change-plan's own comment for the full reasoning.
-  const handleSwitchPlan = async (planId: string, periodMonths: PlanBillingPeriodMonths) => {
+  const handleSwitchPlan = async (planId: string, planName: string, periodMonths: PlanBillingPeriodMonths) => {
     if (!user) return;
     setChangingPlanId(planId);
-    const err = await changePlan(user, planId, periodMonths);
-    if (err) {
-      toast.error(err);
-    } else {
+    // Previews the proration amount and confirms with the user before
+    // committing — same shared flow PlanUpgradeScreen uses.
+    const { changed, error } = await confirmAndChangePlan(user, planId, planName, periodMonths);
+    if (error) toast.error(error);
+    else if (changed) {
       toast.success('Plan updated');
       await refreshProfile().catch(() => {});
     }
@@ -400,7 +401,7 @@ export default function ProfilePage() {
                           // directly, same server route the paywall's
                           // PlanUpgradeScreen uses.
                           <>
-                            <Button fullWidth variant="secondary" onClick={() => handleSwitchPlan(plan.id, activePeriod.months)} loading={changingPlanId === plan.id}>
+                            <Button fullWidth variant="secondary" onClick={() => handleSwitchPlan(plan.id, plan.name, activePeriod.months)} loading={changingPlanId === plan.id}>
                               <Crown className="w-4 h-4" /> {changingPlanId === plan.id ? 'Updating Plan…' : 'Switch to This Plan'}
                             </Button>
                             <p className="text-[10px] text-text-tertiary text-center mt-2">Prorated automatically by Stripe.</p>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Lock, Star, Crown, Sparkles, ExternalLink, Check } from 'lucide-react';
-import { startPlanCheckout, changePlan } from '@/lib/checkout';
+import { startPlanCheckout, confirmAndChangePlan } from '@/lib/checkout';
 import { getPlanBillingPeriods, planHasAnyPrice, getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
@@ -181,23 +181,22 @@ function PlanUpgradeScreen({ planName, plans, feature, programId, discountPercen
   const upgradePlans = plans.filter((p) => p.active && planHasAnyPrice(p) && planIncludesFeature(p, feature, programId));
   const anyMarkedPopular = upgradePlans.some((p) => p.mostPopular);
 
-  async function handleUpgrade(planId: string, periodMonths: 1 | 3 | 6 | 12) {
+  async function handleUpgrade(planId: string, planName: string, periodMonths: 1 | 3 | 6 | 12) {
     if (!user) return;
     setChangingPlanId(planId);
     // Switches the existing subscription's price directly (with Stripe
     // prorating the difference) — not the billing portal, which can't offer
     // a plan switcher here at all (see /api/stripe/change-plan's own
     // comment: these plans only ever exist as inline price_data, never as
-    // permanent Stripe Price objects the portal could list).
-    const err = await changePlan(user, planId, periodMonths);
-    if (err) {
-      toast.error(err);
-      setChangingPlanId(null);
-    } else {
+    // permanent Stripe Price objects the portal could list). Previews the
+    // proration amount and confirms with the user before committing.
+    const { changed, error } = await confirmAndChangePlan(user, planId, planName, periodMonths);
+    if (error) toast.error(error);
+    else if (changed) {
       toast.success('Plan updated');
       await refreshProfile().catch(() => {});
-      setChangingPlanId(null);
     }
+    setChangingPlanId(null);
   }
 
   return (
@@ -263,7 +262,7 @@ function PlanUpgradeScreen({ planName, plans, feature, programId, discountPercen
                   </ul>
                 )}
                 <div className="mt-auto pt-4">
-                  <Button fullWidth variant={isFeatured ? 'primary' : 'secondary'} onClick={() => handleUpgrade(plan.id, displayPeriod.months)} loading={changingPlanId === plan.id}>
+                  <Button fullWidth variant={isFeatured ? 'primary' : 'secondary'} onClick={() => handleUpgrade(plan.id, plan.name, displayPeriod.months)} loading={changingPlanId === plan.id}>
                     <ExternalLink className="w-4 h-4" /> {changingPlanId === plan.id ? 'Updating Plan…' : `Upgrade to ${plan.name}`}
                   </Button>
                 </div>

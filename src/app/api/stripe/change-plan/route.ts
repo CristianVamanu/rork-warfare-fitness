@@ -9,11 +9,17 @@ export const dynamic = 'force-dynamic';
  * plans that exist as permanent Product/Price objects; this app creates
  * every plan's price inline (price_data) at checkout time instead, so the
  * portal has no fixed catalog to show. This route is the actual upgrade
- * path — PlanUpgradeScreen (src/components/ui/PaywallGate.tsx) calls it
- * directly rather than sending the member through the portal for this.
+ * path — PlanUpgradeScreen (src/components/ui/PaywallGate.tsx) and the
+ * Profile page's plan cards both call it directly instead of sending the
+ * member through the portal for this.
+ *
+ * `preview: true` returns the prorated amount the switch would credit/charge
+ * on the next invoice WITHOUT committing anything, so the UI can show the
+ * user what they're agreeing to before they confirm.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { verifyAuthed } from '@/lib/verifyAdmin';
@@ -25,13 +31,43 @@ function getAdminDb() {
   return getDb(app);
 }
 
+// A subscription item's price_data needs an existing Product id, unlike a
+// Checkout Session line item which accepts inline product_data. Created
+// once per plan (lazily, on first switch/preview) and cached on the plan's
+// own Firestore doc, rather than creating a fresh throwaway Product every
+// single call — Stripe's Product list would otherwise accumulate one per
+// plan switch forever.
+async function getOrCreatePlanProduct(
+  stripe: Stripe,
+  db: FirebaseFirestore.Firestore,
+  plan: MembershipPlan,
+): Promise<string> {
+  if (plan.stripeProductId) {
+    try {
+      const existing = await stripe.products.retrieve(plan.stripeProductId);
+      if (existing.active) return existing.id;
+    } catch {
+      // Stale/deleted id — fall through and recreate.
+    }
+  }
+  const product = await stripe.products.create({ name: plan.name });
+  const configRef = db.collection('config').doc('membershipPlans');
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(configRef);
+    const plans = (snap.data()?.plans as MembershipPlan[]) ?? [];
+    const updated = plans.map((p) => (p.id === plan.id ? { ...p, stripeProductId: product.id } : p));
+    tx.set(configRef, { plans: updated }, { merge: true });
+  });
+  return product.id;
+}
+
 export async function POST(req: NextRequest) {
   const authCheck = await verifyAuthed(req);
   if ('error' in authCheck) return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
   const userId = authCheck.uid;
 
   try {
-    const { planId, periodMonths } = await req.json() as { planId: string; periodMonths?: 1 | 3 | 6 | 12 };
+    const { planId, periodMonths, preview } = await req.json() as { planId: string; periodMonths?: 1 | 3 | 6 | 12; preview?: boolean };
     if (!planId) return NextResponse.json({ error: 'planId required' }, { status: 400 });
 
     const db = getAdminDb();
@@ -72,24 +108,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'You are already on this plan' }, { status: 400 });
     }
 
-    // Unlike a Checkout Session line item, a subscription item's price_data
-    // needs an existing Product id rather than inline product_data — a
-    // throwaway Product created per switch, same spirit as the throwaway
-    // coupons already created per checkout elsewhere in this file.
-    const product = await stripe.products.create({
-      name: months === 1 ? plan.name : `${plan.name} (${months}-month term)`,
-    });
+    const productId = await getOrCreatePlanProduct(stripe, db, plan);
+    const priceData = {
+      currency: (plan.currency ?? 'USD').toLowerCase(),
+      unit_amount: Math.round(totalPrice * 100),
+      recurring: { interval, interval_count: intervalCount },
+      product: productId,
+    };
+
+    if (preview) {
+      const upcoming = await stripe.invoices.createPreview({
+        subscription: subId,
+        subscription_details: {
+          items: [{ id: item.id, price_data: priceData }],
+          proration_behavior: 'create_prorations',
+        },
+      });
+      // Only the proration adjustment lines, not the plan's full next-cycle
+      // charge — that's the number that actually answers "what happens if I
+      // click this right now", separate from the recurring price the member
+      // is switching to (which the UI already shows on the plan card).
+      const prorationCents = upcoming.lines.data
+        .filter((line) => line.proration)
+        .reduce((sum, line) => sum + line.amount, 0);
+      return NextResponse.json({
+        ok: true,
+        prorationAmount: prorationCents / 100,
+        currency: upcoming.currency,
+        nextInvoiceDate: upcoming.period_end ? upcoming.period_end * 1000 : undefined,
+      });
+    }
 
     await stripe.subscriptions.update(subId, {
-      items: [{
-        id: item.id,
-        price_data: {
-          currency: (plan.currency ?? 'USD').toLowerCase(),
-          unit_amount: Math.round(totalPrice * 100),
-          recurring: { interval, interval_count: intervalCount },
-          product: product.id,
-        },
-      }],
+      items: [{ id: item.id, price_data: priceData }],
       // Prorates the switch onto the next invoice — standard "upgrade now,
       // pay the difference" behavior, matching what the Portal would do.
       proration_behavior: 'create_prorations',
