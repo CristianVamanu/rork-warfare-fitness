@@ -2,44 +2,22 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue, type Firestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
+import { verifyAdmin as verifyAdminShared } from '@/lib/verifyAdmin';
 
-async function verifyAdmin(req: NextRequest): Promise<
-  { uid: string; db: Firestore } | { error: string; status: number }
-> {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '');
-  if (!token) return { error: 'Missing authorization header', status: 401 };
-
+// Was a local reimplementation that checked the token + role but never
+// rejected a session still pending its 2FA code (decoded.tfaPending) — every
+// other admin route uses the shared verifyAdmin, which does. Since this
+// route uses firebase-admin directly (bypasses firestore.rules, so
+// notTfaPending() never runs either), a stolen admin ID token that hasn't
+// cleared 2FA yet could still create/update/delete community channels.
+async function verifyAdmin(req: NextRequest) {
+  const result = await verifyAdminShared(req);
+  if ('error' in result) return result;
   const app = getAdminApp();
-  if (!app) {
-    console.error('[channels] Firebase Admin not configured — check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY env vars');
-    return { error: 'Server misconfiguration: Firebase Admin not initialized', status: 500 };
-  }
-  const db = getAdminDb(app);
-
-  let uid: string;
-  try {
-    const decoded = await getAuth(app).verifyIdToken(token);
-    uid = decoded.uid;
-  } catch (err) {
-    console.error('[channels] Token verification failed:', err);
-    return { error: 'Invalid or expired token', status: 401 };
-  }
-
-  try {
-    const userDoc = await db.collection('users').doc(uid).get();
-    const role = userDoc.data()?.role;
-    if (role !== 'admin') {
-      console.warn(`[channels] User ${uid} has role="${role}", not admin`);
-      return { error: `Access denied: role is "${role}", requires "admin"`, status: 403 };
-    }
-    return { uid, db };
-  } catch (err) {
-    console.error('[channels] User doc lookup failed:', err);
-    return { error: 'Failed to verify admin role', status: 500 };
-  }
+  if (!app) return { error: 'Server misconfiguration: Firebase Admin not initialized', status: 500 };
+  return { uid: result.uid, db: getAdminDb(app) };
 }
 
 // POST — create channel

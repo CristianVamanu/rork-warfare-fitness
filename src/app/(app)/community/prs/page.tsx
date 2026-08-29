@@ -22,6 +22,15 @@ export default function PRWallPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [liked, setLiked] = useState<Set<string>>(new Set());
+  // Guards against a rapid double-click firing likePRPost() twice for the
+  // same post before the first call's optimistic setLiked() update has been
+  // committed and re-read — both calls would otherwise derive the same
+  // stale wasLiked/nextLiked from the closure and send two +1 increments to
+  // the server for what the UI shows as a single like (likeCount drifts
+  // upward; likedBy stays correct since arrayUnion is idempotent). A ref
+  // (not state) so it's read/written synchronously within one click handler
+  // call, immune to React's async state batching.
+  const likeInFlight = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const unsub = subscribePRFeed((p) => {
@@ -38,7 +47,8 @@ export default function PRWallPage() {
   const isBanned = !!profile?.prBan && (banUntil === null || (banUntil?.toDate?.() ?? new Date(0)) > new Date());
 
   const handleLike = (id: string) => {
-    if (!user) return;
+    if (!user || likeInFlight.current.has(id)) return;
+    likeInFlight.current.add(id);
     // Toggle — was a one-way "add only" that permanently blocked unliking
     // once liked.has(id) was true, even though likePRPost itself already
     // supports the reverse direction (likedBy: arrayRemove, likeCount: -1).
@@ -49,16 +59,18 @@ export default function PRWallPage() {
       if (nextLiked) next.add(id); else next.delete(id);
       return next;
     });
-    likePRPost(id, user.uid, nextLiked).catch(() => {
-      // Roll back the optimistic toggle so the UI doesn't keep showing a
-      // state that never actually landed server-side.
-      setLiked((prev) => {
-        const next = new Set(prev);
-        if (wasLiked) next.add(id); else next.delete(id);
-        return next;
-      });
-      toast.error('Failed to update like — try again');
-    });
+    likePRPost(id, user.uid, nextLiked)
+      .catch(() => {
+        // Roll back the optimistic toggle so the UI doesn't keep showing a
+        // state that never actually landed server-side.
+        setLiked((prev) => {
+          const next = new Set(prev);
+          if (wasLiked) next.add(id); else next.delete(id);
+          return next;
+        });
+        toast.error('Failed to update like — try again');
+      })
+      .finally(() => likeInFlight.current.delete(id));
   };
 
   const isAdmin = profile?.role === 'admin' || profile?.role === 'trainer';

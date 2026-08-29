@@ -32,33 +32,43 @@ function getAdminDb() {
 }
 
 // A subscription item's price_data needs an existing Product id, unlike a
-// Checkout Session line item which accepts inline product_data. Created
-// once per plan (lazily, on first switch/preview) and cached on the plan's
-// own Firestore doc, rather than creating a fresh throwaway Product every
-// single call — Stripe's Product list would otherwise accumulate one per
-// plan switch forever.
-async function getOrCreatePlanProduct(
-  stripe: Stripe,
-  db: FirebaseFirestore.Firestore,
-  plan: MembershipPlan,
-): Promise<string> {
-  if (plan.stripeProductId) {
-    try {
-      const existing = await stripe.products.retrieve(plan.stripeProductId);
-      if (existing.active) return existing.id;
-    } catch {
-      // Stale/deleted id — fall through and recreate.
-    }
+// Checkout Session line item which accepts inline product_data.
+//
+// Uses a DETERMINISTIC Product id derived from the plan's own Firestore id
+// (Stripe lets you set `id` explicitly on create) rather than letting Stripe
+// generate a random one and caching it back to Firestore — a create-then-
+// cache approach has a check-then-act race: two requests for the same plan
+// switching concurrently (two different users, or a preview racing a
+// commit) could both read "no cached id yet" before either write lands,
+// each creating its own throwaway Product. A deterministic id sidesteps
+// that entirely: creating with the same id twice just fails with a
+// "resource already exists" error, which is treated as success (fetch and
+// reuse) rather than retried into a duplicate.
+function planProductId(planId: string): string {
+  // Stripe product ids must be ASCII; plan ids are app-generated strings
+  // (mplan_<timestamp>) that already satisfy this, but sanitize defensively.
+  return `warfarefitness_plan_${planId}`.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 255);
+}
+
+async function getOrCreatePlanProduct(stripe: Stripe, plan: MembershipPlan): Promise<string> {
+  const id = planProductId(plan.id);
+  try {
+    const existing = await stripe.products.retrieve(id);
+    if (existing.active) return existing.id;
+  } catch {
+    // Doesn't exist yet — fall through and create it.
   }
-  const product = await stripe.products.create({ name: plan.name });
-  const configRef = db.collection('config').doc('membershipPlans');
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(configRef);
-    const plans = (snap.data()?.plans as MembershipPlan[]) ?? [];
-    const updated = plans.map((p) => (p.id === plan.id ? { ...p, stripeProductId: product.id } : p));
-    tx.set(configRef, { plans: updated }, { merge: true });
-  });
-  return product.id;
+  try {
+    const product = await stripe.products.create({ id, name: plan.name });
+    return product.id;
+  } catch (err) {
+    // Lost a create race against a concurrent request for the same plan —
+    // the other request's Product now exists under this same id; reuse it
+    // rather than erroring the whole switch out.
+    const existing = await stripe.products.retrieve(id).catch(() => null);
+    if (existing) return existing.id;
+    throw err;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -67,7 +77,7 @@ export async function POST(req: NextRequest) {
   const userId = authCheck.uid;
 
   try {
-    const { planId, periodMonths, preview } = await req.json() as { planId: string; periodMonths?: 1 | 3 | 6 | 12; preview?: boolean };
+    const { planId, periodMonths, preview, prorationDate } = await req.json() as { planId: string; periodMonths?: 1 | 3 | 6 | 12; preview?: boolean; prorationDate?: number };
     if (!planId) return NextResponse.json({ error: 'planId required' }, { status: 400 });
 
     const db = getAdminDb();
@@ -108,7 +118,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'You are already on this plan' }, { status: 400 });
     }
 
-    const productId = await getOrCreatePlanProduct(stripe, db, plan);
+    const productId = await getOrCreatePlanProduct(stripe, plan);
     const priceData = {
       currency: (plan.currency ?? 'USD').toLowerCase(),
       unit_amount: Math.round(totalPrice * 100),
@@ -117,11 +127,19 @@ export async function POST(req: NextRequest) {
     };
 
     if (preview) {
+      // Stripe's own docs for this call: pass the SAME proration_date back
+      // into the real update below, or the two proration calculations can
+      // diverge (proration is a function of exactly when it's calculated —
+      // per-second — so time elapsed between preview and confirm, however
+      // brief, could otherwise make the actually-billed amount different
+      // from the number the user just confirmed).
+      const previewProrationDate = Math.floor(Date.now() / 1000);
       const upcoming = await stripe.invoices.createPreview({
         subscription: subId,
         subscription_details: {
           items: [{ id: item.id, price_data: priceData }],
           proration_behavior: 'create_prorations',
+          proration_date: previewProrationDate,
         },
       });
       // Only the proration adjustment lines, not the plan's full next-cycle
@@ -136,6 +154,7 @@ export async function POST(req: NextRequest) {
         prorationAmount: prorationCents / 100,
         currency: upcoming.currency,
         nextInvoiceDate: upcoming.period_end ? upcoming.period_end * 1000 : undefined,
+        prorationDate: previewProrationDate,
       });
     }
 
@@ -144,6 +163,11 @@ export async function POST(req: NextRequest) {
       // Prorates the switch onto the next invoice — standard "upgrade now,
       // pay the difference" behavior, matching what the Portal would do.
       proration_behavior: 'create_prorations',
+      // Pins the proration math to the moment it was actually previewed and
+      // confirmed, not "now" (which could be seconds or minutes later,
+      // after the user reads the confirm dialog) — see the preview branch's
+      // comment above.
+      ...(prorationDate ? { proration_date: prorationDate } : {}),
       metadata: { userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership' },
     });
 

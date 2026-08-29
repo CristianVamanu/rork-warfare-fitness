@@ -12,6 +12,7 @@ import { getSecret } from '@/lib/secrets';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp } from '@/lib/firebase-admin';
 import { checkAndIncrementUsage, resolveLocalDate } from '@/lib/usageLimit';
+import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
 
 export async function POST(req: NextRequest) {
   // No current caller in the app uses this route, but it was reachable by
@@ -24,6 +25,15 @@ export async function POST(req: NextRequest) {
 
   const app = getAdminApp();
   if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
+
+  // The per-user daily cap below only throttles a member's usage — it never
+  // checked whether this account is actually entitled to a paid AI tool at
+  // all, unlike its sibling routes (analyze-food, meal-ideas, scan-and-go,
+  // barcode). A non-member (or a plan without AI Chat) could get 30 free
+  // GPT calls/day, bypassing the membership paywall entirely.
+  const access = await verifyFeatureAccess(app, authCheck.uid, 'ai-chat');
+  if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
+
   const usage = await checkAndIncrementUsage(app, authCheck.uid, 'ai-chat', 30, resolveLocalDate(req));
   if (!usage.allowed) {
     return NextResponse.json({ error: 'Daily limit reached. Try again tomorrow.' }, { status: 429 });

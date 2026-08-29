@@ -50,6 +50,7 @@ export interface PlanChangePreview {
   prorationAmount: number; // Positive = charged on next invoice, negative = credited
   currency: string;
   nextInvoiceDate?: number; // ms epoch
+  prorationDate: number; // seconds epoch — must be replayed into changePlan()
 }
 
 /** Computes what switching to this plan/term would credit or charge on the
@@ -63,9 +64,9 @@ export async function previewPlanChange(user: User, planId: string, periodMonths
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ planId, periodMonths, preview: true }),
     });
-    const data = await res.json() as { ok?: boolean; error?: string; prorationAmount?: number; currency?: string; nextInvoiceDate?: number };
-    if (data.ok && data.prorationAmount !== undefined && data.currency) {
-      return { prorationAmount: data.prorationAmount, currency: data.currency, nextInvoiceDate: data.nextInvoiceDate };
+    const data = await res.json() as { ok?: boolean; error?: string; prorationAmount?: number; currency?: string; nextInvoiceDate?: number; prorationDate?: number };
+    if (data.ok && data.prorationAmount !== undefined && data.currency && data.prorationDate !== undefined) {
+      return { prorationAmount: data.prorationAmount, currency: data.currency, nextInvoiceDate: data.nextInvoiceDate, prorationDate: data.prorationDate };
     }
     return { error: data.error ?? 'Failed to preview plan change' };
   } catch {
@@ -93,21 +94,27 @@ export async function confirmAndChangePlan(user: User, planId: string, planName:
 
   if (!window.confirm(message)) return { changed: false, error: null };
 
-  const err = await changePlan(user, planId, periodMonths);
+  // Replays the SAME proration_date the preview above used — Stripe's own
+  // docs warn that omitting this lets the real charge diverge from what was
+  // just previewed/confirmed, since proration is computed per-second and
+  // any delay reading the confirm dialog shifts the math otherwise.
+  const err = await changePlan(user, planId, periodMonths, preview.prorationDate);
   return { changed: !err, error: err };
 }
 
 /** Switches an already-active member to a different plan/billing term, in
  * place (Stripe prorates the difference) — see /api/stripe/change-plan for
- * why this doesn't go through the billing portal. Returns an error string
- * on failure, null on success (caller should refresh the member's profile). */
-export async function changePlan(user: User, planId: string, periodMonths: 1 | 3 | 6 | 12 = 1): Promise<string | null> {
+ * why this doesn't go through the billing portal. `prorationDate`, when
+ * provided, pins the proration math to a previously-previewed moment (see
+ * confirmAndChangePlan) rather than "now". Returns an error string on
+ * failure, null on success (caller should refresh the member's profile). */
+export async function changePlan(user: User, planId: string, periodMonths: 1 | 3 | 6 | 12 = 1, prorationDate?: number): Promise<string | null> {
   try {
     const token = await getIdToken(user);
     const res = await fetch('/api/stripe/change-plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ planId, periodMonths }),
+      body: JSON.stringify({ planId, periodMonths, prorationDate }),
     });
     const data = await res.json() as { ok?: boolean; error?: string };
     if (data.ok) return null;

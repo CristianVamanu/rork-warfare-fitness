@@ -183,7 +183,14 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
     statsCache,
     streakFreeze: {
       available: freezeConsumed ? false : freezeAvailable,
-      lastGrantedAt: dueForRegrant ? serverTimestamp() : (existingFreeze?.lastGrantedAt ?? serverTimestamp()),
+      // Was only bumped when a fresh freeze was granted (dueForRegrant),
+      // never when the CURRENT one was actually consumed — so a freeze used
+      // partway through its 7-day window (e.g. 5 days after being granted)
+      // regranted only 2 days later instead of a full 7 days after actual
+      // use, letting freezes cluster instead of spacing out as intended.
+      // Bumping it on consumption too makes the 7-day cadence measure from
+      // whichever happened more recently: being granted, or being used.
+      lastGrantedAt: (dueForRegrant || freezeConsumed) ? serverTimestamp() : (existingFreeze?.lastGrantedAt ?? serverTimestamp()),
       ...(freezeConsumed ? { lastUsedAt: serverTimestamp() } : {}),
     },
   }, { merge: true });

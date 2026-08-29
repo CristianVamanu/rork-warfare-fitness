@@ -54,10 +54,6 @@ service cloud.firestore {
       return isAuthed() && callerRole() == 'admin';
     }
 
-    function isStaff() {
-      return isAuthed() && (callerRole() == 'admin' || callerRole() == 'trainer');
-    }
-
     // A trainer's staff access is meant to be scoped to their own assigned
     // clients (see users/{userId}.trainerId, already used to filter
     // programs/channels elsewhere) — not every client in the install. Admin
@@ -581,7 +577,7 @@ service cloud.firestore {
     }
 
     match /prPosts/{postId} {
-      allow read:   if isAuthed();
+      allow read:   if isAuthed() && notTfaPending();
       allow create: if isAuthed() && notTfaPending()
         && request.resource.data.userId == uid()
         && request.resource.data.moderationStatus == 'pending'
@@ -596,7 +592,8 @@ service cloud.firestore {
       // set likeCount to anything, or like on another user's behalf.
       allow update: if isAuthed() && (
         isAdmin() ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'likedBy']) &&
+        (notTfaPending() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'likedBy']) &&
           (
             (request.resource.data.likeCount == resource.data.likeCount + 1
               && request.resource.data.likedBy == resource.data.get('likedBy', []).concat([uid()])

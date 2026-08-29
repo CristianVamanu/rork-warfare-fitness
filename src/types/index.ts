@@ -773,12 +773,6 @@ export interface MembershipPlan {
   // subset).
   featureAccess: string[];
   active: boolean;
-  // Lazily created the first time anyone previews/commits a plan switch
-  // (see /api/stripe/change-plan) — a subscription item's price_data
-  // requires a real Stripe Product id, unlike a Checkout Session line item
-  // which accepts inline product_data. Reused across every switch to/from
-  // this plan rather than creating a fresh throwaway Product every time.
-  stripeProductId?: string;
 }
 
 export type PlanBillingPeriodMonths = 1 | 3 | 6 | 12;
