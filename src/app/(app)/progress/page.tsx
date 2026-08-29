@@ -9,7 +9,7 @@ import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target, Camera, Lock, Tr
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserWorkouts, getWeightHistory, getSystemConfig, subscribeProgressPhotos, createProgressPhoto, deleteProgressPhoto, getWeeklySummary, type WeeklySummary } from '@/lib/firestore';
 import { recordWeight } from '@/lib/actions';
-import { lbsToKg } from '@/lib/utils';
+import { lbsToKg, kgToLbs, formatBodyWeight } from '@/lib/utils';
 import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import { getLevelTier, xpToNextLevel } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
@@ -211,7 +211,7 @@ export default function ProgressPage() {
           {[
             { icon: Dumbbell, label: 'Total Workouts', value: totalWorkouts,                    color: 'text-purple-400', bg: 'bg-purple-400/10' },
             { icon: TrendingUp, label: 'Day Streak',   value: `${streak}d`,                    color: 'text-accent',    bg: 'bg-accent-muted'  },
-            { icon: Scale,      label: 'Current Weight', value: profile?.currentWeightKg ? `${profile.currentWeightKg}kg` : '—', color: 'text-green-400',  bg: 'bg-green-400/10'  },
+            { icon: Scale,      label: 'Current Weight', value: formatBodyWeight(profile?.currentWeightKg, weightUnit), color: 'text-green-400',  bg: 'bg-green-400/10'  },
             { icon: Award,      label: 'Achievements', value: `${earnedAchievements.size}/${ACHIEVEMENT_DEFS.length}`, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
           ].map(({ icon: Icon, label, value, color, bg }) => (
             <Card key={label} className="p-4">
@@ -269,7 +269,7 @@ export default function ProgressPage() {
                     <Scale className="w-5 h-5 text-green-400" />
                   </div>
                   <div>
-                    <p className="text-2xl font-black text-white">{profile.currentWeightKg} <span className="text-sm text-text-secondary">kg</span></p>
+                    <p className="text-2xl font-black text-white">{weightUnit === 'lbs' ? kgToLbs(profile.currentWeightKg) : profile.currentWeightKg} <span className="text-sm text-text-secondary">{weightUnit}</span></p>
                     <p className="text-xs text-text-tertiary">Last logged weight</p>
                   </div>
                 </div>
@@ -353,7 +353,7 @@ export default function ProgressPage() {
                           <p className="text-[10px] font-bold text-white leading-none">
                             {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </p>
-                          {p.weightKg && <p className="text-[9px] text-white/70 leading-none mt-0.5">{p.weightKg}kg</p>}
+                          {p.weightKg && <p className="text-[9px] text-white/70 leading-none mt-0.5">{formatBodyWeight(p.weightKg, weightUnit)}</p>}
                         </div>
                       )}
                       {compareMode && (
@@ -380,11 +380,12 @@ export default function ProgressPage() {
                 const [a, b] = comparePhotos;
                 const dA = photoDate(a), dB = photoDate(b);
                 const days = dA && dB ? Math.round((dB.getTime() - dA.getTime()) / (1000 * 60 * 60 * 24)) : null;
-                const weightDelta = a.weightKg && b.weightKg ? +(b.weightKg - a.weightKg).toFixed(1) : null;
+                const deltaKg = a.weightKg && b.weightKg ? b.weightKg - a.weightKg : null;
+                const weightDelta = deltaKg === null ? null : +(weightUnit === 'lbs' ? kgToLbs(deltaKg) : deltaKg).toFixed(1);
                 return (days !== null || weightDelta !== null) && (
                   <p className="text-center text-sm font-bold text-accent mt-3">
                     {days !== null && `${days} day${days === 1 ? '' : 's'} apart`}
-                    {weightDelta !== null && ` · ${weightDelta > 0 ? '+' : ''}${weightDelta}kg`}
+                    {weightDelta !== null && ` · ${weightDelta > 0 ? '+' : ''}${weightDelta}${weightUnit}`}
                   </p>
                 );
               })()}

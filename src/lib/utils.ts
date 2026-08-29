@@ -86,6 +86,22 @@ export function lbsToKg(lbs: number): number {
   return Math.round(lbs / 2.20462 * 10) / 10;
 }
 
+/**
+ * Formats a BODY weight for display in the user's own preferred unit.
+ *
+ * Body weight (profile.currentWeightKg, weightGoal.*, progress-photo
+ * weightKg) is always STORED in kg regardless of preference — the weigh-in
+ * flows convert on the way in (see recordWeight callers) — so every display
+ * of it has to convert on the way out. Lifting weights are different: those
+ * are stored in whatever unit the user logged them in and are already
+ * rendered with `profile.weightUnit` as a bare label, so they must NOT go
+ * through this.
+ */
+export function formatBodyWeight(kg: number | null | undefined, unit: 'kg' | 'lbs' | undefined): string {
+  if (kg === null || kg === undefined || isNaN(kg)) return '—';
+  return unit === 'lbs' ? `${kgToLbs(kg)}lbs` : `${kg}kg`;
+}
+
 // Sent alongside daily-usage-limited AI/scan endpoints so the server can key
 // the reset boundary off the user's own local date instead of the server's
 // UTC date — see resolveLocalDate() in src/lib/usageLimit.ts.

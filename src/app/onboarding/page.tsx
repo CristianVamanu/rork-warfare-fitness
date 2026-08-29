@@ -17,6 +17,7 @@ import { startPlanCheckout, startCoachingCheckout } from '@/lib/checkout';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, resolveProgram } from '@/lib/firestore';
 import { trackEvent } from '@/lib/analytics';
 import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
+import { lbsToKg, kgToLbs } from '@/lib/utils';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -103,6 +104,7 @@ interface OnboardingDraft {
   heightCm: string;
   weightKg: string;
   targetWeightKg: string;
+  weightUnit: 'kg' | 'lbs';
   medicalHistory: MedicalHistoryAnswers;
   targetFocus: OnboardingData['targetFocus'] | null;
   sessionMinutes: OnboardingData['sessionMinutes'] | null;
@@ -145,6 +147,7 @@ function OnboardingPageInner() {
   const [heightCm, setHeightCm] = useState(draft.heightCm ?? '');
   const [weightKg, setWeightKg] = useState(draft.weightKg ?? '');
   const [targetWeightKg, setTargetWeightKg] = useState(draft.targetWeightKg ?? '');
+  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(draft.weightUnit ?? 'kg');
   const [medicalHistory, setMedicalHistory] = useState<MedicalHistoryAnswers>(draft.medicalHistory ?? {});
   const [targetFocus, setTargetFocus] = useState<OnboardingData['targetFocus'] | null>(draft.targetFocus ?? null);
   const [sessionMinutes, setSessionMinutes] = useState<OnboardingData['sessionMinutes'] | null>(draft.sessionMinutes ?? null);
@@ -189,12 +192,12 @@ function OnboardingPageInner() {
     try {
       const draftToSave: OnboardingDraft = {
         step, goal, experience, trainingDays, equipment, limitations,
-        sex, age, heightCm, weightKg, targetWeightKg, medicalHistory,
+        sex, age, heightCm, weightKg, targetWeightKg, weightUnit, medicalHistory,
         targetFocus, sessionMinutes, trainingStyle, name, email,
       };
       localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(draftToSave));
     } catch { /* ignore — e.g. private browsing storage quota */ }
-  }, [step, goal, experience, trainingDays, equipment, limitations, sex, age, heightCm, weightKg, targetWeightKg, medicalHistory, targetFocus, sessionMinutes, trainingStyle, name, email]);
+  }, [step, goal, experience, trainingDays, equipment, limitations, sex, age, heightCm, weightKg, targetWeightKg, weightUnit, medicalHistory, targetFocus, sessionMinutes, trainingStyle, name, email]);
 
   // Pre-fills sex/age from the landing page's quick-start selector (now
   // mandatory there — see LandingClient.tsx). Visitors who didn't come
@@ -409,7 +412,7 @@ function OnboardingPageInner() {
       if (createdUserRef.current) {
         activeUser = createdUserRef.current;
       } else if (needsAccount) {
-        activeUser = await signUp(email.trim(), password, name.trim(), 'kg');
+        activeUser = await signUp(email.trim(), password, name.trim(), weightUnit);
         createdUserRef.current = activeUser;
         trackEvent('CompleteRegistration');
       } else {
@@ -575,6 +578,12 @@ function OnboardingPageInner() {
       const nowIso = new Date().toISOString().slice(0, 10);
       const weightTask = !biometricsValid ? Promise.resolve() : updateUserDoc(activeUser.uid, {
         currentWeightKg: weightNum,
+        // Already set by signUp() itself for a brand-new account (via the
+        // weightUnit arg above) — repeated here too for the needsAccount
+        // false path (an already-authenticated user resuming onboarding),
+        // whose profile could otherwise be stuck on whatever unit was
+        // picked at their ORIGINAL signup, ignoring the choice made here.
+        weightUnit,
         weightGoal: {
           startWeightKg: weightNum,
           targetWeightKg: targetWeightNum,
@@ -692,7 +701,7 @@ function OnboardingPageInner() {
                   ~{revealTimeline.monthsToGoal} month{revealTimeline.monthsToGoal !== 1 ? 's' : ''}
                 </span>{' '}
                 by following <span className="text-white font-bold">{revealProgram.name}</span>
-                {' '}({revealTimeline.direction === 'lose' ? 'losing' : 'gaining'} ~{Math.abs(Math.round(revealTimeline.weightChangeKg))}kg at a safe, sustainable pace).
+                {' '}({revealTimeline.direction === 'lose' ? 'losing' : 'gaining'} ~{Math.abs(Math.round(weightUnit === 'lbs' ? kgToLbs(revealTimeline.weightChangeKg) : revealTimeline.weightChangeKg))}{weightUnit} at a safe, sustainable pace).
               </p>
             </div>
           )}
@@ -856,11 +865,12 @@ function OnboardingPageInner() {
                 heightCm={heightCm} onHeight={setHeightCm}
                 weightKg={weightKg} onWeight={setWeightKg}
                 targetWeightKg={targetWeightKg} onTargetWeight={setTargetWeightKg}
+                weightUnit={weightUnit} onWeightUnit={setWeightUnit}
                 sexAgeAnswered={sexAgeAnswered} onEditSexAge={() => { setSex(null); setAge(''); }}
               />
             )}
             {step === 5 && (
-              <StepBmiResult heightCm={heightNum} weightKg={weightNum} />
+              <StepBmiResult heightCm={heightNum} weightKg={weightNum} weightUnit={weightUnit} />
             )}
             {step === 6 && (
               <StepLimitations value={limitations} onChange={setLimitations} />
@@ -1373,15 +1383,53 @@ const SEX_OPTIONS: { value: BiologicalSex; label: string; icon: React.ElementTyp
 
 function StepBiometrics({
   sex, onSex, age, onAge, heightCm, onHeight, weightKg, onWeight, targetWeightKg, onTargetWeight,
-  sexAgeAnswered, onEditSexAge,
+  weightUnit, onWeightUnit, sexAgeAnswered, onEditSexAge,
 }: {
   sex: BiologicalSex | null; onSex: (v: BiologicalSex) => void;
   age: string; onAge: (v: string) => void;
   heightCm: string; onHeight: (v: string) => void;
   weightKg: string; onWeight: (v: string) => void;
   targetWeightKg: string; onTargetWeight: (v: string) => void;
+  weightUnit: 'kg' | 'lbs'; onWeightUnit: (v: 'kg' | 'lbs') => void;
   sexAgeAnswered: boolean; onEditSexAge: () => void;
 }) {
+  // weightKg/targetWeightKg (the parent's canonical state, used everywhere
+  // downstream — BMI, nutrition targets, program matching) always stay in
+  // kg regardless of what unit is displayed here. These two hold the RAW
+  // text the user is actually typing, in whichever unit is currently
+  // selected — kept separate from a value reactively re-derived from the
+  // canonical kg on every render, which would fight the user mid-keystroke
+  // (e.g. typing "180" redrawing itself as "180.0" after the "8",
+  // corrupting whatever they type next) every time the round-trip
+  // kg->lbs->kg conversion didn't land on an exact decimal.
+  const [weightText, setWeightText] = useState(() => weightKg ? (weightUnit === 'lbs' ? kgToLbs(parseFloat(weightKg)).toFixed(1) : weightKg) : '');
+  const [targetWeightText, setTargetWeightText] = useState(() => targetWeightKg ? (weightUnit === 'lbs' ? kgToLbs(parseFloat(targetWeightKg)).toFixed(1) : targetWeightKg) : '');
+
+  function handleWeightChange(raw: string) {
+    setWeightText(raw);
+    const num = parseFloat(raw);
+    onWeight(raw === '' ? '' : isNaN(num) ? '' : String(weightUnit === 'lbs' ? lbsToKg(num) : num));
+  }
+  function handleTargetWeightChange(raw: string) {
+    setTargetWeightText(raw);
+    const num = parseFloat(raw);
+    onTargetWeight(raw === '' ? '' : isNaN(num) ? '' : String(weightUnit === 'lbs' ? lbsToKg(num) : num));
+  }
+  // Re-express whatever's already been typed in the newly-selected unit —
+  // the canonical kg values themselves don't change, only how they're
+  // displayed/entered here.
+  function handleUnitChange(unit: 'kg' | 'lbs') {
+    if (unit === weightUnit) return;
+    const convert = (kgStr: string, currentText: string) => {
+      const kgNum = kgStr ? parseFloat(kgStr) : NaN;
+      if (isNaN(kgNum)) return currentText;
+      return unit === 'lbs' ? kgToLbs(kgNum).toFixed(1) : kgNum.toFixed(1);
+    };
+    setWeightText(convert(weightKg, weightText));
+    setTargetWeightText(convert(targetWeightKg, targetWeightText));
+    onWeightUnit(unit);
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-black text-white mb-1">About you</h1>
@@ -1442,13 +1490,31 @@ function StepBiometrics({
           />
         </div>
         <div>
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Weight (kg)</label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-xs font-medium text-text-secondary">Weight</label>
+            {/* Defaults to kg, but plenty of users (US especially) think in
+                lbs and were previously stuck converting in their head —
+                this toggle applies to both weight fields at once and
+                converts whatever's already typed, not just future input. */}
+            <div className="flex rounded-lg border border-white/10 overflow-hidden">
+              {(['kg', 'lbs'] as const).map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => handleUnitChange(u)}
+                  className={`px-2 py-0.5 text-[10px] font-bold uppercase transition-colors ${weightUnit === u ? 'bg-accent text-black' : 'text-text-tertiary hover:text-white'}`}
+                >
+                  {u}
+                </button>
+              ))}
+            </div>
+          </div>
           <input
             type="number"
             inputMode="decimal"
-            value={weightKg}
-            onChange={(e) => onWeight(e.target.value)}
-            placeholder="80"
+            value={weightText}
+            onChange={(e) => handleWeightChange(e.target.value)}
+            placeholder={weightUnit === 'lbs' ? '176' : '80'}
             className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
           />
         </div>
@@ -1458,13 +1524,13 @@ function StepBiometrics({
           no timeline to estimate ("reach your goal in X months") and no way
           to match program duration to how long that goal actually takes. */}
       <div>
-        <label className="text-xs font-medium text-text-secondary mb-1.5 block">Goal weight (kg)</label>
+        <label className="text-xs font-medium text-text-secondary mb-1.5 block">Goal weight ({weightUnit})</label>
         <input
           type="number"
           inputMode="decimal"
-          value={targetWeightKg}
-          onChange={(e) => onTargetWeight(e.target.value)}
-          placeholder="e.g. 75"
+          value={targetWeightText}
+          onChange={(e) => handleTargetWeightChange(e.target.value)}
+          placeholder={weightUnit === 'lbs' ? 'e.g. 165' : 'e.g. 75'}
           className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
         />
         <p className="text-[11px] text-text-tertiary mt-1.5">
@@ -1545,7 +1611,7 @@ function StepAccount({
   );
 }
 
-function StepBmiResult({ heightCm, weightKg }: { heightCm: number; weightKg: number }) {
+function StepBmiResult({ heightCm, weightKg, weightUnit }: { heightCm: number; weightKg: number; weightUnit: 'kg' | 'lbs' }) {
   const { bmi, category, healthyWeightRangeKg } = calculateBmi(heightCm, weightKg);
 
   const categoryColor = {
@@ -1566,7 +1632,7 @@ function StepBmiResult({ heightCm, weightKg }: { heightCm: number; weightKg: num
         <p className="text-5xl font-black text-white">{bmi}</p>
         <p className={`text-sm font-bold mt-1 ${categoryColor}`}>{category}</p>
         <p className="text-xs text-text-tertiary mt-2">
-          Healthy range for your height: {healthyWeightRangeKg[0]}–{healthyWeightRangeKg[1]} kg
+          Healthy range for your height: {weightUnit === 'lbs' ? kgToLbs(healthyWeightRangeKg[0]) : healthyWeightRangeKg[0]}–{weightUnit === 'lbs' ? kgToLbs(healthyWeightRangeKg[1]) : healthyWeightRangeKg[1]} {weightUnit}
         </p>
       </Card>
 
