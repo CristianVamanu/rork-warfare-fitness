@@ -229,12 +229,21 @@ export async function POST(req: NextRequest) {
         // Subscription-based charge — trace back through the invoice to find
         // which subscription/user this charge belongs to.
         const invoiceId = (chargeObj as { invoice?: string | null }).invoice;
+        if (!invoiceId) {
+          console.log(`[Stripe webhook] ${event.type}: charge ${chargeObj.id} has no invoice — nothing to revoke`);
+        }
         if (invoiceId) {
           const invoice = await stripe.invoices.retrieve(invoiceId);
           const subId = (invoice as { subscription?: string | null }).subscription;
+          if (!subId) {
+            console.log(`[Stripe webhook] ${event.type}: invoice ${invoiceId} has no subscription — nothing to revoke`);
+          }
           if (subId) {
             const sub = await stripe.subscriptions.retrieve(subId);
             const userId = sub.metadata?.userId;
+            if (!userId) {
+              console.log(`[Stripe webhook] ${event.type}: subscription ${subId} has no userId in metadata — nothing to revoke`);
+            }
             if (userId) {
               const field = fieldFromMetadata(sub.metadata);
               await setSubscriptionStatus(userId, field, 'none');
@@ -242,12 +251,17 @@ export async function POST(req: NextRequest) {
               // to bill this subscription — a refund/dispute is exactly the
               // moment we want that to stop, not just hide app access while
               // the card keeps getting charged every cycle.
+              console.log(`[Stripe webhook] ${event.type}: subscription ${subId} current status is "${sub.status}" (cancel_at_period_end=${sub.cancel_at_period_end})`);
               if (sub.status !== 'canceled') {
                 try {
-                  await stripe.subscriptions.cancel(subId);
+                  const cancelled = await stripe.subscriptions.cancel(subId);
+                  console.log(`[Stripe webhook] Cancel call returned status "${cancelled.status}" for subscription ${subId}`);
                 } catch (cancelErr) {
-                  console.error(`[Stripe webhook] Failed to cancel subscription ${subId} for user ${userId}:`, cancelErr);
+                  const msg = cancelErr instanceof Error ? cancelErr.message : String(cancelErr);
+                  console.error(`[Stripe webhook] Failed to cancel subscription ${subId} for user ${userId}: ${msg}`, cancelErr);
                 }
+              } else {
+                console.log(`[Stripe webhook] Subscription ${subId} already canceled — skipping cancel call`);
               }
               console.log(`[Stripe webhook] Revoked ${field} for user ${userId} (${event.type})`);
             }
