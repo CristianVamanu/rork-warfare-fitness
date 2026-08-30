@@ -95,6 +95,7 @@ Instructions:
 4. Do NOT force variety across muscle groups if the equipment doesn't support it. If the photos only show leg machines, build a genuinely leg-focused session (that machine's primary movement, a different rep/tempo variation of it, plus bodyweight leg/glute/calf accessory work) instead of padding in unrelated upper-body or arm exercises just to look "balanced" — a single-focus day from limited equipment is the correct, expected result, not a flaw to cover up.
 5. Respect the athlete's experience level and goal, and NEVER include an exercise that would aggravate a stated limitation/injury — substitute a safer alternative instead.
 6. Only balance across muscle groups when the detected equipment actually allows it.
+7. For cardio machines (stationary bike, treadmill, rower, elliptical, etc.) used as INTERVALS (sets > 1, e.g. "8 rounds of sprints"): the "reps" field is a duration in SECONDS per round — write it as a plain number of seconds (e.g. "30" or "45"), never minutes. Real high-intensity intervals are 15-60 seconds of work per round; multiple rounds of several MINUTES each is not physiologically realistic and must never be produced. Only use a single set (sets: 1) with reps expressed in minutes for genuine steady-state cardio (one continuous block, e.g. "20 minute steady ride").
 
 Return ONLY valid JSON with this exact structure, no markdown fences:
 {

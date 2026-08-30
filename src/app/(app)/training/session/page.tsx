@@ -111,8 +111,27 @@ function buildExState(exercises: Exercise[]): ExState[] {
     const cardio = isCardioExercise(ex);
     const distance = cardio ? parseDistance(ex.reps) : null;
     const targetReps = typeof ex.reps === 'number' ? ex.reps : parseInt(String(ex.reps)) || 8;
-    // For cardio, treat reps as minutes unless cardioDurationSeconds is explicitly set
-    const cardioDuration = ex.cardioDurationSeconds ?? (targetReps * 60);
+    // For cardio, treat reps as minutes unless cardioDurationSeconds is
+    // explicitly set — EXCEPT this assumption breaks completely for
+    // interval-style cardio (sets > 1). An AI-generated "8 sets" stationary
+    // bike workout describing 30-second sprints has no way to say that
+    // through this field other than reps=30, but "minutes" x 8 sets is 4
+    // hours — physically impossible for a single exercise entry, and
+    // exactly the bug reported live (an AI scan-and-go workout showing
+    // "8 sets of 30 minutes" for bike intervals). If treating reps as
+    // MINUTES would make this one exercise's total working time exceed a
+    // generous 45-minute ceiling, reps almost certainly meant SECONDS
+    // instead — reinterpret it that way rather than trusting the minutes
+    // assumption into an impossible result. Single-set steady-state cardio
+    // (a 45-minute walk, sets=1) is unaffected: it can't cross this
+    // threshold from one set alone unless it's already implausible anyway.
+    const rawMinutesGuess = targetReps * 60;
+    const MAX_PLAUSIBLE_TOTAL_SECONDS = 45 * 60;
+    const cardioDuration = ex.cardioDurationSeconds ?? (
+      ex.sets > 1 && rawMinutesGuess * ex.sets > MAX_PLAUSIBLE_TOTAL_SECONDS
+        ? targetReps
+        : rawMinutesGuess
+    );
     const sets: SetState[] = Array.from({ length: ex.sets }, (_, i) => ({
       weight: 0,
       reps: targetReps,

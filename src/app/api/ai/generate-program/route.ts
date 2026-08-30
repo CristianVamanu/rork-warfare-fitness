@@ -65,6 +65,7 @@ RULES:
 - RPE 6-7 = easy/moderate, 8 = hard, 9 = very hard, 10 = max
 - Rest 60-90s for hypertrophy, 120-180s for strength, 30-60s for metabolic
 - Vary rep schemes based on goal (strength: 1-6 reps, hypertrophy: 8-15 reps, endurance: 15-25 reps)
+- For isCardio exercises done as INTERVALS (sets > 1, e.g. "8 rounds of sprints"): "reps" is a duration in SECONDS per round, written as a plain number (e.g. "30" or "45") — never minutes. Real intervals are 15-60 seconds of work per round; multiple rounds of several minutes each is physiologically unrealistic. Reserve minute-based durations (e.g. "20 min", "3 miles") for a single set (sets: 1) of genuine steady-state cardio only.
 - Every exercise MUST include a short "notes" tip (max 12 words) on how to perform it correctly — this is shown to the user as an in-workout info tip, so keep it punchy and actionable, not generic
 - This phase must reflect its stated focus and show real progression from whatever came before it (more sets/working volume, less rest, heavier target loads implied by lower rep ranges, more advanced exercise variations or unilateral/single-limb work, and/or added complexity) — unless its focus is explicitly a deload, which does the opposite: same or similar movements, meaningfully reduced volume.
 - Do NOT reuse an earlier phase's schedule verbatim with only the label changed — vary exercise selection meaningfully while respecting the phase's focus.`;

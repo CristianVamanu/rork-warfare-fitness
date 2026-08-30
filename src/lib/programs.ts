@@ -390,7 +390,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Interval Sprints',
         isRest: false,
         exercises: [
-          { id: 'p6-e8', name: 'Sprint Intervals (30s on / 90s off)', sets: 8, reps: 1, restSeconds: 90, muscleGroup: 'cardio', isCardio: true },
+          { id: 'p6-e8', name: 'Sprint Intervals (30s on / 90s off)', sets: 8, reps: 1, restSeconds: 90, muscleGroup: 'cardio', isCardio: true, cardioDurationSeconds: 30 },
           { id: 'p6-e4', name: 'Push-Up', sets: 4, reps: 20, restSeconds: 60, muscleGroup: 'chest', notes: 'Build toward 53 in 2 minutes — the RASP entry standard.' },
         ],
       },
