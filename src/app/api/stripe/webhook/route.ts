@@ -197,7 +197,17 @@ export async function POST(req: NextRequest) {
           ? (event.data.object as Stripe.Dispute).charge as string | Stripe.Charge
           : event.data.object as Stripe.Charge;
         const stripe = await getStripe();
-        const chargeObj = typeof charge === 'string' ? await stripe.charges.retrieve(charge) : charge;
+        // Always a fresh retrieve with invoice expanded, even when the event
+        // payload already embedded a full charge object — live testing found
+        // the EMBEDDED charge.refunded event's object had `invoice: null`
+        // despite the Dashboard clearly showing this exact charge tied to a
+        // real invoice/subscription. Whatever API-version quirk causes that
+        // (this account's events also show the newer `invoice_payment.*`
+        // event family alongside classic `invoice.*` ones, suggesting an
+        // in-progress Stripe migration), a live retrieve+expand is more
+        // reliable than trusting whatever was embedded in the webhook body.
+        const chargeId = typeof charge === 'string' ? charge : charge.id;
+        const chargeObj = await stripe.charges.retrieve(chargeId, { expand: ['invoice'] });
 
         // A dispute is always treated as full-severity regardless of amount
         // (it's a fraud/risk signal, not a refund amount question), but a
@@ -227,16 +237,19 @@ export async function POST(req: NextRequest) {
         }
 
         // Subscription-based charge — trace back through the invoice to find
-        // which subscription/user this charge belongs to.
-        const invoiceId = (chargeObj as { invoice?: string | null }).invoice;
-        if (!invoiceId) {
+        // which subscription/user this charge belongs to. `invoice` is
+        // expanded above, so it's already the full object when present —
+        // no second retrieve needed (and retrieving by a possibly-null id
+        // would throw instead of the graceful "nothing to revoke" below).
+        const expandedInvoice = (chargeObj as { invoice?: string | Stripe.Invoice | null }).invoice;
+        const invoice = expandedInvoice && typeof expandedInvoice === 'object' ? expandedInvoice : null;
+        if (!invoice) {
           console.log(`[Stripe webhook] ${event.type}: charge ${chargeObj.id} has no invoice — nothing to revoke`);
         }
-        if (invoiceId) {
-          const invoice = await stripe.invoices.retrieve(invoiceId);
+        if (invoice) {
           const subId = (invoice as { subscription?: string | null }).subscription;
           if (!subId) {
-            console.log(`[Stripe webhook] ${event.type}: invoice ${invoiceId} has no subscription — nothing to revoke`);
+            console.log(`[Stripe webhook] ${event.type}: invoice ${invoice.id} has no subscription — nothing to revoke`);
           }
           if (subId) {
             const sub = await stripe.subscriptions.retrieve(subId);
