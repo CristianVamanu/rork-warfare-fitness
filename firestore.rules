@@ -551,13 +551,13 @@ service cloud.firestore {
     // per user — so subscribing on a second device doesn't silently
     // overwrite the first device's subscription.
     match /pushSubscriptions/{userId}/devices/{deviceId} {
-      allow read, write: if isAuthed() && uid() == userId;
+      allow read, write: if isAuthed() && notTfaPending() && uid() == userId;
       allow read: if isAdmin();
     }
 
     // ── User preferences (theme, etc.) ────────────────────────────────────
     match /userPreferences/{userId} {
-      allow read, write: if isAuthed() && uid() == userId;
+      allow read, write: if isAuthed() && notTfaPending() && uid() == userId;
     }
 
     // ── Exercise video library ────────────────────────────────────────────
