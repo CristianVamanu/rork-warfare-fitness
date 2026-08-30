@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { getSecret } from '@/lib/secrets';
+import { timingSafeEqualString } from '@/lib/crypto';
 
 function getAdminDb() {
   const app = getAdminApp();
@@ -33,8 +34,8 @@ export async function POST(req: NextRequest) {
   if (!process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Server not configured' }, { status: 503 });
   }
-  const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  const auth = req.headers.get('authorization') ?? '';
+  if (!timingSafeEqualString(auth, `Bearer ${process.env.CRON_SECRET}`)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

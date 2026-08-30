@@ -437,18 +437,18 @@ service cloud.firestore {
 
     // ── Channels (Discord-style community) ────────────────────────────────
     match /channels/{channelId} {
-      allow read: if isAuthed();
+      allow read: if isAuthed() && notTfaPending();
       allow create, update, delete: if isAdmin();
 
       match /posts/{postId} {
-        allow read: if isAuthed();
+        allow read: if isAuthed() && notTfaPending();
         // Announcement-only channels (allowUserPosts == false) restrict
         // top-level posts to admin/trainer; missing field defaults to allowed
         // so pre-existing channels aren't retroactively locked.
         // userIsAdmin must match the caller's actual role — otherwise any
         // member could write userIsAdmin:true and show the Admin badge on
         // their own post.
-        allow create: if isAuthed()
+        allow create: if isAuthed() && notTfaPending()
           && request.resource.data.userId == uid()
           && request.resource.data.get('userIsAdmin', false) == isAdmin()
           && (
@@ -459,7 +459,7 @@ service cloud.firestore {
         // adding/removing exactly their own uid from `likes` — same
         // exact-delta pattern as prPosts, so a client can't like on
         // another user's behalf or forge the whole array.
-        allow update: if isAuthed() && (
+        allow update: if isAuthed() && notTfaPending() && (
           resource.data.userId == uid() ||
           (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']) &&
             (
@@ -472,18 +472,18 @@ service cloud.firestore {
         allow delete: if isAdmin();
 
         match /replies/{replyId} {
-          allow read: if isAuthed();
-          allow create: if isAuthed() && request.resource.data.userId == uid()
+          allow read: if isAuthed() && notTfaPending();
+          allow create: if isAuthed() && notTfaPending() && request.resource.data.userId == uid()
             && request.resource.data.get('userIsAdmin', false) == isAdmin();
           allow update, delete: if false;
         }
       }
 
       match /members/{userId} {
-        allow read: if isAuthed();
+        allow read: if isAuthed() && notTfaPending();
         // Only ever writes its own lastPostAt slow-mode doc — scoped to
         // that so one member can't overwrite another's timestamp.
-        allow write: if isAuthed() && uid() == userId;
+        allow write: if isAuthed() && notTfaPending() && uid() == userId;
       }
     }
 

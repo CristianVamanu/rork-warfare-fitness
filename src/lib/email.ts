@@ -117,7 +117,7 @@ export function trainerLeadEmailHtml(lead: {
 
 export function achievementEmailHtml(name: string, titles: string[], appName: string, appUrl: string): string {
   name = escapeHtml(name);
-  const list = titles.map((t) => `<li style="margin:4px 0;">🏆 ${t}</li>`).join('');
+  const list = titles.map((t) => `<li style="margin:4px 0;">🏆 ${escapeHtml(t)}</li>`).join('');
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">New achievement${titles.length > 1 ? 's' : ''}, ${name}!</h1>
     <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.7;color:#bbb;">${list}</ul>

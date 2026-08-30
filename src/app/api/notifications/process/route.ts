@@ -14,6 +14,7 @@ import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { sendEmail, trialEndingEmailHtml } from '@/lib/email';
+import { timingSafeEqualString } from '@/lib/crypto';
 
 async function generateMotivation(userName: string, streak: number): Promise<{ title: string; body: string }> {
   const apiKey = await getSecret('OPENAI_API_KEY');
@@ -56,8 +57,8 @@ export async function POST(req: NextRequest) {
     if (!secret) {
       return NextResponse.json({ error: 'Server not configured' }, { status: 503 });
     }
-    const auth = req.headers.get('authorization');
-    if (auth !== `Bearer ${secret}`) {
+    const auth = req.headers.get('authorization') ?? '';
+    if (!timingSafeEqualString(auth, `Bearer ${secret}`)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

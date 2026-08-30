@@ -247,20 +247,43 @@ export async function POST(req: NextRequest) {
         // explicit expand — this account's newer API version apparently
         // doesn't populate that relationship for these charges at all (not
         // a payload issue; a fresh retrieve+expand still returned null).
-        // Falls back to the one thing every charge always has: its
-        // customer. A customer normally holds exactly one live membership
-        // subscription at a time in this app, so the most recently created
-        // non-canceled one for that customer is the right target.
+        // Falls back to the one thing every charge always has: its customer.
         if (!subId) {
           const customerId = typeof chargeObj.customer === 'string' ? chargeObj.customer : chargeObj.customer?.id;
           if (customerId) {
             const subs = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 10 });
-            const candidate = subs.data
-              .filter((s) => s.status !== 'canceled')
-              .sort((a, b) => b.created - a.created)[0];
-            if (candidate) {
-              subId = candidate.id;
-              console.log(`[Stripe webhook] ${event.type}: charge ${chargeObj.id} had no invoice — found subscription ${subId} via customer ${customerId} instead`);
+            const nonCanceled = subs.data.filter((s) => s.status !== 'canceled');
+            if (nonCanceled.length === 1) {
+              subId = nonCanceled[0].id;
+              console.log(`[Stripe webhook] ${event.type}: charge ${chargeObj.id} had no invoice — found subscription ${subId} via customer ${customerId} (only one live subscription)`);
+            } else if (nonCanceled.length > 1) {
+              // A customer can hold BOTH a membership and a coaching
+              // subscription at once (see fieldFromMetadata above) — just
+              // picking "most recent" here would risk cancelling the WRONG
+              // one (e.g. refunding an old membership charge but cancelling
+              // a newer, unrelated, still-paid-for coaching subscription).
+              // Disambiguate for real: check each candidate subscription's
+              // own invoice history for one whose charge actually matches.
+              for (const candidate of nonCanceled) {
+                const invoices = await stripe.invoices.list({ subscription: candidate.id, limit: 20 });
+                const match = invoices.data.find((inv) => {
+                  const invCharge = (inv as { charge?: string | Stripe.Charge | null }).charge;
+                  const invChargeId = typeof invCharge === 'string' ? invCharge : invCharge?.id;
+                  return invChargeId === chargeObj.id;
+                });
+                if (match) {
+                  subId = candidate.id;
+                  break;
+                }
+              }
+              if (subId) {
+                console.log(`[Stripe webhook] ${event.type}: charge ${chargeObj.id} — disambiguated to subscription ${subId} among ${nonCanceled.length} live subscriptions for customer ${customerId}`);
+              } else {
+                // Couldn't find a match anywhere — refuse to guess. Cancelling
+                // the wrong one of two live subscriptions is worse than
+                // leaving this event for manual follow-up.
+                console.error(`[Stripe webhook] ${event.type}: charge ${chargeObj.id} — customer ${customerId} has ${nonCanceled.length} live subscriptions and none of their invoices matched this charge. Refusing to guess; needs manual review.`);
+              }
             }
           }
         }

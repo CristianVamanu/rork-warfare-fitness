@@ -28,6 +28,10 @@ const USER_FIELD_COLLECTIONS = [
   // Keyed `${uid}_${date}` but also carries a userId field, so the same
   // query path works — no doc-id range scan needed.
   'habitLogs',
+  // Community feed posts (src/lib/firestore.ts createPost()) — same class
+  // of leak as communityActivity: keyed by userId, with userDisplayName/
+  // userPhotoURL embedded, publicly readable, and not swept previously.
+  'posts',
 ] as const;
 
 /** Docs keyed directly by uid — a straight doc().delete(), no query needed. */
