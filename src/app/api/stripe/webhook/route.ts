@@ -236,48 +236,64 @@ export async function POST(req: NextRequest) {
           break;
         }
 
-        // Subscription-based charge — trace back through the invoice to find
-        // which subscription/user this charge belongs to. `invoice` is
-        // expanded above, so it's already the full object when present —
-        // no second retrieve needed (and retrieving by a possibly-null id
-        // would throw instead of the graceful "nothing to revoke" below).
+        // Subscription-based charge — trace back to find which subscription/
+        // user this charge belongs to. `invoice` is expanded above, so it's
+        // already the full object when present — no second retrieve needed.
         const expandedInvoice = (chargeObj as { invoice?: string | Stripe.Invoice | null }).invoice;
         const invoice = expandedInvoice && typeof expandedInvoice === 'object' ? expandedInvoice : null;
-        if (!invoice) {
-          console.log(`[Stripe webhook] ${event.type}: charge ${chargeObj.id} has no invoice — nothing to revoke`);
-        }
-        if (invoice) {
-          const subId = (invoice as { subscription?: string | null }).subscription;
-          if (!subId) {
-            console.log(`[Stripe webhook] ${event.type}: invoice ${invoice.id} has no subscription — nothing to revoke`);
+        let subId = invoice ? (invoice as { subscription?: string | null }).subscription : null;
+
+        // Live testing found charge.invoice comes back null even with an
+        // explicit expand — this account's newer API version apparently
+        // doesn't populate that relationship for these charges at all (not
+        // a payload issue; a fresh retrieve+expand still returned null).
+        // Falls back to the one thing every charge always has: its
+        // customer. A customer normally holds exactly one live membership
+        // subscription at a time in this app, so the most recently created
+        // non-canceled one for that customer is the right target.
+        if (!subId) {
+          const customerId = typeof chargeObj.customer === 'string' ? chargeObj.customer : chargeObj.customer?.id;
+          if (customerId) {
+            const subs = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 10 });
+            const candidate = subs.data
+              .filter((s) => s.status !== 'canceled')
+              .sort((a, b) => b.created - a.created)[0];
+            if (candidate) {
+              subId = candidate.id;
+              console.log(`[Stripe webhook] ${event.type}: charge ${chargeObj.id} had no invoice — found subscription ${subId} via customer ${customerId} instead`);
+            }
           }
-          if (subId) {
-            const sub = await stripe.subscriptions.retrieve(subId);
-            const userId = sub.metadata?.userId;
-            if (!userId) {
-              console.log(`[Stripe webhook] ${event.type}: subscription ${subId} has no userId in metadata — nothing to revoke`);
-            }
-            if (userId) {
-              const field = fieldFromMetadata(sub.metadata);
-              await setSubscriptionStatus(userId, field, 'none');
-              // Firestore status alone doesn't stop Stripe from continuing
-              // to bill this subscription — a refund/dispute is exactly the
-              // moment we want that to stop, not just hide app access while
-              // the card keeps getting charged every cycle.
-              console.log(`[Stripe webhook] ${event.type}: subscription ${subId} current status is "${sub.status}" (cancel_at_period_end=${sub.cancel_at_period_end})`);
-              if (sub.status !== 'canceled') {
-                try {
-                  const cancelled = await stripe.subscriptions.cancel(subId);
-                  console.log(`[Stripe webhook] Cancel call returned status "${cancelled.status}" for subscription ${subId}`);
-                } catch (cancelErr) {
-                  const msg = cancelErr instanceof Error ? cancelErr.message : String(cancelErr);
-                  console.error(`[Stripe webhook] Failed to cancel subscription ${subId} for user ${userId}: ${msg}`, cancelErr);
-                }
-              } else {
-                console.log(`[Stripe webhook] Subscription ${subId} already canceled — skipping cancel call`);
+        }
+
+        if (!subId) {
+          console.log(`[Stripe webhook] ${event.type}: charge ${chargeObj.id} — could not resolve a subscription to revoke`);
+        }
+        if (subId) {
+          const sub = await stripe.subscriptions.retrieve(subId);
+          const userId = sub.metadata?.userId;
+          if (!userId) {
+            console.log(`[Stripe webhook] ${event.type}: subscription ${subId} has no userId in metadata — nothing to revoke`);
+          }
+          if (userId) {
+            const field = fieldFromMetadata(sub.metadata);
+            await setSubscriptionStatus(userId, field, 'none');
+            // Firestore status alone doesn't stop Stripe from continuing
+            // to bill this subscription — a refund/dispute is exactly the
+            // moment we want that to stop, not just hide app access while
+            // the card keeps getting charged every cycle.
+            console.log(`[Stripe webhook] ${event.type}: subscription ${subId} current status is "${sub.status}" (cancel_at_period_end=${sub.cancel_at_period_end})`);
+            if (sub.status !== 'canceled') {
+              try {
+                const cancelled = await stripe.subscriptions.cancel(subId);
+                console.log(`[Stripe webhook] Cancel call returned status "${cancelled.status}" for subscription ${subId}`);
+              } catch (cancelErr) {
+                const msg = cancelErr instanceof Error ? cancelErr.message : String(cancelErr);
+                console.error(`[Stripe webhook] Failed to cancel subscription ${subId} for user ${userId}: ${msg}`, cancelErr);
               }
-              console.log(`[Stripe webhook] Revoked ${field} for user ${userId} (${event.type})`);
+            } else {
+              console.log(`[Stripe webhook] Subscription ${subId} already canceled — skipping cancel call`);
             }
+            console.log(`[Stripe webhook] Revoked ${field} for user ${userId} (${event.type})`);
           }
         }
         break;
