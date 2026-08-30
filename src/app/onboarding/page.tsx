@@ -1270,38 +1270,6 @@ function StepMedicalHistory({ data, onChange }: { data: MedicalHistoryAnswers; o
         <YesNoField label="Heart disease?" value={data.heartDisease} onChange={(v) => onChange({ heartDisease: v })} detail={data.heartDiseaseDetail} onDetailChange={(v) => onChange({ heartDiseaseDetail: v })} />
         <YesNoField label="Other medical conditions?" value={data.otherMedicalConditions} onChange={(v) => onChange({ otherMedicalConditions: v })} detail={data.otherMedicalConditionsDetail} onDetailChange={(v) => onChange({ otherMedicalConditionsDetail: v })} />
       </Card>
-      <div className="grid grid-cols-3 gap-3 mt-4">
-        <div>
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Body Fat %</label>
-          <input
-            type="number" inputMode="decimal"
-            value={data.bodyFatPercent ?? ''}
-            onChange={(e) => onChange({ bodyFatPercent: e.target.value ? Number(e.target.value) : undefined })}
-            placeholder="18"
-            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Blood Pressure</label>
-          <input
-            type="text"
-            value={data.bloodPressure ?? ''}
-            onChange={(e) => onChange({ bloodPressure: e.target.value })}
-            placeholder="120/80"
-            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Resting HR</label>
-          <input
-            type="number" inputMode="numeric"
-            value={data.restingHeartRate ?? ''}
-            onChange={(e) => onChange({ restingHeartRate: e.target.value ? Number(e.target.value) : undefined })}
-            placeholder="65"
-            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-          />
-        </div>
-      </div>
     </div>
   );
 }

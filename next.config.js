@@ -73,20 +73,43 @@ const withPWA = require('next-pwa')({
     },
     // The rule above only matches a hard/full page load — App Router
     // client-side transitions (clicking a <Link>, router.push, e.g.
-    // switching between /training/[id] program pages) fetch the RSC
-    // payload via plain fetch(), request.mode 'cors'/'same-origin', NOT
-    // 'navigate'. Those fell through to next-pwa's bundled "others"
-    // catch-all below (NetworkFirst, 10s timeout) — reported as program
-    // switching taking a very long time, and confirmed by a real
-    // "no-response" Workbox error on a /training/[id] navigation.
-    // Matching every same-origin non-API request here, before the
-    // next-pwa spread, and forcing NetworkOnly closes that gap. Static
-    // assets (JS/CSS/images/fonts) are already matched by next-pwa's more
-    // specific earlier default rules, so this only catches the leftover
-    // document/RSC requests that should never be served from cache.
+    // switching between /training/[id] program pages, or the redirect
+    // straight from signup into /onboarding) fetch the RSC payload via
+    // plain fetch(), request.mode 'cors'/'same-origin', NOT 'navigate'.
+    // Those fell through to next-pwa's bundled "others" catch-all below
+    // (NetworkFirst, 10s timeout) — reported as program switching taking a
+    // very long time, and confirmed by a real "no-response" Workbox error
+    // on a /training/[id] navigation. Matching every same-origin non-API
+    // request here, before the next-pwa spread, and forcing NetworkOnly
+    // closes that gap. Static assets (JS/CSS/images/fonts) are already
+    // matched by next-pwa's more specific earlier default rules, so this
+    // only catches the leftover document/RSC requests that should never be
+    // served from cache.
     {
       urlPattern: ({ url }) => url.origin === self.location.origin && !url.pathname.startsWith('/api/'),
       handler: 'NetworkOnly',
+      options: {
+        // Missing here originally, unlike the 'navigate' rule above — this
+        // rule covers the exact same failure mode (an aborted/cancelled
+        // in-flight transition, e.g. the user's own next navigation firing
+        // before this one resolved) but without a handlerDidError fallback
+        // NetworkOnly still re-throws it as an unhandled "no-response"
+        // rejection. Reported live: right after signup, the client-side
+        // transition into /onboarding threw this exact error in the
+        // console. Same fallback response as the navigate rule — cosmetic
+        // for a cancelled transition (nothing reads the response, it's
+        // already discarded), a graceful offline notice for a genuine
+        // failure.
+        plugins: [
+          {
+            handlerDidError: async () =>
+              new Response(
+                '<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding:3rem 1rem;color:#666"><p>You\'re offline. Check your connection and try again.</p></body></html>',
+                { status: 503, headers: { 'Content-Type': 'text/html' } }
+              ),
+          },
+        ],
+      },
     },
     // Firestore traffic must never be served from cache — without this,
     // next-pwa's bundled cross-origin catch-all (NetworkFirst, 1 hour
