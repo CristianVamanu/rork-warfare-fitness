@@ -25,6 +25,7 @@ import { verifyAdmin } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { getR2Client } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
+import { timingSafeEqualString } from '@/lib/crypto';
 
 // Top-level collections that hold real data worth backing up. `system`
 // (encrypted secrets ciphertext) is deliberately excluded — no reason to
@@ -38,7 +39,7 @@ const COLLECTIONS = [
 async function authorize(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get('authorization');
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return { ok: true as const };
+  if (cronSecret && authHeader && timingSafeEqualString(authHeader, `Bearer ${cronSecret}`)) return { ok: true as const };
 
   const check = await verifyAdmin(req);
   if ('error' in check) return { ok: false as const, error: check.error, status: check.status };

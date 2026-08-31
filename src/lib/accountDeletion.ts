@@ -122,6 +122,33 @@ export async function deleteUserCompletely(app: App, db: Firestore, uid: string)
     firestoreDocsDeleted += await deleteByQuery(db, collection, 'userId', uid);
   }
 
+  // Channel posts (channels/{channelId}/posts) and their replies
+  // (channels/{channelId}/posts/{postId}/replies) — both userId-keyed,
+  // both publicly readable, and not reachable by a top-level collection
+  // query since they're nested under each channel. collectionGroup finds
+  // every 'posts'/'replies' subcollection regardless of which channel/post
+  // it lives under (this also matches the top-level 'posts' community feed
+  // collection, which is fine — it's already gone from the loop above by
+  // this point, so the second delete attempt is just a harmless no-op).
+  for (const groupName of ['posts', 'replies'] as const) {
+    const groupSnap = await db.collectionGroup(groupName).where('userId', '==', uid).get();
+    if (groupSnap.empty) continue;
+    const batches: Promise<unknown>[] = [];
+    let batch = db.batch();
+    let count = 0;
+    for (const doc of groupSnap.docs) {
+      batch.delete(doc.ref);
+      count++;
+      if (count % 400 === 0) {
+        batches.push(batch.commit());
+        batch = db.batch();
+      }
+    }
+    batches.push(batch.commit());
+    await Promise.all(batches);
+    firestoreDocsDeleted += groupSnap.size;
+  }
+
   // conversations use adminId/userId, not a single `userId` field
   const convSnap = await db.collection('conversations').where('userId', '==', uid).get();
   for (const conv of convSnap.docs) {

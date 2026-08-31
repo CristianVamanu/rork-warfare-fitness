@@ -138,7 +138,16 @@ export async function POST(req: NextRequest) {
         const userId = sub.metadata?.userId;
         if (!userId) { console.warn('[Stripe webhook] subscription event: no userId in metadata'); break; }
 
-        const active = sub.status === 'active' || sub.status === 'trialing';
+        // 'past_due' is Stripe still auto-retrying a failed renewal charge —
+        // treated as still-active so a single declined card (expired card,
+        // bank hiccup) doesn't instantly revoke a paying member's access.
+        // This event fires alongside invoice.payment_failed on the very
+        // first missed payment; that handler's own comment says "warn but
+        // don't deactivate immediately" — this used to silently contradict
+        // it by deactivating right here regardless. Real lapses still end
+        // access via customer.subscription.deleted once Stripe's retries
+        // are exhausted (status becomes 'unpaid'/'canceled'), same as today.
+        const active = sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due';
         const expiresAt = subscriptionPeriodEnd(sub);
         const planId = sub.metadata?.planId;
         const planName = sub.metadata?.planName;
@@ -318,6 +327,22 @@ export async function POST(req: NextRequest) {
             }
             console.log(`[Stripe webhook] Revoked ${field} for user ${userId} (${event.type})`);
           }
+        }
+        break;
+      }
+
+      // A won dispute doesn't undo anything automatically — the underlying
+      // subscription was already hard-cancelled by charge.dispute.created
+      // above, and there's no safe way to silently recreate a subscription
+      // or grant access back without a fresh payment method/checkout. This
+      // just surfaces it loudly so staff know to follow up manually instead
+      // of the account quietly staying revoked forever with no record of
+      // why it might now deserve reinstating.
+      case 'charge.dispute.closed': {
+        const dispute = event.data.object as Stripe.Dispute;
+        if (dispute.status === 'won') {
+          const chargeId = typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id;
+          console.error(`[Stripe webhook] Dispute WON (merchant) for charge ${chargeId} — access was previously revoked by charge.dispute.created and is NOT auto-restored. Manual review needed if this customer should be reinstated.`);
         }
         break;
       }

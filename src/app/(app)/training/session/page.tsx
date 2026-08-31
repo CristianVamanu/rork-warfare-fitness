@@ -1205,6 +1205,10 @@ function WorkoutSessionPageInner() {
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
   const [restTotal, setRestTotal] = useState(90);
   const restRef = useRef<NodeJS.Timeout>();
+  // Was previously stashed on `window.__advanceTimer` — a global, not
+  // component-scoped, and never cleared on unmount or on quitting mid-rest.
+  // A component-scoped ref cleaned up on unmount closes that leak.
+  const advanceTimerRef = useRef<NodeJS.Timeout>();
 
   // Modals
   const [quitModal, setQuitModal] = useState(false);
@@ -1301,6 +1305,15 @@ function WorkoutSessionPageInner() {
           } else {
             exercises = merged.exercises.length > 0 ? merged.exercises as Exercise[] : DEFAULT_EXERCISES;
           }
+        } else {
+          // Same reasoning as the scan-go branch above: silently substituting
+          // DEFAULT_EXERCISES here used to hand someone whose enrolled
+          // program was deleted a generic squat/RDL/leg-press workout with
+          // no connection to what they signed up for, and its results would
+          // still get saved tagged to a programId that no longer exists.
+          toast.error('This program is no longer available.');
+          router.replace('/training');
+          return;
         }
       }
 
@@ -1396,7 +1409,7 @@ function WorkoutSessionPageInner() {
     }, 1000);
   }, []);
 
-  useEffect(() => () => clearInterval(restRef.current), []);
+  useEffect(() => () => { clearInterval(restRef.current); clearTimeout(advanceTimerRef.current); }, []);
 
   // ── Derived state ───────────────────────────────────────────────────────
 
@@ -1444,8 +1457,22 @@ function WorkoutSessionPageInner() {
     [],
   );
 
+  // completeSet's "is the exercise/workout done" branch reads exStates from
+  // the render closure rather than the just-computed next state — a very
+  // fast double-tap on the same set (before React re-renders) could
+  // otherwise invoke this twice against the same stale exStates, running
+  // the advance/rest/complete-modal branch twice in one tick. Guarding on
+  // the exact (exIdx, setIdx) pair (not a single shared flag) so a
+  // legitimate rapid tap on a genuinely different set right after isn't
+  // blocked by this.
+  const completingSetRef = useRef<string | null>(null);
   const completeSet = useCallback(
     (exIdx: number, setIdx: number) => {
+      const key = `${exIdx}:${setIdx}`;
+      if (completingSetRef.current === key) return;
+      completingSetRef.current = key;
+      setTimeout(() => { if (completingSetRef.current === key) completingSetRef.current = null; }, 500);
+
       stopRest();
 
       setExStates((prev) => {
@@ -1505,8 +1532,7 @@ function WorkoutSessionPageInner() {
           }, 1200);
         } else {
           startRest(ex.restSeconds);
-          const advanceTimer = setTimeout(advanceToNext, ex.restSeconds * 1000);
-          (window as Window & { __advanceTimer?: NodeJS.Timeout }).__advanceTimer = advanceTimer;
+          advanceTimerRef.current = setTimeout(advanceToNext, ex.restSeconds * 1000);
         }
       } else if (!ex.isHiit) {
         // Rest between reps/sets of the same exercise — this covers plain
@@ -1525,7 +1551,7 @@ function WorkoutSessionPageInner() {
 
   const skipRest = useCallback(() => {
     stopRest();
-    clearTimeout((window as Window & { __advanceTimer?: NodeJS.Timeout }).__advanceTimer);
+    clearTimeout(advanceTimerRef.current);
     // If all sets in current exercise done, advance to next
     if (currentEx) {
       const allDone = currentEx.sets.every((s) =>
@@ -1549,7 +1575,7 @@ function WorkoutSessionPageInner() {
   const skipSet = useCallback(
     (exIdx: number, setIdx: number) => {
       stopRest();
-      clearTimeout((window as Window & { __advanceTimer?: NodeJS.Timeout }).__advanceTimer);
+      clearTimeout(advanceTimerRef.current);
 
       setExStates((prev) => {
         const next = [...prev];

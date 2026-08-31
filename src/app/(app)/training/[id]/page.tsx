@@ -11,7 +11,7 @@ import {
   Save, RotateCcw, Lock, Crown,
 } from 'lucide-react';
 import { resolveProgram, enrollInProgram, getMembershipConfig, getAllProgramProgress } from '@/lib/firestore';
-import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix, getScheduleForWeek, getNextSession } from '@/lib/programs';
+import { getMockProgram, stripWeekdayPrefix, getScheduleForWeek, getNextSession } from '@/lib/programs';
 import { getProgramDayLimit } from '@/lib/membership';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { useAuth } from '@/contexts/AuthContext';
@@ -103,9 +103,17 @@ export default function ProgramDetailPage() {
     // Shared resolver (Firestore-first, seed fallback) — same source of
     // truth as the dashboard card and workout session, so this page can
     // never show a different schedule than the rest of the app.
+    // A null result here means this id doesn't resolve to any real program
+    // (Firestore doc deleted, and not a built-in seed) — surfacing the
+    // existing "Program not found" state below is correct. Substituting an
+    // unrelated program (this used to fall back to MOCK_PROGRAMS[0]) used
+    // to silently show the wrong schedule/exercises for someone whose
+    // enrolled "Build Your Own" program got deleted, while their saved
+    // progress (lastCompletedDayIndex etc.) kept being interpreted against
+    // that unrelated program's schedule length.
     resolveProgram(id)
-      .then((p) => setProgram(p ?? (MOCK_PROGRAMS[0] as Program)))
-      .catch(() => setProgram(getMockProgram(id) ?? (MOCK_PROGRAMS[0] as Program)))
+      .then((p) => setProgram(p))
+      .catch(() => setProgram(getMockProgram(id) ?? null))
       .finally(() => setLoading(false));
   }, [id]);
 
