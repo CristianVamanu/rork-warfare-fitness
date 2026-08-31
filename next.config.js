@@ -86,14 +86,30 @@ const withPWA = require('next-pwa')({
     // Those fell through to next-pwa's bundled "others" catch-all below
     // (NetworkFirst, 10s timeout) — reported as program switching taking a
     // very long time, and confirmed by a real "no-response" Workbox error
-    // on a /training/[id] navigation. Matching every same-origin non-API
-    // request here, before the next-pwa spread, and forcing NetworkOnly
-    // closes that gap. Static assets (JS/CSS/images/fonts) are already
-    // matched by next-pwa's more specific earlier default rules, so this
-    // only catches the leftover document/RSC requests that should never be
-    // served from cache.
+    // on a /training/[id] navigation. Matching same-origin non-API
+    // requests here, before the next-pwa spread, and forcing NetworkOnly
+    // closes that gap.
+    //
+    // The urlPattern used to match EVERY same-origin non-API request with
+    // no further scoping, on the assumption static assets were already
+    // claimed by next-pwa's earlier default rules — true for JS/CSS chunks
+    // (precached separately, never reaching runtimeCaching at all) but NOT
+    // true for plain static files like /favicon.ico or /icons/*.png, which
+    // have no more specific earlier rule and so were also being forced
+    // through this handler. That mattered once the AbortError branch below
+    // was added: a favicon/icon fetch that gets aborted (routine — browsers
+    // deprioritize icon requests under load) got the SAME empty-200
+    // fallback as a cancelled page navigation, which a browser then treats
+    // as "successfully fetched, nothing there" and stops retrying — a
+    // favicon that silently goes blank and stays that way. RSC/document
+    // requests are always extension-less paths (/dashboard, /training/123),
+    // so excluding any pathname with a file extension scopes this back to
+    // its actual intent without needing to enumerate every static path.
     {
-      urlPattern: ({ url }) => url.origin === self.location.origin && !url.pathname.startsWith('/api/'),
+      urlPattern: ({ url }) =>
+        url.origin === self.location.origin &&
+        !url.pathname.startsWith('/api/') &&
+        !/\.[a-zA-Z0-9]+$/.test(url.pathname),
       handler: 'NetworkOnly',
       options: {
         // Same AbortError-vs-genuine-failure split as the navigate rule
