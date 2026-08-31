@@ -51,6 +51,16 @@ export function HeaderDataProvider({ children }: { children: React.ReactNode }) 
   const [appName, setAppName] = useState<string>(cachedAppName);
 
   const isAdmin = profile?.role === 'admin';
+  // /verify-2fa and /banned both render inside this same (app) layout, and
+  // neither one used to mount Header (so these subscriptions never fired
+  // there before Header's data-fetching moved into this shared provider).
+  // A just-signed-in account's token genuinely still carries tfaPending:
+  // true until the code is verified — firestore.rules' notTfaPending()
+  // correctly rejects these reads for as long as that's the case — and a
+  // just-banned account's token can stay valid for a moment until it's
+  // revoked/refreshed. Gate on both explicitly rather than relying on
+  // which page happens to mount this provider.
+  const blockedFromReads = !!profile?.twoFactorPendingSince || !!profile?.banned;
 
   useEffect(() => {
     getSystemConfig().then(cfg => {
@@ -65,7 +75,7 @@ export function HeaderDataProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    if (!user) { setHasConversation(false); setUnreadMessages(0); return; }
+    if (!user || blockedFromReads) { setHasConversation(false); setUnreadMessages(0); return; }
     if (isAdmin) {
       const unsub = subscribeAdminConversations(user.uid, (convs) => {
         setHasConversation(true);
@@ -78,10 +88,10 @@ export function HeaderDataProvider({ children }: { children: React.ReactNode }) 
       setUnreadMessages(convs.filter(c => c.unreadByUser).length);
     });
     return unsub;
-  }, [user, isAdmin]);
+  }, [user, isAdmin, blockedFromReads]);
 
   useEffect(() => {
-    if (!user) { setUnreadNotifs(0); return; }
+    if (!user || blockedFromReads) { setUnreadNotifs(0); return; }
     let cancelled = false;
     const load = () => {
       getUnreadNotificationCount(user.uid)
@@ -91,7 +101,7 @@ export function HeaderDataProvider({ children }: { children: React.ReactNode }) 
     load();
     const interval = setInterval(load, 30_000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [user]);
+  }, [user, blockedFromReads]);
 
   return (
     <HeaderDataCtx.Provider value={{ hasConversation, unreadMessages, unreadNotifs, logoUrl, appName }}>
