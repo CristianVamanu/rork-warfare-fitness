@@ -194,8 +194,10 @@ export default function ChannelPage() {
   const isAdmin = profile?.role === 'admin' || profile?.role === 'trainer';
 
   const [channel, setChannel] = useState<Channel | null>(null);
+  const [channelLoaded, setChannelLoaded] = useState(false);
   const [posts, setPosts] = useState<ChannelPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [postsLoaded, setPostsLoaded] = useState(false);
+  const loading = !channelLoaded || !postsLoaded;
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -215,6 +217,8 @@ export default function ChannelPage() {
 
   useEffect(() => {
     if (!channelId) return;
+    setChannelLoaded(false);
+    setPostsLoaded(false);
     Promise.all([
       getChannels(trainerId ?? undefined),
       user ? getUserLastPostInChannel(channelId, user.uid) : Promise.resolve(null),
@@ -225,7 +229,8 @@ export default function ChannelPage() {
         const unlocksAt = new Date(lastPost.getTime() + ch.slowModeDays * 86400000);
         if (unlocksAt > new Date()) setSlowModeBlocked(unlocksAt);
       }
-    }).catch(() => {});
+    }).catch(() => setChannel(null))
+      .finally(() => setChannelLoaded(true));
 
     // Live listener (not a one-shot fetch) — otherwise a user sitting in a
     // channel never sees a message someone else posts until they navigate
@@ -235,9 +240,9 @@ export default function ChannelPage() {
       channelId,
       (ps) => {
         setPosts(ps);
-        if (firstSnapshot) { firstSnapshot = false; setLoading(false); }
+        if (firstSnapshot) { firstSnapshot = false; setPostsLoaded(true); }
       },
-      () => setLoading(false),
+      () => setPostsLoaded(true),
     );
     return () => unsub();
   }, [channelId, trainerId, user]);

@@ -4,9 +4,9 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame, Medal, Radio, Sparkles, Award, Target } from 'lucide-react';
+import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame, Medal } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getChannels, subscribeLeaderboard, subscribeNearbyLeaderboard, subscribeCommunityActivity, type LeaderboardEntry, type CommunityActivity, type CommunityActivityType } from '@/lib/firestore';
+import { getChannels, subscribeLeaderboard, subscribeNearbyLeaderboard, type LeaderboardEntry } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -37,30 +37,10 @@ function CommunityPageInner() {
   // "near you" at level 0 is meaningless.
   const [lbScope, setLbScope] = useState<'global' | 'nearby'>('nearby');
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<'channels' | 'leaderboard' | 'live'>(
-    searchParams.get('tab') === 'leaderboard' ? 'leaderboard' : searchParams.get('tab') === 'live' ? 'live' : 'channels'
+  const [tab, setTab] = useState<'channels' | 'leaderboard'>(
+    searchParams.get('tab') === 'leaderboard' ? 'leaderboard' : 'channels'
   );
 
-  // Live Activity — "what's happening right now" across the whole
-  // community, distinct from the Leaderboard's "who's ranked where".
-  // Deliberately NOT auto-scrolling the list as new items arrive while
-  // someone's reading — new items queue behind a "N new" banner instead,
-  // same as the spec's "don't make the page constantly jump" requirement.
-  const [liveItems, setLiveItems] = useState<CommunityActivity[]>([]);
-  const [liveLoading, setLiveLoading] = useState(true);
-  const [visibleLiveIds, setVisibleLiveIds] = useState<Set<string> | null>(null);
-  useEffect(() => {
-    if (tab !== 'live') return;
-    setLiveLoading(true);
-    const unsub = subscribeCommunityActivity((items) => {
-      setLiveItems(items);
-      setLiveLoading(false);
-      // First load for this tab visit: show everything immediately, no banner.
-      setVisibleLiveIds((prev) => prev ?? new Set(items.map((i) => i.id)));
-    }, 20);
-    return unsub;
-  }, [tab]);
-  const newLiveCount = visibleLiveIds ? liveItems.filter((i) => !visibleLiveIds.has(i.id)).length : 0;
   useEffect(() => {
     getChannels(effectiveTrainerId ?? undefined)
       .then(setChannels)
@@ -69,6 +49,7 @@ function CommunityPageInner() {
   }, [effectiveTrainerId]);
 
   useEffect(() => {
+    if (tab !== 'leaderboard') return;
     if (lbScope === 'global' || !(profile?.powerLevel ?? 0)) {
       setLbLoading(true);
       const unsub = subscribeLeaderboard((entries) => {
@@ -83,7 +64,7 @@ function CommunityPageInner() {
       setLbLoading(false);
     }, 10);
     return unsub;
-  }, [lbScope, profile?.powerLevel]);
+  }, [tab, lbScope, profile?.powerLevel]);
 
   const medalColors = [
     'bg-yellow-400 text-black',
@@ -92,28 +73,13 @@ function CommunityPageInner() {
   ];
   const medals = ['🥇', '🥈', '🥉'];
 
-  const ACTIVITY_ICON: Record<CommunityActivityType, typeof Flame> = {
-    workout: Flame, program_day: Flame, program_completed: Award,
-    pr: Dumbbell, achievement: Trophy, quest: Target, streak: Flame,
-  };
-  function timeAgo(ts: unknown): string {
-    const d = (ts as { toDate?: () => Date })?.toDate?.();
-    if (!d) return 'just now';
-    const m = Math.floor((Date.now() - d.getTime()) / 60000);
-    if (m < 1) return 'just now';
-    if (m < 60) return `${m}m ago`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h ago`;
-    return `${Math.floor(h / 24)}d ago`;
-  }
-
   return (
     <div>
       <Header title="Community" />
       <div className="px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
         {/* Tab switcher */}
-        <div className="grid grid-cols-3 gap-1 bg-surface rounded-xl p-1">
-          {(['channels', 'live', 'leaderboard'] as const).map((t) => (
+        <div className="grid grid-cols-2 gap-1 bg-surface rounded-xl p-1">
+          {(['channels', 'leaderboard'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -121,7 +87,7 @@ function CommunityPageInner() {
                 tab === t ? 'bg-surface-elevated text-white' : 'text-text-secondary'
               }`}
             >
-              {t === 'leaderboard' ? '🏆 Leaderboard' : t === 'live' ? '📡 Live' : '# Channels'}
+              {t === 'leaderboard' ? '🏆 Leaderboard' : '# Channels'}
             </button>
           ))}
         </div>
@@ -183,62 +149,6 @@ function CommunityPageInner() {
               </div>
             )}
           </PaywallGate>
-        )}
-
-        {/* Live Activity tab — "what's happening right now" across the
-            community, chronological, distinct from the Leaderboard's
-            ranking view. Public, minimal (name + activity + relative time
-            only) — never anything beyond what src/lib/firestore.ts's
-            postCommunityActivity itself writes. */}
-        {tab === 'live' && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Radio className="w-4 h-4 text-accent" />
-              <h2 className="text-base font-bold text-white">Live Activity</h2>
-              <span className="text-xs text-text-tertiary ml-auto">Live</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            </div>
-
-            {newLiveCount > 0 && (
-              <button
-                onClick={() => setVisibleLiveIds(new Set(liveItems.map((i) => i.id)))}
-                className="w-full py-2 rounded-xl bg-accent/15 text-accent text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-accent/20 transition-colors"
-              >
-                <Sparkles className="w-3.5 h-3.5" /> {newLiveCount} new activit{newLiveCount === 1 ? 'y' : 'ies'} — tap to show
-              </button>
-            )}
-
-            {liveLoading ? (
-              <div className="space-y-2">{[1,2,3,4].map(i => <Skeleton key={i} className="h-14 rounded-xl" />)}</div>
-            ) : liveItems.filter((i) => visibleLiveIds?.has(i.id)).length === 0 ? (
-              <Card className="p-10 text-center">
-                <Radio className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
-                <p className="text-white font-bold">Nothing yet</p>
-                <p className="text-text-secondary text-sm mt-1">Your community activity will appear here as Warriors complete workouts, challenges and achievements.</p>
-              </Card>
-            ) : (
-              <div className="space-y-2">
-                {liveItems.filter((i) => visibleLiveIds?.has(i.id)).map((item, i) => {
-                  const Icon = ACTIVITY_ICON[item.type];
-                  return (
-                    <motion.div key={item.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-                      <Card className="p-3.5 flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0">
-                          <Icon className="w-4 h-4 text-accent" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white">
-                            <span className="font-bold">{item.displayName}</span> {item.label}
-                          </p>
-                          <p className="text-xs text-text-tertiary mt-0.5">{timeAgo(item.createdAt)}</p>
-                        </div>
-                      </Card>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
         )}
 
         {/* Leaderboard tab */}

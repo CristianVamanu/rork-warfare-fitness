@@ -662,11 +662,37 @@ export async function getLastExercisePerformance(userId: string, exerciseName: s
 // ---------------------------------------------------------------------------
 // Programs — scoped by trainerId when provided
 // ---------------------------------------------------------------------------
+// Program docs carry full exercise schedules/phases, so a full collection
+// scan isn't cheap — and the Training tab used to trigger TWO of them on
+// every visit (getPrograms + getUserCustomPrograms each doing their own
+// independent getDocs over the same collection), with no caching at all.
+// Share one cached raw fetch between both instead.
+let programsCache: { all: Record<string, unknown>[]; fetchedAt: number } | null = null;
+let programsInFlight: Promise<Record<string, unknown>[]> | null = null;
+const PROGRAMS_CACHE_TTL_MS = 30_000;
+
+async function fetchAllPrograms(): Promise<Record<string, unknown>[]> {
+  if (programsCache && Date.now() - programsCache.fetchedAt < PROGRAMS_CACHE_TTL_MS) {
+    return programsCache.all;
+  }
+  if (programsInFlight) return programsInFlight;
+  programsInFlight = getDocs(collection(db, 'programs')).then((snap) => {
+    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    programsCache = { all, fetchedAt: Date.now() };
+    programsInFlight = null;
+    return all;
+  }).catch((err) => { programsInFlight = null; throw err; });
+  return programsInFlight;
+}
+
+export function invalidateProgramsCache() {
+  programsCache = null;
+}
+
 export async function getPrograms(trainerId?: string) {
   // Full collection scan + client-side filter avoids composite index requirement
-  const snap = await getDocs(collection(db, 'programs'));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const all: any[] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const all = await fetchAllPrograms() as any[];
   if (trainerId) {
     return all.filter((p) => p.trainerId === trainerId).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   }
@@ -683,9 +709,8 @@ export async function getPrograms(trainerId?: string) {
 // just invisible. This surfaces the ones a given user owns so the training
 // screen can list them separately and let the user re-select one.
 export async function getUserCustomPrograms(uid: string) {
-  const snap = await getDocs(collection(db, 'programs'));
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
+  const all = await fetchAllPrograms();
+  return all
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .filter((p: any) => p.ownerId === uid)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -732,11 +757,14 @@ export async function resolveProgram(programId: string): Promise<Program | null>
 }
 
 export async function createProgram(data: Record<string, unknown>) {
-  return addDoc(collection(db, 'programs'), { ...stripUndefinedDeep(data), createdAt: serverTimestamp() });
+  const ref = await addDoc(collection(db, 'programs'), { ...stripUndefinedDeep(data), createdAt: serverTimestamp() });
+  invalidateProgramsCache();
+  return ref;
 }
 
 export async function updateProgram(id: string, data: Record<string, unknown>) {
   await updateDoc(doc(db, 'programs', id), { ...stripUndefinedDeep(data), updatedAt: serverTimestamp() });
+  invalidateProgramsCache();
 }
 
 /**
@@ -748,10 +776,12 @@ export async function updateProgram(id: string, data: Record<string, unknown>) {
  */
 export async function upsertProgram(id: string, data: Record<string, unknown>) {
   await setDoc(doc(db, 'programs', id), { ...stripUndefinedDeep(data), updatedAt: serverTimestamp() }, { merge: true });
+  invalidateProgramsCache();
 }
 
 export async function deleteProgram(id: string) {
   await deleteDoc(doc(db, 'programs', id));
+  invalidateProgramsCache();
 }
 
 // ---------------------------------------------------------------------------
@@ -1212,6 +1242,7 @@ export async function createAIProgram(program: Omit<Program, 'id'>): Promise<str
     ...program,
     createdAt: serverTimestamp(),
   });
+  invalidateProgramsCache();
   return ref.id;
 }
 
@@ -1590,9 +1621,36 @@ export async function saveNotificationConfig(data: Partial<NotificationConfig>) 
 // ---------------------------------------------------------------------------
 import type { Channel, ChannelPost } from '@/types';
 
+// Channel list rarely changes, but both the community list page and every
+// channel detail page re-fetch it on every visit. Cache the raw (unfiltered)
+// docs briefly in memory so hopping list -> channel -> back doesn't refetch
+// the whole collection each time, and so the detail page's "does this
+// channel exist" check resolves instantly instead of racing the live posts
+// listener (which used to flash "Channel not found" for a moment).
+let channelsCache: { all: Channel[]; fetchedAt: number } | null = null;
+let channelsInFlight: Promise<Channel[]> | null = null;
+const CHANNELS_CACHE_TTL_MS = 30_000;
+
+async function fetchAllChannels(): Promise<Channel[]> {
+  if (channelsCache && Date.now() - channelsCache.fetchedAt < CHANNELS_CACHE_TTL_MS) {
+    return channelsCache.all;
+  }
+  if (channelsInFlight) return channelsInFlight;
+  channelsInFlight = getDocs(collection(db, 'channels')).then((snap) => {
+    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Channel);
+    channelsCache = { all, fetchedAt: Date.now() };
+    channelsInFlight = null;
+    return all;
+  }).catch((err) => { channelsInFlight = null; throw err; });
+  return channelsInFlight;
+}
+
+export function invalidateChannelsCache() {
+  channelsCache = null;
+}
+
 export async function getChannels(trainerId?: string): Promise<Channel[]> {
-  const snap = await getDocs(collection(db, 'channels'));
-  const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Channel);
+  const all = await fetchAllChannels();
   return all
     .filter((c) => !trainerId || c.trainerId === trainerId || !c.trainerId)
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
@@ -1600,17 +1658,21 @@ export async function getChannels(trainerId?: string): Promise<Channel[]> {
 
 export async function createChannel(data: Omit<Channel, 'id' | 'postCount' | 'createdAt'>) {
   const clean = Object.fromEntries(Object.entries({ ...data, postCount: 0, createdAt: serverTimestamp() }).filter(([, v]) => v !== undefined));
-  return addDoc(collection(db, 'channels'), clean);
+  const ref = await addDoc(collection(db, 'channels'), clean);
+  invalidateChannelsCache();
+  return ref;
 }
 
 export async function updateChannel(id: string, data: Partial<Channel>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const clean: Record<string, any> = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
   await updateDoc(doc(db, 'channels', id), clean);
+  invalidateChannelsCache();
 }
 
 export async function deleteChannel(id: string) {
   await deleteDoc(doc(db, 'channels', id));
+  invalidateChannelsCache();
 }
 
 export async function getChannelPosts(channelId: string): Promise<ChannelPost[]> {
