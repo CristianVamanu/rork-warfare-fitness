@@ -123,3 +123,20 @@ export function formatBodyWeight(kg: number | null | undefined, unit: 'kg' | 'lb
 export function localDateHeader(): Record<string, string> {
   return { 'x-local-date': new Date().toLocaleDateString('sv-SE') };
 }
+
+// A plain <video> tag can only play a direct file (mp4/webm/etc) — a
+// youtube.com/youtu.be URL isn't one, so it fails to load silently with no
+// error the admin or user would ever see. Detect those and embed via
+// iframe instead so pasting a YouTube link actually works. Shared between
+// the onboarding video-greeting player and the admin settings preview so
+// both agree on what counts as a YouTube link.
+export function getYouTubeEmbedUrl(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtu\.be\/)([\w-]{11})/,
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return `https://www.youtube.com/embed/${m[1]}?autoplay=1&playsinline=1`;
+  }
+  return null;
+}

@@ -17,28 +17,13 @@ import { startPlanCheckout, startCoachingCheckout } from '@/lib/checkout';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, resolveProgram } from '@/lib/firestore';
 import { trackEvent } from '@/lib/analytics';
 import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
-import { lbsToKg, kgToLbs, cmToFtIn, ftInToCm } from '@/lib/utils';
+import { lbsToKg, kgToLbs, cmToFtIn, ftInToCm, getYouTubeEmbedUrl } from '@/lib/utils';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex, MedicalHistoryAnswers } from '@/types';
-
-// A plain <video> tag can only play a direct file (mp4/webm/etc) — a
-// youtube.com/youtu.be URL isn't one, so it fails to load silently with no
-// error the admin or user would ever see. Detect those and embed via
-// iframe instead so pasting a YouTube link actually works.
-function getYouTubeEmbedUrl(url: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtu\.be\/)([\w-]{11})/,
-  ];
-  for (const re of patterns) {
-    const m = url.match(re);
-    if (m) return `https://www.youtube.com/embed/${m[1]}?autoplay=1&playsinline=1`;
-  }
-  return null;
-}
 
 // ─── Step data ────────────────────────────────────────────────────────────────
 

@@ -46,7 +46,7 @@ import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
 import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, TrainerLead, LandingLead } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
-import { getPlanBillingPeriods } from '@/lib/utils';
+import { getPlanBillingPeriods, getYouTubeEmbedUrl } from '@/lib/utils';
 
 type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'settings';
 
@@ -284,6 +284,7 @@ function AdminPageInner() {
   const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingGreetingVideo, setUploadingGreetingVideo] = useState(false);
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [uploadingDemoVideo, setUploadingDemoVideo] = useState(false);
   const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
@@ -2102,6 +2103,23 @@ function AdminPageInner() {
       toast.error(`Failed to upload logo: ${msg}`, { duration: 6000 });
     } finally {
       setUploadingLogo(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleGreetingVideoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingGreetingVideo(true);
+    try {
+      const url = await uploadVideo(storageProvider, user, file, 'branding');
+      setSettingsForm(s => ({ ...s, videoGreetingUrl: url }));
+      toast.success('Video uploaded — click Save Configuration below to publish it');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to upload video: ${msg}`, { duration: 6000 });
+    } finally {
+      setUploadingGreetingVideo(false);
       e.target.value = '';
     }
   }
@@ -4115,9 +4133,29 @@ function AdminPageInner() {
                 <Input value={settingsForm.openaiModel} onChange={e => setSettingsForm(s => ({ ...s, openaiModel: e.target.value }))} placeholder="gpt-4o-mini" />
               </div>
               <div>
-                <label className="text-xs text-text-secondary mb-1 block">Video Greeting URL</label>
-                <Input value={settingsForm.videoGreetingUrl} onChange={e => setSettingsForm(s => ({ ...s, videoGreetingUrl: e.target.value }))} placeholder="https://… (YouTube link, or an MP4 / hosted video URL)" />
-                <p className="text-xs text-text-tertiary mt-1">Plays automatically after a new user completes onboarding. YouTube links and direct video files both work. Leave blank to skip.</p>
+                <label className="text-xs text-text-secondary mb-1 block">Video Greeting</label>
+                <p className="text-xs text-text-tertiary mb-2">Plays automatically after a new user completes onboarding. Upload a file directly (stored via the storage provider configured above — R2 or Firebase), or paste a YouTube/hosted video link instead. Leave blank to skip.</p>
+                <div className="flex items-center gap-3 mb-2">
+                  {settingsForm.videoGreetingUrl && !getYouTubeEmbedUrl(settingsForm.videoGreetingUrl) && (
+                    <video src={settingsForm.videoGreetingUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted crossOrigin="anonymous" />
+                  )}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-white/10 text-xs font-bold text-white cursor-pointer hover:border-accent/40 transition-colors">
+                      <input type="file" accept="video/*" className="hidden" onChange={handleGreetingVideoUpload} disabled={uploadingGreetingVideo} />
+                      <Upload className="w-4 h-4" /> {uploadingGreetingVideo ? 'Uploading…' : 'Upload Video'}
+                    </label>
+                    {settingsForm.videoGreetingUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setSettingsForm(s => ({ ...s, videoGreetingUrl: '' }))}
+                        className="text-[11px] text-danger hover:underline text-left"
+                      >
+                        Remove video
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <Input value={settingsForm.videoGreetingUrl} onChange={e => setSettingsForm(s => ({ ...s, videoGreetingUrl: e.target.value }))} placeholder="…or paste a YouTube link / hosted video URL" />
               </div>
               <div>
                 <label className="text-xs text-text-secondary mb-1 block">Logo / Brand Image</label>
