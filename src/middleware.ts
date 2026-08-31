@@ -24,7 +24,12 @@ export function middleware(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID());
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://digimetrix.ai`,
+    // www.googletagmanager.com serves GA4's own gtag.js loader (loaded by
+    // a nonce'd <Script> in ConsentGatedScripts). strict-dynamic already
+    // trusts it as a script loaded BY a nonce'd script in any browser that
+    // supports strict-dynamic — this explicit host is the fallback for
+    // browsers/webviews that don't, same reasoning as digimetrix.ai above.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://digimetrix.ai https://www.googletagmanager.com`,
     // A prior attempt scoped unsafe-inline to style-src-attr only, on the
     // assumption this app never injects raw <style> blocks — that was
     // wrong. Framer Motion (AnimatePresence/layout animations) and the

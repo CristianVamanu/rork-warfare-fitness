@@ -48,25 +48,32 @@ const withPWA = require('next-pwa')({
       options: {
         // Workbox's NetworkOnly re-throws as an unhandled "no-response"
         // rejection whenever the underlying fetch doesn't resolve to a
-        // Response — that includes a genuinely failed request, but also a
-        // harmless one: the browser/Next.js aborting this exact navigation
-        // because the user already navigated elsewhere before it finished.
-        // The aborted case is common and cosmetic (the browser discards the
-        // cancelled navigation on its own either way), but it was spamming
-        // the console identically to a real failure. Supplying a fallback
-        // response here suppresses that rethrow in both cases; for a
-        // cancelled navigation nothing sees the response (already
-        // discarded), and for a genuine failure this now shows a minimal
-        // "you're offline" page instead of the browser's default error
-        // interstitial — a small UX improvement, not a behavior change to
-        // the deliberate never-serve-stale-cache policy above.
+        // Response. That covers two very different situations, which used
+        // to get the SAME 503 "you're offline" fallback response —
+        // wrongly, since only one of them is actually an outage:
+        //  1. A genuinely failed request (offline, DNS failure, etc.) —
+        //     real, worth telling the user about.
+        //  2. An ABORTED navigation — the browser/Next.js cancelling this
+        //     exact in-flight fetch because the user (or Next's own
+        //     prefetching) already navigated elsewhere before it finished.
+        //     This is routine and constant (fast clicks, Link hover-
+        //     prefetch superseded by a real navigation, back/forward) and
+        //     was being misreported as a fake "503 Service Unavailable"
+        //     for a page that never actually had a problem — nothing was
+        //     ever listening for this response anyway, since the
+        //     navigation that requested it no longer exists.
+        // Distinguishing them here means a real outage still gets the
+        // offline page, while a routine cancellation reports success and
+        // generates no error at all.
         plugins: [
           {
-            handlerDidError: async () =>
-              new Response(
-                '<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding:3rem 1rem;color:#666"><p>You\'re offline. Check your connection and try again.</p></body></html>',
-                { status: 503, headers: { 'Content-Type': 'text/html' } }
-              ),
+            handlerDidError: async ({ error }) =>
+              (error && error.details && error.details.error && error.details.error.name === 'AbortError')
+                ? new Response(null, { status: 200 })
+                : new Response(
+                    '<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding:3rem 1rem;color:#666"><p>You\'re offline. Check your connection and try again.</p></body></html>',
+                    { status: 503, headers: { 'Content-Type': 'text/html' } }
+                  ),
           },
         ],
       },
@@ -89,26 +96,45 @@ const withPWA = require('next-pwa')({
       urlPattern: ({ url }) => url.origin === self.location.origin && !url.pathname.startsWith('/api/'),
       handler: 'NetworkOnly',
       options: {
-        // Missing here originally, unlike the 'navigate' rule above — this
-        // rule covers the exact same failure mode (an aborted/cancelled
-        // in-flight transition, e.g. the user's own next navigation firing
-        // before this one resolved) but without a handlerDidError fallback
-        // NetworkOnly still re-throws it as an unhandled "no-response"
-        // rejection. Reported live: right after signup, the client-side
-        // transition into /onboarding threw this exact error in the
-        // console. Same fallback response as the navigate rule — cosmetic
-        // for a cancelled transition (nothing reads the response, it's
-        // already discarded), a graceful offline notice for a genuine
-        // failure.
+        // Same AbortError-vs-genuine-failure split as the navigate rule
+        // above, for the same reason: a client-side route transition
+        // (e.g. clicking into /dashboard right after another nav was
+        // already in flight) gets cancelled constantly and routinely —
+        // that used to come back as an indistinguishable 503, identical to
+        // an actual server/network failure.
         plugins: [
           {
-            handlerDidError: async () =>
-              new Response(
-                '<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding:3rem 1rem;color:#666"><p>You\'re offline. Check your connection and try again.</p></body></html>',
-                { status: 503, headers: { 'Content-Type': 'text/html' } }
-              ),
+            handlerDidError: async ({ error }) =>
+              (error && error.details && error.details.error && error.details.error.name === 'AbortError')
+                ? new Response(null, { status: 200 })
+                : new Response(
+                    '<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding:3rem 1rem;color:#666"><p>You\'re offline. Check your connection and try again.</p></body></html>',
+                    { status: 503, headers: { 'Content-Type': 'text/html' } }
+                  ),
           },
         ],
+      },
+    },
+    // Google Tag Manager / GA4's own script + beacon requests — without
+    // this, they fell through to next-pwa's bundled cross-origin catch-all
+    // (NetworkFirst, 10s timeout, 1hr cache), which is wrong on two counts:
+    // analytics requests should never be served from a stale cache (an
+    // old, months-ago gtag.js has no value), and that generic handler has
+    // no handlerDidError fallback, so any failure (including a CSP block,
+    // an ad-blocker, or a plain offline visitor) re-threw as the same
+    // unhandled "no-response" rejection this file works around everywhere
+    // else. Analytics failing to load should never be user-visible or
+    // console-spamming — it's non-essential telemetry, not app
+    // functionality — so this is NetworkOnly with a silent no-op fallback.
+    {
+      urlPattern: ({ url }) =>
+        url.hostname === 'www.googletagmanager.com' ||
+        url.hostname === 'www.google-analytics.com' ||
+        url.hostname.endsWith('.google-analytics.com') ||
+        url.hostname.endsWith('.analytics.google.com'),
+      handler: 'NetworkOnly',
+      options: {
+        plugins: [{ handlerDidError: async () => new Response('', { status: 204 }) }],
       },
     },
     // Firestore traffic must never be served from cache — without this,
