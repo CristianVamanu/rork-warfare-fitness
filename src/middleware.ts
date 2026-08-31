@@ -65,7 +65,14 @@ export function middleware(request: NextRequest) {
     // the resource actually is. Without it here the request was blocked
     // outright, surfacing as a CSP violation plus a "Response with null
     // body status cannot have body" throw from the SW's own error handler.
-    "connect-src 'self' https://*.googleapis.com https://apis.google.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://*.google-analytics.com https://*.analytics.google.com",
+    // www.googletagmanager.com is the SAME situation as apis.google.com
+    // above — GA4's own loader script (gtag/js?id=...) is allowed as a
+    // SCRIPT via strict-dynamic, but the service worker's runtime-caching
+    // strategy re-issues that same request as a fetch() to populate its
+    // cache, which only connect-src governs. Missing it here blocked the
+    // request outright the moment GA was actually turned on (reported live:
+    // "violates... connect-src", "no-response" from NetworkFirst.js).
+    "connect-src 'self' https://*.googleapis.com https://apis.google.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
     // Firebase Auth opens a hidden same-project iframe at
     // <project>.firebaseapp.com/__/auth/iframe as part of its normal init
     // (session persistence / cross-tab auth-state sync) — this fires even

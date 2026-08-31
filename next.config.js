@@ -272,6 +272,16 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.cloudinary.com' },
       { protocol: 'https', hostname: '**.imgur.com' },
       { protocol: 'https', hostname: 'i.imgur.com' },
+      // R2 storage (Admin -> Settings -> Storage Provider) — CSP's
+      // connect-src already allowed these two hostnames, but next/image's
+      // own optimizer has a SEPARATE allowlist and never had them added.
+      // Any image uploaded while R2 is the active storage provider (logo,
+      // hero images, etc.) 400s through /_next/image with no allowlist
+      // match, which next/image's <Image> renders as a load failure —
+      // Header's logo <Image onError=...> falls back to the plain "W" icon
+      // exactly as if no logo were set, even though logoUrl is populated.
+      { protocol: 'https', hostname: '**.r2.dev' },
+      { protocol: 'https', hostname: '**.r2.cloudflarestorage.com' },
     ],
   },
   experimental: {
