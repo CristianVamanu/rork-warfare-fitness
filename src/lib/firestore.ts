@@ -1724,6 +1724,7 @@ export async function createChannelPost(channelId: string, data: {
   });
   // bump post count on channel
   await updateDoc(doc(db, 'channels', channelId), { postCount: increment(1) });
+  invalidateChannelsCache();
   // track last post time for slow mode
   await setDoc(doc(db, 'channels', channelId, 'members', data.userId), { lastPostAt: serverTimestamp() }, { merge: true });
   return ref.id;
@@ -1753,16 +1754,19 @@ export async function createReply(channelId: string, postId: string, data: {
 export async function deleteChannelPost(channelId: string, postId: string) {
   await deleteDoc(doc(db, 'channels', channelId, 'posts', postId));
   await updateDoc(doc(db, 'channels', channelId), { postCount: increment(-1) }).catch(() => {});
+  invalidateChannelsCache();
 }
 
 export async function pinChannelPost(channelId: string, postId: string) {
   await updateDoc(doc(db, 'channels', channelId), { pinnedPostId: postId });
   await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { pinned: true });
+  invalidateChannelsCache();
 }
 
 export async function unpinChannelPost(channelId: string, postId: string) {
   await updateDoc(doc(db, 'channels', channelId), { pinnedPostId: deleteField() });
   await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { pinned: false });
+  invalidateChannelsCache();
 }
 
 export interface LeaderboardEntry {

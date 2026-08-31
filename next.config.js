@@ -203,7 +203,45 @@ const withPWA = require('next-pwa')({
         expiration: { maxEntries: 48, maxAgeSeconds: 24 * 60 * 60 },
       },
     },
-    ...require('next-pwa/cache'),
+    // next-pwa's bundled defaults (fonts, images, JS/CSS, /_next/image,
+    // /api/* calls under its "apis" rule, and the "others"/"cross-origin"
+    // catch-alls for literally everything else) are all NetworkFirst/
+    // StaleWhileRevalidate/CacheFirst with NO handlerDidError of their own.
+    // This session fixed the identical unhandled "no-response" rejection
+    // one host at a time as each one got reported (navigate, RSC/same-
+    // origin, GTM/GA, apis.google.com) — an audit afterward confirmed that
+    // pattern was incomplete by construction: any OTHER cross-origin host
+    // the app talks to (Sentry, Supabase, R2, Cloudinary/imgur/Unsplash,
+    // digimetrix.ai's own runtime calls, Meta Pixel beacons) or any
+    // same-origin /api/* call would reproduce the exact same error the
+    // moment it got cancelled (a component unmounting mid-fetch, a
+    // superseded polling call), just not yet reported. Rather than keep
+    // chasing it domain by domain, every default rule below gets the same
+    // AbortError-safe handlerDidError applied uniformly: a cancelled
+    // request reports success silently (nothing was ever going to read
+    // the response anyway — whatever awaited it already unmounted/moved
+    // on), while a GENUINE failure returns undefined, which is Workbox's
+    // own signal to fall through to its default behavior (reject the
+    // promise) — exactly what happens today with no handlerDidError at
+    // all. This does NOT swallow real failures: an actual failed /api/
+    // call still rejects so the calling code's own error handling/toast
+    // still fires correctly; only a cancelled request is treated as a
+    // non-event instead of a fake error.
+    ...require('next-pwa/cache').map((rule) => ({
+      ...rule,
+      options: {
+        ...rule.options,
+        plugins: [
+          ...(rule.options && rule.options.plugins ? rule.options.plugins : []),
+          {
+            handlerDidError: async ({ error }) =>
+              error && error.details && error.details.error && error.details.error.name === 'AbortError'
+                ? new Response(null, { status: 200 })
+                : undefined,
+          },
+        ],
+      },
+    })),
   ],
 });
 
