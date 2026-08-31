@@ -32,8 +32,17 @@ export async function generateMetadata(): Promise<Metadata> {
       statusBarStyle: 'black-translucent',
       title: name,
     },
+    // A custom logo used to be the ONLY <link rel="icon"> offered when set
+    // — if that remote fetch is ever slow/blocked/briefly down, the tab
+    // icon has nothing to fall back to (same single-point-of-failure bug
+    // just fixed in manifest.ts's PWA icon list, reported live as the tab
+    // icon going missing). src/app/favicon.ico (Next's file convention)
+    // already provides one implicit fallback route regardless of this
+    // field, but listing the bundled PNG explicitly here too means there
+    // are two real, always-available candidates browsers can pick between
+    // instead of one point of failure.
     icons: logoUrl
-      ? { icon: logoUrl, apple: logoUrl }
+      ? { icon: [{ url: logoUrl }, { url: '/icons/icon-192x192.png' }], apple: logoUrl }
       : { icon: '/icons/icon-192x192.png', apple: '/icons/icon-192x192.png' },
     openGraph: {
       title: name,

@@ -32,23 +32,36 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const name = (cfg?.appName as string) || 'Warfare Fitness';
   const logoUrl = cfg?.logoUrl as string | undefined;
 
+  const bundledIcons = [
+    { src: '/icons/icon-72x72.png', sizes: '72x72', type: 'image/png' },
+    { src: '/icons/icon-96x96.png', sizes: '96x96', type: 'image/png' },
+    { src: '/icons/icon-128x128.png', sizes: '128x128', type: 'image/png' },
+    { src: '/icons/icon-144x144.png', sizes: '144x144', type: 'image/png' },
+    { src: '/icons/icon-152x152.png', sizes: '152x152', type: 'image/png' },
+    { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' as const },
+    { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' as const },
+    { src: '/icons/icon-384x384.png', sizes: '384x384', type: 'image/png' },
+    { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+  ];
+
+  // A custom logo's icon entries all point at the SAME remote URL — if
+  // that request is ever slow, CORS-blocked, or briefly unreachable, the
+  // entire icon set fails at once with nothing to fall back to, and
+  // Chrome/Android shows a plain theme_color circle instead of any icon
+  // at all (reported live as "just a yellow dot" — #F5A623 is this app's
+  // theme_color). Listing the custom logo FIRST (browsers prefer earlier
+  // entries when several match) but keeping the always-available bundled
+  // icons in the list too means one bad fetch of the remote logo no
+  // longer takes out the icon entirely — it just falls back to the
+  // built-in one instead of a bare color swatch.
   const icons = logoUrl
     ? [
         { src: logoUrl, sizes: '192x192', type: guessImageMimeType(logoUrl), purpose: 'any' as const },
         { src: logoUrl, sizes: '192x192', type: guessImageMimeType(logoUrl), purpose: 'maskable' as const },
         { src: logoUrl, sizes: '512x512', type: guessImageMimeType(logoUrl) },
+        ...bundledIcons,
       ]
-    : [
-        { src: '/icons/icon-72x72.png', sizes: '72x72', type: 'image/png' },
-        { src: '/icons/icon-96x96.png', sizes: '96x96', type: 'image/png' },
-        { src: '/icons/icon-128x128.png', sizes: '128x128', type: 'image/png' },
-        { src: '/icons/icon-144x144.png', sizes: '144x144', type: 'image/png' },
-        { src: '/icons/icon-152x152.png', sizes: '152x152', type: 'image/png' },
-        { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' as const },
-        { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' as const },
-        { src: '/icons/icon-384x384.png', sizes: '384x384', type: 'image/png' },
-        { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
-      ];
+    : bundledIcons;
 
   return {
     id: '/',
