@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { HeaderDataProvider } from '@/contexts/HeaderDataContext';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { PwaInstallBanner } from '@/components/ui/PwaInstallBanner';
@@ -77,9 +78,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // layer underneath.
     <div className="min-h-screen">
       <AppBackground />
-      <main className="pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
-        <MembershipGuard pathname={pathname}>{children}</MembershipGuard>
-      </main>
+      <HeaderDataProvider>
+        <main className="pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
+          <MembershipGuard pathname={pathname}>{children}</MembershipGuard>
+        </main>
+      </HeaderDataProvider>
       {!hideNav && <BottomNav />}
       {!hideNav && <PwaInstallBanner />}
     </div>

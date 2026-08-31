@@ -1467,12 +1467,19 @@ export function subscribeUserConversations(userId: string, onUpdate: (convs: Con
   }, (err) => console.error('[Firestore] subscribeUserConversations error:', err));
 }
 
+// Most recent N messages, oldest-first — a support conversation only ever
+// needs its recent tail on open, and without a cap a long-running thread
+// would download and re-render its *entire* history on every single
+// snapshot update. Ordering desc+limit then reversing (rather than
+// asc+limit) is what gets you the most recent N instead of the oldest N.
+const MESSAGES_PAGE_SIZE = 200;
+
 // Live messages for one open conversation — a coach's reply appears as it's
 // sent instead of only showing up after the user reopens the thread.
 export function subscribeMessages(convId: string, onUpdate: (messages: Message[]) => void): () => void {
-  const q = query(collection(db, 'conversations', convId, 'messages'), orderBy('createdAt', 'asc'));
+  const q = query(collection(db, 'conversations', convId, 'messages'), orderBy('createdAt', 'desc'), limit(MESSAGES_PAGE_SIZE));
   return onSnapshot(q, (snap) => {
-    onUpdate(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)));
+    onUpdate(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)).reverse());
   }, (err) => console.error('[Firestore] subscribeMessages error:', err));
 }
 
@@ -1480,10 +1487,11 @@ export async function getMessages(convId: string): Promise<Message[]> {
   try {
     const q = query(
       collection(db, 'conversations', convId, 'messages'),
-      orderBy('createdAt', 'asc')
+      orderBy('createdAt', 'desc'),
+      limit(MESSAGES_PAGE_SIZE)
     );
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)).reverse();
   } catch {
     const snap = await getDocs(collection(db, 'conversations', convId, 'messages'));
     const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message));
