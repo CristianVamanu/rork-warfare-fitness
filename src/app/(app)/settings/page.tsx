@@ -145,7 +145,17 @@ export default function SettingsPage() {
     setUpdating2FA(true);
     const enabling = !profile?.twoFactorEnabled;
     try {
-      await updateUserDoc(user.uid, { twoFactorEnabled: enabling });
+      // twoFactorEnabled/twoFactorEmail are no longer plain client writes
+      // (see firestore.rules) — this route also emails the account owner
+      // whenever either changes, so a hijacked session can't silently
+      // disable 2FA without the real owner finding out.
+      const token = await getIdToken(user);
+      const res = await fetch('/api/auth/2fa/settings', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: enabling }),
+      });
+      if (!res.ok) throw new Error();
       await refreshProfile();
       toast.success(enabling ? 'Two-factor authentication enabled' : 'Two-factor authentication disabled');
     } catch {
@@ -166,7 +176,13 @@ export default function SettingsPage() {
     try {
       // Empty input clears the override, falling back to the account's
       // login email again — not every user needs a separate address.
-      await updateUserDoc(user.uid, { twoFactorEmail: trimmed || null });
+      const token = await getIdToken(user);
+      const res = await fetch('/api/auth/2fa/settings', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmed || null }),
+      });
+      if (!res.ok) throw new Error();
       await refreshProfile();
       setTwoFAEmailModal(false);
       toast.success('2FA notification email updated');

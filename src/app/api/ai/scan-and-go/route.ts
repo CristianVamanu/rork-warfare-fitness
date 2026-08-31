@@ -65,6 +65,13 @@ export async function POST(req: NextRequest) {
     if (!dataUrls.every((u) => /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(u))) {
       return NextResponse.json({ error: 'Invalid image data' }, { status: 400 });
     }
+    // Only the image COUNT was capped, not the size of each one — up to 6
+    // arbitrarily large data URLs could inflate request body/memory and
+    // OpenAI vision billing before the daily-count limit below ever kicks
+    // in. ~8MB of base64 per image is a generous ceiling for a phone photo.
+    if (dataUrls.some((u) => u.length > 8_000_000)) {
+      return NextResponse.json({ error: 'One or more images is too large' }, { status: 400 });
+    }
 
     const app = appForAccess;
     const usage = await checkAndIncrementUsage(app, uid, 'scan-and-go', DAILY_LIMIT, resolveLocalDate(req));

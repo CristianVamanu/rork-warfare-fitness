@@ -5,15 +5,48 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { sendEmail, achievementEmailHtml } from '@/lib/email';
+import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
+
+// In-memory per-uid throttle — this is an authenticated route with no other
+// rate limiting, so without this any signed-in user could loop this
+// endpoint to run up real email-provider billing / spam their own inbox.
+// Not distributed (resets per server instance/restart), but a real floor
+// against casual abuse, same pattern as the public lead-email routes.
+const WINDOW_MS = 60 * 60 * 1000;
+const MAX_PER_WINDOW = 10;
+const requestLog = new Map<string, number[]>();
+
+function isRateLimited(uid: string): boolean {
+  const now = Date.now();
+  const timestamps = (requestLog.get(uid) ?? []).filter((t) => now - t < WINDOW_MS);
+  timestamps.push(now);
+  requestLog.set(uid, timestamps);
+  if (requestLog.size > 5000) requestLog.clear();
+  return timestamps.length > MAX_PER_WINDOW;
+}
 
 export async function POST(req: NextRequest) {
   try {
     const check = await verifyAuthed(req);
     if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
 
-    const { titles } = await req.json() as { titles: string[] };
-    if (!Array.isArray(titles) || titles.length === 0) {
-      return NextResponse.json({ error: 'titles is required' }, { status: 400 });
+    if (isRateLimited(check.uid)) {
+      return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429 });
+    }
+
+    // Titles are derived server-side from a fixed id -> title map rather
+    // than trusted from the client — a client sending arbitrary "titles"
+    // directly would let it email itself (or, if this were ever reused,
+    // another target) with any text framed as a real achievement.
+    const { achievementIds } = await req.json() as { achievementIds: string[] };
+    if (!Array.isArray(achievementIds) || achievementIds.length === 0) {
+      return NextResponse.json({ error: 'achievementIds is required' }, { status: 400 });
+    }
+    const titles = achievementIds
+      .map((id) => ACHIEVEMENT_DEFS.find((d) => d.id === id)?.title)
+      .filter((t): t is string => !!t);
+    if (titles.length === 0) {
+      return NextResponse.json({ ok: false, reason: 'No valid achievement ids' });
     }
 
     const app = getAdminApp();

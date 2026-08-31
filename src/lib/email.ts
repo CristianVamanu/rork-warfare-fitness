@@ -173,6 +173,28 @@ export function twoFactorCodeEmailHtml(code: string, appName: string): string {
   `);
 }
 
+// Sent to the account's on-file login email whenever 2FA is turned off or
+// its notification address is changed — a hijacked session can make these
+// changes without a password, so the real owner needs an out-of-band way
+// to notice even if they never touch Settings themselves. Deliberately NOT
+// sent to the new twoFactorEmail (that could BE the attacker's address).
+export function twoFactorSettingsChangedEmailHtml(
+  name: string, change: string, appName: string, appUrl: string,
+): string {
+  name = escapeHtml(name);
+  change = escapeHtml(change);
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#fff;">Security setting changed</h1>
+    <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#bbb;">
+      Hey ${name}, this is a heads up that ${change} on your account.
+    </p>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      If this was you, no action needed. If you didn't make this change, secure your account immediately by resetting your password.
+    </p>
+    ${button('Review Settings', `${appUrl}/settings`)}
+  `);
+}
+
 export function paymentFailedEmailHtml(name: string, appName: string, appUrl: string): string {
   name = escapeHtml(name);
   return shell(appName, `

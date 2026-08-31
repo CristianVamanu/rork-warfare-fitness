@@ -258,7 +258,13 @@ service cloud.firestore {
         isAdmin() ||
         (uid() == userId && notTfaPending() &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-            ['role', 'membership', 'coaching', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan', 'trialUsedAt']
+            // twoFactorEnabled/twoFactorEmail added here — a hijacked
+            // session (no password required for a plain client write)
+            // could otherwise silently turn off 2FA or redirect future
+            // codes to an attacker's inbox. Now only settable via
+            // /api/auth/2fa/settings, which always notifies the account's
+            // real email of the change.
+            ['role', 'membership', 'coaching', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan', 'trialUsedAt', 'twoFactorEnabled', 'twoFactorEmail']
           ) &&
           activeProgramWriteAllowed() &&
           premiumEnrollAllowed())
@@ -493,11 +499,26 @@ service cloud.firestore {
       // Admins can notify anyone (broadcasts, PR-review results, etc). A
       // regular user can only create a notification whose recipient is
       // staff — covers submitCoachingApplication() notifying admins of a
-      // new application — never another regular user (no spam vector).
+      // new application. Previously "staff" meant ANY admin or trainer in
+      // the whole install, not just this user's own trainer — a malicious
+      // user could write an arbitrary title/body/actionUrl straight into a
+      // completely unrelated trainer's notification feed via the raw SDK.
+      // Recipient must now be an admin (global, matches the existing
+      // coaching-application use case) or specifically the caller's own
+      // assigned trainer. Field caps are a floor against a spam/phishing
+      // payload regardless of who the (now-scoped) recipient is.
       allow create: if isAdmin() ||
-        (isAuthed() &&
+        (isAuthed() && notTfaPending() &&
           exists(/databases/$(database)/documents/users/$(request.resource.data.userId)) &&
-          get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.get('role', 'user') in ['admin', 'trainer']);
+          (
+            get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.get('role', 'user') == 'admin' ||
+            (
+              get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.get('role', 'user') == 'trainer' &&
+              get(/databases/$(database)/documents/users/$(uid())).data.get('trainerId', null) == request.resource.data.userId
+            )
+          ) &&
+          request.resource.data.title is string && request.resource.data.title.size() < 200 &&
+          request.resource.data.body is string && request.resource.data.body.size() < 1000);
       allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }
 

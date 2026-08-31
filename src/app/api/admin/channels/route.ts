@@ -62,9 +62,16 @@ export async function PATCH(req: NextRequest) {
     const { id, ...data } = body;
     if (!id || typeof id !== 'string') return NextResponse.json({ error: 'id required' }, { status: 400 });
 
+    // Was a blind spread of every key in the request body into update() —
+    // an admin-UI bug (or a compromised admin session) could silently
+    // reassign trainerId/createdBy/postCount rather than the intended
+    // editable fields. Allowlisted to what the channel edit UI actually
+    // sends, matching how the create (POST) route above already scopes
+    // its own writes.
+    const EDITABLE_FIELDS = ['name', 'description', 'emoji', 'photoUploadEnabled', 'slowModeDays', 'allowUserPosts'] as const;
     const update: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(data)) {
-      if (v !== undefined) update[k] = v;
+    for (const key of EDITABLE_FIELDS) {
+      if (data[key] !== undefined) update[key] = data[key];
     }
 
     await result.db.collection('channels').doc(id).update(update);

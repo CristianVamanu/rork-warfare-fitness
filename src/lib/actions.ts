@@ -87,15 +87,16 @@ async function postQuestActivities(userId: string, questIds: string[]): Promise<
 
 function sendAchievementEmail(achievementIds: string[]): void {
   if (achievementIds.length === 0 || !auth.currentUser) return;
-  const titles = achievementIds
-    .map((id) => ACHIEVEMENT_DEFS.find((d) => d.id === id)?.title)
-    .filter((t): t is string => !!t);
-  if (titles.length === 0) return;
+  const validIds = achievementIds.filter((id) => ACHIEVEMENT_DEFS.some((d) => d.id === id));
+  if (validIds.length === 0) return;
+  // Sending the ids (not titles) so the server derives the display text
+  // itself from ACHIEVEMENT_DEFS — a client could otherwise send arbitrary
+  // strings straight into the email as if they were real achievement titles.
   auth.currentUser.getIdToken().then((token) => {
     fetch('/api/email/achievement', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titles }),
+      body: JSON.stringify({ achievementIds: validIds }),
     }).catch(() => {
       // Non-fatal — achievement email is best-effort
     });

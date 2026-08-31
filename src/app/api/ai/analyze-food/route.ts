@@ -59,8 +59,19 @@ export async function POST(req: NextRequest) {
     }
 
     const { base64Image } = await req.json();
-    if (!base64Image) {
+    if (!base64Image || typeof base64Image !== 'string') {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 });
+    }
+    // Unlike scan-and-go (which validates a data: URL + image count cap),
+    // this endpoint used to accept a raw base64 string with no shape or
+    // size check at all — a non-image or oversized payload would still be
+    // wrapped into a data URL and sent to OpenAI, wasting a full model call
+    // (and its cost) before failing, ahead of the daily-count limit below
+    // ever having a chance to matter. A plain length cap on the base64
+    // string (~6MB of decoded image data) is enough here since this route
+    // always assumes JPEG rather than trusting a caller-supplied MIME type.
+    if (!/^[A-Za-z0-9+/]+=*$/.test(base64Image) || base64Image.length > 8_000_000) {
+      return NextResponse.json({ error: 'Invalid image data' }, { status: 400 });
     }
 
     const dailyLimit = await resolveDailyLimit(app);

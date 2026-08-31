@@ -40,23 +40,27 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { message, systemPrompt } = await req.json();
+    const { message } = await req.json();
     if (!message) return NextResponse.json({ error: 'Message required' }, { status: 400 });
 
     const apiKey = await getSecret('OPENAI_API_KEY');
     if (!apiKey) return NextResponse.json({ error: 'OpenAI not configured' }, { status: 500 });
 
     const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
-    const openai = new OpenAI({ apiKey });
+    const openai = new OpenAI({ apiKey, timeout: 30_000 });
 
     const response = await openai.chat.completions.create({
       model,
       max_tokens: 600,
       messages: [
         {
+          // No longer accepts a client-supplied systemPrompt — this is a
+          // fixed fitness-coach endpoint, not a general instruction-
+          // following proxy. A caller could otherwise send any system
+          // prompt they wanted and use this app's authenticated identity
+          // and OpenAI budget for arbitrary, unrelated completions.
           role: 'system',
           content:
-            systemPrompt ||
             'You are a professional fitness and nutrition coach. Provide concise, actionable advice. ' +
             'When generating workout or nutrition plans, return structured JSON so the trainer can review and save them.',
         },
