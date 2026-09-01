@@ -29,21 +29,66 @@ import { getAdminDb, getAdminApp } from '@/lib/firebase-admin';
 
 const DEFAULT_ICON_PATH = '/icons/icon-192x192.png';
 
-export async function GET(req: Request) {
-  try {
-    const app = getAdminApp();
-    if (!app) return NextResponse.redirect(new URL(DEFAULT_ICON_PATH, req.url));
-    const db = getAdminDb(app);
-    const snap = await db.collection('system').doc('config').get();
-    const cfg = snap.exists ? snap.data() : null;
-    const iconUrl = (cfg?.faviconUrl as string) || (cfg?.logoUrl as string) || DEFAULT_ICON_PATH;
-    const target = new URL(iconUrl, req.url);
-    // Short cache — long enough to avoid hammering Firestore on every tab
-    // load, short enough that a newly-changed favicon shows up within
-    // minutes instead of needing another full deploy like the static file
-    // it replaces used to.
-    return NextResponse.redirect(target, 307);
-  } catch {
-    return NextResponse.redirect(new URL(DEFAULT_ICON_PATH, req.url));
+// Every page load in every tab requests /favicon.ico, so this route is hit
+// far more often than any normal page — without these two caches it would
+// mean a Firestore read per favicon request across every visitor, which is
+// real recurring cost and latency for a value that changes maybe twice a
+// year. The in-process cache covers repeat hits on a warm server; the
+// Cache-Control header lets the browser skip the request entirely. Both
+// are deliberately short so a newly-uploaded favicon still appears within
+// minutes rather than needing a redeploy (the whole point of replacing the
+// build-time static file).
+const CONFIG_TTL_MS = 5 * 60 * 1000;
+const FIRESTORE_TIMEOUT_MS = 2000;
+let cachedIconUrl: { url: string; at: number } | null = null;
+
+async function resolveIconUrl(): Promise<string> {
+  if (cachedIconUrl && Date.now() - cachedIconUrl.at < CONFIG_TTL_MS) {
+    return cachedIconUrl.url;
   }
+  const app = getAdminApp();
+  if (!app) return DEFAULT_ICON_PATH;
+  const db = getAdminDb(app);
+  // A hanging Firestore read must never hold a favicon request (and with
+  // it, a browser connection slot) open indefinitely — fall back to the
+  // bundled icon rather than stalling.
+  const snap = await Promise.race([
+    db.collection('system').doc('config').get(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('config read timed out')), FIRESTORE_TIMEOUT_MS)
+    ),
+  ]);
+  const cfg = snap.exists ? snap.data() : null;
+  const url = (cfg?.faviconUrl as string) || (cfg?.logoUrl as string) || DEFAULT_ICON_PATH;
+  cachedIconUrl = { url, at: Date.now() };
+  return url;
+}
+
+export async function GET(req: Request) {
+  let iconUrl = DEFAULT_ICON_PATH;
+  try {
+    iconUrl = await resolveIconUrl();
+  } catch {
+    // Fall through to the bundled default below.
+  }
+
+  let target: URL;
+  try {
+    // Resolve relative to the ORIGIN, not to this route's own path — a
+    // stored value like "icons/x.png" (no leading slash) would otherwise
+    // resolve against /api/dynamic-favicon and 404 as /api/icons/x.png.
+    target = new URL(iconUrl, new URL(req.url).origin);
+  } catch {
+    target = new URL(DEFAULT_ICON_PATH, new URL(req.url).origin);
+  }
+  // Guard against redirecting back to ourselves: /favicon.ico is rewritten
+  // to this route by middleware, so a config value of "/favicon.ico" (or
+  // this route's own path) would bounce between the two forever.
+  if (target.pathname === '/favicon.ico' || target.pathname === '/api/dynamic-favicon') {
+    target = new URL(DEFAULT_ICON_PATH, new URL(req.url).origin);
+  }
+
+  const res = NextResponse.redirect(target, 307);
+  res.headers.set('Cache-Control', 'public, max-age=300');
+  return res;
 }

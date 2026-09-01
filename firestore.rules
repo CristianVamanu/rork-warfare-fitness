@@ -279,14 +279,33 @@ service cloud.firestore {
     // deliberately excluded from the client-writable allowlist: only the
     // server-side ban-user route (firebase-admin, bypasses these rules) can
     // set it, so a banned user can't self-unban by writing to their own doc.
+    // Split create/update deliberately. This was one `allow write` using
+    // `request.resource.data.keys().hasOnly([...])`, which is wrong for the
+    // merge writes every client sync actually performs: on a merge,
+    // `request.resource.data` is the MERGED RESULT, not the delta. The
+    // ban-user route writes `banned` into this doc (and leaves `banned:
+    // false` behind after an unban), so from the first ban/unban onward the
+    // merged doc always contained a key outside the allowlist, hasOnly
+    // failed, and every subsequent XP/streak/quest/displayName sync was
+    // permission-denied — silently, since all four call sites swallow the
+    // error, so the user just disappeared from the leaderboard for good.
+    // Comparing only the AFFECTED keys on update fixes that while still
+    // preventing a client from touching `banned` itself.
     match /leaderboardPublic/{userId} {
       allow read: if isAuthed();
-      allow write: if isAdmin() || (
+      allow create: if isAdmin() || (
         isAuthed() && uid() == userId &&
         request.resource.data.keys().hasOnly(
           ['displayName', 'xp', 'powerLevel', 'streak', 'totalWorkouts', 'totalWeightLifted', 'questsCompleted', 'lastWorkoutDate']
         )
       );
+      allow update: if isAdmin() || (
+        isAuthed() && uid() == userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+          ['displayName', 'xp', 'powerLevel', 'streak', 'totalWorkouts', 'totalWeightLifted', 'questsCompleted', 'lastWorkoutDate']
+        )
+      );
+      allow delete: if isAdmin();
     }
 
     // ── Community Live Activity (public, minimal) ─────────────────────────
@@ -436,8 +455,19 @@ service cloud.firestore {
     // `resource` is null when there's nothing to read.
     match /habitLogs/{logId} {
       allow read: if isAuthed() && notTfaPending() && logId.split('_')[0] == uid();
-      allow create: if isAuthed() && notTfaPending() && request.resource.data.userId == uid();
-      allow update: if isAuthed() && notTfaPending() && resource.data.userId == uid();
+      // The doc-ID check matters on create too, not just the payload: read
+      // is keyed on the ID while create was keyed only on the body, so
+      // anyone could write `habitLogs/<victimUid>_2026-09-01` with their
+      // OWN userId in the payload. The victim then reads that squatted doc
+      // as their own habit log, and can never fix it — their own update is
+      // denied forever, since update requires resource.data.userId == uid()
+      // and the attacker's uid is what's stored there.
+      allow create: if isAuthed() && notTfaPending()
+        && request.resource.data.userId == uid()
+        && logId.split('_')[0] == uid();
+      allow update: if isAuthed() && notTfaPending()
+        && resource.data.userId == uid()
+        && logId.split('_')[0] == uid();
       allow delete: if false;
     }
 

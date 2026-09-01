@@ -52,18 +52,30 @@ async function uploadToR2(
   // "used to work" going blank with no error anywhere pointing at why.
   // Confirming the file is actually publicly fetchable right after upload
   // turns that into a real, immediate error instead of a stored dead link.
+  // Only a response we can actually READ is proof of anything. A thrown
+  // fetch (network error, or CORS refusing to expose the response) is
+  // ambiguous — the file may well be perfectly readable to a normal <img>
+  // load, which isn't subject to CORS the way this fetch is. Treating that
+  // ambiguous case as failure would block legitimate uploads outright in
+  // any setup where the bucket doesn't send CORS headers on its public
+  // URL, which is a worse bug than the dead-link one this guards against.
+  // So: a real, readable non-OK status is a hard failure; anything we
+  // can't actually observe only warns and lets the upload stand.
+  let verifyStatus: number | null = null;
   try {
     const verifyRes = await fetch(publicUrl, { method: 'HEAD', cache: 'no-store' });
-    if (!verifyRes.ok) {
-      throw new Error(
-        `File uploaded, but isn't publicly readable (HTTP ${verifyRes.status}). ` +
-        `Check the R2 bucket's Public Development URL / custom domain is enabled.`
-      );
-    }
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith('File uploaded')) throw err;
+    verifyStatus = verifyRes.status;
+  } catch {
+    console.warn(
+      '[uploadVideo] Could not verify public readability of', publicUrl,
+      '— the check itself was blocked (likely CORS). Upload is being kept; ' +
+      'if the file turns out not to be publicly reachable, check the R2 ' +
+      "bucket's Public Development URL / custom domain is enabled."
+    );
+  }
+  if (verifyStatus !== null && (verifyStatus < 200 || verifyStatus >= 300)) {
     throw new Error(
-      `File uploaded, but couldn't verify it's publicly reachable. ` +
+      `File uploaded, but isn't publicly readable (HTTP ${verifyStatus}). ` +
       `Check the R2 bucket's Public Development URL / custom domain is enabled.`
     );
   }

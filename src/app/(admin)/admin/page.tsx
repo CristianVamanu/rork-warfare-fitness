@@ -4205,9 +4205,14 @@ function AdminPageInner() {
                     <img src={settingsForm.faviconUrl} alt="Favicon preview" className="w-12 h-12 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" onError={() => toast.error('Favicon URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-favicon', duration: 6000 })} />
                   )}
                   <label className="flex-1">
+                    {/* SVG deliberately excluded from `accept` — the presign
+                        route rejects image/svg+xml outright (an SVG can carry
+                        an embedded script and this bucket is served publicly),
+                        so offering it here only produced a confusing hard
+                        failure after the admin had already picked a file. */}
                     <input
                       type="file"
-                      accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml"
+                      accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/webp,image/jpeg"
                       className="hidden"
                       onChange={handleFaviconUpload}
                     />

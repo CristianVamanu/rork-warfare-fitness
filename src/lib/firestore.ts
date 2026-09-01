@@ -79,12 +79,22 @@ async function safeGetEvents(
   toTs?: Timestamp,
   limitN?: number
 ) {
-  // Compound query — requires deployed composite index
+  // Compound query — requires deployed composite index.
+  // orderBy is ALWAYS applied, not just when a date range is given. Without
+  // it, Firestore returns matches in document-ID order — and event IDs are
+  // random (see createEvent's addDoc) — so any caller passing `limitN`
+  // without `fromTs` got an arbitrary N events rather than the newest N.
+  // That silently corrupted every "recent" read in the app: recent workouts
+  // and the weekly summary could miss today's session entirely, personal
+  // bests missed the actual best, the session player's progressive-overload
+  // suggestion read a random old session (so it could suggest going DOWN in
+  // weight), and the weight chart plotted points out of chronological order.
   const compoundConstraints = [
     where('userId', '==', userId),
     where('type', '==', type),
-    ...(fromTs ? [where('createdAt', '>=', fromTs), orderBy('createdAt', 'desc')] : []),
+    ...(fromTs ? [where('createdAt', '>=', fromTs)] : []),
     ...(toTs ? [where('createdAt', '<=', toTs)] : []),
+    orderBy('createdAt', 'desc'),
     ...(limitN ? [limit(limitN)] : []),
   ];
 
@@ -669,6 +679,14 @@ export async function getLastExercisePerformance(userId: string, exerciseName: s
 // Share one cached raw fetch between both instead.
 let programsCache: { all: Record<string, unknown>[]; fetchedAt: number } | null = null;
 let programsInFlight: Promise<Record<string, unknown>[]> | null = null;
+// Bumped by every invalidation. A fetch that was already in flight when an
+// invalidation happened captures the generation it started under, and
+// refuses to populate the cache if that no longer matches — otherwise an
+// admin saving an edit mid-load would have the pre-edit snapshot written
+// into the cache by the still-pending read a moment later, making their
+// own change invisible for the full TTL (the exact "I saved it but it's
+// not showing up" symptom this cache was supposed to avoid causing).
+let programsGeneration = 0;
 const PROGRAMS_CACHE_TTL_MS = 30_000;
 
 async function fetchAllPrograms(): Promise<Record<string, unknown>[]> {
@@ -676,9 +694,12 @@ async function fetchAllPrograms(): Promise<Record<string, unknown>[]> {
     return programsCache.all;
   }
   if (programsInFlight) return programsInFlight;
+  const startedAtGeneration = programsGeneration;
   programsInFlight = getDocs(collection(db, 'programs')).then((snap) => {
     const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    programsCache = { all, fetchedAt: Date.now() };
+    if (startedAtGeneration === programsGeneration) {
+      programsCache = { all, fetchedAt: Date.now() };
+    }
     programsInFlight = null;
     return all;
   }).catch((err) => { programsInFlight = null; throw err; });
@@ -687,6 +708,7 @@ async function fetchAllPrograms(): Promise<Record<string, unknown>[]> {
 
 export function invalidateProgramsCache() {
   programsCache = null;
+  programsGeneration++;
 }
 
 export async function getPrograms(trainerId?: string) {
@@ -1637,6 +1659,11 @@ import type { Channel, ChannelPost } from '@/types';
 // listener (which used to flash "Channel not found" for a moment).
 let channelsCache: { all: Channel[]; fetchedAt: number } | null = null;
 let channelsInFlight: Promise<Channel[]> | null = null;
+// Same generation guard as fetchAllPrograms above — an invalidation while a
+// read is in flight must not be undone by that read's stale result landing
+// afterwards. Especially reachable here: createChannelPost invalidates on
+// every single post, which can easily overlap a channel-list load.
+let channelsGeneration = 0;
 const CHANNELS_CACHE_TTL_MS = 30_000;
 
 async function fetchAllChannels(): Promise<Channel[]> {
@@ -1644,9 +1671,12 @@ async function fetchAllChannels(): Promise<Channel[]> {
     return channelsCache.all;
   }
   if (channelsInFlight) return channelsInFlight;
+  const startedAtGeneration = channelsGeneration;
   channelsInFlight = getDocs(collection(db, 'channels')).then((snap) => {
     const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Channel);
-    channelsCache = { all, fetchedAt: Date.now() };
+    if (startedAtGeneration === channelsGeneration) {
+      channelsCache = { all, fetchedAt: Date.now() };
+    }
     channelsInFlight = null;
     return all;
   }).catch((err) => { channelsInFlight = null; throw err; });
@@ -1655,6 +1685,7 @@ async function fetchAllChannels(): Promise<Channel[]> {
 
 export function invalidateChannelsCache() {
   channelsCache = null;
+  channelsGeneration++;
 }
 
 export async function getChannels(trainerId?: string): Promise<Channel[]> {
@@ -1722,11 +1753,22 @@ export async function createChannelPost(channelId: string, data: {
     replyTo: null,
     createdAt: serverTimestamp(),
   });
-  // bump post count on channel
-  await updateDoc(doc(db, 'channels', channelId), { postCount: increment(1) });
+  // Bump post count on the channel — best-effort ONLY. firestore.rules
+  // allows updating a channel doc solely for isAdmin(), so for every
+  // regular member this throws permission-denied AFTER their post has
+  // already been created successfully. Left unguarded, that rejection
+  // propagated all the way out to the caller's catch, which showed
+  // "Failed to post" and never cleared the compose box — so members saw
+  // an error on every single post (and re-sent, double-posting), even
+  // though the post itself went through fine and appeared in the feed.
+  // The count is cosmetic; the post is what matters.
+  await updateDoc(doc(db, 'channels', channelId), { postCount: increment(1) }).catch(() => {});
   invalidateChannelsCache();
-  // track last post time for slow mode
-  await setDoc(doc(db, 'channels', channelId, 'members', data.userId), { lastPostAt: serverTimestamp() }, { merge: true });
+  // Track last post time for slow mode. Also best-effort: it must not be
+  // able to fail the post either — but note that if this DOES fail, slow
+  // mode silently stops applying to that member, since the timestamp it
+  // reads back is never written.
+  await setDoc(doc(db, 'channels', channelId, 'members', data.userId), { lastPostAt: serverTimestamp() }, { merge: true }).catch(() => {});
   return ref.id;
 }
 
@@ -1748,7 +1790,14 @@ export async function createReply(channelId: string, postId: string, data: {
   await addDoc(collection(db, 'channels', channelId, 'posts', postId, 'replies'), {
     ...data, channelId, likes: [], replyCount: 0, replyTo: postId, createdAt: serverTimestamp(),
   });
-  await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { replyCount: increment(1) });
+  // Best-effort for the same reason as createChannelPost's postCount:
+  // firestore.rules only allows updating a post you own (or a likes-only
+  // diff), so bumping replyCount on SOMEONE ELSE's post throws — which
+  // meant replying to another member's post always surfaced "Failed to
+  // reply" and left the reply box open, even though the reply itself was
+  // saved. Replying to your own post happened to work, which is why this
+  // survived: it only breaks for the case that actually matters.
+  await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { replyCount: increment(1) }).catch(() => {});
 }
 
 export async function deleteChannelPost(channelId: string, postId: string) {

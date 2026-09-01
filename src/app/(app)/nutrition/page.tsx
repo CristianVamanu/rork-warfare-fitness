@@ -181,17 +181,25 @@ function NutritionPageInner() {
       };
       // Editing rewrites the underlying event rather than mutating it in
       // place — events are an append-only log everywhere else in this app
-      // (see events.ts), so an edit is modeled as delete-then-relog against
+      // (see events.ts), so an edit is modeled as relog-then-delete against
       // the same date instead of carving out a one-off mutable exception.
-      if (manualEntry.editingId) {
-        await deleteMeal(manualEntry.editingId, user.uid);
-      }
+      //
+      // Order matters: this used to delete FIRST, so if the re-log then
+      // failed (flaky connection — createEvent gives up after one retry),
+      // the meal was gone entirely with only a toast to show for it, and
+      // the user's totalMealsLogged was left one short. Writing the
+      // replacement first means the worst case is a duplicate the user can
+      // see and delete, not silent data loss.
+      //
       // isToday's actual "now" gets a live server timestamp (so it sorts
       // correctly against anything logged moments before/after); a past
       // date is pinned to noon that day so it can never drift across a
       // day boundary from timezone rounding.
       const loggedAt = isToday ? undefined : new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 12);
       await logMealAction(user.uid, mealData, loggedAt);
+      if (manualEntry.editingId) {
+        await deleteMeal(manualEntry.editingId, user.uid);
+      }
       toast.success(manualEntry.editingId ? 'Meal updated' : 'Meal logged');
       setManualEntry(null);
       await refresh();
