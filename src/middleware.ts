@@ -104,7 +104,15 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/icons') ||
     pathname === '/manifest.json' ||
     pathname === '/sw.js' ||
-    pathname === '/workbox-'
+    // Real workbox chunk filenames are content-hashed (e.g.
+    // /workbox-4754cf3d.js) — an exact-string match against the bare
+    // '/workbox-' prefix could never match any of them, so this branch
+    // never actually fired for the workbox runtime itself. Harmless today
+    // (the fallthrough path below sets an identical CSP value either way,
+    // the only difference being an x-nonce request header nothing reads
+    // for a static JS asset), but the comment's intent was clearly to
+    // cover these files specifically.
+    pathname.startsWith('/workbox-')
   ) {
     const response = NextResponse.next();
     response.headers.set('Content-Security-Policy', csp);
