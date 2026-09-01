@@ -14,6 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const cfg = await getSystemConfig().catch(() => null);
   const name = (cfg?.appName as string) || 'Warfare Fitness';
   const logoUrl = cfg?.logoUrl as string | undefined;
+  const faviconUrl = cfg?.faviconUrl as string | undefined;
   const description = 'Premium fitness tracking and AI-powered coaching';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
   // Falls back to the app icon for social previews when no dedicated
@@ -32,17 +33,20 @@ export async function generateMetadata(): Promise<Metadata> {
       statusBarStyle: 'black-translucent',
       title: name,
     },
-    // A custom logo used to be the ONLY <link rel="icon"> offered when set
+    // A dedicated favicon (small, square — admin-uploaded separately from
+    // the main logo, which is often a large banner-style image that turns
+    // into an unrecognizable blob shrunk to 16x16px) is preferred for the
+    // tab icon when set; falls back to the logo, then the bundled default.
+    // A custom URL used to be the ONLY <link rel="icon"> offered when set
     // — if that remote fetch is ever slow/blocked/briefly down, the tab
-    // icon has nothing to fall back to (same single-point-of-failure bug
-    // just fixed in manifest.ts's PWA icon list, reported live as the tab
-    // icon going missing). src/app/favicon.ico (Next's file convention)
-    // already provides one implicit fallback route regardless of this
-    // field, but listing the bundled PNG explicitly here too means there
-    // are two real, always-available candidates browsers can pick between
-    // instead of one point of failure.
-    icons: logoUrl
-      ? { icon: [{ url: logoUrl }, { url: '/icons/icon-192x192.png' }], apple: logoUrl }
+    // icon has nothing to fall back to (single-point-of-failure bug fixed
+    // in manifest.ts's PWA icon list, reported live as the tab icon going
+    // missing). src/app/favicon.ico (Next's file convention) already
+    // provides one implicit fallback route regardless of this field, but
+    // listing the bundled PNG explicitly here too means there are always
+    // at least two real candidates browsers can pick between.
+    icons: faviconUrl || logoUrl
+      ? { icon: [{ url: faviconUrl || logoUrl! }, { url: '/icons/icon-192x192.png' }], apple: faviconUrl || logoUrl! }
       : { icon: '/icons/icon-192x192.png', apple: '/icons/icon-192x192.png' },
     openGraph: {
       title: name,

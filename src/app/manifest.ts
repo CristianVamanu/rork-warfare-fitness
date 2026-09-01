@@ -31,6 +31,12 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const cfg = await getSystemConfig().catch(() => null);
   const name = (cfg?.appName as string) || 'Warfare Fitness';
   const logoUrl = cfg?.logoUrl as string | undefined;
+  const faviconUrl = cfg?.faviconUrl as string | undefined;
+  // A dedicated favicon (small, square) is what a PWA install icon
+  // actually needs — a large banner-style logo scaled down to an app-icon
+  // size often looks wrong or unrecognizable. Prefer it over the logo
+  // when the admin has uploaded one.
+  const primaryIconUrl = faviconUrl || logoUrl;
 
   const bundledIcons = [
     { src: '/icons/icon-72x72.png', sizes: '72x72', type: 'image/png' },
@@ -44,21 +50,21 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
   ];
 
-  // A custom logo's icon entries all point at the SAME remote URL — if
-  // that request is ever slow, CORS-blocked, or briefly unreachable, the
+  // A custom icon's entries all point at the SAME remote URL — if that
+  // request is ever slow, CORS-blocked, or briefly unreachable, the
   // entire icon set fails at once with nothing to fall back to, and
   // Chrome/Android shows a plain theme_color circle instead of any icon
   // at all (reported live as "just a yellow dot" — #F5A623 is this app's
-  // theme_color). Listing the custom logo FIRST (browsers prefer earlier
+  // theme_color). Listing the custom icon FIRST (browsers prefer earlier
   // entries when several match) but keeping the always-available bundled
-  // icons in the list too means one bad fetch of the remote logo no
+  // icons in the list too means one bad fetch of the remote file no
   // longer takes out the icon entirely — it just falls back to the
   // built-in one instead of a bare color swatch.
-  const icons = logoUrl
+  const icons = primaryIconUrl
     ? [
-        { src: logoUrl, sizes: '192x192', type: guessImageMimeType(logoUrl), purpose: 'any' as const },
-        { src: logoUrl, sizes: '192x192', type: guessImageMimeType(logoUrl), purpose: 'maskable' as const },
-        { src: logoUrl, sizes: '512x512', type: guessImageMimeType(logoUrl) },
+        { src: primaryIconUrl, sizes: '192x192', type: guessImageMimeType(primaryIconUrl), purpose: 'any' as const },
+        { src: primaryIconUrl, sizes: '192x192', type: guessImageMimeType(primaryIconUrl), purpose: 'maskable' as const },
+        { src: primaryIconUrl, sizes: '512x512', type: guessImageMimeType(primaryIconUrl) },
         ...bundledIcons,
       ]
     : bundledIcons;

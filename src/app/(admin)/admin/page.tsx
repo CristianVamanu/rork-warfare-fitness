@@ -281,9 +281,10 @@ function AdminPageInner() {
   }, [activeConv?.id]);
 
   // ── Settings state ─────────────────────────────────────────────────────────
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [uploadingGreetingVideo, setUploadingGreetingVideo] = useState(false);
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [uploadingDemoVideo, setUploadingDemoVideo] = useState(false);
@@ -480,6 +481,7 @@ function AdminPageInner() {
           videoGreetingUrl: cfg.videoGreetingUrl || '',
           stripePublishableKey: cfg.stripePublishableKey || '',
           logoUrl: cfg.logoUrl || '',
+          faviconUrl: cfg.faviconUrl || '',
           pwaInstallBannerEnabled: cfg.pwaInstallBannerEnabled !== false as unknown,
           vapidPublicKey: cfg.vapidPublicKey || '',
           barcodeScanDailyLimit: Number(cfg.barcodeScanDailyLimit) || 20,
@@ -2103,6 +2105,24 @@ function AdminPageInner() {
       toast.error(`Failed to upload logo: ${msg}`, { duration: 6000 });
     } finally {
       setUploadingLogo(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleFaviconUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingFavicon(true);
+    try {
+      const url = await uploadVideo(storageProvider, user, file, 'branding');
+      setSettingsForm(s => ({ ...s, faviconUrl: url }));
+      await setSystemConfig({ faviconUrl: url });
+      toast.success('Favicon uploaded');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to upload favicon: ${msg}`, { duration: 6000 });
+    } finally {
+      setUploadingFavicon(false);
       e.target.value = '';
     }
   }
@@ -4175,6 +4195,39 @@ function AdminPageInner() {
                       <Upload className="w-4 h-4" /> {uploadingLogo ? 'Uploading…' : settingsForm.logoUrl ? 'Change Logo' : 'Upload Logo'}
                     </span>
                   </label>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Favicon</label>
+                <p className="text-xs text-text-tertiary mb-2">The small icon shown in the browser tab and PWA/home-screen icon. Separate from the logo above on purpose — a favicon needs to be simple and square (it gets shrunk down to as little as 16×16px), while the logo can be a larger banner-style image that would turn into an unrecognizable blob at that size. Falls back to the logo, then a default icon, if left blank.</p>
+                <div className="flex items-center gap-3">
+                  {settingsForm.faviconUrl && (
+                    <img src={settingsForm.faviconUrl} alt="Favicon preview" className="w-12 h-12 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" onError={() => toast.error('Favicon URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-favicon', duration: 6000 })} />
+                  )}
+                  <label className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml"
+                      className="hidden"
+                      onChange={handleFaviconUpload}
+                    />
+                    <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-elevated border border-white/10 text-sm text-white hover:border-accent/40 cursor-pointer transition-colors">
+                      <Upload className="w-4 h-4" /> {uploadingFavicon ? 'Uploading…' : settingsForm.faviconUrl ? 'Change Favicon' : 'Upload Favicon'}
+                    </span>
+                  </label>
+                  {settingsForm.faviconUrl && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setSettingsForm(s => ({ ...s, faviconUrl: '' }));
+                        await setSystemConfig({ faviconUrl: '' }).catch(() => {});
+                        toast.success('Favicon removed — falling back to logo/default');
+                      }}
+                      className="text-xs text-danger hover:underline flex-shrink-0"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="flex items-center justify-between">
