@@ -18,6 +18,20 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Rewrite (not redirect — invisible to the browser, still shows
+  // /favicon.ico in its address bar/tab-icon request) real /favicon.ico
+  // traffic to a genuine dynamic Route Handler. Next's static favicon.ico
+  // file convention can't reflect the admin's configured
+  // favicon/logo — confirmed live (see api/dynamic-favicon/route.ts's own
+  // comment for the full story) — but this rewrite happens here, at the
+  // Edge, rather than reading Firestore directly here: this app's Firebase
+  // setup doesn't work in the Edge runtime middleware executes under (see
+  // the comment two lines below), so the actual config read happens in
+  // that Node-runtime route instead — this middleware only maps the URL.
+  if (pathname === '/favicon.ico') {
+    return NextResponse.rewrite(new URL('/api/dynamic-favicon', request.url));
+  }
+
   // btoa (not Buffer, which isn't guaranteed in the Edge runtime middleware
   // executes under) — randomUUID()'s output is plain ASCII, so this is a
   // safe base64 encode with no Unicode edge cases to worry about.
@@ -132,5 +146,10 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // favicon.ico deliberately NOT excluded here (unlike _next/static and
+  // _next/image, which genuinely never need middleware) — it needs to
+  // reach the rewrite logic above. This matcher used to skip middleware
+  // for it entirely, silently making that rewrite dead code no request
+  // could ever actually hit.
+  matcher: ['/((?!_next/static|_next/image).*)'],
 };
