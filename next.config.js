@@ -112,22 +112,30 @@ const withPWA = require('next-pwa')({
         !/\.[a-zA-Z0-9]+$/.test(url.pathname),
       handler: 'NetworkOnly',
       options: {
-        // Same AbortError-vs-genuine-failure split as the navigate rule
-        // above, for the same reason: a client-side route transition
-        // (e.g. clicking into /dashboard right after another nav was
-        // already in flight) gets cancelled constantly and routinely —
-        // that used to come back as an indistinguishable 503, identical to
-        // an actual server/network failure.
+        // This rule handles Next.js App Router's RSC/prefetch fetches
+        // (clicking a <Link>, router.push, and the background hover-
+        // prefetch Next.js does automatically), NOT the actual document
+        // the user is looking at — that's the separate 'navigate' rule
+        // above, which already gets the real offline page on a genuine
+        // failure. Returning that same HTML blob here was always wrong on
+        // two counts, discovered while chasing a reported "/dashboard is
+        // down" that turned out to never actually be visible to the user
+        // (the dashboard kept rendering correctly every time it was
+        // checked live): (1) Next.js's RSC client expects a specific
+        // streamed payload format, not raw HTML — feeding it an HTML
+        // "offline" page here was already nonsensical/would itself error
+        // in the router, regardless of the status code attached; and
+        // (2) when an RSC fetch genuinely fails, Next.js's own router
+        // already falls back to a real full-page navigation on its own,
+        // which correctly hits the 'navigate' rule and gets the real
+        // offline page THERE. So this rule's fallback response is never
+        // actually shown to a user either way — it only exists to stop
+        // Workbox's unhandled "no-response" rejection — and always
+        // returning a benign empty 200 for ANY failure here (cancelled or
+        // genuine) does that without ever misreporting a background
+        // prefetch as if the whole page were down.
         plugins: [
-          {
-            handlerDidError: async ({ error }) =>
-              (error && error.details && error.details.error && error.details.error.name === 'AbortError')
-                ? new Response(null, { status: 200 })
-                : new Response(
-                    '<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding:3rem 1rem;color:#666"><p>You\'re offline. Check your connection and try again.</p></body></html>',
-                    { status: 503, headers: { 'Content-Type': 'text/html' } }
-                  ),
-          },
+          { handlerDidError: async () => new Response(null, { status: 200 }) },
         ],
       },
     },
