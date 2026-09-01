@@ -43,6 +43,31 @@ async function uploadToR2(
     xhr.send(file);
   });
 
+  // The PUT above only proves the write succeeded — R2 treats write access
+  // (via this presigned URL) and public READ access (the bucket's Public
+  // Development URL / custom domain) as two separate permission layers.
+  // A successful upload here used to always report "success" even when the
+  // bucket's public access was off/misconfigured, silently saving a URL
+  // that 403s for every actual visitor — reported live as a logo that
+  // "used to work" going blank with no error anywhere pointing at why.
+  // Confirming the file is actually publicly fetchable right after upload
+  // turns that into a real, immediate error instead of a stored dead link.
+  try {
+    const verifyRes = await fetch(publicUrl, { method: 'HEAD', cache: 'no-store' });
+    if (!verifyRes.ok) {
+      throw new Error(
+        `File uploaded, but isn't publicly readable (HTTP ${verifyRes.status}). ` +
+        `Check the R2 bucket's Public Development URL / custom domain is enabled.`
+      );
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('File uploaded')) throw err;
+    throw new Error(
+      `File uploaded, but couldn't verify it's publicly reachable. ` +
+      `Check the R2 bucket's Public Development URL / custom domain is enabled.`
+    );
+  }
+
   return publicUrl;
 }
 
