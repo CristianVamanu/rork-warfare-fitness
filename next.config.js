@@ -355,11 +355,14 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.googleapis.com' },
       { protocol: 'https', hostname: '**.firebaseapp.com' },
       { protocol: 'https', hostname: 'images.openfoodfacts.org' },
-      { protocol: 'https', hostname: '**.unsplash.com' },
       { protocol: 'https', hostname: '**.firebasestorage.googleapis.com' },
-      { protocol: 'https', hostname: '**.cloudinary.com' },
-      { protocol: 'https', hostname: '**.imgur.com' },
-      { protocol: 'https', hostname: 'i.imgur.com' },
+      // **.unsplash.com, **.cloudinary.com and **.imgur.com were listed here
+      // with zero references anywhere in the codebase. Every wildcard host in
+      // this list is a host the VPS will fetch from and re-encode on demand
+      // for ANY visitor who asks /_next/image to — on a self-hosted install
+      // that is an open CPU/disk amplifier (GHSA-9g9p-9gw9-jx7f). The only
+      // thing they enabled was an admin pasting a third-party image URL into
+      // a logo/hero field; uploads go to R2, which stays allowed below.
       // R2 storage (Admin -> Settings -> Storage Provider) — CSP's
       // connect-src already allowed these two hostnames, but next/image's
       // own optimizer has a SEPARATE allowlist and never had them added.

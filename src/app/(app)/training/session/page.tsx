@@ -13,6 +13,7 @@ import { resolveProgram, getLastExercisePerformance, getMembershipConfig } from 
 import { getProgramDayForDow } from '@/lib/programs';
 import { getProgramDayLimit } from '@/lib/membership';
 import { completeWorkout } from '@/lib/actions';
+import { trackEvent } from '@/lib/analytics';
 import { WorkoutShareCard } from '@/components/workout/WorkoutShareCard';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
@@ -1202,6 +1203,37 @@ export default function WorkoutSessionPage() {
   );
 }
 
+
+// ── Workout draft persistence ─────────────────────────────────────────────
+//
+// The in-progress draft (every set logged so far, current exercise, start
+// time) used to live in sessionStorage only. sessionStorage is per-tab AND is
+// discarded when iOS reclaims a backgrounded PWA — which it does routinely
+// mid-workout: a phone call, switching to music, the screen sleeping between
+// sets for a few minutes. Nothing reaches Firestore until "Complete Workout",
+// so a 40-minute session could vanish with no error and no trace. That is the
+// one failure a training app cannot have.
+//
+// localStorage survives the app being killed. It is also shared across tabs,
+// which is what we want here (one draft per program-day, not per tab). The
+// existing 4-hour staleness rule on restore still applies, so an abandoned
+// draft cannot resurface days later. sessionStorage is kept as a fallback for
+// the rare environment that blocks localStorage.
+const draftStore = {
+  get(key: string): string | null {
+    try { const v = localStorage.getItem(key); if (v !== null) return v; } catch { /* blocked */ }
+    try { return sessionStorage.getItem(key); } catch { return null; }
+  },
+  set(key: string, value: string) {
+    try { localStorage.setItem(key, value); return; } catch { /* quota/blocked — fall through */ }
+    try { sessionStorage.setItem(key, value); } catch { /* ignore */ }
+  },
+  remove(key: string) {
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
+    try { sessionStorage.removeItem(key); } catch { /* ignore */ }
+  },
+};
+
 function WorkoutSessionPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1259,7 +1291,7 @@ function WorkoutSessionPageInner() {
   // completeWorkout() would silently undercount the real elapsed time.
   const [startTime] = useState(() => {
     try {
-      const saved = sessionStorage.getItem(sessionKey);
+      const saved = draftStore.get(sessionKey);
       if (saved) {
         const parsed = JSON.parse(saved) as { startTime?: number; lastActiveAt?: number };
         // A tab can sit open for hours/days without being closed — sessionStorage
@@ -1292,7 +1324,7 @@ function WorkoutSessionPageInner() {
     // it lands, without disturbing anything the user already logged.
     let restoredFromCache = false;
     try {
-      const saved = sessionStorage.getItem(sessionKey);
+      const saved = draftStore.get(sessionKey);
       if (saved) {
         const { states, exIdx } = JSON.parse(saved) as { states: ExState[]; exIdx: number };
         if (states?.length) {
@@ -1300,6 +1332,7 @@ function WorkoutSessionPageInner() {
           setCurrentExIdx(exIdx ?? 0);
           setLoadingProgram(false);
           restoredFromCache = true;
+          trackEvent('WorkoutDraftRestored', { programId: programId ?? 'free', dow });
         }
       }
     } catch { /* ignore */ }
@@ -1416,14 +1449,71 @@ function WorkoutSessionPageInner() {
     })();
   }, [user, exStates, weightUnit]);
 
-  // ── Persist session to sessionStorage ───────────────────────────────────
+  const startedTrackedRef = useRef(false);
+  useEffect(() => {
+    if (exStates.length === 0 || startedTrackedRef.current) return;
+    startedTrackedRef.current = true;
+    trackEvent('WorkoutStarted', { programId: programId ?? 'free', dow, exercises: exStates.length });
+  }, [exStates.length, programId, dow]);
+
+  // ── Persist draft (see draftStore above) ─────────────────────────────────
 
   useEffect(() => {
     if (exStates.length === 0) return;
     try {
-      sessionStorage.setItem(sessionKey, JSON.stringify({ states: exStates, exIdx: currentExIdx, startTime, lastActiveAt: Date.now() }));
+      draftStore.set(sessionKey, JSON.stringify({ states: exStates, exIdx: currentExIdx, startTime, lastActiveAt: Date.now() }));
     } catch { /* quota exceeded — ignore */ }
   }, [exStates, currentExIdx, sessionKey, startTime]);
+
+  // ── Keep the screen on, and don't let a thumb-slip end the session ──────
+  //
+  // Between sets the phone sits on a bench and the screen sleeps; every
+  // re-wake is another chance for iOS to have reclaimed the PWA. The Screen
+  // Wake Lock API holds the display on while a session is active, and is
+  // re-requested on visibilitychange because the browser releases the lock
+  // whenever the tab is hidden. Unsupported browsers (Safari < 16.4) just
+  // skip it. Separately, the browser back button — and on Android the system
+  // back gesture — used to leave the session silently; a history guard turns
+  // that into the same quit-confirm the on-screen button gets.
+  const hasLoggedSets = exStates.some((ex) => ex.sets.some((st) => st.status === 'completed'));
+  useEffect(() => {
+    if (exStates.length === 0 || saved) return;
+    let lock: { release: () => Promise<void> } | null = null;
+    let released = false;
+    const acquire = async () => {
+      try {
+        if (document.visibilityState !== 'visible' || released) return;
+        const nav = navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } };
+        lock = (await nav.wakeLock?.request('screen')) ?? null;
+      } catch { lock = null; }
+    };
+    acquire();
+    document.addEventListener('visibilitychange', acquire);
+    return () => {
+      released = true;
+      document.removeEventListener('visibilitychange', acquire);
+      lock?.release().catch(() => {});
+    };
+  }, [exStates.length, saved]);
+
+  useEffect(() => {
+    if (!hasLoggedSets || saved) return;
+    // Push a sentinel entry so the first "back" lands on it instead of leaving.
+    history.pushState({ workoutGuard: true }, '');
+    const onPop = () => {
+      // Re-arm, then ask. Quitting from the modal uses router.replace, which
+      // does not trip this handler again.
+      history.pushState({ workoutGuard: true }, '');
+      setQuitModal(true);
+    };
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [hasLoggedSets, saved]);
 
   // ── Rest timer tick ─────────────────────────────────────────────────────
 
@@ -1695,7 +1785,8 @@ function WorkoutSessionPageInner() {
         })),
       }));
       const result = await completeWorkout(user.uid, logs, duration, programId, dow ?? undefined, weightUnit === 'lbs' ? 'lbs' : 'kg');
-      sessionStorage.removeItem(sessionKey);
+      draftStore.remove(sessionKey);
+      trackEvent('WorkoutCompleted', { programId: programId ?? 'free', dow, duration, sets: logs.reduce((n, l) => n + l.sets.filter((x) => x.completed).length, 0) });
       setSaved(true);
       setWorkoutResult({ duration, ...result });
     } catch (err: unknown) {
@@ -1990,7 +2081,7 @@ function WorkoutSessionPageInner() {
           </div>
           <div className="flex gap-3">
             <Button variant="ghost" fullWidth onClick={() => setQuitModal(false)}>Continue</Button>
-            <Button variant="danger" fullWidth onClick={() => { sessionStorage.removeItem(sessionKey); router.replace('/training'); }}>Quit</Button>
+            <Button variant="danger" fullWidth onClick={() => { draftStore.remove(sessionKey); trackEvent('WorkoutAbandoned', { programId: programId ?? 'free', dow }); router.replace('/training'); }}>Quit</Button>
           </div>
         </div>
       </Modal>
@@ -2027,7 +2118,7 @@ function WorkoutSessionPageInner() {
             <Button fullWidth size="lg" loading={saving} onClick={saveWorkout}>
               Save Workout
             </Button>
-            <Button variant="ghost" fullWidth onClick={() => { sessionStorage.removeItem(sessionKey); router.replace('/dashboard'); }}>
+            <Button variant="ghost" fullWidth onClick={() => { draftStore.remove(sessionKey); router.replace('/dashboard'); }}>
               Skip Save
             </Button>
           </div>

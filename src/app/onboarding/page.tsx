@@ -326,6 +326,14 @@ function OnboardingPageInner() {
     accountValid, // only reached when needsAccount is true
   ][step];
 
+  // One event per step reached. Until this existed the funnel had exactly
+  // one signal between landing and dashboard (sign_up), so "where does
+  // onboarding lose people" was unanswerable.
+  useEffect(() => {
+    trackEvent('OnboardingStep', { step: step + 1, of: TOTAL_STEPS });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   function go(delta: number) {
     setDir(delta);
     setStep((s) => Math.max(0, Math.min(TOTAL_STEPS - 1, s + delta)));
@@ -672,6 +680,10 @@ function OnboardingPageInner() {
   async function proceedToApp() {
     if (proceedingRef.current) return;
     proceedingRef.current = true;
+    // Onboarding is complete here regardless of which exit follows — Stripe
+    // checkout, the welcome video, or straight to the dashboard — so this is
+    // the one place the event can fire exactly once for everyone.
+    trackEvent('OnboardingComplete', { steps: TOTAL_STEPS });
     // Honor whichever pricing card the visitor actually clicked on the
     // landing page — send them straight into that checkout instead of
     // dropping them on the dashboard having forgotten the price they saw.

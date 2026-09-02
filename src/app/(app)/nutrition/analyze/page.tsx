@@ -284,7 +284,15 @@ function AnalyzeFoodPageInner() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-lg font-black text-white">{scaledResult.name}</h3>
-                    <p className="text-2xl font-black text-accent mt-1">{scaledResult.calories} kcal</p>
+                    <p className="text-2xl font-black text-accent mt-1">
+                      {scaledResult.calories} kcal
+                      {/* A vision model guessing portion and ingredients from one
+                          photo is an estimate, and was presented with the same
+                          visual weight as a barcode lookup. Say so, next to the
+                          number it qualifies, and point at the portion slider —
+                          the correction the user actually has. */}
+                      <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-wider text-text-tertiary border border-white/10 rounded px-1.5 py-0.5">AI estimate</span>
+                    </p>
                     <p className="text-xs text-text-secondary mt-0.5">
                       Today: {todayCalories} → {caloriesAfter} / {goals.calories} kcal
                     </p>

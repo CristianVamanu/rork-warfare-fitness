@@ -7,6 +7,18 @@ import { getAdminApp } from '@/lib/firebase-admin';
 import { checkAndIncrementUsage, getRemainingUsage, refundUsage, resolveConfiguredDailyLimit, resolveLocalDate } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
+import { z } from 'zod';
+
+// Bounds are deliberately generous — a whole pizza is ~2,500 kcal — but
+// finite. The point is to reject nonsense, not to second-guess the model.
+const grams = z.coerce.number().finite().min(0).max(1000).catch(0);
+const NutritionEstimate = z.object({
+  name: z.string().trim().min(1).max(120).catch('Meal'),
+  calories: z.coerce.number().finite().min(0).max(5000),
+  protein: grams,
+  carbs: grams,
+  fat: grams,
+}).strip();
 
 const DEFAULT_DAILY_ANALYSIS_LIMIT = 20;
 const resolveDailyLimit = (app: NonNullable<ReturnType<typeof getAdminApp>>) =>
@@ -122,8 +134,22 @@ All values should be in grams (except calories in kcal). Estimate for a typical 
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('Invalid AI response format');
 
-    const nutrition = JSON.parse(jsonMatch[0]);
-    return NextResponse.json({ ...nutrition, remaining: usage.remaining });
+    // The model's JSON used to go straight back to the client, and from
+    // there straight into logMealAction → Firestore, with no shape check at
+    // all: a negative calorie count, "unknown" where a number belongs, or a
+    // stray extra key all flowed through into the events collection and
+    // then into statsCache arithmetic. This is an *estimate* from a vision
+    // model; the one thing that must be true about it is that it is a set
+    // of finite, non-negative numbers in a plausible range. Unknown keys are
+    // stripped, numbers are coerced (the model sometimes quotes them) and
+    // clamped, and anything that still fails is a hard error — which the
+    // catch below turns into a refunded usage credit rather than a charge
+    // for garbage.
+    const parsed = NutritionEstimate.safeParse(JSON.parse(jsonMatch[0]));
+    if (!parsed.success) {
+      throw new Error('AI returned an unusable estimate — please try another photo');
+    }
+    return NextResponse.json({ ...parsed.data, remaining: usage.remaining });
   } catch (err: unknown) {
     console.error('[analyze-food] Error:', err);
     let remaining: number | undefined;
