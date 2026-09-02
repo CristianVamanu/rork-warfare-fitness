@@ -64,7 +64,24 @@ async function resolveIconUrl(): Promise<string> {
   return url;
 }
 
+// Cached image BYTES, not just the URL. Serving the actual bytes from this
+// origin (rather than 307-redirecting the browser to R2) matters: a
+// cross-origin redirect for /favicon.ico is handled inconsistently across
+// browsers, and it was still showing the old icon in practice even once
+// the redirect itself was verifiably correct. Same-origin bytes with a
+// correct Content-Type is the one shape every browser handles the same
+// way. The payload is a few KB, so holding it in memory is cheap.
+const ICON_BYTES_TTL_MS = 5 * 60 * 1000;
+const FETCH_TIMEOUT_MS = 3000;
+let cachedIcon: { body: ArrayBuffer; contentType: string; at: number } | null = null;
+
 export async function GET(req: Request) {
+  if (cachedIcon && Date.now() - cachedIcon.at < ICON_BYTES_TTL_MS) {
+    return new NextResponse(cachedIcon.body, {
+      headers: { 'Content-Type': cachedIcon.contentType, 'Cache-Control': 'public, max-age=300' },
+    });
+  }
+
   let iconUrl = DEFAULT_ICON_PATH;
   try {
     iconUrl = await resolveIconUrl();
@@ -81,14 +98,31 @@ export async function GET(req: Request) {
   } catch {
     target = new URL(DEFAULT_ICON_PATH, new URL(req.url).origin);
   }
-  // Guard against redirecting back to ourselves: /favicon.ico is rewritten
-  // to this route by middleware, so a config value of "/favicon.ico" (or
-  // this route's own path) would bounce between the two forever.
+  // Guard against fetching ourselves: /favicon.ico is rewritten to this
+  // route by middleware, so a config value of "/favicon.ico" (or this
+  // route's own path) would recurse.
   if (target.pathname === '/favicon.ico' || target.pathname === '/api/dynamic-favicon') {
     target = new URL(DEFAULT_ICON_PATH, new URL(req.url).origin);
   }
 
-  const res = NextResponse.redirect(target, 307);
-  res.headers.set('Cache-Control', 'public, max-age=300');
-  return res;
+  try {
+    const upstream = await fetch(target.toString(), {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!upstream.ok) throw new Error(`icon fetch failed: ${upstream.status}`);
+    const body = await upstream.arrayBuffer();
+    const contentType = upstream.headers.get('content-type') || 'image/png';
+    cachedIcon = { body, contentType, at: Date.now() };
+    return new NextResponse(body, {
+      headers: { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=300' },
+    });
+  } catch (err) {
+    // Configured icon unreachable (bad URL, R2 permissions, upstream down)
+    // — fall back to the bundled one rather than serving a broken icon.
+    // Deliberately NOT cached, so it retries rather than pinning the
+    // fallback for the full TTL once the real icon comes back.
+    console.error('[dynamic-favicon] Falling back to bundled icon:', err);
+    return NextResponse.redirect(new URL(DEFAULT_ICON_PATH, new URL(req.url).origin), 307);
+  }
 }

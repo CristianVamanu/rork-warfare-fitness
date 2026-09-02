@@ -3395,6 +3395,30 @@ function AdminPageInner() {
                     {app.injuries && (
                       <div className="col-span-2"><span className="text-text-tertiary">Injuries:</span> <span className="text-white">{app.injuries}</span></div>
                     )}
+                    {/* Health screening / lifestyle answers from the
+                        application form. Rendered generically so any
+                        question added to HealthScreening.tsx shows up here
+                        without needing a matching change in this file —
+                        collecting answers a trainer can't read would be
+                        pointless. Booleans render as Yes/No; the free-text
+                        detail fields render as-is. */}
+                    {app.medicalHistory && Object.keys(app.medicalHistory).length > 0 && (
+                      <div className="col-span-2 mt-1 pt-2 border-t border-white/8">
+                        <p className="text-text-tertiary mb-1.5">Health screening &amp; lifestyle</p>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                          {Object.entries(app.medicalHistory).map(([key, value]) => (
+                            <div key={key}>
+                              <span className="text-text-tertiary">
+                                {key.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())}:
+                              </span>{' '}
+                              <span className="text-white">
+                                {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {app.status === 'rejected' && app.rejectionReason && (
                       <div className="col-span-2"><span className="text-text-tertiary">Rejection reason:</span> <span className="text-danger">{app.rejectionReason}</span></div>
                     )}

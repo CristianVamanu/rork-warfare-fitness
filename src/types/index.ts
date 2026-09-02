@@ -199,6 +199,10 @@ export interface UserProfile {
   fitnessGoal?: FitnessGoal;
   experience?: ExperienceLevel;
   limitations?: string;
+  // Only present on accounts that answered these during onboarding, back
+  // when the health screening lived there — it's collected on the 1:1
+  // coaching application form now, and prefilled from here when present.
+  medicalHistory?: MedicalHistoryAnswers;
   role: 'user' | 'trainer' | 'admin';
   trainerId?: string;        // uid of the owning trainer / tenant
   createdAt: unknown;
@@ -660,6 +664,9 @@ export interface CoachingApplication {
   experience: string;
   injuries: string;
   availability: string;
+  // Health screening / lifestyle habits answers, collected on the coaching
+  // application form (they used to be mandatory onboarding steps).
+  medicalHistory?: MedicalHistoryAnswers;
   status: CoachingApplicationStatus;
   createdAt: unknown;
   reviewedAt?: unknown;

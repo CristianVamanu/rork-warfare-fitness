@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, Moon, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, subscribeTodayWorkoutCount, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
+import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getMyLeaderboardRank, subscribeTodayWorkoutCount, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
 import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix, getNextSession } from '@/lib/programs';
@@ -101,11 +101,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
-    getLeaderboard(200).then((entries) => {
-      const myIdx = entries.findIndex((e) => e.id === user.uid);
-      setMyRank(myIdx === -1 ? null : myIdx + 1);
-    }).catch(() => {});
-  }, [user]);
+    // Server-side count of everyone above this user's XP — no leaderboard
+    // documents are downloaded at all. This used to pull the top 200 docs
+    // just to indexOf the current user out of them.
+    const xp = profile?.xp ?? 0;
+    getMyLeaderboardRank(xp)
+      .then(setMyRank)
+      .catch(() => setMyRank(null));
+  }, [user, profile?.xp]);
 
   const greeting = getGreeting();
   const firstName = profile?.displayName?.split(' ')[0] || 'Athlete';

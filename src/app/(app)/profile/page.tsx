@@ -25,7 +25,8 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
 import { Modal } from '@/components/ui/Modal';
-import type { MembershipConfig, MembershipPlan, CoachingPlan, CoachingApplication, PlanBillingPeriodMonths } from '@/types';
+import { HealthScreeningFields, LifestyleHabitsFields } from '@/components/ui/HealthScreening';
+import type { MembershipConfig, MembershipPlan, CoachingPlan, CoachingApplication, PlanBillingPeriodMonths, MedicalHistoryAnswers } from '@/types';
 
 // Separate component so useSearchParams doesn't block the page render
 function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
@@ -63,6 +64,13 @@ export default function ProfilePage() {
   const [coachingApplication, setCoachingApplication] = useState<CoachingApplication | null>(null);
   const [applyPlan, setApplyPlan] = useState<CoachingPlan | null>(null);
   const [applyForm, setApplyForm] = useState({ currentWeight: '', goals: '', experience: '', injuries: '', availability: '' });
+  // Health screening / lifestyle habits moved here from signup onboarding,
+  // where they were fifteen mandatory questions gating first use. Here a
+  // human trainer actually reads them, and the person filling this in has
+  // already decided they want 1:1 coaching.
+  const [applyMedical, setApplyMedical] = useState<MedicalHistoryAnswers>({});
+  const updateApplyMedical = (patch: Partial<MedicalHistoryAnswers>) =>
+    setApplyMedical((m) => ({ ...m, ...patch }));
   const [applySubmitting, setApplySubmitting] = useState(false);
 
   const refreshCoachingApplication = () => {
@@ -102,6 +110,10 @@ export default function ProfilePage() {
 
   const openApplyModal = (plan: CoachingPlan) => {
     setApplyForm({ currentWeight: '', goals: '', experience: '', injuries: '', availability: '' });
+    // Prefill from whatever the profile already has (e.g. an older account
+    // that answered these during onboarding before they moved here), so a
+    // returning user isn't re-answering questions the app already knows.
+    setApplyMedical(profile?.medicalHistory ?? {});
     setApplyPlan(plan);
   };
 
@@ -113,6 +125,12 @@ export default function ProfilePage() {
     }
     setApplySubmitting(true);
     try {
+      // Only send answers actually given — undefined values would be
+      // rejected by Firestore, and an empty object is cleaner than a doc
+      // full of nulls for the trainer reading it in the admin panel.
+      const answeredMedical = Object.fromEntries(
+        Object.entries(applyMedical).filter(([, v]) => v !== undefined && v !== '')
+      );
       await submitCoachingApplication({
         userId: user.uid,
         userName: profile?.displayName || user.email || 'Unknown',
@@ -120,6 +138,7 @@ export default function ProfilePage() {
         planId: applyPlan.id,
         planName: applyPlan.name,
         ...applyForm,
+        ...(Object.keys(answeredMedical).length > 0 ? { medicalHistory: answeredMedical } : {}),
       });
       toast.success('Application submitted! Your trainer will review it shortly.');
       setApplyPlan(null);
@@ -754,6 +773,14 @@ export default function ProfilePage() {
             onChange={(e) => setApplyForm((f) => ({ ...f, availability: e.target.value }))}
             placeholder="e.g. 4x/week, mornings only"
           />
+          <div className="pt-1 border-t border-white/8" />
+          <p className="text-xs text-text-secondary">
+            The questions below help your trainer build a programme around any
+            medical considerations. All optional — answer what you&apos;re
+            comfortable sharing.
+          </p>
+          <HealthScreeningFields data={applyMedical} onChange={updateApplyMedical} />
+          <LifestyleHabitsFields data={applyMedical} onChange={updateApplyMedical} />
           <div className="flex gap-3">
             <Button variant="ghost" fullWidth onClick={() => setApplyPlan(null)}>Cancel</Button>
             <Button fullWidth loading={applySubmitting} onClick={handleSubmitApplication}>Submit Application</Button>

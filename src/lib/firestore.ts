@@ -31,6 +31,7 @@ import {
   deleteField,
   arrayUnion,
   arrayRemove,
+  getCountFromServer,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { stripUndefinedDeep } from './utils';
@@ -1908,6 +1909,23 @@ export function subscribeCommunityActivity(onUpdate: (items: CommunityActivity[]
 // trainerId — that filter was fragile (any mismatch between a user's stored
 // trainerId and the live admin uid made them silently invisible) and adds no
 // value with only one trainer. Revisit if true multi-tenant coaching ships.
+/**
+ * The caller's rank, computed as a server-side COUNT of everyone above
+ * them — no documents are transferred at all.
+ *
+ * The dashboard previously got this by downloading the top 200
+ * leaderboardPublic docs and calling indexOf on them: hundreds of KB over
+ * the wire on every dashboard load to render a single number, and it
+ * couldn't rank anyone outside the top 200 anyway (they just got null).
+ * A count aggregate is both far cheaper and strictly more correct.
+ */
+export async function getMyLeaderboardRank(xp: number): Promise<number> {
+  const snap = await getCountFromServer(
+    query(collection(db, 'leaderboardPublic'), where('xp', '>', xp))
+  );
+  return snap.data().count + 1;
+}
+
 export async function getLeaderboard(limitCount = 10): Promise<LeaderboardEntry[]> {
   const snap = await getDocs(query(collection(db, 'leaderboardPublic'), orderBy('xp', 'desc'), limit(200)));
   const entries = snap.docs
@@ -1968,13 +1986,31 @@ export function subscribeNearbyLeaderboard(
 // workout timestamp readable client-side; the `events` collection that has
 // real per-workout timestamps is locked to each user's own events by rule)
 // rather than faking hour-level precision the data doesn't actually have.
+/**
+ * "N people trained today". Keeps the same subscribe-shaped signature the
+ * dashboard already uses, but is no longer a live listener over 300
+ * documents.
+ *
+ * It used to onSnapshot the 300 most recent leaderboardPublic docs and
+ * count matches client-side — so every dashboard held a live subscription
+ * that re-delivered all 300 docs whenever ANY user's XP changed, purely to
+ * display one number. Now it's a server-side count aggregate (no documents
+ * transferred), refreshed on an interval instead of streamed. A community
+ * counter being up to a minute stale is unnoticeable; the bandwidth wasn't.
+ */
 export function subscribeTodayWorkoutCount(onUpdate: (count: number) => void): () => void {
   const todayStr = new Date().toLocaleDateString('sv-SE');
-  const q = query(collection(db, 'leaderboardPublic'), orderBy('lastWorkoutDate', 'desc'), limit(300));
-  return onSnapshot(q, (snap) => {
-    const count = snap.docs.filter((d) => !d.data().banned && d.data().lastWorkoutDate === todayStr).length;
-    onUpdate(count);
-  }, (err) => console.error('[Firestore] subscribeTodayWorkoutCount error:', err));
+  let cancelled = false;
+  const load = () => {
+    getCountFromServer(
+      query(collection(db, 'leaderboardPublic'), where('lastWorkoutDate', '==', todayStr))
+    )
+      .then((snap) => { if (!cancelled) onUpdate(snap.data().count); })
+      .catch((err) => console.error('[Firestore] subscribeTodayWorkoutCount error:', err));
+  };
+  load();
+  const interval = setInterval(load, 60_000);
+  return () => { cancelled = true; clearInterval(interval); };
 }
 
 // ── PR Wall — community-posted personal records with a trust/verification badge ──
@@ -2253,6 +2289,9 @@ export async function submitCoachingApplication(data: {
   experience: string;
   injuries: string;
   availability: string;
+  // Health screening / lifestyle habits, moved here from signup onboarding.
+  // Optional — the applicant answers what they're comfortable sharing.
+  medicalHistory?: Record<string, unknown>;
 }): Promise<string> {
   // Block duplicate submissions while one is already pending for this plan —
   // the UI is supposed to hide the Apply button in this state, but guard

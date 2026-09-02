@@ -167,10 +167,6 @@ function OnboardingPageInner() {
     return !!qAge && /^\d+$/.test(qAge) && +qAge >= 13 && +qAge <= 100;
   });
 
-  function updateMedical(patch: Partial<MedicalHistoryAnswers>) {
-    setMedicalHistory((m) => ({ ...m, ...patch }));
-  }
-
   // Persists every answer as it changes — cheap (localStorage writes are
   // synchronous and tiny) and means a tab close/crash/lost connection at
   // any point loses at most the current keystroke, not the whole quiz.
@@ -249,8 +245,12 @@ function OnboardingPageInner() {
     if (!authLoading && needsAccount === null) setNeedsAccount(!user);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading]);
-  const TOTAL_STEPS = needsAccount ? 11 : 10;
-  const ACCOUNT_STEP = 10;
+  // Health screening and lifestyle habits used to sit at steps 7 and 8 —
+  // fifteen mandatory Yes/No medical questions between signup and the app,
+  // and by far the heaviest part of this flow. They've moved to the 1:1
+  // coaching application, where a human trainer actually reads them.
+  const TOTAL_STEPS = needsAccount ? 9 : 8;
+  const ACCOUNT_STEP = 8;
 
   // Set the instant signUp() succeeds inside handleFinish, never cleared —
   // `needsAccount` itself is frozen once determined (see its own comment
@@ -281,23 +281,6 @@ function OnboardingPageInner() {
     && weightNum >= 30 && weightNum <= 300 && targetWeightNum >= 30 && targetWeightNum <= 300;
   const accountValid = name.trim().length >= 2 && /^\S+@\S+\.\S+$/.test(email) && password.length >= 6 && password === confirmPassword;
 
-  // Every yes/no screening question must be explicitly answered (true or
-  // false — undefined means "skipped") before either step can advance.
-  // The free-text/numeric fields alongside them (body fat %, blood
-  // pressure, daily fluid intake, etc) stay optional — most people
-  // genuinely don't know their resting heart rate off-hand, and forcing a
-  // made-up number in would make the data worse, not better.
-  const medicalHistoryAnswered = [
-    medicalHistory.practicesSports, medicalHistory.movementDisorders, medicalHistory.previousSurgeries,
-    medicalHistory.sportsInjuries, medicalHistory.musculoskeletalProblems, medicalHistory.heartDisease,
-    medicalHistory.otherMedicalConditions,
-  ].every((v) => v !== undefined);
-  const lifestyleHabitsAnswered = [
-    medicalHistory.smokes, medicalHistory.drinksAlcoholRegularly, medicalHistory.suffersFromStress,
-    medicalHistory.takesSleepingPills, medicalHistory.takesPainMedication, medicalHistory.takesBetaBlockers,
-    medicalHistory.eatsFattyOrSweetFoodsOften, medicalHistory.experiencesFoodCravings,
-  ].every((v) => v !== undefined);
-
   const canAdvance = [
     !!goal && sexAgeAnswered,
     !!experience,
@@ -306,8 +289,6 @@ function OnboardingPageInner() {
     biometricsValid,
     true, // BMI result step is informational only
     true, // limitations is optional
-    medicalHistoryAnswered,
-    lifestyleHabitsAnswered,
     true, // focus/session/style preferences are optional
     accountValid, // only reached when needsAccount is true
   ][step];
@@ -315,6 +296,31 @@ function OnboardingPageInner() {
   function go(delta: number) {
     setDir(delta);
     setStep((s) => Math.max(0, Math.min(TOTAL_STEPS - 1, s + delta)));
+  }
+
+  // Auto-advance for the single-choice steps (goal, experience, days,
+  // equipment): picking an option IS the answer, so making the user then
+  // reach for a Continue button is a redundant second tap on every one of
+  // them. Deliberately NOT applied to the multi-field steps (biometrics,
+  // limitations, preferences, account) — those aren't finished just
+  // because one field changed, and auto-advancing out of them would be
+  // actively wrong.
+  //
+  // The short delay lets the selected state paint before the slide
+  // transition starts, so the user sees WHAT they picked rather than the
+  // screen leaving instantly; the guard makes a fast double-tap or a
+  // change-of-mind before it fires a no-op rather than skipping two steps.
+  const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current); }, []);
+
+  function selectAndAdvance(fromStep: number, apply: () => void) {
+    apply();
+    if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    autoAdvanceRef.current = setTimeout(() => {
+      autoAdvanceRef.current = null;
+      setStep((s) => (s === fromStep ? Math.min(TOTAL_STEPS - 1, s + 1) : s));
+      setDir(1);
+    }, 260);
   }
 
   // Combines the free-text limitations field with any "Yes"-flagged medical
@@ -868,19 +874,23 @@ function OnboardingPageInner() {
           >
             {step === 0 && (
               <StepGoal
-                selected={goal} onSelect={setGoal}
+                // Only auto-advances once sex/age are actually answered —
+                // this step carries those extra fields, so picking a goal
+                // isn't necessarily finishing the step.
+                selected={goal}
+                onSelect={(v) => (sexAgeAnswered ? selectAndAdvance(0, () => setGoal(v)) : setGoal(v))}
                 sex={sex} onSex={setSex} age={age} onAge={setAge}
                 showSexPicker={!hadPrefilledSex} showAgeInput={!hadPrefilledAge}
               />
             )}
             {step === 1 && (
-              <StepExperience selected={experience} onSelect={setExperience} />
+              <StepExperience selected={experience} onSelect={(v) => selectAndAdvance(1, () => setExperience(v))} />
             )}
             {step === 2 && (
-              <StepDays selected={trainingDays} onSelect={setTrainingDays} />
+              <StepDays selected={trainingDays} onSelect={(v) => selectAndAdvance(2, () => setTrainingDays(v))} />
             )}
             {step === 3 && (
-              <StepEquipment selected={equipment} onSelect={setEquipment} />
+              <StepEquipment selected={equipment} onSelect={(v) => selectAndAdvance(3, () => setEquipment(v))} />
             )}
             {step === 4 && (
               <StepBiometrics
@@ -901,12 +911,6 @@ function OnboardingPageInner() {
               <StepLimitations value={limitations} onChange={setLimitations} />
             )}
             {step === 7 && (
-              <StepMedicalHistory data={medicalHistory} onChange={updateMedical} />
-            )}
-            {step === 8 && (
-              <StepLifestyleHabits data={medicalHistory} onChange={updateMedical} />
-            )}
-            {step === 9 && (
               <StepPreferences
                 targetFocus={targetFocus} onTargetFocus={setTargetFocus}
                 sessionMinutes={sessionMinutes} onSessionMinutes={setSessionMinutes}
@@ -1194,98 +1198,6 @@ function StepLimitations({ value, onChange }: { value: string; onChange: (v: str
       <p className="text-xs text-text-tertiary mt-2 text-center">
         Leave blank if you have no limitations.
       </p>
-    </div>
-  );
-}
-
-function YesNoField({
-  label, value, onChange, detail, onDetailChange, detailPlaceholder,
-}: {
-  label: string;
-  value: boolean | null | undefined;
-  onChange: (v: boolean) => void;
-  detail?: string;
-  onDetailChange?: (v: string) => void;
-  detailPlaceholder?: string;
-}) {
-  return (
-    <div className="py-3 first:pt-0 last:pb-0">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-white flex-1">{label}</p>
-        <div className="flex gap-1.5 flex-shrink-0">
-          <button
-            onClick={() => onChange(false)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${value === false ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}
-          >
-            No
-          </button>
-          <button
-            onClick={() => onChange(true)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${value === true ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}
-          >
-            Yes
-          </button>
-        </div>
-      </div>
-      {value === true && onDetailChange && (
-        <input
-          value={detail ?? ''}
-          onChange={(e) => onDetailChange(e.target.value)}
-          placeholder={detailPlaceholder ?? 'Please specify (optional)'}
-          className="w-full mt-2 bg-surface border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-        />
-      )}
-    </div>
-  );
-}
-
-function StepMedicalHistory({ data, onChange }: { data: MedicalHistoryAnswers; onChange: (patch: Partial<MedicalHistoryAnswers>) => void }) {
-  return (
-    <div>
-      <h1 className="text-2xl font-black text-white mb-1">Health screening</h1>
-      <p className="text-text-secondary text-sm mb-5">
-        Answer every question below (Yes/No) so your program can work around any medical considerations — kept private to your account.
-      </p>
-      <Card className="p-4 divide-y divide-white/5">
-        <YesNoField label="Do you practice sports/exercise?" value={data.practicesSports} onChange={(v) => onChange({ practicesSports: v })} detail={data.sportsDetail} onDetailChange={(v) => onChange({ sportsDetail: v })} detailPlaceholder="Which sport(s)?" />
-        <YesNoField label="Movement or coordination disorders?" value={data.movementDisorders} onChange={(v) => onChange({ movementDisorders: v })} detail={data.movementDisordersDetail} onDetailChange={(v) => onChange({ movementDisordersDetail: v })} />
-        <YesNoField label="Previous surgeries?" value={data.previousSurgeries} onChange={(v) => onChange({ previousSurgeries: v })} detail={data.previousSurgeriesDetail} onDetailChange={(v) => onChange({ previousSurgeriesDetail: v })} />
-        <YesNoField label="Sports injuries?" value={data.sportsInjuries} onChange={(v) => onChange({ sportsInjuries: v })} detail={data.sportsInjuriesDetail} onDetailChange={(v) => onChange({ sportsInjuriesDetail: v })} />
-        <YesNoField label="Other musculoskeletal problems?" value={data.musculoskeletalProblems} onChange={(v) => onChange({ musculoskeletalProblems: v })} detail={data.musculoskeletalProblemsDetail} onDetailChange={(v) => onChange({ musculoskeletalProblemsDetail: v })} />
-        <YesNoField label="Heart disease?" value={data.heartDisease} onChange={(v) => onChange({ heartDisease: v })} detail={data.heartDiseaseDetail} onDetailChange={(v) => onChange({ heartDiseaseDetail: v })} />
-        <YesNoField label="Other medical conditions?" value={data.otherMedicalConditions} onChange={(v) => onChange({ otherMedicalConditions: v })} detail={data.otherMedicalConditionsDetail} onDetailChange={(v) => onChange({ otherMedicalConditionsDetail: v })} />
-      </Card>
-    </div>
-  );
-}
-
-function StepLifestyleHabits({ data, onChange }: { data: MedicalHistoryAnswers; onChange: (patch: Partial<MedicalHistoryAnswers>) => void }) {
-  return (
-    <div>
-      <h1 className="text-2xl font-black text-white mb-1">Lifestyle habits</h1>
-      <p className="text-text-secondary text-sm mb-5">
-        Answer every question below (Yes/No) to help tailor your nutrition and recovery guidance.
-      </p>
-      <Card className="p-4 divide-y divide-white/5">
-        <YesNoField label="Do you smoke?" value={data.smokes} onChange={(v) => onChange({ smokes: v })} />
-        <YesNoField label="Drink alcohol regularly?" value={data.drinksAlcoholRegularly} onChange={(v) => onChange({ drinksAlcoholRegularly: v })} detail={data.alcoholFrequency} onDetailChange={(v) => onChange({ alcoholFrequency: v })} detailPlaceholder="How often?" />
-        <YesNoField label="Suffer from stress?" value={data.suffersFromStress} onChange={(v) => onChange({ suffersFromStress: v })} />
-        <YesNoField label="Sleeping pills or sedatives?" value={data.takesSleepingPills} onChange={(v) => onChange({ takesSleepingPills: v })} />
-        <YesNoField label="Pain medication?" value={data.takesPainMedication} onChange={(v) => onChange({ takesPainMedication: v })} />
-        <YesNoField label="Beta blockers?" value={data.takesBetaBlockers} onChange={(v) => onChange({ takesBetaBlockers: v })} />
-        <YesNoField label="Frequently eat very fatty/sweet foods?" value={data.eatsFattyOrSweetFoodsOften} onChange={(v) => onChange({ eatsFattyOrSweetFoodsOften: v })} />
-        <YesNoField label="Often experience food cravings?" value={data.experiencesFoodCravings} onChange={(v) => onChange({ experiencesFoodCravings: v })} />
-      </Card>
-      <div className="mt-4">
-        <label className="text-xs font-medium text-text-secondary mb-1.5 block">Daily fluid intake</label>
-        <input
-          type="text"
-          value={data.dailyFluidIntake ?? ''}
-          onChange={(e) => onChange({ dailyFluidIntake: e.target.value })}
-          placeholder="e.g. 2 liters"
-          className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-        />
-      </div>
     </div>
   );
 }
