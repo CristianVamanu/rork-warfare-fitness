@@ -87,12 +87,13 @@ export const viewport: Viewport = {
   themeColor: '#F5A623',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Set by src/middleware.ts on every request — required to authorize the
   // inline/third-party <Script> tags below under the nonce-based CSP (a
   // static nonce baked into the HTML wouldn't protect against anything,
   // since an attacker could just read it out of the page source).
-  const nonce = headers().get('x-nonce') ?? undefined;
+  // Next 15: request APIs (headers/cookies/params) are async.
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
   return (
     <html lang="en" className="dark">
       <head>

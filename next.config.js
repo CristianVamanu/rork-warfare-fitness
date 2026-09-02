@@ -375,16 +375,19 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.r2.cloudflarestorage.com' },
     ],
   },
-  experimental: {
-    // pdf-parse (built on pdfjs-dist) locates its worker script relative to
-    // its own module location at runtime — webpack bundling it into a
-    // .next/server/chunks/*.js file breaks that lookup because the sibling
-    // pdf.worker.mjs asset doesn't get copied alongside it. Marking it
-    // external keeps it as a plain `require('pdf-parse')` from node_modules
-    // at runtime instead, where the worker file sits right where the
-    // library expects it.
-    serverComponentsExternalPackages: ['firebase-admin', 'pdf-parse'],
-  },
+  // pdf-parse (built on pdfjs-dist) locates its worker script relative to
+  // its own module location at runtime — webpack bundling it into a
+  // .next/server/chunks/*.js file breaks that lookup because the sibling
+  // pdf.worker.mjs asset doesn't get copied alongside it. Marking it
+  // external keeps it as a plain `require('pdf-parse')` from node_modules
+  // at runtime instead, where the worker file sits right where the
+  // library expects it.
+  //
+  // Next 15 promoted this out of `experimental` (where it was
+  // serverComponentsExternalPackages). The old key is now silently ignored
+  // with a build warning — which would have re-bundled pdf-parse and broken
+  // document extraction at runtime without any build failure.
+  serverExternalPackages: ['firebase-admin', 'pdf-parse'],
 };
 
 const { withSentryConfig } = require('@sentry/nextjs');

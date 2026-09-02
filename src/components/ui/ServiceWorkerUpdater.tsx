@@ -3,6 +3,25 @@
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 
+// A workout draft is written under this prefix by training/session/page.tsx
+// (see draftStore there) on every logged set, with a lastActiveAt stamp.
+const DRAFT_PREFIX = 'workout_session_';
+const DRAFT_ACTIVE_MS = 30 * 60 * 1000;
+
+function workoutInProgress(): boolean {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(DRAFT_PREFIX)) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const { lastActiveAt } = JSON.parse(raw) as { lastActiveAt?: number };
+      if (typeof lastActiveAt === 'number' && Date.now() - lastActiveAt < DRAFT_ACTIVE_MS) return true;
+    }
+  } catch { /* storage blocked — assume no session */ }
+  return false;
+}
+
 // next-pwa's skipWaiting:true makes a new service worker activate in the
 // background the moment it's fetched, but a page that was already open
 // keeps running the OLD cached JS until something reloads it — so after a
@@ -27,6 +46,17 @@ export function ServiceWorkerUpdater() {
     const onControllerChange = () => {
       if (refreshing) return;
       refreshing = true;
+      // This used to reload unconditionally 1.2s after the toast. With
+      // frequent deploys that meant a live workout — rest timer running,
+      // mid-set — could have the page yanked out from under it. The draft
+      // now survives a reload (localStorage), but the interruption itself is
+      // still wrong: a person at the squat rack does not want a reload. If a
+      // session is active, say the update is ready and leave the reload to
+      // them (the next cold open picks it up anyway).
+      if (workoutInProgress()) {
+        toast('Update ready — it will apply after your workout.', { icon: '🔄', duration: 6000 });
+        return;
+      }
       toast('A new version is available.', {
         icon: '🔄',
         duration: 8000,
