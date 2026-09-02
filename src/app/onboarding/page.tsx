@@ -121,13 +121,30 @@ function OnboardingPageInner() {
   // this instead of each calling localStorage separately.
   const [draft] = useState(loadOnboardingDraft);
 
-  const [step, setStep] = useState(draft.step ?? 0);
+  // Clamped, never trusted raw. A draft is a localStorage value written by an
+  // OLDER build of this page, and the step count here has shrunk twice now
+  // (11 -> 9 when health screening and lifestyle habits moved to the coaching
+  // application, 9 -> 8 when "Any limitations?" was removed). A visitor who
+  // was part-way through when either shipped comes back holding a step index
+  // that no longer has a matching render block — a blank card under a
+  // "Step 9 of 8" counter, with Continue doing nothing. Clamping on restore
+  // drops them on the last real step instead. MAX_STEP_INDEX is the highest
+  // index any configuration can reach (ACCOUNT_STEP); the effect below
+  // tightens it once needsAccount resolves and the true TOTAL_STEPS is known.
+  const MAX_STEP_INDEX = 7;
+  const [step, setStep] = useState(() =>
+    Math.max(0, Math.min(MAX_STEP_INDEX, draft.step ?? 0))
+  );
   const [dir, setDir] = useState(1);
   const [goal, setGoal] = useState<FitnessGoal | null>(draft.goal ?? null);
   const [experience, setExperience] = useState<ExperienceLevel | null>(draft.experience ?? null);
   const [trainingDays, setTrainingDays] = useState<number | null>(draft.trainingDays ?? null);
   const [equipment, setEquipment] = useState<EquipmentType | null>(draft.equipment ?? null);
-  const [limitations, setLimitations] = useState(draft.limitations ?? '');
+  // Read-only now that the "Any limitations?" step is gone — nothing in this
+  // flow sets it any more. Kept (rather than deleted) so a draft saved before
+  // that step was removed still carries its answer through to the profile
+  // instead of silently dropping it on resume.
+  const [limitations] = useState(draft.limitations ?? '');
   const [sex, setSex] = useState<BiologicalSex | null>(draft.sex ?? null);
   const [age, setAge] = useState(draft.age ?? '');
   const [heightCm, setHeightCm] = useState(draft.heightCm ?? '');
@@ -249,8 +266,25 @@ function OnboardingPageInner() {
   // fifteen mandatory Yes/No medical questions between signup and the app,
   // and by far the heaviest part of this flow. They've moved to the 1:1
   // coaching application, where a human trainer actually reads them.
-  const TOTAL_STEPS = needsAccount ? 9 : 8;
-  const ACCOUNT_STEP = 8;
+  //
+  // The free-text "Any limitations?" screen that followed them is gone too:
+  // it was optional, so the overwhelming majority of users tapped straight
+  // past it, and an empty screen between the BMI result and the preferences
+  // step is pure drop-off. The `limitations` value itself is still part of
+  // the profile and still saved when present (a draft started before this
+  // change can carry one) — it just isn't asked for here any more.
+  const TOTAL_STEPS = needsAccount ? 8 : 7;
+  const ACCOUNT_STEP = 7;
+
+  // Second half of the draft clamp above. An already-signed-in visitor has
+  // one fewer step (no account step), so a restored draft sitting exactly on
+  // ACCOUNT_STEP is still out of range for them — but needsAccount is null on
+  // first render and only resolves after Firebase reports auth state, so the
+  // initializer can't know that yet. Runs once needsAccount is known.
+  useEffect(() => {
+    if (needsAccount === null) return;
+    setStep((s) => Math.min(s, TOTAL_STEPS - 1));
+  }, [needsAccount, TOTAL_STEPS]);
 
   // Set the instant signUp() succeeds inside handleFinish, never cleared —
   // `needsAccount` itself is frozen once determined (see its own comment
@@ -288,7 +322,6 @@ function OnboardingPageInner() {
     !!equipment,
     biometricsValid,
     true, // BMI result step is informational only
-    true, // limitations is optional
     true, // focus/session/style preferences are optional
     accountValid, // only reached when needsAccount is true
   ][step];
@@ -302,7 +335,7 @@ function OnboardingPageInner() {
   // equipment): picking an option IS the answer, so making the user then
   // reach for a Continue button is a redundant second tap on every one of
   // them. Deliberately NOT applied to the multi-field steps (biometrics,
-  // limitations, preferences, account) — those aren't finished just
+  // preferences, account) — those aren't finished just
   // because one field changed, and auto-advancing out of them would be
   // actively wrong.
   //
@@ -908,9 +941,6 @@ function OnboardingPageInner() {
               <StepBmiResult heightCm={heightNum} weightKg={weightNum} weightUnit={weightUnit} />
             )}
             {step === 6 && (
-              <StepLimitations value={limitations} onChange={setLimitations} />
-            )}
-            {step === 7 && (
               <StepPreferences
                 targetFocus={targetFocus} onTargetFocus={setTargetFocus}
                 sessionMinutes={sessionMinutes} onSessionMinutes={setSessionMinutes}
@@ -1176,28 +1206,6 @@ function StepEquipment({ selected, onSelect }: { selected: EquipmentType | null;
           />
         ))}
       </div>
-    </div>
-  );
-}
-
-function StepLimitations({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <div>
-      <h1 className="text-2xl font-black text-white mb-1">Any limitations?</h1>
-      <p className="text-text-secondary text-sm mb-5">
-        Injuries, pain points, or exercises to avoid. Your AI coach will work around them.
-        <span className="text-text-tertiary"> (optional)</span>
-      </p>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="e.g. bad left knee, no overhead pressing, lower back pain…"
-        rows={5}
-        className="w-full bg-surface border border-white/10 rounded-2xl px-4 py-3 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
-      />
-      <p className="text-xs text-text-tertiary mt-2 text-center">
-        Leave blank if you have no limitations.
-      </p>
     </div>
   );
 }

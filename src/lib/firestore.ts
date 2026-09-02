@@ -351,14 +351,12 @@ export const DEFAULT_USER_GOALS: UserGoals = {
 };
 
 /**
- * Reads goals off an already-loaded user profile. Prefer this anywhere the
- * profile is in hand (AuthContext streams users/{uid} live via onSnapshot) —
- * getUserGoals below re-reads that exact same document over the network.
+ * Re-reads users/{uid} purely for its `goals` field. Prefer reading
+ * `profile.goals` directly anywhere the profile is already in hand —
+ * AuthContext streams that exact document live via onSnapshot, so calling
+ * this there is a second fetch of a document you already have (the dashboard
+ * used to do exactly that). Still correct for callers without a profile.
  */
-export function goalsFromProfile(goals: UserGoals | undefined | null): UserGoals {
-  return goals ?? DEFAULT_USER_GOALS;
-}
-
 export async function getUserGoals(uid: string): Promise<UserGoals> {
   const snap = await getDoc(doc(db, 'users', uid));
   const data = snap.data();

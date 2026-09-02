@@ -359,6 +359,24 @@ export default function LandingPage({
     : paidTrialEnabled ? `Start for $${trialPrice}`
     : `Start ${trialDays}-Day Free Trial`;
 
+  // "Start for $1.00" states a price without stating that it renews, which is
+  // the single most complaint-generating shape a paid-trial CTA can take — so
+  // wherever that button appears, this line appears under it.
+  //
+  // It used to render in the hero only, and only when featuredPlanPrice was
+  // non-null. Both halves were wrong. The final CTA at the bottom of the page
+  // carried the same "$1" button with no renewal terms at all, and page.tsx
+  // fetches plans with `.catch(() => [])` — so any Firestore hiccup emptied
+  // membershipPlans, made featuredPlanPrice null, and silently dropped the
+  // disclosure from the hero too while leaving the price on the button.
+  // Disclosure now degrades to naming the term without the amount rather than
+  // disappearing, and is never conditional on a fetch succeeding.
+  const paidTrialDisclosure = paidTrialEnabled && trialDays > 0
+    ? featuredPlanPrice != null
+      ? `$${trialPrice} for ${trialDays} days, then $${featuredPlanPrice.toFixed(2)}/mo. Cancel anytime.`
+      : `$${trialPrice} for ${trialDays} days, then your plan's regular price. Cancel anytime.`
+    : null;
+
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
       {/* Ambient glow + grid texture, contained to the hero viewport so it
@@ -534,9 +552,9 @@ export default function LandingPage({
                 ambiguity that gets a checkout screenshotted and complained
                 about. Priced off the featured (first) membership plan,
                 same one the pricing section itself marks "Most Popular". */}
-            {paidTrialEnabled && trialDays > 0 && featuredPlanPrice != null && (
+            {paidTrialDisclosure && (
               <p className="text-[11px] text-text-tertiary text-center mt-2">
-                ${trialPrice} for {trialDays} days, then ${featuredPlanPrice.toFixed(2)}/mo. Cancel anytime.
+                {paidTrialDisclosure}
               </p>
             )}
           </div>
@@ -1104,6 +1122,14 @@ export default function LandingPage({
             {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
           </Button>
         </Link>
+        {/* Same renewal terms as the hero. This button is identical to the
+            one above — including the "$1.00" — so it needs the same
+            disclosure; it previously had none. */}
+        {paidTrialDisclosure && (
+          <p className="text-[11px] text-text-tertiary text-center mt-3">
+            {paidTrialDisclosure}
+          </p>
+        )}
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mt-5">
           <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
             <ShieldCheck className="w-3.5 h-3.5 text-accent" /> Secure checkout

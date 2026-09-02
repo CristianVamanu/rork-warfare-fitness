@@ -8,7 +8,7 @@ import {
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { createTenant } from './tenants';
-import { resolveTrainerId } from './firestore';
+import { resolveTrainerId, invalidateWorkoutsCache, invalidateProgramsCache, invalidateChannelsCache } from './firestore';
 
 // signUp() writes the initial users/{uid} doc itself, but Firebase's
 // onAuthStateChanged fires the moment createUserWithEmailAndPassword
@@ -112,7 +112,17 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
+  // firestore.ts keeps short-lived module-level caches (workouts, programs,
+  // channels) that outlive a sign-out, since nothing about a Firebase sign-out
+  // touches module state. The workout cache is keyed by uid so it can't serve
+  // one user's history to another, and programs/channels are the same shared
+  // data for everyone — but on a shared device it is still wrong to leave the
+  // previous account's fetched data sitting in memory for the next person, and
+  // clearing costs nothing.
   await firebaseSignOut(auth);
+  invalidateWorkoutsCache();
+  invalidateProgramsCache();
+  invalidateChannelsCache();
 }
 
 export async function resetPassword(email: string) {
