@@ -21,7 +21,11 @@ export async function generateMetadata(): Promise<Metadata> {
   // share image has been set — better than no image at all, which is what
   // "no OG tags" previously meant (a bare, imageless link card everywhere
   // this URL got shared: iMessage, Slack, Twitter/X, Discord, etc).
-  const ogImage = logoUrl || `${appUrl}/icons/icon-512x512.png`;
+  // logoUrl first (a banner-shaped logo suits a link card better than a
+  // square app icon), then the uploaded favicon, and only then the bundled
+  // file — which is the same two-color placeholder as the rest of
+  // /icons/*, so it should be the last resort rather than the second.
+  const ogImage = logoUrl || faviconUrl || `${appUrl}/icons/icon-512x512.png`;
 
   return {
     metadataBase: new URL(appUrl),
@@ -37,16 +41,24 @@ export async function generateMetadata(): Promise<Metadata> {
     // the main logo, which is often a large banner-style image that turns
     // into an unrecognizable blob shrunk to 16x16px) is preferred for the
     // tab icon when set; falls back to the logo, then the bundled default.
-    // A custom URL used to be the ONLY <link rel="icon"> offered when set
-    // — if that remote fetch is ever slow/blocked/briefly down, the tab
-    // icon has nothing to fall back to (single-point-of-failure bug fixed
-    // in manifest.ts's PWA icon list, reported live as the tab icon going
-    // missing). src/app/favicon.ico (Next's file convention) already
-    // provides one implicit fallback route regardless of this field, but
-    // listing the bundled PNG explicitly here too means there are always
-    // at least two real candidates browsers can pick between.
+    // This previously listed the custom URL AND /icons/icon-192x192.png as
+    // two <link rel="icon"> entries, intended as a fallback pair. It is not
+    // one. Multiple rel="icon" links are alternatives a browser picks
+    // between BEFORE fetching — normally by their `sizes` attribute — and
+    // neither entry declared `sizes` at all, so the choice was arbitrary
+    // and browsers frequently picked the bundled file. That bundled file is
+    // a placeholder containing exactly two colors (#F5A623 on #0A0A0A): the
+    // yellow dot. Offering it as a peer of the real icon meant the tab
+    // sometimes rendered the placeholder even when the upload was perfectly
+    // reachable.
+    //
+    // One candidate only, marked `sizes: 'any'` so it wins at every size.
+    // The real fallback is /favicon.ico, which src/middleware.ts rewrites to
+    // /api/dynamic-favicon — that route serves the configured icon's bytes
+    // and already falls back to the bundled file if the upload is
+    // unreachable, which is a fallback that actually runs on failure.
     icons: faviconUrl || logoUrl
-      ? { icon: [{ url: faviconUrl || logoUrl! }, { url: '/icons/icon-192x192.png' }], apple: faviconUrl || logoUrl! }
+      ? { icon: [{ url: (faviconUrl || logoUrl)!, sizes: 'any' }], apple: (faviconUrl || logoUrl)! }
       : { icon: '/icons/icon-192x192.png', apple: '/icons/icon-192x192.png' },
     openGraph: {
       title: name,

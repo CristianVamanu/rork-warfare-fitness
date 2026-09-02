@@ -50,23 +50,38 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
   ];
 
-  // A custom icon's entries all point at the SAME remote URL — if that
-  // request is ever slow, CORS-blocked, or briefly unreachable, the
-  // entire icon set fails at once with nothing to fall back to, and
-  // Chrome/Android shows a plain theme_color circle instead of any icon
-  // at all (reported live as "just a yellow dot" — #F5A623 is this app's
-  // theme_color). Listing the custom icon FIRST (browsers prefer earlier
-  // entries when several match) but keeping the always-available bundled
-  // icons in the list too means one bad fetch of the remote file no
-  // longer takes out the icon entirely — it just falls back to the
-  // built-in one instead of a bare color swatch.
+  // Every bundled icon above is a PLACEHOLDER: a flat #F5A623 circle on
+  // #0A0A0A and literally nothing else (verified — each file contains
+  // exactly two distinct colors). That is the "yellow dot", and it was
+  // never a theme_color fallback; it is a real image being served.
+  //
+  // This list used to declare the custom icon at 192 and 512 only, then
+  // append all nine bundled entries as a supposed safety net. But a
+  // manifest icon list is a set of ALTERNATIVES the browser chooses
+  // between up front by size — it is not a retry chain, and no browser
+  // re-picks a different entry when its first choice fails to load. So
+  // the six sizes the custom icon did not declare (72, 96, 128, 144,
+  // 152, 384) resolved to the placeholder by design, and whichever size
+  // a given surface happened to ask for decided whether the real icon or
+  // the yellow dot appeared. That is exactly the reported symptom: some
+  // sizes correct, some yellow.
+  //
+  // With a custom icon configured, declare it for every size and drop
+  // the placeholders entirely — there is no size left that can resolve
+  // to a yellow circle. The genuine fallback for an unreachable custom
+  // icon is /favicon.ico, which middleware routes to /api/dynamic-favicon
+  // and which already falls back to the bundled file on a failed fetch.
+  //
+  // `maskable` is deliberately NOT claimed for a custom upload. Android
+  // crops a maskable icon to roughly its inner 80%, so declaring an
+  // arbitrary uploaded image maskable clips its edges; without the claim
+  // the launcher just letterboxes the `any` icon instead, which is the
+  // correct result for an image whose safe zone we cannot know.
+  const customType = primaryIconUrl ? guessImageMimeType(primaryIconUrl) : 'image/png';
   const icons = primaryIconUrl
-    ? [
-        { src: primaryIconUrl, sizes: '192x192', type: guessImageMimeType(primaryIconUrl), purpose: 'any' as const },
-        { src: primaryIconUrl, sizes: '192x192', type: guessImageMimeType(primaryIconUrl), purpose: 'maskable' as const },
-        { src: primaryIconUrl, sizes: '512x512', type: guessImageMimeType(primaryIconUrl) },
-        ...bundledIcons,
-      ]
+    ? bundledIcons
+        .filter((i) => i.purpose !== 'maskable')
+        .map((i) => ({ src: primaryIconUrl, sizes: i.sizes, type: customType, purpose: 'any' as const }))
     : bundledIcons;
 
   return {
