@@ -1,11 +1,11 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, Moon, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getMyLeaderboardRank, subscribeTodayWorkoutCount, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
+import { getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getMyLeaderboardRank, subscribeTodayWorkoutCount, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
 import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix, getNextSession } from '@/lib/programs';
@@ -41,7 +41,17 @@ export default function DashboardPage() {
   const [waterMl, setWaterMl] = useState<number | null>(null);
   const [calories, setCalories] = useState<number | null>(null);
   const [myRank, setMyRank] = useState<number | null>(null);
-  const [goals, setGoals] = useState(DEFAULT_GOALS);
+  // Goals live on users/{uid}, the document AuthContext already streams live —
+  // reading them here used to mean a second getDoc of that same doc on every
+  // dashboard mount, which could also render one frame behind an edit made on
+  // the nutrition page. Derived, so it stays in sync for free.
+  const goals = useMemo(
+    () => ({
+      calories: profile?.goals?.calories ?? DEFAULT_GOALS.calories,
+      water: profile?.goals?.water ?? DEFAULT_GOALS.water,
+    }),
+    [profile?.goals?.calories, profile?.goals?.water]
+  );
   const [loading, setLoading] = useState(true);
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [resolvedProgram, setResolvedProgram] = useState<Program | null>(null);
@@ -59,8 +69,18 @@ export default function DashboardPage() {
     getProgressPhotos(user.uid).then(setProgressPhotos).catch(() => {});
   }, [user]);
 
-  // Sync calories + water from profile.statsCache whenever it updates (real-time via AuthContext)
+  // Today's calories + water used to arrive from THREE places at once: a
+  // one-shot getTodayMeals/getTodayWater pair on mount, these two live
+  // listeners, and profile.statsCache. The one-shot pair queried exactly what
+  // the listeners already deliver on their first snapshot, so it was a pure
+  // duplicate read that also raced them (whichever resolved last won). Now
+  // statsCache — already streamed in by AuthContext, costing no read at all —
+  // paints instantly, and the listeners are the single source of truth from
+  // their first snapshot onward.
+  const liveNutritionRef = useRef(false);
+
   useEffect(() => {
+    if (liveNutritionRef.current) return;
     const localDateStr = new Date().toLocaleDateString('sv-SE');
     const cache = profile?.statsCache;
     if (cache && cache.cacheDate === localDateStr) {
@@ -73,27 +93,30 @@ export default function DashboardPage() {
     if (!user) return;
 
     const localDateStr = new Date().toLocaleDateString('sv-SE');
+    liveNutritionRef.current = false;
 
-    // Direct queries on mount for goals and initial nutrition totals
-    Promise.all([
-      getTodayMeals(user.uid, localDateStr),
-      getTodayWater(user.uid, localDateStr),
-      getUserGoals(user.uid),
-    ])
-      .then(([meals, water, g]) => {
-        const cal = (meals as Array<{ calories?: number }>).reduce((s, m) => s + (m.calories ?? 0), 0);
-        setCalories(cal);
-        setWaterMl(water as number);
-        setGoals({ calories: g.calories, water: g.water });
-      })
-      .catch((err) => console.error('[Dashboard] Data load error:', err))
-      .finally(() => setLoading(false));
+    const markLive = () => {
+      liveNutritionRef.current = true;
+      setLoading(false);
+    };
 
-    // Real-time listeners — update immediately on any new write
-    const unsubCal = subscribeTodayCalories(user.uid, localDateStr, setCalories);
-    const unsubWater = subscribeTodayWater(user.uid, localDateStr, setWaterMl);
+    const unsubCal = subscribeTodayCalories(user.uid, localDateStr, (v) => {
+      setCalories(v);
+      markLive();
+    });
+    const unsubWater = subscribeTodayWater(user.uid, localDateStr, (v) => {
+      setWaterMl(v);
+      markLive();
+    });
+
+    // A listener that errors out (e.g. permission denied) never calls back at
+    // all, so loading must not depend solely on a snapshot arriving — the
+    // previous one-shot read cleared it in a .finally(). The dashboard renders
+    // fine with null totals, so failing open after a moment is correct.
+    const loadingGuard = setTimeout(() => setLoading(false), 4000);
 
     return () => {
+      clearTimeout(loadingGuard);
       unsubCal();
       unsubWater();
     };

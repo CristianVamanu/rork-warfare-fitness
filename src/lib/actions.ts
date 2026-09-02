@@ -18,7 +18,7 @@ import type { DistanceUnit } from '@/lib/distance';
 import { lbsToKg } from '@/lib/utils';
 import { auth, db } from './firebase';
 import { createEvent } from './events';
-import { incrementProgramWorkouts, syncLeaderboardPublic, updateUserGoals, postCommunityActivity } from './firestore';
+import { incrementProgramWorkouts, syncLeaderboardPublic, updateUserGoals, postCommunityActivity, invalidateWorkoutsCache } from './firestore';
 import { calcWorkoutXP, xpToPowerLevel } from './xp';
 import { estimateNutritionTargets } from './tdee';
 import { checkAndAwardAchievements, ACHIEVEMENT_DEFS } from './achievements';
@@ -178,6 +178,11 @@ export async function completeWorkout(
     calories,
     xpEarned,
   });
+
+  // The recent-workout list this user just changed is now stale — drop it so
+  // the dashboard's next read reflects the workout that was just finished
+  // instead of serving the pre-workout list out of the short-lived cache.
+  invalidateWorkoutsCache();
 
   // Awaited (not fire-and-forget) so a fast navigation right after finishing
   // a workout can't cancel this write mid-flight and silently drop progress —

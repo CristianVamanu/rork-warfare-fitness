@@ -342,18 +342,27 @@ export async function deleteDaysWithoutGoal(userId: string, goalId: string): Pro
   });
 }
 
+export const DEFAULT_USER_GOALS: UserGoals = {
+  calories: 2200,
+  protein: 160,
+  carbs: 250,
+  fat: 70,
+  water: 3000,
+};
+
+/**
+ * Reads goals off an already-loaded user profile. Prefer this anywhere the
+ * profile is in hand (AuthContext streams users/{uid} live via onSnapshot) —
+ * getUserGoals below re-reads that exact same document over the network.
+ */
+export function goalsFromProfile(goals: UserGoals | undefined | null): UserGoals {
+  return goals ?? DEFAULT_USER_GOALS;
+}
+
 export async function getUserGoals(uid: string): Promise<UserGoals> {
   const snap = await getDoc(doc(db, 'users', uid));
   const data = snap.data();
-  return (
-    (data?.goals as UserGoals) ?? {
-      calories: 2200,
-      protein: 160,
-      carbs: 250,
-      fat: 70,
-      water: 3000,
-    }
-  );
+  return (data?.goals as UserGoals) ?? DEFAULT_USER_GOALS;
 }
 
 export async function updateUserGoals(uid: string, goals: UserGoals) {
@@ -535,7 +544,60 @@ export async function deleteWaterLog(id: string) {
 // Workout history — event-primary reads with legacy fallback
 // ---------------------------------------------------------------------------
 
-export async function getUserWorkouts(userId: string, limitCount = 10) {
+// Workout event documents are the heaviest thing the dashboard reads — each
+// one carries the full set-by-set `payload.exercises` log. The dashboard used
+// to fetch them TWICE on every mount: getWeeklySummary(20) and, waterfalled
+// behind resolveProgram, getPersonalBest(30) — ~50 heavy docs for what is one
+// underlying "most recent N workouts" query. This caches the largest fetch per
+// user for a short window and serves any smaller N as a slice of it, and dedupes
+// concurrent callers onto a single in-flight promise. Invalidated explicitly on
+// workout completion (see invalidateWorkoutsCache) so a just-finished workout
+// shows up immediately rather than after the TTL.
+const WORKOUTS_CACHE_TTL_MS = 30_000;
+type UserWorkoutRow = Awaited<ReturnType<typeof fetchUserWorkouts>>[number];
+let workoutsCache: { userId: string; limit: number; rows: UserWorkoutRow[]; fetchedAt: number } | null = null;
+let workoutsInFlight: { userId: string; limit: number; promise: Promise<UserWorkoutRow[]> } | null = null;
+let workoutsGeneration = 0;
+
+/** Clears the cached recent-workout list so the next read hits Firestore. */
+export function invalidateWorkoutsCache() {
+  workoutsCache = null;
+  workoutsGeneration++;
+}
+
+export async function getUserWorkouts(userId: string, limitCount = 10): Promise<UserWorkoutRow[]> {
+  if (
+    workoutsCache &&
+    workoutsCache.userId === userId &&
+    workoutsCache.limit >= limitCount &&
+    Date.now() - workoutsCache.fetchedAt < WORKOUTS_CACHE_TTL_MS
+  ) {
+    return workoutsCache.rows.slice(0, limitCount);
+  }
+
+  // Reuse an in-flight fetch only when it will cover this caller's window.
+  if (workoutsInFlight && workoutsInFlight.userId === userId && workoutsInFlight.limit >= limitCount) {
+    return (await workoutsInFlight.promise).slice(0, limitCount);
+  }
+
+  const startedAtGeneration = workoutsGeneration;
+  const promise = fetchUserWorkouts(userId, limitCount)
+    .then((rows) => {
+      if (startedAtGeneration === workoutsGeneration) {
+        workoutsCache = { userId, limit: limitCount, rows, fetchedAt: Date.now() };
+      }
+      if (workoutsInFlight?.promise === promise) workoutsInFlight = null;
+      return rows;
+    })
+    .catch((err) => {
+      if (workoutsInFlight?.promise === promise) workoutsInFlight = null;
+      throw err;
+    });
+  workoutsInFlight = { userId, limit: limitCount, promise };
+  return promise;
+}
+
+async function fetchUserWorkouts(userId: string, limitCount: number) {
   // 1. Try events (primary)
   try {
     const snap = await safeGetEvents(userId, 'WORKOUT_COMPLETED', undefined, undefined, limitCount);
@@ -613,7 +675,11 @@ export interface WeeklySummary {
 
 /** Real, computed-from-history weekly totals — no estimation. */
 export async function getWeeklySummary(userId: string): Promise<WeeklySummary> {
-  const workouts = await getUserWorkouts(userId, 20) as unknown as UserWorkoutRecord[];
+  // 30, not 20, deliberately: getPersonalBest below asks for 30 and the two
+  // run on the same dashboard mount. Matching the window lets both share one
+  // cached fetch (see getUserWorkouts) — 30 heavy documents total instead of
+  // 50 — and only the last 7 days are summed here regardless.
+  const workouts = await getUserWorkouts(userId, 30) as unknown as UserWorkoutRecord[];
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   let volumeKg = 0;
   let workoutsCompleted = 0;
