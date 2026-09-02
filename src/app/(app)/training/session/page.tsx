@@ -279,21 +279,34 @@ function CardioTimerRow({
   const label = mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}s`;
   const circumference = 2 * Math.PI * 22;
 
+  // Anchored to wall-clock time rather than counting interval ticks.
+  // Mobile browsers throttle background timers hard (~1/min), so a
+  // tick-counter loses almost all elapsed time whenever the user pockets
+  // their phone mid-exercise — the timer would simply stop advancing and
+  // never expire. Deriving from real timestamps means backgrounding has no
+  // effect on the result; the interval below only exists to repaint.
+  const anchorRef = useRef<{ startedAt: number; base: number } | null>(null);
+
   function toggle() {
     if (running) {
       clearInterval(tickRef.current);
+      anchorRef.current = null;
       setRunning(false);
     } else {
+      anchorRef.current = { startedAt: Date.now(), base: elapsed };
       setRunning(true);
       tickRef.current = setInterval(() => {
-        setElapsed((prev) => {
-          if (prev + 1 >= durationSeconds) {
-            clearInterval(tickRef.current);
-            setRunning(false);
-            return durationSeconds;
-          }
-          return prev + 1;
-        });
+        const anchor = anchorRef.current;
+        if (!anchor) return;
+        const next = anchor.base + Math.floor((Date.now() - anchor.startedAt) / 1000);
+        if (next >= durationSeconds) {
+          clearInterval(tickRef.current);
+          anchorRef.current = null;
+          setRunning(false);
+          setElapsed(durationSeconds);
+        } else {
+          setElapsed(next);
+        }
       }, 1000);
     }
   }
@@ -496,21 +509,46 @@ function DistanceLogRow({
     return () => clearInterval(tickRef.current);
   }, []);
 
+  // Wall-clock anchored — see the cardio timer above for the full
+  // rationale. This one matters most: `elapsed` here is passed straight to
+  // onComplete and SAVED, so a tick-counter didn't just look wrong, it
+  // wrote a permanently wrong duration (and therefore pace) into the
+  // user's history. A 50-minute ruck with the phone pocketed recorded as
+  // roughly a minute.
+  const anchorRef = useRef<{ startedAt: number; base: number } | null>(null);
+
+  function currentElapsed() {
+    const anchor = anchorRef.current;
+    return anchor
+      ? anchor.base + Math.floor((Date.now() - anchor.startedAt) / 1000)
+      : elapsed;
+  }
+
   function toggle() {
     if (running) {
+      const settled = currentElapsed();
       clearInterval(tickRef.current);
+      anchorRef.current = null;
+      setElapsed(settled);
       setRunning(false);
     } else {
+      anchorRef.current = { startedAt: Date.now(), base: elapsed };
       setRunning(true);
-      tickRef.current = setInterval(() => setElapsed((prev) => prev + 1), 1000);
+      tickRef.current = setInterval(() => setElapsed(currentElapsed()), 1000);
     }
   }
 
   function handleComplete() {
+    // Read straight from the anchor rather than from `elapsed` state — if
+    // the tab was backgrounded, the last interval tick may be far behind
+    // real time, and this value is what gets persisted.
+    const finalElapsed = currentElapsed();
     clearInterval(tickRef.current);
+    anchorRef.current = null;
+    setElapsed(finalElapsed);
     setRunning(false);
     const distance = parseFloat(distanceInput) || targetDistanceValue;
-    onComplete(distance, elapsed);
+    onComplete(distance, finalElapsed);
   }
 
   if (isCompleted || isSkipped) {
@@ -1398,14 +1436,20 @@ function WorkoutSessionPageInner() {
     clearInterval(restRef.current);
     setRestTotal(seconds);
     setRestSeconds(seconds);
+    // Countdown derived from a wall-clock deadline rather than by
+    // decrementing once per interval tick. A background tab throttles those
+    // ticks to roughly one a minute, so a 3-minute rest could sit there
+    // effectively frozen — the user comes back to a timer that never
+    // expired and has no idea how long they actually rested.
+    const endsAt = Date.now() + seconds * 1000;
     restRef.current = setInterval(() => {
-      setRestSeconds((prev) => {
-        if (prev === null || prev <= 1) {
-          clearInterval(restRef.current);
-          return null;
-        }
-        return prev - 1;
-      });
+      const remaining = Math.ceil((endsAt - Date.now()) / 1000);
+      if (remaining <= 0) {
+        clearInterval(restRef.current);
+        setRestSeconds(null);
+      } else {
+        setRestSeconds(remaining);
+      }
     }, 1000);
   }, []);
 
