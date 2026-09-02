@@ -934,6 +934,16 @@ export default function LandingPage({
                   )}
                   <span className="text-xs text-text-secondary">{displayPeriod.months === 1 ? '/month' : ` / ${displayPeriod.months}mo`}</span>
                 </div>
+                {/* Discount coupon is duration:'once' (see
+                    plan-checkout/route.ts) — this is the first payment, not
+                    the ongoing rate. Advertising it as the recurring price
+                    on the public landing page is exactly how a customer
+                    ends up disputing their second charge. */}
+                {discountPercent > 0 && (
+                  <p className="text-[11px] text-text-tertiary mt-1">
+                    First payment only — renews at ${displayPeriod.price.toFixed(2)}{displayPeriod.months === 1 ? '/month' : ` / ${displayPeriod.months}mo`}
+                  </p>
+                )}
                 {trialDays > 0 && (
                   <p className="text-[11px] text-accent mt-1 font-medium">
                     {paidTrialEnabled ? `$${trialPrice} for ${trialDays} days, then this price applies` : `${trialDays}-day free trial, no payment required`}
@@ -968,7 +978,7 @@ export default function LandingPage({
               >
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
-                    <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
+                    <span className="text-[10px] font-bold text-white">{discountPercent}% OFF 1ST</span>
                   </div>
                 )}
                 <p className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-1">{plan.name}</p>
@@ -983,6 +993,12 @@ export default function LandingPage({
                   )}
                   <span className="text-xs text-text-secondary">/month</span>
                 </div>
+                {/* First-payment-only discount — same as above. */}
+                {discountPercent > 0 && (
+                  <p className="text-[11px] text-text-tertiary mt-1">
+                    First payment only — renews at ${plan.priceMonthly?.toFixed(2)}/month
+                  </p>
+                )}
                 <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>
                 <ul className="mt-4 space-y-2">
                   {plan.features.map((f) => (

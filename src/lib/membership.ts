@@ -70,13 +70,20 @@ export function freeTrialEndsAt(
  */
 export function getProgramDayLimit(
   config: MembershipConfig | null,
-  profile: Pick<UserProfile, 'membership' | 'coaching'> | null | undefined
+  profile: Pick<UserProfile, 'membership' | 'coaching' | 'purchasedProgramIds'> | null | undefined,
+  programId?: string
 ): number {
   if (!config || !config.enabled) return Infinity;
   // 1:1 coaching is a higher-priced add-on tier, not an alternative to a
   // regular membership — an active coaching subscriber gets at least
   // everything a regular member gets.
   if (profile?.membership?.status === 'active' || profile?.coaching?.status === 'active') return Infinity;
+  // A one-off purchase of THIS specific program buys the whole program,
+  // not a preview of it. Without this, someone who paid for a program was
+  // still capped at the free trial's day-count and hit a padlock partway
+  // through the thing they'd already bought — and firestore.rules enforced
+  // the same cap server-side, so their progress writes were rejected too.
+  if (programId && profile?.purchasedProgramIds?.includes(programId)) return Infinity;
   const trialDays = config.trialDays ?? 0;
   return trialDays > 0 ? trialDays : Infinity;
 }

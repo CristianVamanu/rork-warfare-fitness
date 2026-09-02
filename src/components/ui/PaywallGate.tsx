@@ -236,7 +236,7 @@ function PlanUpgradeScreen({ planName, plans, feature, programId, discountPercen
                 )}
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
-                    <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
+                    <span className="text-[10px] font-bold text-white">{discountPercent}% OFF 1ST</span>
                   </div>
                 )}
                 <p className="text-sm font-bold text-white">{plan.name}</p>
@@ -251,6 +251,13 @@ function PlanUpgradeScreen({ planName, plans, feature, programId, discountPercen
                   )}
                   <span className="text-sm font-medium text-text-secondary">{displayPeriod.months === 1 ? '/mo' : ` / ${displayPeriod.months}mo`}</span>
                 </div>
+                {/* Discount coupon is duration:'once' — first payment only.
+                    See MembershipGuard for the full rationale. */}
+                {discountPercent > 0 && (
+                  <p className="text-[11px] text-text-tertiary mt-0.5">
+                    First payment only — renews at ${displayPeriod.price.toFixed(2)}{displayPeriod.months === 1 ? '/mo' : ` / ${displayPeriod.months}mo`}
+                  </p>
+                )}
                 {plan.description && <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>}
                 {plan.features.length > 0 && (
                   <ul className="mt-4 space-y-2">

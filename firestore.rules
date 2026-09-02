@@ -125,6 +125,12 @@ service cloud.firestore {
       return !('activeProgram' in request.resource.data.diff(resource.data).affectedKeys())
         || resource.data.get('membership', {}).get('status', 'none') == 'active'
         || resource.data.get('coaching', {}).get('status', 'none') == 'active'
+        // Someone who bought THIS program outright owns the whole thing,
+        // not a trial-length preview of it. Without this the day cap
+        // applied to purchasers too, so a paid customer's progress writes
+        // started getting rejected partway through the program they'd
+        // already paid for (mirrors getProgramDayLimit in lib/membership.ts).
+        || resource.data.get('purchasedProgramIds', []).hasAny([request.resource.data.activeProgram.get('programId', '')])
         || request.resource.data.activeProgram.get('lastCompletedDayIndex', -1) < trialDayLimit();
     }
 
@@ -176,16 +182,19 @@ service cloud.firestore {
         || request.resource.data.activeProgram.programId == resource.data.get('activeProgram', {}).get('programId', null)
         || resource.data.get('membership', {}).get('status', 'none') == 'active'
         || resource.data.get('coaching', {}).get('status', 'none') == 'active'
+        // Having actually bought this program satisfies BOTH gates on its
+        // own. This used to only satisfy the price gate, while the
+        // members-only gate still demanded an active membership — so a
+        // program flagged isPremium AND given a price could be paid for in
+        // full and then refuse to enrol, with the money already taken.
+        || resource.data.get('purchasedProgramIds', []).hasAny([request.resource.data.activeProgram.programId])
         || (
           // trialActive() bypasses ONLY the members-only/locked-program
           // gate here, matching useFeatureAccess.ts exactly — a one-time
           // priced program still requires an actual purchase (or price 0)
           // even during trial; trial isn't a substitute for buying it.
           (!programIsMembersOnly(request.resource.data.activeProgram.programId) || trialActive())
-          && (
-            programPrice(request.resource.data.activeProgram.programId) <= 0
-            || resource.data.get('purchasedProgramIds', []).hasAny([request.resource.data.activeProgram.programId])
-          )
+          && programPrice(request.resource.data.activeProgram.programId) <= 0
         );
     }
 

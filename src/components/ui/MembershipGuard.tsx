@@ -159,7 +159,7 @@ function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents, discountPe
                 )}
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
-                    <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
+                    <span className="text-[10px] font-bold text-white">{discountPercent}% OFF 1ST</span>
                   </div>
                 )}
                 <p className="text-sm font-bold text-white">{plan.name}</p>
@@ -174,6 +174,18 @@ function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents, discountPe
                   )}
                   <span className="text-sm font-medium text-text-secondary">{active.months === 1 ? '/mo' : ` / ${active.months}mo`}</span>
                 </div>
+                {/* The coupon created at checkout is deliberately
+                    duration:'once' (see plan-checkout/route.ts for why no
+                    other coupon shape fits) — so this discount applies to
+                    the first payment only. Saying so explicitly: showing
+                    the discounted figure as if it were the ongoing rate is
+                    how a customer ends up surprised by a full-price charge
+                    next cycle and disputes it. */}
+                {discountPercent > 0 && (
+                  <p className="text-[11px] text-text-tertiary mt-0.5">
+                    First payment only — renews at ${active.price.toFixed(2)}{active.months === 1 ? '/mo' : ` / ${active.months}mo`}
+                  </p>
+                )}
                 {effectiveTrialDays > 0 && (
                   <p className="text-[11px] text-accent mt-1 font-medium">
                     {paidTrialEnabled ? `$${trialPrice} for ${effectiveTrialDays} days, then this price applies` : `${effectiveTrialDays}-day free trial, no payment required`}

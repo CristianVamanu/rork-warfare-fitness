@@ -1187,10 +1187,10 @@ function WorkoutSessionPageInner() {
   const [dayLimit, setDayLimit] = useState(Infinity);
   useEffect(() => {
     getMembershipConfig()
-      .then((cfg) => setDayLimit(getProgramDayLimit(cfg, profile)))
+      .then((cfg) => setDayLimit(getProgramDayLimit(cfg, profile, programId ?? undefined)))
       .catch(() => setDayLimit(Infinity));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.membership?.status, profile?.coaching?.status]);
+  }, [profile?.membership?.status, profile?.coaching?.status, profile?.purchasedProgramIds, programId]);
   const lastCompletedDayIndex = profile?.activeProgram?.lastCompletedDayIndex;
   // Never locks a repeat of a day already completed — only new progress
   // past the trial's day limit is gated.

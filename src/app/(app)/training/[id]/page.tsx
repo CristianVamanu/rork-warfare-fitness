@@ -73,7 +73,7 @@ export default function ProgramDetailPage() {
   // Infinity until membership config has actually loaded — treating an
   // unloaded config as "no limit" avoids a flash of locked days that then
   // unlock a moment later once the real config arrives.
-  const dayLimit = membershipLoaded ? getProgramDayLimit(membershipConfig, profile) : Infinity;
+  const dayLimit = membershipLoaded ? getProgramDayLimit(membershipConfig, profile, id) : Infinity;
 
   const activeProgram = profile?.activeProgram;
   const isEnrolled = activeProgram?.programId === id;
@@ -180,7 +180,15 @@ export default function ProgramDetailPage() {
   // the free trial the same way every other gated feature does — the
   // previous plain `!hasMembership` check locked premium programs even
   // during an active trial, which was itself a real bug.
-  const gatedProgramId = program && (program.isPremium || isLockedByConfig) ? program.id : undefined;
+  // A program the user has actually BOUGHT is never gated, whatever else
+  // it's flagged as. Previously a program that was both isPremium/locked
+  // AND priced stayed locked after purchase — the purchase satisfied the
+  // price check further down but nothing here, so the enroll button stayed
+  // disabled and handleEnroll's own guard returned early. Money taken, no
+  // access. (firestore.rules' premiumEnrollAllowed had the same hole and
+  // is fixed to match.)
+  const alreadyPurchased = !!(program?.id && profile?.purchasedProgramIds?.includes(program.id));
+  const gatedProgramId = program && (program.isPremium || isLockedByConfig) && !alreadyPurchased ? program.id : undefined;
   const { isLocked: programAccessLocked } = useFeatureAccess(undefined, gatedProgramId);
 
   const handleEnroll = async (force = false, restart = false) => {
@@ -210,7 +218,7 @@ export default function ProgramDetailPage() {
     }
   };
 
-  const hasPurchased = !!(program?.id && profile?.purchasedProgramIds?.includes(program.id));
+  const hasPurchased = alreadyPurchased;
   const needsPurchase = !!program?.price && program.price > 0 && !hasPurchased && !hasMembership;
   // program.isPremium was previously admin-toggleable (Admin → Programs)
   // but never actually checked anywhere — the toggle showed a "Premium"

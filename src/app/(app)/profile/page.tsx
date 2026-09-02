@@ -341,6 +341,14 @@ export default function ProfilePage() {
                       )}
                       <span className="text-sm text-text-secondary">{activePeriod.months === 1 ? '/month' : ` / ${activePeriod.months}mo`}</span>
                     </div>
+                    {/* Discount coupon is duration:'once' (see
+                        plan-checkout/route.ts) — first payment only, not
+                        the ongoing rate. */}
+                    {discountPercent > 0 && !isCurrentPlan && (
+                      <p className="text-[11px] text-text-tertiary mt-1">
+                        First payment only — renews at ${activePeriod.price.toFixed(2)}{activePeriod.months === 1 ? '/month' : ` / ${activePeriod.months}mo`}
+                      </p>
+                    )}
                     {periods.length > 1 && !isCurrentPlan && (
                       <div className="flex gap-1.5 mt-3 flex-wrap">
                         {periods.map((p) => (
@@ -453,6 +461,12 @@ export default function ProfilePage() {
                       )}
                       <span className="text-sm text-text-secondary">/month</span>
                     </div>
+                    {/* First-payment-only discount — same as above. */}
+                    {discountPercent > 0 && !isCurrentPlan && (
+                      <p className="text-[11px] text-text-tertiary mt-1">
+                        First payment only — renews at ${plan.priceMonthly.toFixed(2)}/month
+                      </p>
+                    )}
                     {plan.description && <p className="text-xs text-text-secondary mt-2">{plan.description}</p>}
 
                     {plan.features?.length > 0 && (

@@ -13,9 +13,9 @@ const config = (overrides: Partial<MembershipConfig> = {}): MembershipConfig => 
   ...overrides,
 });
 
-const profile = (overrides: Partial<Pick<UserProfile, 'membership' | 'coaching'>> = {}) => ({
+const profile = (overrides: Partial<Pick<UserProfile, 'membership' | 'coaching' | 'purchasedProgramIds'>> = {}) => ({
   ...overrides,
-}) as Pick<UserProfile, 'membership' | 'coaching'>;
+}) as Pick<UserProfile, 'membership' | 'coaching' | 'purchasedProgramIds'>;
 
 describe('getProgramDayLimit', () => {
   it('is unlimited when membership config is disabled or missing', () => {
@@ -33,6 +33,22 @@ describe('getProgramDayLimit', () => {
     // exactly `trialDays` days unlocked immediately, same as someone who
     // signed up months ago and never subscribed.
     expect(getProgramDayLimit(config({ trialDays: 7 }), profile())).toBe(7);
+  });
+
+  // Buying a single program outright buys the WHOLE program, not a
+  // trial-length preview of it. This regressed in production: a paying
+  // customer hit a padlock partway through the program they'd already paid
+  // for, and firestore.rules rejected their progress writes to match.
+  it('is unlimited for a program the user has actually purchased', () => {
+    const p = profile({ purchasedProgramIds: ['p-bought'] });
+    expect(getProgramDayLimit(config({ trialDays: 7 }), p, 'p-bought')).toBe(Infinity);
+  });
+
+  it('still caps other programs the user has NOT purchased', () => {
+    const p = profile({ purchasedProgramIds: ['p-bought'] });
+    expect(getProgramDayLimit(config({ trialDays: 7 }), p, 'p-other')).toBe(7);
+    // No programId in context at all → cannot claim a purchase.
+    expect(getProgramDayLimit(config({ trialDays: 7 }), p)).toBe(7);
   });
 
   it('caps at 14 or 30 the same way, following whatever trialDays is configured', () => {

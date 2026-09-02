@@ -351,8 +351,22 @@ export async function POST(req: NextRequest) {
         // Unhandled event — safe to ignore
     }
   } catch (err) {
-    console.error('[Stripe webhook] Handler error:', err);
-    // Still return 200 so Stripe doesn't retry unnecessarily
+    // Return 500 so Stripe RETRIES. This used to swallow the error and
+    // answer 200 "so Stripe doesn't retry unnecessarily", which quietly
+    // made every handler failure permanent: a customer.subscription.deleted
+    // arriving during a brief Firestore/admin-SDK blip was marked delivered
+    // by Stripe and never resent, leaving membership.status 'active'
+    // forever — full access, no subscription, and nothing anywhere that
+    // reconciles it afterwards (membership.expiresAt is written but never
+    // actually evaluated by any access check).
+    //
+    // Retrying is safe here: every handler is idempotent — setSubscriptionStatus
+    // only overwrites fields, arrayUnion/arrayRemove are naturally
+    // idempotent, and the refund/dispute path guards its cancel call on the
+    // subscription not already being canceled. A duplicate delivery
+    // re-applies the same end state rather than compounding.
+    console.error('[Stripe webhook] Handler error — returning 500 so Stripe retries:', err);
+    return NextResponse.json({ error: 'Handler failed' }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });
