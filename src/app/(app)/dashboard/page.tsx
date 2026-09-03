@@ -20,7 +20,6 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { NextMilestone } from '@/components/dashboard/NextMilestone';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -374,13 +373,6 @@ export default function DashboardPage() {
               {todayWorkoutCount} people have trained today
             </p>
           )}
-        </motion.div>
-
-        {/* Next milestone — one row, deliberately above the bento grid rather
-            than inside it, so the streak hero keeps its 2x2 cell and stays the
-            loudest thing on this page. */}
-        <motion.div {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-          <NextMilestone />
         </motion.div>
 
         {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
