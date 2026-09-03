@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail, trainerLeadEmailHtml } from '@/lib/email';
+import { rateLimit, clientIp } from '@/lib/rateLimit';
 
 // Notifies the business owner of a new /trainers demo request. Deliberately
 // unauthenticated — the visitor submitting this form hasn't signed up or
@@ -19,23 +20,13 @@ import { sendEmail, trainerLeadEmailHtml } from '@/lib/email';
 // shape/size validation as a second layer.
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_PER_WINDOW = 3;
-const requestLog = new Map<string, number[]>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const timestamps = (requestLog.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
-  timestamps.push(now);
-  requestLog.set(ip, timestamps);
-  // Prevent unbounded growth of the map across many distinct IPs over time.
-  if (requestLog.size > 5000) requestLog.clear();
-  return timestamps.length > MAX_PER_WINDOW;
-}
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
-    if (isRateLimited(ip)) {
-      return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429 });
+    const ip = clientIp(req);
+    const limited = await rateLimit({ scope: 'trainer-lead', key: ip, windowMs: WINDOW_MS, max: MAX_PER_WINDOW });
+    if (!limited.allowed) {
+      return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
     }
 
     const body = await req.json() as {

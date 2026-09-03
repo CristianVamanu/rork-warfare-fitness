@@ -6,6 +6,7 @@ import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { sendEmail, achievementEmailHtml } from '@/lib/email';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
+import { rateLimit } from '@/lib/rateLimit';
 
 // In-memory per-uid throttle — this is an authenticated route with no other
 // rate limiting, so without this any signed-in user could loop this
@@ -14,24 +15,15 @@ import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
 // against casual abuse, same pattern as the public lead-email routes.
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_PER_WINDOW = 10;
-const requestLog = new Map<string, number[]>();
-
-function isRateLimited(uid: string): boolean {
-  const now = Date.now();
-  const timestamps = (requestLog.get(uid) ?? []).filter((t) => now - t < WINDOW_MS);
-  timestamps.push(now);
-  requestLog.set(uid, timestamps);
-  if (requestLog.size > 5000) requestLog.clear();
-  return timestamps.length > MAX_PER_WINDOW;
-}
 
 export async function POST(req: NextRequest) {
   try {
     const check = await verifyAuthed(req);
     if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
 
-    if (isRateLimited(check.uid)) {
-      return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429 });
+    const limited = await rateLimit({ scope: 'achievement-email', key: check.uid, windowMs: WINDOW_MS, max: MAX_PER_WINDOW });
+    if (!limited.allowed) {
+      return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
     }
 
     // Titles are derived server-side from a fixed id -> title map rather

@@ -1,4 +1,5 @@
 import { getAdminDb } from '@/lib/firebase-admin';
+import { getAuth } from 'firebase-admin/auth';
 import { isInFreeTrial } from '@/lib/membership';
 import type { App } from 'firebase-admin/app';
 
@@ -37,7 +38,18 @@ export async function verifyFeatureAccess(
 
   // Shared with the three client-side call sites — see isInFreeTrial's own
   // comment for why this must never be re-derived locally again.
-  if (isInFreeTrial(config, profile.createdAt)) return { allowed: true };
+  //
+  // The free trial is the thing a throwaway address farms — every new
+  // unverified account was a fresh N days of paid AI features. Requiring a
+  // verified email here (and in MembershipGuard client-side) closes that
+  // without touching isInFreeTrial itself, whose date arithmetic is shared
+  // and tested. One Auth lookup, only on the trial branch, only for
+  // non-members inside the window.
+  if (isInFreeTrial(config, profile.createdAt)) {
+    const authUser = await getAuth(app).getUser(uid).catch(() => null);
+    if (authUser?.emailVerified) return { allowed: true };
+    return { allowed: false, error: 'Verify your email address to use your free trial — check your inbox for the link.', status: 403 };
+  }
 
   const hasMembership = profile.membership?.status === 'active' || profile.coaching?.status === 'active';
 

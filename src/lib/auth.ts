@@ -3,6 +3,7 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   updateProfile,
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -42,6 +43,17 @@ export async function signUp(
     console.log('[Auth] Calling updateProfile...');
     await updateProfile(credential.user, { displayName });
     console.log('[Auth] updateProfile succeeded');
+
+    // Nothing verified the address before this. Any string that looked like
+    // an email got a full account, a trial, and 2FA codes sent to an inbox
+    // nobody controls — and trial farming with throwaway addresses was a
+    // one-line script. Sending the verification mail here is fire-and-forget:
+    // onboarding must not stall on it, and the gates that actually care
+    // (trial access, paid-trial checkout, 2FA enrolment) check
+    // emailVerified on the token at the moment it matters.
+    sendEmailVerification(credential.user).catch((err) => {
+      console.warn('[Auth] sendEmailVerification failed (non-blocking):', err?.code ?? err);
+    });
 
     // Shared with AuthContext's ensureUserDoc(), which can race this same
     // write right after createUserWithEmailAndPassword — see the comment
@@ -109,6 +121,15 @@ export async function signIn(email: string, password: string) {
   const credential = await signInWithEmailAndPassword(auth, email, password);
   console.log('[Auth] signInWithEmailAndPassword succeeded — uid:', credential.user.uid);
   return credential.user;
+}
+
+/**
+ * Re-sends the verification email for the signed-in user. Firebase enforces
+ * its own cooldown (auth/too-many-requests) so this needs no limiter here.
+ */
+export async function resendVerificationEmail() {
+  if (!auth.currentUser) throw new Error('Not signed in');
+  await sendEmailVerification(auth.currentUser);
 }
 
 export async function signOut() {

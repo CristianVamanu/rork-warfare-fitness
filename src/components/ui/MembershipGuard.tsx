@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { isInFreeTrial } from '@/lib/membership';
 import { Card } from './Card';
 import { Button } from './Button';
+import { VerifyEmailNotice } from './VerifyEmailNotice';
 import type { MembershipConfig, MembershipPlan, PlanBillingPeriodMonths } from '@/types';
 
 // Pages that are always accessible regardless of membership — account
@@ -28,7 +29,7 @@ interface Props {
 }
 
 export function MembershipGuard({ pathname, children }: Props) {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const [config, setConfig] = useState<MembershipConfig | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -54,9 +55,22 @@ export function MembershipGuard({ pathname, children }: Props) {
   const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
 
   const trialDays = config?.trialDays ?? 0;
-  const inTrial = isInFreeTrial(config, profile?.createdAt);
+  const inTrialWindow = isInFreeTrial(config, profile?.createdAt);
+  // Mirrors verifyFeatureAccess server-side: the trial window only counts
+  // once the address is verified. Inside the window but unverified, show the
+  // verify screen instead of the paywall — the fix is one click in their
+  // inbox, not a purchase.
+  const emailVerified = !!user?.emailVerified;
+  const inTrial = inTrialWindow && emailVerified;
 
   if (hasMembership || inTrial) return <>{children}</>;
+
+  if (inTrialWindow && !emailVerified) {
+    const freePaths = [...ALWAYS_FREE_PATHS, '/dashboard'];
+    const isFree = freePaths.some(p => pathname === p || pathname.startsWith(p + '/'));
+    if (!isFree) return <VerifyEmailNotice variant="screen" />;
+    return <>{children}</>;
+  }
 
   // Full lock — block everything except safe paths
   if (config.fullLock) {

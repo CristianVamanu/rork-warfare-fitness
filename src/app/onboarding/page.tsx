@@ -313,7 +313,7 @@ function OnboardingPageInner() {
   // lib/tdee.ts and the weight-goal scoring bonus in pickBestProgram).
   const biometricsValid = sexAgeAnswered && heightNum >= 100 && heightNum <= 250
     && weightNum >= 30 && weightNum <= 300 && targetWeightNum >= 30 && targetWeightNum <= 300;
-  const accountValid = name.trim().length >= 2 && /^\S+@\S+\.\S+$/.test(email) && password.length >= 6 && password === confirmPassword;
+  const accountValid = name.trim().length >= 2 && /^\S+@\S+\.\S+$/.test(email) && password.length >= 8 && password === confirmPassword;
 
   const canAdvance = [
     !!goal && sexAgeAnswered,
@@ -428,7 +428,7 @@ function OnboardingPageInner() {
       setError(
         !name.trim() || name.trim().length < 2 ? 'Enter your name (at least 2 characters).' :
         !/^\S+@\S+\.\S+$/.test(email) ? 'Enter a valid email address.' :
-        password.length < 6 ? 'Password must be at least 6 characters.' :
+        password.length < 8 ? 'Password must be at least 8 characters.' :
         'Passwords don’t match — check both password fields.'
       );
       return;
@@ -659,7 +659,7 @@ function OnboardingPageInner() {
       const code = (err as { code?: string })?.code;
       const FRIENDLY: Record<string, string> = {
         'auth/email-already-in-use': 'That email already has an account — sign in instead.',
-        'auth/weak-password': 'Password is too weak — use at least 6 characters.',
+        'auth/weak-password': 'Password is too weak — use at least 8 characters.',
         'auth/invalid-email': 'That email address looks invalid.',
       };
       setError(code && FRIENDLY[code] ? FRIENDLY[code] : (err instanceof Error ? err.message : 'Something went wrong. Please try again.'));
@@ -1575,7 +1575,7 @@ function StepAccount({
               type="password"
               value={password}
               onChange={(e) => onPassword(e.target.value)}
-              placeholder="6+ characters"
+              placeholder="8+ characters"
               className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
             />
           </div>

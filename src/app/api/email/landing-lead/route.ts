@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail, landingLeadFollowupEmailHtml } from '@/lib/email';
 import { getSystemConfig } from '@/lib/firestore';
+import { rateLimit, clientIp } from '@/lib/rateLimit';
 
 // Fulfills the exit-intent popup's promise ("we'll send you a link to jump
 // back in") — createLandingLead() only writes the Firestore lead doc, it
@@ -15,22 +16,13 @@ import { getSystemConfig } from '@/lib/firestore';
 
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_PER_WINDOW = 3;
-const requestLog = new Map<string, number[]>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const timestamps = (requestLog.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
-  timestamps.push(now);
-  requestLog.set(ip, timestamps);
-  if (requestLog.size > 5000) requestLog.clear();
-  return timestamps.length > MAX_PER_WINDOW;
-}
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
-    if (isRateLimited(ip)) {
-      return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429 });
+    const ip = clientIp(req);
+    const limited = await rateLimit({ scope: 'landing-lead', key: ip, windowMs: WINDOW_MS, max: MAX_PER_WINDOW });
+    if (!limited.allowed) {
+      return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
     }
 
     const body = await req.json() as { email?: string };

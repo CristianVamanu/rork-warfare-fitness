@@ -5,30 +5,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { sendEmail, welcomeEmailHtml } from '@/lib/email';
+import { rateLimit } from '@/lib/rateLimit';
 
 // Same reasoning/pattern as email/achievement's throttle — an authenticated
 // route with no other rate limit could otherwise be looped to run up real
 // email-provider billing.
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_PER_WINDOW = 5;
-const requestLog = new Map<string, number[]>();
-
-function isRateLimited(uid: string): boolean {
-  const now = Date.now();
-  const timestamps = (requestLog.get(uid) ?? []).filter((t) => now - t < WINDOW_MS);
-  timestamps.push(now);
-  requestLog.set(uid, timestamps);
-  if (requestLog.size > 5000) requestLog.clear();
-  return timestamps.length > MAX_PER_WINDOW;
-}
 
 export async function POST(req: NextRequest) {
   try {
     const check = await verifyAuthed(req);
     if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
 
-    if (isRateLimited(check.uid)) {
-      return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429 });
+    const limited = await rateLimit({ scope: 'welcome-email', key: check.uid, windowMs: WINDOW_MS, max: MAX_PER_WINDOW });
+    if (!limited.allowed) {
+      return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
     }
 
     const app = getAdminApp();

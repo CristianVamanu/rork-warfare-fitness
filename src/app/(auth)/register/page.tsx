@@ -18,7 +18,7 @@ import { Card } from '@/components/ui/Card';
 const schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
   sex: z.enum(['male', 'female'], { errorMap: () => ({ message: 'Select male or female' }) }),
   age: z.coerce.number({ invalid_type_error: 'Enter your age' }).int().min(13, 'Must be 13 or older').max(100, 'Enter a valid age'),

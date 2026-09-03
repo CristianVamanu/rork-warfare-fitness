@@ -9,6 +9,7 @@ import { BottomNav } from '@/components/layout/BottomNav';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { PwaInstallBanner } from '@/components/ui/PwaInstallBanner';
 import { MembershipGuard } from '@/components/ui/MembershipGuard';
+import { VerifyEmailNotice } from '@/components/ui/VerifyEmailNotice';
 import { AppBackground } from '@/components/ui/AppBackground';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -79,6 +80,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen">
       <AppBackground />
       <HeaderDataProvider>
+        {!hideNav && <VerifyEmailNotice variant="banner" />}
         <main className="pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
           <MembershipGuard pathname={pathname}>{children}</MembershipGuard>
         </main>

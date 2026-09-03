@@ -114,6 +114,16 @@ export async function POST(req: NextRequest) {
     // checkout.session.completed below).
     const alreadyUsedTrial = !!userSnap.data()?.trialUsedAt;
 
+    // A trial (paid or free) is what a throwaway address farms. A verified
+    // address is required to START one; a returning member paying full price
+    // (alreadyUsedTrial) is never blocked here — nobody farms full price.
+    if (trialDays > 0 && !alreadyUsedTrial && !authCheck.emailVerified) {
+      return NextResponse.json(
+        { error: 'Verify your email address to start your trial — check your inbox for the link, then try again.', code: 'EMAIL_NOT_VERIFIED' },
+        { status: 403 },
+      );
+    }
+
     let trialPeriodDays: number | undefined;
     // A one-time charge alongside the recurring price — Stripe Checkout
     // supports mixing a one-time price_data item with a recurring one in

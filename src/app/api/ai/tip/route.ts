@@ -7,6 +7,7 @@ import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { verifyAuthed } from '@/lib/verifyAdmin';
+import { rateLimit } from '@/lib/rateLimit';
 
 function todayKey() {
   return new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
@@ -18,22 +19,13 @@ function todayKey() {
 // this only needs to gate who can trigger generation, not per-user usage.
 const WINDOW_MS = 60 * 1000;
 const MAX_PER_WINDOW = 5;
-const requestLog = new Map<string, number[]>();
-
-function isRateLimited(key: string): boolean {
-  const now = Date.now();
-  const timestamps = (requestLog.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
-  timestamps.push(now);
-  requestLog.set(key, timestamps);
-  if (requestLog.size > 5000) requestLog.clear();
-  return timestamps.length > MAX_PER_WINDOW;
-}
 
 export async function GET(req: NextRequest) {
   const check = await verifyAuthed(req);
   if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
-  if (isRateLimited(check.uid)) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  const limited = await rateLimit({ scope: 'ai-tip', key: check.uid, windowMs: WINDOW_MS, max: MAX_PER_WINDOW });
+  if (!limited.allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
   }
 
   const dateKey = todayKey();

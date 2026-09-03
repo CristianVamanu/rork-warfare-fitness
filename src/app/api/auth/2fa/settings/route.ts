@@ -41,6 +41,15 @@ export async function POST(req: NextRequest) {
   const update: Record<string, any> = {};
   let changeDescription = '';
   if (touchesEnabled) {
+    // Email-code 2FA is only as strong as the inbox it sends to. Turning it
+    // on for an unverified address would lock the account behind codes that
+    // go somewhere the user may not control. Turning it OFF is always allowed.
+    if (body.enabled === true && !check.emailVerified) {
+      return NextResponse.json(
+        { error: 'Verify your email address before turning on two-factor authentication.' },
+        { status: 403 },
+      );
+    }
     update.twoFactorEnabled = body.enabled;
     changeDescription = body.enabled ? 'two-factor authentication was turned on' : 'two-factor authentication was turned off';
   }
