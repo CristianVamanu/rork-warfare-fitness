@@ -3,11 +3,12 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Dumbbell, Play, Clock, Target, ChevronRight, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Moon, Dumbbell, Play, Clock, Target, ChevronRight, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getPrograms, resolveProgram, getHiddenMockIds, getUserCustomPrograms, getAllProgramProgress } from '@/lib/firestore';
-import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession } from '@/lib/programs';
+import { getPrograms, resolveProgram, getHiddenMockIds, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
+import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -101,6 +102,16 @@ export default function TrainingPage() {
     : null;
   const nextAbsIdx = activeProgram ? (nextSession?.index ?? lastCompleted + 1) : 0;
   const todayDay = nextSession?.day ?? null;
+  const isRestToday = nextSession?.isRestToday ?? false;
+  const repeatIdx = resolvedActive ? getLastTrainingSlotIndex(resolvedActive, lastCompleted) : null;
+  const [skippingRest, setSkippingRest] = useState(false);
+  const handleSkipRest = async () => {
+    if (!user || !activeProgram?.programId || !nextSession?.isRestToday) return;
+    setSkippingRest(true);
+    try { await skipRestDay(user.uid, activeProgram.programId, nextSession.index); }
+    catch { toast.error('Could not skip the rest day. Try again.'); }
+    finally { setSkippingRest(false); }
+  };
 
   useEffect(() => {
     Promise.all([getPrograms(), getHiddenMockIds().catch(() => [] as string[])])
@@ -148,7 +159,7 @@ export default function TrainingPage() {
               <h3 className="text-xl font-black text-white">{activeProgram.programName}</h3>
               {todayDay && (
                 <p className="text-text-secondary text-sm mt-1">
-                  Next: {stripWeekdayPrefix(todayDay.label)}
+                  {isRestToday ? 'Rest day — recover, or skip it below' : `Next: ${stripWeekdayPrefix(todayDay.label)}`}
                 </p>
               )}
               <div className="mt-4 space-y-2">
@@ -169,22 +180,26 @@ export default function TrainingPage() {
                   </div>
                 </div>
               )}
-              <div className="flex gap-2 mt-4 flex-wrap">
-                {todayDay && (
-                  <Button size="sm" onClick={() => {
-                    router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`);
-                  }}>
+              <div className="mt-4 space-y-2">
+                {todayDay && (isRestToday ? (
+                  <Button fullWidth variant="secondary" loading={skippingRest} onClick={handleSkipRest}>
+                    <Moon className="w-4 h-4" /> Skip rest day{nextSession?.nextTraining ? ` · ${stripWeekdayPrefix(nextSession.nextTraining.day.label)}` : ''}
+                  </Button>
+                ) : (
+                  <Button fullWidth onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
                     <Play className="w-4 h-4" /> Start Next Workout
                   </Button>
-                )}
-                {workedOutToday && (
-                  <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${lastCompleted}`)}>
-                    <RotateCcw className="w-4 h-4" /> Repeat Today
+                ))}
+                <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {workedOutToday && repeatIdx !== null && (
+                    <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${repeatIdx}`)}>
+                      <RotateCcw className="w-4 h-4" /> Repeat
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
+                    View Program
                   </Button>
-                )}
-                <Button size="sm" variant="secondary" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
-                  View Program
-                </Button>
+                </div>
               </div>
             </Card>
           ) : (

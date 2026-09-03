@@ -10,7 +10,7 @@ import {
   Play, Clock, Target, Dumbbell, Moon, CheckCircle, CheckCircle2, ChevronLeft,
   Save, RotateCcw, Lock, Crown,
 } from 'lucide-react';
-import { resolveProgram, enrollInProgram, getMembershipConfig, getAllProgramProgress } from '@/lib/firestore';
+import { resolveProgram, enrollInProgram, getMembershipConfig, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
 import { getMockProgram, stripWeekdayPrefix, getScheduleForWeek, getNextSession } from '@/lib/programs';
 import { getProgramDayLimit } from '@/lib/membership';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
@@ -150,6 +150,15 @@ export default function ProgramDetailPage() {
     ? Array.from({ length: totalWeeks }, (_, w) => ({ week: w + 1, days: getScheduleForWeek(program, w + 1) ?? [] }))
     : [];
   const todayDay: ProgramDay | null = nextSession?.day ?? null;
+  const isRestToday = isEnrolled && (nextSession?.isRestToday ?? false);
+  const [skippingRest, setSkippingRest] = useState(false);
+  const handleSkipRest = async () => {
+    if (!user || !program || !nextSession?.isRestToday) return;
+    setSkippingRest(true);
+    try { await skipRestDay(user.uid, program.id, nextSession.index); }
+    catch { toast.error('Could not skip the rest day. Try again.'); }
+    finally { setSkippingRest(false); }
+  };
 
   // Auto-scroll to today's slot once the full list has rendered — a 12+
   // week program is a long scroll, and nobody wants to hunt for "today"
@@ -379,7 +388,7 @@ export default function ProgramDetailPage() {
                     <Crown className="w-4 h-4" /> View Plans
                   </Button>
                 </div>
-              ) : todayDay ? (
+              ) : todayDay && !isRestToday ? (
                 <Button fullWidth size="lg" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
                   <Play className="w-5 h-5" /> Start — {stripWeekdayPrefix(todayDay.label ?? '')}
                 </Button>
@@ -431,17 +440,28 @@ export default function ProgramDetailPage() {
         {isEnrolled && todayDay && !nextIsLocked && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
             <h2 className="text-base font-bold text-white mb-3">Next Workout</h2>
-            <Card className="p-4 border-accent/30">
+            <Card className={`p-4 ${isRestToday ? 'border-white/10' : 'border-accent/30'}`}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Dumbbell className="w-4 h-4 text-accent" />
+                  {isRestToday ? <Moon className="w-4 h-4 text-text-tertiary" /> : <Dumbbell className="w-4 h-4 text-accent" />}
                   <span className="text-sm font-bold text-white">{stripWeekdayPrefix(todayDay.label)}</span>
                 </div>
-                <Button size="sm" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
-                  <Play className="w-4 h-4" /> Start
-                </Button>
+                {isRestToday ? (
+                  <Button size="sm" variant="secondary" loading={skippingRest} onClick={handleSkipRest}>
+                    Skip rest day
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
+                    <Play className="w-4 h-4" /> Start
+                  </Button>
+                )}
               </div>
-              {todayDay.exercises.length > 0 && (
+              {isRestToday && (
+                <p className="text-xs text-text-secondary">
+                  Recovery day. Skip it to move on to {nextSession?.nextTraining ? stripWeekdayPrefix(nextSession.nextTraining.day.label) : 'the next session'}.
+                </p>
+              )}
+              {!isRestToday && todayDay.exercises.length > 0 && (
                 <div className="space-y-2 mt-2">
                   {todayDay.exercises.map((ex, i) => (
                     <div key={ex.id ?? i} className="flex items-center justify-between text-sm">
@@ -524,8 +544,6 @@ export default function ProgramDetailPage() {
                                 }`}>
                                   {isCompleted
                                     ? <CheckCircle2 className="w-5 h-5" />
-                                    : isLocked
-                                    ? <Lock className="w-4 h-4 text-text-tertiary" />
                                     : <span className="text-center leading-none">{`D${idx + 1}`}</span>
                                   }
                                 </div>
@@ -535,7 +553,6 @@ export default function ProgramDetailPage() {
                                       {stripWeekdayPrefix(day.label ?? '')}
                                     </p>
                                     {isCompleted && <Badge variant="success">Done</Badge>}
-                                    {isLocked && <Badge variant="muted">Members Only</Badge>}
                                     {!isCompleted && !isLocked && isToday && <Badge variant="accent">Today</Badge>}
                                     {!isCompleted && !isLocked && !isToday && isUpcoming && !day.isRest && <Badge variant="muted">Upcoming</Badge>}
                                   </div>
@@ -545,7 +562,9 @@ export default function ProgramDetailPage() {
                                 </div>
                               </div>
                               {isLocked ? (
-                                <Lock className="w-4 h-4 text-text-tertiary" />
+                                <Badge variant="muted" className="flex-shrink-0 inline-flex items-center gap-1 whitespace-nowrap">
+                                  <Lock className="w-3 h-3" /> Members
+                                </Badge>
                               ) : day.isRest ? (
                                 <Moon className="w-4 h-4 text-text-tertiary" />
                               ) : isCompleted ? (

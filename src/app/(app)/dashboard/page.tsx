@@ -3,12 +3,12 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
+import { Moon, Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getMyLeaderboardRank, subscribeTodayWorkoutCount, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
+import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getMyLeaderboardRank, subscribeTodayWorkoutCount, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
 import { logWaterAction } from '@/lib/actions';
-import { getMockProgram, stripWeekdayPrefix, getNextSession } from '@/lib/programs';
+import { getMockProgram, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
@@ -266,6 +266,23 @@ export default function DashboardPage() {
     : null;
   const nextAbsIdx = nextSession?.index ?? lastCompleted + 1;
   const todayDay = nextSession?.day ?? null;
+  const isRestToday = nextSession?.isRestToday ?? false;
+  // After a skipped rest day the pointer sits on a rest slot — "Repeat" must
+  // open the last real session, not that.
+  const repeatIdx = programSource ? getLastTrainingSlotIndex(programSource, lastCompleted) : null;
+  const [skippingRest, setSkippingRest] = useState(false);
+  const handleSkipRest = async () => {
+    if (!user || !activeProgram?.programId || !nextSession?.isRestToday) return;
+    setSkippingRest(true);
+    try {
+      await skipRestDay(user.uid, activeProgram.programId, nextSession.index);
+      // profile streams live via AuthContext; the card re-renders on its own.
+    } catch {
+      toast.error('Could not skip the rest day. Try again.');
+    } finally {
+      setSkippingRest(false);
+    }
+  };
   // Every program's schedule template is enforced to be exactly 7 entries
   // (see programs.ts) — this maps nextAbsIdx onto "which day of the
   // CURRENT week of the program" for WeekProgressLine below.
@@ -278,7 +295,7 @@ export default function DashboardPage() {
     ? Math.min(100, Math.round((completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
 
-  const firstExerciseName = todayDay?.exercises?.[0]?.name;
+  const firstExerciseName = !isRestToday ? todayDay?.exercises?.[0]?.name : nextSession?.nextTraining?.day.exercises?.[0]?.name;
 
   useEffect(() => {
     if (!user) return;
@@ -521,7 +538,7 @@ export default function DashboardPage() {
                     </p>
                   ) : todayDay ? (
                     <p className="text-sm text-text-secondary mt-0.5">
-                      {workedOutToday ? `Next: ${stripWeekdayPrefix(todayDay.label)}` : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
+                      {isRestToday ? 'Rest day — recover, or skip it below' : workedOutToday ? `Next: ${stripWeekdayPrefix(todayDay.label)}` : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
                     </p>
                   ) : null}
                   {/* Full session preview — the card spans 3 grid rows, so a
@@ -529,7 +546,7 @@ export default function DashboardPage() {
                       header and the progress bar. Listing every exercise for
                       today fills that space with the thing the user actually
                       opens this card to know: what's in the session. */}
-                  {(todayDay?.exercises?.length ?? 0) > 0 && (
+                  {!isRestToday && (todayDay?.exercises?.length ?? 0) > 0 && (
                     <div className="mt-3 space-y-1.5">
                       {todayDay!.exercises.slice(0, 4).map((ex) => (
                         <div key={ex.id} className="flex items-center justify-between text-xs">
@@ -549,7 +566,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                   )}
-                  {personalBest && (
+                  {!isRestToday && personalBest && (
                     <div className="mt-2 flex items-center gap-1.5 p-2 bg-accent/5 border border-accent/20 rounded-lg">
                       <Trophy className="w-3.5 h-3.5 text-accent flex-shrink-0" />
                       <p className="text-xs text-accent">
@@ -573,21 +590,33 @@ export default function DashboardPage() {
                       {programPct}% complete · {activeProgram.totalWorkouts - completedWorkouts} sessions remaining
                     </p>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                      <Play className="w-4 h-4" /> {workedOutToday ? 'Start Next Workout' : 'Start Workout'}
-                    </Button>
-                    {workedOutToday && completedWorkouts > 0 && (
-                      <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${lastCompleted}`)}>
-                        <RotateCcw className="w-3.5 h-3.5" /> Repeat Today
+                  {/* One primary action, full width. Secondary actions in a
+                      single evenly-divided row below it — the previous
+                      flex-wrap put "Repeat Today / View" on one line and
+                      "Switch" orphaned on the next at phone widths. */}
+                  <div className="space-y-2">
+                    {isRestToday ? (
+                      <Button fullWidth variant="secondary" loading={skippingRest} onClick={handleSkipRest}>
+                        <Moon className="w-4 h-4" /> Skip rest day{nextSession?.nextTraining ? ` · ${stripWeekdayPrefix(nextSession.nextTraining.day.label)}` : ''}
+                      </Button>
+                    ) : (
+                      <Button fullWidth onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
+                        <Play className="w-4 h-4" /> {workedOutToday ? 'Start Next Workout' : 'Start Workout'}
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
-                      View <ChevronRight className="w-3 h-3" />
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => router.push('/training')}>
-                      <RefreshCw className="w-3 h-3" /> Switch
-                    </Button>
+                    <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                      {workedOutToday && repeatIdx !== null && (
+                        <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${repeatIdx}`)}>
+                          <RotateCcw className="w-3.5 h-3.5" /> Repeat
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
+                        <ChevronRight className="w-3.5 h-3.5" /> View
+                      </Button>
+                      <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push('/training')}>
+                        <RefreshCw className="w-3.5 h-3.5" /> Switch
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </Card>

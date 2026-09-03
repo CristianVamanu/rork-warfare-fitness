@@ -1198,6 +1198,41 @@ export async function incrementProgramWorkouts(userId: string, dayIndex?: number
 // Meal history — by date
 // ---------------------------------------------------------------------------
 
+
+/**
+ * Explicitly skips a rest slot: moves the active program's pointer onto the
+ * rest slot so getNextSession offers the next training day. Does NOT count
+ * as a completed workout — completedWorkouts is recomputed from training
+ * slots only, exactly as incrementProgramWorkouts does. Repeat-safe: a
+ * pointer already at or past `restIndex` is left alone.
+ */
+export async function skipRestDay(userId: string, programId: string, restIndex: number): Promise<void> {
+  const ref = doc(db, 'users', userId);
+  const snap = await getDoc(ref);
+  const activeProgram = snap.data()?.activeProgram as { programId?: string; lastCompletedDayIndex?: number } | undefined;
+  if (!activeProgram || activeProgram.programId !== programId) return;
+  const lastCompleted = activeProgram.lastCompletedDayIndex ?? -1;
+  if (restIndex <= lastCompleted) return;
+
+  let completedTraining: number | undefined;
+  try {
+    const resolved = await resolveProgram(programId);
+    if (resolved) {
+      const { countTrainingSlotsThrough, getProgramDayForDow } = await import('./programs');
+      // Refuse to "skip" a training day — this action is only for rest slots.
+      const slot = getProgramDayForDow(resolved, restIndex);
+      if (slot && !slot.isRest) return;
+      completedTraining = countTrainingSlotsThrough(resolved, restIndex);
+    }
+  } catch { /* fall through — pointer move alone is still correct */ }
+
+  await updateDoc(ref, {
+    'activeProgram.lastCompletedDayIndex': restIndex,
+    ...(completedTraining !== undefined ? { 'activeProgram.completedWorkouts': completedTraining } : {}),
+    lastActive: serverTimestamp(),
+  });
+}
+
 export async function getMealsForDate(userId: string, date: Date): Promise<NormalizedMeal[]> {
   const start = new Date(date);
   start.setHours(0, 0, 0, 0);
