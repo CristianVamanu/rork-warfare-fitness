@@ -48,16 +48,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // VAPID public key is meant to be public — mirror it into the plain
-    // system/config doc so the client push-subscribe flow can read it.
-    if (key === 'NEXT_PUBLIC_VAPID_PUBLIC_KEY') {
-      const app = getAdminApp();
-      if (app) {
-        await getAdminDb(app).collection('system').doc('config')
-          .set({ vapidPublicKey: trimmed }, { merge: true });
-      }
-    }
-
     return NextResponse.json({ ok: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -94,7 +94,18 @@ export default function SettingsPage() {
   useEffect(() => {
     getCurrentSubscription().then(sub => setPushSubscribed(!!sub));
     getSystemConfig().then(cfg => {
-      if (cfg?.vapidPublicKey) setVapidKey(cfg.vapidPublicKey as string);
+      // Two supported places, and the client could only see one of them.
+      // Admin → Integrations writes the key into system/secrets (which
+      // firestore.rules correctly hides from clients) and mirrors it to
+      // system/config — but an operator who set VAPID in .env.production
+      // instead never triggers that mirror, so system/config stayed empty
+      // and every user saw "push notifications are not set up yet" while the
+      // server was perfectly configured. NEXT_PUBLIC_ vars are inlined into
+      // the client bundle at build time, so reading it here costs nothing
+      // and covers the env-var case.
+      const envKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      const configured = (cfg?.vapidPublicKey as string | undefined) || envKey;
+      if (configured) setVapidKey(configured);
     }).catch(() => {});
   }, []);
 
@@ -108,12 +119,18 @@ export default function SettingsPage() {
         toast.success('Push notifications disabled');
       } else {
         if (!vapidKey) {
-          toast.error('Push notifications are not set up yet.');
+          toast.error('Push notifications are not set up yet — add a VAPID public key in Admin → Integrations.', { duration: 8000 });
+          return;
+        }
+        if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+          // Distinguishing this matters: once denied, the browser will never
+          // re-prompt, so "try again" is useless advice.
+          toast.error('Notifications are blocked for this site. Enable them in your browser settings, then try again.', { duration: 9000 });
           return;
         }
         const ok = await subscribeToPush(user.uid, vapidKey);
         if (ok) { setPushSubscribed(true); toast.success('Push notifications enabled!'); }
-        else toast.error('Permission denied or not supported on this device.');
+        else toast.error('Could not enable push on this device. Check that notifications are allowed for this site.', { duration: 8000 });
       }
     } catch { toast.error('Failed to update push settings'); }
     finally { setPushLoading(false); }
