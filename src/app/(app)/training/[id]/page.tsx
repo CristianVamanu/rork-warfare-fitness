@@ -461,7 +461,14 @@ export default function ProgramDetailPage() {
                 </div>
               )}
               {isRestToday && (
-                <p className="text-xs text-text-secondary">Recovery day — let your muscles grow.</p>
+                <div className="space-y-3">
+                  <p className="text-xs text-text-secondary">Recovery day — let your muscles grow. Feeling ready? The next session is yours whenever you want it.</p>
+                  {nextSession?.nextTraining && (
+                    <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextSession.nextTraining!.index}`)}>
+                      <Play className="w-4 h-4" /> Train anyway · {stripWeekdayPrefix(nextSession.nextTraining.day.label)}
+                    </Button>
+                  )}
+                </div>
               )}
             </Card>
           </motion.div>

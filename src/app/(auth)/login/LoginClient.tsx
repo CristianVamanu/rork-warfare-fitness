@@ -12,6 +12,8 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { signIn, signOut } from '@/lib/auth';
 import { getUserDoc } from '@/lib/firestore';
 import { getTrustedDevice } from '@/lib/twoFactor';
+import { isMfaRequiredError, totpChallengeFrom, resolveTotpSignIn, mfaErrorMessage, type TotpChallenge } from '@/lib/mfa';
+import type { User } from 'firebase/auth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -35,6 +37,13 @@ export default function LoginClient({
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Native Firebase MFA: when the account has an authenticator app enrolled,
+  // signInWithEmailAndPassword throws auth/multi-factor-auth-required and
+  // hands back a resolver. The password was correct; we now need the code.
+  // Firebase itself refuses to issue a token until it is supplied — this is
+  // what makes it unbypassable, unlike the legacy email-code flag.
+  const [totpChallenge, setTotpChallenge] = useState<TotpChallenge | null>(null);
+  const [totpCode, setTotpCode] = useState('');
   const [appName] = useState(initialAppName);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
@@ -46,7 +55,59 @@ export default function LoginClient({
     setLoading(true);
     try {
       console.log('[Login] Calling signIn...');
-      const user = await signIn(data.email, data.password);
+      let user: User;
+      try {
+        user = await signIn(data.email, data.password);
+      } catch (signInErr) {
+        if (isMfaRequiredError(signInErr)) {
+          const challenge = totpChallengeFrom(signInErr);
+          if (!challenge) {
+            toast.error('This account requires a second factor this app does not support.', { duration: 8000 });
+            return;
+          }
+          setTotpChallenge(challenge);
+          return; // the code form below takes over; finishTotp() completes sign-in
+        }
+        throw signInErr;
+      }
+      await afterSignIn(user);
+    } catch (err: unknown) {
+      const e = err as Error & { code?: string };
+      console.error('[Login] Sign-in FAILED:', {
+        code: e?.code,
+        message: e?.message,
+        stack: e?.stack,
+      });
+      // Show the real Firebase error code + message — never hide it
+      const display = e?.code
+        ? `${e.code}: ${e.message}`
+        : (e?.message || String(err));
+      toast.error(display, { duration: 8000 });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const finishTotp = async () => {
+    if (!totpChallenge) return;
+    if (!/^\d{6}$/.test(totpCode.replace(/\s+/g, ''))) { toast.error('Enter the 6-digit code from your app.'); return; }
+    setLoading(true);
+    try {
+      const user = await resolveTotpSignIn(totpChallenge, totpCode);
+      setTotpChallenge(null);
+      setTotpCode('');
+      await afterSignIn(user);
+    } catch (err) {
+      toast.error(mfaErrorMessage(err), { duration: 7000 });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Everything that used to follow signIn() — the legacy email-code check
+  // and the dashboard redirect — unchanged, just callable from both paths.
+  const afterSignIn = async (user: User) => {
+    try {
       console.log('[Login] signIn succeeded — checking 2FA status');
       // Ask the server whether this account needs a code — either it
       // doesn't have 2FA on at all, or this exact browser was already
@@ -149,6 +210,34 @@ export default function LoginClient({
       </Link>
 
       <Card glass className="p-6">
+        {totpChallenge ? (
+          <form onSubmit={(e) => { e.preventDefault(); finishTotp(); }} className="space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-white">Enter your authenticator code</h2>
+              <p className="text-sm text-text-secondary mt-1">Open your authenticator app and enter the 6-digit code for {appName}.</p>
+            </div>
+            <label className="block">
+              <span className="text-xs text-text-tertiary">6-digit code</span>
+              <input
+                autoFocus
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={7}
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)}
+                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-xl font-bold tracking-[0.3em] text-center focus:outline-none focus:border-accent/50"
+                placeholder="000000"
+              />
+            </label>
+            <Button type="submit" fullWidth loading={loading} size="lg" disabled={totpCode.replace(/\s+/g, '').length !== 6}>
+              Verify
+            </Button>
+            <button type="button" onClick={() => { setTotpChallenge(null); setTotpCode(''); }} className="w-full text-xs text-text-secondary hover:text-white">
+              Use a different account
+            </button>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <Input
             label="Email"
@@ -182,6 +271,7 @@ export default function LoginClient({
             Sign In
           </Button>
         </form>
+        )}
       </Card>
 
       <p className="text-center text-sm text-text-secondary mt-6">

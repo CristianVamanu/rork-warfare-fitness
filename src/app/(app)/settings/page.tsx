@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff, Download, Trash2, Cookie, ShieldCheck } from 'lucide-react';
+import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff, Download, Trash2, Cookie, ShieldCheck, Smartphone } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
@@ -16,6 +16,8 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { TotpEnrollModal } from '@/components/ui/TotpEnrollModal';
+import { hasTotp, reauthenticate, unenrolTotp, mfaErrorMessage } from '@/lib/mfa';
 import { getStoredConsent, resetCookieConsent, COOKIE_CONSENT_EVENT } from '@/components/ui/CookieConsent';
 
 export default function SettingsPage() {
@@ -36,6 +38,50 @@ export default function SettingsPage() {
   const [twoFAEmailModal, setTwoFAEmailModal] = useState(false);
   const [twoFAEmailInput, setTwoFAEmailInput] = useState('');
   const [saving2FAEmail, setSaving2FAEmail] = useState(false);
+  const [totpModal, setTotpModal] = useState(false);
+  const [totpOffModal, setTotpOffModal] = useState(false);
+  const [totpOffPassword, setTotpOffPassword] = useState('');
+  const [totpBusy, setTotpBusy] = useState(false);
+  // multiFactor(user).enrolledFactors is a plain property, not reactive —
+  // bump this after enrol/unenrol so the row re-reads it.
+  const [totpVersion, setTotpVersion] = useState(0);
+  const totpOn = !!user && hasTotp(user) && totpVersion >= 0;
+  const [appName, setAppName] = useState('Warfare Fitness');
+  useEffect(() => { getSystemConfig().then((c) => { if (c?.appName) setAppName(String(c.appName)); }).catch(() => {}); }, []);
+
+  // Enrolling an authenticator makes the legacy email-code 2FA redundant —
+  // Firebase now enforces the second factor at token issuance. Turn the old
+  // flag off so the user isn't asked for two different second factors.
+  const retireLegacyEmail2fa = async () => {
+    if (!user || !profile?.twoFactorEnabled) return;
+    try {
+      const token = await getIdToken(user);
+      await fetch('/api/auth/2fa/settings', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: false }),
+      });
+      await refreshProfile();
+    } catch { /* non-fatal — the legacy check is harmless alongside TOTP */ }
+  };
+
+  const turnOffTotp = async () => {
+    if (!user) return;
+    setTotpBusy(true);
+    try {
+      await reauthenticate(user, totpOffPassword);
+      await unenrolTotp(user);
+      await user.reload();
+      setTotpVersion((v) => v + 1);
+      setTotpOffModal(false);
+      setTotpOffPassword('');
+      toast.success('Authenticator app turned off');
+    } catch (err) {
+      toast.error(mfaErrorMessage(err), { duration: 7000 });
+    } finally {
+      setTotpBusy(false);
+    }
+  };
 
   useEffect(() => {
     setCookieChoice(getStoredConsent());
@@ -198,23 +244,35 @@ export default function SettingsPage() {
       title: 'Security',
       items: [
         {
-          icon: ShieldCheck,
-          label: 'Two-Factor Authentication',
-          description: profile?.twoFactorEnabled
-            ? 'On — a code is emailed to you at login'
-            : 'Off — add an email code at login for extra security',
-          action: toggle2FA,
-          rightLabel: updating2FA ? '...' : (profile?.twoFactorEnabled ? 'Turn off' : 'Turn on'),
+          icon: Smartphone,
+          label: 'Authenticator App (recommended)',
+          description: totpOn
+            ? 'On — sign-in needs a code from your authenticator app'
+            : 'Off — Google Authenticator, Authy, 1Password or any TOTP app',
+          action: () => (totpOn ? setTotpOffModal(true) : setTotpModal(true)),
+          rightLabel: totpOn ? 'Turn off' : 'Set up',
         },
-        {
+        // Legacy email-code 2FA. Kept only for accounts that already have it
+        // on, so nobody loses a second factor silently; no new enrolments —
+        // it is superseded by the authenticator app above, which Firebase
+        // enforces at token issuance rather than in app code.
+        ...(profile?.twoFactorEnabled ? [{
+          icon: ShieldCheck,
+          label: 'Email Codes (legacy)',
+          description: totpOn
+            ? 'Redundant now that your authenticator app is on — you can turn this off'
+            : 'On — a code is emailed to you at login. Switch to the authenticator app above.',
+          action: toggle2FA,
+          rightLabel: updating2FA ? '...' : 'Turn off',
+        }, {
           icon: Bell,
-          label: '2FA Notification Email',
+          label: 'Email Code Address',
           description: profile?.twoFactorEmail
             ? `Codes go to ${profile.twoFactorEmail}`
             : `Codes go to your login email (${user?.email || 'not set'})`,
           action: () => { setTwoFAEmailInput(profile?.twoFactorEmail || ''); setTwoFAEmailModal(true); },
           rightLabel: 'Change',
-        },
+        }] : []),
       ],
     },
     {
@@ -403,6 +461,29 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      <TotpEnrollModal
+        open={totpModal}
+        onClose={() => { setTotpModal(false); setTotpVersion((v) => v + 1); }}
+        appName={appName}
+        onEnrolled={async () => { setTotpVersion((v) => v + 1); await retireLegacyEmail2fa(); }}
+      />
+      <Modal open={totpOffModal} onClose={() => !totpBusy && setTotpOffModal(false)} title="Turn off authenticator app?">
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">Your account will go back to password-only sign-in. Confirm your password to continue.</p>
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={totpOffPassword}
+            onChange={(e) => setTotpOffPassword(e.target.value)}
+            className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-base focus:outline-none focus:border-accent/50"
+            placeholder="Password"
+          />
+          <div className="flex gap-2">
+            <Button fullWidth variant="ghost" onClick={() => setTotpOffModal(false)} disabled={totpBusy}>Cancel</Button>
+            <Button fullWidth variant="danger" onClick={turnOffTotp} loading={totpBusy} disabled={!totpOffPassword}>Turn off</Button>
+          </div>
+        </div>
+      </Modal>
       <Modal open={signOutModal} onClose={() => setSignOutModal(false)} title="Sign Out?">
         <div className="space-y-4">
           <p className="text-sm text-text-secondary">Are you sure you want to sign out?</p>

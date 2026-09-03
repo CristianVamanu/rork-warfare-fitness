@@ -578,9 +578,18 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     {isRestToday ? (
-                      <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-                        <Moon className="w-3.5 h-3.5" /> Rest day
-                      </div>
+                      <>
+                        <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                          <Moon className="w-3.5 h-3.5" /> Rest day
+                        </div>
+                        {/* Rest is a recommendation, not a lock — the next real
+                            session is always startable. See getNextSession. */}
+                        {nextSession?.nextTraining && (
+                          <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextSession.nextTraining!.index}`)}>
+                            <Play className="w-3.5 h-3.5" /> Train anyway · {stripWeekdayPrefix(nextSession.nextTraining.day.label)}
+                          </Button>
+                        )}
+                      </>
                     ) : (
                       <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
                         <Play className="w-4 h-4" /> {workedOutToday ? 'Start Next Workout' : 'Start Workout'}

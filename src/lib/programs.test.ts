@@ -55,6 +55,34 @@ describe('getNextSession — rest-day deadlock fix', () => {
     expect(s!.isRestToday).toBe(true);
   });
 
+  it('a current rest day still offers the next training slot (rest is a suggestion, not a lock)', () => {
+    // Trained today; slot 2 is Rest. The user must be able to start slot 3 now.
+    const s = getNextSession(standard, 1, todayStr());
+    expect(s).toMatchObject({ index: 2, isRestToday: true });
+    expect(s!.nextTraining).toMatchObject({ index: 3 });
+    expect(s!.nextTraining!.day.isRest).toBe(false);
+  });
+
+  it('nextTraining skips consecutive rest slots to the first real session', () => {
+    // train, REST, REST, REST, train
+    const p = prog([train('A'), rest(), rest(), rest(), train('B'), rest(), rest()]);
+    const s = getNextSession(p, 0, yesterdayStr());
+    expect(s!.isRestToday).toBe(true);
+    expect(s!.nextTraining).toMatchObject({ index: 4 });
+  });
+
+  it('nextTraining equals the slot itself when it is a training day', () => {
+    const s = getNextSession(standard, -1, undefined);
+    expect(s!.nextTraining).toMatchObject({ index: 0 });
+  });
+
+  it('all-rest schedule yields nextTraining: null rather than looping', () => {
+    const allRest = prog([rest(), rest(), rest(), rest(), rest(), rest(), rest()]);
+    const s = getNextSession(allRest, 0, todayStr());
+    expect(s!.isRestToday).toBe(true);
+    expect(s!.nextTraining).toBeNull();
+  });
+
   it('never deadlocks on any seed program: from any slot, a stale user always gets a workout', () => {
     for (const p of MOCK_PROGRAMS) {
       for (let last = -1; last < 14; last++) {

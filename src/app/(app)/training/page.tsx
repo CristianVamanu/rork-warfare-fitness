@@ -178,9 +178,18 @@ export default function TrainingPage() {
                     <Play className="w-4 h-4" /> Start Next Workout
                   </Button>
                 ) : (
-                  <div className="flex items-center gap-2 text-sm text-text-secondary">
-                    <Moon className="w-4 h-4" /> Rest day — recover well
-                  </div>
+                  <>
+                    <div className="flex items-center gap-2 text-sm text-text-secondary">
+                      <Moon className="w-4 h-4" /> Rest day — recover well
+                    </div>
+                    {nextSession?.nextTraining && (
+                      <Button size="sm" variant="ghost" onClick={() => {
+                        router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextSession.nextTraining!.index}`);
+                      }}>
+                        <Play className="w-4 h-4" /> Train anyway · {stripWeekdayPrefix(nextSession.nextTraining.day.label)}
+                      </Button>
+                    )}
+                  </>
                 )}
                 {workedOutToday && (
                   <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${lastCompleted}`)}>
