@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage, refundUsage, getRemainingUsage, resolveLocalDate } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, refundUsage, getRemainingUsage, resolveLocalDate, ORG_BUDGET_MSG } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
 
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const app = appForAccess;
     const usage = await checkAndIncrementUsage(app, uid, 'scan-and-go', DAILY_LIMIT, resolveLocalDate(req));
     if (!usage.allowed) {
-      return NextResponse.json({ error: `Daily limit reached (${DAILY_LIMIT}/day). Try again tomorrow.`, remaining: 0 }, { status: 429 });
+      return NextResponse.json({ error: usage.orgLimitReached ? ORG_BUDGET_MSG : `Daily limit reached (${DAILY_LIMIT}/day). Try again tomorrow.`, remaining: 0 }, { status: 429 });
     }
     usageApp = app;
 

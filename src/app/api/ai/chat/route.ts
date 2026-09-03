@@ -11,7 +11,7 @@ import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage, resolveLocalDate } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, resolveLocalDate, ORG_BUDGET_MSG } from '@/lib/usageLimit';
 import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
 
 export async function POST(req: NextRequest) {
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   const usage = await checkAndIncrementUsage(app, authCheck.uid, 'ai-chat', 30, resolveLocalDate(req));
   if (!usage.allowed) {
-    return NextResponse.json({ error: 'Daily limit reached. Try again tomorrow.' }, { status: 429 });
+    return NextResponse.json({ error: usage.orgLimitReached ? ORG_BUDGET_MSG : 'Daily limit reached. Try again tomorrow.' }, { status: 429 });
   }
 
   try {

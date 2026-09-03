@@ -13,11 +13,26 @@ function getAdminDb() {
 }
 
 async function initWebPush() {
-  const [pub, priv] = await Promise.all([
+  const [secretPub, priv] = await Promise.all([
     getSecret('NEXT_PUBLIC_VAPID_PUBLIC_KEY'),
     getSecret('VAPID_PRIVATE_KEY'),
   ]);
-  if (!pub || !priv) return false;
+  // The public key can legitimately live in either place: Admin → Integrations
+  // writes it to system/secrets, Admin → Settings writes it to
+  // system/config.vapidPublicKey. Accept whichever is filled so the feature
+  // doesn't depend on which of the two screens the operator happened to use.
+  let pub = secretPub;
+  if (!pub) {
+    const app = getAdminApp();
+    if (app) {
+      const cfg = await getDb(app).collection('system').doc('config').get().catch(() => null);
+      pub = (cfg?.data()?.vapidPublicKey as string) || '';
+    }
+  }
+  if (!pub || !priv) {
+    console.error('[push] VAPID not configured — public key:', pub ? 'set' : 'MISSING', 'private key:', priv ? 'set' : 'MISSING');
+    return false;
+  }
   webpush.setVapidDetails(
     'mailto:' + (process.env.ADMIN_EMAIL || 'admin@warfarefitness.com'),
     pub,

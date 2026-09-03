@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage, resolveLocalDate } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, resolveLocalDate, ORG_BUDGET_MSG } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     const usage = await checkAndIncrementUsage(app, uid, 'meal-ideas', dailyLimit, resolveLocalDate(req));
     if (!usage.allowed) {
       return NextResponse.json(
-        { error: `Daily limit reached (${dailyLimit}/day). Try again tomorrow.` },
+        { error: usage.orgLimitReached ? ORG_BUDGET_MSG : `Daily limit reached (${dailyLimit}/day). Try again tomorrow.` },
         { status: 429 }
       );
     }

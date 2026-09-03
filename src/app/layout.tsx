@@ -3,9 +3,9 @@ import { headers } from 'next/headers';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import { Toaster } from 'react-hot-toast';
 import { getSystemConfig } from '@/lib/firestore';
 import { ServiceWorkerUpdater } from '@/components/ui/ServiceWorkerUpdater';
+import { AppToaster } from '@/components/ui/AppToaster';
 import { ChunkErrorReloader } from '@/components/ui/ChunkErrorReloader';
 import { CookieConsent } from '@/components/ui/CookieConsent';
 import { ConsentGatedScripts } from '@/components/ui/ConsentGatedScripts';
@@ -113,24 +113,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <ServiceWorkerUpdater />
           <ChunkErrorReloader />
           <CookieConsent />
-          <Toaster
-            position="top-center"
-            toastOptions={{
-              style: {
-                background: 'var(--surface-elevated)',
-                color: 'var(--foreground)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: '12px',
-                fontSize: '14px',
-              },
-              success: {
-                iconTheme: { primary: '#10B981', secondary: 'var(--surface-elevated)' },
-              },
-              error: {
-                iconTheme: { primary: '#EF4444', secondary: 'var(--surface-elevated)' },
-              },
-            }}
-          />
+          <AppToaster />
         </AuthProvider>
         </ThemeProvider>
         <ConsentGatedScripts nonce={nonce} />

@@ -281,7 +281,13 @@ function AdminPageInner() {
   }, [activeConv?.id]);
 
   // ── Settings state ─────────────────────────────────────────────────────────
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
+  // Client list pagination. getAllUsers() still fetches everything (search and
+  // CSV export both need the full set), but rendering thousands of cards at
+  // once is what actually makes this page unusable — so the DOM is paged.
+  const [clientsPerPage, setClientsPerPage] = useState(50);
+  const [clientsPage, setClientsPage] = useState(1);
+  const [orgAiUsage, setOrgAiUsage] = useState<{ used: number; limit: number; byFeature: Record<string, number>; date: string } | null>(null);
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, aiOrgDailyLimit: 0 });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
@@ -486,6 +492,7 @@ function AdminPageInner() {
           vapidPublicKey: cfg.vapidPublicKey || '',
           barcodeScanDailyLimit: Number(cfg.barcodeScanDailyLimit) || 20,
           foodAnalysisDailyLimit: Number(cfg.foodAnalysisDailyLimit) || 20,
+          aiOrgDailyLimit: Number(cfg.aiOrgDailyLimit) || 0,
           mealIdeasDailyLimit: Number(cfg.mealIdeasDailyLimit) || 15,
         });
         setStorageProvider((cfg.storageProvider as StorageProvider) || 'firebase');
@@ -532,6 +539,13 @@ function AdminPageInner() {
   // ── Tab loaders ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (tab === 'clients' && users.length === 0) loadUsers();
+    if (tab === 'settings' && user) {
+      getIdToken(user)
+        .then((t) => fetch('/api/admin/ai-usage', { headers: { Authorization: `Bearer ${t}` } }))
+        .then((r) => r.json())
+        .then((d) => { if (!d?.error) setOrgAiUsage(d); })
+        .catch(() => {});
+    }
     if (tab === 'membership') { loadMembership(); loadCoachingPlans(); loadMembershipPlans(); }
     if (tab === 'coaching') loadCoachingApplications();
     if (tab === 'notifications') loadNotifConfig();
@@ -2277,6 +2291,11 @@ function AdminPageInner() {
 
   const stripeConfigured = secretStatuses.find(s => s.key === 'STRIPE_SECRET_KEY')?.configured ?? false;
   const clients = users.filter(u => u.role !== 'admin');
+  const clientsTotalPages = Math.max(1, Math.ceil(clients.length / clientsPerPage));
+  // Clamp rather than reset: changing page size or banning the last user on
+  // page 9 should land somewhere real, not on an empty page.
+  const clientsPageSafe = Math.min(clientsPage, clientsTotalPages);
+  const pagedClients = clients.slice((clientsPageSafe - 1) * clientsPerPage, clientsPageSafe * clientsPerPage);
   const trainers = users.filter(u => u.role === 'trainer');
 
   // Exports the currently-loaded client list as a CSV — client-side only,
@@ -2461,11 +2480,23 @@ function AdminPageInner() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-text-secondary text-sm">{clients.length} client{clients.length !== 1 ? 's' : ''}</p>
-            {clients.length > 0 && (
-              <Button size="sm" variant="ghost" onClick={handleExportClientsCsv}>
-                <Download className="w-3.5 h-3.5" /> Export CSV
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {clients.length > clientsPerPage && (
+                <select
+                  aria-label="Clients per page"
+                  value={clientsPerPage}
+                  onChange={(e) => { setClientsPerPage(Number(e.target.value)); setClientsPage(1); }}
+                  className="bg-surface border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent/50"
+                >
+                  {[20, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
+                </select>
+              )}
+              {clients.length > 0 && (
+                <Button size="sm" variant="ghost" onClick={handleExportClientsCsv}>
+                  <Download className="w-3.5 h-3.5" /> Export CSV
+                </Button>
+              )}
+            </div>
           </div>
           {clientsLoading ? (
             <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
@@ -2476,7 +2507,7 @@ function AdminPageInner() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {clients.map((u) => (
+              {pagedClients.map((u) => (
                 <Card key={u.id} className={`p-4 ${u.banned ? 'border-danger/30 opacity-70' : ''}`}>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -2552,6 +2583,32 @@ function AdminPageInner() {
                   </div>
                 </Card>
               ))}
+            </div>
+          )}
+          {clientsTotalPages > 1 && (
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={clientsPageSafe <= 1}
+                onClick={() => setClientsPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <p className="text-xs text-text-secondary">
+                Page {clientsPageSafe} of {clientsTotalPages}
+                <span className="text-text-tertiary">
+                  {' '}· showing {(clientsPageSafe - 1) * clientsPerPage + 1}–{Math.min(clientsPageSafe * clientsPerPage, clients.length)}
+                </span>
+              </p>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={clientsPageSafe >= clientsTotalPages}
+                onClick={() => setClientsPage((p) => Math.min(clientsTotalPages, p + 1))}
+              >
+                Next
+              </Button>
             </div>
           )}
         </div>
@@ -4306,6 +4363,48 @@ function AdminPageInner() {
                 </div>
               </div>
               <p className="text-xs text-text-tertiary -mt-2">Per-user daily caps to prevent abuse of paid API usage (OpenAI, OpenFoodFacts).</p>
+              {/* Per-user caps bound what any ONE person can spend. This bounds
+                  the total, which is the only place a bad day costs real money. */}
+              <div className="pt-3 mt-1 border-t border-white/8">
+                <label className="text-xs text-text-secondary mb-1 block">App-Wide AI Calls / Day</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={settingsForm.aiOrgDailyLimit}
+                  onChange={e => setSettingsForm(s => ({ ...s, aiOrgDailyLimit: Math.max(0, parseInt(e.target.value) || 0) }))}
+                  className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                />
+                <p className="text-xs text-text-tertiary mt-1.5">
+                  Total AI calls across all users per day. <b>0 = no limit.</b> Past the ceiling, AI
+                  features show &ldquo;paused for today&rdquo; instead of failing with an error when
+                  your OpenAI balance runs out.
+                </p>
+                {orgAiUsage && (
+                  <div className="mt-3 p-3 rounded-xl bg-surface border border-white/8">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-text-secondary">Today ({orgAiUsage.date})</span>
+                      <span className="font-mono text-white">
+                        {orgAiUsage.used}{orgAiUsage.limit > 0 ? ` / ${orgAiUsage.limit}` : ''} calls
+                      </span>
+                    </div>
+                    {orgAiUsage.limit > 0 && (
+                      <div className="mt-2 h-1.5 rounded-full bg-white/8 overflow-hidden">
+                        <div
+                          className={`h-full ${orgAiUsage.used >= orgAiUsage.limit ? 'bg-danger' : orgAiUsage.used / orgAiUsage.limit > 0.8 ? 'bg-yellow-400' : 'bg-accent'}`}
+                          style={{ width: `${Math.min(100, (orgAiUsage.used / orgAiUsage.limit) * 100)}%` }}
+                        />
+                      </div>
+                    )}
+                    {Object.keys(orgAiUsage.byFeature ?? {}).length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                        {Object.entries(orgAiUsage.byFeature).map(([f, n]) => (
+                          <span key={f} className="text-[11px] text-text-tertiary">{f}: <span className="text-text-secondary">{n}</span></span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <Button onClick={handleSaveSettings} loading={savingSettings} fullWidth>Save Configuration</Button>
           </Card>

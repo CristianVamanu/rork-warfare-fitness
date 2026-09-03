@@ -32,6 +32,22 @@ export async function POST(req: NextRequest) {
     const trimmed = typeof value === 'string' ? value.trim() : '';
     await setSecret(key as SecretKey, trimmed);
 
+    // The VAPID PUBLIC key is public by definition — the browser needs it to
+    // create a push subscription. It was only ever written to system/secrets,
+    // which firestore.rules correctly forbids clients from reading, while the
+    // client looked for it at system/config.vapidPublicKey. Filling in the
+    // Integrations field therefore configured the server and left every user
+    // seeing "push notifications aren't set up yet". Mirrored here so either
+    // admin screen configures the whole feature.
+    if (key === 'NEXT_PUBLIC_VAPID_PUBLIC_KEY') {
+      const app = getAdminApp();
+      if (app) {
+        await getAdminDb(app).collection('system').doc('config')
+          .set({ vapidPublicKey: trimmed }, { merge: true })
+          .catch((err) => console.error('[secrets] VAPID public key mirror failed:', err));
+      }
+    }
+
     // VAPID public key is meant to be public — mirror it into the plain
     // system/config doc so the client push-subscribe flow can read it.
     if (key === 'NEXT_PUBLIC_VAPID_PUBLIC_KEY') {

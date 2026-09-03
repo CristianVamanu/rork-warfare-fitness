@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp } from '@/lib/firebase-admin';
-import { checkAndIncrementUsage, refundUsage, getRemainingUsage, resolveConfiguredDailyLimit, resolveLocalDate } from '@/lib/usageLimit';
+import { checkAndIncrementUsage, refundUsage, getRemainingUsage, resolveConfiguredDailyLimit, resolveLocalDate, ORG_BUDGET_MSG } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
 
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
     const usage = await checkAndIncrementUsage(app, uid, 'barcode', dailyLimit, resolveLocalDate(req));
     if (!usage.allowed) {
       return NextResponse.json(
-        { error: `Daily scan limit reached (${dailyLimit}/day). Try again tomorrow.`, remaining: 0 },
+        { error: usage.orgLimitReached ? ORG_BUDGET_MSG : `Daily scan limit reached (${dailyLimit}/day). Try again tomorrow.`, remaining: 0 },
         { status: 429 }
       );
     }
