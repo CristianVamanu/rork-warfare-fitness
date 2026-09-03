@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Dumbbell, Play, Clock, Target, ChevronRight, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, resolveProgram, getHiddenMockIds, getUserCustomPrograms, getAllProgramProgress } from '@/lib/firestore';
@@ -101,7 +101,6 @@ export default function TrainingPage() {
     : null;
   const nextAbsIdx = activeProgram ? (nextSession?.index ?? lastCompleted + 1) : 0;
   const todayDay = nextSession?.day ?? null;
-  const isRestToday = nextSession?.isRestToday ?? false;
 
   useEffect(() => {
     Promise.all([getPrograms(), getHiddenMockIds().catch(() => [] as string[])])
@@ -149,7 +148,7 @@ export default function TrainingPage() {
               <h3 className="text-xl font-black text-white">{activeProgram.programName}</h3>
               {todayDay && (
                 <p className="text-text-secondary text-sm mt-1">
-                  Next: {isRestToday ? '😴 Rest Day' : stripWeekdayPrefix(todayDay.label)}
+                  Next: {stripWeekdayPrefix(todayDay.label)}
                 </p>
               )}
               <div className="mt-4 space-y-2">
@@ -171,25 +170,12 @@ export default function TrainingPage() {
                 </div>
               )}
               <div className="flex gap-2 mt-4 flex-wrap">
-                {todayDay && !isRestToday ? (
+                {todayDay && (
                   <Button size="sm" onClick={() => {
                     router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`);
                   }}>
                     <Play className="w-4 h-4" /> Start Next Workout
                   </Button>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 text-sm text-text-secondary">
-                      <Moon className="w-4 h-4" /> Rest day — recover well
-                    </div>
-                    {nextSession?.nextTraining && (
-                      <Button size="sm" variant="ghost" onClick={() => {
-                        router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextSession.nextTraining!.index}`);
-                      }}>
-                        <Play className="w-4 h-4" /> Train anyway · {stripWeekdayPrefix(nextSession.nextTraining.day.label)}
-                      </Button>
-                    )}
-                  </>
                 )}
                 {workedOutToday && (
                   <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${lastCompleted}`)}>

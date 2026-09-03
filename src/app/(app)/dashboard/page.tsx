@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, Moon, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
+import { Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getMyLeaderboardRank, subscribeTodayWorkoutCount, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
@@ -252,10 +252,8 @@ export default function DashboardPage() {
   // copy renders immediately and gets replaced if the admin has saved edits.
   const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
   const programSource = resolvedProgram ?? activeMock;
-  // getNextSession is the single shared answer to "what's next" — it skips
-  // stale rest slots (deadlock fix) and only reports isRestToday when the
-  // user actually trained yesterday, so a rest day is shown for exactly one
-  // real day instead of trapping the pointer forever.
+  // getNextSession is the single shared answer to "what's next" — always the
+  // next TRAINING slot after the last completed one; rest slots are skipped.
   // Always points at the next not-yet-completed session, regardless of
   // workedOutToday — training more than once in a day used to be blocked
   // entirely (this card only offered "Repeat Today" once workedOutToday
@@ -268,7 +266,6 @@ export default function DashboardPage() {
     : null;
   const nextAbsIdx = nextSession?.index ?? lastCompleted + 1;
   const todayDay = nextSession?.day ?? null;
-  const isRestToday = nextSession?.isRestToday ?? false;
   // Every program's schedule template is enforced to be exactly 7 entries
   // (see programs.ts) — this maps nextAbsIdx onto "which day of the
   // CURRENT week of the program" for WeekProgressLine below.
@@ -281,7 +278,7 @@ export default function DashboardPage() {
     ? Math.min(100, Math.round((completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
 
-  const firstExerciseName = !isRestToday ? todayDay?.exercises?.[0]?.name : undefined;
+  const firstExerciseName = todayDay?.exercises?.[0]?.name;
 
   useEffect(() => {
     if (!user) return;
@@ -524,7 +521,7 @@ export default function DashboardPage() {
                     </p>
                   ) : todayDay ? (
                     <p className="text-sm text-text-secondary mt-0.5">
-                      {isRestToday ? '😴 Rest Day — recover well' : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
+                      {workedOutToday ? `Next: ${stripWeekdayPrefix(todayDay.label)}` : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
                     </p>
                   ) : null}
                   {/* Full session preview — the card spans 3 grid rows, so a
@@ -532,7 +529,7 @@ export default function DashboardPage() {
                       header and the progress bar. Listing every exercise for
                       today fills that space with the thing the user actually
                       opens this card to know: what's in the session. */}
-                  {!isRestToday && (todayDay?.exercises?.length ?? 0) > 0 && (
+                  {(todayDay?.exercises?.length ?? 0) > 0 && (
                     <div className="mt-3 space-y-1.5">
                       {todayDay!.exercises.slice(0, 4).map((ex) => (
                         <div key={ex.id} className="flex items-center justify-between text-xs">
@@ -552,7 +549,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                   )}
-                  {!isRestToday && personalBest && (
+                  {personalBest && (
                     <div className="mt-2 flex items-center gap-1.5 p-2 bg-accent/5 border border-accent/20 rounded-lg">
                       <Trophy className="w-3.5 h-3.5 text-accent flex-shrink-0" />
                       <p className="text-xs text-accent">
@@ -577,24 +574,9 @@ export default function DashboardPage() {
                     </p>
                   </div>
                   <div className="flex gap-2 flex-wrap">
-                    {isRestToday ? (
-                      <>
-                        <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-                          <Moon className="w-3.5 h-3.5" /> Rest day
-                        </div>
-                        {/* Rest is a recommendation, not a lock — the next real
-                            session is always startable. See getNextSession. */}
-                        {nextSession?.nextTraining && (
-                          <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextSession.nextTraining!.index}`)}>
-                            <Play className="w-3.5 h-3.5" /> Train anyway · {stripWeekdayPrefix(nextSession.nextTraining.day.label)}
-                          </Button>
-                        )}
-                      </>
-                    ) : (
-                      <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                        <Play className="w-4 h-4" /> {workedOutToday ? 'Start Next Workout' : 'Start Workout'}
-                      </Button>
-                    )}
+                    <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
+                      <Play className="w-4 h-4" /> {workedOutToday ? 'Start Next Workout' : 'Start Workout'}
+                    </Button>
                     {workedOutToday && completedWorkouts > 0 && (
                       <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${lastCompleted}`)}>
                         <RotateCcw className="w-3.5 h-3.5" /> Repeat Today

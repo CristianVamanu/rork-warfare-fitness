@@ -2535,18 +2535,19 @@ export function countTrainingSlotsThrough(program: Program, lastSlotIndex: numbe
 }
 
 export interface NextSession {
-  /** Absolute slot index to pass to the workout session as `dow`. */
+  /** Absolute slot index to pass to the workout session as `dow`. Always a training slot. */
   index: number;
   day: ProgramDay;
-  /** True when today should be displayed as a rest day (a suggestion, never a lock). */
-  isRestToday: boolean;
   /**
-   * The next TRAINING slot, always populated when one exists — even when
-   * `isRestToday` is true. Consumers render the rest day AND offer this as
-   * "train anyway", so a rest slot can never hold a user's progress hostage
-   * to the calendar. Null only when the whole week is rest slots.
+   * Always false now — kept so existing call sites type-check. Rest slots in
+   * a schedule are shown in the schedule view; they are never a state the
+   * "next workout" card can be in. See getNextSession.
    */
+  isRestToday: boolean;
+  /** Same as { index, day }. Kept for call-site compatibility. */
   nextTraining: { index: number; day: ProgramDay } | null;
+  /** True when one or more rest slots sit between the last completed slot and this one. Informational only. */
+  skippedRest: boolean;
 }
 
 /**
@@ -2554,58 +2555,35 @@ export interface NextSession {
  * the dashboard card, the training list, and the program detail page so
  * they can never disagree.
  *
- * Two rules, and the second is the one that matters:
+ * Rule: the next session is the next TRAINING slot after the last completed
+ * one. Rest slots are skipped. That's it.
  *
- *   1. A rest slot is *shown* as today's rest day only when the user trained
- *      today or yesterday — otherwise the rest has already happened in real
- *      time and the pointer skips forward to the next training slot (the
- *      original deadlock fix: the pointer only advances on a COMPLETED
- *      workout, and rest slots can't be completed).
+ * History, so nobody re-adds the complexity: this used to try to *honor*
+ * rest slots — show "Rest day" if the user trained today or yesterday, skip
+ * it otherwise — and then grew a "Train anyway" escape hatch. In a program
+ * that alternates train/rest slots (most of them), finishing that
+ * "train anyway" session landed the pointer on the NEXT rest slot, and the
+ * card said "Rest day" again immediately after a workout. The user's read
+ * was correct: the calendar date cannot measure recovery, and a fitness app
+ * telling someone who just opened it to train that they may not is wrong
+ * every time. Rest days still exist in the schedule view as rest rows; they
+ * are simply never the thing the "next workout" card shows.
  *
- *   2. A rest day is a recommendation, never a lock. Previously, training on
- *      Monday evening and opening the app Tuesday morning showed "Rest day"
- *      with no way to start anything until Wednesday — the app was enforcing
- *      a ~24-36h wait keyed to the calendar date, which has nothing to do
- *      with recovery (a lunchtime session and a 6am session the next day are
- *      18h apart; a 6am session and a 10pm session the next day are 40h
- *      apart — the calendar can't tell them apart). So `nextTraining` is now
- *      ALWAYS populated with the next real session, and every screen that
- *      shows a rest day also offers it. Completing it moves the pointer
- *      past the rest slot naturally. Whether to rest is the user's call.
- *
- * A full week of rest slots (pathological admin data) is bounded and falls
- * back to showing the rest day with `nextTraining: null` rather than looping.
+ * Returns null only if the schedule has no training slots within a week of
+ * the pointer (all-rest schedule — pathological admin data).
  */
 export function getNextSession(
   program: Program,
   lastCompletedDayIndex: number,
-  lastWorkoutDate?: string,
+  _lastWorkoutDate?: string,
 ): NextSession | null {
   const start = lastCompletedDayIndex + 1;
-  const first = getProgramDayForDow(program, start);
-  if (!first) return null;
-
-  if (!first.isRest) {
-    return { index: start, day: first, isRestToday: false, nextTraining: { index: start, day: first } };
+  for (let offset = 0; offset <= 7; offset++) {
+    const idx = start + offset;
+    const day = getProgramDayForDow(program, idx);
+    if (!day) return null;
+    if (day.isRest) continue;
+    return { index: idx, day, isRestToday: false, nextTraining: { index: idx, day }, skippedRest: offset > 0 };
   }
-
-  // Next real session after the rest slot(s), bounded to one week.
-  let nextTraining: NextSession['nextTraining'] = null;
-  for (let offset = 1; offset <= 7; offset++) {
-    const day = getProgramDayForDow(program, start + offset);
-    if (day && !day.isRest) { nextTraining = { index: start + offset, day }; break; }
-  }
-
-  const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString('sv-SE');
-  const today = new Date().toLocaleDateString('sv-SE');
-  // Trained yesterday (or already today) → this rest day is current. Show it
-  // as such, but still hand back the next session so it can be started.
-  if (lastWorkoutDate === yesterday || lastWorkoutDate === today) {
-    return { index: start, day: first, isRestToday: true, nextTraining };
-  }
-
-  // Rest already happened in real time — skip straight to the next session.
-  if (nextTraining) return { index: nextTraining.index, day: nextTraining.day, isRestToday: false, nextTraining };
-  // Entire week is rest slots — show the rest day rather than spin.
-  return { index: start, day: first, isRestToday: true, nextTraining: null };
+  return null;
 }
