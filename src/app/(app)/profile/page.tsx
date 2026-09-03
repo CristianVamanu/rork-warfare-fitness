@@ -746,7 +746,19 @@ export default function ProfilePage() {
       </Modal>
 
       {/* 1:1 Coaching Application Modal */}
-      <Modal open={!!applyPlan} onClose={() => setApplyPlan(null)} title={`Apply for ${applyPlan?.name ?? '1:1 Coaching'}`}>
+      <Modal
+        open={!!applyPlan}
+        onClose={() => setApplyPlan(null)}
+        title={`Apply for ${applyPlan?.name ?? '1:1 Coaching'}`}
+        footer={
+          <div className="flex gap-3">
+            <Button variant="ghost" className="flex-1 min-w-0" onClick={() => setApplyPlan(null)}>Cancel</Button>
+            <Button className="flex-1 min-w-0" loading={applySubmitting} onClick={handleSubmitApplication}>
+              Submit
+            </Button>
+          </div>
+        }
+      >
         <div className="space-y-4">
           <p className="text-xs text-text-secondary">
             Tell your trainer a bit about yourself. They&apos;ll review your application and get back to you.
@@ -799,10 +811,6 @@ export default function ProfilePage() {
           </p>
           <HealthScreeningFields data={applyMedical} onChange={updateApplyMedical} />
           <LifestyleHabitsFields data={applyMedical} onChange={updateApplyMedical} />
-          <div className="flex gap-3">
-            <Button variant="ghost" fullWidth onClick={() => setApplyPlan(null)}>Cancel</Button>
-            <Button fullWidth loading={applySubmitting} onClick={handleSubmitApplication}>Submit Application</Button>
-          </div>
         </div>
       </Modal>
     </div>

@@ -811,6 +811,12 @@ export interface Message {
   content: string;
   isFromAdmin: boolean;
   createdAt: unknown;
+  // Support attachments only (coach DMs don't currently offer uploads).
+  // Optional throughout, so every message written before this existed still
+  // parses as a valid Message.
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
 }
 
 // ── Support tickets ────────────────────────────────────────────────────────

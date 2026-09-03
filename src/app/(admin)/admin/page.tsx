@@ -39,6 +39,7 @@ import {
   getAllPrograms, getHiddenMockIds, getDeletedMockIds,
 } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
+import { useSupportUpload, AttachButton, PendingAttachment, MessageAttachment } from '@/components/support/SupportAttachment';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -292,8 +293,10 @@ function AdminPageInner() {
   const [supportMsgText, setSupportMsgText] = useState('');
   const [sendingSupport, setSendingSupport] = useState(false);
   const [supportFilter, setSupportFilter] = useState<SupportTicketStatus | 'all'>('all');
+  const [supportFile, setSupportFile] = useState<File | null>(null);
   const [updatingTicket, setUpdatingTicket] = useState<string | null>(null);
   const supportEndRef = useRef<HTMLDivElement>(null);
+  const { upload: uploadSupportFile, uploading: supportUploading, progress: supportProgress } = useSupportUpload();
 
   // Derived from the live list rather than stored, so a status change is
   // reflected in the open thread (and its composer) without a refetch.
@@ -327,15 +330,24 @@ function AdminPageInner() {
   }
 
   async function handleSendSupport() {
-    if (!activeTicket || !supportMsgText.trim() || !user || !profile) return;
+    if (!activeTicket || !user || !profile) return;
+    if (!supportMsgText.trim() && !supportFile) return;
     setSendingSupport(true);
     const text = supportMsgText.trim();
+    const file = supportFile;
     setSupportMsgText('');
+    setSupportFile(null);
     try {
-      await sendSupportMessage(activeTicket.id, user.uid, profile.displayName || 'Support', text, true);
+      let attachment = null;
+      if (file) {
+        attachment = await uploadSupportFile(user, file);
+        if (!attachment) { setSupportMsgText(text); setSupportFile(file); setSendingSupport(false); return; }
+      }
+      await sendSupportMessage(activeTicket.id, user.uid, profile.displayName || 'Support', text, true, attachment);
     } catch {
       toast.error('Failed to send');
       setSupportMsgText(text);
+      setSupportFile(file);
     } finally {
       setSendingSupport(false);
     }
@@ -3468,7 +3480,13 @@ function AdminPageInner() {
                       {(membershipPlans.filter(p => p.active).length > 0 || coachingPlans.filter(p => p.active).length > 0) && (
                         <div className="flex items-center gap-2 pl-11">
                           <select
-                            className="flex-1 bg-surface border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent/50"
+                            // min-w-0 is load-bearing: a flex item's default
+                            // min-width:auto means this select refuses to
+                            // shrink below its widest OPTION's text ("1:1
+                            // Personal Coaching — USD 299.00/mo"), which
+                            // pushed the "Remove plan" button clean off the
+                            // right edge of the screen on mobile.
+                            className="flex-1 min-w-0 bg-surface border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent/50"
                             defaultValue=""
                             onChange={async (e) => {
                               const pid = e.target.value;
@@ -3590,7 +3608,8 @@ function AdminPageInner() {
                 supportMessages.map((m) => (
                   <div key={m.id} className={`flex ${m.isFromAdmin ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${m.isFromAdmin ? 'bg-accent text-black' : 'bg-surface-elevated text-white'}`}>
-                      <p className="text-sm whitespace-pre-wrap break-words">{m.content}</p>
+                      {m.content && <p className="text-sm whitespace-pre-wrap break-words">{m.content}</p>}
+                      <MessageAttachment message={m} />
                     </div>
                   </div>
                 ))
@@ -3605,18 +3624,29 @@ function AdminPageInner() {
                 </p>
               </div>
             ) : (
-              <div className="flex gap-2 pt-3 border-t border-white/8 mt-3">
-                <input
-                  value={supportMsgText}
-                  onChange={e => setSupportMsgText(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendSupport(); } }}
-                  placeholder="Reply to this request…"
-                  aria-label="Reply"
-                  className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-                />
-                <Button onClick={handleSendSupport} loading={sendingSupport} disabled={!supportMsgText.trim()}>
-                  <Send className="w-4 h-4" />
-                </Button>
+              <div className="pt-3 border-t border-white/8 mt-3 space-y-2">
+                {supportFile && (
+                  <PendingAttachment
+                    file={supportFile}
+                    uploading={supportUploading}
+                    progress={supportProgress}
+                    onClear={() => setSupportFile(null)}
+                  />
+                )}
+                <div className="flex gap-2">
+                  <AttachButton onPick={setSupportFile} disabled={sendingSupport || supportUploading} />
+                  <input
+                    value={supportMsgText}
+                    onChange={e => setSupportMsgText(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendSupport(); } }}
+                    placeholder="Reply to this request…"
+                    aria-label="Reply"
+                    className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                  />
+                  <Button onClick={handleSendSupport} loading={sendingSupport || supportUploading} disabled={!supportMsgText.trim() && !supportFile}>
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -4616,7 +4646,14 @@ function AdminPageInner() {
                   <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.pwaInstallBannerEnabled ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              {/* Three columns only once there's room for them. On a phone
+                  these were three ~100px cells whose labels wrapped to
+                  different line counts ("Barcode Scans / Day" over two lines,
+                  "Meal Ideas / Day" over one), which left the three number
+                  inputs sitting at three different heights. items-end keeps
+                  the inputs on one baseline at sm+ even if a label still
+                  wraps at some width. */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                 <div>
                   <label className="text-xs text-text-secondary mb-1 block">Barcode Scans / Day</label>
                   <input

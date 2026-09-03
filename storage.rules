@@ -41,6 +41,19 @@ service firebase.storage {
       allow write: if isAuthed() && request.auth.uid == userId;
     }
 
+    // Support request attachments — screenshots and short screen recordings
+    // uploaded from the support form (see uploadUserContent(..., 'support')).
+    // Read is left at isAuthed() rather than being scoped to the uploader,
+    // because staff have to be able to open the screenshot that was sent to
+    // them; write stays scoped to the uploader's own uid like everything
+    // else in this file. Note this means an attachment URL is readable by
+    // any signed-in account that has it — the same posture as community and
+    // prPosts uploads, so don't treat these as private documents.
+    match /support/{userId}/{allPaths=**} {
+      allow read: if isAuthed();
+      allow write: if isAuthed() && request.auth.uid == userId;
+    }
+
     // App branding (logo) — must be publicly readable since it shows on
     // login/register pages before the visitor is authenticated
     match /branding/{allPaths=**} {

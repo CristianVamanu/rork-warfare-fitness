@@ -12,6 +12,14 @@ interface ModalProps {
   children: React.ReactNode;
   className?: string;
   /**
+   * Actions pinned below the scrolling body (Cancel / Submit and friends).
+   * Optional — a modal that passes its buttons as part of `children` still
+   * works exactly as before. Worth using on any form long enough to scroll:
+   * inside the body, the submit button sits at the far end of the scroll and
+   * on a phone is easy to mistake for cut-off page content.
+   */
+  footer?: React.ReactNode;
+  /**
    * Whether tapping the dimmed backdrop closes the modal. Default true. Set
    * false for content the user should finish or deliberately dismiss (e.g.
    * a welcome video), where a stray tap anywhere on a phone screen would
@@ -22,7 +30,7 @@ interface ModalProps {
 
 const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-export function Modal({ open, onClose, title, children, className, dismissOnOverlay = true }: ModalProps) {
+export function Modal({ open, onClose, title, children, className, footer, dismissOnOverlay = true }: ModalProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   // Where focus was before the modal opened, so closing puts it back —
@@ -121,7 +129,15 @@ export function Modal({ open, onClose, title, children, className, dismissOnOver
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            style={{ boxShadow: 'var(--shadow-modal)' }}
+            // dvh, not vh. On iOS Safari `vh` measures the LARGE viewport —
+            // the one you'd have if the URL bar and bottom toolbar weren't
+            // there — so `top-[5vh] max-h-[90vh]` put the bottom of this
+            // panel underneath Safari's own chrome. On a long form that is
+            // exactly where the submit button lives, and it read as a
+            // broken, half-cut modal with the page showing through beneath
+            // it. The Tailwind vh classes stay as the fallback for browsers
+            // without dvh support, which drop these two declarations.
+            style={{ boxShadow: 'var(--shadow-modal)', top: '4dvh', maxHeight: '92dvh' }}
             className={cn(
               'fixed inset-x-4 top-[5vh] z-50 max-w-lg mx-auto bg-surface-elevated border border-border rounded-2xl flex flex-col outline-none',
               'max-h-[90vh]',
@@ -139,7 +155,18 @@ export function Modal({ open, onClose, title, children, className, dismissOnOver
                 <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
-            <div data-modal-body className="p-5 overflow-y-auto flex-1">{children}</div>
+            <div data-modal-body className="p-5 overflow-y-auto flex-1 overscroll-contain">{children}</div>
+            {footer && (
+              // flex-shrink-0 so it always keeps its height and the body
+              // gives way instead — the actions must never be the thing that
+              // gets squeezed out of a short viewport.
+              <div
+                className="flex-shrink-0 border-t border-border p-4"
+                style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+              >
+                {footer}
+              </div>
+            )}
           </motion.div>
         </>
       )}

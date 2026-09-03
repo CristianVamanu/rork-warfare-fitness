@@ -17,6 +17,12 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Skeleton } from '@/components/ui/Skeleton';
+import {
+  useSupportUpload,
+  AttachButton,
+  PendingAttachment,
+  MessageAttachment,
+} from '@/components/support/SupportAttachment';
 import type { SupportTicket, SupportTicketStatus, Message } from '@/types';
 
 const STATUS_STYLES: Record<SupportTicketStatus, { label: string; className: string }> = {
@@ -48,6 +54,12 @@ export default function SupportPage() {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // Staged files — held locally and only uploaded on send, so cancelling the
+  // composer never leaves an orphaned object in the bucket.
+  const [newTicketFile, setNewTicketFile] = useState<File | null>(null);
+  const [replyFile, setReplyFile] = useState<File | null>(null);
+  const { upload, uploading, progress } = useSupportUpload();
 
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -87,16 +99,26 @@ export default function SupportPage() {
     if (!user || !profile || !subject.trim() || !body.trim()) return;
     setCreating(true);
     try {
+      // Upload first: if the attachment fails, the member still has their
+      // typed request in front of them rather than a ticket that silently
+      // lost the screenshot they were trying to send.
+      let attachment = null;
+      if (newTicketFile) {
+        attachment = await upload(user, newTicketFile);
+        if (!attachment) { setCreating(false); return; }
+      }
       const id = await createSupportTicket(
         user.uid,
         profile.displayName || 'Member',
         profile.email || '',
         subject.trim(),
-        body.trim()
+        body.trim(),
+        attachment
       );
       setComposerOpen(false);
       setSubject('');
       setBody('');
+      setNewTicketFile(null);
       setActiveId(id);
       toast.success('Support request sent');
     } catch {
@@ -107,17 +129,28 @@ export default function SupportPage() {
   }
 
   async function handleSend() {
-    if (!activeTicket || !msgText.trim() || !user || !profile || isResolved) return;
+    if (!activeTicket || !user || !profile || isResolved) return;
+    // An attachment on its own is a valid message — a screenshot often says
+    // more than the sentence someone would have typed next to it.
+    if (!msgText.trim() && !replyFile) return;
     setSending(true);
     const text = msgText.trim();
+    const file = replyFile;
     setMsgText('');
+    setReplyFile(null);
     try {
-      await sendSupportMessage(activeTicket.id, user.uid, profile.displayName || 'Member', text, false);
+      let attachment = null;
+      if (file) {
+        attachment = await upload(user, file);
+        if (!attachment) { setMsgText(text); setReplyFile(file); setSending(false); return; }
+      }
+      await sendSupportMessage(activeTicket.id, user.uid, profile.displayName || 'Member', text, false, attachment);
     } catch {
       // The rules reject a send on a resolved ticket, so this is also the
       // path taken if support closed the thread a moment before this send.
       toast.error('Could not send. This request may have been resolved.');
       setMsgText(text);
+      setReplyFile(file);
     } finally {
       setSending(false);
     }
@@ -156,7 +189,8 @@ export default function SupportPage() {
                       {m.isFromAdmin && (
                         <p className="text-[10px] font-bold uppercase tracking-wide text-accent mb-0.5">Support</p>
                       )}
-                      <p className="text-sm whitespace-pre-wrap break-words">{m.content}</p>
+                      {m.content && <p className="text-sm whitespace-pre-wrap break-words">{m.content}</p>}
+                      <MessageAttachment message={m} />
                     </div>
                   </div>
                 ))
@@ -180,18 +214,29 @@ export default function SupportPage() {
                 </Button>
               </div>
             ) : (
-              <div className="flex gap-2 pt-3 border-t border-white/8 mt-3">
-                <input
-                  value={msgText}
-                  onChange={e => setMsgText(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                  placeholder="Write a message…"
-                  aria-label="Message"
-                  className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-                />
-                <Button onClick={handleSend} loading={sending} disabled={!msgText.trim()}>
-                  <Send className="w-4 h-4" />
-                </Button>
+              <div className="pt-3 border-t border-white/8 mt-3 space-y-2">
+                {replyFile && (
+                  <PendingAttachment
+                    file={replyFile}
+                    uploading={uploading}
+                    progress={progress}
+                    onClear={() => setReplyFile(null)}
+                  />
+                )}
+                <div className="flex gap-2">
+                  <AttachButton onPick={setReplyFile} disabled={sending || uploading} />
+                  <input
+                    value={msgText}
+                    onChange={e => setMsgText(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                    placeholder="Write a message…"
+                    aria-label="Message"
+                    className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                  />
+                  <Button onClick={handleSend} loading={sending || uploading} disabled={!msgText.trim() && !replyFile}>
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -240,7 +285,26 @@ export default function SupportPage() {
         )}
       </div>
 
-      <Modal open={composerOpen} onClose={() => setComposerOpen(false)} title="New Support Request">
+      <Modal
+        open={composerOpen}
+        onClose={() => setComposerOpen(false)}
+        title="New Support Request"
+        footer={
+          <div className="flex gap-3">
+            <Button variant="ghost" className="flex-1 min-w-0" onClick={() => { setComposerOpen(false); setNewTicketFile(null); }}>
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 min-w-0"
+              loading={creating || uploading}
+              disabled={!subject.trim() || !body.trim()}
+              onClick={handleCreate}
+            >
+              Send
+            </Button>
+          </div>
+        }
+      >
         <div className="space-y-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="support-subject" className="text-sm font-medium text-text-secondary">What&apos;s it about?</label>
@@ -267,11 +331,21 @@ export default function SupportPage() {
               className="w-full border rounded-xl px-4 py-3 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/40 transition-all resize-none"
             />
           </div>
-          <div className="flex gap-3">
-            <Button variant="ghost" fullWidth onClick={() => setComposerOpen(false)}>Cancel</Button>
-            <Button fullWidth loading={creating} disabled={!subject.trim() || !body.trim()} onClick={handleCreate}>
-              Send Request
-            </Button>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <AttachButton onPick={setNewTicketFile} disabled={creating || uploading} />
+              <p className="text-xs text-text-tertiary">
+                Attach a screenshot or screen recording — optional, up to 20MB.
+              </p>
+            </div>
+            {newTicketFile && (
+              <PendingAttachment
+                file={newTicketFile}
+                uploading={uploading}
+                progress={progress}
+                onClear={() => setNewTicketFile(null)}
+              />
+            )}
           </div>
         </div>
       </Modal>

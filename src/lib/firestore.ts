@@ -1697,13 +1697,26 @@ function sortByLastMessage<T extends { lastMessageAt?: unknown }>(docs: T[]): T[
   });
 }
 
+export interface SupportAttachment {
+  url: string;
+  name: string;
+  type: string;
+}
+
+// Firestore rejects a document containing an `undefined` value outright, so
+// an absent attachment has to be an omitted key rather than an undefined one.
+function attachmentFields(a?: SupportAttachment | null) {
+  return a ? { attachmentUrl: a.url, attachmentName: a.name, attachmentType: a.type } : {};
+}
+
 /** Opens a ticket and posts its first message in one go. Returns the ticket id. */
 export async function createSupportTicket(
   userId: string,
   userDisplayName: string,
   userEmail: string,
   subject: string,
-  firstMessage: string
+  firstMessage: string,
+  attachment?: SupportAttachment | null
 ): Promise<string> {
   const ref = await addDoc(collection(db, 'supportTickets'), {
     userId,
@@ -1723,6 +1736,7 @@ export async function createSupportTicket(
     content: firstMessage,
     isFromAdmin: false,
     createdAt: serverTimestamp(),
+    ...attachmentFields(attachment),
   });
   return ref.id;
 }
@@ -1760,7 +1774,8 @@ export async function sendSupportMessage(
   senderId: string,
   senderName: string,
   content: string,
-  isFromAdmin: boolean
+  isFromAdmin: boolean,
+  attachment?: SupportAttachment | null
 ) {
   await addDoc(collection(db, 'supportTickets', ticketId, 'messages'), {
     senderId,
@@ -1768,9 +1783,12 @@ export async function sendSupportMessage(
     content,
     isFromAdmin,
     createdAt: serverTimestamp(),
+    ...attachmentFields(attachment),
   });
   await updateDoc(doc(db, 'supportTickets', ticketId), {
-    lastMessage: content,
+    // An attachment-only message would otherwise leave the list preview
+    // showing the previous message's text, which reads as "nothing happened".
+    lastMessage: content || (attachment ? `📎 ${attachment.name}` : ''),
     lastMessageAt: serverTimestamp(),
     // An admin reply moves a brand-new ticket to 'ongoing' on its own, so
     // staff don't have to remember to flip a dropdown to reflect what they

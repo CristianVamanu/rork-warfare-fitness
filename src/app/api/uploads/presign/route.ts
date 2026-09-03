@@ -16,7 +16,15 @@ import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getR2Client, r2PublicUrl } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
 
-const ALLOWED_ROOTS = ['prPosts', 'progressPhotos', 'community'];
+const ALLOWED_ROOTS = ['prPosts', 'progressPhotos', 'community', 'support'];
+
+// Per-root size ceilings. A support attachment is a screenshot or a short
+// screen recording of a bug, not lift footage — 20MB covers that with room
+// to spare, and keeps a support form from becoming the cheapest way to push
+// 200MB files into the bucket.
+const ROOT_MAX_SIZE_BYTES: Record<string, number> = {
+  support: 20 * 1024 * 1024,
+};
 // PR posts legitimately need video (lift proof), everything else here is
 // images — but nothing previously restricted contentType at all, so any
 // signed-in user could presign a PUT for e.g. text/html or SVG-with-script
@@ -49,11 +57,13 @@ export async function POST(req: NextRequest) {
     if (!contentType || typeof contentType !== 'string' || !ALLOWED_CONTENT_TYPE.test(contentType) || DISALLOWED_CONTENT_TYPE.test(contentType)) {
       return NextResponse.json({ error: 'Only image or video uploads are allowed' }, { status: 400 });
     }
-    if (typeof sizeBytes !== 'number' || sizeBytes <= 0 || sizeBytes > MAX_SIZE_BYTES) {
-      return NextResponse.json({ error: `File must be under ${MAX_SIZE_BYTES / (1024 * 1024)}MB` }, { status: 400 });
+    // Resolved before the size check, because the ceiling is per-root.
+    const safeRoot = typeof root === 'string' && ALLOWED_ROOTS.includes(root) ? root : ALLOWED_ROOTS[0];
+    const maxBytes = ROOT_MAX_SIZE_BYTES[safeRoot] ?? MAX_SIZE_BYTES;
+    if (typeof sizeBytes !== 'number' || sizeBytes <= 0 || sizeBytes > maxBytes) {
+      return NextResponse.json({ error: `File must be under ${maxBytes / (1024 * 1024)}MB` }, { status: 400 });
     }
 
-    const safeRoot = typeof root === 'string' && ALLOWED_ROOTS.includes(root) ? root : ALLOWED_ROOTS[0];
     const safeName = filename.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
     const key = `${safeRoot}/${check.uid}/${Date.now()}_${safeName}`;
 
