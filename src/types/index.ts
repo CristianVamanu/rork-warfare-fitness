@@ -813,6 +813,32 @@ export interface Message {
   createdAt: unknown;
 }
 
+// ── Support tickets ────────────────────────────────────────────────────────
+// Deliberately a separate collection from `conversations` rather than a flag
+// on it. A conversation is a staff-initiated coach DM that no member may ever
+// create (see firestore.rules); a support ticket is the exact opposite — the
+// member opens it, and it carries a lifecycle (pending → ongoing → resolved)
+// that a DM has no concept of. Folding the two together would have meant
+// loosening the conversations create rule for everyone, which is the one rule
+// standing between this app and member-to-member messaging.
+export type SupportTicketStatus = 'pending' | 'ongoing' | 'resolved';
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  userDisplayName: string;
+  userEmail: string;
+  subject: string;
+  status: SupportTicketStatus;
+  lastMessage: string;
+  lastMessageAt: unknown;
+  createdAt: unknown;
+  unreadByUser: boolean;
+  unreadByAdmin: boolean;
+  resolvedAt?: unknown;
+  resolvedBy?: string;
+}
+
 export interface NutritionAnalysis {
   name: string;
   calories: number;

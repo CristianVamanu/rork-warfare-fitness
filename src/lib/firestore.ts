@@ -1677,6 +1677,131 @@ export async function markConversationRead(convId: string, isAdmin: boolean) {
 }
 
 // ---------------------------------------------------------------------------
+// Support tickets — member-initiated, unlike conversations above.
+//
+// The whole lifecycle lives on the ticket doc: 'pending' the moment a member
+// opens it, 'ongoing' once staff engage, 'resolved' when it's done. Resolved
+// is a real lock, not a label — firestore.rules refuses message creates on a
+// resolved ticket, so hiding the composer client-side is a convenience rather
+// than the enforcement.
+// ---------------------------------------------------------------------------
+import type { SupportTicket, SupportTicketStatus } from '@/types';
+
+const SUPPORT_TICKETS_LIMIT = 200;
+
+function sortByLastMessage<T extends { lastMessageAt?: unknown }>(docs: T[]): T[] {
+  return docs.sort((a, b) => {
+    const ta = (a.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+    const tb = (b.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+    return tb - ta;
+  });
+}
+
+/** Opens a ticket and posts its first message in one go. Returns the ticket id. */
+export async function createSupportTicket(
+  userId: string,
+  userDisplayName: string,
+  userEmail: string,
+  subject: string,
+  firstMessage: string
+): Promise<string> {
+  const ref = await addDoc(collection(db, 'supportTickets'), {
+    userId,
+    userDisplayName,
+    userEmail,
+    subject,
+    status: 'pending' as SupportTicketStatus,
+    lastMessage: firstMessage,
+    lastMessageAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+    unreadByUser: false,
+    unreadByAdmin: true,
+  });
+  await addDoc(collection(db, 'supportTickets', ref.id, 'messages'), {
+    senderId: userId,
+    senderName: userDisplayName,
+    content: firstMessage,
+    isFromAdmin: false,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export function subscribeUserSupportTickets(userId: string, onUpdate: (tickets: SupportTicket[]) => void): () => void {
+  const q = query(collection(db, 'supportTickets'), where('userId', '==', userId));
+  return onSnapshot(q, (snap) => {
+    onUpdate(sortByLastMessage(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SupportTicket))));
+  }, (err) => console.error('[Firestore] subscribeUserSupportTickets error:', err));
+}
+
+// Admin-side: every ticket in the system. Capped and sorted client-side for
+// the same reason the conversation lists are — it keeps this off a composite
+// index that would otherwise have to be deployed before the tab worked at all.
+export function subscribeAllSupportTickets(onUpdate: (tickets: SupportTicket[]) => void): () => void {
+  const q = query(collection(db, 'supportTickets'), limit(SUPPORT_TICKETS_LIMIT));
+  return onSnapshot(q, (snap) => {
+    onUpdate(sortByLastMessage(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SupportTicket))));
+  }, (err) => console.error('[Firestore] subscribeAllSupportTickets error:', err));
+}
+
+export function subscribeSupportMessages(ticketId: string, onUpdate: (messages: Message[]) => void): () => void {
+  const q = query(
+    collection(db, 'supportTickets', ticketId, 'messages'),
+    orderBy('createdAt', 'desc'),
+    limit(MESSAGES_PAGE_SIZE)
+  );
+  return onSnapshot(q, (snap) => {
+    onUpdate(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)).reverse());
+  }, (err) => console.error('[Firestore] subscribeSupportMessages error:', err));
+}
+
+export async function sendSupportMessage(
+  ticketId: string,
+  senderId: string,
+  senderName: string,
+  content: string,
+  isFromAdmin: boolean
+) {
+  await addDoc(collection(db, 'supportTickets', ticketId, 'messages'), {
+    senderId,
+    senderName,
+    content,
+    isFromAdmin,
+    createdAt: serverTimestamp(),
+  });
+  await updateDoc(doc(db, 'supportTickets', ticketId), {
+    lastMessage: content,
+    lastMessageAt: serverTimestamp(),
+    // An admin reply moves a brand-new ticket to 'ongoing' on its own, so
+    // staff don't have to remember to flip a dropdown to reflect what they
+    // just visibly did. An already-resolved ticket can't be replied to at
+    // all (rules), so there's no risk of this reopening one by accident.
+    ...(isFromAdmin ? { unreadByUser: true, status: 'ongoing' as SupportTicketStatus } : { unreadByAdmin: true }),
+  });
+}
+
+export async function setSupportTicketStatus(ticketId: string, status: SupportTicketStatus, adminUid: string) {
+  await updateDoc(doc(db, 'supportTickets', ticketId), {
+    status,
+    ...(status === 'resolved'
+      ? { resolvedAt: serverTimestamp(), resolvedBy: adminUid }
+      : { resolvedAt: null, resolvedBy: null }),
+  });
+}
+
+export async function deleteSupportTicket(ticketId: string) {
+  const msgs = await getDocs(collection(db, 'supportTickets', ticketId, 'messages'));
+  await Promise.all(msgs.docs.map((d) => deleteDoc(d.ref)));
+  await deleteDoc(doc(db, 'supportTickets', ticketId));
+}
+
+export async function markSupportTicketRead(ticketId: string, isAdmin: boolean) {
+  await updateDoc(doc(db, 'supportTickets', ticketId), {
+    ...(isAdmin ? { unreadByAdmin: false } : { unreadByUser: false }),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------
 import type { AppNotification, NotificationConfig } from '@/types';
@@ -2529,6 +2654,16 @@ export async function rejectCoachingApplication(app: CoachingApplication, review
       : `Thanks for applying, ${app.userName}. We're not able to take you on for 1:1 coaching right now — keep crushing your training and feel free to re-apply later.`,
     type: 'coaching_rejected',
   });
+}
+
+// Removes the application outright. Note this genuinely frees the applicant
+// to apply again — submitCoachingApplication() blocks a second submission by
+// looking for an existing doc (see getUserCoachingApplication above), so
+// deleting a rejected application is also how you let someone re-apply
+// without waiting. No notification is sent: to the applicant this is a
+// record being cleared, not a decision being made.
+export async function deleteCoachingApplication(appId: string): Promise<void> {
+  await deleteDoc(doc(db, 'coachingApplications', appId));
 }
 
 export async function getUserLastPostInChannel(channelId: string, userId: string): Promise<Date | null> {

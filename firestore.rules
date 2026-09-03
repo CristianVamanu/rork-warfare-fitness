@@ -433,6 +433,74 @@ service cloud.firestore {
       }
     }
 
+    // ── Support tickets — member-initiated, admin-resolved ────────────────
+    // The mirror image of /conversations above: there, only staff may create
+    // and a member may merely reply. Here the member opens the ticket. That
+    // asymmetry is why this is its own collection — relaxing the
+    // conversations create rule to cover support would also have opened the
+    // door to member-to-member messaging, which this model has never had.
+    match /supportTickets/{ticketId} {
+      allow read: if isAuthed() && notTfaPending() && (
+        resource.data.userId == uid() || isAdmin()
+      );
+
+      // A member opens their own ticket, and may only open it in the state a
+      // new ticket is supposed to be in — writing status:'resolved' straight
+      // out of the gate would create a thread nobody can ever post to.
+      allow create: if isAuthed() && notTfaPending()
+        && request.resource.data.userId == uid()
+        && request.resource.data.status == 'pending';
+
+      // Admins may change anything on the ticket (status included).
+      // The member may only touch the bookkeeping fields that sending a
+      // message updates — never `status`, which is what stops someone
+      // reopening a ticket staff have closed. Note that Firestore merge
+      // writes make request.resource.data the MERGED result, so the
+      // affectedKeys diff is the only sound way to express "these fields
+      // only".
+      allow update: if isAuthed() && notTfaPending() && (
+        isAdmin() ||
+        (
+          resource.data.userId == uid()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['lastMessage', 'lastMessageAt', 'unreadByAdmin', 'unreadByUser'])
+          && resource.data.status != 'resolved'
+        )
+      );
+
+      // Deleting a ticket is an admin action only. A member deleting their
+      // own support history would destroy the other half of a record staff
+      // may still need — unlike a coach DM, which either side may clear.
+      allow delete: if isAdmin() && notTfaPending();
+
+      match /messages/{msgId} {
+        allow read: if isAuthed() && notTfaPending() && (
+          get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == uid() ||
+          isAdmin()
+        );
+
+        // The resolved lock, enforced for BOTH sides. Hiding the composer in
+        // the UI is a courtesy; this is the part that actually holds when
+        // someone replays the write from a console. isFromAdmin must match
+        // the caller's real role for the same reason it does on
+        // conversations — otherwise a member could have their own message
+        // rendered as an official support reply.
+        allow create: if isAuthed() && notTfaPending()
+          && request.resource.data.senderId == uid()
+          && request.resource.data.isFromAdmin == isAdmin()
+          && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'resolved'
+          && (
+            isAdmin() ||
+            get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == uid()
+          );
+
+        allow update: if false;
+        // Only fires as part of deleteSupportTicket() clearing the
+        // subcollection ahead of the parent doc — admin-only, to match.
+        allow delete: if isAdmin() && notTfaPending();
+      }
+    }
+
     // ── Legacy collections — read + delete only ───────────────────────────
     // No new creates or updates. Delete allowed so UI delete buttons still
     // work on pre-migration docs before events are backfilled.

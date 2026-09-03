@@ -21,7 +21,14 @@ import type { MembershipConfig, MembershipPlan, PlanBillingPeriodMonths } from '
 // exempt would let a brand-new signup wander the dashboard shell forever
 // without ever having to check out — the entire point of copying
 // MadMuscles' funnel is a hard paywall right after the quiz.
-const ALWAYS_FREE_PATHS = ['/settings', '/messages', '/notifications', '/profile', '/banned', '/onboarding', '/goals'];
+//
+// /support is unconditionally free for the same reason /settings is, only
+// more so: the people most likely to need it are the ones this guard is
+// actively blocking — a failed payment, a subscription that didn't activate,
+// a trial that ended early. The locked screen below literally tells them to
+// "contact support", so putting support behind the lock would have made that
+// instruction impossible to follow.
+const ALWAYS_FREE_PATHS = ['/settings', '/messages', '/support', '/notifications', '/profile', '/banned', '/onboarding', '/goals'];
 
 interface Props {
   pathname: string;

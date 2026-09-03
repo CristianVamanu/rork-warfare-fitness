@@ -2,17 +2,39 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { subscribeUserConversations, subscribeAdminConversations, getUnreadNotificationCount, getSystemConfig } from '@/lib/firestore';
+import {
+  subscribeUserConversations,
+  subscribeAdminConversations,
+  subscribeUserSupportTickets,
+  subscribeAllSupportTickets,
+  getUnreadNotificationCount,
+  getSystemConfig,
+} from '@/lib/firestore';
 
 interface HeaderData {
   hasConversation: boolean;
   unreadMessages: number;
   unreadNotifs: number;
+  // Support is surfaced as its own header entry rather than being folded into
+  // unreadMessages, because the two go to different places: a coach DM opens
+  // /messages, a support thread opens /support (and, for staff, the admin
+  // Support tab). Merging the counts would have made one badge that couldn't
+  // say where to click.
+  hasSupportTicket: boolean;
+  unreadSupport: number;
   logoUrl: string | null;
   appName: string;
 }
 
-const defaultData: HeaderData = { hasConversation: false, unreadMessages: 0, unreadNotifs: 0, logoUrl: null, appName: 'Warfare Fitness' };
+const defaultData: HeaderData = {
+  hasConversation: false,
+  unreadMessages: 0,
+  unreadNotifs: 0,
+  hasSupportTicket: false,
+  unreadSupport: 0,
+  logoUrl: null,
+  appName: 'Warfare Fitness',
+};
 
 const HeaderDataCtx = createContext<HeaderData>(defaultData);
 
@@ -46,6 +68,8 @@ export function HeaderDataProvider({ children }: { children: React.ReactNode }) 
   const [hasConversation, setHasConversation] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [hasSupportTicket, setHasSupportTicket] = useState(false);
+  const [unreadSupport, setUnreadSupport] = useState(0);
   const [{ logoUrl: cachedLogoUrl, appName: cachedAppName }] = useState(readCachedBranding);
   const [logoUrl, setLogoUrl] = useState<string | null>(cachedLogoUrl);
   const [appName, setAppName] = useState<string>(cachedAppName);
@@ -90,6 +114,24 @@ export function HeaderDataProvider({ children }: { children: React.ReactNode }) 
     return unsub;
   }, [user, isAdmin, blockedFromReads]);
 
+  // Support tickets. An admin watches every ticket in the system (that's the
+  // "a user submitted a support request" signal in the header); a member
+  // watches only their own, which is what makes the icon appear the moment
+  // they submit their first one.
+  useEffect(() => {
+    if (!user || blockedFromReads) { setHasSupportTicket(false); setUnreadSupport(0); return; }
+    if (isAdmin) {
+      return subscribeAllSupportTickets((tickets) => {
+        setHasSupportTicket(true);
+        setUnreadSupport(tickets.filter(t => t.unreadByAdmin && t.status !== 'resolved').length);
+      });
+    }
+    return subscribeUserSupportTickets(user.uid, (tickets) => {
+      setHasSupportTicket(tickets.length > 0);
+      setUnreadSupport(tickets.filter(t => t.unreadByUser).length);
+    });
+  }, [user, isAdmin, blockedFromReads]);
+
   useEffect(() => {
     if (!user || blockedFromReads) { setUnreadNotifs(0); return; }
     let cancelled = false;
@@ -104,7 +146,7 @@ export function HeaderDataProvider({ children }: { children: React.ReactNode }) 
   }, [user, blockedFromReads]);
 
   return (
-    <HeaderDataCtx.Provider value={{ hasConversation, unreadMessages, unreadNotifs, logoUrl, appName }}>
+    <HeaderDataCtx.Provider value={{ hasConversation, unreadMessages, unreadNotifs, hasSupportTicket, unreadSupport, logoUrl, appName }}>
       {children}
     </HeaderDataCtx.Provider>
   );

@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp } from 'lucide-react';
+import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -660,6 +660,24 @@ export default function ProfilePage() {
             </Link>
           </motion.div>
         )}
+
+        {/* Support — always shown, unlike Messages above. A member with no
+            support history is exactly the person who needs to be able to find
+            this, so gating it on having already used it would defeat it. */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.185 }}>
+          <Link href="/support">
+            <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+              <div className="p-2 bg-blue-400/10 rounded-lg">
+                <LifeBuoy className="w-4 h-4 text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-white">Message Support</p>
+                <p className="text-xs text-text-secondary">Question, billing issue, or a bug? Tell us.</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-tertiary" />
+            </Card>
+          </Link>
+        </motion.div>
 
         {/* Appearance */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.19 }}>

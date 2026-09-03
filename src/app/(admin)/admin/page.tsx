@@ -9,6 +9,7 @@ import {
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
   Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail, Star,
+  LifeBuoy,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -28,7 +29,9 @@ import {
   getExerciseVideos, saveExerciseVideo, deleteExerciseVideo, updateExerciseVideoThumbnail,
   getExerciseTaxonomy, saveExerciseTaxonomy,
   assignNutritionPlan,
-  getCoachingApplications, approveCoachingApplication, rejectCoachingApplication,
+  getCoachingApplications, approveCoachingApplication, rejectCoachingApplication, deleteCoachingApplication,
+  subscribeAllSupportTickets, subscribeSupportMessages, sendSupportMessage,
+  setSupportTicketStatus, deleteSupportTicket, markSupportTicketRead,
   getProgressPhotos, getUserWorkouts,
   createGoal, getClientGoals, setGoalStatus, deleteGoal,
   getTrainerLeads, updateTrainerLeadStatus,
@@ -44,11 +47,25 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, TrainerLead, LandingLead } from '@/types';
+import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, TrainerLead, LandingLead, SupportTicket, SupportTicketStatus } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
 import { getPlanBillingPeriods, getYouTubeEmbedUrl } from '@/lib/utils';
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'settings';
+const SUPPORT_STATUS_STYLES: Record<SupportTicketStatus, string> = {
+  pending: 'bg-yellow-400/10 text-yellow-400',
+  ongoing: 'bg-accent/10 text-accent',
+  resolved: 'bg-success/10 text-success',
+};
+
+function SupportStatusPill({ status }: { status: SupportTicketStatus }) {
+  return (
+    <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full whitespace-nowrap ${SUPPORT_STATUS_STYLES[status] ?? SUPPORT_STATUS_STYLES.pending}`}>
+      {status}
+    </span>
+  );
+}
+
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'settings';
 
 // Shared by both plan editors (CoachingPlan's Tool Access and
 // MembershipPlan's Tool Access) — feature ids here must match what
@@ -241,7 +258,7 @@ function AdminPageInner() {
   const { user, profile, tenant } = useAuth();
   const [tab, setTab] = useState<Tab>(() => {
     const t = searchParams.get('tab');
-    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'community', 'notifications', 'membership', 'coaching', 'library', 'analytics', 'integrations', 'leads', 'settings'];
+    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'support', 'community', 'notifications', 'membership', 'coaching', 'library', 'analytics', 'integrations', 'leads', 'settings'];
     return (valid as string[]).includes(t ?? '') ? (t as Tab) : 'overview';
   });
 
@@ -265,6 +282,96 @@ function AdminPageInner() {
   const [msgText, setMsgText] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // ── Support state ──────────────────────────────────────────────────────────
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [supportLoading, setSupportLoading] = useState(true);
+  const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
+  const [supportMessages, setSupportMessages] = useState<Message[]>([]);
+  const [supportMsgLoading, setSupportMsgLoading] = useState(false);
+  const [supportMsgText, setSupportMsgText] = useState('');
+  const [sendingSupport, setSendingSupport] = useState(false);
+  const [supportFilter, setSupportFilter] = useState<SupportTicketStatus | 'all'>('all');
+  const [updatingTicket, setUpdatingTicket] = useState<string | null>(null);
+  const supportEndRef = useRef<HTMLDivElement>(null);
+
+  // Derived from the live list rather than stored, so a status change is
+  // reflected in the open thread (and its composer) without a refetch.
+  const activeTicket = supportTickets.find(t => t.id === activeTicketId) ?? null;
+
+  // Subscribed unconditionally rather than on tab entry: this is what powers
+  // the unread count on the Support tab label, which has to be right before
+  // the admin ever opens the tab.
+  useEffect(() => {
+    const unsub = subscribeAllSupportTickets((list) => {
+      setSupportTickets(list);
+      setSupportLoading(false);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    if (!activeTicketId) { setSupportMessages([]); return; }
+    setSupportMsgLoading(true);
+    const unsub = subscribeSupportMessages(activeTicketId, (msgs) => {
+      setSupportMessages(msgs);
+      setSupportMsgLoading(false);
+      setTimeout(() => supportEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    });
+    return unsub;
+  }, [activeTicketId]);
+
+  function openTicket(t: SupportTicket) {
+    setActiveTicketId(t.id);
+    if (t.unreadByAdmin) markSupportTicketRead(t.id, true).catch(() => {});
+  }
+
+  async function handleSendSupport() {
+    if (!activeTicket || !supportMsgText.trim() || !user || !profile) return;
+    setSendingSupport(true);
+    const text = supportMsgText.trim();
+    setSupportMsgText('');
+    try {
+      await sendSupportMessage(activeTicket.id, user.uid, profile.displayName || 'Support', text, true);
+    } catch {
+      toast.error('Failed to send');
+      setSupportMsgText(text);
+    } finally {
+      setSendingSupport(false);
+    }
+  }
+
+  async function handleTicketStatus(t: SupportTicket, status: SupportTicketStatus) {
+    if (!user) return;
+    setUpdatingTicket(t.id);
+    try {
+      await setSupportTicketStatus(t.id, status, user.uid);
+      toast.success(status === 'resolved' ? 'Marked resolved — the member can no longer reply' : `Marked ${status}`);
+    } catch {
+      toast.error('Could not update status');
+    } finally {
+      setUpdatingTicket(null);
+    }
+  }
+
+  async function handleDeleteTicket(t: SupportTicket) {
+    if (!confirm(`Delete this support request from ${t.userDisplayName}? The whole conversation goes with it and this cannot be undone.`)) return;
+    setUpdatingTicket(t.id);
+    try {
+      await deleteSupportTicket(t.id);
+      if (activeTicketId === t.id) setActiveTicketId(null);
+      toast.success('Support request deleted');
+    } catch {
+      toast.error('Could not delete');
+    } finally {
+      setUpdatingTicket(null);
+    }
+  }
+
+  const filteredTickets = supportFilter === 'all'
+    ? supportTickets
+    : supportTickets.filter(t => t.status === supportFilter);
+  const unresolvedSupport = supportTickets.filter(t => t.unreadByAdmin && t.status !== 'resolved').length;
 
   // Live messages for whichever conversation the admin has open — a
   // client's incoming message now appears immediately instead of only on
@@ -355,6 +462,7 @@ function AdminPageInner() {
   // ── Coaching applications state ────────────────────────────────────────────
   const [coachingApplications, setCoachingApplications] = useState<CoachingApplication[]>([]);
   const [loadingApplications, setLoadingApplications] = useState(false);
+  const [deletingApp, setDeletingApp] = useState<string | null>(null);
   const [reviewingApp, setReviewingApp] = useState<string | null>(null);
   const [rejectingApp, setRejectingApp] = useState<CoachingApplication | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -1341,6 +1449,20 @@ function AdminPageInner() {
       setRejectReason('');
     } catch { toast.error('Failed to reject application'); }
     finally { setReviewingApp(null); }
+  }
+
+  async function handleDeleteApplication(app: CoachingApplication) {
+    // Worth spelling out that this unblocks re-application, because that's a
+    // real side effect rather than housekeeping: submitCoachingApplication()
+    // refuses a second submission while any application doc exists.
+    if (!confirm(`Delete ${app.userName}'s application? This removes the intake form permanently and lets them apply again.`)) return;
+    setDeletingApp(app.id);
+    try {
+      await deleteCoachingApplication(app.id);
+      setCoachingApplications(prev => prev.filter(a => a.id !== app.id));
+      toast.success('Application deleted');
+    } catch { toast.error('Failed to delete application'); }
+    finally { setDeletingApp(null); }
   }
 
   async function notifyCoachingStatusEmail(applicationId: string) {
@@ -2354,6 +2476,7 @@ function AdminPageInner() {
     { id: 'programs', label: 'Programs', icon: Dumbbell },
     { id: 'clients', label: 'Clients', icon: Users },
     { id: 'messages', label: 'Messages', icon: MessageSquare },
+    { id: 'support', label: 'Support', icon: LifeBuoy },
     { id: 'community', label: 'Community', icon: Users },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'membership', label: 'Membership', icon: CreditCard },
@@ -2383,6 +2506,16 @@ function AdminPageInner() {
             }`}
           >
             <Icon className="w-3.5 h-3.5" /> {label}
+            {/* The "a user submitted a support request" signal inside the
+                dashboard itself — the Header carries the same count for when
+                the admin is anywhere else in the app. */}
+            {id === 'support' && unresolvedSupport > 0 && (
+              <span className={`ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
+                tab === id ? 'bg-black/25 text-black' : 'bg-danger text-white'
+              }`}>
+                {unresolvedSupport > 9 ? '9+' : unresolvedSupport}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -3412,6 +3545,147 @@ function AdminPageInner() {
       )}
 
       {/* ── Coaching Applications ─────────────────────────────────────────────── */}
+      {/* ── Support ──────────────────────────────────────────────────────────── */}
+      {tab === 'support' && (
+        activeTicket ? (
+          <div className="flex flex-col h-[70vh]">
+            <div className="flex items-center gap-3 pb-3 border-b border-white/8 mb-3">
+              <button
+                onClick={() => setActiveTicketId(null)}
+                aria-label="Back to all support requests"
+                className="p-1.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white truncate">{activeTicket.subject}</p>
+                <p className="text-xs text-text-secondary truncate">
+                  {activeTicket.userDisplayName} · {activeTicket.userEmail}
+                </p>
+              </div>
+              <SupportStatusPill status={activeTicket.status} />
+            </div>
+
+            <div className="flex flex-wrap gap-2 pb-3 border-b border-white/8 mb-3">
+              {(['pending', 'ongoing', 'resolved'] as SupportTicketStatus[]).map((s) => (
+                <Button
+                  key={s}
+                  size="sm"
+                  variant={activeTicket.status === s ? 'primary' : 'secondary'}
+                  disabled={updatingTicket === activeTicket.id || activeTicket.status === s}
+                  onClick={() => handleTicketStatus(activeTicket, s)}
+                >
+                  {s === 'resolved' ? 'Mark Resolved' : `Mark ${s.charAt(0).toUpperCase() + s.slice(1)}`}
+                </Button>
+              ))}
+              <Button size="sm" variant="danger" disabled={updatingTicket === activeTicket.id} onClick={() => handleDeleteTicket(activeTicket)}>
+                <Trash2 className="w-3.5 h-3.5" /> Delete
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {supportMsgLoading ? (
+                <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-10 rounded-xl" />)}</div>
+              ) : (
+                supportMessages.map((m) => (
+                  <div key={m.id} className={`flex ${m.isFromAdmin ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${m.isFromAdmin ? 'bg-accent text-black' : 'bg-surface-elevated text-white'}`}>
+                      <p className="text-sm whitespace-pre-wrap break-words">{m.content}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={supportEndRef} />
+            </div>
+
+            {activeTicket.status === 'resolved' ? (
+              <div className="mt-3 pt-3 border-t border-white/8">
+                <p className="text-xs text-text-secondary text-center">
+                  This request is resolved — neither side can post to it. Mark it pending or ongoing to reopen the thread.
+                </p>
+              </div>
+            ) : (
+              <div className="flex gap-2 pt-3 border-t border-white/8 mt-3">
+                <input
+                  value={supportMsgText}
+                  onChange={e => setSupportMsgText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendSupport(); } }}
+                  placeholder="Reply to this request…"
+                  aria-label="Reply"
+                  className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                />
+                <Button onClick={handleSendSupport} loading={sendingSupport} disabled={!supportMsgText.trim()}>
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-white">Support Requests</h2>
+              <p className="text-xs text-text-secondary mt-0.5">
+                Opened by members from their profile. Marking one resolved closes the thread for both sides.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {(['all', 'pending', 'ongoing', 'resolved'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setSupportFilter(f)}
+                  aria-pressed={supportFilter === f}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+                    supportFilter === f ? 'bg-accent text-black' : 'text-text-secondary hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  {f} ({f === 'all' ? supportTickets.length : supportTickets.filter(t => t.status === f).length})
+                </button>
+              ))}
+            </div>
+
+            {supportLoading ? (
+              <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+            ) : filteredTickets.length === 0 ? (
+              <Card className="p-6 text-center">
+                <p className="text-sm text-text-secondary">
+                  {supportFilter === 'all' ? 'No support requests yet.' : `No ${supportFilter} requests.`}
+                </p>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {filteredTickets.map((t) => (
+                  <Card key={t.id} className={`p-4 ${t.unreadByAdmin && t.status !== 'resolved' ? 'border-accent/40' : ''}`}>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openTicket(t)}>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-white truncate">{t.subject}</p>
+                          {t.unreadByAdmin && t.status !== 'resolved' && <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
+                        </div>
+                        <p className="text-xs text-text-secondary truncate">{t.userDisplayName} · {t.userEmail}</p>
+                        <p className="text-xs text-text-tertiary truncate mt-0.5">{t.lastMessage}</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <SupportStatusPill status={t.status} />
+                        <button
+                          onClick={() => handleDeleteTicket(t)}
+                          disabled={updatingTicket === t.id}
+                          title="Delete request"
+                          aria-label={`Delete support request: ${t.subject}`}
+                          className="p-2 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      )}
+
       {tab === 'coaching' && (
         <div className="space-y-4">
           <div>
@@ -3505,14 +3779,26 @@ function AdminPageInner() {
                     </div>
                   )}
 
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    fullWidth
-                    onClick={() => startConversation({ id: app.userId, displayName: app.userName, email: app.userEmail })}
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" /> Message {app.userName}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      fullWidth
+                      onClick={() => startConversation({ id: app.userId, displayName: app.userName, email: app.userEmail })}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" /> Message {app.userName}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      loading={deletingApp === app.id}
+                      onClick={() => handleDeleteApplication(app)}
+                      aria-label={`Delete ${app.userName}'s application`}
+                      className="!text-text-tertiary hover:!text-danger"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </Card>
               ))}
             </div>

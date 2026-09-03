@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, MessageCircle, ChevronLeft } from 'lucide-react';
+import { Bell, MessageCircle, LifeBuoy, ChevronLeft } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,7 +24,7 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
   // fetched here — Header itself is rendered per-page across ~19 screens,
   // so subscribing here used to tear down and re-open those listeners
   // (and re-fetch branding config) on every single tab navigation.
-  const { hasConversation, unreadMessages, unreadNotifs, logoUrl, appName } = useHeaderData();
+  const { hasConversation, unreadMessages, unreadNotifs, hasSupportTicket, unreadSupport, logoUrl, appName } = useHeaderData();
 
   const isAdmin = profile?.role === 'admin';
 
@@ -92,6 +92,24 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
                   {unreadMessages > 0 && (
                     <span className="absolute top-1 right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
                       {unreadMessages > 9 ? '9+' : unreadMessages}
+                    </span>
+                  )}
+                </Link>
+              )}
+              {/* Appears for a member the moment they open their first
+                  support request, and permanently for staff (who always have
+                  an inbox to check). Separate from the message icon above so
+                  each one goes somewhere unambiguous. */}
+              {hasSupportTicket && (
+                <Link
+                  href={isAdmin ? '/admin?tab=support' : '/support'}
+                  aria-label={unreadSupport > 0 ? `Support, ${unreadSupport} unread` : 'Support'}
+                  className="relative p-2 rounded-xl text-text-secondary transition-colors"
+                >
+                  <LifeBuoy className="w-5 h-5" />
+                  {unreadSupport > 0 && (
+                    <span className="absolute top-1 right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
+                      {unreadSupport > 9 ? '9+' : unreadSupport}
                     </span>
                   )}
                 </Link>
