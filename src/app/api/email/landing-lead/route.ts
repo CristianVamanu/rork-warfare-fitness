@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail, landingLeadFollowupEmailHtml } from '@/lib/email';
 import { getSystemConfig } from '@/lib/firestore';
 import { rateLimit, clientIp } from '@/lib/rateLimit';
+import { verifyTurnstile } from '@/lib/turnstile';
 
 // Fulfills the exit-intent popup's promise ("we'll send you a link to jump
 // back in") — createLandingLead() only writes the Firestore lead doc, it
@@ -25,9 +26,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
     }
 
-    const body = await req.json() as { email?: string };
+
+    const body = await req.json() as { email?: string; turnstileToken?: string };
     if (!body.email || !/^\S+@\S+\.\S+$/.test(body.email)) {
       return NextResponse.json({ ok: false, reason: 'Invalid email' }, { status: 400 });
+    }
+
+    // Bot check. Inert until TURNSTILE_SECRET_KEY is set, so this is safe to
+    // ship before the keys exist. The IP limiter above is only a speed bump —
+    // x-forwarded-for is attacker-controlled without a trusted proxy.
+    if (!(await verifyTurnstile(body.turnstileToken, ip))) {
+      return NextResponse.json({ ok: false, reason: 'Failed bot check' }, { status: 403 });
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';

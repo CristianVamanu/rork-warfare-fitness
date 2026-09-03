@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail, trainerLeadEmailHtml } from '@/lib/email';
 import { rateLimit, clientIp } from '@/lib/rateLimit';
+import { verifyTurnstile } from '@/lib/turnstile';
 
 // Notifies the business owner of a new /trainers demo request. Deliberately
 // unauthenticated — the visitor submitting this form hasn't signed up or
@@ -29,11 +30,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
     }
 
+
     const body = await req.json() as {
       name?: string; email?: string; businessName?: string; phone?: string; clientCount?: string; message?: string;
+      turnstileToken?: string;
     };
     if (!body.name || !body.email || !/^\S+@\S+\.\S+$/.test(body.email)) {
       return NextResponse.json({ ok: false, reason: 'Invalid lead payload' }, { status: 400 });
+    }
+
+    // See landing-lead — inert until TURNSTILE_SECRET_KEY is configured.
+    if (!(await verifyTurnstile(body.turnstileToken, ip))) {
+      return NextResponse.json({ ok: false, reason: 'Failed bot check' }, { status: 403 });
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';

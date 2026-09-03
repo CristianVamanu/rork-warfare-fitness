@@ -84,6 +84,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
+  // Stripe delivers at least once, and retries anything that isn't a 2xx —
+  // including our own deliberate 500s. The handlers below are individually
+  // idempotent (status overwrites, arrayUnion/arrayRemove, a cancel guarded
+  // on not-already-canceled), with one exception that was reaching real
+  // customers: invoice.payment_failed sends an email every time it runs, so
+  // a retry meant a second "your payment failed" message. This ledger makes
+  // the whole switch exactly-once, and stops the next handler anyone adds
+  // from having to rediscover the problem.
+  //
+  // The marker is written only AFTER the handler succeeds, so a failed
+  // attempt still earns its retry.
+  const eventLedger = getAdminDb()?.collection('stripeEvents').doc(event.id);
+  if (eventLedger) {
+    try {
+      if ((await eventLedger.get()).exists) {
+        console.log(`[Stripe webhook] Duplicate delivery of ${event.id} (${event.type}) — already processed`);
+        return NextResponse.json({ received: true, duplicate: true });
+      }
+    } catch (err) {
+      // Can't read the ledger — fall through and handle it. Re-running an
+      // idempotent handler is strictly better than dropping a real event.
+      console.error('[Stripe webhook] Ledger read failed, processing anyway:', err);
+    }
+  }
+
   try {
     switch (event.type) {
       // ── User subscribes successfully ────────────────────────────────────
@@ -374,6 +399,17 @@ export async function POST(req: NextRequest) {
     // re-applies the same end state rather than compounding.
     console.error('[Stripe webhook] Handler error — returning 500 so Stripe retries:', err);
     return NextResponse.json({ error: 'Handler failed' }, { status: 500 });
+  }
+
+  // Marked only on success — see the ledger comment above.
+  if (eventLedger) {
+    await eventLedger.set({
+      type: event.type,
+      processedAt: FieldValue.serverTimestamp(),
+      // Lets a TTL policy on stripeEvents.expiresAt sweep these; Stripe never
+      // retries beyond ~3 days, so a 30-day window is generous.
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    }).catch((err) => console.error('[Stripe webhook] Ledger write failed:', err));
   }
 
   return NextResponse.json({ received: true });

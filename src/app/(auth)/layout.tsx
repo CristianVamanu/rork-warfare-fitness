@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { FullPageSpinner } from '@/components/ui/Spinner';
+import { BrandSplash } from '@/components/ui/BrandSplash';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -16,7 +16,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     }
   }, [user, loading, router]);
 
-  if (loading) return <FullPageSpinner />;
+  if (loading) return <BrandSplash />;
   if (user) return null;
 
   return (

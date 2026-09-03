@@ -8,6 +8,7 @@ import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { rateLimit } from '@/lib/rateLimit';
+import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
 
 function todayKey() {
   return new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
@@ -26,6 +27,16 @@ export async function GET(req: NextRequest) {
   const limited = await rateLimit({ scope: 'ai-tip', key: check.uid, windowMs: WINDOW_MS, max: MAX_PER_WINDOW });
   if (!limited.allowed) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
+  }
+
+  // This route calls OpenAI, so every authenticated account was a metered
+  // spend endpoint regardless of whether they pay for anything — the only
+  // AI route with no membership check. Bounded per user by the limiter
+  // above, unbounded across users.
+  const tipApp = getAdminApp();
+  if (tipApp) {
+    const access = await verifyFeatureAccess(tipApp, check.uid, 'ai-tip');
+    if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
   const dateKey = todayKey();

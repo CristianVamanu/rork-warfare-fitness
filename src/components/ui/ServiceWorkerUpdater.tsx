@@ -42,27 +42,36 @@ export function ServiceWorkerUpdater() {
       console.error('[ServiceWorker] registration failed:', err);
     });
 
-    let refreshing = false;
+    let handled = false;
     const onControllerChange = () => {
-      if (refreshing) return;
-      refreshing = true;
-      // This used to reload unconditionally 1.2s after the toast. With
-      // frequent deploys that meant a live workout — rest timer running,
-      // mid-set — could have the page yanked out from under it. The draft
-      // now survives a reload (localStorage), but the interruption itself is
-      // still wrong: a person at the squat rack does not want a reload. If a
-      // session is active, say the update is ready and leave the reload to
-      // them (the next cold open picks it up anyway).
-      if (workoutInProgress()) {
-        toast('Update ready — it will apply after your workout.', { icon: '🔄', duration: 6000 });
-        return;
-      }
-      toast('A new version is available.', {
-        icon: '🔄',
-        duration: 8000,
-      });
-      // Give the toast a moment to render before reloading.
-      setTimeout(() => window.location.reload(), 1200);
+      if (handled) return;
+      handled = true;
+      // This used to call window.location.reload() 1.2s after a toast, on
+      // every deploy, for every open tab — the page would visibly reload
+      // itself out from under whatever you were doing. A new service worker
+      // activating is not a reason to seize the page.
+      //
+      // The new bundle is already staged; it applies on the next navigation
+      // or the next time the app is opened, either way without losing
+      // anything. So this offers the reload and lets the person take it when
+      // it suits them. During a workout it says nothing at all — the draft
+      // survives a reload now, but interrupting someone mid-set to announce
+      // a deploy is still wrong.
+      if (workoutInProgress()) return;
+      toast(
+        (t) => (
+          <span className="flex items-center gap-3">
+            <span>A new version is ready.</span>
+            <button
+              onClick={() => { toast.dismiss(t.id); window.location.reload(); }}
+              className="font-bold text-accent hover:underline whitespace-nowrap"
+            >
+              Reload
+            </button>
+          </span>
+        ),
+        { icon: '\u2728', duration: 12000 },
+      );
     };
 
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);

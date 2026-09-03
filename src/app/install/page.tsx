@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
+import { BrandSplash } from '@/components/ui/BrandSplash';
 import {
   CheckCircle, Settings, User, Key, CreditCard, Rocket,
   ChevronRight, ChevronLeft, Wifi, Database, Shield
@@ -133,18 +134,11 @@ export default function InstallPage() {
     }
   };
 
-  if (checkingInstall) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-2xl bg-accent mx-auto mb-4 flex items-center justify-center">
-            <span className="text-2xl font-black text-black">W</span>
-          </div>
-          <p className="text-text-secondary text-sm">Checking installation...</p>
-        </div>
-      </div>
-    );
-  }
+  // Almost always a sub-second redirect to /login on an installed site, so
+  // this is a brand hold rather than a status readout — "Checking
+  // installation…" told the visitor about our plumbing for a moment and then
+  // vanished.
+  if (checkingInstall) return <BrandSplash label="Loading" />;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
