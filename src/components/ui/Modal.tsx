@@ -11,17 +11,32 @@ interface ModalProps {
   title?: string;
   children: React.ReactNode;
   className?: string;
+  /**
+   * Whether tapping the dimmed backdrop closes the modal. Default true. Set
+   * false for content the user should finish or deliberately dismiss (e.g.
+   * a welcome video), where a stray tap anywhere on a phone screen would
+   * otherwise skip it — the X button and Escape still work.
+   */
+  dismissOnOverlay?: boolean;
 }
 
 const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-export function Modal({ open, onClose, title, children, className }: ModalProps) {
+export function Modal({ open, onClose, title, children, className, dismissOnOverlay = true }: ModalProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   // Where focus was before the modal opened, so closing puts it back —
   // otherwise a keyboard or screen-reader user is dropped at the top of
   // the document every time a dialog closes.
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  // Callers almost always pass an inline arrow for onClose, so its identity
+  // changes on every render. The focus effect below must NOT depend on it —
+  // it did at first, and every keystroke in a modal's input re-ran the
+  // effect, which re-focused "the first focusable element in the panel":
+  // the header's X button. Typing a password one character at a time,
+  // reported live. Read the latest onClose through a ref instead.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (open) {
@@ -45,14 +60,19 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
     const raf = requestAnimationFrame(() => {
       const panel = panelRef.current;
       if (!panel) return;
-      const first = panel.querySelector<HTMLElement>(FOCUSABLE);
+      // Prefer the first focusable inside the CONTENT (an input, a primary
+      // button) over the header's close button — landing on "X" is the
+      // least useful place focus can start, and on mobile it visibly
+      // highlights the wrong control.
+      const body = panel.querySelector<HTMLElement>('[data-modal-body]');
+      const first = body?.querySelector<HTMLElement>(FOCUSABLE) ?? panel.querySelector<HTMLElement>(FOCUSABLE);
       (first ?? panel).focus();
     });
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab' || !panelRef.current) return;
@@ -75,7 +95,8 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
       document.removeEventListener('keydown', onKeyDown);
       restoreFocusRef.current?.focus?.();
     };
-  }, [open, onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   return (
     <AnimatePresence>
@@ -85,7 +106,7 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={dismissOnOverlay ? onClose : undefined}
             style={{ backgroundColor: 'var(--overlay)' }}
             className="fixed inset-0 backdrop-blur-sm z-50"
             aria-hidden="true"
@@ -118,7 +139,7 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
                 <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
-            <div className="p-5 overflow-y-auto flex-1">{children}</div>
+            <div data-modal-body className="p-5 overflow-y-auto flex-1">{children}</div>
           </motion.div>
         </>
       )}

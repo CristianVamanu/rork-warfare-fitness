@@ -826,7 +826,7 @@ function OnboardingPageInner() {
         {/* Video Greeting Modal — lives here (not the step-form return
             below) since this reveal screen is now the backdrop while it's
             open, not swapped out for the raw onboarding form. */}
-        <Modal open={showVideoModal} onClose={() => { setShowVideoModal(false); router.replace('/dashboard'); }} title="Welcome to the Team! 🎉">
+        <Modal open={showVideoModal} dismissOnOverlay={false} onClose={() => { setShowVideoModal(false); router.replace('/dashboard'); }} title="Welcome to the Team! 🎉">
           <div className="space-y-4">
             {videoGreetingUrl && (
               <div className="rounded-xl overflow-hidden bg-black aspect-video">
