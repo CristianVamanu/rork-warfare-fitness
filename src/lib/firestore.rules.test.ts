@@ -1,0 +1,264 @@
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import {
+  initializeTestEnvironment,
+  assertSucceeds,
+  assertFails,
+  type RulesTestEnvironment,
+} from '@firebase/rules-unit-testing';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, type Firestore } from 'firebase/firestore';
+
+/**
+ * Firestore rules, exercised against the real rules engine in the emulator.
+ *
+ * These are the app's actual authorization boundary — every server route
+ * re-checks membership, but everything the CLIENT does is governed here
+ * alone. The rules had grown to ~700 lines with no test at all, so a wrong
+ * character in a deny-list would have silently handed out admin or free
+ * membership with nothing to catch it.
+ *
+ * Requires the emulator: `npm run test:rules` starts it and runs this file.
+ */
+
+let env: RulesTestEnvironment;
+
+const ALICE = 'alice';
+const BOB = 'bob';
+const ADMIN = 'admin1';
+
+/** Seeds documents with rules disabled, so tests start from a real state. */
+async function seed(fn: (db: Firestore) => Promise<void>) {
+  await env.withSecurityRulesDisabled(async (ctx) => { await fn(ctx.firestore() as unknown as Firestore); });
+}
+
+beforeAll(async () => {
+  env = await initializeTestEnvironment({
+    projectId: 'demo-warfare',
+    firestore: {
+      rules: readFileSync('firestore.rules', 'utf8'),
+      host: '127.0.0.1',
+      port: 8080,
+    },
+  });
+});
+
+afterAll(async () => { await env?.cleanup(); });
+
+beforeEach(async () => {
+  await env.clearFirestore();
+  await seed(async (db) => {
+    await setDoc(doc(db, 'users', ALICE), { role: 'user', displayName: 'Alice', trainerId: null, stats: { streak: 1 } });
+    await setDoc(doc(db, 'users', BOB), { role: 'user', displayName: 'Bob', trainerId: null });
+    await setDoc(doc(db, 'users', ADMIN), { role: 'admin', displayName: 'Admin' });
+    // The installer marker is irrelevant now — the bootstrap exemption it
+    // used to unlock has been deleted. Seeded absent on purpose so these
+    // tests prove that, rather than passing only because it happens to be set.
+    await setDoc(doc(db, 'system', 'config'), { appName: 'Warfare' });
+  });
+});
+
+const asAlice = () => env.authenticatedContext(ALICE).firestore();
+const asBob = () => env.authenticatedContext(BOB).firestore();
+const asAdmin = () => env.authenticatedContext(ADMIN).firestore();
+const asAnon = () => env.unauthenticatedContext().firestore();
+
+// ── The privilege escalation surface ────────────────────────────────────────
+
+describe('users/{uid} — privileged fields', () => {
+  it('lets a user update their own harmless profile fields', async () => {
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { displayName: 'Alice A' }));
+  });
+
+  it.each([
+    ['role', { role: 'admin' }],
+    ['membership', { membership: { status: 'active' } }],
+    ['coaching', { coaching: { status: 'active' } }],
+    ['purchasedProgramIds', { purchasedProgramIds: ['prog1'] }],
+    ['trainerId', { trainerId: 'someone' }],
+    ['banned', { banned: false }],
+    ['trialUsedAt', { trialUsedAt: null }],
+    ['twoFactorEnabled', { twoFactorEnabled: false }],
+    ['twoFactorEmail', { twoFactorEmail: 'attacker@evil.com' }],
+  ])('refuses a self-write to %s', async (_name, patch) => {
+    await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), patch));
+  });
+
+  it('refuses to grant membership even alongside a legitimate field', async () => {
+    await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), {
+      displayName: 'Alice', membership: { status: 'active' },
+    }));
+  });
+
+  it('lets an admin write those fields', async () => {
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'users', ALICE), { membership: { status: 'active' } }));
+  });
+});
+
+describe('users/{uid} — creation', () => {
+  it('allows a normal signup', async () => {
+    const db = env.authenticatedContext('newbie').firestore();
+    await assertSucceeds(setDoc(doc(db, 'users', 'newbie'), { role: 'user', displayName: 'New', trainerId: null }));
+  });
+
+  it('REFUSES self-signup as admin even with no installer marker present', async () => {
+    // The regression that mattered: this was permitted for as long as
+    // system/installer.installed wasn't exactly true, and that flag was only
+    // written at the very end of a browser-side install. Setup is server-side
+    // now and this must never be allowed again.
+    const db = env.authenticatedContext('attacker').firestore();
+    await assertFails(setDoc(doc(db, 'users', 'attacker'), { role: 'admin', displayName: 'Evil', trainerId: null }));
+  });
+
+  it('refuses a signup that pre-loads paid state', async () => {
+    const db = env.authenticatedContext('n2').firestore();
+    await assertFails(setDoc(doc(db, 'users', 'n2'), { role: 'user', membership: { status: 'active' } }));
+    await assertFails(setDoc(doc(db, 'users', 'n2'), { role: 'user', purchasedProgramIds: ['p'] }));
+  });
+
+  it('refuses creating a doc under someone else\'s uid', async () => {
+    await assertFails(setDoc(doc(asAlice(), 'users', 'victim'), { role: 'user' }));
+  });
+});
+
+// ── Isolation between users ─────────────────────────────────────────────────
+
+describe('user data isolation', () => {
+  it('refuses reading another user\'s profile', async () => {
+    await assertFails(getDoc(doc(asBob(), 'users', ALICE)));
+  });
+
+  it('allows reading your own, and allows an admin to read anyone', async () => {
+    await assertSucceeds(getDoc(doc(asAlice(), 'users', ALICE)));
+    await assertSucceeds(getDoc(doc(asAdmin(), 'users', ALICE)));
+  });
+
+  it('refuses deleting another user', async () => {
+    await assertFails(deleteDoc(doc(asBob(), 'users', ALICE)));
+  });
+
+  it('scopes events to their owner', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'events', 'e1'), { userId: ALICE, type: 'WORKOUT_COMPLETED', trainerId: null, payload: {}, createdAt: new Date() });
+    });
+    await assertSucceeds(getDoc(doc(asAlice(), 'events', 'e1')));
+    await assertFails(getDoc(doc(asBob(), 'events', 'e1')));
+  });
+
+  it('refuses writing an event attributed to someone else', async () => {
+    await assertFails(setDoc(doc(asBob(), 'events', 'e2'), {
+      userId: ALICE, type: 'WORKOUT_COMPLETED', trainerId: null, payload: {}, createdAt: new Date(),
+    }));
+  });
+
+  it('makes events immutable once written', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'events', 'e3'), { userId: ALICE, type: 'WORKOUT_COMPLETED', trainerId: null, payload: {}, createdAt: new Date() });
+    });
+    await assertFails(updateDoc(doc(asAlice(), 'events', 'e3'), { payload: { calories: 99999 } }));
+  });
+});
+
+// ── System configuration ────────────────────────────────────────────────────
+
+describe('system/config', () => {
+  it('refuses an anonymous write even with no installer marker', async () => {
+    // Same deleted exemption as the admin-signup case above.
+    await assertFails(setDoc(doc(asAnon(), 'system', 'config'), { appName: 'Pwned' }));
+  });
+
+  it('refuses a signed-in non-admin write', async () => {
+    await assertFails(setDoc(doc(asAlice(), 'system', 'config'), { appName: 'Pwned' }));
+  });
+
+  it('allows an admin write', async () => {
+    await assertSucceeds(setDoc(doc(asAdmin(), 'system', 'config'), { appName: 'Warfare' }, { merge: true }));
+  });
+
+  it('keeps secrets unreadable by regular users', async () => {
+    await seed(async (db) => { await setDoc(doc(db, 'system', 'secrets'), { OPENAI_API_KEY: { ciphertext: 'x' } }); });
+    await assertFails(getDoc(doc(asAlice(), 'system', 'secrets')));
+  });
+});
+
+// ── Leaderboard ─────────────────────────────────────────────────────────────
+
+describe('leaderboardPublic', () => {
+  beforeEach(async () => {
+    await seed(async (db) => {
+      // Seeded BANNED so the unban test below exercises a real diff. Writing
+      // banned:false over an existing banned:false changes nothing, and an
+      // empty diff passes hasOnly() trivially — which is correct behaviour,
+      // not a hole, but it would make the test meaningless.
+      await setDoc(doc(db, 'leaderboardPublic', ALICE), { displayName: 'Alice', xp: 10, banned: true });
+    });
+  });
+
+  it('is readable by any signed-in user (it is the public mirror)', async () => {
+    await assertSucceeds(getDoc(doc(asBob(), 'leaderboardPublic', ALICE)));
+  });
+
+  it('refuses writing to someone else\'s row', async () => {
+    await assertFails(setDoc(doc(asBob(), 'leaderboardPublic', ALICE), { xp: 0 }, { merge: true }));
+  });
+
+  it('allows a user to sync their own allowed fields', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), 'leaderboardPublic', ALICE), { xp: 20, streak: 3 }, { merge: true }));
+  });
+
+  it('refuses self-unban through the public mirror', async () => {
+    // The real attack: a banned user flipping their own flag back.
+    await assertFails(setDoc(doc(asAlice(), 'leaderboardPublic', ALICE), { banned: false }, { merge: true }));
+  });
+
+  it('refuses smuggling banned:false alongside a legitimate xp sync', async () => {
+    await assertFails(setDoc(doc(asAlice(), 'leaderboardPublic', ALICE), { xp: 99, banned: false }, { merge: true }));
+  });
+});
+
+// ── Channels ────────────────────────────────────────────────────────────────
+
+describe('channels', () => {
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'channels', 'c1'), { name: 'General', trainerId: null, postCount: 0 });
+      await setDoc(doc(db, 'channels', 'c1', 'posts', 'p1'), { userId: ALICE, content: 'hi', likes: [], replyCount: 0, createdAt: new Date() });
+    });
+  });
+
+  it('is readable by members but only writable by admins', async () => {
+    await assertSucceeds(getDoc(doc(asAlice(), 'channels', 'c1')));
+    await assertFails(setDoc(doc(asAlice(), 'channels', 'c1'), { name: 'Hijacked' }, { merge: true }));
+    await assertSucceeds(setDoc(doc(asAdmin(), 'channels', 'c1'), { name: 'General 2' }, { merge: true }));
+  });
+
+  it('refuses posting under another member\'s name', async () => {
+    await assertFails(setDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p2'), {
+      userId: ALICE, content: 'impersonated', likes: [], replyCount: 0, createdAt: new Date(),
+    }));
+  });
+
+  it('refuses claiming the admin badge on a post', async () => {
+    await assertFails(setDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p3'), {
+      userId: BOB, userIsAdmin: true, content: 'fake badge', likes: [], replyCount: 0, createdAt: new Date(),
+    }));
+  });
+
+  it('allows a genuine reply, including a threaded one', async () => {
+    await assertSucceeds(setDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), {
+      userId: BOB, userDisplayName: 'Bob', content: 'nice', likes: [], replyCount: 0, replyTo: 'p1', createdAt: new Date(),
+    }));
+    await assertSucceeds(setDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r2'), {
+      userId: ALICE, userDisplayName: 'Alice', content: 'thanks', likes: [], replyCount: 0, replyTo: 'p1', parentReplyId: 'r1', createdAt: new Date(),
+    }));
+  });
+});
+
+// ── Anonymous access ────────────────────────────────────────────────────────
+
+describe('unauthenticated access', () => {
+  it('is refused across user data', async () => {
+    await assertFails(getDoc(doc(asAnon(), 'users', ALICE)));
+    await assertFails(setDoc(doc(asAnon(), 'users', 'anon'), { role: 'user' }));
+    await assertFails(getDoc(doc(asAnon(), 'leaderboardPublic', ALICE)));
+  });
+});

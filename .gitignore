@@ -53,3 +53,8 @@ rork-eslint.config.js
 # Local Firestore backup dumps (only written when R2 isn't configured — see
 # /api/admin/backup) — full user data, never belongs in git.
 /backups/
+
+# Firebase emulator artifacts
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
