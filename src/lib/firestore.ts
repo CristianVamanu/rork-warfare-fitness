@@ -1788,6 +1788,32 @@ export function invalidateChannelsCache() {
   channelsGeneration++;
 }
 
+/**
+ * Which tenant's channels a given account should see.
+ *
+ * An ADMIN manages the whole install and sees every channel — including
+ * channels created by a different admin. This matters because an admin
+ * promoted by hand (signed up as a normal user, then role flipped to
+ * 'admin' in the console) still carries the trainerId their signup
+ * assigned, or none at all. The community list used to fall back to
+ * `user.uid` for any admin/trainer, so such an account was scoped to a
+ * tenant root that owns nothing, and the channel list came back EMPTY —
+ * reported live as "the channels don't show at all in community".
+ *
+ * A TRAINER is scoped to their own uid (they own their channels). A regular
+ * user is scoped to the trainer they were assigned at signup. Returning
+ * undefined means "no filter" — see getChannels.
+ */
+export function channelScopeFor(
+  role: string | undefined,
+  trainerId: string | null | undefined,
+  uid: string | undefined,
+): string | undefined {
+  if (role === 'admin') return undefined;
+  if (role === 'trainer') return uid ?? undefined;
+  return trainerId ?? undefined;
+}
+
 export async function getChannels(trainerId?: string): Promise<Channel[]> {
   const all = await fetchAllChannels();
   return all

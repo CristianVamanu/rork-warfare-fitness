@@ -534,44 +534,56 @@ export default function ProgramDetailPage() {
                             }`}
                             onClick={() => setExpandedDay(isExpanded ? null : absoluteDay)}
                           >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center text-xs font-bold ${
-                                  isCompleted ? 'bg-success/20 text-success' :
-                                  isToday ? 'bg-accent text-black' :
-                                  day.isRest ? 'bg-surface-elevated text-text-tertiary' :
-                                  'bg-surface-elevated text-white'
-                                }`}>
-                                  {isCompleted
-                                    ? <CheckCircle2 className="w-5 h-5" />
-                                    : <span className="text-center leading-none">{`D${idx + 1}`}</span>
-                                  }
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <p className={`text-sm font-medium ${isCompleted ? 'text-success' : isToday ? 'text-white' : 'text-text-secondary'}`}>
-                                      {stripWeekdayPrefix(day.label ?? '')}
-                                    </p>
-                                    {isCompleted && <Badge variant="success">Done</Badge>}
-                                    {!isCompleted && !isLocked && isToday && <Badge variant="accent">Today</Badge>}
-                                    {!isCompleted && !isLocked && !isToday && isUpcoming && !day.isRest && <Badge variant="muted">Upcoming</Badge>}
-                                  </div>
-                                  {!day.isRest && (
-                                    <p className="text-xs text-text-tertiary mt-0.5">{day.exercises.length} exercises</p>
-                                  )}
-                                </div>
+                            {/* Three columns: fixed day tile, flexible title,
+                                fixed status. The status badge used to sit
+                                INLINE after the title, so on a phone a
+                                two-line title ("Legs (Quads, Hamstrings,
+                                Glutes, Calves)") pushed "Today" hard up
+                                against the row icon with no breathing room.
+                                It now lives with the icon in its own
+                                right-hand column, and the title column gets
+                                min-w-0 so it wraps inside its own track
+                                instead of shoving its neighbours. */}
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 flex-shrink-0 rounded-xl flex flex-col items-center justify-center text-xs font-bold ${
+                                isCompleted ? 'bg-success/20 text-success' :
+                                isToday ? 'bg-accent text-black' :
+                                day.isRest ? 'bg-surface-elevated text-text-tertiary' :
+                                'bg-surface-elevated text-white'
+                              }`}>
+                                {isCompleted
+                                  ? <CheckCircle2 className="w-5 h-5" />
+                                  : <span className="text-center leading-none">{`D${idx + 1}`}</span>
+                                }
                               </div>
-                              {isLocked ? (
-                                <Badge variant="muted" className="flex-shrink-0 inline-flex items-center gap-1 whitespace-nowrap">
-                                  <Lock className="w-3 h-3" /> Members
-                                </Badge>
-                              ) : day.isRest ? (
-                                <Moon className="w-4 h-4 text-text-tertiary" />
-                              ) : isCompleted ? (
-                                <CheckCircle2 className="w-4 h-4 text-success" />
-                              ) : (
-                                <Dumbbell className="w-4 h-4 text-text-tertiary" />
-                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-medium ${isCompleted ? 'text-success' : isToday ? 'text-white' : 'text-text-secondary'}`}>
+                                  {stripWeekdayPrefix(day.label ?? '')}
+                                </p>
+                                {!day.isRest && (
+                                  <p className="text-xs text-text-tertiary mt-0.5">{day.exercises.length} exercises</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {isLocked ? (
+                                  <Badge variant="muted" className="inline-flex items-center gap-1 whitespace-nowrap">
+                                    <Lock className="w-3 h-3" /> Members
+                                  </Badge>
+                                ) : (
+                                  <>
+                                    {isCompleted && <Badge variant="success">Done</Badge>}
+                                    {!isCompleted && isToday && <Badge variant="accent">Today</Badge>}
+                                    {!isCompleted && !isToday && isUpcoming && !day.isRest && <Badge variant="muted">Upcoming</Badge>}
+                                    {day.isRest ? (
+                                      <Moon className="w-4 h-4 text-text-tertiary" />
+                                    ) : isCompleted ? (
+                                      <CheckCircle2 className="w-4 h-4 text-success" />
+                                    ) : (
+                                      <Dumbbell className="w-4 h-4 text-text-tertiary" />
+                                    )}
+                                  </>
+                                )}
+                              </div>
                             </div>
 
                             {isExpanded && isLocked && (

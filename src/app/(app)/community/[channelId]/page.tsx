@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   getChannels, subscribeChannelPosts, createChannelPost, deleteChannelPost,
   likeChannelPost, getPostReplies, createReply, getUserLastPostInChannel,
-  pinChannelPost, unpinChannelPost, getSystemConfig,
+  pinChannelPost, unpinChannelPost, getSystemConfig, channelScopeFor,
 } from '@/lib/firestore';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -220,7 +220,7 @@ export default function ChannelPage() {
     setChannelLoaded(false);
     setPostsLoaded(false);
     Promise.all([
-      getChannels(trainerId ?? undefined),
+      getChannels(channelScopeFor(profile?.role, trainerId, user?.uid)),
       user ? getUserLastPostInChannel(channelId, user.uid) : Promise.resolve(null),
     ]).then(([chs, lastPost]) => {
       const ch = chs.find(c => c.id === channelId) ?? null;

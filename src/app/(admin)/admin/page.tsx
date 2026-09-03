@@ -22,7 +22,7 @@ import {
   subscribeAdminConversations, getOrCreateConversation, subscribeMessages, sendMessage, markConversationRead, deleteConversation,
   getMembershipConfig, saveMembershipConfig,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
-  getChannels, createChannel, updateChannel, deleteChannel,
+  getChannels, channelScopeFor, createChannel, updateChannel, deleteChannel,
   getCoachingPlans, saveCoachingPlans, assignCoachingPlan, revokeCoachingPlan,
   getMembershipPlans, saveMembershipPlans,
   getExerciseVideos, saveExerciseVideo, deleteExerciseVideo, updateExerciseVideoThumbnail,
@@ -1399,7 +1399,9 @@ function AdminPageInner() {
 
   async function loadChannels() {
     setChannelsLoading(true);
-    try { setChannels(await getChannels(profile?.trainerId)); }
+    // Admins manage every channel in the install, not just the ones under
+    // whatever trainerId their own account happens to carry.
+    try { setChannels(await getChannels(channelScopeFor(profile?.role, profile?.trainerId, user?.uid))); }
     catch { toast.error('Failed to load channels'); }
     finally { setChannelsLoading(false); }
   }

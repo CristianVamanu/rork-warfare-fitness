@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Hash, ChevronRight, Users, Clock, Trophy, Zap, Dumbbell, Flame, Medal } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getChannels, subscribeLeaderboard, subscribeNearbyLeaderboard, type LeaderboardEntry } from '@/lib/firestore';
+import { getChannels, channelScopeFor, subscribeLeaderboard, subscribeNearbyLeaderboard, type LeaderboardEntry } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -25,8 +25,11 @@ export default function CommunityPage() {
 
 function CommunityPageInner() {
   const { trainerId, user, profile } = useAuth();
-  // Trainer/admin users don't have trainerId on their own doc — use their uid as the tenant root
-  const effectiveTrainerId = trainerId ?? ((profile?.role === 'admin' || profile?.role === 'trainer') ? user?.uid : null) ?? null;
+  // Shared with the channel detail page — the two used to compute this
+  // differently (this one fell back to user.uid for admins, the other
+  // didn't), so an admin could see a channel open fine by URL while the
+  // list that links to it came back empty. See channelScopeFor.
+  const effectiveTrainerId = channelScopeFor(profile?.role, trainerId, user?.uid);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +45,7 @@ function CommunityPageInner() {
   );
 
   useEffect(() => {
-    getChannels(effectiveTrainerId ?? undefined)
+    getChannels(effectiveTrainerId)
       .then(setChannels)
       .catch(() => {})
       .finally(() => setLoading(false));
