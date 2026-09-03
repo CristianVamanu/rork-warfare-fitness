@@ -78,6 +78,48 @@ export function welcomeEmailHtml(name: string, appName: string, appUrl: string):
   `);
 }
 
+// Firebase Auth can send its own verification and password-reset mail, but it
+// sends it from noreply@<project>.firebaseapp.com — a domain with no SPF or
+// DKIM alignment to this app's own sending domain, and no reputation tied to
+// it. Spam filters treat that exactly as you'd expect. These two templates let
+// the same mail go out through Resend from the configured RESEND_FROM_EMAIL
+// instead, using an action link minted server-side by the Admin SDK, so the
+// address a member sees is the app's own.
+export function verifyEmailHtml(name: string, link: string, appName: string): string {
+  name = escapeHtml(name);
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Confirm your email, ${name}.</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      One tap and your account is ready. This link expires in an hour.
+    </p>
+    ${button('Confirm Email', link)}
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#777;">
+      If the button doesn't work, paste this into your browser:<br>
+      <span style="color:#999;word-break:break-all;">${escapeHtml(link)}</span>
+    </p>
+    <p style="margin:16px 0 0;font-size:12px;color:#777;">
+      Didn't sign up? Ignore this email and nothing happens.
+    </p>
+  `);
+}
+
+export function passwordResetEmailHtml(link: string, appName: string): string {
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Reset your password</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      Tap below to choose a new password. This link expires in an hour.
+    </p>
+    ${button('Reset Password', link)}
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#777;">
+      If the button doesn't work, paste this into your browser:<br>
+      <span style="color:#999;word-break:break-all;">${escapeHtml(link)}</span>
+    </p>
+    <p style="margin:16px 0 0;font-size:12px;color:#777;">
+      Didn't ask for this? Ignore this email — your password stays as it is.
+    </p>
+  `);
+}
+
 // Sent to a landing-page visitor who left their email via the exit-intent
 // popup before finishing the quiz/signup — the popup promises "we'll send
 // you a link to jump back in", so this is what actually fulfills that
