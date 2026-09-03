@@ -102,7 +102,6 @@ export default function InstallPage() {
           email: adminData.email,
           password: adminData.password,
           name: adminData.name,
-          secret: process.env.NEXT_PUBLIC_INSTALL_SECRET || undefined,
           config: {
             appName: config.appName,
             trainerName: config.trainerName,

@@ -34,8 +34,17 @@ export const dynamic = 'force-dynamic';
  *
  * Guard 2 is the important one: it is derived from real data rather than a
  * flag someone forgot to write, so it stays correct even if the marker doc
- * is missing. Guard 3 is optional defence in depth for anyone who wants a
- * re-installable environment.
+ * is missing.
+ *
+ * Guard 3 is a kill switch, not a password the wizard passes along. Setting
+ * INSTALL_SECRET disables the browser installer outright — the page cannot
+ * send the value without exposing it (a NEXT_PUBLIC_ var is compiled into
+ * the client bundle, which is not a secret at all), so it deliberately does
+ * not try. With it set, setup must be driven directly:
+ *
+ *   curl -X POST https://host/api/install \
+ *     -H 'Content-Type: application/json' \
+ *     -d '{"secret":"...","email":"...","password":"...","name":"..."}'
  */
 
 import { NextRequest, NextResponse } from 'next/server';
