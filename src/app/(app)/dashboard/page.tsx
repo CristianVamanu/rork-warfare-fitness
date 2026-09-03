@@ -15,7 +15,6 @@ import { getLevelTier } from '@/lib/xp';
 import { Card } from '@/components/ui/Card';
 import { FastingWidget } from '@/components/dashboard/FastingWidget';
 import { DaysWithoutWidget } from '@/components/dashboard/DaysWithoutWidget';
-import { WeekProgressLine } from '@/components/dashboard/WeekProgressLine';
 import { Header } from '@/components/layout/Header';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -293,11 +292,6 @@ export default function DashboardPage() {
       setSkippingRest(false);
     }
   };
-  // Every program's schedule template is enforced to be exactly 7 entries
-  // (see programs.ts) — this maps nextAbsIdx onto "which day of the
-  // CURRENT week of the program" for WeekProgressLine below.
-  const weekScheduleLen = (programSource?.phases?.[0]?.schedule ?? programSource?.schedule)?.length || 7;
-  const todayDayIndex = nextAbsIdx % weekScheduleLen;
   // Guarded against a zero/missing totalWorkouts — enrollInProgram always
   // sets it now, but a legacy activeProgram written before that field
   // existed divides by undefined and renders a literal "NaN%".
@@ -334,7 +328,6 @@ export default function DashboardPage() {
   return (
     <div>
       <Header />
-      {activeProgram && <WeekProgressLine currentDayIndex={todayDayIndex} daysLength={weekScheduleLen} />}
       {/* space-y-3 matches the bento grid's own gap-3 between tiles — this
           used to be space-y-5, so the gap between the last grid tile and the
           next section (e.g. Personal Trackers) read visibly larger/uneven
