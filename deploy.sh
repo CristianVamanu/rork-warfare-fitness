@@ -117,13 +117,36 @@ if [ -n "$ENV_FILE" ]; then
   APP_URL="$(grep -E '^NEXT_PUBLIC_APP_URL=' "$ENV_FILE" | head -1 | cut -d '=' -f2-)"
   if [ -n "$APP_CRON_SECRET" ] && [ -n "$APP_URL" ]; then
     CRON_CMD="curl -fsS -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${APP_URL%/}/api/notifications/process\" >/dev/null 2>&1 ${CRON_MARKER}"
-    ( crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" || true ; echo "0 * * * * ${CRON_CMD}" ) | crontab -
+    # Daily reconciliation of Firestore membership state against Stripe. The
+    # webhook is the hot path; this is the safety net for a delivery that was
+    # lost for good (Stripe stops retrying after ~3 days), which used to mean
+    # a cancelled subscription kept full paid access forever with nothing
+    # anywhere that would notice. Runs at 04:17 to avoid the busy hour tick.
+    RECONCILE_CMD="curl -fsS -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${APP_URL%/}/api/admin/reconcile-subscriptions\" >/dev/null 2>&1 ${CRON_MARKER}"
+    ( crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" || true ; echo "0 * * * * ${CRON_CMD}" ; echo "17 4 * * * ${RECONCILE_CMD}" ) | crontab -
     echo "    cron installed: hourly POST to /api/notifications/process"
+    echo "    cron installed: daily POST to /api/admin/reconcile-subscriptions"
   else
     echo "    skipped — CRON_SECRET or NEXT_PUBLIC_APP_URL not set in $ENV_FILE"
   fi
 else
   echo "    skipped — no .env.production or .env file found"
+fi
+
+echo "==> Checking the installer is sealed"
+# firestore.rules no longer contains an installer exemption (see the deleted
+# installerNotDone()), so an unsealed install can no longer grant admin
+# rights by itself — but an unsealed marker still leaves /install reachable,
+# which is how a live deployment ended up with the setup wizard exposed.
+# /api/install's GET reports installed:true if the marker is set OR any admin
+# already exists, so this is a cheap post-deploy assertion.
+if [ -n "${APP_URL:-}" ]; then
+  INSTALL_STATE="$(curl -fsS "${APP_URL%/}/api/install" 2>/dev/null || echo '')"
+  case "$INSTALL_STATE" in
+    *'"installed":true'*) echo "    installer sealed" ;;
+    '')                   echo "    WARNING: could not reach ${APP_URL%/}/api/install to verify" ;;
+    *)                    echo "    *** WARNING: INSTALLER IS NOT SEALED — /install is reachable. Complete setup or set system/installer.installed=true ***" ;;
+  esac
 fi
 
 echo "==> Deploy complete"

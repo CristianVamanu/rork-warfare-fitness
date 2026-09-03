@@ -8,7 +8,6 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { createTenant } from './tenants';
 import { resolveTrainerId, invalidateWorkoutsCache, invalidateProgramsCache, invalidateChannelsCache } from './firestore';
 
 // signUp() writes the initial users/{uid} doc itself, but Firebase's
@@ -150,40 +149,9 @@ export async function resetPassword(email: string) {
   await sendPasswordResetEmail(auth, email);
 }
 
-/**
- * Creates the admin (trainer) account and the corresponding tenant record.
- * trainerId == the admin user's uid.
- */
-export async function createAdminUser(
-  email: string,
-  password: string,
-  name: string
-) {
-  const credential = await createUserWithEmailAndPassword(auth, email, password);
-  const uid = credential.user.uid;
-
-  try {
-    await updateProfile(credential.user, { displayName: name });
-
-    await setDoc(doc(db, 'users', uid), {
-      displayName: name,
-      email,
-      photoURL: null,
-      weightUnit: 'kg',
-      role: 'admin',
-      trainerId: uid,
-      createdAt: serverTimestamp(),
-      lastActive: serverTimestamp(),
-      stats: { streak: 0, powerLevel: 100, totalWorkouts: 0, totalWeightLifted: 0 },
-    });
-
-    await createTenant(uid, name, email);
-
-    return credential.user;
-  } catch (err) {
-    // If Firestore writes fail (e.g. rules not deployed), clean up the Auth user
-    // so the installer can retry without hitting "email-already-in-use".
-    await credential.user.delete().catch(() => {});
-    throw err;
-  }
-}
+// createAdminUser() REMOVED — do not reintroduce a client-side path that
+// writes role:'admin'. firestore.rules no longer permits it under any
+// condition (the installerNotDone() exemption is gone), and setup now runs
+// server-side in /api/install with the Admin SDK. A client helper here
+// could only ever fail with permission-denied, or tempt someone into
+// reopening the rule that left this deployment's installer exposed.

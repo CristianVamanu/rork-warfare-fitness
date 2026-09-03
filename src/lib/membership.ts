@@ -77,7 +77,7 @@ export function getProgramDayLimit(
   // 1:1 coaching is a higher-priced add-on tier, not an alternative to a
   // regular membership — an active coaching subscriber gets at least
   // everything a regular member gets.
-  if (profile?.membership?.status === 'active' || profile?.coaching?.status === 'active') return Infinity;
+  if (hasActiveSubscription(profile)) return Infinity;
   // A one-off purchase of THIS specific program buys the whole program,
   // not a preview of it. Without this, someone who paid for a program was
   // still capped at the free trial's day-count and hit a padlock partway
@@ -86,4 +86,52 @@ export function getProgramDayLimit(
   if (programId && profile?.purchasedProgramIds?.includes(programId)) return Infinity;
   const trialDays = config.trialDays ?? 0;
   return trialDays > 0 ? trialDays : Infinity;
+}
+
+/**
+ * Grace period applied to a membership's `expiresAt` before access is
+ * withdrawn. Stripe retries a failed renewal for several days while the
+ * subscription sits in `past_due` (which the webhook deliberately treats as
+ * still-active), so cutting access the instant the stored period ends would
+ * revoke a member Stripe is still trying to bill. Three days covers the
+ * retry schedule with room to spare.
+ */
+export const MEMBERSHIP_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** Coerces the several shapes `expiresAt` arrives in to a Date, or null. */
+function toDate(value: unknown): Date | null {
+  if (!value) return null;
+  const d = (value as { toDate?: () => Date })?.toDate?.() ?? new Date(value as string | number | Date);
+  return d instanceof Date && !isNaN(d.getTime()) ? d : null;
+}
+
+/**
+ * Whether a subscription record still grants access.
+ *
+ * `status` alone used to be the whole check, and `expiresAt` — written by
+ * the webhook on every subscription event — was never read by anything.
+ * That made Firestore a pure forward projection of webhook deliveries with
+ * no correction loop: lose one `customer.subscription.deleted` permanently
+ * (Stripe gives up after ~3 days of failures, or the endpoint was
+ * misconfigured for an afternoon) and that account kept full paid access
+ * forever, silently. Reading the period end here means a stale 'active'
+ * expires on its own instead of lasting indefinitely.
+ *
+ * A record with no `expiresAt` is treated as active-if-status-says-so, so
+ * older documents written before the webhook set the field keep working.
+ */
+export function subscriptionGrantsAccess(
+  record: { status?: string; expiresAt?: unknown } | null | undefined,
+): boolean {
+  if (record?.status !== 'active') return false;
+  const expires = toDate(record.expiresAt);
+  if (!expires) return true;
+  return expires.getTime() + MEMBERSHIP_GRACE_MS > Date.now();
+}
+
+/** True when either a membership or a coaching subscription still grants access. */
+export function hasActiveSubscription(
+  profile: { membership?: { status?: string; expiresAt?: unknown }; coaching?: { status?: string; expiresAt?: unknown } } | null | undefined,
+): boolean {
+  return subscriptionGrantsAccess(profile?.membership) || subscriptionGrantsAccess(profile?.coaching);
 }

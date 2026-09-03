@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { resolveProgram, enrollInProgram, getMembershipConfig, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
 import { getMockProgram, stripWeekdayPrefix, getScheduleForWeek, getNextSession } from '@/lib/programs';
-import { getProgramDayLimit } from '@/lib/membership';
+import { getProgramDayLimit, hasActiveSubscription } from '@/lib/membership';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
@@ -155,8 +155,18 @@ export default function ProgramDetailPage() {
   const handleSkipRest = async () => {
     if (!user || !program || !nextSession?.isRestToday) return;
     setSkippingRest(true);
-    try { await skipRestDay(user.uid, program.id, nextSession.index); }
-    catch { toast.error('Could not skip the rest day. Try again.'); }
+    try {
+      const res = await skipRestDay(user.uid, program.id, nextSession.index);
+      if (!res.ok) {
+        toast.error(
+          res.reason === 'locked'
+            ? 'Your trial covers a limited number of days — upgrade to keep going.'
+            : res.reason === 'not-a-rest-day'
+            ? 'That session is a workout, not a rest day.'
+            : 'Could not skip the rest day. Try again.'
+        );
+      }
+    } catch { toast.error('Could not skip the rest day. Try again.'); }
     finally { setSkippingRest(false); }
   };
 
@@ -171,7 +181,7 @@ export default function ProgramDetailPage() {
     if (el) requestAnimationFrame(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
   }, [isEnrolled, loading, nextAbsIdx]);
 
-  const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
+  const hasMembership = hasActiveSubscription(profile);
   // Admin can also lock specific programs to members-only via
   // MembershipConfig.lockedProgramIds (Admin → Membership), independently
   // of a program's own isPremium flag — e.g. to temporarily gate a

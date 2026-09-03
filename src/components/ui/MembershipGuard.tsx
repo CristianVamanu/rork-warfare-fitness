@@ -7,7 +7,7 @@ import { getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
 import { startPlanCheckout } from '@/lib/checkout';
 import { getPlanBillingPeriods, planHasAnyPrice, getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { isInFreeTrial } from '@/lib/membership';
+import { isInFreeTrial, hasActiveSubscription } from '@/lib/membership';
 import { Card } from './Card';
 import { Button } from './Button';
 import { VerifyEmailNotice } from './VerifyEmailNotice';
@@ -52,7 +52,7 @@ export function MembershipGuard({ pathname, children }: Props) {
   // Check if user has active membership
   // Active coaching is a higher-priced add-on tier, not an alternative to
   // membership — it grants at least everything a regular membership does.
-  const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
+  const hasMembership = hasActiveSubscription(profile);
 
   const trialDays = config?.trialDays ?? 0;
   const inTrialWindow = isInFreeTrial(config, profile?.createdAt);

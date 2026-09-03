@@ -108,8 +108,18 @@ export default function TrainingPage() {
   const handleSkipRest = async () => {
     if (!user || !activeProgram?.programId || !nextSession?.isRestToday) return;
     setSkippingRest(true);
-    try { await skipRestDay(user.uid, activeProgram.programId, nextSession.index); }
-    catch { toast.error('Could not skip the rest day. Try again.'); }
+    try {
+      const res = await skipRestDay(user.uid, activeProgram.programId, nextSession.index);
+      if (!res.ok) {
+        toast.error(
+          res.reason === 'locked'
+            ? 'Your trial covers a limited number of days — upgrade to keep going.'
+            : res.reason === 'not-a-rest-day'
+            ? 'That session is a workout, not a rest day.'
+            : 'Could not skip the rest day. Try again.'
+        );
+      }
+    } catch { toast.error('Could not skip the rest day. Try again.'); }
     finally { setSkippingRest(false); }
   };
 

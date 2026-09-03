@@ -1,6 +1,6 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { getAuth } from 'firebase-admin/auth';
-import { isInFreeTrial } from '@/lib/membership';
+import { isInFreeTrial, hasActiveSubscription, subscriptionGrantsAccess } from '@/lib/membership';
 import type { App } from 'firebase-admin/app';
 
 /**
@@ -51,10 +51,11 @@ export async function verifyFeatureAccess(
     return { allowed: false, error: 'Verify your email address to use your free trial — check your inbox for the link.', status: 403 };
   }
 
-  const hasMembership = profile.membership?.status === 'active' || profile.coaching?.status === 'active';
+  // Reads expiresAt as well as status — see subscriptionGrantsAccess.
+  const hasMembership = hasActiveSubscription(profile);
 
   if (hasMembership) {
-    const membershipPlanId = profile.membership?.status === 'active' ? profile.membership?.planId : undefined;
+    const membershipPlanId = subscriptionGrantsAccess(profile.membership) ? profile.membership?.planId : undefined;
     if (membershipPlanId) {
       const plansSnap = await db.collection('config').doc('membershipPlans').get();
       const plans = (plansSnap.data()?.plans ?? []) as { id: string; featureAccess?: string[] }[];

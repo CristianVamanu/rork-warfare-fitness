@@ -44,17 +44,29 @@ async function setSubscriptionStatus(
   planName?: string,
   subscriptionId?: string,
   cancelAtPeriodEnd?: boolean,
+  markTrialUsed?: boolean,
 ) {
   const db = getAdminDb();
   if (!db) { console.error('[Stripe webhook] Admin DB not available'); return; }
-  await db.collection('users').doc(userId).update({
+  // set(merge) rather than update(): update() throws NOT_FOUND if the user
+  // doc is gone (deleted account with a live subscription), which turned a
+  // dead-letter case into three days of pointless Stripe retries.
+  await db.collection('users').doc(userId).set({
+    // trialUsedAt is the ONLY thing stopping cancel-and-resubscribe from
+    // earning a fresh discounted trial every cycle (see plan-checkout's
+    // alreadyUsedTrial). It used to be a separate fire-and-forget write with
+    // `.catch(() => {})`, so if it failed the error was swallowed, the
+    // webhook still answered 200, Stripe never retried, and the guard was
+    // silently absent for that account forever. Folded into this same write
+    // so it is atomic with the grant and a failure earns a retry.
+    ...(markTrialUsed ? { trialUsedAt: FieldValue.serverTimestamp() } : {}),
     [`${field}.status`]: status,
     [`${field}.updatedAt`]: FieldValue.serverTimestamp(),
     ...(expiresAt ? { [`${field}.expiresAt`]: expiresAt } : {}),
     ...(planId ? { [`${field}.planId`]: planId, [`${field}.planName`]: planName ?? '' } : {}),
     ...(subscriptionId ? { [`${field}.stripeSubscriptionId`]: subscriptionId } : {}),
     ...(cancelAtPeriodEnd !== undefined ? { [`${field}.cancelAtPeriodEnd`]: cancelAtPeriodEnd } : {}),
-  });
+  }, { merge: true });
   console.log(`[Stripe webhook] User ${userId} ${field} → ${status}${planId ? ` (plan: ${planId})` : ''}`);
 }
 
@@ -116,16 +128,11 @@ export async function POST(req: NextRequest) {
           if (subActive) {
             const planId = session.metadata?.planId;
             const planName = session.metadata?.planName;
-            await setSubscriptionStatus(userId, fieldFromMetadata(session.metadata), 'active', expiresAt, planId, planName, subId ?? undefined, false);
-            // Marks this account as having already used its trial (free or
-            // paid) — see plan-checkout's alreadyUsedTrial check, which
-            // stops a cancel-then-resubscribe loop from repeatedly getting
-            // a fresh trial_period_days (and, for a paid trial, the
-            // discounted trial fee) every time.
-            if (session.metadata?.trialUsed === 'true') {
-              const db = getAdminDb();
-              await db?.collection('users').doc(userId).update({ trialUsedAt: FieldValue.serverTimestamp() }).catch(() => {});
-            }
+            await setSubscriptionStatus(
+              userId, fieldFromMetadata(session.metadata), 'active', expiresAt, planId, planName,
+              subId ?? undefined, false,
+              session.metadata?.trialUsed === 'true',
+            );
           }
         }
         break;

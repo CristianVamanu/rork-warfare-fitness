@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown, Megaphone } from 'lucide-react';
@@ -53,9 +53,43 @@ function fullTimestamp(ts: unknown): string | undefined {
   return d?.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+/**
+ * One reply. Rendered at two indent levels — a nested reply is visually
+ * quieter (smaller avatar, no card fill) so the eye reads the thread as
+ * "answer to the thing above" rather than another top-level comment.
+ */
+function ReplyRow({ reply, nested = false, onReply }: {
+  reply: ChannelPost;
+  nested?: boolean;
+  onReply: () => void;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <Avatar name={reply.userDisplayName} src={reply.userPhotoURL} size="sm" />
+      <div className="flex-1 min-w-0">
+        <div className={nested ? 'rounded-xl px-3 py-2 bg-white/[0.03]' : 'rounded-xl px-3 py-2 bg-surface-elevated'}>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-xs font-bold text-white">{reply.userDisplayName}</p>
+            {reply.userIsAdmin && <Badge variant="danger">Admin</Badge>}
+            <span className="text-xs text-text-tertiary" title={fullTimestamp(reply.createdAt)}>{timeAgo(reply.createdAt)}</span>
+          </div>
+          <p className="text-sm text-white mt-0.5 whitespace-pre-wrap break-words">{reply.content}</p>
+        </div>
+        <button
+          onClick={onReply}
+          className="mt-1 ml-1 text-[11px] font-medium text-text-tertiary hover:text-accent transition-colors"
+        >
+          Reply
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PostCard({
   post, userId, isAdmin, channelId, pinnedPostId,
   onLike, onReply, onDelete, onPin,
+  replyRefreshToken,
 }: {
   post: ChannelPost;
   userId: string;
@@ -63,7 +97,8 @@ function PostCard({
   channelId: string;
   pinnedPostId?: string;
   onLike: (post: ChannelPost) => void;
-  onReply: (post: ChannelPost) => void;
+  onReply: (post: ChannelPost, parentReply?: ChannelPost) => void;
+  replyRefreshToken: number;
   onDelete: (post: ChannelPost) => void;
   onPin: (post: ChannelPost, pin: boolean) => void;
 }) {
@@ -75,16 +110,52 @@ function PostCard({
   const canDelete = isAdmin || post.userId === userId;
   const isPinned = pinnedPostId === post.id;
 
+  // Fetch on every open, never cached across opens.
+  //
+  // This used to be guarded by `replies.length === 0 && post.replyCount > 0`,
+  // which broke threads two different ways. Once a thread had been opened
+  // the array was non-empty, so reopening it skipped the fetch entirely and
+  // any reply added since stayed invisible — reported as "you can only see
+  // the first reply". And replyCount is bumped best-effort (rules only allow
+  // updating a post you own, so replying to someone else's post silently
+  // leaves the counter behind), so a thread whose counter said 0 never
+  // loaded at all even though replies existed. Neither value is trustworthy;
+  // the subcollection is.
+  const loadReplies = useCallback(async () => {
+    setLoadingReplies(true);
+    try { setReplies(await getPostReplies(channelId, post.id)); }
+    catch { /* leave whatever we had */ }
+    finally { setLoadingReplies(false); }
+  }, [channelId, post.id]);
+
   const handleShowReplies = async () => {
     if (showReplies) { setShowReplies(false); return; }
     setShowReplies(true);
-    if (replies.length === 0 && post.replyCount > 0) {
-      setLoadingReplies(true);
-      try { setReplies(await getPostReplies(channelId, post.id)); }
-      catch { /* noop */ }
-      finally { setLoadingReplies(false); }
-    }
+    await loadReplies();
   };
+
+  // The parent bumps this after a reply is posted anywhere in this thread.
+  useEffect(() => {
+    if (replyRefreshToken > 0) { setShowReplies(true); loadReplies(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replyRefreshToken]);
+
+  // Two visible levels, Facebook-style: top-level replies, each with its own
+  // children. A reply to a child is stored against that child's parent (see
+  // handleReply), so the tree can never grow a third indent level and run
+  // off the side of a phone.
+  const topLevel = replies.filter((r) => !r.parentReplyId);
+  const childrenOf = (id: string) => replies.filter((r) => r.parentReplyId === id);
+  // Anything whose parent is missing (deleted, or written before threading
+  // existed) is shown at the top level rather than vanishing.
+  const orphans = replies.filter((r) => r.parentReplyId && !replies.some((x) => x.id === r.parentReplyId));
+  const roots = [...topLevel, ...orphans].sort((a, b) => {
+    const ta = (a.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+    const tb = (b.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+    return ta - tb;
+  });
+  // Prefer the real count once loaded — replyCount drifts (see above).
+  const shownCount = replies.length > 0 ? replies.length : post.replyCount;
 
   return (
     <Card className={`p-4 ${isPinned ? 'border border-accent/40 bg-accent/5' : ''}`}>
@@ -152,7 +223,7 @@ function PostCard({
           className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-white transition-colors"
         >
           <MessageCircle className="w-4 h-4" />
-          {post.replyCount} {post.replyCount === 1 ? 'reply' : 'replies'}
+          {shownCount} {shownCount === 1 ? 'reply' : 'replies'}
         </button>
         <button
           onClick={() => onReply(post)}
@@ -162,24 +233,40 @@ function PostCard({
         </button>
       </div>
       {showReplies && (
-        <div className="mt-3 pt-3 border-t border-white/8 space-y-3 pl-4">
-          {loadingReplies ? (
+        <div className="mt-3 pt-3 border-t border-white/8">
+          {loadingReplies && replies.length === 0 ? (
             <Skeleton className="h-12 rounded-xl" />
-          ) : replies.length === 0 ? (
+          ) : roots.length === 0 ? (
             <p className="text-xs text-text-tertiary">No replies yet.</p>
-          ) : replies.map((r) => (
-            <div key={r.id} className="flex items-start gap-2">
-              <Avatar name={r.userDisplayName} src={r.userPhotoURL} size="sm" />
-              <div className="flex-1 bg-surface-elevated rounded-xl px-3 py-2">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-xs font-bold text-white">{r.userDisplayName}</p>
-                  {r.userIsAdmin && <Badge variant="danger">Admin</Badge>}
-                  <span className="text-xs text-text-tertiary" title={fullTimestamp(r.createdAt)}>{timeAgo(r.createdAt)}</span>
-                </div>
-                <p className="text-sm text-white mt-0.5">{r.content}</p>
-              </div>
+          ) : (
+            <div className="space-y-3">
+              {roots.map((r) => {
+                const kids = childrenOf(r.id);
+                return (
+                  <div key={r.id} className="relative">
+                    <ReplyRow reply={r} onReply={() => onReply(post, r)} />
+                    {kids.length > 0 && (
+                      /* Facebook-style thread rail: one vertical line down the
+                         left of the nested group, with a short elbow into each
+                         child, so it reads as "these answer that" instead of a
+                         flat list where everything looks like a sibling. */
+                      <div className="relative mt-2 pl-5">
+                        <span aria-hidden="true" className="absolute left-[13px] top-0 bottom-3 w-px bg-white/12" />
+                        <div className="space-y-2">
+                          {kids.map((c) => (
+                            <div key={c.id} className="relative pl-4">
+                              <span aria-hidden="true" className="absolute left-[-7px] top-4 w-[15px] h-px bg-white/12" />
+                              <ReplyRow reply={c} nested onReply={() => onReply(post, r)} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          )}
         </div>
       )}
     </Card>
@@ -203,7 +290,15 @@ export default function ChannelPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [pendingImageURL, setPendingImageURL] = useState<string | null>(null);
   const [slowModeBlocked, setSlowModeBlocked] = useState<Date | null>(null);
-  const [replyTarget, setReplyTarget] = useState<ChannelPost | null>(null);
+  // The post the reply belongs to, plus (optionally) the reply being answered.
+  // Threading is capped at two levels: answering a nested reply targets its
+  // parent, so `parent` is always a TOP-LEVEL reply or undefined.
+  const [replyTarget, setReplyTarget] = useState<{ post: ChannelPost; parent?: ChannelPost } | null>(null);
+  // Bumped per POST after a successful reply so only the affected thread
+  // reloads. A single shared counter would re-run every mounted PostCard's
+  // refresh effect, which also force-expands them — replying to one post
+  // would have popped open every other thread on the page.
+  const [replyRefreshTokens, setReplyRefreshTokens] = useState<Record<string, number>>({});
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -414,16 +509,20 @@ export default function ChannelPage() {
     if (!user || !profile || !replyTarget || !replyText.trim()) return;
     setSendingReply(true);
     try {
-      await createReply(channelId, replyTarget.id, {
+      await createReply(channelId, replyTarget.post.id, {
         userId: user.uid,
         userDisplayName: profile.displayName || 'Athlete',
         ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
         ...(profile.role === 'admin' ? { userIsAdmin: true } : {}),
         content: replyText.trim(),
+        ...(replyTarget.parent ? { parentReplyId: replyTarget.parent.id } : {}),
       });
-      setPosts(prev => prev.map(p => p.id === replyTarget.id ? { ...p, replyCount: p.replyCount + 1 } : p));
+      setPosts(prev => prev.map(p => p.id === replyTarget.post.id ? { ...p, replyCount: p.replyCount + 1 } : p));
       setReplyText('');
       setReplyTarget(null);
+      // Force the thread to reload — replyCount is best-effort and the local
+      // array would otherwise be a frame behind.
+      setReplyRefreshTokens((m) => ({ ...m, [replyTarget.post.id]: (m[replyTarget.post.id] ?? 0) + 1 }));
       toast.success('Reply sent!');
     } catch { toast.error('Failed to reply'); }
     finally { setSendingReply(false); }
@@ -535,7 +634,8 @@ export default function ChannelPage() {
                 channelId={channelId}
                 pinnedPostId={channel.pinnedPostId}
                 onLike={handleLike}
-                onReply={setReplyTarget}
+                onReply={(p, parent) => setReplyTarget({ post: p, parent })}
+                replyRefreshToken={replyRefreshTokens[post.id] ?? 0}
                 onDelete={handleDelete}
                 onPin={handlePin}
               />
@@ -661,7 +761,7 @@ export default function ChannelPage() {
               onClick={e => e.stopPropagation()}
             >
               <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-                <p className="text-sm font-bold text-white">Reply to {replyTarget.userDisplayName}</p>
+                <p className="text-sm font-bold text-white">Reply to {(replyTarget.parent ?? replyTarget.post).userDisplayName}</p>
                 <button
                   onClick={() => setReplyTarget(null)}
                   className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/8 transition-colors"
@@ -671,7 +771,7 @@ export default function ChannelPage() {
               </div>
               {/* Quoted post */}
               <div className="mx-4 mb-3 bg-surface rounded-xl px-3 py-2 border border-white/8">
-                <p className="text-xs text-text-secondary line-clamp-3">{replyTarget.content}</p>
+                <p className="text-xs text-text-secondary line-clamp-3">{(replyTarget.parent ?? replyTarget.post).content}</p>
               </div>
               {/* Reply input */}
               <div className="px-4 pb-4 flex gap-2 items-end">

@@ -462,6 +462,12 @@ export interface ChannelPost {
   likes: string[];
   replyCount: number;
   replyTo?: string | null;
+  // Set when this reply answers ANOTHER reply rather than the post itself.
+  // Threads are capped at two visible levels (post -> reply -> reply), the
+  // same shape Facebook uses: a reply to a nested reply is stored against
+  // the same top-level parent so a thread can never run away sideways on a
+  // phone. Absent on top-level replies and on posts.
+  parentReplyId?: string | null;
   pinned?: boolean;
   createdAt: unknown;
 }

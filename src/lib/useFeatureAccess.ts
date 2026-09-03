@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getMembershipConfig, getMembershipPlans } from './firestore';
 import { useAuth } from '@/contexts/AuthContext';
-import { isInFreeTrial } from './membership';
+import { isInFreeTrial, hasActiveSubscription } from './membership';
 import type { MembershipConfig, MembershipPlan } from '@/types';
 
 export interface FeatureAccess {
@@ -48,7 +48,7 @@ export function useFeatureAccess(feature?: string, programId?: string): FeatureA
       .finally(() => setLoaded(true));
   }, []);
 
-  const hasMembership = profile?.membership?.status === 'active' || profile?.coaching?.status === 'active';
+  const hasMembership = hasActiveSubscription(profile);
 
   const inTrial = isInFreeTrial(config, profile?.createdAt);
 

@@ -166,16 +166,6 @@ export async function resolveTrainerId(): Promise<string | null> {
   }
 }
 
-export async function getInstallerStatus() {
-  try {
-    const snap = await getDoc(doc(db, 'system', 'installer'));
-    return snap.exists()
-      ? (snap.data() as { installed: boolean; installedAt?: Timestamp })
-      : null;
-  } catch {
-    return null;
-  }
-}
 
 export async function setSystemConfig(config: Record<string, unknown>) {
   await setDoc(doc(db, 'system', 'config'), config, { merge: true });
@@ -235,12 +225,6 @@ export async function updateTrainerLeadStatus(id: string, status: TrainerLead['s
   await updateDoc(doc(db, 'trainerLeads', id), { status });
 }
 
-export async function markInstalled() {
-  await setDoc(doc(db, 'system', 'installer'), {
-    installed: true,
-    installedAt: serverTimestamp(),
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Users
@@ -1206,13 +1190,31 @@ export async function incrementProgramWorkouts(userId: string, dayIndex?: number
  * slots only, exactly as incrementProgramWorkouts does. Repeat-safe: a
  * pointer already at or past `restIndex` is left alone.
  */
-export async function skipRestDay(userId: string, programId: string, restIndex: number): Promise<void> {
+export type SkipRestResult =
+  | { ok: true }
+  | { ok: false; reason: 'not-active' | 'already-past' | 'not-a-rest-day' | 'locked' | 'failed' };
+
+/**
+ * Advances the active program's pointer onto a rest slot so the next workout
+ * becomes available, without counting a workout.
+ *
+ * Every failure path used to be a silent `return`, so tapping "Skip rest
+ * day" and having nothing happen was indistinguishable from it working. It
+ * now reports why, and the callers say so.
+ *
+ * `completedWorkouts` is recomputed from TRAINING slots only (never
+ * `index + 1`), exactly as incrementProgramWorkouts does, so skipping a rest
+ * day cannot inflate progress.
+ */
+export async function skipRestDay(userId: string, programId: string, restIndex: number): Promise<SkipRestResult> {
   const ref = doc(db, 'users', userId);
   const snap = await getDoc(ref);
   const activeProgram = snap.data()?.activeProgram as { programId?: string; lastCompletedDayIndex?: number } | undefined;
-  if (!activeProgram || activeProgram.programId !== programId) return;
+  if (!activeProgram || activeProgram.programId !== programId) return { ok: false, reason: 'not-active' };
   const lastCompleted = activeProgram.lastCompletedDayIndex ?? -1;
-  if (restIndex <= lastCompleted) return;
+  // Already skipped (double tap, or two tabs) — treat as success so the UI
+  // doesn't show an error for a state that is exactly what was asked for.
+  if (restIndex <= lastCompleted) return { ok: true };
 
   let completedTraining: number | undefined;
   try {
@@ -1221,16 +1223,26 @@ export async function skipRestDay(userId: string, programId: string, restIndex: 
       const { countTrainingSlotsThrough, getProgramDayForDow } = await import('./programs');
       // Refuse to "skip" a training day — this action is only for rest slots.
       const slot = getProgramDayForDow(resolved, restIndex);
-      if (slot && !slot.isRest) return;
+      if (slot && !slot.isRest) return { ok: false, reason: 'not-a-rest-day' };
       completedTraining = countTrainingSlotsThrough(resolved, restIndex);
     }
-  } catch { /* fall through — pointer move alone is still correct */ }
+  } catch { /* fall through — the pointer move alone is still correct */ }
 
-  await updateDoc(ref, {
-    'activeProgram.lastCompletedDayIndex': restIndex,
-    ...(completedTraining !== undefined ? { 'activeProgram.completedWorkouts': completedTraining } : {}),
-    lastActive: serverTimestamp(),
-  });
+  try {
+    await updateDoc(ref, {
+      'activeProgram.lastCompletedDayIndex': restIndex,
+      ...(completedTraining !== undefined ? { 'activeProgram.completedWorkouts': completedTraining } : {}),
+      lastActive: serverTimestamp(),
+    });
+    return { ok: true };
+  } catch (err) {
+    // firestore.rules' activeProgramWriteAllowed() caps how far a non-member
+    // can advance (trialDayLimit). Hitting that is a paywall, not a glitch,
+    // and telling someone to "try again" for it is just wrong.
+    if ((err as { code?: string })?.code === 'permission-denied') return { ok: false, reason: 'locked' };
+    console.error('[skipRestDay] failed:', err);
+    return { ok: false, reason: 'failed' };
+  }
 }
 
 export async function getMealsForDate(userId: string, date: Date): Promise<NormalizedMeal[]> {
@@ -1912,9 +1924,16 @@ export async function getPostReplies(channelId: string, postId: string): Promise
 
 export async function createReply(channelId: string, postId: string, data: {
   userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean; content: string;
+  /** Set to thread this under another reply instead of the post itself. */
+  parentReplyId?: string;
 }) {
+  const { parentReplyId, ...rest } = data;
   await addDoc(collection(db, 'channels', channelId, 'posts', postId, 'replies'), {
-    ...data, channelId, likes: [], replyCount: 0, replyTo: postId, createdAt: serverTimestamp(),
+    ...rest, channelId, likes: [], replyCount: 0, replyTo: postId,
+    // Stored flat in the same subcollection and grouped client-side, so a
+    // whole thread is still one read no matter how deep it looks.
+    ...(parentReplyId ? { parentReplyId } : {}),
+    createdAt: serverTimestamp(),
   });
   // Best-effort for the same reason as createChannelPost's postCount:
   // firestore.rules only allows updating a post you own (or a likes-only

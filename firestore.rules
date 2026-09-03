@@ -74,10 +74,17 @@ service cloud.firestore {
     // admin account (and therefore any isAdmin() caller) exists yet. Scoping
     // the exception to "installer not done" closes it back down the moment
     // setup completes, same as every signup after that point.
-    function installerNotDone() {
-      return !exists(/databases/$(database)/documents/system/installer) ||
-        get(/databases/$(database)/documents/system/installer).data.get('installed', false) != true;
-    }
+    // installerNotDone() DELETED — deliberately, do not reintroduce.
+    //
+    // It used to grant unauthenticated callers the right to create a user
+    // with role:'admin' and to overwrite system/config, for as long as
+    // system/installer.installed wasn't exactly true. That flag was written
+    // only as the LAST step of a browser-side install, so any interruption
+    // left both grants open — found live on this deployment, with the
+    // installer wizard still reachable and anyone able to register as an
+    // admin. Setup now runs server-side in /api/install with the Admin SDK
+    // (which bypasses these rules), so no client-side exemption is needed
+    // and none exists. See that route for its own three guards.
 
     // How many absolute program day-slots a non-member can advance into —
     // mirrors src/lib/membership.ts's getProgramDayLimit() so the client-side
@@ -205,7 +212,7 @@ service cloud.firestore {
       // Only writable before install completes, or by an already-confirmed
       // admin — otherwise any authed client could flip `installed` back to
       // false and re-trigger the installer flow.
-      allow write: if isAdmin() || installerNotDone();
+      allow write: if isAdmin();
     }
 
     // Publicly readable — branding (app name, logo) needs to render on the
@@ -250,7 +257,7 @@ service cloud.firestore {
       // createAdminUser()'s one-time bootstrap write, not a general escape
       // hatch for regular signups.
       allow create: if isAuthed() && uid() == userId
-        && (request.resource.data.role == 'user' || (request.resource.data.role == 'admin' && installerNotDone()))
+        && request.resource.data.role == 'user'
         && !('membership' in request.resource.data)
         && !('coaching' in request.resource.data)
         && !('purchasedProgramIds' in request.resource.data)

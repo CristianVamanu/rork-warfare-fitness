@@ -866,7 +866,22 @@ function OnboardingPageInner() {
   if (authLoading || needsAccount === null) return <FullPageSpinner />;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="relative min-h-screen bg-background flex flex-col overflow-hidden">
+      {/* Matches the landing hero and the login screen — the quiz used to be
+          the one flat-black surface in the whole signup path. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[560px] overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage:
+              'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
+            backgroundSize: '48px 48px',
+            maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)',
+          }}
+        />
+        <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 w-[560px] h-[560px] rounded-full bg-accent/[0.08] blur-3xl" />
+      </div>
       {/* Header */}
       <div className="px-4 pt-12 pb-4 max-w-lg mx-auto w-full">
         <div className="flex items-center justify-between mb-6">
