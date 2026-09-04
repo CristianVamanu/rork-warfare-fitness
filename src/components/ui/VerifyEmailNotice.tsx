@@ -18,9 +18,13 @@ import { Card } from './Card';
 // and a full card MembershipGuard renders in place of trial content.
 export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' | 'screen' }) {
   const { user } = useAuth();
-  const [busy, setBusy] = useState<'send' | 'confirm' | null>(null);
+  const [busy, setBusy] = useState<'send' | 'confirm' | 'email' | null>(null);
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState('');
+  // Mistyping your address at signup used to be unrecoverable: the code went
+  // to an inbox you don't own, and nothing in the app could change it.
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
   const checking = useRef(false);
 
   // Kept for accounts mid-migration: anyone who already tapped a verification
@@ -106,6 +110,32 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
   // Published for the auto-send effect above, which runs after this render.
   sendCodeRef.current = sendCode;
 
+  const changeEmail = async () => {
+    if (!newEmail.trim()) return;
+    setBusy('email');
+    try {
+      const { res, data } = await post('/api/auth/verify-email/change-email', { email: newEmail.trim() });
+      if (res.status === 429) {
+        const mins = Math.max(1, Math.ceil((data?.retryAfter ?? 3600) / 60));
+        toast.error(`Too many changes — try again in about ${mins} minute${mins === 1 ? '' : 's'}.`);
+        return;
+      }
+      if (!res.ok) { toast.error(data?.error || 'Could not change your email.'); return; }
+      // The ID token still carries the old address until it is refreshed, and
+      // several gates read the email straight off it.
+      await user.reload();
+      await user.getIdToken(true);
+      toast.success('Email updated — sending a new code.');
+      setEditingEmail(false);
+      setCode('');
+      await sendCode();
+    } catch {
+      toast.error('Could not change your email. Check your connection.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const confirm = async () => {
     if (code.trim().length !== 6) return;
     setBusy('confirm');
@@ -164,6 +194,46 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
           ) : (
             <Button fullWidth onClick={sendCode} loading={busy === 'send'}>Send me a code</Button>
           )}
+
+          {/* The way out of a typo. Without this, a wrong address at signup is
+              an account that can never be confirmed and therefore never used,
+              with nothing in the app able to fix it. */}
+          <div className="pt-2 border-t border-white/8">
+            {editingEmail ? (
+              <div className="space-y-2 text-left">
+                <label htmlFor="new-email" className="text-xs text-text-secondary">Correct email address</label>
+                <div className="flex gap-2">
+                  <input
+                    id="new-email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') changeEmail(); }}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                  />
+                  <Button onClick={changeEmail} loading={busy === 'email'} disabled={!newEmail.trim()}>Save</Button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setEditingEmail(false); setNewEmail(''); }}
+                  className="text-xs text-text-tertiary hover:text-white"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setEditingEmail(true); setNewEmail(user.email ?? ''); }}
+                className="text-xs text-text-secondary hover:text-white"
+              >
+                Wrong address? <span className="text-accent font-semibold">Change it</span>
+              </button>
+            )}
+          </div>
         </Card>
       </div>
     );
