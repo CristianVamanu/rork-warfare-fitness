@@ -91,7 +91,16 @@ export async function POST(req: NextRequest) {
         html = passwordResetEmailHtml(link, appName);
         subject = `Reset your password — ${appName}`;
       }
-    } catch {
+    } catch (err) {
+      // The RESPONSE stays generic — differing output here would turn this
+      // route into an oracle for which addresses have accounts. The LOG must
+      // not be generic though: this catch swallowed everything silently,
+      // including real misconfiguration, and left nothing behind to debug
+      // with. auth/user-not-found is the ordinary case and stays quiet.
+      const code = (err as { code?: string })?.code;
+      if (code !== 'auth/user-not-found') {
+        console.error(`[send-auth-email] could not mint ${kind} link:`, code ?? err);
+      }
       return NextResponse.json({ ok: true });
     }
 
