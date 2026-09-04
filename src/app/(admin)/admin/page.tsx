@@ -475,6 +475,7 @@ function AdminPageInner() {
   const [coachingApplications, setCoachingApplications] = useState<CoachingApplication[]>([]);
   const [loadingApplications, setLoadingApplications] = useState(false);
   const [deletingApp, setDeletingApp] = useState<string | null>(null);
+  const [resettingTrial, setResettingTrial] = useState<string | null>(null);
   const [reviewingApp, setReviewingApp] = useState<string | null>(null);
   const [rejectingApp, setRejectingApp] = useState<CoachingApplication | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -1488,6 +1489,27 @@ function AdminPageInner() {
       });
     } catch {
       // Non-fatal — coaching status email is best-effort
+    }
+  }
+
+  async function handleResetTrial(u: UserData) {
+    if (!user) return;
+    if (!confirm(`Make ${u.displayName || 'this user'} eligible for a trial again? They'll get the full trial on their next checkout instead of being billed immediately.`)) return;
+    setResettingTrial(u.id);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/reset-trial', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: u.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to reset trial');
+      toast.success(data.alreadyEligible ? 'Already eligible for a trial' : 'Trial eligibility restored');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to reset trial');
+    } finally {
+      setResettingTrial(null);
     }
   }
 
@@ -3583,6 +3605,25 @@ function AdminPageInner() {
                           </select>
                         )}
                       </div>
+                      {/* trialUsedAt is one-way by design (it's what stops
+                          cancel-and-resubscribe farming a fresh trial every
+                          cycle) but had no reset at all — so a signup that
+                          broke halfway, or a refunded charge, left someone
+                          permanently billed in full on their next checkout
+                          with no way to put it right short of editing
+                          Firestore by hand. */}
+                      {(u as UserData & { trialUsedAt?: unknown }).trialUsedAt != null && (
+                        <div className="flex items-center gap-2 pl-11">
+                          <span className="text-xs text-text-tertiary">Trial already used</span>
+                          <button
+                            onClick={() => handleResetTrial(u)}
+                            disabled={resettingTrial === u.id}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors whitespace-nowrap disabled:opacity-50"
+                          >
+                            {resettingTrial === u.id ? '…' : 'Reset trial'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
