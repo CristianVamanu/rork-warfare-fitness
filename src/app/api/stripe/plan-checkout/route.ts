@@ -203,6 +203,13 @@ export async function POST(req: NextRequest) {
         ...(trialFeeLineItem ? [trialFeeLineItem] : []),
       ],
       ...(discounts ? { discounts } : { allow_promotion_codes: true }),
+      // Stated explicitly rather than left to Stripe's default, because on a
+      // free trial the amount due today is $0 and a card-less signup is the
+      // difference between a trial that converts on day 8 and one that
+      // silently expires into an unpayable invoice. Requiring the card up
+      // front is also what makes the trial self-converting: nothing for the
+      // member to come back and do.
+      payment_method_collection: 'always',
       subscription_data: {
         ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),
         metadata: { userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership' },
