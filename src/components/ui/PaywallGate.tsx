@@ -108,6 +108,7 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
   // access too). Mirrors MembershipGuard's LockedScreen wording, including
   // naming the price the trial converts into.
   const paidTrialEnabled = !!config.paidTrialEnabled;
+  const cardUpFrontTrial = !paidTrialEnabled && !!config.cardUpFrontTrial;
   const trialPrice = ((config.trialPriceCents ?? 100) / 100).toFixed(2);
   // Follows the admin-set mostPopular flag, same as the badge logic below —
   // was hardcoded to activePlans[0] regardless of which plan is featured.
@@ -118,7 +119,9 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
     : '';
   const trialLabel = effectiveTrialDays <= 0 ? '' : paidTrialEnabled
     ? ` · $${trialPrice} for ${effectiveTrialDays} days,${afterTrial || ' then your plan price applies'}`
-    : ` · ${effectiveTrialDays}-day free trial${afterTrial ? `,${afterTrial}` : ''}`;
+    : cardUpFrontTrial
+      ? ` · free for ${effectiveTrialDays} days,${afterTrial || ' then your plan price applies'} — cancel anytime`
+      : ` · ${effectiveTrialDays}-day free trial${afterTrial ? `,${afterTrial}` : ''}`;
   const ctaLabel = effectiveTrialDays <= 0 ? 'Subscribe Now' : paidTrialEnabled ? `Start for $${trialPrice}` : 'Start Free Trial';
 
   return (

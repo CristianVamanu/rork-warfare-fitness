@@ -754,6 +754,24 @@ export interface MembershipConfig {
   // the admin UI, not just documented here.
   paidTrialEnabled?: boolean;
   trialPriceCents?: number; // e.g. 100 = $1.00, charged once at checkout
+  // Card-up-front trial: the member goes through Stripe Checkout on day 0,
+  // hands over a card, and gets `trialDays` free via Stripe's own
+  // trial_period_days. Nothing is charged until the trial ends, and then it
+  // bills automatically.
+  //
+  // The point is WHO decides on day 8. The createdAt-anchored free trial
+  // (isInFreeTrial) grants access with no Stripe subscription at all, so
+  // when it lapses the member hits a paywall and has to actively choose to
+  // subscribe — an opt-IN at the exact moment the product stopped working.
+  // With a card up front, day 8 is passive: they do nothing and become a
+  // customer. Same 7 free days either way; very different conversion.
+  //
+  // Like paidTrialEnabled, this disables the createdAt-based free window
+  // entirely — access comes only from a real Stripe subscription, which
+  // starts in 'trialing' and is already treated as active by the webhook.
+  // Mutually exclusive with paidTrialEnabled (which charges immediately);
+  // paidTrialEnabled wins if both are somehow set.
+  cardUpFrontTrial?: boolean;
 }
 
 export interface MembershipPlan {

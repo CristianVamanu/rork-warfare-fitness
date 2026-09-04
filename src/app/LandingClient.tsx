@@ -328,6 +328,10 @@ export default function LandingPage({
   const anyPlanMarkedPopular = membershipPlans.some((p) => p.mostPopular);
   const trialDays = membership?.enabled ? (membership.trialDays ?? 0) : 0;
   const paidTrialEnabled = !!membership?.paidTrialEnabled;
+  // Card-up-front trial: still free for trialDays, but a card IS taken at
+  // checkout, so every 'no credit card required' claim on this page has to
+  // stop making it.
+  const cardUpFrontTrial = !paidTrialEnabled && !!membership?.cardUpFrontTrial;
   const trialPrice = ((membership?.trialPriceCents ?? 100) / 100).toFixed(2);
   const discountPercent = getActiveDiscountPercent(membership);
   // Same plan the pricing section itself marks "Most Popular" — was
@@ -560,7 +564,7 @@ export default function LandingPage({
           </div>
 
           <div className="flex items-center justify-center gap-4 mt-5 flex-wrap">
-            <p className="text-xs text-text-tertiary">{paidTrialEnabled ? `Cancel anytime` : 'No credit card required'}</p>
+            <p className="text-xs text-text-tertiary">{paidTrialEnabled || cardUpFrontTrial ? `Cancel anytime` : 'No credit card required'}</p>
             <span className="text-text-tertiary">·</span>
             <Link href="/login" className="text-xs text-accent font-medium hover:underline">
               {landing.ctaSecondaryLabel}
@@ -964,7 +968,11 @@ export default function LandingPage({
                 )}
                 {trialDays > 0 && (
                   <p className="text-[11px] text-accent mt-1 font-medium">
-                    {paidTrialEnabled ? `$${trialPrice} for ${trialDays} days, then this price applies` : `${trialDays}-day free trial, no payment required`}
+                    {paidTrialEnabled
+                      ? `$${trialPrice} for ${trialDays} days, then this price applies`
+                      : cardUpFrontTrial
+                        ? `Free for ${trialDays} days — card required, cancel anytime`
+                        : `${trialDays}-day free trial, no payment required`}
                   </p>
                 )}
                 {plan.description && (

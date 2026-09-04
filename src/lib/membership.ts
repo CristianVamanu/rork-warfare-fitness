@@ -4,7 +4,20 @@ import type { MembershipConfig, UserProfile } from '@/types';
  * so the server-side callers, which read the raw Firestore doc through a
  * loose cast rather than the full typed MembershipConfig, can pass their
  * config object directly without re-shaping it. */
-type TrialConfig = { enabled?: boolean; trialDays?: number; paidTrialEnabled?: boolean };
+type TrialConfig = { enabled?: boolean; trialDays?: number; paidTrialEnabled?: boolean; cardUpFrontTrial?: boolean };
+
+/**
+ * True when trials are run by Stripe rather than by this app's own
+ * createdAt window — either because a paid trial charges at checkout, or
+ * because a card-up-front trial captures the card at checkout and lets
+ * Stripe bill automatically when the free days run out.
+ *
+ * Both modes mean the same thing to every access check: there is no free
+ * window to honour, and access comes only from a real subscription.
+ */
+export function trialIsStripeManaged(config: TrialConfig | null | undefined): boolean {
+  return !!config?.paidTrialEnabled || !!config?.cardUpFrontTrial;
+}
 
 /**
  * Is this account inside the FREE, no-card trial window — the one anchored
@@ -32,7 +45,7 @@ export function isInFreeTrial(
   createdAt: unknown
 ): boolean {
   if (!config?.enabled) return false;
-  if (config.paidTrialEnabled) return false;
+  if (trialIsStripeManaged(config)) return false;
   const trialDays = config.trialDays ?? 0;
   if (!trialDays || !createdAt) return false;
   const created = (createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(createdAt as string | number | Date);
@@ -45,7 +58,7 @@ export function freeTrialEndsAt(
   config: TrialConfig | null | undefined,
   createdAt: unknown
 ): Date | null {
-  if (!config?.enabled || config.paidTrialEnabled) return null;
+  if (!config?.enabled || trialIsStripeManaged(config)) return null;
   const trialDays = config.trialDays ?? 0;
   if (!trialDays || !createdAt) return null;
   const created = (createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(createdAt as string | number | Date);

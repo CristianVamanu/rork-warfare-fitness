@@ -3186,17 +3186,47 @@ function AdminPageInner() {
                             </p>
                           </div>
                         )}
+
+                        {!membership.paidTrialEnabled && (
+                          <div className="flex items-center justify-between pt-3 border-t border-white/8">
+                            <div className="pr-3">
+                              <p className="text-sm font-medium text-white">Card Up Front</p>
+                              <p className="text-xs text-text-secondary mt-0.5">
+                                Still {membership.trialDays} days free, but the member checks out and enters a card on day one —
+                                then it bills automatically when the trial ends. Without this, they hit a paywall on day{' '}
+                                {membership.trialDays + 1} and have to actively decide to subscribe.
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => setMembership(m => ({
+                                ...m,
+                                cardUpFrontTrial: !m.cardUpFrontTrial,
+                                // Same reasoning as Paid Trial: this is only
+                                // ever enforced through the checkout paywall,
+                                // so without Full Platform Lock nothing would
+                                // send anyone to checkout and no card would
+                                // ever be collected.
+                                fullLock: !m.cardUpFrontTrial ? true : m.fullLock,
+                              }))}
+                              className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${membership.cardUpFrontTrial ? 'bg-accent' : 'bg-surface'}`}
+                            >
+                              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membership.cardUpFrontTrial ? 'left-6' : 'left-1'}`} />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-white">Full Platform Lock</p>
                         <p className="text-xs text-text-secondary mt-0.5">
-                          {membership.paidTrialEnabled ? 'Required while Paid Trial is on — non-members must check out to get in.' : 'Non-members can only see the dashboard'}
+                          {membership.paidTrialEnabled || membership.cardUpFrontTrial
+                            ? `Required while ${membership.paidTrialEnabled ? 'Paid Trial' : 'Card Up Front'} is on — non-members must check out to get in.`
+                            : 'Non-members can only see the dashboard'}
                         </p>
                       </div>
                       <button
-                        onClick={() => !membership.paidTrialEnabled && setMembership(m => ({ ...m, fullLock: !m.fullLock }))}
+                        onClick={() => !membership.paidTrialEnabled && !membership.cardUpFrontTrial && setMembership(m => ({ ...m, fullLock: !m.fullLock }))}
                         disabled={membership.paidTrialEnabled}
                         className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${membership.fullLock ? 'bg-danger' : 'bg-surface-elevated'} ${membership.paidTrialEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >

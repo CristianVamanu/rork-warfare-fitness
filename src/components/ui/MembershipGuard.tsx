@@ -83,13 +83,13 @@ export function MembershipGuard({ pathname, children }: Props) {
   if (config.fullLock) {
     const freePaths = config.paidTrialEnabled ? ALWAYS_FREE_PATHS : [...ALWAYS_FREE_PATHS, '/dashboard'];
     const isFree = freePaths.some(p => pathname === p || pathname.startsWith(p + '/'));
-    if (!isFree) return <LockedScreen trialDays={trialDays} paidTrialEnabled={!!config.paidTrialEnabled} trialPriceCents={config.trialPriceCents} discountPercent={getActiveDiscountPercent(config)} alreadyUsedTrial={!!profile?.trialUsedAt} />;
+    if (!isFree) return <LockedScreen trialDays={trialDays} paidTrialEnabled={!!config.paidTrialEnabled} cardUpFrontTrial={!!config.cardUpFrontTrial} trialPriceCents={config.trialPriceCents} discountPercent={getActiveDiscountPercent(config)} alreadyUsedTrial={!!profile?.trialUsedAt} />;
   }
 
   return <>{children}</>;
 }
 
-function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents, discountPercent, alreadyUsedTrial }: { trialDays: number; paidTrialEnabled: boolean; trialPriceCents?: number; discountPercent: number; alreadyUsedTrial: boolean }) {
+function LockedScreen({ trialDays, paidTrialEnabled, cardUpFrontTrial, trialPriceCents, discountPercent, alreadyUsedTrial }: { trialDays: number; paidTrialEnabled: boolean; cardUpFrontTrial: boolean; trialPriceCents?: number; discountPercent: number; alreadyUsedTrial: boolean }) {
   const { user } = useAuth();
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [subscribingId, setSubscribingId] = useState<string | null>(null);
@@ -115,7 +115,9 @@ function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents, discountPe
     : '';
   const trialLabel = effectiveTrialDays <= 0 ? '' : paidTrialEnabled
     ? ` · $${trialPrice} for ${effectiveTrialDays} days,${afterTrial || ' then your plan price applies'}`
-    : ` · ${effectiveTrialDays}-day free trial${afterTrial ? `,${afterTrial}` : ''}`;
+    : cardUpFrontTrial
+      ? ` · free for ${effectiveTrialDays} days,${afterTrial || ' then your plan price applies'} — cancel anytime`
+      : ` · ${effectiveTrialDays}-day free trial${afterTrial ? `,${afterTrial}` : ''}`;
 
   useEffect(() => {
     getMembershipPlans().then((p) => setPlans(p.filter((x) => x.active && planHasAnyPrice(x)))).catch(() => {});
@@ -209,7 +211,15 @@ function LockedScreen({ trialDays, paidTrialEnabled, trialPriceCents, discountPe
                 )}
                 {effectiveTrialDays > 0 && (
                   <p className="text-[11px] text-accent mt-1 font-medium">
-                    {paidTrialEnabled ? `$${trialPrice} for ${effectiveTrialDays} days, then this price applies` : `${effectiveTrialDays}-day free trial, no payment required`}
+                    {paidTrialEnabled
+                      ? `$${trialPrice} for ${effectiveTrialDays} days, then this price applies`
+                      : cardUpFrontTrial
+                        // Says the card part out loud. "No payment required"
+                        // would be a straight lie in this mode, and finding
+                        // out at the card form is how you lose someone's
+                        // trust at the exact moment you need it.
+                        ? `Free for ${effectiveTrialDays} days — card required, cancel anytime`
+                        : `${effectiveTrialDays}-day free trial, no payment required`}
                   </p>
                 )}
                 {plan.description && <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>}

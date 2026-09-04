@@ -108,6 +108,10 @@ export async function POST(req: NextRequest) {
 
     const trialDays = Number(membershipCfg.trialDays ?? 0);
     const paidTrialEnabled = membershipCfg.paidTrialEnabled === true;
+    // paidTrialEnabled wins if both are somehow set — it charges at checkout,
+    // which is the stricter of the two and must not be silently downgraded
+    // into a free trial by a stale config flag.
+    const cardUpFrontTrial = !paidTrialEnabled && membershipCfg.cardUpFrontTrial === true;
     // Cancel-then-resubscribe would otherwise get the discounted trial fee
     // (or another free ride) every single time — set once, by the webhook,
     // the first time either kind of trial is actually used (see
@@ -158,6 +162,15 @@ export async function POST(req: NextRequest) {
           product_data: { name: `${plan.name} — Trial Access Fee (one-time)` },
         },
       };
+    } else if (cardUpFrontTrial && trialDays > 0 && !alreadyUsedTrial) {
+      // Card-up-front trial: the full trialDays start HERE, at checkout, not
+      // at account creation. There is no app-level window ticking down
+      // beforehand (isInFreeTrial returns false in this mode), so anchoring
+      // to createdAt like the branch below would quietly shorten the trial —
+      // and for anyone who signed up more than trialDays ago it would remove
+      // the trial altogether and bill them immediately, which is the last
+      // thing that should happen at the moment they hand over a card.
+      trialPeriodDays = trialDays;
     } else if (!paidTrialEnabled && trialDays > 0 && !alreadyUsedTrial) {
       // Free, no-card trial: tell Stripe to defer the first charge until
       // the app-level free-trial window (anchored to account creation, not
