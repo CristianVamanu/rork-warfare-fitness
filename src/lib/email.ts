@@ -103,6 +103,23 @@ export function verifyEmailHtml(name: string, link: string, appName: string): st
   `);
 }
 
+// The code-based counterpart to verifyEmailHtml. A link drags the member out
+// of the PWA into their default browser — a different session, which is where
+// every confusing thing about link verification comes from. A code never
+// leaves the app.
+export function verifyCodeEmailHtml(code: string, appName: string): string {
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Your confirmation code</h1>
+    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#bbb;">
+      Enter this in ${appName} to confirm your email. It expires in 15 minutes.
+    </p>
+    <p style="margin:0;font-size:34px;font-weight:900;letter-spacing:0.18em;color:#F5A623;font-family:monospace;">${escapeHtml(code)}</p>
+    <p style="margin:20px 0 0;font-size:12px;color:#777;">
+      Didn't sign up? Ignore this email and nothing happens.
+    </p>
+  `);
+}
+
 export function passwordResetEmailHtml(link: string, appName: string): string {
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Reset your password</h1>

@@ -3,7 +3,6 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
-  sendEmailVerification,
   updateProfile,
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -50,14 +49,11 @@ export async function signUp(
     // onboarding must not stall on it, and the gates that actually care
     // (trial access, paid-trial checkout, 2FA enrolment) check
     // emailVerified on the token at the moment it matters.
-    // Goes out from the app's own domain when Resend is configured, falling
-    // back to Firebase's noreply@<project>.firebaseapp.com otherwise — see
-    // sendAuthEmail. This is the highest-stakes mail the app sends: trial
-    // access is gated on emailVerified, so one that lands in spam is a signup
-    // who can't reach what they just signed up for.
-    sendAuthEmail(email, 'verify', () => sendEmailVerification(credential.user)).catch((err) => {
-      console.warn('[Auth] verification email failed (non-blocking):', err?.code ?? err);
-    });
+    // No verification email is sent from here any more. Confirmation is by
+    // 6-digit code now (api/auth/verify-email/*), and VerifyEmailNotice
+    // requests one as soon as the member lands on the gate — which is both
+    // fewer moving parts and the only way the confirmation can happen inside
+    // the PWA rather than in whichever browser the OS decides to open.
 
     // Shared with AuthContext's ensureUserDoc(), which can race this same
     // write right after createUserWithEmailAndPassword — see the comment
@@ -127,14 +123,12 @@ export async function signIn(email: string, password: string) {
   return credential.user;
 }
 
-/**
- * Re-sends the verification email for the signed-in user. Firebase enforces
- * its own cooldown (auth/too-many-requests) so this needs no limiter here.
- */
-export async function resendVerificationEmail() {
-  if (!auth.currentUser) throw new Error('Not signed in');
-  await sendAuthEmail(auth.currentUser.email, 'verify', () => sendEmailVerification(auth.currentUser!));
-}
+// resendVerificationEmail() REMOVED — email confirmation is by 6-digit code
+// now (api/auth/verify-email/*), which is the only version that can complete
+// inside the PWA rather than in whichever browser the OS opens the link with.
+// Don't reintroduce a link-based verification path here; sendAuthEmail below
+// is still used for password RESET, where a link is the right shape because
+// the member is signed out and typing a new password in a browser anyway.
 
 export async function signOut() {
   // firestore.ts keeps short-lived module-level caches (workouts, programs,
