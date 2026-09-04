@@ -59,6 +59,7 @@ vi.mock('@/lib/stripe', () => ({
 vi.mock('@/lib/email', () => ({
   sendEmail: async (m: { to: string; subject: string }) => { sentEmails.push(m); },
   paymentFailedEmailHtml: () => '<p/>',
+  trialEndingEmailHtml: () => '<p/>',
 }));
 vi.mock('firebase-admin/firestore', () => ({
   FieldValue: {
@@ -324,5 +325,80 @@ describe('delivery guarantees', () => {
     const res = await POST(req({ id: 'evt_x', type: 'invoice.upcoming', data: { object: {} } }));
     expect(res.status).toBe(200);
     expect(db.wroteTo(USER)).toBe(false);
+  });
+});
+
+// ── Renewal and recovery ────────────────────────────────────────────────────
+
+describe('invoice.paid', () => {
+  const paid = (over: Record<string, unknown> = {}) => ({
+    id: 'evt_paid', type: 'invoice.paid',
+    data: { object: { subscription: 'sub_1', ...over } },
+  });
+
+  it('refreshes the stored period end when a renewal is paid', async () => {
+    const res = await POST(req(paid()));
+    expect(res.status).toBe(200);
+    expect(db.written(USER)['membership.status']).toBe('active');
+    expect(db.written(USER)['membership.expiresAt']).toBeInstanceOf(Date);
+  });
+
+  it('restores a recovered past_due member rather than leaving them stale', async () => {
+    // The case this handler exists for: card failed, member updated it,
+    // Stripe retried and succeeded. past_due is deliberately still-active,
+    // so what matters is that expiresAt moves forward again.
+    stripe.subscriptions = {
+      retrieve: async () => ({ id: 'sub_1', status: 'past_due', current_period_end: 1893456000, metadata: { userId: 'u1' } }),
+    };
+    const res = await POST(req(paid()));
+    expect(res.status).toBe(200);
+    expect(db.written(USER)['membership.status']).toBe('active');
+  });
+
+  it('ignores a one-off invoice with no subscription', async () => {
+    // Program purchases arrive as invoices too and are handled by
+    // checkout.session.completed — this must not touch them.
+    const res = await POST(req(paid({ subscription: null })));
+    expect(res.status).toBe(200);
+    expect(db.wroteTo(USER)).toBe(false);
+  });
+
+  it('writes nothing when the subscription carries no userId', async () => {
+    stripe.subscriptions = {
+      retrieve: async () => ({ id: 'sub_1', status: 'active', current_period_end: 1893456000, metadata: {} }),
+    };
+    const res = await POST(req(paid()));
+    expect(res.status).toBe(200);
+    expect(db.wroteTo(USER)).toBe(false);
+  });
+});
+
+// ── Trial conversion warning ────────────────────────────────────────────────
+
+describe('customer.subscription.trial_will_end', () => {
+  const willEnd = (over: Record<string, unknown> = {}) => ({
+    id: 'evt_twe', type: 'customer.subscription.trial_will_end',
+    data: { object: { id: 'sub_1', trial_end: Math.floor(Date.now() / 1000) + 3 * 86400, metadata: { userId: 'u1' }, ...over } },
+  });
+
+  it('warns the member before the first real charge', async () => {
+    // Under a Stripe-run trial the app's own createdAt-anchored warning is
+    // suppressed, so this is the ONLY notice before money moves.
+    const res = await POST(req(willEnd()));
+    expect(res.status).toBe(200);
+    expect(sentEmails).toHaveLength(1);
+    expect(sentEmails[0].to).toBe('a@b.c');
+    expect(sentEmails[0].subject).toMatch(/ends in \d+ day/);
+  });
+
+  it('never grants or revokes access', async () => {
+    await POST(req(willEnd()));
+    expect(db.wroteTo(USER)).toBe(false);
+  });
+
+  it('stays quiet when the subscription carries no userId', async () => {
+    const res = await POST(req(willEnd({ metadata: {} })));
+    expect(res.status).toBe(200);
+    expect(sentEmails).toHaveLength(0);
   });
 });

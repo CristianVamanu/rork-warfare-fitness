@@ -197,6 +197,42 @@ export async function POST(req: NextRequest) {
       }
 
       // ── Payment failed — warn but don't deactivate immediately ──────────
+      // ── Invoice actually paid — renewal or recovery ─────────────────────
+      // Renewals normally land through customer.subscription.updated, which
+      // refreshes expiresAt, so this is redundancy rather than a hole. The
+      // case it genuinely covers is recovery: a member whose card failed sits
+      // in past_due (treated as still-active on purpose), updates their card,
+      // Stripe retries and succeeds — and if the accompanying subscription
+      // event is ever missed, their stored expiresAt stays stale until
+      // MEMBERSHIP_GRACE_MS runs out and locks out somebody who has paid.
+      //
+      // Re-reads the subscription rather than trusting the invoice's own
+      // period fields, so status and period end come from one source.
+      case 'invoice.paid': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subId = (invoice as { subscription?: string | Stripe.Subscription }).subscription;
+        const subscriptionId = typeof subId === 'string' ? subId : subId?.id;
+        // One-off invoices (a program purchase) have no subscription and are
+        // handled by checkout.session.completed — nothing to do here.
+        if (!subscriptionId) break;
+        const stripe = await getStripe();
+        const sub = await stripe.subscriptions.retrieve(subscriptionId);
+        const userId = sub.metadata?.userId;
+        if (!userId) { console.warn('[Stripe webhook] invoice.paid: no userId in metadata'); break; }
+        const active = sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due';
+        await setSubscriptionStatus(
+          userId,
+          fieldFromMetadata(sub.metadata),
+          active ? 'active' : 'none',
+          subscriptionPeriodEnd(sub),
+          sub.metadata?.planId,
+          sub.metadata?.planName,
+          sub.id,
+          sub.cancel_at_period_end,
+        );
+        break;
+      }
+
       // ── Stripe trial about to convert (fires ~3 days out) ───────────────
       // Under a Stripe-managed trial the app's own createdAt-anchored
       // "your trial ends in 2 days" mail is deliberately suppressed (see
