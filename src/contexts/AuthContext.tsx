@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
+import * as Sentry from '@sentry/nextjs';
 import { doc, setDoc, serverTimestamp, onSnapshot, runTransaction } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { getUserDoc, resolveTrainerId } from '@/lib/firestore';
@@ -170,6 +171,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      // Attaches the uid to every Sentry event, so a report says WHICH
+      // account hit it and how many distinct people a given error affects —
+      // the difference between "someone saw an error" and "eleven members
+      // can't check out". Deliberately uid only: no email, no name. Sentry
+      // is a third party and an error report is not a reason to send it
+      // anyone's personal details, and the uid is enough to look the account
+      // up in Firebase. No-op when Sentry has no DSN configured.
+      Sentry.setUser(firebaseUser ? { id: firebaseUser.uid } : null);
       if (firebaseUser) {
         subscribeToProfile(firebaseUser);
       } else {
