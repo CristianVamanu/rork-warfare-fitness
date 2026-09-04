@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, FieldPath } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { sendEmail, paymentFailedEmailHtml, trialEndingEmailHtml } from '@/lib/email';
 import type Stripe from 'stripe';
@@ -51,6 +51,28 @@ async function setSubscriptionStatus(
   // set(merge) rather than update(): update() throws NOT_FOUND if the user
   // doc is gone (deleted account with a live subscription), which turned a
   // dead-letter case into three days of pointless Stripe retries.
+  // A NESTED OBJECT, not dotted keys. update() reads "membership.status" as a
+  // path into a map; set() does not — it writes a top-level field whose NAME
+  // contains a dot. So this used to leave `membership.status: "active"` sitting
+  // beside an absent `membership`, and every reader (hasActiveSubscription,
+  // the billing portal button, the paywall) saw a user with no subscription
+  // at all. Live symptom: a member entered card details, Stripe charged them,
+  // the webhook logged success — and they were locked out with no way to
+  // manage the billing they'd just started.
+  //
+  // set(merge) deep-merges maps, so omitted keys inside this object are
+  // preserved exactly as the dotted form intended. The set/merge choice
+  // itself stays: update() throws NOT_FOUND when the user doc is gone
+  // (deleted account, live subscription), which turned a dead-letter case
+  // into three days of pointless Stripe retries.
+  const record: Record<string, unknown> = {
+    status,
+    updatedAt: FieldValue.serverTimestamp(),
+    ...(expiresAt ? { expiresAt } : {}),
+    ...(planId ? { planId, planName: planName ?? '' } : {}),
+    ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
+    ...(cancelAtPeriodEnd !== undefined ? { cancelAtPeriodEnd } : {}),
+  };
   await db.collection('users').doc(userId).set({
     // trialUsedAt is the ONLY thing stopping cancel-and-resubscribe from
     // earning a fresh discounted trial every cycle (see plan-checkout's
@@ -60,13 +82,27 @@ async function setSubscriptionStatus(
     // silently absent for that account forever. Folded into this same write
     // so it is atomic with the grant and a failure earns a retry.
     ...(markTrialUsed ? { trialUsedAt: FieldValue.serverTimestamp() } : {}),
-    [`${field}.status`]: status,
-    [`${field}.updatedAt`]: FieldValue.serverTimestamp(),
-    ...(expiresAt ? { [`${field}.expiresAt`]: expiresAt } : {}),
-    ...(planId ? { [`${field}.planId`]: planId, [`${field}.planName`]: planName ?? '' } : {}),
-    ...(subscriptionId ? { [`${field}.stripeSubscriptionId`]: subscriptionId } : {}),
-    ...(cancelAtPeriodEnd !== undefined ? { [`${field}.cancelAtPeriodEnd`]: cancelAtPeriodEnd } : {}),
+    [field]: record,
   }, { merge: true });
+
+  // Best-effort removal of the bogus dotted fields the old shape wrote. They
+  // are inert once the real map exists, but leaving a field literally named
+  // "membership.status" next to a real `membership` map is exactly the sort
+  // of thing that misleads whoever debugs this account next. A single-segment
+  // FieldPath is how you address a name that itself contains a dot.
+  try {
+    await db.collection('users').doc(userId).update(
+      new FieldPath(`${field}.status`), FieldValue.delete(),
+      new FieldPath(`${field}.updatedAt`), FieldValue.delete(),
+      new FieldPath(`${field}.expiresAt`), FieldValue.delete(),
+      new FieldPath(`${field}.planId`), FieldValue.delete(),
+      new FieldPath(`${field}.planName`), FieldValue.delete(),
+      new FieldPath(`${field}.stripeSubscriptionId`), FieldValue.delete(),
+      new FieldPath(`${field}.cancelAtPeriodEnd`), FieldValue.delete(),
+    );
+  } catch {
+    // Doc missing, or nothing to clean. Never fail the grant over tidying.
+  }
   console.log(`[Stripe webhook] User ${userId} ${field} → ${status}${planId ? ` (plan: ${planId})` : ''}`);
 }
 

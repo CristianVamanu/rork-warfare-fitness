@@ -28,8 +28,18 @@ function makeDb() {
       writes.push({ path, data, merge: !!opts?.merge });
       docs.set(path, { ...(opts?.merge ? docs.get(path) : {}), ...data });
     },
-    update: async (data: Record<string, unknown>) => {
+    update: async (...args: unknown[]) => {
       if (!docs.has(path)) { const e = new Error('NOT_FOUND'); (e as { code?: number }).code = 5; throw e; }
+      // Varargs form: update(FieldPath, value, FieldPath, value, ...)
+      if (args.length > 1) {
+        const cur = { ...docs.get(path) };
+        for (let i = 0; i < args.length; i += 2) {
+          delete cur[(args[i] as { path: string }).path];
+        }
+        docs.set(path, cur);
+        return;
+      }
+      const data = args[0] as Record<string, unknown>;
       writes.push({ path, data, merge: true });
       docs.set(path, { ...docs.get(path), ...data });
     },
@@ -37,6 +47,14 @@ function makeDb() {
   return {
     docs, writes,
     collection: (c: string) => ({ doc: (d: string) => make(`${c}/${d}`) }),
+    /**
+     * The named subscription map as it actually exists on the stored doc.
+     * Deliberately reads the resolved document rather than the write log:
+     * a dotted-key write lands as a top-level field NAMED "membership.status"
+     * and leaves this undefined, which is exactly the bug this must catch.
+     */
+    sub: (path: string, field: 'membership' | 'coaching') =>
+      (docs.get(path)?.[field] ?? {}) as Record<string, unknown>,
     /** Every field written to any doc under this path, flattened. */
     written: (path: string) => Object.assign({}, ...writes.filter((w) => w.path === path).map((w) => w.data)),
     wroteTo: (path: string) => writes.some((w) => w.path === path),
@@ -64,9 +82,12 @@ vi.mock('@/lib/email', () => ({
 vi.mock('firebase-admin/firestore', () => ({
   FieldValue: {
     serverTimestamp: () => '__ts__',
+    delete: () => '__delete__',
     arrayUnion: (...v: unknown[]) => ({ __arrayUnion: v }),
     arrayRemove: (...v: unknown[]) => ({ __arrayRemove: v }),
   },
+  // Single-segment path — the way a field name containing a dot is addressed.
+  FieldPath: class { constructor(public path: string) {} },
 }));
 
 // Imported after the mocks are registered.
@@ -128,8 +149,8 @@ describe('checkout.session.completed', () => {
   it('grants membership when the payment is paid', async () => {
     const res = await POST(req(session()));
     expect(res.status).toBe(200);
-    expect(db.written(USER)['membership.status']).toBe('active');
-    expect(db.written(USER)['membership.planId']).toBe('p1');
+    expect(db.sub(USER, 'membership').status).toBe('active');
+    expect(db.sub(USER, 'membership').planId).toBe('p1');
   });
 
   it('does NOT grant when payment is unpaid and the subscription is incomplete', async () => {
@@ -141,14 +162,16 @@ describe('checkout.session.completed', () => {
   it('grants a no-payment-required free trial once Stripe says trialing', async () => {
     (stripe.subscriptions as { retrieve: unknown }).retrieve = async () => ({ id: 'sub_1', status: 'trialing', current_period_end: 1893456000, metadata: { userId: 'u1' } });
     await POST(req(session({ payment_status: 'no_payment_required' })));
-    expect(db.written(USER)['membership.status']).toBe('active');
+    expect(db.sub(USER, 'membership').status).toBe('active');
   });
 
   it('writes trialUsedAt in the SAME write as the grant when a trial was used', async () => {
     await POST(req(session({ metadata: { userId: 'u1', kind: 'membership', trialUsed: 'true' } })));
     // One atomic write, not a second fire-and-forget one — a separate write
     // could fail silently and leave trial farming wide open.
-    const grant = db.writes.find((w) => w.path === USER && w.data['membership.status'] === 'active');
+    const grant = db.writes.find(
+      (w) => w.path === USER && (w.data.membership as { status?: string } | undefined)?.status === 'active',
+    );
     expect(grant).toBeDefined();
     expect(grant!.data.trialUsedAt).toBe('__ts__');
   });
@@ -183,22 +206,22 @@ describe('customer.subscription.updated', () => {
 
   it.each(['active', 'trialing', 'past_due'])('keeps access for status "%s"', async (status) => {
     await POST(req(evt(status)));
-    expect(db.written(USER)['membership.status']).toBe('active');
+    expect(db.sub(USER, 'membership').status).toBe('active');
   });
 
   it.each(['canceled', 'unpaid', 'incomplete_expired'])('revokes access for status "%s"', async (status) => {
     await POST(req(evt(status)));
-    expect(db.written(USER)['membership.status']).toBe('none');
+    expect(db.sub(USER, 'membership').status).toBe('none');
   });
 
   it('records the period end so a stale active can expire on its own', async () => {
     await POST(req(evt('active')));
-    expect(db.written(USER)['membership.expiresAt']).toBeInstanceOf(Date);
+    expect(db.sub(USER, 'membership').expiresAt).toBeInstanceOf(Date);
   });
 
   it('carries cancel_at_period_end through', async () => {
     await POST(req(evt('active', { cancel_at_period_end: true })));
-    expect(db.written(USER)['membership.cancelAtPeriodEnd']).toBe(true);
+    expect(db.sub(USER, 'membership').cancelAtPeriodEnd).toBe(true);
   });
 
   it('routes coaching to its own field, never membership', async () => {
@@ -206,8 +229,8 @@ describe('customer.subscription.updated', () => {
       id: 'evt_c', type: 'customer.subscription.updated',
       data: { object: { id: 'sub_2', status: 'active', metadata: { userId: 'u1', kind: 'coaching' } } },
     }));
-    expect(db.written(USER)['coaching.status']).toBe('active');
-    expect(db.written(USER)['membership.status']).toBeUndefined();
+    expect(db.sub(USER, 'coaching').status).toBe('active');
+    expect(db.sub(USER, 'membership').status).toBeUndefined();
   });
 });
 
@@ -217,7 +240,7 @@ describe('customer.subscription.deleted', () => {
       id: 'evt_d', type: 'customer.subscription.deleted',
       data: { object: { id: 'sub_1', metadata: { userId: 'u1', kind: 'membership' } } },
     }));
-    expect(db.written(USER)['membership.status']).toBe('none');
+    expect(db.sub(USER, 'membership').status).toBe('none');
   });
 });
 
@@ -240,7 +263,7 @@ describe('charge.refunded', () => {
       customer: 'cus_1', invoice: { subscription: 'sub_1' },
     });
     await POST(req(evt));
-    expect(db.written(USER)['membership.status']).toBe('none');
+    expect(db.sub(USER, 'membership').status).toBe('none');
     expect(cancel).toHaveBeenCalledWith('sub_1');
   });
 
@@ -271,7 +294,7 @@ describe('charge.refunded', () => {
       customer: 'cus_1', invoice: { subscription: 'sub_1' },
     });
     await POST(req({ id: 'evt_disp', type: 'charge.dispute.created', data: { object: { charge: 'ch_1' } } }));
-    expect(db.written(USER)['membership.status']).toBe('none');
+    expect(db.sub(USER, 'membership').status).toBe('none');
   });
 });
 
@@ -339,8 +362,8 @@ describe('invoice.paid', () => {
   it('refreshes the stored period end when a renewal is paid', async () => {
     const res = await POST(req(paid()));
     expect(res.status).toBe(200);
-    expect(db.written(USER)['membership.status']).toBe('active');
-    expect(db.written(USER)['membership.expiresAt']).toBeInstanceOf(Date);
+    expect(db.sub(USER, 'membership').status).toBe('active');
+    expect(db.sub(USER, 'membership').expiresAt).toBeInstanceOf(Date);
   });
 
   it('restores a recovered past_due member rather than leaving them stale', async () => {
@@ -352,7 +375,7 @@ describe('invoice.paid', () => {
     };
     const res = await POST(req(paid()));
     expect(res.status).toBe(200);
-    expect(db.written(USER)['membership.status']).toBe('active');
+    expect(db.sub(USER, 'membership').status).toBe('active');
   });
 
   it('ignores a one-off invoice with no subscription', async () => {
@@ -400,5 +423,38 @@ describe('customer.subscription.trial_will_end', () => {
     const res = await POST(req(willEnd({ metadata: {} })));
     expect(res.status).toBe(200);
     expect(sentEmails).toHaveLength(0);
+  });
+});
+
+// ── The shape of the write itself ───────────────────────────────────────────
+
+describe('subscription record shape', () => {
+  const session = () => ({
+    id: 'evt_shape', type: 'checkout.session.completed',
+    data: { object: { mode: 'subscription', payment_status: 'paid', subscription: 'sub_1', metadata: { userId: 'u1', kind: 'membership', planId: 'p1', planName: 'Pro' } } },
+  });
+
+  it('writes a real nested map, not a field named "membership.status"', async () => {
+    // The bug this guards: set() does NOT read dotted keys as field paths the
+    // way update() does — it creates a top-level field whose NAME contains a
+    // dot. That left `membership.status: "active"` beside an absent
+    // `membership`, so hasActiveSubscription() saw no subscription and a
+    // paying member was locked out of what they had just been charged for.
+    await POST(req(session()));
+    const doc = db.docs.get(USER)!;
+    expect(typeof doc.membership).toBe('object');
+    expect((doc.membership as { status: string }).status).toBe('active');
+    expect(Object.keys(doc)).not.toContain('membership.status');
+  });
+
+  it('keeps the subscription id and plan inside that same map', async () => {
+    // These are what the billing portal and the paywall read. Under the old
+    // shape they were all stranded at the top level too, which is why a
+    // member had no way to manage the billing they had started.
+    await POST(req(session()));
+    const m = db.sub(USER, 'membership');
+    expect(m.stripeSubscriptionId).toBe('sub_1');
+    expect(m.planId).toBe('p1');
+    expect(m.expiresAt).toBeInstanceOf(Date);
   });
 });
