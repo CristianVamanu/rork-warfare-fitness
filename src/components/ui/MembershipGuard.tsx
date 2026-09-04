@@ -100,24 +100,12 @@ function LockedScreen({ trialDays, paidTrialEnabled, cardUpFrontTrial, trialPric
   // webhook the first time either kind fires, is the single source of
   // truth for that, same as everywhere else this trial state is checked.
   const effectiveTrialDays = alreadyUsedTrial ? 0 : trialDays;
-  // Names the price the trial converts INTO, not just the trial price —
-  // "$1.00 for 7 days" alone never said what happens on day 8, which is
-  // both the most important number and the one a customer will dispute a
-  // charge over. Priced off the same featured (first) plan the cards below
-  // lead with; falls back to the bare trial line until plans have loaded.
-  // Follows the same admin-set mostPopular flag the cards below use for
-  // their badge, falling back to the first plan only when none is marked —
-  // was hardcoded to plans[0] regardless of which plan is actually featured.
-  const featuredPlan = plans.find((p) => p.mostPopular) ?? plans[0];
-  const featuredPrice = featuredPlan ? getPlanBillingPeriods(featuredPlan)[0] : null;
-  const afterTrial = featuredPrice
-    ? ` then $${featuredPrice.price.toFixed(2)}${featuredPrice.months === 1 ? '/mo' : ` every ${featuredPrice.months} months`}`
-    : '';
-  const trialLabel = effectiveTrialDays <= 0 ? '' : paidTrialEnabled
-    ? ` · $${trialPrice} for ${effectiveTrialDays} days,${afterTrial || ' then your plan price applies'}`
-    : cardUpFrontTrial
-      ? ` · free for ${effectiveTrialDays} days,${afterTrial || ' then your plan price applies'} — cancel anytime`
-      : ` · ${effectiveTrialDays}-day free trial${afterTrial ? `,${afterTrial}` : ''}`;
+  // This heading used to name a price, taken from the featured plan. That is
+  // fine with one plan and wrong with several: it printed "then $49.00/mo"
+  // directly above three cards charging three different amounts, so someone
+  // about to choose the $19 tier read the $49 figure as theirs. The member is
+  // the one picking the price here, so the shared copy states the mechanism
+  // and each card states its own price and trial line.
 
   useEffect(() => {
     getMembershipPlans().then((p) => setPlans(p.filter((x) => x.active && planHasAnyPrice(x)))).catch(() => {});
@@ -146,8 +134,17 @@ function LockedScreen({ trialDays, paidTrialEnabled, cardUpFrontTrial, trialPric
           <span className="text-xs font-bold text-accent uppercase tracking-wide">Members Only</span>
         </div>
         <h3 className="text-xl font-black text-white mb-2">Choose a Plan</h3>
+        {/* With several plans on screen the member picks the price, so this
+            line must not quote one. It states the trial and points at the
+            cards; each card carries its own price and its own trial line. */}
         <p className="text-text-secondary text-sm">
-          This platform is for active members{trialLabel}. Subscribe below to unlock full access.
+          {effectiveTrialDays <= 0
+            ? 'This platform is for active members. Pick a plan below to unlock full access.'
+            : paidTrialEnabled
+              ? <>Get {effectiveTrialDays} days for ${trialPrice}. Pick a plan below — after the {effectiveTrialDays} days, that plan&apos;s price applies.</>
+              : cardUpFrontTrial
+                ? <>Free for {effectiveTrialDays} days. Pick a plan below — you won&apos;t be charged until the {effectiveTrialDays} days are up, and you can cancel any time before then.</>
+                : <>Free for {effectiveTrialDays} days. Pick a plan below to unlock full access.</>}
         </p>
       </div>
 

@@ -113,15 +113,19 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
   // Follows the admin-set mostPopular flag, same as the badge logic below —
   // was hardcoded to activePlans[0] regardless of which plan is featured.
   const featuredPlan = purchasablePlans.find((p) => p.mostPopular) ?? purchasablePlans[0];
-  const featuredPrice = featuredPlan ? getPlanBillingPeriods(featuredPlan)[0] : null;
+  // Only priced when there is a single plan to price — with several on
+  // screen the member chooses which price applies, and quoting the featured
+  // plan's figure above cards charging different amounts reads as the price
+  // they're about to be charged. Each card states its own.
+  const featuredPrice = purchasablePlans.length === 1 && featuredPlan ? getPlanBillingPeriods(featuredPlan)[0] : null;
   const afterTrial = featuredPrice
     ? ` then $${featuredPrice.price.toFixed(2)}${featuredPrice.months === 1 ? '/mo' : ` every ${featuredPrice.months} months`}`
     : '';
   const trialLabel = effectiveTrialDays <= 0 ? '' : paidTrialEnabled
-    ? ` · $${trialPrice} for ${effectiveTrialDays} days,${afterTrial || ' then your plan price applies'}`
+    ? ` · ${effectiveTrialDays} days for $${trialPrice}${afterTrial ? `,${afterTrial}` : ", then that plan's price"}`
     : cardUpFrontTrial
-      ? ` · free for ${effectiveTrialDays} days,${afterTrial || ' then your plan price applies'} — cancel anytime`
-      : ` · ${effectiveTrialDays}-day free trial${afterTrial ? `,${afterTrial}` : ''}`;
+      ? ` · free for ${effectiveTrialDays} days${afterTrial ? `,${afterTrial}` : ''}, cancel any time`
+      : ` · free for ${effectiveTrialDays} days${afterTrial ? `,${afterTrial}` : ''}`;
   const ctaLabel = effectiveTrialDays <= 0 ? 'Subscribe Now' : paidTrialEnabled ? `Start for $${trialPrice}` : 'Start Free Trial';
 
   return (
