@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
-import { sendEmail, paymentFailedEmailHtml } from '@/lib/email';
+import { sendEmail, paymentFailedEmailHtml, trialEndingEmailHtml } from '@/lib/email';
 import type Stripe from 'stripe';
 
 function getAdminDb() {
@@ -197,6 +197,38 @@ export async function POST(req: NextRequest) {
       }
 
       // ── Payment failed — warn but don't deactivate immediately ──────────
+      // ── Stripe trial about to convert (fires ~3 days out) ───────────────
+      // Under a Stripe-managed trial the app's own createdAt-anchored
+      // "your trial ends in 2 days" mail is deliberately suppressed (see
+      // notifications/process), because there is no such window to warn
+      // about. Without this handler that left the card-up-front flow giving
+      // NO notice at all before the first real charge — the surest way to
+      // turn a converting trial into a chargeback, and in several
+      // jurisdictions a notice requirement rather than a courtesy.
+      case 'customer.subscription.trial_will_end': {
+        const sub = event.data.object as Stripe.Subscription;
+        const userId = sub.metadata?.userId;
+        if (!userId) { console.warn('[Stripe webhook] trial_will_end: no userId in metadata'); break; }
+        const db = getAdminDb();
+        if (!db) break;
+        const [userSnap, cfgSnap] = await Promise.all([
+          db.collection('users').doc(userId).get(),
+          db.collection('system').doc('config').get(),
+        ]);
+        const userEmail = userSnap.data()?.email as string | undefined;
+        if (!userEmail) break;
+        const trialEndMs = (sub.trial_end ?? 0) * 1000;
+        const daysLeft = Math.max(1, Math.ceil((trialEndMs - Date.now()) / (24 * 60 * 60 * 1000)));
+        const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
+        await sendEmail({
+          to: userEmail,
+          subject: `Your trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`,
+          html: trialEndingEmailHtml(userSnap.data()?.displayName?.split(' ')[0] || 'there', daysLeft, appName, appUrl),
+        });
+        break;
+      }
+
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
         const subId = (invoice as { subscription?: string }).subscription;

@@ -84,7 +84,15 @@ export async function POST(req: NextRequest) {
     // warning has to come off Stripe's own trial_end / the
     // customer.subscription.trial_will_end event instead.
     const membershipCfgData = membershipCfgSnap.data();
-    const trialDays: number = membershipCfgData?.paidTrialEnabled === true ? 0 : (membershipCfgData?.trialDays ?? 0);
+    // Both Stripe-managed modes must skip this, not just paidTrialEnabled.
+    // Under cardUpFrontTrial there is likewise no createdAt-anchored window
+    // (isInFreeTrial returns false), so this block would have mailed "your
+    // free trial ends in 2 days" to every account on its 5th day regardless
+    // of whether they ever had a trial — including people already paying
+    // through a Stripe trial, and people who never checked out at all.
+    const trialIsStripeRun = membershipCfgData?.paidTrialEnabled === true
+      || membershipCfgData?.cardUpFrontTrial === true;
+    const trialDays: number = trialIsStripeRun ? 0 : (membershipCfgData?.trialDays ?? 0);
     const systemCfgSnap = await db.doc('system/config').get();
     const appName = (systemCfgSnap.data()?.appName as string) || 'Warfare Fitness';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';

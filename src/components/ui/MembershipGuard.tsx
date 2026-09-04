@@ -7,7 +7,7 @@ import { getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
 import { startPlanCheckout } from '@/lib/checkout';
 import { getPlanBillingPeriods, planHasAnyPrice, getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { isInFreeTrial, hasActiveSubscription } from '@/lib/membership';
+import { isInFreeTrial, hasActiveSubscription, trialIsStripeManaged } from '@/lib/membership';
 import { Card } from './Card';
 import { Button } from './Button';
 import { VerifyEmailNotice } from './VerifyEmailNotice';
@@ -81,7 +81,12 @@ export function MembershipGuard({ pathname, children }: Props) {
 
   // Full lock — block everything except safe paths
   if (config.fullLock) {
-    const freePaths = config.paidTrialEnabled ? ALWAYS_FREE_PATHS : [...ALWAYS_FREE_PATHS, '/dashboard'];
+    // /dashboard stays reachable only when there IS a free window to be in.
+    // Under either Stripe-managed mode there isn't one — access comes solely
+    // from checking out — so leaving the dashboard exempt let a non-subscriber
+    // sit in the app shell indefinitely and never be sent to checkout, which
+    // is the entire funnel the mode exists to create.
+    const freePaths = trialIsStripeManaged(config) ? ALWAYS_FREE_PATHS : [...ALWAYS_FREE_PATHS, '/dashboard'];
     const isFree = freePaths.some(p => pathname === p || pathname.startsWith(p + '/'));
     if (!isFree) return <LockedScreen trialDays={trialDays} paidTrialEnabled={!!config.paidTrialEnabled} cardUpFrontTrial={!!config.cardUpFrontTrial} trialPriceCents={config.trialPriceCents} discountPercent={getActiveDiscountPercent(config)} alreadyUsedTrial={!!profile?.trialUsedAt} />;
   }
