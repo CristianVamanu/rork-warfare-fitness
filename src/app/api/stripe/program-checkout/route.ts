@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
+import { getOrCreateStripeCustomer } from '@/lib/stripeCustomer';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import type { Program } from '@/types';
@@ -40,12 +41,19 @@ export async function POST(req: NextRequest) {
     }
 
     const stripe = await getStripe();
+    // One durable Customer per account, instead of customer_email making
+    // Stripe mint a fresh one on every checkout — which split a single
+    // member's cards and invoices across several customers and left
+    // anyone without a live subscription unable to reach their billing.
+    const customerId = await getOrCreateStripeCustomer({
+      db, stripe, uid: userId, email: userEmail,
+    });
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
-      customer_email: userEmail ?? undefined,
+      customer: customerId,
       line_items: [
         {
           quantity: 1,

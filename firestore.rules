@@ -280,7 +280,14 @@ service cloud.firestore {
             // codes to an attacker's inbox. Now only settable via
             // /api/auth/2fa/settings, which always notifies the account's
             // real email of the change.
-            ['role', 'membership', 'coaching', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan', 'trialUsedAt', 'twoFactorEnabled', 'twoFactorEmail']
+            // stripeCustomerId identifies a billing account. Left writable, a
+            // member could point it at someone else's Stripe customer and open
+            // that person's billing portal — their invoices, their card, their
+            // cancel button. Server-side resolution treats the reverse index
+            // (stripeCustomers/{id}) as the authority rather than this field,
+            // so the attack already fails; this closes it at the write instead
+            // of relying on every future reader to re-check ownership.
+            ['role', 'membership', 'coaching', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan', 'trialUsedAt', 'twoFactorEnabled', 'twoFactorEmail', 'stripeCustomerId']
           ) &&
           activeProgramWriteAllowed() &&
           premiumEnrollAllowed())

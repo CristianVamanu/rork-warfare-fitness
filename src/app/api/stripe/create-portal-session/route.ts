@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from 'firebase-admin/auth';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { getStripe } from '@/lib/stripe';
+import { getOrCreateStripeCustomer } from '@/lib/stripeCustomer';
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,17 +31,26 @@ export async function POST(req: NextRequest) {
 
     const db = getAdminDb(app);
     const userSnap = await db.collection('users').doc(uid).get();
-    // Falls back to the coaching subscription if there's no membership one
-    // — either is enough to look up the shared Stripe Customer, and
-    // Stripe's own portal lists every subscription on that customer, not
-    // just the one used to find them (so a coaching-only user still sees
-    // and can manage their subscription here, not just a membership one).
-    const subId = (userSnap.data()?.membership?.stripeSubscriptionId ?? userSnap.data()?.coaching?.stripeSubscriptionId) as string | undefined;
-    if (!subId) return NextResponse.json({ error: 'No active subscription found' }, { status: 400 });
-
     const stripe = await getStripe();
-    const subscription = await stripe.subscriptions.retrieve(subId);
-    const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
+
+    // Resolved from the account, not from a live subscription. Looking the
+    // customer up THROUGH a subscription meant anyone without one — cancelled
+    // last week, trial lapsed, payment failed — had no route to their own
+    // invoices or card details at all, which is precisely when someone most
+    // needs the portal. getOrCreateStripeCustomer also adopts the customer
+    // behind any existing subscription, so this keeps working for accounts
+    // that predate the mapping.
+    let customerId: string;
+    try {
+      customerId = await getOrCreateStripeCustomer({
+        db, stripe, uid,
+        email: userSnap.data()?.email as string | undefined,
+        name: userSnap.data()?.displayName as string | undefined,
+      });
+    } catch (err) {
+      console.error('[Stripe] portal: could not resolve customer:', err);
+      return NextResponse.json({ error: 'No billing account found' }, { status: 400 });
+    }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
     const session = await stripe.billingPortal.sessions.create({
