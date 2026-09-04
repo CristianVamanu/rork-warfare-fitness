@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MailCheck, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +17,46 @@ import { Card } from './Card';
 export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' | 'screen' }) {
   const { user } = useAuth();
   const [busy, setBusy] = useState<'resend' | 'check' | null>(null);
+  const checking = useRef(false);
+
+  // The verification link opens in the DEFAULT BROWSER, not the PWA the
+  // member signed up in. So the address gets verified in Safari while this
+  // app sits on a stale ID token still saying emailVerified: false — and the
+  // only way out was a button labelled "I've verified", which nobody should
+  // have to find or think to press. Re-check whenever the app is brought back
+  // to the foreground (exactly the moment they swipe back from the browser),
+  // plus a slow poll for the case where the mail is opened on another device.
+  useEffect(() => {
+    if (!user || user.emailVerified) return;
+
+    const recheck = async () => {
+      if (checking.current || document.visibilityState !== 'visible') return;
+      checking.current = true;
+      try {
+        await user.reload();
+        if (user.emailVerified) {
+          // Forces a fresh ID token so server gates, which read
+          // email_verified off the token, agree on the very next request.
+          await user.getIdToken(true);
+          toast.success('Email verified — welcome in.');
+          window.location.reload();
+        }
+      } catch {
+        // Offline or a transient auth error — the next tick tries again.
+      } finally {
+        checking.current = false;
+      }
+    };
+
+    document.addEventListener('visibilitychange', recheck);
+    window.addEventListener('focus', recheck);
+    const poll = setInterval(recheck, 20_000);
+    return () => {
+      document.removeEventListener('visibilitychange', recheck);
+      window.removeEventListener('focus', recheck);
+      clearInterval(poll);
+    };
+  }, [user]);
 
   if (!user || user.emailVerified) return null;
 
@@ -27,9 +67,18 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
       toast.success(`Verification email sent to ${user.email}`);
     } catch (err) {
       const code = (err as { code?: string })?.code;
-      toast.error(code === 'auth/too-many-requests'
-        ? 'Too many requests — wait a few minutes and try again.'
-        : 'Could not send the email. Try again shortly.');
+      const message = (err as Error)?.message;
+      // Two sources of "slow down": Firebase's own limiter on the fallback
+      // path (which sets .code) and /api/auth/send-auth-email's, which
+      // reports the real wait in its message. Neither used to reach the
+      // member — both collapsed into "Could not send the email".
+      toast.error(
+        code === 'auth/too-many-requests'
+          ? 'Too many requests — wait a few minutes and try again.'
+          : message?.startsWith('Too many requests')
+            ? message
+            : 'Could not send the email. Try again shortly.'
+      );
     } finally {
       setBusy(null);
     }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -45,6 +45,20 @@ export default function LoginClient({
   const [totpChallenge, setTotpChallenge] = useState<TotpChallenge | null>(null);
   const [totpCode, setTotpCode] = useState('');
   const [appName] = useState(initialAppName);
+
+  // Firebase's action handler sends the member here after confirming their
+  // address (see generateEmailVerificationLink's continueUrl). It's nearly
+  // always the default browser rather than the PWA they signed up in, so
+  // there's no session and they land on a plain login form with no sign
+  // anything happened — which reads as "the link didn't work". Read from
+  // window rather than useSearchParams to keep this page off a Suspense
+  // boundary it doesn't otherwise need.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('verified') !== '1') return;
+    toast.success('Email confirmed. Sign in to start your trial.', { duration: 6000 });
+    // Drop the param so a refresh doesn't repeat the toast.
+    window.history.replaceState({}, '', window.location.pathname);
+  }, []);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),

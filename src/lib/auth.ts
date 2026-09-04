@@ -179,10 +179,11 @@ async function sendAuthEmail(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, kind }),
     });
-    if (res.status === 429) {
-      throw new Error('Too many requests — please wait a few minutes before trying again.');
-    }
     const data = await res.json().catch(() => null);
+    if (res.status === 429) {
+      const mins = Math.max(1, Math.ceil((data?.retryAfter ?? 300) / 60));
+      throw new Error(`Too many requests — try again in about ${mins} minute${mins === 1 ? '' : 's'}.`);
+    }
     if (res.ok && data?.delivered) return;
     // ok-but-not-delivered means Resend isn't configured on this install.
     await fallback();

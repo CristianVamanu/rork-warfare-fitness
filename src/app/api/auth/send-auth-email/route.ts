@@ -44,14 +44,23 @@ export async function POST(req: NextRequest) {
     // token is valid but unverified. So it's rate limited on both axes: per
     // address, so one inbox can't be flooded, and per IP, so one client can't
     // walk a list of addresses to find out which ones have accounts.
+    // 5-per-15-min was too tight in practice: a signup spends one, and
+    // someone who thinks the first mail didn't arrive spends the rest in
+    // under a minute — leaving them locked out of the one action that
+    // unblocks them. 10 still bounds inbox flooding, and the response now
+    // carries retryAfter so the UI can say how long rather than dead-ending.
     const addressLimit = await rateLimit({
-      scope: 'auth-email-address', key: `${kind}:${email.toLowerCase()}`, windowMs: 15 * 60_000, max: 5,
+      scope: 'auth-email-address', key: `${kind}:${email.toLowerCase()}`, windowMs: 15 * 60_000, max: 10,
     });
     const ipLimit = await rateLimit({
-      scope: 'auth-email-ip', key: clientIp(req), windowMs: 15 * 60_000, max: 20,
+      scope: 'auth-email-ip', key: clientIp(req), windowMs: 15 * 60_000, max: 30,
     });
     if (!addressLimit.allowed || !ipLimit.allowed) {
-      return NextResponse.json({ error: 'Too many requests — please wait a few minutes.' }, { status: 429 });
+      const retryAfter = Math.max(addressLimit.retryAfterSeconds, ipLimit.retryAfterSeconds);
+      return NextResponse.json(
+        { error: 'Too many requests', retryAfter },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      );
     }
 
     const cfgSnap = await getAdminDb(app).collection('system').doc('config').get().catch(() => null);
@@ -67,7 +76,12 @@ export async function POST(req: NextRequest) {
     let subject: string;
     try {
       if (kind === 'verify') {
-        link = await auth.generateEmailVerificationLink(email, { url: `${appUrl}/dashboard` });
+        // Lands on /login, not /dashboard. The link is almost always opened
+        // in the default browser rather than the PWA the member signed up in,
+        // and that browser has no session — so /dashboard silently bounced to
+        // /login with no explanation, which reads as "the link did nothing".
+        // ?verified=1 lets the login page say what actually happened.
+        link = await auth.generateEmailVerificationLink(email, { url: `${appUrl}/login?verified=1` });
         const user = await auth.getUserByEmail(email).catch(() => null);
         const firstName = user?.displayName?.split(' ')[0] || 'there';
         html = verifyEmailHtml(firstName, link, appName);
