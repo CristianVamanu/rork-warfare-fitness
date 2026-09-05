@@ -150,6 +150,30 @@ describe('getOrCreateStripeCustomer', () => {
     expect(db.docs.get(`${CUSTOMER_INDEX}/cus_byemail`)!.uid).toBe(UID);
   });
 
+  // The lookup address must come from the account, not the caller. Three
+  // checkout routes pass a userEmail straight out of the request body; if that
+  // reached the lookup, posting a victim's address would adopt — and then open
+  // the billing portal for — the victim's Stripe customer, as long as it
+  // predated the reverse index and so had no owner to refuse the claim.
+  it('never searches Stripe with a caller-supplied email', async () => {
+    let searched: string | undefined;
+    stripe = stripeStub({
+      customers: {
+        ...(stripe.customers as object),
+        list: async (args: { email: string }) => {
+          searched = args.email;
+          return { data: args.email === 'victim@example.com' ? [{ id: 'cus_victim', deleted: false }] : [] };
+        },
+      },
+    });
+    const id = await getOrCreateStripeCustomer({
+      db: db as never, stripe: stripe as never, uid: UID, email: 'victim@example.com',
+    });
+    expect(searched).toBe('a@b.c');           // the account's own address
+    expect(id).not.toBe('cus_victim');
+    expect(db.docs.get(`${CUSTOMER_INDEX}/cus_victim`)).toBeUndefined();
+  });
+
   it('indexes a mapped-but-unindexed customer from before the index existed', async () => {
     db.docs.set(USER, { email: 'a@b.c', stripeCustomerId: 'cus_legacy' });
     const id = await run();

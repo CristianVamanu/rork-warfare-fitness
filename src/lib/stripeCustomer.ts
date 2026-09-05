@@ -49,14 +49,31 @@ export async function getOrCreateStripeCustomer(opts: {
   const snap = await userRef.get();
   const data = snap.data() ?? {};
 
+  // The address used to FIND an existing customer must come from the account,
+  // never from the caller. Three checkout routes pass a `userEmail` straight
+  // out of the request body, and step 3 below adopts whatever customer that
+  // address matches: post someone else's email, and if their Stripe customer
+  // predates the reverse index (exactly the case step 3 exists to migrate),
+  // nothing owns it yet — so the claim succeeds and the billing portal then
+  // opens THEIR invoices, card and cancel button. users/{uid}.email is written
+  // only by the server (signup, and change-email, which rejects an address
+  // already registered), so it is the account's real address.
+  const accountEmail = (data.email as string | undefined) || undefined;
+  // Only ever used for CREATING a customer that doesn't exist yet, and only
+  // when the account somehow has no email of its own — it decides where
+  // receipts go, so a caller-supplied value must not win over the real one.
+  const createEmail = accountEmail ?? email ?? undefined;
+
   // 1 — already mapped.
   //
   // The value on the user document is NOT trusted on its own. firestore.rules
-  // does not currently list stripeCustomerId among the fields a member cannot
-  // write to their own doc, so without this check someone could point it at
-  // another person's customer and open that person's billing portal — their
-  // invoices, their card, their cancel button. The reverse index is the
-  // authority on who owns a customer; the user document is only a cache of it.
+  // now lists stripeCustomerId among the fields a member cannot write to their
+  // own doc, but this check is the load-bearing half and stays regardless:
+  // rules only cover the client path, and without it anything that did manage
+  // to set the field could point at another person's customer and open that
+  // person's billing portal — their invoices, their card, their cancel button.
+  // The reverse index is the authority on who owns a customer; the user
+  // document is only a cache of it.
   const mapped = data.stripeCustomerId as string | undefined;
   let rejected: string | undefined;
   if (mapped) {
@@ -88,8 +105,8 @@ export async function getOrCreateStripeCustomer(opts: {
   // 3 — adopt a customer created by the old customer_email path. Matching on
   // email is weaker than an ID, which is exactly why it is third rather than
   // first: it is a migration path for existing accounts, not the mechanism.
-  if (email) {
-    const found = await stripe.customers.list({ email, limit: 1 }).catch(() => null);
+  if (accountEmail) {
+    const found = await stripe.customers.list({ email: accountEmail, limit: 1 }).catch(() => null);
     const candidate = found?.data?.[0];
     if (candidate && !candidate.deleted) return claim(db, userRef, uid, candidate.id, rejected);
   }
@@ -98,7 +115,7 @@ export async function getOrCreateStripeCustomer(opts: {
   // an account from the Stripe dashboard alone. Nothing sensitive beyond the
   // email Stripe needs anyway for receipts.
   const created = await stripe.customers.create({
-    email: email ?? undefined,
+    email: createEmail,
     name: name ?? undefined,
     metadata: { userId: uid },
   });

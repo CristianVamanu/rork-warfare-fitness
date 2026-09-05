@@ -103,18 +103,40 @@ export async function deleteUserCompletely(app: App, db: Firestore, uid: string)
     const userSnap = await db.collection('users').doc(uid).get();
     const membershipSubId = userSnap.data()?.membership?.stripeSubscriptionId as string | undefined;
     const coachingSubId = userSnap.data()?.coaching?.stripeSubscriptionId as string | undefined;
+    const email = userSnap.data()?.email as string | undefined;
     const subIds = Array.from(new Set([membershipSubId, coachingSubId].filter((id): id is string => !!id)));
     if (subIds.length > 0) {
       const stripe = await getStripe();
       for (const subId of subIds) {
-        await stripe.subscriptions.cancel(subId);
-        console.log(`[accountDeletion] Cancelled Stripe subscription ${subId} for user ${uid}`);
+        // Each subscription gets its own try. Shared one, and a member holding
+        // BOTH membership and coaching who hit any error on the first would
+        // never have the second cancelled — it would bill their card forever,
+        // with the account that named it already gone.
+        try {
+          await stripe.subscriptions.cancel(subId);
+          console.log(`[accountDeletion] Cancelled Stripe subscription ${subId} for user ${uid}`);
+        } catch (err) {
+          console.error(`[accountDeletion] Could not cancel ${subId} for ${uid}:`, err);
+          // A console line is not a record. Deletion continues either way (a
+          // GDPR erasure must not be blocked by Stripe being down), so without
+          // this the only trace of a subscription still charging a deleted
+          // account's card is a log line nobody is reading. Written before the
+          // wipe, in a collection firestore.rules has no match for — so it is
+          // server-only and survives the account it refers to.
+          await db.collection('orphanedSubscriptions').doc(subId).set({
+            subscriptionId: subId,
+            uid,
+            email: email ?? null,
+            reason: err instanceof Error ? err.message : String(err),
+            createdAt: new Date(),
+            resolved: false,
+          }).catch(() => {});
+        }
       }
     }
   } catch (err) {
-    // Non-fatal but logged loudly — an already-cancelled/missing subscription
-    // is fine, but any other failure here needs a human to check Stripe
-    // directly since deletion is about to make it much harder to trace.
+    // Reading the user doc, or constructing the Stripe client, failed — so we
+    // never learned which subscriptions exist. Nothing to record but the fact.
     console.error(`[accountDeletion] Stripe subscription cancellation failed for ${uid}:`, err);
   }
 
