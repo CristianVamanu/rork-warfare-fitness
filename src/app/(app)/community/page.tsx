@@ -3,19 +3,20 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Hash, ChevronRight, Users, Clock, Medal } from 'lucide-react';
+import { Hash, ChevronRight, Users, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getChannels, channelScopeFor } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { PaywallGate } from '@/components/ui/PaywallGate';
+import { CommunityTabs } from '@/components/community/CommunityTabs';
 import Link from 'next/link';
 import type { Channel } from '@/types';
 
-// The Suspense boundary here existed only for useSearchParams(), which was
-// read to open the ?tab=leaderboard view. The leaderboard is gone, so is the
-// tab switcher, and this page is now just channels plus the PR wall link.
+// Channels and the PR Wall are two routes presented as one section — see
+// CommunityTabs. The Suspense boundary that used to wrap this page existed
+// only for useSearchParams(), which read ?tab=leaderboard; both are gone.
 export default function CommunityPage() {
   const { trainerId, user, profile } = useAuth();
   // Shared with the channel detail page — the two used to compute this
@@ -37,18 +38,7 @@ export default function CommunityPage() {
     <div>
       <Header title="Community" />
       <div className="px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
-        <Link href="/community/prs">
-          <Card className="p-3.5 flex items-center gap-3 hover:border-accent/30 transition-colors">
-            <div className="w-9 h-9 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
-              <Medal className="w-4.5 h-4.5 text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">PR Wall</p>
-              <p className="text-xs text-text-secondary">Post proof of your lifts, get verified</p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-          </Card>
-        </Link>
+        <CommunityTabs active="channels" />
 
         <PaywallGate feature="community" noTaste>
             {loading ? (

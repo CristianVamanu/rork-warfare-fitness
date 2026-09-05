@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
 import { PaywallGate } from '@/components/ui/PaywallGate';
+import { CommunityTabs } from '@/components/community/CommunityTabs';
 import { subscribePRFeed, createPRPost, likePRPost, deletePRPost, getSystemConfig } from '@/lib/firestore';
 import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import type { PRPost } from '@/types';
@@ -82,7 +83,12 @@ export default function PRWallPage() {
 
   return (
     <div className="min-h-screen pb-24">
-      <Header title="PR Wall" showBack />
+      {/* No back arrow: the PR Wall is one of Community's two views, not a
+          sub-page of it, and the switcher below is what moves between them. */}
+      <Header title="Community" />
+      <div className="px-4 pt-4 max-w-2xl mx-auto w-full">
+        <CommunityTabs active="prs" />
+      </div>
       <PaywallGate feature="pr-wall" noTaste>
       <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-4">
         {isBanned ? (
