@@ -51,7 +51,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Failed to cancel subscription';
+    // Stripe's message names account/subscription state that is ours, not
+    // the member's. Log it; return something generic.
+    console.error('[cancel-subscription] Stripe error:', err instanceof Error ? err.message : err);
+    const msg = 'Could not cancel your subscription right now. Try again, or contact support.';
     console.error('[cancel-subscription] Error:', msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

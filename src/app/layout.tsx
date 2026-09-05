@@ -10,8 +10,22 @@ import { ChunkErrorReloader } from '@/components/ui/ChunkErrorReloader';
 import { CookieConsent } from '@/components/ui/CookieConsent';
 import { ConsentGatedScripts } from '@/components/ui/ConsentGatedScripts';
 
+// generateMetadata runs on EVERY server render — and with the app layout
+// force-dynamic, that is every navigation. It read system/config from
+// Firestore each time (through the client SDK, on the server, which is also
+// the source of the build-time "auth/invalid-api-key" noise). Branding
+// changes when an admin edits it, not per request: cache it for a minute.
+let brandingCache: { at: number; promise: Promise<Record<string, unknown> | null> } | null = null;
+function getBranding(): Promise<Record<string, unknown> | null> {
+  if (brandingCache && Date.now() - brandingCache.at < 60_000) return brandingCache.promise;
+  const promise = getSystemConfig().catch(() => null) as Promise<Record<string, unknown> | null>;
+  promise.then((v) => { if (v === null) brandingCache = null; });
+  brandingCache = { at: Date.now(), promise };
+  return promise;
+}
+
 export async function generateMetadata(): Promise<Metadata> {
-  const cfg = await getSystemConfig().catch(() => null);
+  const cfg = await getBranding();
   const name = (cfg?.appName as string) || 'Warfare Fitness';
   const logoUrl = cfg?.logoUrl as string | undefined;
   const faviconUrl = cfg?.faviconUrl as string | undefined;

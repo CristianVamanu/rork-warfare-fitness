@@ -6,6 +6,7 @@
 import {
   collection,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   orderBy,
@@ -122,8 +123,23 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
   }
 
   // Total workouts — all time
-  const workoutSnap = await queryEvents('WORKOUT_COMPLETED');
-  const totalWorkouts = workoutSnap.docs.length;
+  // A count aggregate instead of downloading every workout ever logged.
+  // This runs on EVERY event write (meal, water, weigh-in included), so the
+  // old getDocs() was an O(N)-document read per write, growing with every
+  // day the account was used — the "everything gets slower" complaint.
+  // The aggregate needs the (userId, type) composite index, which exists;
+  // if it is somehow unavailable, fall back to the old full read rather
+  // than lose the stat.
+  let totalWorkouts: number;
+  try {
+    const countSnap = await getCountFromServer(
+      query(collection(db, 'events'), where('userId', '==', userId), where('type', '==', 'WORKOUT_COMPLETED'))
+    );
+    totalWorkouts = countSnap.data().count;
+  } catch {
+    const workoutSnap = await queryEvents('WORKOUT_COMPLETED');
+    totalWorkouts = workoutSnap.docs.length;
+  }
 
   // Calories logged today
   const mealSnap = await queryEvents('MEAL_LOGGED', todayTs);

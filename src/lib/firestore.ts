@@ -32,6 +32,7 @@ import {
   arrayUnion,
   arrayRemove,
   getCountFromServer,
+  writeBatch,
 } from 'firebase/firestore';
 import * as Sentry from '@sentry/nextjs';
 import { db } from './firebase';
@@ -1791,7 +1792,12 @@ export async function createSupportTicket(
   firstMessage: string,
   attachment?: SupportAttachment | null
 ): Promise<string> {
-  const ref = await addDoc(collection(db, 'supportTickets'), {
+  // One atomic batch. Two separate addDoc()s meant a failure between them
+  // left a ticket with no message — visible to staff as an empty request
+  // and to the member as a request that "sent" but shows nothing.
+  const ref = doc(collection(db, 'supportTickets'));
+  const batch = writeBatch(db);
+  batch.set(ref, {
     userId,
     userDisplayName,
     userEmail,
@@ -1803,7 +1809,7 @@ export async function createSupportTicket(
     unreadByUser: false,
     unreadByAdmin: true,
   });
-  await addDoc(collection(db, 'supportTickets', ref.id, 'messages'), {
+  batch.set(doc(collection(db, 'supportTickets', ref.id, 'messages')), {
     senderId: userId,
     senderName: userDisplayName,
     content: firstMessage,
@@ -1811,6 +1817,7 @@ export async function createSupportTicket(
     createdAt: serverTimestamp(),
     ...attachmentFields(attachment),
   });
+  await batch.commit();
   return ref.id;
 }
 
@@ -1959,10 +1966,13 @@ export async function deleteAllReadNotifications(userId: string) {
 }
 
 export async function getUnreadNotificationCount(userId: string): Promise<number> {
-  const snap = await getDocs(
+  // A count aggregate — the header polls this every 30s on every open tab,
+  // and getDocs() was downloading every unread notification each time just
+  // to read `.size`.
+  const snap = await getCountFromServer(
     query(collection(db, 'notifications'), where('userId', '==', userId), where('read', '==', false))
   );
-  return snap.size;
+  return snap.data().count;
 }
 
 export async function getNotificationConfig(): Promise<NotificationConfig | null> {

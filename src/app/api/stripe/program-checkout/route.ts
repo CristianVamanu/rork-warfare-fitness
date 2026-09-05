@@ -76,7 +76,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Failed to create program checkout session';
+    console.error('[program-checkout] Stripe error:', err instanceof Error ? err.message : err);
+    const msg = 'Could not start checkout right now. Try again in a moment.';
     console.error('[Stripe] program-checkout error:', msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

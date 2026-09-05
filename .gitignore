@@ -36,6 +36,9 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# written by deploy.sh / deploy-webhook, read by /api/health
+.deploy-status.json
+
 # local env files
 .env*.local
 

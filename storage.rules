@@ -12,6 +12,18 @@ service firebase.storage {
         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // Every user-writable path is bounded: images or video only, no SVG (it
+    // executes as active content when served back), and a size ceiling.
+    // There was no constraint of any kind before — any signed-in account
+    // could fill the bucket under its own prefix with anything at all.
+    function isMedia() {
+      return request.resource.contentType.matches('(image|video)/.*')
+        && !request.resource.contentType.matches('image/svg.*');
+    }
+    function withinSize(maxBytes) {
+      return request.resource.size <= maxBytes;
+    }
+
     // Exercise library videos — admin write, authenticated read
     match /exerciseLibrary/{allPaths=**} {
       allow read: if isAuthed();
@@ -20,7 +32,8 @@ service firebase.storage {
 
     // User-specific files (profile photos, etc.)
     match /users/{userId}/{allPaths=**} {
-      allow read, write: if isAuthed() && request.auth.uid == userId;
+      allow read: if isAuthed() && request.auth.uid == userId;
+      allow write: if isAuthed() && request.auth.uid == userId && isMedia() && withinSize(200 * 1024 * 1024);
     }
 
     // Community channel post images/attachments — uploaded to
@@ -32,26 +45,23 @@ service firebase.storage {
     // scope writes to the uploader's own uid.
     match /community/{userId}/{allPaths=**} {
       allow read: if isAuthed();
-      allow write: if isAuthed() && request.auth.uid == userId;
+      allow write: if isAuthed() && request.auth.uid == userId && isMedia() && withinSize(200 * 1024 * 1024);
     }
 
     // PR Wall — user-uploaded PR photos/videos, visible to the whole community
     match /prPosts/{userId}/{allPaths=**} {
       allow read: if isAuthed();
-      allow write: if isAuthed() && request.auth.uid == userId;
+      allow write: if isAuthed() && request.auth.uid == userId && isMedia() && withinSize(200 * 1024 * 1024);
     }
 
     // Support request attachments — screenshots and short screen recordings
     // uploaded from the support form (see uploadUserContent(..., 'support')).
-    // Read is left at isAuthed() rather than being scoped to the uploader,
-    // because staff have to be able to open the screenshot that was sent to
-    // them; write stays scoped to the uploader's own uid like everything
-    // else in this file. Note this means an attachment URL is readable by
-    // any signed-in account that has it — the same posture as community and
-    // prPosts uploads, so don't treat these as private documents.
+    // Private to the member and staff: a screenshot of a billing problem is
+    // not community content. Read used to be isAuthed() — any signed-in
+    // account that had the URL could open it.
     match /support/{userId}/{allPaths=**} {
-      allow read: if isAuthed();
-      allow write: if isAuthed() && request.auth.uid == userId;
+      allow read: if isAuthed() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuthed() && request.auth.uid == userId && isMedia() && withinSize(20 * 1024 * 1024);
     }
 
     // App branding (logo) — must be publicly readable since it shows on

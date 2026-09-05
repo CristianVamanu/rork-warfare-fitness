@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     const apiKey = await getSecret('OPENAI_API_KEY');
     if (!apiKey) return NextResponse.json({ error: 'OpenAI not configured. Set OPENAI_API_KEY in Vercel environment variables.' }, { status: 500 });
 
-    const openai = new OpenAI({ apiKey });
+    const openai = new OpenAI({ apiKey, timeout: 120_000, maxRetries: 1 });
     const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 
     const fixSchedule = (raw: unknown): BDay[] => {

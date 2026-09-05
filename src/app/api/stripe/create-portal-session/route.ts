@@ -60,7 +60,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Failed to create billing portal session';
+    console.error('[create-portal-session] Stripe error:', err instanceof Error ? err.message : err);
+    const msg = 'Could not open billing right now. Try again in a moment.';
     console.error('[create-portal-session] Error:', msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

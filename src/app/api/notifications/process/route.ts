@@ -22,7 +22,7 @@ async function generateMotivation(userName: string, streak: number): Promise<{ t
     title: 'Keep pushing!',
     body: `Hey ${userName}, consistency is the key to results. You've got this!`,
   };
-  const openai = new OpenAI({ apiKey });
+  const openai = new OpenAI({ apiKey, timeout: 30_000, maxRetries: 1 });
   const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
   const res = await openai.chat.completions.create({
     model,
@@ -120,6 +120,9 @@ export async function POST(req: NextRequest) {
           method: 'POST',
           headers,
           body: JSON.stringify({ userId, title, body }),
+          // A self-call: if the app is mid-reload this hangs, and the hourly
+          // run stalls on one user's push instead of moving on.
+          signal: AbortSignal.timeout(10_000),
         });
       } catch {
         // Non-fatal — push delivery failure shouldn't abort notification creation

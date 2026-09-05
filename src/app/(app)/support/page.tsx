@@ -97,6 +97,7 @@ export default function SupportPage() {
 
   async function handleCreate() {
     if (!user || !profile || !subject.trim() || !body.trim()) return;
+    if (creating) return; // a second tap before re-render created two tickets
     setCreating(true);
     try {
       // Upload first: if the attachment fails, the member still has their

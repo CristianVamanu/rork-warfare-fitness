@@ -22,6 +22,7 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
+  runTransaction,
   where,
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -229,6 +230,20 @@ export async function checkAndRunMigration(userId: string): Promise<void> {
     const hasLegacyData = mealCheck.size > 0 || waterCheck.size > 0 || workoutCheck.size > 0;
 
     if (hasLegacyData) {
+      // Claim the migration before running it. This runs on every login with
+      // no lock, so a legacy account opened in two tabs at once ran it twice
+      // — both read "no events yet" before either wrote, and every meal and
+      // water log was duplicated. A stale claim (crashed mid-run) expires
+      // after ten minutes so nobody is locked out of their own history.
+      const claimed = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(doc(db, 'users', userId));
+        const startedAt = (snap.data()?.migrationStartedAt as Timestamp | undefined)?.toMillis?.() ?? 0;
+        if (snap.data()?.migrationCompletedAt) return false;
+        if (Date.now() - startedAt < 10 * 60_000) return false;
+        tx.update(doc(db, 'users', userId), { migrationStartedAt: serverTimestamp() });
+        return true;
+      });
+      if (!claimed) return;
       console.log('[Migration] Legacy data found for', userId, '— running migration');
       await migrateLegacyUserData(userId);
     } else {

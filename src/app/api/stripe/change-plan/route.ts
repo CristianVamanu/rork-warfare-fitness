@@ -185,7 +185,8 @@ export async function POST(req: NextRequest) {
     // need to write it here too, that would just race the webhook.
     return NextResponse.json({ ok: true });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Failed to change plan';
+    console.error('[change-plan] Stripe error:', err instanceof Error ? err.message : err);
+    const msg = 'Could not change your plan right now. Try again, or contact support.';
     console.error('[Stripe] change-plan error:', msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

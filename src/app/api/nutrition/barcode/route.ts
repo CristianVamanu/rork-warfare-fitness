@@ -98,6 +98,9 @@ export async function GET(req: NextRequest) {
       {
         headers: { 'User-Agent': 'WarfareFitness/1.0' },
         next: { revalidate: 3600 },
+        // OpenFoodFacts is a volunteer-run service and does stall. Without a
+        // bound, a hung lookup held one of the two pm2 workers indefinitely.
+        signal: AbortSignal.timeout(8_000),
       }
     );
 

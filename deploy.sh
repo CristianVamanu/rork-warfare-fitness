@@ -27,7 +27,11 @@ git fetch origin
 git reset --hard "origin/$(git rev-parse --abbrev-ref HEAD)"
 
 echo "==> Installing dependencies"
-npm install
+# npm ci, not npm install: installs exactly what package-lock.json says and
+# fails loudly on drift, instead of quietly resolving something newer on the
+# server than was tested. Under `set -e` a resolution failure here used to
+# abort the deploy with nothing but a line in the webhook's stdout.
+npm ci --no-audit --no-fund
 
 echo "==> Building into $STAGING (live .next untouched)"
 rm -rf "$STAGING" "$PWA_STAGING"
@@ -89,6 +93,29 @@ echo "==> Reloading app (zero-downtime — restarts cluster workers one at a tim
 # one at a time, so a worker that hasn't cycled yet may still hold open
 # handles into the old build while its sibling already serves the new one.
 pm2 reload ecosystem.config.js --env production
+
+# Record what is live, for /api/health and for the webhook's failure path.
+# Until now a failed deploy left the previous build serving with nothing
+# anywhere saying so; a green push was assumed to mean a deployed push.
+printf '{"ok":true,"sha":"%s","at":"%s"}\n' "$(git rev-parse --short HEAD)" "$(date -u +%FT%TZ)" > .deploy-status.json
+
+echo "==> Firestore rules & indexes"
+# This script deploys CODE only. firestore.rules, firestore.indexes.json and
+# storage.rules have to be published separately, and drift between the repo
+# and the console has already caused a full-collection scan fallback in
+# production. If a Firebase CI token is present, publish them here; if not,
+# say so loudly instead of silently leaving them stale.
+if [ -n "${FIREBASE_TOKEN:-}" ] || [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
+  if npx --yes firebase-tools@13 deploy --only firestore:rules,firestore:indexes,storage --non-interactive ${FIREBASE_PROJECT_ID:+--project "$FIREBASE_PROJECT_ID"}; then
+    echo "    rules + indexes published"
+  else
+    echo "    *** WARNING: firebase deploy failed — rules/indexes in the console may be STALE ***"
+  fi
+else
+  echo "    skipped — set FIREBASE_TOKEN (firebase login:ci) in the deploy environment to publish automatically."
+  echo "    Until then: paste firestore.rules + storage.rules in the console, and deploy indexes with:"
+  echo "      npx firebase-tools deploy --only firestore:indexes"
+fi
 
 echo "==> Cleaning up previous build"
 rm -rf "$PREVIOUS"

@@ -7,10 +7,17 @@ export const dynamic = 'force-dynamic';
  * auth to read, so this route uses the Admin SDK server-side and returns
  * only marketing-safe fields (first name + last initial, level, streak,
  * workout count). Never returns email or any other PII.
+ *
+ * Unauthenticated and previously uncached and unlimited — each hit read 200
+ * user documents. Cached for a minute (five at a CDN) and rate limited per
+ * IP so the landing page can't be looped into a Firestore bill.
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
+import { rateLimit, clientIp } from '@/lib/rateLimit';
+
+const CACHE = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600';
 
 function toDisplayLabel(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -18,8 +25,13 @@ function toDisplayLabel(name: string): string {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const limit = await rateLimit({ scope: 'public-leaderboard', key: clientIp(req), windowMs: 60_000, max: 30 });
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } });
+    }
+
     const app = getAdminApp();
     if (!app) return NextResponse.json({ entries: [] });
     const db = getAdminDb(app);
@@ -46,7 +58,7 @@ export async function GET() {
       .sort((a, b) => b.powerLevel - a.powerLevel)
       .slice(0, 10);
 
-    return NextResponse.json({ entries });
+    return NextResponse.json({ entries }, { headers: { 'Cache-Control': CACHE } });
   } catch (err) {
     console.error('[public/leaderboard] Error:', err);
     return NextResponse.json({ entries: [] });

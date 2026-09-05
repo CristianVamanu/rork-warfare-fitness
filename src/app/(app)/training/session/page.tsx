@@ -1765,6 +1765,10 @@ function WorkoutSessionPageInner() {
 
   const saveWorkout = async () => {
     if (!user) return;
+    // The button only disables after React re-renders; a second tap in that
+    // gap ran completeWorkout twice — two WORKOUT_COMPLETED events, double
+    // XP, and a streak bump for a workout that happened once.
+    if (saving) return;
     setSaving(true);
     try {
       // Hard cap as defense in depth on top of the staleness check above —

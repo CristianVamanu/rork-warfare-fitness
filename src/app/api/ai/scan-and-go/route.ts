@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     usageApp = app;
 
     const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
-    const openai = new OpenAI({ apiKey });
+    const openai = new OpenAI({ apiKey, timeout: 90_000, maxRetries: 1 });
 
     // A single-day, ephemeral workout only — deliberately NOT a multi-week
     // program. Scoping it to "today" is what makes freeform AI exercise
@@ -157,15 +157,35 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
       return NextResponse.json({ error: "Couldn't read the AI's response — try again.", remaining: usage.remaining + 1 }, { status: 502 });
     }
 
-    if (!parsed.exercises || parsed.exercises.length === 0) {
+    // Shape-check every exercise before it reaches the session player, which
+    // assumes numeric sets/rest and a string name. json_object mode guarantees
+    // parseable JSON, not the right fields — a model that returned
+    // sets: "3-4" or omitted restSeconds produced NaN timers in the UI.
+    const num = (v: unknown, fallback: number, max: number) => {
+      const n = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(n) && n >= 0 ? Math.min(n, max) : fallback;
+    };
+    const exercises = (Array.isArray(parsed.exercises) ? parsed.exercises : [])
+      .filter((e): e is NonNullable<typeof e> => !!e && typeof e === 'object' && typeof e.name === 'string' && e.name.trim().length > 0)
+      .slice(0, 12)
+      .map((e) => ({
+        name: e.name.trim().slice(0, 120),
+        equipmentUsed: typeof e.equipmentUsed === 'string' ? e.equipmentUsed.slice(0, 120) : undefined,
+        sets: Math.max(1, Math.round(num(e.sets, 3, 10))),
+        reps: typeof e.reps === 'number' ? Math.max(1, Math.round(num(e.reps, 10, 100))) : String(e.reps ?? '10').slice(0, 20),
+        restSeconds: Math.round(num(e.restSeconds, 60, 600)),
+        notes: typeof e.notes === 'string' ? e.notes.slice(0, 300) : undefined,
+      }));
+
+    if (exercises.length === 0) {
       await refundUsage(app, uid, 'scan-and-go', resolveLocalDate(req));
       return NextResponse.json({ error: "Couldn't identify any usable equipment or exercises from those photos — try again with clearer shots.", remaining: usage.remaining + 1 }, { status: 422 });
     }
 
     return NextResponse.json({
-      equipmentDetected: parsed.equipmentDetected ?? [],
-      ignoredNote: parsed.ignoredNote ?? '',
-      exercises: parsed.exercises,
+      equipmentDetected: Array.isArray(parsed.equipmentDetected) ? parsed.equipmentDetected.filter((s): s is string => typeof s === 'string').slice(0, 30) : [],
+      ignoredNote: typeof parsed.ignoredNote === 'string' ? parsed.ignoredNote.slice(0, 300) : '',
+      exercises,
       remaining: usage.remaining,
     });
   } catch (err: unknown) {

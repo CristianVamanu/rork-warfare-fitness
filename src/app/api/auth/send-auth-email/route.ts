@@ -101,7 +101,13 @@ export async function POST(req: NextRequest) {
       if (code !== 'auth/user-not-found') {
         console.error(`[send-auth-email] could not mint ${kind} link:`, code ?? err);
       }
-      return NextResponse.json({ ok: true });
+      // Same body as the success path. Returning `{ok:true}` here and
+      // `{ok:true, delivered}` below told a caller whether an address had an
+      // account — and the client then fell back to Firebase's own sender,
+      // whose auth/user-not-found made the oracle louder still. Claiming
+      // delivery for an unknown address is the standard "if an account
+      // exists, we've emailed it" behaviour.
+      return NextResponse.json({ ok: true, delivered: true });
     }
 
     const sent = await sendEmail({ to: email, subject, html });

@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const openai = new OpenAI({ apiKey });
+  const openai = new OpenAI({ apiKey, timeout: 30_000, maxRetries: 1 });
 
   // Use the date as a seed so the tip is deterministic per day across server instances
   const dayNumber = Math.floor(Date.now() / 86400000);

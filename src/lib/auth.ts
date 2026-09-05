@@ -30,7 +30,7 @@ export async function signUp(
   displayName: string,
   weightUnit: 'kg' | 'lbs' = 'kg'
 ) {
-  console.log('[Auth] signUp() called — email:', email, 'displayName:', displayName);
+  console.log('[Auth] signUp() called');
 
   console.log('[Auth] Calling createUserWithEmailAndPassword...');
   const credential = await createUserWithEmailAndPassword(auth, email, password);
@@ -116,7 +116,7 @@ export async function signUp(
 }
 
 export async function signIn(email: string, password: string) {
-  console.log('[Auth] signIn() called — email:', email);
+  console.log('[Auth] signIn() called');
   console.log('[Auth] Calling signInWithEmailAndPassword...');
   const credential = await signInWithEmailAndPassword(auth, email, password);
   console.log('[Auth] signInWithEmailAndPassword succeeded — uid:', credential.user.uid);

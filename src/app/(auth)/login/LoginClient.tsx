@@ -79,7 +79,7 @@ export default function LoginClient({
   });
 
   const onSubmit = async (data: FormData) => {
-    console.log('[Login] Sign-in requested for:', data.email);
+    console.log('[Login] Sign-in requested');
     setLoading(true);
     try {
       console.log('[Login] Calling signIn...');
