@@ -112,10 +112,14 @@ export async function checkAndIncrementUsage(
     tx.set(ref, { count: FieldValue.increment(1), updatedAt: Timestamp.now() }, { merge: true });
     // Tracked even when no ceiling is configured, so the admin dashboard can
     // show real usage before anyone decides what the ceiling should be.
+    // A NESTED map, not a dotted key: set({merge}) treats "byFeature.x" as a
+    // literal field name (only update() parses paths), so the admin panel's
+    // per-feature breakdown read an always-empty `byFeature` map while the
+    // counts piled up in top-level fields nobody looked at.
     tx.set(orgRef, {
       count: FieldValue.increment(1),
       updatedAt: Timestamp.now(),
-      [`byFeature.${feature}`]: FieldValue.increment(1),
+      byFeature: { [feature]: FieldValue.increment(1) },
     }, { merge: true });
     return { allowed: true, remaining: dailyLimit - count - 1 };
   });

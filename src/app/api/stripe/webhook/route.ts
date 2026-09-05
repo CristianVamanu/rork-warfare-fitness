@@ -45,6 +45,8 @@ async function setSubscriptionStatus(
   subscriptionId?: string,
   cancelAtPeriodEnd?: boolean,
   markTrialUsed?: boolean,
+  /** `event.created` of the Stripe event being applied — drives the ordering guard below. */
+  eventCreated?: number,
 ) {
   const db = getAdminDb();
   if (!db) { console.error('[Stripe webhook] Admin DB not available'); return; }
@@ -73,17 +75,36 @@ async function setSubscriptionStatus(
     ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
     ...(cancelAtPeriodEnd !== undefined ? { cancelAtPeriodEnd } : {}),
   };
-  await db.collection('users').doc(userId).set({
-    // trialUsedAt is the ONLY thing stopping cancel-and-resubscribe from
-    // earning a fresh discounted trial every cycle (see plan-checkout's
-    // alreadyUsedTrial). It used to be a separate fire-and-forget write with
-    // `.catch(() => {})`, so if it failed the error was swallowed, the
-    // webhook still answered 200, Stripe never retried, and the guard was
-    // silently absent for that account forever. Folded into this same write
-    // so it is atomic with the grant and a failure earns a retry.
-    ...(markTrialUsed ? { trialUsedAt: FieldValue.serverTimestamp() } : {}),
-    [field]: record,
-  }, { merge: true });
+  // Ordering guard. Stripe does not guarantee delivery order, and the ledger
+  // above only dedupes replays of the SAME event id. Without this, a delayed
+  // retry of an older `customer.subscription.updated (active)` arriving after
+  // `customer.subscription.deleted` silently re-granted access — and the
+  // nightly reconciler that should have caught it was itself a no-op (see
+  // reconcile-subscriptions/route.ts). Each record remembers the `created`
+  // time of the last event applied to it; anything older is discarded.
+  // Done in a transaction so two deliveries racing can't both pass the check.
+  const userRef = db.collection('users').doc(userId);
+  const applied = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const prev = (snap.data()?.[field] as { lastEventCreated?: number } | undefined)?.lastEventCreated;
+    if (eventCreated && prev && eventCreated < prev) return false;
+    tx.set(userRef, {
+      // trialUsedAt is the ONLY thing stopping cancel-and-resubscribe from
+      // earning a fresh discounted trial every cycle (see plan-checkout's
+      // alreadyUsedTrial). It used to be a separate fire-and-forget write with
+      // `.catch(() => {})`, so if it failed the error was swallowed, the
+      // webhook still answered 200, Stripe never retried, and the guard was
+      // silently absent for that account forever. Folded into this same write
+      // so it is atomic with the grant and a failure earns a retry.
+      ...(markTrialUsed ? { trialUsedAt: FieldValue.serverTimestamp() } : {}),
+      [field]: { ...record, ...(eventCreated ? { lastEventCreated: eventCreated } : {}) },
+    }, { merge: true });
+    return true;
+  });
+  if (!applied) {
+    console.warn(`[Stripe webhook] Discarded out-of-order event (created ${eventCreated}) for ${userId}/${field} — a newer one was already applied`);
+    return;
+  }
 
   // Best-effort removal of the bogus dotted fields the old shape wrote. They
   // are inert once the real map exists, but leaving a field literally named
@@ -159,9 +180,13 @@ export async function POST(req: NextRequest) {
           if (programId) {
             const db = getAdminDb();
             if (db) {
-              await db.collection('users').doc(userId).update({
+              // set(merge), not update(): update() throws NOT_FOUND when the
+              // user doc is gone, which turned a dead-letter case into three
+              // days of Stripe retries — the same fix setSubscriptionStatus
+              // already carries. A top-level array merges correctly.
+              await db.collection('users').doc(userId).set({
                 purchasedProgramIds: FieldValue.arrayUnion(programId),
-              });
+              }, { merge: true });
               console.log(`[Stripe webhook] User ${userId} purchased program ${programId}`);
             }
           }
@@ -193,6 +218,7 @@ export async function POST(req: NextRequest) {
               userId, fieldFromMetadata(session.metadata), 'active', expiresAt, planId, planName,
               subId ?? undefined, false,
               session.metadata?.trialUsed === 'true',
+              event.created,
             );
           }
         }
@@ -219,7 +245,7 @@ export async function POST(req: NextRequest) {
         const expiresAt = subscriptionPeriodEnd(sub);
         const planId = sub.metadata?.planId;
         const planName = sub.metadata?.planName;
-        await setSubscriptionStatus(userId, fieldFromMetadata(sub.metadata), active ? 'active' : 'none', expiresAt, planId, planName, sub.id, sub.cancel_at_period_end);
+        await setSubscriptionStatus(userId, fieldFromMetadata(sub.metadata), active ? 'active' : 'none', expiresAt, planId, planName, sub.id, sub.cancel_at_period_end, undefined, event.created);
         break;
       }
 
@@ -228,7 +254,7 @@ export async function POST(req: NextRequest) {
         const sub = event.data.object as Stripe.Subscription;
         const userId = sub.metadata?.userId;
         if (!userId) { console.warn('[Stripe webhook] subscription.deleted: no userId in metadata'); break; }
-        await setSubscriptionStatus(userId, fieldFromMetadata(sub.metadata), 'none');
+        await setSubscriptionStatus(userId, fieldFromMetadata(sub.metadata), 'none', undefined, undefined, undefined, undefined, undefined, undefined, event.created);
         break;
       }
 
@@ -265,6 +291,8 @@ export async function POST(req: NextRequest) {
           sub.metadata?.planName,
           sub.id,
           sub.cancel_at_period_end,
+          undefined,
+          event.created,
         );
         break;
       }
@@ -317,7 +345,13 @@ export async function POST(req: NextRequest) {
                 db.collection('system').doc('config').get(),
               ]);
               const userEmail = userSnap.data()?.email as string | undefined;
-              if (userEmail) {
+              // Stripe retries a failed renewal up to four times over a
+              // dunning cycle and emits a DISTINCT payment_failed event each
+              // time, so the event ledger (same id only) still let four
+              // "your payment failed" emails through per invoice. One mail per
+              // invoice: remember the last invoice we warned about.
+              const alreadyWarned = !!invoice.id && userSnap.data()?.lastPaymentFailedInvoice === invoice.id;
+              if (userEmail && !alreadyWarned) {
                 const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
                 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
                 await sendEmail({
@@ -325,6 +359,9 @@ export async function POST(req: NextRequest) {
                   subject: 'Payment failed — please update your billing info',
                   html: paymentFailedEmailHtml(userSnap.data()?.displayName?.split(' ')[0] || 'there', appName, appUrl),
                 });
+                if (invoice.id) {
+                  await db.collection('users').doc(userId).set({ lastPaymentFailedInvoice: invoice.id }, { merge: true });
+                }
               }
             }
           }
@@ -444,7 +481,7 @@ export async function POST(req: NextRequest) {
           }
           if (userId) {
             const field = fieldFromMetadata(sub.metadata);
-            await setSubscriptionStatus(userId, field, 'none');
+            await setSubscriptionStatus(userId, field, 'none', undefined, undefined, undefined, undefined, undefined, undefined, event.created);
             // Firestore status alone doesn't stop Stripe from continuing
             // to bill this subscription — a refund/dispute is exactly the
             // moment we want that to stop, not just hide app access while

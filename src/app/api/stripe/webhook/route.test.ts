@@ -47,6 +47,13 @@ function makeDb() {
   return {
     docs, writes,
     collection: (c: string) => ({ doc: (d: string) => make(`${c}/${d}`) }),
+    // The ordering guard in setSubscriptionStatus reads-then-writes inside a
+    // transaction. Serial here; the real one is atomic.
+    runTransaction: async <T,>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn({
+      get: (ref: { get: () => Promise<unknown> }) => ref.get(),
+      set: (ref: { set: (d: Record<string, unknown>, o?: { merge?: boolean }) => Promise<void> }, d: Record<string, unknown>, o?: { merge?: boolean }) => { void ref.set(d, o); },
+      update: (ref: { update: (d: Record<string, unknown>) => Promise<void> }, d: Record<string, unknown>) => { void ref.update(d); },
+    }),
     /**
      * The named subscription map as it actually exists on the stored doc.
      * Deliberately reads the resolved document rather than the write log:
@@ -244,6 +251,43 @@ describe('customer.subscription.deleted', () => {
   });
 });
 
+// ── Delivery order ──────────────────────────────────────────────────────────
+// Stripe does not guarantee order, and the event ledger only dedupes replays
+// of the SAME id. A delayed retry of an older "active" must not undo a newer
+// "deleted" — that was the one gap that re-granted access after a cancel.
+describe('out-of-order delivery', () => {
+  const updated = (id: string, created: number, status: string) => ({
+    id, created, type: 'customer.subscription.updated',
+    data: { object: { id: 'sub_1', status, current_period_end: 1893456000, metadata: { userId: 'u1', kind: 'membership' } } },
+  });
+  const deleted = (id: string, created: number) => ({
+    id, created, type: 'customer.subscription.deleted',
+    data: { object: { id: 'sub_1', metadata: { userId: 'u1', kind: 'membership' } } },
+  });
+
+  it('discards an older "active" that arrives after a newer "deleted"', async () => {
+    await POST(req(deleted('evt_del', 2_000)));
+    expect(db.sub(USER, 'membership').status).toBe('none');
+    const res = await POST(req(updated('evt_old_active', 1_000, 'active')));
+    expect(res.status).toBe(200);                       // acked so Stripe stops retrying
+    expect(db.sub(USER, 'membership').status).toBe('none');
+  });
+
+  it('still applies a genuinely newer event', async () => {
+    await POST(req(deleted('evt_del', 1_000)));
+    await POST(req(updated('evt_new_active', 2_000, 'active')));
+    expect(db.sub(USER, 'membership').status).toBe('active');
+    expect(db.sub(USER, 'membership').lastEventCreated).toBe(2_000);
+  });
+
+  it('applies events that carry no created timestamp (legacy fixtures) unconditionally', async () => {
+    await POST(req(deleted('evt_del', 2_000)));
+    await POST(req({ id: 'evt_nots', type: 'customer.subscription.updated',
+      data: { object: { id: 'sub_1', status: 'active', metadata: { userId: 'u1', kind: 'membership' } } } }));
+    expect(db.sub(USER, 'membership').status).toBe('active');
+  });
+});
+
 // ── Refunds and disputes ────────────────────────────────────────────────────
 
 describe('charge.refunded', () => {
@@ -308,6 +352,15 @@ describe('invoice.payment_failed', () => {
     await POST(req(evt));
     expect(sentEmails).toHaveLength(1);
     expect(db.wroteTo(USER)).toBe(false);
+  });
+
+  it('warns once per invoice, not once per retry attempt', async () => {
+    (stripe.subscriptions as { retrieve: unknown }).retrieve = async () => ({ id: 'sub_1', status: 'past_due', metadata: { userId: 'u1' } });
+    const attempt = (n: number) => ({ id: `evt_f_${n}`, type: 'invoice.payment_failed', data: { object: { id: 'in_1', subscription: 'sub_1' } } });
+    await POST(req(attempt(1)));
+    await POST(req(attempt(2)));   // distinct event id — the ledger does not catch this
+    await POST(req(attempt(3)));
+    expect(sentEmails).toHaveLength(1);
   });
 });
 

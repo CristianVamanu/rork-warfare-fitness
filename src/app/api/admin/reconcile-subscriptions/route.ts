@@ -43,6 +43,25 @@ function periodEnd(sub: Stripe.Subscription): Date | undefined {
 // Stripe still retrying a card, not a lapse.
 const ACTIVE_STATUSES = new Set(['active', 'trialing', 'past_due']);
 
+/**
+ * Revokes one subscription record.
+ *
+ * MUST be update(), never set({...}, {merge:true}). update() reads
+ * "membership.status" as a path into the map; set() does not — it writes a
+ * top-level field whose NAME contains a dot and leaves the real
+ * `membership.status` untouched. Every corrective write in this route used
+ * set(), so for as long as it has existed it revoked nothing and refreshed
+ * nothing: the query below kept matching the same still-active records, the
+ * log reported the same "corrections" every night, and none of them landed.
+ * This is the same defect that locked out a paying member from the webhook.
+ */
+async function revoke(ref: FirebaseFirestore.DocumentReference, field: Field) {
+  await ref.update({
+    [`${field}.status`]: 'none',
+    [`${field}.updatedAt`]: FieldValue.serverTimestamp(),
+  });
+}
+
 export async function POST(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const bearer = req.headers.get('authorization')?.replace('Bearer ', '');
@@ -92,7 +111,7 @@ export async function POST(req: NextRequest) {
           if (code === 'resource_missing') {
             corrections.push({ userId: doc.id, field, from: 'active', to: 'none', reason: 'subscription no longer exists in Stripe' });
             if (!dryRun) {
-              await doc.ref.set({ [`${field}.status`]: 'none', [`${field}.updatedAt`]: FieldValue.serverTimestamp() }, { merge: true });
+              await revoke(doc.ref, field);
             }
             continue;
           }
@@ -104,7 +123,7 @@ export async function POST(req: NextRequest) {
         if (!stripeSaysActive) {
           corrections.push({ userId: doc.id, field, from: 'active', to: 'none', reason: `Stripe status is "${sub.status}"` });
           if (!dryRun) {
-            await doc.ref.set({ [`${field}.status`]: 'none', [`${field}.updatedAt`]: FieldValue.serverTimestamp() }, { merge: true });
+            await revoke(doc.ref, field);
           }
           continue;
         }
@@ -119,11 +138,12 @@ export async function POST(req: NextRequest) {
             reason: 'refreshed period end',
           });
           if (!dryRun) {
-            await doc.ref.set({
+            // update(), not set(): see revoke() below for why that matters.
+            await doc.ref.update({
               [`${field}.expiresAt`]: end,
               [`${field}.cancelAtPeriodEnd`]: sub.cancel_at_period_end,
               [`${field}.updatedAt`]: FieldValue.serverTimestamp(),
-            }, { merge: true });
+            });
           }
         }
       }
