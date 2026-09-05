@@ -122,9 +122,18 @@ async function safeGetEvents(
     //
     // The composite indexes it wants ARE defined in firestore.indexes.json;
     // they just have to be PUBLISHED, and deploy.sh does not do that (same as
-    // firestore.rules):  firebase deploy --only firestore:indexes
-    const msg = `[Firestore] Missing composite index for events type=${type} — falling back to a full client-side scan of this user's events. Run: firebase deploy --only firestore:indexes`;
+    // firestore.rules). Two ways: `firebase deploy --only firestore:indexes`,
+    // or click the console link Firestore puts inside its own error message —
+    // it opens the Add-index form with every field pre-filled.
+    //
+    // That link is the whole reason the ORIGINAL error is logged below and not
+    // just this summary. Replacing Firestore's message with our own wording
+    // reads better and throws away the one-click fix, which is the opposite of
+    // helpful when the person reading the console would rather not touch a
+    // terminal at all.
+    const msg = `[Firestore] Missing composite index for events type=${type} — falling back to a full client-side scan of this user's events. Fix: open the console.firebase.google.com link in the error below and click Create, or run: firebase deploy --only firestore:indexes`;
     console.error(msg);
+    console.error(e);
     // Reported as an error, not a breadcrumb, so a silent performance cliff in
     // production shows up somewhere it will actually be noticed.
     Sentry.captureException(new Error(msg), { level: 'warning', tags: { area: 'firestore-index', eventType: type } });
