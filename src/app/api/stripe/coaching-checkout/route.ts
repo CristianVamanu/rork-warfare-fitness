@@ -41,6 +41,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'You already have an active coaching subscription.' }, { status: 400 });
     }
 
+    // Coaching is sold only after a 1:1 application has been reviewed and
+    // approved — that is what the whole application flow is for. The route
+    // never checked it, so any signed-in account could buy coaching by
+    // calling this directly; the rule lived only in where the button was
+    // placed. Two equality filters, so no composite index is needed.
+    const approved = await db.collection('coachingApplications')
+      .where('userId', '==', userId)
+      .where('status', '==', 'approved')
+      .limit(1)
+      .get();
+    if (approved.empty) {
+      return NextResponse.json(
+        { error: 'Coaching checkout opens once your 1:1 application has been approved.' },
+        { status: 403 },
+      );
+    }
+
     const stripe = await getStripe();
     // One durable Customer per account, instead of customer_email making
     // Stripe mint a fresh one on every checkout — which split a single

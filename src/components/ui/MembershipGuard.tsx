@@ -39,22 +39,53 @@ export function MembershipGuard({ pathname, children }: Props) {
   const { user, profile } = useAuth();
   const [config, setConfig] = useState<MembershipConfig | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoaded(false);
+    setLoadFailed(false);
     getMembershipConfig()
-      .then(setConfig)
-      .catch(() => setConfig(null))
-      .finally(() => setLoaded(true));
-  }, []);
+      .then((cfg) => { if (!cancelled) setConfig(cfg); })
+      .catch(() => { if (!cancelled) setLoadFailed(true); })
+      .finally(() => { if (!cancelled) setLoaded(true); });
+    return () => { cancelled = true; };
+  }, [attempt]);
 
-  // While loading, just render children (avoid flash)
-  if (!loaded) return <>{children}</>;
+  // Staff and paying members never wait on the config read — their access
+  // does not depend on it. Everyone else does. This used to render children
+  // while loading AND on any config error, which made the paywall fail OPEN:
+  // block the config document (DevTools, a flaky link) and every locked
+  // route rendered in full for a non-paying account. A gate that opens when
+  // it can't tell is not a gate.
+  const isStaff = profile?.role === 'admin' || profile?.role === 'trainer';
+  const isFreePath = ALWAYS_FREE_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
+  const paying = hasActiveSubscription(profile);
+
+  if (!loaded) {
+    if (isStaff || paying || isFreePath) return <>{children}</>;
+    return <GuardSkeleton />;
+  }
+
+  if (loadFailed) {
+    if (isStaff || paying || isFreePath) return <>{children}</>;
+    return (
+      <div className="px-4 pt-10 max-w-sm mx-auto text-center">
+        <Card className="p-6 space-y-3">
+          <p className="text-sm text-white font-semibold">Couldn&apos;t check your membership</p>
+          <p className="text-xs text-text-secondary">Your connection dropped while loading. Try again.</p>
+          <Button fullWidth onClick={() => setAttempt((n) => n + 1)}>Retry</Button>
+        </Card>
+      </div>
+    );
+  }
 
   // No config or membership disabled → free access
   if (!config || !config.enabled) return <>{children}</>;
 
   // Admins/trainers always bypass
-  if (profile?.role === 'admin' || profile?.role === 'trainer') return <>{children}</>;
+  if (isStaff) return <>{children}</>;
 
   // Check if user has active membership
   // Active coaching is a higher-priced add-on tier, not an alternative to
@@ -92,6 +123,18 @@ export function MembershipGuard({ pathname, children }: Props) {
   }
 
   return <>{children}</>;
+}
+
+/** Shown to non-members while the membership config loads. Reads as loading, not broken. */
+function GuardSkeleton() {
+  return (
+    <div className="px-4 pt-6 space-y-3" aria-busy="true" aria-live="polite">
+      <span className="sr-only">Loading…</span>
+      <div className="h-8 w-2/3 rounded-lg bg-white/5 animate-pulse" />
+      <div className="h-40 w-full rounded-2xl bg-white/5 animate-pulse" />
+      <div className="h-11 w-full rounded-xl bg-white/5 animate-pulse" />
+    </div>
+  );
 }
 
 function LockedScreen({ trialDays, paidTrialEnabled, cardUpFrontTrial, trialPriceCents, discountPercent, alreadyUsedTrial }: { trialDays: number; paidTrialEnabled: boolean; cardUpFrontTrial: boolean; trialPriceCents?: number; discountPercent: number; alreadyUsedTrial: boolean }) {

@@ -3,6 +3,7 @@ import { getStorage } from 'firebase-admin/storage';
 import type { App } from 'firebase-admin/app';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getStripe } from '@/lib/stripe';
+import { deleteR2Prefix } from '@/lib/r2';
 
 /**
  * Collections that store docs keyed by `userId` (not by uid-as-doc-id) —
@@ -44,6 +45,9 @@ const USER_ID_DOC_COLLECTIONS = [
   'leaderboardPublic',
   // Any in-flight 2FA code for this account.
   'twoFactorCodes',
+  // Email-confirmation code and the lifetime change counter (server-only docs).
+  'emailVerifyCodes',
+  'emailChangeCounts',
 ] as const;
 
 async function deleteByQuery(db: Firestore, collection: string, field: string, uid: string) {
@@ -182,12 +186,43 @@ export async function deleteUserCompletely(app: App, db: Firestore, uid: string)
     firestoreDocsDeleted += messagesSnap.size + 1;
   }
 
+  // Support tickets and their messages — added after the deletion list was
+  // written, so a deleted member's entire support history (their own words,
+  // their email, their screenshots' URLs) survived erasure.
+  const ticketSnap = await db.collection('supportTickets').where('userId', '==', uid).get();
+  for (const ticket of ticketSnap.docs) {
+    const messagesSnap = await ticket.ref.collection('messages').get();
+    const batch = db.batch();
+    messagesSnap.docs.forEach((m) => batch.delete(m.ref));
+    batch.delete(ticket.ref);
+    await batch.commit();
+    firestoreDocsDeleted += messagesSnap.size + 1;
+  }
+
+  // The Stripe customer reverse index (stripeCustomers/{cid} → uid) and the
+  // email-change / verification bookkeeping are server-only docs keyed by
+  // this account. None referenced the user by a `userId` field, so the
+  // generic sweeps above never found them.
+  const custSnap = await db.collection('stripeCustomers').where('uid', '==', uid).get();
+  for (const c of custSnap.docs) { await c.ref.delete(); firestoreDocsDeleted++; }
+
   for (const collection of USER_ID_DOC_COLLECTIONS) {
     const ref = db.collection(collection).doc(uid);
     const snap = await ref.get();
     if (snap.exists) {
       await ref.delete();
       firestoreDocsDeleted++;
+    }
+  }
+
+  // Uploads live in R2, not Firebase Storage — the deleteStorageFolder calls
+  // below only ever cleaned the latter, which nothing writes to any more.
+  for (const root of ['support', 'progressPhotos', 'prPosts', 'community']) {
+    try {
+      const n = await deleteR2Prefix(`${root}/${uid}/`);
+      if (n) console.log(`[accountDeletion] removed ${n} R2 object(s) under ${root}/${uid}/`);
+    } catch (err) {
+      console.error(`[accountDeletion] R2 cleanup failed for ${root}/${uid}/:`, err);
     }
   }
 
@@ -240,6 +275,14 @@ export async function exportUserData(db: Firestore, uid: string): Promise<Record
 
   const prefsSnap = await db.collection('userPreferences').doc(uid).get();
   result.preferences = prefsSnap.exists ? prefsSnap.data() : null;
+
+  // Support conversations are the member's own words — portability has to
+  // include them, and erasure (above) has to remove them.
+  const ticketSnap = await db.collection('supportTickets').where('userId', '==', uid).get();
+  result.supportTickets = await Promise.all(ticketSnap.docs.map(async (t) => {
+    const messages = await t.ref.collection('messages').get();
+    return { id: t.id, ...t.data(), messages: messages.docs.map((m) => ({ id: m.id, ...m.data() })) };
+  }));
 
   return result;
 }

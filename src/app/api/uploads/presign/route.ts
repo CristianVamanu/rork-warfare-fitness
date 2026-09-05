@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
  * user's path or an admin-only folder (exerciseLibrary, branding).
  */
 
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -65,7 +66,15 @@ export async function POST(req: NextRequest) {
     }
 
     const safeName = filename.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
-    const key = `${safeRoot}/${check.uid}/${Date.now()}_${safeName}`;
+    // The bucket is public-read by URL, so the key IS the access control.
+    // `${uid}/${Date.now()}_${name}` was guessable: anyone who knew a uid
+    // could walk the millisecond space for their support screenshots and
+    // body-progress photos. 128 random bits make the URL a capability —
+    // shareable on purpose, not enumerable. (A private bucket with signed
+    // reads is the fuller fix and needs the bucket flipped in Cloudflare;
+    // this closes enumeration without breaking any <img src> in the app.)
+    const nonce = crypto.randomBytes(16).toString('hex');
+    const key = `${safeRoot}/${check.uid}/${Date.now()}_${nonce}_${safeName}`;
 
     const command = new PutObjectCommand({
       Bucket: bucket,
