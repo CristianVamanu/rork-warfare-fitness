@@ -97,12 +97,44 @@ export async function POST(req: NextRequest) {
     const appName = (systemCfgSnap.data()?.appName as string) || 'Warfare Fitness';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
 
-    // Load all non-admin users
-    const usersSnap = await db.collection('users').get();
-    const users = usersSnap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((u: any) => u.role !== 'admin' && !u.banned);
+    // Users are streamed in pages rather than loaded all at once.
+    //
+    // `db.collection('users').get()` pulled every user document into this one
+    // Node process's memory every hour. At a few thousand members that is tens
+    // of megabytes per run on a box also serving requests, and it grows with
+    // signups; the array was then walked strictly sequentially, so a forced
+    // run (which skips the per-hour filter) took longer than its own HTTP
+    // timeout. Paging keeps memory flat, and the work inside each page runs
+    // with bounded concurrency below.
+    const USER_PAGE_SIZE = 300;
+    async function* eachUserPage(): AsyncGenerator<Record<string, unknown>[]> {
+      let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+      for (;;) {
+        let q = db.collection('users').orderBy('__name__').limit(USER_PAGE_SIZE);
+        if (cursor) q = q.startAfter(cursor);
+        const snap = await q.get();
+        if (snap.empty) return;
+        cursor = snap.docs[snap.docs.length - 1];
+        yield snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((u) => (u as { role?: string }).role !== 'admin' && !(u as { banned?: boolean }).banned);
+        if (snap.size < USER_PAGE_SIZE) return;
+      }
+    }
+
+    /** Runs `fn` over `items` with at most `n` in flight. */
+    async function mapWithConcurrency<T>(items: T[], n: number, fn: (item: T) => Promise<void>) {
+      let i = 0;
+      await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+        while (i < items.length) {
+          const item = items[i++];
+          await fn(item);
+        }
+      }));
+    }
+
+    let usersConsidered = 0;
+    let usersWithActiveProgram = 0;
 
     // Same-machine, same-process call to /api/push/send — route it through
     // localhost, not the public domain. Going out through DNS -> Cloudflare
@@ -192,14 +224,22 @@ export async function POST(req: NextRequest) {
     };
     const identityFor = (fitnessGoal: string | undefined) => IDENTITY_LABEL[fitnessGoal ?? ''] ?? 'Champions';
 
-    for (const user of users) {
+    for await (const page of eachUserPage()) {
+      usersConsidered += page.length;
+      usersWithActiveProgram += page.filter((u) => (u as { activeProgram?: unknown }).activeProgram).length;
+      // Six at a time. Each user's work is mostly waiting — an OpenAI call, a
+      // couple of Firestore queries, a push — so serialising them meant a
+      // forced run over the whole member base took minutes of pure latency.
+      // Kept low deliberately: this shares a box with live traffic, and the
+      // OpenAI calls inside are rate-limited upstream.
+      await mapWithConcurrency(page, 6, async (user) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const u = user as any;
       // Not this user's notification hour yet (or already past) — every
       // rule below sends at most once per matching run, so gating the whole
       // block per-hour is also what stops the hourly cron from sending the
       // same reminders 24× a day.
-      if (!force && localHourFor(u.timezone) !== TARGET_LOCAL_HOUR) continue;
+      if (!force && localHourFor(u.timezone) !== TARGET_LOCAL_HOUR) return;
       const today = localDateStrFor(u.timezone, 0);
       const yesterday = localDateStrFor(u.timezone, 86_400_000);
 
@@ -348,6 +388,7 @@ export async function POST(req: NextRequest) {
         // Non-fatal per-user — one bad doc/user shouldn't abort the whole batch
         console.error(`[notifications/process] Failed for user ${u.id}:`, err);
       }
+      });
     }
 
     return NextResponse.json({
@@ -356,8 +397,8 @@ export async function POST(req: NextRequest) {
       debug: {
         rulesEnabled: rules,
         aiEnabled,
-        usersConsidered: users.length,
-        usersWithActiveProgram: users.filter((u) => (u as { activeProgram?: unknown }).activeProgram).length,
+        usersConsidered,
+        usersWithActiveProgram,
       },
     });
   } catch (err) {

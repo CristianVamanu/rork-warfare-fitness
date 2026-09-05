@@ -7,7 +7,7 @@ import {
   subscribeAdminConversations,
   subscribeUserSupportTickets,
   subscribeAllSupportTickets,
-  getUnreadNotificationCount,
+  subscribeUnreadNotificationCount,
   getSystemConfig,
 } from '@/lib/firestore';
 
@@ -132,17 +132,13 @@ export function HeaderDataProvider({ children }: { children: React.ReactNode }) 
     });
   }, [user, isAdmin, blockedFromReads]);
 
+  // A listener, not a 30-second poll. The poll re-read Firestore twice a
+  // minute from every open tab regardless of whether anything had changed;
+  // this costs the unread documents once and then only deltas, and the badge
+  // updates the instant a notification lands rather than up to 30s later.
   useEffect(() => {
     if (!user || blockedFromReads) { setUnreadNotifs(0); return; }
-    let cancelled = false;
-    const load = () => {
-      getUnreadNotificationCount(user.uid)
-        .then(count => { if (!cancelled) setUnreadNotifs(count); })
-        .catch(() => {});
-    };
-    load();
-    const interval = setInterval(load, 30_000);
-    return () => { cancelled = true; clearInterval(interval); };
+    return subscribeUnreadNotificationCount(user.uid, setUnreadNotifs);
   }, [user, blockedFromReads]);
 
   return (

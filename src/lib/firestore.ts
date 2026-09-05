@@ -1966,6 +1966,35 @@ export async function deleteAllReadNotifications(userId: string) {
   await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
 }
 
+/** Badge caps out here; past it the UI shows "99+". Bounds the initial read. */
+export const UNREAD_BADGE_CAP = 99;
+
+/**
+ * Live unread count for the header badge.
+ *
+ * Replaces a 30-second setInterval poll. Every open tab hit Firestore twice a
+ * minute whether anything had changed or not — at a few thousand concurrent
+ * tabs that is millions of reads a day for a number that changes a handful of
+ * times. A listener costs the matching documents once, then only deltas, and
+ * the badge updates the moment a notification arrives instead of up to 30s
+ * later. Limited so a user with a huge unread backlog can't pull it all down.
+ *
+ * Two equality filters need no composite index — Firestore serves those from
+ * its automatic single-field indexes.
+ */
+export function subscribeUnreadNotificationCount(userId: string, cb: (count: number) => void): () => void {
+  const q = query(
+    collection(db, 'notifications'),
+    where('userId', '==', userId),
+    where('read', '==', false),
+    limit(UNREAD_BADGE_CAP + 1),
+  );
+  return onSnapshot(q, (snap) => cb(snap.size), (err) => {
+    console.error('[Firestore] unread notification listener failed:', err);
+    cb(0);
+  });
+}
+
 export async function getUnreadNotificationCount(userId: string): Promise<number> {
   // A count aggregate — the header polls this every 30s on every open tab,
   // and getDocs() was downloading every unread notification each time just

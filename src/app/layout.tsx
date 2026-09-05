@@ -7,6 +7,7 @@ import { getSystemConfig } from '@/lib/firestore';
 import { ServiceWorkerUpdater } from '@/components/ui/ServiceWorkerUpdater';
 import { AppToaster } from '@/components/ui/AppToaster';
 import { ChunkErrorReloader } from '@/components/ui/ChunkErrorReloader';
+import { ErrorReporter } from '@/components/ui/ErrorReporter';
 import { CookieConsent } from '@/components/ui/CookieConsent';
 import { ConsentGatedScripts } from '@/components/ui/ConsentGatedScripts';
 
@@ -126,6 +127,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
           <ServiceWorkerUpdater />
           <ChunkErrorReloader />
+          <ErrorReporter />
           <CookieConsent />
           <AppToaster />
         </AuthProvider>

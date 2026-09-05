@@ -73,6 +73,46 @@ export function orgUsageDocId(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * The org counter is SHARDED across this many documents per day.
+ *
+ * It used to be a single document, written inside a transaction by every AI
+ * call in the app. Firestore sustains roughly one write per second to any one
+ * document; past that, contending transactions retry and then fail outright.
+ * At a few users that is invisible, but it is the first thing in this codebase
+ * that breaks purely from success — a burst of AI usage would start returning
+ * 500s from features that are otherwise working perfectly.
+ *
+ * Ten shards move the ceiling to ~10 writes/second. Each call picks one at
+ * random, so contention is spread; the total is the sum, read only by the
+ * admin dashboard and by the limit check itself.
+ */
+const ORG_SHARDS = 10;
+const orgShardId = (date: string, shard: number) => `${date}_${shard}`;
+
+/** Sums today's shards (plus the pre-sharding document, so history isn't lost). */
+async function readOrgUsage(
+  db: FirebaseFirestore.Firestore,
+  date: string,
+): Promise<{ count: number; byFeature: Record<string, number> }> {
+  const refs = [
+    db.collection(ORG_USAGE_DOC).doc(date), // legacy single doc
+    ...Array.from({ length: ORG_SHARDS }, (_, i) => db.collection(ORG_USAGE_DOC).doc(orgShardId(date, i))),
+  ];
+  const snaps = await db.getAll(...refs);
+  let count = 0;
+  const byFeature: Record<string, number> = {};
+  for (const snap of snaps) {
+    const data = snap.data();
+    if (!data) continue;
+    count += (data.count as number) ?? 0;
+    for (const [feature, n] of Object.entries((data.byFeature as Record<string, number>) ?? {})) {
+      byFeature[feature] = (byFeature[feature] ?? 0) + n;
+    }
+  }
+  return { count, byFeature };
+}
+
 export interface UsageResult {
   allowed: boolean;
   remaining: number;
@@ -89,40 +129,53 @@ export async function checkAndIncrementUsage(
 ): Promise<UsageResult> {
   const db = getAdminDb(app);
   const ref = db.collection('users').doc(uid).collection('usage').doc(`${feature}_${today}`);
-  const orgRef = db.collection(ORG_USAGE_DOC).doc(orgUsageDocId());
   const configRef = db.collection('system').doc('config');
+  const date = orgUsageDocId();
 
-  return db.runTransaction(async (tx) => {
-    // All reads before any write — Firestore transaction requirement.
-    const [snap, orgSnap, cfgSnap] = await Promise.all([
-      tx.get(ref), tx.get(orgRef), tx.get(configRef),
-    ]);
-
-    const orgLimit = Number(cfgSnap.data()?.aiOrgDailyLimit ?? 0);
-    const orgCount = orgSnap.exists ? (orgSnap.data()?.count as number ?? 0) : 0;
-    if (orgLimit > 0 && orgCount >= orgLimit) {
+  // The org ceiling is checked OUTSIDE the per-user transaction, against the
+  // summed shards. Reading it inside meant every AI call in the app
+  // transacted on one shared document; see ORG_SHARDS. The tiny race this
+  // opens — two calls passing the check at the same instant when the budget
+  // has one slot left — overshoots a soft daily spend cap by one call, which
+  // is not worth serialising every AI request in the product to prevent.
+  const cfgSnap = await configRef.get();
+  const orgLimit = Number(cfgSnap.data()?.aiOrgDailyLimit ?? 0);
+  if (orgLimit > 0) {
+    const { count } = await readOrgUsage(db, date);
+    if (count >= orgLimit) {
       return { allowed: false, remaining: 0, orgLimitReached: true };
     }
+  }
 
+  const result = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
     const count = snap.exists ? (snap.data()?.count as number ?? 0) : 0;
     if (count >= dailyLimit) {
       return { allowed: false, remaining: 0 };
     }
-
     tx.set(ref, { count: FieldValue.increment(1), updatedAt: Timestamp.now() }, { merge: true });
+    return { allowed: true, remaining: dailyLimit - count - 1 };
+  });
+
+  if (result.allowed) {
     // Tracked even when no ceiling is configured, so the admin dashboard can
     // show real usage before anyone decides what the ceiling should be.
     // A NESTED map, not a dotted key: set({merge}) treats "byFeature.x" as a
     // literal field name (only update() parses paths), so the admin panel's
     // per-feature breakdown read an always-empty `byFeature` map while the
     // counts piled up in top-level fields nobody looked at.
-    tx.set(orgRef, {
+    const shard = Math.floor(Math.random() * ORG_SHARDS);
+    await db.collection(ORG_USAGE_DOC).doc(orgShardId(date, shard)).set({
       count: FieldValue.increment(1),
       updatedAt: Timestamp.now(),
       byFeature: { [feature]: FieldValue.increment(1) },
-    }, { merge: true });
-    return { allowed: true, remaining: dailyLimit - count - 1 };
-  });
+    }, { merge: true }).catch((err) => {
+      // Usage accounting must never fail a call the user is entitled to make.
+      console.error('[usageLimit] org shard write failed:', err);
+    });
+  }
+
+  return result;
 }
 
 /** Today's org-wide AI usage and the configured ceiling, for the admin panel. */
@@ -131,14 +184,14 @@ export async function getOrgAiUsage(app: App): Promise<{
 }> {
   const db = getAdminDb(app);
   const date = orgUsageDocId();
-  const [usageSnap, cfgSnap] = await Promise.all([
-    db.collection(ORG_USAGE_DOC).doc(date).get(),
+  const [usage, cfgSnap] = await Promise.all([
+    readOrgUsage(db, date),
     db.collection('system').doc('config').get(),
   ]);
   return {
-    used: (usageSnap.data()?.count as number) ?? 0,
+    used: usage.count,
     limit: Number(cfgSnap.data()?.aiOrgDailyLimit ?? 0),
-    byFeature: (usageSnap.data()?.byFeature as Record<string, number>) ?? {},
+    byFeature: usage.byFeature,
     date,
   };
 }
@@ -173,19 +226,23 @@ export async function resolveConfiguredDailyLimit(app: App, configField: string,
 export async function refundUsage(app: App, uid: string, feature: string, today: string): Promise<void> {
   const db = getAdminDb(app);
   const ref = db.collection('users').doc(uid).collection('usage').doc(`${feature}_${today}`);
-  const orgRef = db.collection(ORG_USAGE_DOC).doc(orgUsageDocId());
   await db.runTransaction(async (tx) => {
-    const [snap, orgSnap] = await Promise.all([tx.get(ref), tx.get(orgRef)]);
+    const snap = await tx.get(ref);
     const count = snap.exists ? (snap.data()?.count as number ?? 0) : 0;
     if (count > 0) tx.update(ref, { count: FieldValue.increment(-1) });
-    // The org budget is refunded on the same failures as the per-user one —
-    // a provider error shouldn't eat the shared allowance either.
-    const orgCount = orgSnap.exists ? (orgSnap.data()?.count as number ?? 0) : 0;
-    if (orgCount > 0) {
-      tx.update(orgRef, {
-        count: FieldValue.increment(-1),
-        [`byFeature.${feature}`]: FieldValue.increment(-1),
-      });
-    }
+  });
+
+  // The org budget is refunded on the same failures as the per-user one — a
+  // provider error shouldn't eat the shared allowance either. Sharded and
+  // outside the transaction for the same reason the increment is (see
+  // ORG_SHARDS); a decrement can safely land on a different shard than the
+  // increment did, because only the sum is ever read.
+  const date = orgUsageDocId();
+  const shard = Math.floor(Math.random() * ORG_SHARDS);
+  await db.collection(ORG_USAGE_DOC).doc(orgShardId(date, shard)).set({
+    count: FieldValue.increment(-1),
+    byFeature: { [feature]: FieldValue.increment(-1) },
+  }, { merge: true }).catch((err) => {
+    console.error('[usageLimit] org shard refund failed:', err);
   });
 }
