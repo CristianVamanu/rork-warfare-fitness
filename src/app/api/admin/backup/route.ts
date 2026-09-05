@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import fs from 'fs/promises';
 import path from 'path';
 import { verifyAdmin } from '@/lib/verifyAdmin';
@@ -27,14 +27,47 @@ import { getR2Client } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
 import { timingSafeEqualString } from '@/lib/crypto';
 
-// Top-level collections that hold real data worth backing up. `system`
-// (encrypted secrets ciphertext) is deliberately excluded — no reason to
-// duplicate that blob into a second location.
+// Top-level collections that hold real data worth backing up.
+//
+// `system` is now included but its `secrets` document is filtered out below.
+// The original exclusion was right about the secrets blob — there is no reason
+// to copy encrypted API keys into a second location — but it also dropped
+// system/config, which holds branding, the trainerId every user doc points at,
+// and the AI spend caps. That is configuration you cannot reconstruct.
 const COLLECTIONS = [
   'users', 'events', 'meals', 'waterLogs', 'workoutLogs', 'weightLogs', 'habitLogs',
   'programs', 'posts', 'notifications', 'coachingApplications', 'config',
   'prPosts', 'progressPhotos', 'userPreferences', 'exerciseLibrary',
+  // Added after an audit found the dump was missing data that cannot be
+  // reconstructed from anything else:
+  //   system            — system/config (branding, AI caps, trainerId) and the
+  //                       encrypted system/secrets document
+  //   stripeCustomers   — the customer→uid reverse index. Losing it detaches
+  //                       every member from their Stripe billing identity
+  //   supportTickets    — members' own support conversations (messages are
+  //                       pulled from the subcollection below)
+  //   goals / ptTestResults / communityActivity — coach-assigned and
+  //                       self-logged records with no other source
+  //   trainerLeads / landingLeads — inbound sales enquiries
+  //   orphanedSubscriptions — the record of subscriptions that failed to
+  //                       cancel during account deletion, i.e. a live to-do
+  //                       list of billing problems
+  //   tenants           — per-trainer configuration
+  //   leaderboardPublic — retired, but the rows still exist and are cheap
+  'system', 'stripeCustomers', 'goals', 'ptTestResults', 'communityActivity',
+  'trainerLeads', 'landingLeads', 'orphanedSubscriptions', 'tenants', 'leaderboardPublic',
 ] as const;
+
+/**
+ * Deliberately NOT backed up, because restoring them would be wrong or
+ * pointless: rateLimits, users/*\/usage, twoFactorCodes, emailVerifyCodes and
+ * trustedDevices are short-lived security/throttling state that must expire
+ * rather than come back; stripeEvents is a replay ledger whose entries are
+ * only meaningful against live Stripe deliveries; errorReports is diagnostics.
+ */
+
+/** Keep this many backups in R2. Older objects are pruned after each run. */
+const R2_RETENTION = 30;
 
 async function authorize(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
@@ -59,7 +92,13 @@ export async function POST(req: NextRequest) {
 
     for (const name of COLLECTIONS) {
       const snap = await db.collection(name).get();
-      dump[name] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      dump[name] = snap.docs
+        // system/secrets holds encrypted third-party API keys. Configuration
+        // is worth backing up; that blob is not — copying it into a second
+        // store only widens where a key can leak from, and it is restorable
+        // by pasting the keys back in.
+        .filter((d) => !(name === 'system' && d.id === 'secrets'))
+        .map((d) => ({ id: d.id, ...d.data() }));
     }
 
     // Nested subcollections that don't live at the top level
@@ -81,6 +120,14 @@ export async function POST(req: NextRequest) {
       return { id: c.id, ...c.data(), messages: msgsSnap.docs.map((m) => ({ id: m.id, ...m.data() })) };
     }));
     dump.conversations = conversations;
+
+    // Support tickets carry their messages in a subcollection, same shape as
+    // conversations — a ticket without its messages is not a restore.
+    const ticketSnap = await db.collection('supportTickets').get();
+    dump.supportTickets = await Promise.all(ticketSnap.docs.map(async (t) => {
+      const msgsSnap = await t.ref.collection('messages').get();
+      return { id: t.id, ...t.data(), messages: msgsSnap.docs.map((m) => ({ id: m.id, ...m.data() })) };
+    }));
 
     // pushSubscriptions/{userId}/devices/{deviceId} — a subcollection, not a
     // top-level collection, so it needs a collectionGroup query rather than
@@ -114,7 +161,35 @@ export async function POST(req: NextRequest) {
         ContentType: 'application/json',
       }));
       location = `r2:backups/${filename}`;
+
+      // Prune old objects. Nothing was deleting these, so a daily backup of a
+      // growing database would have accumulated in R2 indefinitely.
+      try {
+        const listed = await r2Client.send(new ListObjectsV2Command({ Bucket: backupBucket, Prefix: 'backups/' }));
+        const keys = (listed.Contents ?? [])
+          .map((o) => o.Key)
+          .filter((k): k is string => !!k)
+          .sort(); // ISO timestamps in the name sort chronologically
+        const stale = keys.slice(0, Math.max(0, keys.length - R2_RETENTION));
+        if (stale.length) {
+          await r2Client.send(new DeleteObjectsCommand({
+            Bucket: backupBucket,
+            Delete: { Objects: stale.map((Key) => ({ Key })), Quiet: true },
+          }));
+          console.log(`[admin/backup] pruned ${stale.length} backup(s) beyond the last ${R2_RETENTION}`);
+        }
+      } catch (err) {
+        // Never fail a successful backup because tidying afterwards didn't work.
+        console.error('[admin/backup] retention prune failed:', err);
+      }
     } else {
+      // A backup written to the same box as the database it protects is not a
+      // backup — it dies with the server. This path exists so a dev/staging
+      // install still works, and says so loudly rather than looking healthy.
+      console.error(
+        '[admin/backup] R2_BACKUP_BUCKET_NAME is not configured — writing to local disk on the app server. ' +
+        'This does NOT protect against losing the server. Set it in Admin → Integrations.'
+      );
       const dir = path.join(process.cwd(), 'backups');
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(path.join(dir, filename), json, 'utf-8');

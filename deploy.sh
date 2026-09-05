@@ -150,9 +150,18 @@ if [ -n "$ENV_FILE" ]; then
     # a cancelled subscription kept full paid access forever with nothing
     # anywhere that would notice. Runs at 04:17 to avoid the busy hour tick.
     RECONCILE_CMD="curl -fsS -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${APP_URL%/}/api/admin/reconcile-subscriptions\" >/dev/null 2>&1 ${CRON_MARKER}"
-    ( crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" || true ; echo "0 * * * * ${CRON_CMD}" ; echo "17 4 * * * ${RECONCILE_CMD}" ) | crontab -
+    # Nightly full Firestore export. The route existed and was CRON_SECRET-
+    # protected from the start, but nothing ever scheduled it — so this app
+    # has been running with no automated backup at all. Runs at 03:22 UTC,
+    # off the hour and away from the other two jobs so a slow export never
+    # overlaps the notification sweep. --max-time 900: a full dump of a
+    # growing database is the one job here that legitimately takes minutes,
+    # but it must not hang forever holding a worker.
+    BACKUP_CMD="curl -fsS --max-time 900 -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${APP_URL%/}/api/admin/backup\" >/dev/null 2>&1 ${CRON_MARKER}"
+    ( crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" || true ; echo "0 * * * * ${CRON_CMD}" ; echo "17 4 * * * ${RECONCILE_CMD}" ; echo "22 3 * * * ${BACKUP_CMD}" ) | crontab -
     echo "    cron installed: hourly POST to /api/notifications/process"
     echo "    cron installed: daily POST to /api/admin/reconcile-subscriptions"
+    echo "    cron installed: nightly POST to /api/admin/backup (03:22 UTC)"
   else
     echo "    skipped — CRON_SECRET or NEXT_PUBLIC_APP_URL not set in $ENV_FILE"
   fi
