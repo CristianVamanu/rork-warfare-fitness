@@ -290,7 +290,14 @@ service cloud.firestore {
             ['role', 'membership', 'coaching', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan', 'trialUsedAt', 'twoFactorEnabled', 'twoFactorEmail', 'stripeCustomerId']
           ) &&
           activeProgramWriteAllowed() &&
-          premiumEnrollAllowed())
+          premiumEnrollAllowed() &&
+          // xp is computed in the browser and written here, so nothing stopped
+          // a member setting it to any number they liked and having the
+          // leaderboard rank them on it. It may still be written (there is no
+          // server in the workout path), but only one plausible workout's
+          // worth at a time — see maxXpPerWrite(). Writes that don't touch xp
+          // are unaffected.
+          xpGrowthSane())
       );
       allow delete: if isAdmin();
     }
@@ -316,17 +323,26 @@ service cloud.firestore {
     // preventing a client from touching `banned` itself.
     match /leaderboardPublic/{userId} {
       allow read: if isAuthed();
+      // This is the PUBLIC mirror — what the community leaderboard reads and
+      // ranks by. The owner may still write it (there is no server in the
+      // workout path to do it for them), but it may never claim more XP than
+      // their own user document holds. That makes users/{uid}.xp the single
+      // root of trust, and it is itself capped per write below, so inflating
+      // a leaderboard position means thousands of bounded writes rather than
+      // one console line.
       allow create: if isAdmin() || (
         isAuthed() && uid() == userId &&
         request.resource.data.keys().hasOnly(
           ['displayName', 'xp', 'powerLevel', 'streak', 'totalWorkouts', 'totalWeightLifted', 'questsCompleted', 'lastWorkoutDate']
-        )
+        ) &&
+        request.resource.data.get('xp', 0) <= ownUserXp()
       );
       allow update: if isAdmin() || (
         isAuthed() && uid() == userId &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(
           ['displayName', 'xp', 'powerLevel', 'streak', 'totalWorkouts', 'totalWeightLifted', 'questsCompleted', 'lastWorkoutDate']
-        )
+        ) &&
+        request.resource.data.get('xp', 0) <= ownUserXp()
       );
       allow delete: if isAdmin();
     }
@@ -358,6 +374,57 @@ service cloud.firestore {
     }
 
     // ── Events — single write path for all activity tracking ─────────────
+    // ── Anti-forgery bounds for self-reported activity ──────────────────────
+    //
+    // XP, power level, streak and workout counts are all computed in the
+    // BROWSER (src/lib/actions.ts) and written straight to Firestore, because
+    // this app has no server in its workout write path. That is a deliberate
+    // trade, but it means the only thing standing between a signed-in member
+    // and any leaderboard position they fancy is what these rules will accept.
+    //
+    // A fitness app whose input is "I say I lifted this" cannot be made
+    // cheat-proof — the honest goal is to make forgery bounded, slow and
+    // visible rather than a one-line console write.
+    //
+    // The single largest XP a real session can produce is
+    //   duration*5 + sets*10 + min(volume/50, 50)      (see src/lib/xp.ts)
+    // and the client caps duration at 300 minutes. 5000 covers 300 minutes,
+    // ~340 completed sets and the capped volume bonus — absurdly generous for
+    // one workout, and still a hard ceiling per write.
+    function maxXpPerWrite() { return 5000; }
+
+    // The caller's authoritative XP, from their own user document.
+    function ownUserXp() {
+      return exists(/databases/$(database)/documents/users/$(uid()))
+        ? get(/databases/$(database)/documents/users/$(uid())).data.get('xp', 0)
+        : 0;
+    }
+
+    // Allows XP to fall (corrections, admin edits) but never to jump by more
+    // than one plausible workout in a single write. Absent `xp` passes
+    // untouched, so writes that don't mention XP — recomputeStatsCache's
+    // {streak, totalWorkouts} sync, a display-name change — are unaffected.
+    function xpGrowthSane() {
+      return request.resource.data.get('xp', resource.data.get('xp', 0))
+        <= resource.data.get('xp', 0) + maxXpPerWrite();
+    }
+
+    // Bounds on a WORKOUT_COMPLETED payload. Every field is read with a
+    // default so an event that omits it still passes: the legacy-data
+    // migration (src/lib/migration.ts) writes workout events with no
+    // xpEarned at all, and rejecting those would break the one-time import
+    // for every pre-events account. Limits are deliberately loose — this is
+    // a sanity ceiling on the absurd, not a fitness judgement. Duration
+    // allows a full day because imported legacy logs were never capped.
+    function workoutPayloadSane() {
+      let p = request.resource.data.payload;
+      return p.get('duration', 0) is number && p.get('duration', 0) >= 0 && p.get('duration', 0) <= 1440
+        && p.get('exerciseCount', 0) is number && p.get('exerciseCount', 0) >= 0 && p.get('exerciseCount', 0) <= 200
+        && p.get('totalWeightLifted', 0) is number && p.get('totalWeightLifted', 0) >= 0 && p.get('totalWeightLifted', 0) <= 1000000
+        && p.get('calories', 0) is number && p.get('calories', 0) >= 0 && p.get('calories', 0) <= 20000
+        && p.get('xpEarned', 0) is number && p.get('xpEarned', 0) >= 0 && p.get('xpEarned', 0) <= maxXpPerWrite();
+    }
+
     match /events/{eventId} {
       // Read: own events, admin, or that event's own trainer — needed for
       // the admin panel's client profile modal (Training Activity: recent
@@ -366,9 +433,16 @@ service cloud.firestore {
       allow read: if isAuthed() && notTfaPending() && (resource.data.userId == uid() || isAdminOrOwnTrainer(resource.data.userId));
 
       // Create: userId must match caller; required fields must be present
+      // The payload was previously unvalidated — only the presence of the
+      // keys was checked — so a WORKOUT_COMPLETED event could claim any
+      // duration, set count or XP. streak and totalWorkouts are recomputed
+      // from this ledger (src/lib/events.ts), so bounding it here is what
+      // makes those two numbers trustworthy, and it is the groundwork for
+      // deriving XP server-side from events rather than trusting the client.
       allow create: if isAuthed() && notTfaPending()
         && request.resource.data.userId == uid()
-        && request.resource.data.keys().hasAll(['type', 'userId', 'trainerId', 'payload', 'createdAt']);
+        && request.resource.data.keys().hasAll(['type', 'userId', 'trainerId', 'payload', 'createdAt'])
+        && (request.resource.data.type != 'WORKOUT_COMPLETED' || workoutPayloadSane());
 
       // Delete: own events only (e.g. undo a log entry)
       allow delete: if isAuthed() && notTfaPending() && resource.data.userId == uid();

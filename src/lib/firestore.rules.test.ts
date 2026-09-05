@@ -190,6 +190,11 @@ describe('leaderboardPublic', () => {
       // empty diff passes hasOnly() trivially — which is correct behaviour,
       // not a hole, but it would make the test meaningless.
       await setDoc(doc(db, 'leaderboardPublic', ALICE), { displayName: 'Alice', xp: 10, banned: true });
+      // The public row may never claim more XP than the user document holds,
+      // so these tests need a real backing value. This mirrors production:
+      // completeWorkout writes users/{uid}.xp inside its transaction and only
+      // then syncs the mirror, so a legitimate sync never exceeds it.
+      await setDoc(doc(db, 'users', ALICE), { xp: 500 }, { merge: true });
     });
   });
 
@@ -212,6 +217,70 @@ describe('leaderboardPublic', () => {
 
   it('refuses smuggling banned:false alongside a legitimate xp sync', async () => {
     await assertFails(setDoc(doc(asAlice(), 'leaderboardPublic', ALICE), { xp: 99, banned: false }, { merge: true }));
+  });
+
+  // ── Leaderboard forgery ──────────────────────────────────────────────────
+  // XP is computed in the browser and written straight to Firestore, so the
+  // rules are the only thing between a signed-in member and any rank they
+  // like. The mirror may not exceed the user document, and the user document
+  // may not grow by more than one plausible workout per write.
+
+  it('refuses a public row claiming more XP than the user document holds', async () => {
+    await assertFails(setDoc(doc(asAlice(), 'leaderboardPublic', ALICE), { xp: 9_999_999 }, { merge: true }));
+  });
+
+  it('allows a sync up to the user document value', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), 'leaderboardPublic', ALICE), { xp: 500, streak: 3 }, { merge: true }));
+  });
+
+  it('refuses inflating xp on the user document itself', async () => {
+    await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), { xp: 9_999_999 }));
+  });
+
+  it('allows one plausible workout of xp growth', async () => {
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { xp: 500 + 3000 }));
+  });
+
+  it('leaves writes that do not touch xp alone', async () => {
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { displayName: 'Alice B' }));
+  });
+});
+
+// ── Event payload bounds ────────────────────────────────────────────────────
+// streak and totalWorkouts are recomputed from this ledger, so an unbounded
+// payload meant those numbers were only as honest as the client chose to be.
+
+describe('events — WORKOUT_COMPLETED payload bounds', () => {
+  const evt = (payload: Record<string, unknown>) => ({
+    type: 'WORKOUT_COMPLETED', userId: ALICE, trainerId: null, createdAt: new Date(), payload,
+  });
+
+  it('accepts a normal session', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), 'events', 'e1'),
+      evt({ duration: 62, exerciseCount: 6, totalWeightLifted: 4200, calories: 496, xpEarned: 810 })));
+  });
+
+  it('accepts a legacy import with no xpEarned at all', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), 'events', 'e2'),
+      evt({ workoutLogId: 'old1', duration: 45, exerciseCount: 4, totalWeightLifted: 0, calories: 360 })));
+  });
+
+  it('refuses an impossible duration', async () => {
+    await assertFails(setDoc(doc(asAlice(), 'events', 'e3'), evt({ duration: 100_000 })));
+  });
+
+  it('refuses a fabricated xpEarned', async () => {
+    await assertFails(setDoc(doc(asAlice(), 'events', 'e4'), evt({ duration: 60, xpEarned: 9_999_999 })));
+  });
+
+  it('refuses an absurd exercise count', async () => {
+    await assertFails(setDoc(doc(asAlice(), 'events', 'e5'), evt({ duration: 60, exerciseCount: 50_000 })));
+  });
+
+  it('still accepts other event types unchanged', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), 'events', 'e6'), {
+      type: 'WATER_LOGGED', userId: ALICE, trainerId: null, createdAt: new Date(), payload: { amountMl: 500 },
+    }));
   });
 });
 
