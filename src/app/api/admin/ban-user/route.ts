@@ -42,16 +42,13 @@ export async function POST(req: NextRequest) {
       await auth.updateUser(userId, { disabled: true });
       await auth.revokeRefreshTokens(userId);
       await db.collection('users').doc(userId).update({ banned: true, bannedAt: FieldValue.serverTimestamp() });
-      // `banned` on leaderboardPublic is only ever settable from here (this
-      // route uses firebase-admin, which bypasses Firestore rules) — the
-      // rules explicitly forbid clients writing it to their own doc, so a
-      // banned user can't self-unban. Use set/merge since a very new or
-      // not-yet-migrated user may not have a leaderboardPublic doc yet.
-      await db.collection('leaderboardPublic').doc(userId).set({ banned: true }, { merge: true });
+      // The public leaderboard was removed, so there is no longer a mirror
+      // to flag here. The ban itself is what matters: the Auth account is
+      // disabled and its refresh tokens revoked above, which stops the
+      // account signing in at all rather than only hiding it from a list.
     } else {
       await auth.updateUser(userId, { disabled: false });
       await db.collection('users').doc(userId).update({ banned: false, bannedAt: FieldValue.delete() });
-      await db.collection('leaderboardPublic').doc(userId).set({ banned: false }, { merge: true });
     }
 
     return NextResponse.json({ ok: true });

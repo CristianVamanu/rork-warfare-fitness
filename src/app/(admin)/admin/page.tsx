@@ -71,7 +71,7 @@ type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'commu
 // Shared by both plan editors (CoachingPlan's Tool Access and
 // MembershipPlan's Tool Access) — feature ids here must match what
 // PaywallGate/useFeatureAccess check against on the gated pages
-// themselves (community, quests, breathing pages; the leaderboard tab
+// themselves (community, quests, breathing pages; the PR wall
 // within community; FastingWidget on the dashboard).
 const TOOL_ACCESS_OPTIONS = [
   { id: 'barcode', label: 'Barcode Scanner' },
@@ -79,7 +79,6 @@ const TOOL_ACCESS_OPTIONS = [
   { id: 'meal-planner', label: 'AI Meal Planner' },
   { id: 'premium-programs', label: 'Premium Training Plans' },
   { id: 'community', label: 'Community' },
-  { id: 'leaderboard', label: 'Leaderboard' },
   { id: 'pr-wall', label: 'PR Wall' },
   { id: 'quests', label: 'Quests & Achievements' },
   { id: 'fasting', label: 'Fasting Timer' },
@@ -93,7 +92,6 @@ const LOCKABLE_FEATURE_OPTIONS = [
   { id: 'scan-and-go', label: 'Scan & Go', desc: 'Photo-based workout builder from gym equipment' },
   { id: 'premium-programs', label: 'Premium Training Plans', desc: 'Programs marked as Premium require membership' },
   { id: 'community', label: 'Community', desc: 'Channels — browsing and posting' },
-  { id: 'leaderboard', label: 'Leaderboard', desc: 'Power-level rankings' },
   { id: 'pr-wall', label: 'PR Wall', desc: 'Personal-record posts feed' },
   { id: 'quests', label: 'Quests & Achievements', desc: 'Quest tracking and achievement badges' },
   { id: 'fasting', label: 'Fasting Timer', desc: 'Intermittent fasting tracker on the dashboard' },
@@ -1351,7 +1349,7 @@ function AdminPageInner() {
                     <textarea
                       value={membershipPlanForm.features}
                       onChange={e => setMembershipPlanForm(f => ({ ...f, features: e.target.value }))}
-                      placeholder={"Full access to all training programs\nAI food analyzer\nCommunity & leaderboard access"}
+                      placeholder={"Full access to all training programs\nAI food analyzer\nCommunity & PR wall access"}
                       rows={4}
                       className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none font-mono"
                     />
@@ -5073,19 +5071,6 @@ function AdminPageInner() {
                 ))}
               </div>
             </div>
-
-            <label className="flex items-center gap-3 p-3 bg-surface border border-white/10 rounded-xl cursor-pointer">
-              <input
-                type="checkbox"
-                checked={landingForm.showPublicLeaderboard !== false}
-                onChange={e => setLandingForm(f => ({ ...f, showPublicLeaderboard: e.target.checked }))}
-                className="w-4 h-4 accent-accent"
-              />
-              <div>
-                <p className="text-sm font-medium text-white">Show public leaderboard</p>
-                <p className="text-xs text-text-tertiary">Displays top athletes (name, level, streak — no email or private data) to logged-out visitors as social proof.</p>
-              </div>
-            </label>
 
             <div>
               <label className="text-xs text-text-secondary mb-1 block">Programs to show on landing page</label>

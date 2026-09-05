@@ -88,19 +88,6 @@ export async function signUp(
     pendingSignups.delete(credential.user.uid);
   }
 
-  // Seed the public leaderboard mirror too — see firestore.ts
-  // syncLeaderboardPublic. Without this, a brand-new user's leaderboard row
-  // wouldn't exist until their first workout/quest/streak sync.
-  await setDoc(doc(db, 'leaderboardPublic', credential.user.uid), {
-    displayName,
-    xp: 0,
-    powerLevel: 1,
-    streak: 0,
-    totalWorkouts: 0,
-    totalWeightLifted: 0,
-    questsCompleted: [],
-  }).catch((err) => console.error('[Auth] leaderboardPublic seed failed:', err));
-
   credential.user.getIdToken().then((token) => {
     fetch('/api/email/welcome', {
       method: 'POST',

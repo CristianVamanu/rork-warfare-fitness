@@ -2219,44 +2219,14 @@ export async function unpinChannelPost(channelId: string, postId: string) {
   invalidateChannelsCache();
 }
 
-export interface LeaderboardEntry {
-  id: string;
-  displayName: string;
-  xp: number;
-  powerLevel: number;
-  streak: number;
-  totalWorkouts: number;
-  totalWeightLifted: number;
-  questsCompleted: string[];
-}
-
-function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): LeaderboardEntry {
-  return {
-    id,
-    displayName: (data.displayName as string) || 'Athlete',
-    xp: (data.xp as number) ?? 0,
-    powerLevel: (data.powerLevel as number) ?? 0,
-    streak: (data.streak as number) ?? 0,
-    totalWorkouts: (data.totalWorkouts as number) ?? 0,
-    totalWeightLifted: (data.totalWeightLifted as number) ?? 0,
-    questsCompleted: (data.questsCompleted as string[]) ?? [],
-  };
-}
-
-// Public, field-limited mirror of the private `users/{uid}` doc — see
-// firestore.rules. `users/{uid}` is readable only by its owner and
-// admin/own-trainer, so anything shown to OTHER users (leaderboard, today's
-// workout count) must be read from here instead. Never mirror `banned` from
-// client code — only the server-side ban-user route (firebase-admin, bypasses
-// rules) is allowed to set it, so a banned user can't self-unban by writing
-// to their own doc.
-export async function syncLeaderboardPublic(userId: string, patch: Record<string, unknown>): Promise<void> {
-  try {
-    await setDoc(doc(db, 'leaderboardPublic', userId), patch, { merge: true });
-  } catch (err) {
-    console.error('[Firestore] syncLeaderboardPublic failed:', err);
-  }
-}
+// The public leaderboard was removed. Ranking members against each other on
+// self-reported workouts rewarded whoever logged the most fiction, not whoever
+// trained — ten "workouts" in ten minutes outranked a real week. XP and power
+// level survive as PERSONAL progression on users/{uid}; nothing mirrors them
+// to a public collection now, and leaderboardPublic is inert (existing
+// documents are left in place; firestore.rules allows admin writes only).
+// Community and the PR wall carry the social side instead — both show what
+// someone actually posted rather than a number they typed.
 
 // ---------------------------------------------------------------------------
 // Community Live Activity — a deliberately minimal, PUBLIC feed of meaningful
@@ -2309,109 +2279,10 @@ export function subscribeCommunityActivity(onUpdate: (items: CommunityActivity[]
 // trainerId — that filter was fragile (any mismatch between a user's stored
 // trainerId and the live admin uid made them silently invisible) and adds no
 // value with only one trainer. Revisit if true multi-tenant coaching ships.
-/**
- * The caller's rank, computed as a server-side COUNT of everyone above
- * them — no documents are transferred at all.
- *
- * The dashboard previously got this by downloading the top 200
- * leaderboardPublic docs and calling indexOf on them: hundreds of KB over
- * the wire on every dashboard load to render a single number, and it
- * couldn't rank anyone outside the top 200 anyway (they just got null).
- * A count aggregate is both far cheaper and strictly more correct.
- */
-export async function getMyLeaderboardRank(xp: number): Promise<number> {
-  const snap = await getCountFromServer(
-    query(collection(db, 'leaderboardPublic'), where('xp', '>', xp))
-  );
-  return snap.data().count + 1;
-}
-
-export async function getLeaderboard(limitCount = 10): Promise<LeaderboardEntry[]> {
-  const snap = await getDocs(query(collection(db, 'leaderboardPublic'), orderBy('xp', 'desc'), limit(200)));
-  const entries = snap.docs
-    .filter((d) => !d.data().banned)
-    .map((d) => mapToLeaderboardEntry(d.id, d.data()))
-    .filter((e) => e.totalWorkouts > 0);
-  return entries.sort((a, b) => b.xp - a.xp).slice(0, limitCount);
-}
-
-export function subscribeLeaderboard(
-  onUpdate: (entries: LeaderboardEntry[]) => void,
-  limitCount = 10,
-): () => void {
-  const q = query(collection(db, 'leaderboardPublic'), orderBy('xp', 'desc'), limit(200));
-  return onSnapshot(q, (snap) => {
-    const entries = snap.docs
-      .filter((d) => !d.data().banned)
-      .map((d) => mapToLeaderboardEntry(d.id, d.data()))
-      .filter((e) => e.totalWorkouts > 0);
-    onUpdate(entries.sort((a, b) => b.xp - a.xp).slice(0, limitCount));
-  }, (err) => console.error('[Firestore] subscribeLeaderboard error:', err));
-}
-
-// "Near You" — a global top-10 is dominated by outliers a typical user can
-// never realistically catch, which motivates less than seeing people at a
-// similar level. Reuses the same broad 200-user snapshot as the global
-// board (no new query/index) and buckets it around the caller's own power
-// level instead, widening the band if too few peers fall inside it so the
-// list never comes back emptier than the caller can see makes sense.
-export function subscribeNearbyLeaderboard(
-  myPowerLevel: number,
-  onUpdate: (entries: LeaderboardEntry[]) => void,
-  limitCount = 10,
-): () => void {
-  const q = query(collection(db, 'leaderboardPublic'), orderBy('xp', 'desc'), limit(200));
-  return onSnapshot(q, (snap) => {
-    const all = snap.docs
-      .filter((d) => !d.data().banned)
-      .map((d) => mapToLeaderboardEntry(d.id, d.data()))
-      .filter((e) => e.totalWorkouts > 0);
-
-    let band = 10;
-    let nearby: LeaderboardEntry[] = [];
-    while (band <= 1000) {
-      nearby = all.filter((e) => Math.abs(e.powerLevel - myPowerLevel) <= band);
-      if (nearby.length >= limitCount || band >= 1000) break;
-      band *= 2;
-    }
-    // Closest power level first, not highest XP — "near you" means
-    // proximity, the global board already covers the XP-ranked view.
-    nearby.sort((a, b) => Math.abs(a.powerLevel - myPowerLevel) - Math.abs(b.powerLevel - myPowerLevel));
-    onUpdate(nearby.slice(0, limitCount));
-  }, (err) => console.error('[Firestore] subscribeNearbyLeaderboard error:', err));
-}
-
-// Live "N people trained today" count for the dashboard's ambient social-proof
-// ticker. Uses statsCache.lastWorkoutDate (date-only — the finest-grained
-// workout timestamp readable client-side; the `events` collection that has
-// real per-workout timestamps is locked to each user's own events by rule)
-// rather than faking hour-level precision the data doesn't actually have.
-/**
- * "N people trained today". Keeps the same subscribe-shaped signature the
- * dashboard already uses, but is no longer a live listener over 300
- * documents.
- *
- * It used to onSnapshot the 300 most recent leaderboardPublic docs and
- * count matches client-side — so every dashboard held a live subscription
- * that re-delivered all 300 docs whenever ANY user's XP changed, purely to
- * display one number. Now it's a server-side count aggregate (no documents
- * transferred), refreshed on an interval instead of streamed. A community
- * counter being up to a minute stale is unnoticeable; the bandwidth wasn't.
- */
-export function subscribeTodayWorkoutCount(onUpdate: (count: number) => void): () => void {
-  const todayStr = new Date().toLocaleDateString('sv-SE');
-  let cancelled = false;
-  const load = () => {
-    getCountFromServer(
-      query(collection(db, 'leaderboardPublic'), where('lastWorkoutDate', '==', todayStr))
-    )
-      .then((snap) => { if (!cancelled) onUpdate(snap.data().count); })
-      .catch((err) => console.error('[Firestore] subscribeTodayWorkoutCount error:', err));
-  };
-  load();
-  const interval = setInterval(load, 60_000);
-  return () => { cancelled = true; clearInterval(interval); };
-}
+// The "N people trained today" ticker was removed with the leaderboard. It
+// counted leaderboardPublic rows whose lastWorkoutDate was today, and nothing
+// writes that mirror any more — so it could only ever have reported zero,
+// while still running a count query from every open dashboard every minute.
 
 // ── PR Wall — community-posted personal records with a trust/verification badge ──
 import type { VerificationLevel, PRPost } from '@/types';

@@ -211,12 +211,6 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
     },
   }, { merge: true });
 
-  // Mirror to the public leaderboard doc — see firestore.ts syncLeaderboardPublic.
-  // This is the sole writer of `streak` there, matching statsCache above.
-  await setDoc(doc(db, 'leaderboardPublic', userId), { streak, totalWorkouts }, { merge: true }).catch((err) =>
-    console.error('[Events] leaderboardPublic sync failed:', err)
-  );
-
   return statsCache;
 }
 

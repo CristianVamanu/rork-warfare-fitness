@@ -330,21 +330,17 @@ service cloud.firestore {
       // root of trust, and it is itself capped per write below, so inflating
       // a leaderboard position means thousands of bounded writes rather than
       // one console line.
-      allow create: if isAdmin() || (
-        isAuthed() && uid() == userId &&
-        request.resource.data.keys().hasOnly(
-          ['displayName', 'xp', 'powerLevel', 'streak', 'totalWorkouts', 'totalWeightLifted', 'questsCompleted', 'lastWorkoutDate']
-        ) &&
-        request.resource.data.get('xp', 0) <= ownUserXp()
-      );
-      allow update: if isAdmin() || (
-        isAuthed() && uid() == userId &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-          ['displayName', 'xp', 'powerLevel', 'streak', 'totalWorkouts', 'totalWeightLifted', 'questsCompleted', 'lastWorkoutDate']
-        ) &&
-        request.resource.data.get('xp', 0) <= ownUserXp()
-      );
-      allow delete: if isAdmin();
+      // RETIRED. The public leaderboard is gone from the product: ranking
+      // members on self-reported workouts rewarded whoever logged the most
+      // fiction, and ten "workouts" in ten minutes outranked a real week.
+      //
+      // Nothing in the app reads or writes this collection any more. Existing
+      // documents are deliberately left in place rather than deleted — that is
+      // reversible, and account deletion still clears a member's row — but no
+      // client may write one, so it cannot drift back into being a live
+      // surface without a rules change. Admin-only, which is also what lets
+      // accountDeletion (Admin SDK) keep clearing rows.
+      allow create, update, delete: if isAdmin();
     }
 
     // ── Community Live Activity (public, minimal) ─────────────────────────
@@ -392,13 +388,6 @@ service cloud.firestore {
     // ~340 completed sets and the capped volume bonus — absurdly generous for
     // one workout, and still a hard ceiling per write.
     function maxXpPerWrite() { return 5000; }
-
-    // The caller's authoritative XP, from their own user document.
-    function ownUserXp() {
-      return exists(/databases/$(database)/documents/users/$(uid()))
-        ? get(/databases/$(database)/documents/users/$(uid())).data.get('xp', 0)
-        : 0;
-    }
 
     // Allows XP to fall (corrections, admin edits) but never to jump by more
     // than one plausible workout in a single write. Absent `xp` passes

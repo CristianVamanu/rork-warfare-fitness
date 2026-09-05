@@ -182,58 +182,42 @@ describe('system/config', () => {
 
 // ── Leaderboard ─────────────────────────────────────────────────────────────
 
-describe('leaderboardPublic', () => {
+describe('leaderboardPublic — retired, admin-only', () => {
   beforeEach(async () => {
     await seed(async (db) => {
-      // Seeded BANNED so the unban test below exercises a real diff. Writing
-      // banned:false over an existing banned:false changes nothing, and an
-      // empty diff passes hasOnly() trivially — which is correct behaviour,
-      // not a hole, but it would make the test meaningless.
-      await setDoc(doc(db, 'leaderboardPublic', ALICE), { displayName: 'Alice', xp: 10, banned: true });
-      // The public row may never claim more XP than the user document holds,
-      // so these tests need a real backing value. This mirrors production:
-      // completeWorkout writes users/{uid}.xp inside its transaction and only
-      // then syncs the mirror, so a legitimate sync never exceeds it.
+      await setDoc(doc(db, 'leaderboardPublic', ALICE), { displayName: 'Alice', xp: 10 });
       await setDoc(doc(db, 'users', ALICE), { xp: 500 }, { merge: true });
     });
   });
 
-  it('is readable by any signed-in user (it is the public mirror)', async () => {
-    await assertSucceeds(getDoc(doc(asBob(), 'leaderboardPublic', ALICE)));
+  // The public leaderboard was removed from the product. Existing rows are
+  // left in place (reversible, and account deletion still clears them via the
+  // Admin SDK), but no client may write one — so it cannot quietly come back
+  // to life as a rankable surface without a rules change.
+
+  it('refuses a user writing their own row at all', async () => {
+    await assertFails(setDoc(doc(asAlice(), 'leaderboardPublic', ALICE), { xp: 500 }, { merge: true }));
   });
 
   it('refuses writing to someone else\'s row', async () => {
     await assertFails(setDoc(doc(asBob(), 'leaderboardPublic', ALICE), { xp: 0 }, { merge: true }));
   });
 
-  it('allows a user to sync their own allowed fields', async () => {
-    await assertSucceeds(setDoc(doc(asAlice(), 'leaderboardPublic', ALICE), { xp: 20, streak: 3 }, { merge: true }));
+  it('still allows an admin to write (account deletion, cleanup)', async () => {
+    await assertSucceeds(setDoc(doc(asAdmin(), 'leaderboardPublic', ALICE), { xp: 0 }, { merge: true }));
+  });
+});
+
+// ── XP bounds on the user document ──────────────────────────────────────────
+// XP survives the leaderboard's removal as personal progression, and is still
+// computed in the browser — so the per-write cap stays as a sanity bound.
+
+describe('users/{uid} — xp growth', () => {
+  beforeEach(async () => {
+    await seed(async (db) => { await setDoc(doc(db, 'users', ALICE), { xp: 500 }, { merge: true }); });
   });
 
-  it('refuses self-unban through the public mirror', async () => {
-    // The real attack: a banned user flipping their own flag back.
-    await assertFails(setDoc(doc(asAlice(), 'leaderboardPublic', ALICE), { banned: false }, { merge: true }));
-  });
-
-  it('refuses smuggling banned:false alongside a legitimate xp sync', async () => {
-    await assertFails(setDoc(doc(asAlice(), 'leaderboardPublic', ALICE), { xp: 99, banned: false }, { merge: true }));
-  });
-
-  // ── Leaderboard forgery ──────────────────────────────────────────────────
-  // XP is computed in the browser and written straight to Firestore, so the
-  // rules are the only thing between a signed-in member and any rank they
-  // like. The mirror may not exceed the user document, and the user document
-  // may not grow by more than one plausible workout per write.
-
-  it('refuses a public row claiming more XP than the user document holds', async () => {
-    await assertFails(setDoc(doc(asAlice(), 'leaderboardPublic', ALICE), { xp: 9_999_999 }, { merge: true }));
-  });
-
-  it('allows a sync up to the user document value', async () => {
-    await assertSucceeds(setDoc(doc(asAlice(), 'leaderboardPublic', ALICE), { xp: 500, streak: 3 }, { merge: true }));
-  });
-
-  it('refuses inflating xp on the user document itself', async () => {
+  it('refuses inflating xp far beyond one workout', async () => {
     await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), { xp: 9_999_999 }));
   });
 

@@ -36,7 +36,7 @@ const FEATURE_STYLE_RULES: { match: RegExp; icon: typeof Dumbbell; color: string
   { match: /elite|unit|train like/i, icon: MessageCircle, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
   { match: /fast/i, icon: Timer, color: 'text-sky-400', bg: 'bg-sky-400/10' },
   { match: /habit/i, icon: Ban, color: 'text-red-400', bg: 'bg-red-400/10' },
-  { match: /streak|xp|leaderboard/i, icon: Trophy, color: 'text-accent', bg: 'bg-accent-muted' },
+  { match: /streak|xp|level/i, icon: Trophy, color: 'text-accent', bg: 'bg-accent-muted' },
   { match: /communit/i, icon: Users, color: 'text-orange-400', bg: 'bg-orange-400/10' },
 ];
 const DEFAULT_FEATURE_STYLE = { icon: Sparkles, color: 'text-teal-400', bg: 'bg-teal-400/10' };
@@ -210,7 +210,6 @@ export default function LandingPage({
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>(
     () => initialMembershipPlans.filter((p) => p.active && getPlanBillingPeriods(p).length > 0)
   );
-  const [leaderboard, setLeaderboard] = useState<{ displayName: string; powerLevel: number; streak: number; totalWorkouts: number }[]>([]);
   const [stats, setStats] = useState<{ totalUsers: number; totalWorkouts: number } | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [quickSex, setQuickSex] = useState<'male' | 'female' | null>(null);
@@ -236,7 +235,6 @@ export default function LandingPage({
     getMembershipConfig().then(setMembership).catch(() => {});
     getCoachingPlans().then((plans) => setCoachingPlans(plans.filter((p) => p.active))).catch(() => {});
     getMembershipPlans().then((plans) => setMembershipPlans(plans.filter((p) => p.active && getPlanBillingPeriods(p).length > 0))).catch(() => {});
-    fetch('/api/public/leaderboard').then((r) => r.json()).then((d) => setLeaderboard(d.entries ?? [])).catch(() => {});
     fetch('/api/public/stats').then((r) => r.json()).then(setStats).catch(() => {});
     fetch('/api/public/programs').then((r) => r.json()).then((d) => setPrograms(d.programs ?? [])).catch(() => {});
   }, []);
@@ -1055,40 +1053,6 @@ export default function LandingPage({
               </div>
             ))}
           </div>
-        </section>
-      )}
-
-      {/* Public leaderboard — social proof; only names + level/streak, never email or PII */}
-      {landing.showPublicLeaderboard !== false && leaderboard.length > 0 && (
-        <section className="max-w-2xl mx-auto px-5 pb-16">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl sm:text-3xl font-black text-white">Top Athletes This Season</h2>
-            <p className="text-text-secondary text-sm mt-2">Real members. Real progress.</p>
-          </div>
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-40px' }}
-            transition={{ duration: 0.4 }}
-            className="rounded-2xl border border-white/8 bg-surface divide-y divide-white/5 overflow-hidden"
-          >
-            {leaderboard.map((entry, i) => (
-              <div key={entry.displayName + i} className="flex items-center gap-3 px-4 py-3">
-                <span className={`w-6 text-sm font-black flex-shrink-0 ${i === 0 ? 'text-accent' : 'text-text-tertiary'}`}>
-                  {i + 1}
-                </span>
-                <span className="flex-1 text-sm font-medium text-white truncate">{entry.displayName}</span>
-                <span className="flex items-center gap-1 text-xs text-purple-400 flex-shrink-0">
-                  <Zap className="w-3.5 h-3.5" /> Lvl {entry.powerLevel}
-                </span>
-                {entry.streak > 0 && (
-                  <span className="flex items-center gap-1 text-xs text-orange-400 flex-shrink-0">
-                    <Flame className="w-3.5 h-3.5" /> {entry.streak}d
-                  </span>
-                )}
-              </div>
-            ))}
-          </motion.div>
         </section>
       )}
 

@@ -96,7 +96,7 @@ export default function PRWallPage() {
           <Card className="p-4">
             <p className="text-sm text-white font-bold mb-1">Post a PR, get it verified</p>
             <p className="text-xs text-text-secondary leading-relaxed mb-3">
-              Upload a video or photo of your lift. New posts are reviewed by an admin before showing to everyone. Verified PRs stand out on the leaderboard.
+              Upload a video or photo of your lift. New posts are reviewed by an admin before showing to everyone. Verified PRs get a badge on the wall.
             </p>
             <Button size="sm" onClick={() => setShowForm(true)}>
               <Upload className="w-3.5 h-3.5" /> Post a PR

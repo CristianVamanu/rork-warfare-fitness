@@ -18,7 +18,7 @@ import type { DistanceUnit } from '@/lib/distance';
 import { lbsToKg } from '@/lib/utils';
 import { auth, db } from './firebase';
 import { createEvent } from './events';
-import { incrementProgramWorkouts, syncLeaderboardPublic, updateUserGoals, postCommunityActivity, invalidateWorkoutsCache } from './firestore';
+import { incrementProgramWorkouts, updateUserGoals, postCommunityActivity, invalidateWorkoutsCache } from './firestore';
 import { calcWorkoutXP, xpToPowerLevel } from './xp';
 import { estimateNutritionTargets } from './tdee';
 import { checkAndAwardAchievements, ACHIEVEMENT_DEFS } from './achievements';
@@ -279,12 +279,10 @@ export async function completeWorkout(
     // conflict, and this call has its own non-transactional side effect
     // (writing a separate document), which would otherwise fire once per
     // retry attempt instead of exactly once per completed workout.
-    void syncLeaderboardPublic(userId, {
-      xp: totalXP,
-      powerLevel: newPowerLevel,
-      totalWeightLifted: prevTotalWeightLifted + totalWeightLifted,
-      lastWorkoutDate: today,
-    });
+    // The public leaderboard was removed: ranking members against each other
+    // on self-reported workouts rewarded whoever logged the most fiction, not
+    // whoever trained. XP and power level remain as personal progression on
+    // the user document; nothing mirrors them to a public collection now.
 
     // Check achievements after updating power level — use newStreak (the
     // value just computed for this workout), not the pre-workout `streak`,

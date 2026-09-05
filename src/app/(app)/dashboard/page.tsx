@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Moon, Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getMyLeaderboardRank, subscribeTodayWorkoutCount, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
+import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
 import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
@@ -39,7 +39,6 @@ export default function DashboardPage() {
   const router = useRouter();
   const [waterMl, setWaterMl] = useState<number | null>(null);
   const [calories, setCalories] = useState<number | null>(null);
-  const [myRank, setMyRank] = useState<number | null>(null);
   // Goals live on users/{uid}, the document AuthContext already streams live —
   // reading them here used to mean a second getDoc of that same doc on every
   // dashboard mount, which could also render one frame behind an edit made on
@@ -58,7 +57,6 @@ export default function DashboardPage() {
   const [adjustingWater, setAdjustingWater] = useState(false);
   const [activeGoalCount, setActiveGoalCount] = useState(0);
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
-  const [todayWorkoutCount, setTodayWorkoutCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -120,17 +118,6 @@ export default function DashboardPage() {
       unsubWater();
     };
   }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    // Server-side count of everyone above this user's XP — no leaderboard
-    // documents are downloaded at all. This used to pull the top 200 docs
-    // just to indexOf the current user out of them.
-    const xp = profile?.xp ?? 0;
-    getMyLeaderboardRank(xp)
-      .then(setMyRank)
-      .catch(() => setMyRank(null));
-  }, [user, profile?.xp]);
 
   const greeting = getGreeting();
   const firstName = profile?.displayName?.split(' ')[0] || 'Athlete';
@@ -305,14 +292,6 @@ export default function DashboardPage() {
     getWeeklySummary(user.uid).then(setWeeklySummary).catch(() => {});
   }, [user]);
 
-  // Ambient social-proof ticker — live, not a one-time fetch, so it feels
-  // like a real active community rather than a stale number.
-  useEffect(() => {
-    if (!user) return;
-    const unsub = subscribeTodayWorkoutCount(setTodayWorkoutCount);
-    return () => unsub();
-  }, [user]);
-
   const activeProgramId = profile?.activeProgram?.programId;
   useEffect(() => {
     if (!activeProgramId) { setResolvedProgram(null); return; }
@@ -367,12 +346,6 @@ export default function DashboardPage() {
               <span className={tier.color}>⚡</span> Lvl {powerLevel} · {tier.title}
             </Badge>
           </div>
-          {todayWorkoutCount !== null && todayWorkoutCount >= 3 && (
-            <p className="text-xs text-accent mt-1.5 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-              {todayWorkoutCount} people have trained today
-            </p>
-          )}
         </motion.div>
 
         {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
@@ -667,13 +640,16 @@ export default function DashboardPage() {
             </motion.div>
           ))}
 
-          {/* Rank */}
+          {/* Level — personal progression, not a ranking. This tile used to
+              show "#42" from the leaderboard; ranking members against each
+              other on self-reported workouts rewarded whoever logged the most
+              fiction, so the comparison is gone and the progression stays. */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-1">
-            <Link href="/community?tab=leaderboard" className="block h-full">
+            <Link href="/achievements" className="block h-full">
               <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors card-float">
-                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Leaderboard</span>
-                <p className="text-xl font-black text-accent leading-tight mt-0.5">{myRank ? `#${myRank}` : '—'}</p>
-                <p className="text-[10px] text-text-tertiary mt-0.5">Lvl {powerLevel} · {profile?.xp ?? 0} XP</p>
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Your Level</span>
+                <p className="text-xl font-black text-accent leading-tight mt-0.5">Lvl {powerLevel}</p>
+                <p className="text-[10px] text-text-tertiary mt-0.5">{(profile?.xp ?? 0).toLocaleString()} XP</p>
               </Card>
             </Link>
           </motion.div>
