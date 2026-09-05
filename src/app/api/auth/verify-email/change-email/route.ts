@@ -24,6 +24,11 @@ import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { getStripe } from '@/lib/stripe';
 import { rateLimit } from '@/lib/rateLimit';
+import { FieldValue } from 'firebase-admin/firestore';
+
+/** Lifetime cap on changes to an unverified address. Enough for a real typo
+ *  and one fumbled correction; past that the account is probing mailboxes. */
+const MAX_LIFETIME_CHANGES = 3;
 
 export async function POST(req: NextRequest) {
   const check = await verifyAuthed(req);
@@ -58,13 +63,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'That is already your email address.' }, { status: 400 });
     }
 
-    // Bounded per account: without a limit this is a free way to enumerate
+    // Two different limits, because they stop two different things.
+    //
+    // The hourly one bounds the RATE: without it this is a free oracle for
     // which addresses already have accounts, one attempt at a time.
     const limit = await rateLimit({ scope: 'change-unverified-email', key: uid, windowMs: 60 * 60_000, max: 5 });
     if (!limit.allowed) {
       return NextResponse.json(
         { error: 'Too many changes', retryAfter: limit.retryAfterSeconds },
         { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } },
+      );
+    }
+
+    // The lifetime one bounds the TOTAL, which the hourly limit cannot: a
+    // window that resets every hour allows unlimited changes forever, just
+    // slowly. Three is enough for a genuine typo and a second mistake fixing
+    // it; beyond that the account is being used as a mailbox prober, not
+    // repaired.
+    //
+    // Stored in its own collection rather than on the user document
+    // deliberately — firestore.rules has no match for emailChangeCounts, so
+    // it falls through to default-deny and no client can read or reset its own
+    // counter. A field on users/{uid} would have needed another rules deploy
+    // to be safe, and would have been silently resettable until then.
+    const countRef = db.collection('emailChangeCounts').doc(uid);
+    const used = (await countRef.get()).data()?.count as number | undefined ?? 0;
+    if (used >= MAX_LIFETIME_CHANGES) {
+      return NextResponse.json(
+        {
+          error: `You've already changed your email ${MAX_LIFETIME_CHANGES} times. Contact support and we'll sort it out.`,
+          exhausted: true,
+        },
+        { status: 429 },
       );
     }
 
@@ -88,6 +118,13 @@ export async function POST(req: NextRequest) {
     // tickets and every outbound email. Leaving it stale would mean staff
     // seeing one address while Firebase Auth sends codes to another.
     await db.collection('users').doc(uid).set({ email: next }, { merge: true });
+
+    // Counted only on success — a rejected change (address taken, invalid)
+    // must not burn one of the three.
+    await countRef.set(
+      { count: FieldValue.increment(1), lastChangedAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    );
 
     // Any code already issued was minted for the OLD address — confirm/route
     // rejects it on the email check, but deleting it here means the member

@@ -251,6 +251,45 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
         )}
       </div>
       {codeSent && <div className="mt-2">{codeInput}</div>}
+
+      {/* Also here, not only on the full-screen gate. Straight after signup a
+          member lands on the dashboard — a path MembershipGuard lets through —
+          so this banner is the ONLY thing they see. Putting the escape hatch
+          solely on the screen variant meant a mistyped address was still a
+          dead end for exactly the person who had just mistyped it. */}
+      {editingEmail ? (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex gap-2">
+            <input
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') changeEmail(); }}
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              aria-label="Correct email address"
+              className="flex-1 min-w-0 bg-surface border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+            />
+            <Button size="sm" onClick={changeEmail} loading={busy === 'email'} disabled={!newEmail.trim()}>Save</Button>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setEditingEmail(false); setNewEmail(''); }}
+            className="text-[11px] text-text-tertiary hover:text-white"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => { setEditingEmail(true); setNewEmail(user.email ?? ''); }}
+          className="mt-1.5 text-[11px] text-text-secondary hover:text-white"
+        >
+          Wrong email? <span className="text-accent font-semibold">Change it</span>
+        </button>
+      )}
     </div>
   );
 }
