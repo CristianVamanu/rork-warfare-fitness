@@ -129,7 +129,12 @@ function LockedScreen({ trialDays, paidTrialEnabled, cardUpFrontTrial, trialPric
   }
 
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center px-4">
+    // Top-aligned with padding, NOT justify-center. A centred flex column
+    // whose content is taller than its box overflows in both directions — so
+    // with three plan cards the lock icon was pushed ABOVE the container and
+    // sat underneath the email-verification banner. Centring only ever suited
+    // the one-plan case, and this screen is tall by design.
+    <div className="flex flex-col items-center px-4 pt-6 pb-10">
       <div className="text-center max-w-sm w-full mb-5">
         <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-4">
           <Lock className="w-8 h-8 text-accent" />

@@ -129,7 +129,10 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
   const ctaLabel = effectiveTrialDays <= 0 ? 'Subscribe Now' : paidTrialEnabled ? `Start for $${trialPrice}` : 'Start Free Trial';
 
   return (
-    <div className="px-4 py-12 flex flex-col items-center justify-center min-h-[40vh]">
+    // Same overflow trap as MembershipGuard's LockedScreen — a centred column
+    // taller than its own box pushes its top edge off-screen. Top-aligned so
+    // it cannot, however many plans are listed.
+    <div className="px-4 py-10 flex flex-col items-center">
       <div className="text-center max-w-sm w-full mb-5">
         <div className="w-14 h-14 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-4">
           <Lock className="w-7 h-7 text-accent" />
