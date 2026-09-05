@@ -34,7 +34,6 @@ import {
   getCountFromServer,
   writeBatch,
 } from 'firebase/firestore';
-import * as Sentry from '@sentry/nextjs';
 import { db } from './firebase';
 import { stripUndefinedDeep } from './utils';
 import type { UserGoals, CoachingPlan, ExerciseVideo, NutritionPlan } from '@/types';
@@ -133,11 +132,13 @@ async function safeGetEvents(
     // helpful when the person reading the console would rather not touch a
     // terminal at all.
     const msg = `[Firestore] Missing composite index for events type=${type} — falling back to a full client-side scan of this user's events. Fix: open the console.firebase.google.com link in the error below and click Create, or run: firebase deploy --only firestore:indexes`;
+    // Logged as an error, not a warning: this is a silent performance cliff
+    // (a full client-side scan of the user's whole event history on every
+    // call) that nothing else surfaces. The original Firestore error follows,
+    // because it carries the console.firebase.google.com link that creates
+    // the missing index in one click.
     console.error(msg);
     console.error(e);
-    // Reported as an error, not a breadcrumb, so a silent performance cliff in
-    // production shows up somewhere it will actually be noticed.
-    Sentry.captureException(new Error(msg), { level: 'warning', tags: { area: 'firestore-index', eventType: type } });
     const allSnap = await getDocs(query(collection(db, 'events'), where('userId', '==', userId)));
     const filtered = allSnap.docs.filter((d) => {
       const data = d.data();

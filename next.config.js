@@ -390,20 +390,15 @@ const nextConfig = {
   serverExternalPackages: ['firebase-admin', 'pdf-parse'],
 };
 
-const { withSentryConfig } = require('@sentry/nextjs');
-
-// Wrapping with Sentry is safe even when it isn't configured — with no
-// NEXT_PUBLIC_SENTRY_DSN set, Sentry.init() (in the sentry.*.config.ts
-// files) never fires, so this only adds a no-op build step. Source-map
-// upload (for readable stack traces instead of minified ones) additionally
-// needs SENTRY_AUTH_TOKEN/ORG/PROJECT — without those it just skips that
-// step with a build-time warning rather than failing.
-module.exports = withSentryConfig(withPWA(nextConfig), {
-  silent: true,
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-  widenClientFileUpload: true,
-  disableLogger: true,
-  automaticVercelMonitors: false,
-});
+// Sentry was removed. Its browserTracingIntegration ships a vendored copy of
+// the web-vitals library whose getLCP reads `entry.startTime` off an entry
+// that can be undefined, throwing
+//   Uncaught TypeError: Cannot read properties of undefined (reading 'startTime')
+//     at reportAllChanges
+// on client-side navigations. Inside a requestIdleCallback, so it never broke
+// the page — it just filled the console and buried real errors. Disabling
+// only the tracing half did not clear it; error reporting alone was not worth
+// a whole SDK, a wrapped build and 100KB of client bundle for an app with a
+// handful of users. Bring it back by reinstalling @sentry/nextjs and adding
+// instrumentation-client.ts (sentry.client.config.ts is deprecated in v10).
+module.exports = withPWA(nextConfig);
