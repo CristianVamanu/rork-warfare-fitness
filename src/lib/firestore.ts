@@ -33,6 +33,7 @@ import {
   arrayRemove,
   getCountFromServer,
 } from 'firebase/firestore';
+import * as Sentry from '@sentry/nextjs';
 import { db } from './firebase';
 import { stripUndefinedDeep } from './utils';
 import type { UserGoals, CoachingPlan, ExerciseVideo, NutritionPlan } from '@/types';
@@ -108,7 +109,25 @@ async function safeGetEvents(
 
     // Fallback: userId-only (auto-indexed by Firestore, no manual index needed)
     // Filter and sort entirely on the client.
-    console.warn('[Firestore] Missing index for events type=' + type + ' — using client-side filter fallback.');
+    //
+    // This is a correctness backstop, NOT a viable steady state. It downloads
+    // every event this user has ever created — every workout, set, meal, water
+    // log and weigh-in — and filters in the browser, on every call. Views that
+    // make several of these (nutrition does meals + water, then again on the
+    // analyze screen) therefore pull the whole history several times per page,
+    // and it degrades a little more with every day the account is used. The
+    // symptom is "the tab takes forever to load", getting steadily worse, with
+    // nothing failing outright — which is exactly why this needs to be louder
+    // than a console.warn nobody scrolls back far enough to see.
+    //
+    // The composite indexes it wants ARE defined in firestore.indexes.json;
+    // they just have to be PUBLISHED, and deploy.sh does not do that (same as
+    // firestore.rules):  firebase deploy --only firestore:indexes
+    const msg = `[Firestore] Missing composite index for events type=${type} — falling back to a full client-side scan of this user's events. Run: firebase deploy --only firestore:indexes`;
+    console.error(msg);
+    // Reported as an error, not a breadcrumb, so a silent performance cliff in
+    // production shows up somewhere it will actually be noticed.
+    Sentry.captureException(new Error(msg), { level: 'warning', tags: { area: 'firestore-index', eventType: type } });
     const allSnap = await getDocs(query(collection(db, 'events'), where('userId', '==', userId)));
     const filtered = allSnap.docs.filter((d) => {
       const data = d.data();
