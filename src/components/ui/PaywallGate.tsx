@@ -53,7 +53,22 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
   const [subscribingId, setSubscribingId] = useState<string | null>(null);
   const { loaded, config, plans, hasMembership, inTrial, isLocked, tasteAvailable } = useFeatureAccess(feature, programId);
 
-  if (!loaded) return null;
+  // Rendering nothing here is what made a gated page look frozen: the whole
+  // screen stayed blank — no header, no spinner, nothing to indicate the tap
+  // had registered — until two Firestore config reads came back. With those
+  // now cached in firestore.ts this is usually instant, but on the first load
+  // of a session it still has to wait, and a blank screen reads as a broken
+  // one. A skeleton says "this is loading" rather than "nothing happened".
+  if (!loaded) {
+    return (
+      <div className="px-4 pt-6 space-y-3" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading…</span>
+        <div className="h-8 w-2/3 rounded-lg bg-white/5 animate-pulse" />
+        <div className="h-40 w-full rounded-2xl bg-white/5 animate-pulse" />
+        <div className="h-11 w-full rounded-xl bg-white/5 animate-pulse" />
+      </div>
+    );
+  }
   if (!config || !config.enabled || inTrial) return <>{children}</>;
 
   if (hasMembership) {

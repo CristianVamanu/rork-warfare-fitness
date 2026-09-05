@@ -1480,14 +1480,50 @@ export async function permanentlyDeleteMockProgram(id: string) {
 // ---------------------------------------------------------------------------
 import type { MembershipConfig, MembershipPlan } from '@/types';
 
+/**
+ * Cache for the two membership config documents.
+ *
+ * Every page wrapped in PaywallGate calls both of these on mount, through
+ * useFeatureAccess — and PaywallGate renders NOTHING until they resolve. So
+ * each navigation to an AI tool paid two serial Firestore round-trips before a
+ * single pixel appeared, on a screen whose whole job is to show an upload
+ * button. That is the "clicking analyze food takes ages" delay.
+ *
+ * These are global config documents: identical for every user, changed only by
+ * an admin in the settings panel. Holding the in-flight promise (not just the
+ * value) also collapses the duplicate fetches a single page makes when several
+ * gated components mount together. saveMembershipConfig/Plans clear it, so an
+ * admin's own edit is never served stale to them; the TTL bounds how long
+ * anyone else's tab can lag behind a change.
+ */
+const CONFIG_TTL_MS = 5 * 60 * 1000;
+let membershipConfigCache: { at: number; promise: Promise<MembershipConfig | null> } | null = null;
+let membershipPlansCache: { at: number; promise: Promise<MembershipPlan[]> } | null = null;
+
+export function clearMembershipCache() {
+  membershipConfigCache = null;
+  membershipPlansCache = null;
+}
+
 export async function getMembershipConfig(): Promise<MembershipConfig | null> {
-  const snap = await getDoc(doc(db, 'config', 'membership'));
-  if (!snap.exists()) return null;
-  return snap.data() as MembershipConfig;
+  if (membershipConfigCache && Date.now() - membershipConfigCache.at < CONFIG_TTL_MS) {
+    return membershipConfigCache.promise;
+  }
+  const promise = (async () => {
+    const snap = await getDoc(doc(db, 'config', 'membership'));
+    if (!snap.exists()) return null;
+    return snap.data() as MembershipConfig;
+  })();
+  // A failed fetch must not be cached — otherwise one blip locks the whole tab
+  // out of its own membership config for the full TTL.
+  promise.catch(() => { membershipConfigCache = null; });
+  membershipConfigCache = { at: Date.now(), promise };
+  return promise;
 }
 
 export async function saveMembershipConfig(data: Partial<MembershipConfig>) {
   await setDoc(doc(db, 'config', 'membership'), data, { merge: true });
+  clearMembershipCache();
 }
 
 // ---------------------------------------------------------------------------
@@ -1525,12 +1561,21 @@ export async function saveExerciseTaxonomy(taxonomy: ExerciseTaxonomy) {
 // self-serve subscriptions.
 // ---------------------------------------------------------------------------
 export async function getMembershipPlans(): Promise<MembershipPlan[]> {
-  const snap = await getDoc(doc(db, 'config', 'membershipPlans'));
-  return (snap.data()?.plans as MembershipPlan[]) ?? [];
+  if (membershipPlansCache && Date.now() - membershipPlansCache.at < CONFIG_TTL_MS) {
+    return membershipPlansCache.promise;
+  }
+  const promise = (async () => {
+    const snap = await getDoc(doc(db, 'config', 'membershipPlans'));
+    return (snap.data()?.plans as MembershipPlan[]) ?? [];
+  })();
+  promise.catch(() => { membershipPlansCache = null; });
+  membershipPlansCache = { at: Date.now(), promise };
+  return promise;
 }
 
 export async function saveMembershipPlans(plans: MembershipPlan[]): Promise<void> {
   await setDoc(doc(db, 'config', 'membershipPlans'), { plans });
+  clearMembershipCache();
 }
 
 // ---------------------------------------------------------------------------
