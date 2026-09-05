@@ -73,20 +73,6 @@
       ]
     },
     {
-      "collectionGroup": "posts",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "replies",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "events",
       "queryScope": "COLLECTION",
       "fields": [
@@ -156,6 +142,26 @@
     }
   ],
   "fieldOverrides": [
+    {
+      "collectionGroup": "posts",
+      "fieldPath": "userId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "collectionGroup": "replies",
+      "fieldPath": "userId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
     {
       "collectionGroup": "rateLimits",
       "fieldPath": "expiresAt",
