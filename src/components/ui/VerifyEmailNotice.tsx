@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { MailCheck, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { signOut } from '@/lib/auth';
 import { Button } from './Button';
 import { Card } from './Card';
 
@@ -79,7 +80,7 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
       body: JSON.stringify(body ?? {}),
     });
     const data = await res.json().catch(() => null);
-    return { res, data } as { res: Response; data: { error?: string; retryAfter?: number; alreadyVerified?: boolean } | null };
+    return { res, data } as { res: Response; data: { error?: string; retryAfter?: number; alreadyVerified?: boolean; codeSent?: boolean } | null };
   };
 
   const sendCode = async () => {
@@ -121,14 +122,24 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
         return;
       }
       if (!res.ok) { toast.error(data?.error || 'Could not change your email.'); return; }
-      // The ID token still carries the old address until it is refreshed, and
-      // several gates read the email straight off it.
-      await user.reload();
-      await user.getIdToken(true);
-      toast.success('Email updated — sending a new code.');
-      setEditingEmail(false);
-      setCode('');
-      await sendCode();
+
+      // Do NOT reload() or getIdToken() here. Changing the address through the
+      // Admin SDK invalidates this session's token, so both of those throw —
+      // and because they threw inside this try, a change that had ALREADY
+      // SUCCEEDED server-side was reported as "check your connection" while
+      // Firebase quietly signed the member out. The confusing part was never
+      // the sign-out; it was being told the change had failed.
+      //
+      // The new code is already on its way (the server sends it), so the only
+      // honest thing left is to say what happened and hand them to the login
+      // screen with their new address.
+      toast.success('Email updated. Sign in with your new address to continue.', { duration: 7000 });
+      await signOut().catch(() => {});
+      // Carry through whether the code actually went out. Promising "your code
+      // is on its way" when Resend refused would send them to an inbox to wait
+      // for mail that will never arrive.
+      const sent = data?.codeSent !== false;
+      window.location.href = `/login?emailChanged=1${sent ? '' : '&code=0'}`;
     } catch {
       toast.error('Could not change your email. Check your connection.');
     } finally {

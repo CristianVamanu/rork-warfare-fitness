@@ -54,8 +54,22 @@ export default function LoginClient({
   // window rather than useSearchParams to keep this page off a Suspense
   // boundary it doesn't otherwise need.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('verified') !== '1') return;
-    toast.success('Email confirmed. Sign in to start your trial.', { duration: 6000 });
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('verified') === '1') {
+      toast.success('Email confirmed. Sign in to start your trial.', { duration: 6000 });
+    } else if (params.get('emailChanged') === '1') {
+      // Changing an address through the Admin SDK invalidates the session, so
+      // the member arrives here signed out. Landing on a bare login form with
+      // no explanation reads as "something went wrong" — it didn't.
+      toast.success(
+        params.get('code') === '0'
+          ? 'Email updated. Sign in with your new address, then tap “Send code”.'
+          : 'Email updated. Sign in with your new address — your code is on its way.',
+        { duration: 8000 },
+      );
+    } else {
+      return;
+    }
     // Drop the param so a refresh doesn't repeat the toast.
     window.history.replaceState({}, '', window.location.pathname);
   }, []);

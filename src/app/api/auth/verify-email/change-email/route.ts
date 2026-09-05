@@ -24,6 +24,7 @@ import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { getStripe } from '@/lib/stripe';
 import { rateLimit } from '@/lib/rateLimit';
+import { issueVerificationCode } from '@/lib/verificationCode';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /** Lifetime cap on changes to an unverified address. Enough for a real typo
@@ -126,11 +127,16 @@ export async function POST(req: NextRequest) {
       { merge: true },
     );
 
-    // Any code already issued was minted for the OLD address — confirm/route
-    // rejects it on the email check, but deleting it here means the member
-    // never sees a confusing "your email changed" error for a code they were
-    // never going to receive.
-    await db.collection('emailVerifyCodes').doc(uid).delete().catch(() => {});
+    // The server sends the new code itself rather than letting the client ask
+    // for one. It has to: an Admin-SDK email change invalidates the caller's
+    // ID token, so by the time this response lands the client can no longer
+    // make an authenticated request. Having it call /verify-email/send next
+    // is what produced "couldn't change your email, check your connection" on
+    // a change that had in fact already succeeded.
+    //
+    // This also replaces the code minted for the OLD address, so nothing
+    // stale survives.
+    const codeSent = await issueVerificationCode(db, uid, next);
 
     // Keep Stripe in step if this account already has a billing identity, so
     // receipts and dunning mail follow the corrected address. Best-effort:
@@ -146,7 +152,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[change-email] ${uid} corrected unverified address`);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, codeSent, reauthRequired: true });
   } catch (err) {
     console.error('[change-email] Error:', err);
     return NextResponse.json({ error: 'Could not change your email address' }, { status: 500 });

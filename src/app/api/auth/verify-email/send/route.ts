@@ -17,18 +17,11 @@ export const dynamic = 'force-dynamic';
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { getAuth } from 'firebase-admin/auth';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
-import { sendEmail, verifyCodeEmailHtml } from '@/lib/email';
+import { issueVerificationCode } from '@/lib/verificationCode';
 import { rateLimit } from '@/lib/rateLimit';
-
-const CODE_TTL_MS = 15 * 60 * 1000;
-
-function hashToken(value: string): string {
-  return crypto.createHash('sha256').update(value).digest('hex');
-}
 
 export async function POST(req: NextRequest) {
   const check = await verifyAuthed(req);
@@ -61,26 +54,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const code = crypto.randomInt(100000, 1000000).toString();
-    await db.collection('emailVerifyCodes').doc(uid).set({
-      codeHash: hashToken(code),
-      expiresAt: new Date(Date.now() + CODE_TTL_MS),
-      attempts: 0,
-      email,
-    });
-
-    const cfgSnap = await db.collection('system').doc('config').get();
-    const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
-
-    const sent = await sendEmail({
-      to: email,
-      subject: `Your ${appName} confirmation code`,
-      html: verifyCodeEmailHtml(code, appName),
-    });
+    const sent = await issueVerificationCode(db, uid, email);
     if (!sent) {
       // Resend unconfigured or refusing. Say so plainly instead of leaving
       // the member staring at a code entry box no code will ever arrive for.
-      console.error('[verify-email/send] email not delivered — check RESEND_API_KEY / RESEND_FROM_EMAIL');
       return NextResponse.json({ error: 'Could not send the email. Please try again shortly.' }, { status: 502 });
     }
 
