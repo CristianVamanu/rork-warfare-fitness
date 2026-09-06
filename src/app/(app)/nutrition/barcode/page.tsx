@@ -11,11 +11,13 @@ import {
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { logMealAction } from '@/lib/actions';
+import { logMealAction, consumeAiTaste } from '@/lib/actions';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { PaywallGate } from '@/components/ui/PaywallGate';
+import { localDateHeader } from '@/lib/utils';
 import type { NutritionAnalysis } from '@/types';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -41,6 +43,7 @@ type CameraState = 'idle' | 'initializing' | 'scanning' | 'denied' | 'error';
 export default function BarcodePage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { tasteAvailable } = useFeatureAccess('barcode');
   const videoRef = useRef<HTMLVideoElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const readerRef = useRef<any>(null);
@@ -61,8 +64,22 @@ export default function BarcodePage() {
   const [labels, setLabels] = useState<string[]>([]);
   const [showScoreDetail, setShowScoreDetail] = useState(false);
   const [mealType, setMealType] = useState<MealType>('snack');
+  // OpenFoodFacts always returns values per 100g — logging that raw meant
+  // scanning a whole box of cereal and hitting "Add to Log" always recorded
+  // exactly 100g's worth, with no way to say "I actually ate 250g of this."
+  const [servingGrams, setServingGrams] = useState(100);
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    getIdToken(user)
+      .then((token) => fetch('/api/nutrition/barcode/usage', { headers: { Authorization: `Bearer ${token}`, ...localDateHeader() } }))
+      .then((res) => res.json())
+      .then((data: { remaining?: number }) => { if (typeof data.remaining === 'number') setRemaining(data.remaining); })
+      .catch(() => {});
+  }, [user]);
 
   // No cameraState dependency here on purpose: this is called from inside the
   // decodeFromVideoDevice callback, a closure frozen at scanner-start time by
@@ -179,6 +196,10 @@ export default function BarcodePage() {
   const lookupBarcode = async (code: string) => {
     const trimmed = code.trim();
     if (!trimmed) return;
+    if (remaining === 0) {
+      toast.error('No scans left today — try again tomorrow');
+      return;
+    }
     // Product barcodes are numeric (EAN-8/13, UPC-A/E, sometimes padded Code128).
     // Anything else (e.g. a stray QR/URL scan) can't be a valid product code.
     if (!/^\d{6,14}$/.test(trimmed)) {
@@ -186,21 +207,32 @@ export default function BarcodePage() {
       return;
     }
     setSearching(true);
+    // Clearing the previous product too — every OTHER field was reset here
+    // but `result`/`productName` weren't, so scanning a product that
+    // OpenFoodFacts doesn't have left the PREVIOUS product's full nutrition
+    // card and "Add to Log" button on screen behind the error toast. Tapping
+    // it then logged the old product while the user believed they were
+    // logging the new one.
+    setResult(null);
+    setProductName('');
     setNutriScoreGrade(null);
     setNovaGroup(null);
     setEcoScoreGrade(null);
     setAdditives([]);
     setNutrientLevels(null);
     setLabels([]);
+    setServingGrams(100);
     try {
       if (!user) throw new Error('Not signed in');
       const token = await getIdToken(user);
       const res = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, ...localDateHeader() },
       });
       const data = await res.json();
+      if (typeof data.remaining === 'number') setRemaining(data.remaining);
       if (!res.ok) throw new Error(data.error || 'Product not found');
       setResult(data.nutrition);
+      if (tasteAvailable) consumeAiTaste(user.uid, 'barcode').catch(console.error);
       setProductName(data.name || data.nutrition?.name || 'Product');
       setNutriScoreGrade(data.nutriScoreGrade ?? null);
       setNovaGroup(data.novaGroup ?? null);
@@ -215,16 +247,24 @@ export default function BarcodePage() {
     }
   };
 
+  // OpenFoodFacts figures are always per 100g — scale by the serving size
+  // the user actually entered before it's shown or logged.
+  const servingScale = servingGrams / 100;
+  const scaledCalories = result ? Math.round(result.calories * servingScale) : 0;
+  const scaledProtein = result ? Math.round(result.protein * servingScale * 10) / 10 : 0;
+  const scaledCarbs = result ? Math.round(result.carbs * servingScale * 10) / 10 : 0;
+  const scaledFat = result ? Math.round(result.fat * servingScale * 10) / 10 : 0;
+
   const addToLog = async () => {
     if (!result || !user) return;
     setSaving(true);
     try {
       await logMealAction(user.uid, {
         name: productName || result.name,
-        calories: result.calories,
-        protein: result.protein,
-        carbs: result.carbs,
-        fat: result.fat,
+        calories: scaledCalories,
+        protein: scaledProtein,
+        carbs: scaledCarbs,
+        fat: scaledFat,
         mealType,
       });
       toast.success('Added to log!');
@@ -252,7 +292,12 @@ export default function BarcodePage() {
         </div>
       </div>
 
-      <div className="px-4 py-6 space-y-5 max-w-lg mx-auto">
+      <div className="px-4 py-6 space-y-5 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
+        {remaining !== null && (
+          <p className={`text-xs font-semibold text-center ${remaining === 0 ? 'text-red-400' : 'text-text-tertiary'}`}>
+            {remaining === 0 ? 'No scans left today — try again tomorrow' : `${remaining} scan${remaining === 1 ? '' : 's'} left today`}
+          </p>
+        )}
         {/* Camera Viewfinder */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <div className="relative aspect-square bg-black rounded-2xl overflow-hidden">
@@ -377,7 +422,7 @@ export default function BarcodePage() {
               className="flex-1 bg-surface-elevated border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/40"
               onKeyDown={(e) => e.key === 'Enter' && lookupBarcode(manualCode)}
             />
-            <Button loading={searching} onClick={() => lookupBarcode(manualCode)} size="sm">
+            <Button loading={searching} disabled={remaining === 0} onClick={() => lookupBarcode(manualCode)} size="sm">
               Search
             </Button>
           </div>
@@ -391,8 +436,8 @@ export default function BarcodePage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h3 className="text-lg font-black text-white">{productName || result.name}</h3>
-                    <p className="text-2xl font-black text-accent mt-1">{result.calories} kcal</p>
-                    <p className="text-xs text-text-secondary mt-0.5">per 100g</p>
+                    <p className="text-2xl font-black text-accent mt-1">{scaledCalories} kcal</p>
+                    <p className="text-xs text-text-secondary mt-0.5">for {servingGrams}g ({result.calories} kcal per 100g)</p>
                   </div>
                   {(nutriScoreGrade || novaGroup) && (
                     <button onClick={() => setShowScoreDetail(true)} className="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -403,11 +448,43 @@ export default function BarcodePage() {
                   )}
                 </div>
 
+                {/* Serving size — OpenFoodFacts only ever gives per-100g
+                    figures; without this, logging a whole package always
+                    recorded exactly 100g's worth regardless of how much was
+                    actually eaten. */}
+                <div>
+                  <p className="text-xs text-text-secondary mb-1.5">Amount eaten</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={1}
+                      value={servingGrams}
+                      onChange={(e) => setServingGrams(Math.max(0, Number(e.target.value) || 0))}
+                      className="w-24 bg-surface-elevated border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent/40"
+                    />
+                    <span className="text-sm text-text-secondary">grams</span>
+                    <div className="flex gap-1.5 ml-auto">
+                      {[100, 200, 300].map((g) => (
+                        <button
+                          key={g}
+                          onClick={() => setServingGrams(g)}
+                          className={`px-2.5 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                            servingGrams === g ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'
+                          }`}
+                        >
+                          {g}g
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { icon: Beef, label: 'Protein', value: result.protein, color: 'text-red-400', bg: 'bg-red-400/10' },
-                    { icon: Wheat, label: 'Carbs', value: result.carbs, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-                    { icon: Flame, label: 'Fat', value: result.fat, color: 'text-orange-400', bg: 'bg-orange-400/10' },
+                    { icon: Beef, label: 'Protein', value: scaledProtein, color: 'text-red-400', bg: 'bg-red-400/10' },
+                    { icon: Wheat, label: 'Carbs', value: scaledCarbs, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+                    { icon: Flame, label: 'Fat', value: scaledFat, color: 'text-orange-400', bg: 'bg-orange-400/10' },
                   ].map(({ icon: Icon, label, value, color, bg }) => (
                     <div key={label} className={`p-3 ${bg} rounded-xl text-center`}>
                       <Icon className={`w-4 h-4 ${color} mx-auto mb-1`} />
@@ -431,7 +508,7 @@ export default function BarcodePage() {
                   ))}
                 </div>
 
-                <Button fullWidth size="lg" loading={saving} onClick={addToLog}>
+                <Button fullWidth size="lg" loading={saving} disabled={servingGrams <= 0} onClick={addToLog}>
                   Add to Log
                 </Button>
               </Card>

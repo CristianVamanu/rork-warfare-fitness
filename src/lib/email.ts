@@ -59,12 +59,99 @@ function escapeHtml(s: string): string {
 }
 
 export function welcomeEmailHtml(name: string, appName: string, appUrl: string): string {
+  // Sent from inside signUp(), before onboarding (program selection, goals,
+  // etc.) has actually run — it used to say "pick a training program",
+  // which read as if nothing had been set up yet even for someone who'd
+  // already chosen or been assigned one during onboarding. Kept generic
+  // instead of assuming any particular setup state.
+  // name traces back to displayName, a free-text field the user sets
+  // themselves at signup — unescaped, a display name like <img
+  // src=x onerror=...> would render raw here (self-XSS, since this only
+  // ever mails the account owner's own inbox, but cheap to close).
+  name = escapeHtml(name);
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Welcome, ${name}. 💪</h1>
     <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
-      Your account is live. Time to pick a training program, log your first meal, and start your streak.
+      Your account is live. Log your first workout, track a meal, and start your streak.
     </p>
     ${button('Open ' + appName, appUrl)}
+  `);
+}
+
+// Firebase Auth can send its own verification and password-reset mail, but it
+// sends it from noreply@<project>.firebaseapp.com — a domain with no SPF or
+// DKIM alignment to this app's own sending domain, and no reputation tied to
+// it. Spam filters treat that exactly as you'd expect. These two templates let
+// the same mail go out through Resend from the configured RESEND_FROM_EMAIL
+// instead, using an action link minted server-side by the Admin SDK, so the
+// address a member sees is the app's own.
+export function verifyEmailHtml(name: string, link: string, appName: string): string {
+  name = escapeHtml(name);
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Confirm your email, ${name}.</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      One tap and your account is ready. This link expires in an hour.
+    </p>
+    ${button('Confirm Email', link)}
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#777;">
+      If the button doesn't work, paste this into your browser:<br>
+      <span style="color:#999;word-break:break-all;">${escapeHtml(link)}</span>
+    </p>
+    <p style="margin:16px 0 0;font-size:12px;color:#777;">
+      Didn't sign up? Ignore this email and nothing happens.
+    </p>
+  `);
+}
+
+// The code-based counterpart to verifyEmailHtml. A link drags the member out
+// of the PWA into their default browser — a different session, which is where
+// every confusing thing about link verification comes from. A code never
+// leaves the app.
+export function verifyCodeEmailHtml(code: string, appName: string): string {
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Your confirmation code</h1>
+    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#bbb;">
+      Enter this in ${appName} to confirm your email. It expires in 15 minutes.
+    </p>
+    <p style="margin:0;font-size:34px;font-weight:900;letter-spacing:0.18em;color:#F5A623;font-family:monospace;">${escapeHtml(code)}</p>
+    <p style="margin:20px 0 0;font-size:12px;color:#777;">
+      Didn't sign up? Ignore this email and nothing happens.
+    </p>
+  `);
+}
+
+export function passwordResetEmailHtml(link: string, appName: string): string {
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Reset your password</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      Tap below to choose a new password. This link expires in an hour.
+    </p>
+    ${button('Reset Password', link)}
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#777;">
+      If the button doesn't work, paste this into your browser:<br>
+      <span style="color:#999;word-break:break-all;">${escapeHtml(link)}</span>
+    </p>
+    <p style="margin:16px 0 0;font-size:12px;color:#777;">
+      Didn't ask for this? Ignore this email — your password stays as it is.
+    </p>
+  `);
+}
+
+// Sent to a landing-page visitor who left their email via the exit-intent
+// popup before finishing the quiz/signup — the popup promises "we'll send
+// you a link to jump back in", so this is what actually fulfills that
+// promise. Links straight to /onboarding rather than any saved progress,
+// since the quiz itself is anonymous (see ONBOARDING_DRAFT_KEY in
+// onboarding/page.tsx) and only resumable on the same browser/device via
+// its own localStorage draft — there's no server-side draft tied to this
+// email to deep-link into.
+export function landingLeadFollowupEmailHtml(appName: string, appUrl: string): string {
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Ready when you are.</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      You started building your program on ${appName} — here's your link to pick up right where you left off.
+    </p>
+    ${button('Continue My Program', `${appUrl}/onboarding`)}
   `);
 }
 
@@ -88,7 +175,8 @@ export function trainerLeadEmailHtml(lead: {
 }
 
 export function achievementEmailHtml(name: string, titles: string[], appName: string, appUrl: string): string {
-  const list = titles.map((t) => `<li style="margin:4px 0;">🏆 ${t}</li>`).join('');
+  name = escapeHtml(name);
+  const list = titles.map((t) => `<li style="margin:4px 0;">🏆 ${escapeHtml(t)}</li>`).join('');
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">New achievement${titles.length > 1 ? 's' : ''}, ${name}!</h1>
     <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.7;color:#bbb;">${list}</ul>
@@ -99,6 +187,9 @@ export function achievementEmailHtml(name: string, titles: string[], appName: st
 export function coachingApplicationEmailHtml(
   name: string, status: 'approved' | 'rejected', planName: string, reason: string | undefined, appName: string, appUrl: string,
 ): string {
+  name = escapeHtml(name);
+  planName = escapeHtml(planName);
+  reason = reason ? escapeHtml(reason) : reason;
   if (status === 'approved') {
     return shell(appName, `
       <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">You're approved for 1:1 Coaching!</h1>
@@ -118,6 +209,7 @@ export function coachingApplicationEmailHtml(
 }
 
 export function trialEndingEmailHtml(name: string, daysLeft: number, appName: string, appUrl: string): string {
+  name = escapeHtml(name);
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Your trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}</h1>
     <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
@@ -127,7 +219,43 @@ export function trialEndingEmailHtml(name: string, daysLeft: number, appName: st
   `);
 }
 
+export function twoFactorCodeEmailHtml(code: string, appName: string): string {
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#fff;">Your sign-in code</h1>
+    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#bbb;">
+      Enter this code to finish signing in. It expires in 10 minutes.
+    </p>
+    <p style="margin:0;font-size:36px;font-weight:900;letter-spacing:0.15em;color:#F5A623;text-align:center;">${code}</p>
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#888;">
+      Didn't try to sign in? You can safely ignore this email — your password wasn't shared.
+    </p>
+  `);
+}
+
+// Sent to the account's on-file login email whenever 2FA is turned off or
+// its notification address is changed — a hijacked session can make these
+// changes without a password, so the real owner needs an out-of-band way
+// to notice even if they never touch Settings themselves. Deliberately NOT
+// sent to the new twoFactorEmail (that could BE the attacker's address).
+export function twoFactorSettingsChangedEmailHtml(
+  name: string, change: string, appName: string, appUrl: string,
+): string {
+  name = escapeHtml(name);
+  change = escapeHtml(change);
+  return shell(appName, `
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#fff;">Security setting changed</h1>
+    <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#bbb;">
+      Hey ${name}, this is a heads up that ${change} on your account.
+    </p>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      If this was you, no action needed. If you didn't make this change, secure your account immediately by resetting your password.
+    </p>
+    ${button('Review Settings', `${appUrl}/settings`)}
+  `);
+}
+
 export function paymentFailedEmailHtml(name: string, appName: string, appUrl: string): string {
+  name = escapeHtml(name);
   return shell(appName, `
     <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Your last payment didn't go through</h1>
     <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">

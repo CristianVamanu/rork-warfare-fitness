@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
  * user's path or an admin-only folder (exerciseLibrary, branding).
  */
 
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -16,7 +17,26 @@ import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getR2Client, r2PublicUrl } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
 
-const ALLOWED_ROOTS = ['prPosts', 'progressPhotos'];
+const ALLOWED_ROOTS = ['prPosts', 'progressPhotos', 'community', 'support'];
+
+// Per-root size ceilings. A support attachment is a screenshot or a short
+// screen recording of a bug, not lift footage — 20MB covers that with room
+// to spare, and keeps a support form from becoming the cheapest way to push
+// 200MB files into the bucket.
+const ROOT_MAX_SIZE_BYTES: Record<string, number> = {
+  support: 20 * 1024 * 1024,
+};
+// PR posts legitimately need video (lift proof), everything else here is
+// images — but nothing previously restricted contentType at all, so any
+// signed-in user could presign a PUT for e.g. text/html or SVG-with-script
+// under their own path. Generous enough for real phone-camera video/photos,
+// small enough to bound storage cost per upload.
+// Excludes image/svg+xml specifically — an SVG can carry a <script>, and
+// it's served back from the public R2 bucket as active content, unlike a
+// real raster image or video.
+const ALLOWED_CONTENT_TYPE = /^(image|video)\//;
+const DISALLOWED_CONTENT_TYPE = /^image\/svg\+xml$/i;
+const MAX_SIZE_BYTES = 200 * 1024 * 1024; // 200MB — covers a real phone video clip
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,19 +51,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'R2 not configured' }, { status: 500 });
     }
 
-    const { filename, contentType, root } = await req.json();
+    const { filename, contentType, root, sizeBytes } = await req.json();
     if (!filename || typeof filename !== 'string') {
       return NextResponse.json({ error: 'filename is required' }, { status: 400 });
     }
-
+    if (!contentType || typeof contentType !== 'string' || !ALLOWED_CONTENT_TYPE.test(contentType) || DISALLOWED_CONTENT_TYPE.test(contentType)) {
+      return NextResponse.json({ error: 'Only image or video uploads are allowed' }, { status: 400 });
+    }
+    // Resolved before the size check, because the ceiling is per-root.
     const safeRoot = typeof root === 'string' && ALLOWED_ROOTS.includes(root) ? root : ALLOWED_ROOTS[0];
+    const maxBytes = ROOT_MAX_SIZE_BYTES[safeRoot] ?? MAX_SIZE_BYTES;
+    if (typeof sizeBytes !== 'number' || sizeBytes <= 0 || sizeBytes > maxBytes) {
+      return NextResponse.json({ error: `File must be under ${maxBytes / (1024 * 1024)}MB` }, { status: 400 });
+    }
+
     const safeName = filename.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
-    const key = `${safeRoot}/${check.uid}/${Date.now()}_${safeName}`;
+    // The bucket is public-read by URL, so the key IS the access control.
+    // `${uid}/${Date.now()}_${name}` was guessable: anyone who knew a uid
+    // could walk the millisecond space for their support screenshots and
+    // body-progress photos. 128 random bits make the URL a capability —
+    // shareable on purpose, not enumerable. (A private bucket with signed
+    // reads is the fuller fix and needs the bucket flipped in Cloudflare;
+    // this closes enumeration without breaking any <img src> in the app.)
+    const nonce = crypto.randomBytes(16).toString('hex');
+    const key = `${safeRoot}/${check.uid}/${Date.now()}_${nonce}_${safeName}`;
 
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
-      ContentType: contentType || 'application/octet-stream',
+      ContentType: contentType,
+      // R2/S3 rejects the actual PUT if its real body size doesn't match —
+      // this is what makes the sizeBytes check above load-bearing rather
+      // than just a UI-trusted number.
+      ContentLength: sizeBytes,
     });
 
     const uploadUrl = await getSignedUrl(client, command, { expiresIn: 300 });

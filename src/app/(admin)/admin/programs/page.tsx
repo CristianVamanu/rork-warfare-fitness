@@ -3,11 +3,11 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Edit2, Trash2, Users, Sparkles, ChevronLeft, Dumbbell, Crown, Stethoscope, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Trash2, EyeOff, Users, Sparkles, ChevronLeft, Dumbbell, Crown, Stethoscope, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, updateProgram } from '@/lib/firestore';
+import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, unhideMockProgram, getDeletedMockIds, permanentlyDeleteMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -38,6 +38,9 @@ export default function ProgramsPage() {
   const [publishing, setPublishing] = useState<string | null>(null);
   const [healthChecking, setHealthChecking] = useState(false);
   const [healthResult, setHealthResult] = useState<{ programsChecked: number; librarySize: number; findings: HealthFinding[] } | null>(null);
+  const [hiddenMockIds, setHiddenMockIds] = useState<string[]>([]);
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const [deletingForever, setDeletingForever] = useState<string | null>(null);
 
   async function runHealthCheck() {
     if (!user) return;
@@ -63,30 +66,75 @@ export default function ProgramsPage() {
       getAllPrograms().catch(() => []),
       getAllUsers().catch(() => []),
       getHiddenMockIds().catch(() => [] as string[]),
-    ]).then(([progs, u, hiddenIds]) => {
+      getDeletedMockIds().catch(() => [] as string[]),
+    ]).then(([progs, u, hiddenIds, deletedIds]) => {
       const firestoreProgs = progs as (Program & { visibility?: string })[];
       const fpIds = new Set(firestoreProgs.map(p => p.id));
+      const deleted = new Set(deletedIds as string[]);
       const hidden = new Set(hiddenIds as string[]);
-      const mocks = MOCK_PROGRAMS.filter(p => !fpIds.has(p.id) && !hidden.has(p.id)).map(p => ({ ...p, _mock: true }));
+      const mocks = MOCK_PROGRAMS.filter(p => !fpIds.has(p.id) && !hidden.has(p.id) && !deleted.has(p.id)).map(p => ({ ...p, _mock: true }));
       setPrograms([...firestoreProgs, ...mocks]);
+      // A hidden mock id can be stale (the Firestore doc it once pointed to
+      // may since have been deleted) — only offer to restore ones that
+      // aren't already showing some other way, i.e. still actually hidden,
+      // and haven't been permanently deleted.
+      setHiddenMockIds((hiddenIds as string[]).filter((id) => !fpIds.has(id) && !deleted.has(id)));
       setUsers((u as UserRow[]).filter((x: UserRow & { role?: string }) => x.role !== 'admin'));
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
-  async function handleSetPrice(p: Program & { _mock?: boolean }, price: number) {
-    if (p._mock) { toast.error('Built-in programs cannot be priced — duplicate it first.'); return; }
+  async function handleRestoreMock(id: string) {
+    setRestoring(id);
     try {
-      await updateProgram(p.id, { price });
-      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, price } : x));
+      await unhideMockProgram(id);
+      const mock = MOCK_PROGRAMS.find((p) => p.id === id);
+      if (mock) setPrograms((prev) => [...prev, { ...mock, _mock: true }]);
+      setHiddenMockIds((prev) => prev.filter((x) => x !== id));
+      toast.success('Restored');
+    } catch { toast.error('Failed to restore'); }
+    finally { setRestoring(null); }
+  }
+
+  async function handleDeleteForever(id: string, name: string) {
+    if (!confirm(`Permanently delete "${name}"? This can't be undone from the admin panel.`)) return;
+    setDeletingForever(id);
+    try {
+      await permanentlyDeleteMockProgram(id);
+      setHiddenMockIds((prev) => prev.filter((x) => x !== id));
+      toast.success('Deleted forever');
+    } catch { toast.error('Failed to delete'); }
+    finally { setDeletingForever(null); }
+  }
+
+  // Toggling premium/price on a built-in (mock) program promotes it to a
+  // real Firestore doc in the same step — writing the mock's full content
+  // plus the one changed field, via upsertProgram (merge:true, creates the
+  // doc if it doesn't exist). No separate "edit and save it first" step;
+  // the icon itself is the promotion action.
+  async function handleSetPrice(p: Program & { _mock?: boolean }, price: number) {
+    try {
+      if (p._mock) {
+        const { _mock, ...data } = p;
+        void _mock;
+        await upsertProgram(p.id, { ...data, price });
+      } else {
+        await updateProgram(p.id, { price });
+      }
+      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, price, _mock: false } : x));
       toast.success(price > 0 ? `Price set to $${price.toFixed(2)}` : 'Price removed');
     } catch { toast.error('Failed to update price'); }
   }
 
   async function handleTogglePremium(p: Program & { _mock?: boolean }) {
-    if (p._mock) { toast.error('Built-in programs cannot be toggled — duplicate it first.'); return; }
     try {
-      await updateProgram(p.id, { isPremium: !p.isPremium });
-      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPremium: !x.isPremium } : x));
+      if (p._mock) {
+        const { _mock, ...data } = p;
+        void _mock;
+        await upsertProgram(p.id, { ...data, isPremium: !p.isPremium });
+      } else {
+        await updateProgram(p.id, { isPremium: !p.isPremium });
+      }
+      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPremium: !x.isPremium, _mock: false } : x));
       toast.success(p.isPremium ? 'Set to Free' : 'Set to Premium');
     } catch { toast.error('Failed to update'); }
   }
@@ -101,16 +149,30 @@ export default function ProgramsPage() {
     finally { setPublishing(null); }
   }
 
+  async function handleUnpublish(p: Program) {
+    setPublishing(p.id);
+    try {
+      await updateProgram(p.id, { isPublic: false, status: 'draft' });
+      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPublic: false } : x));
+      toast.success('Hidden — moved back to Draft, no longer visible to clients');
+    } catch { toast.error('Failed to hide'); }
+    finally { setPublishing(null); }
+  }
+
   async function handleDelete(p: Program & { _mock?: boolean }) {
-    if (!confirm(`Delete "${p.name}"?`)) return;
+    const confirmMsg = p._mock
+      ? `Hide "${p.name}"? It'll move to Hidden Built-in Programs below, where you can restore or permanently delete it.`
+      : `Delete "${p.name}"?`;
+    if (!confirm(confirmMsg)) return;
     try {
       if (p._mock) {
         await hideMockProgram(p.id);
+        setHiddenMockIds((prev) => [...prev, p.id]);
       } else {
         await deleteProgram(p.id);
       }
       setPrograms(prev => prev.filter(x => x.id !== p.id));
-      toast.success('Deleted');
+      toast.success(p._mock ? 'Hidden' : 'Deleted');
     } catch { toast.error('Failed to delete'); }
   }
 
@@ -228,27 +290,25 @@ export default function ProgramsPage() {
                     <span className="text-xs text-text-tertiary">{p.weeks}w · {p.daysPerWeek}d/wk</span>
                   </div>
                   {p.description && <p className="text-xs text-text-secondary mt-1.5 line-clamp-1">{p.description}</p>}
-                  {!(p as { _mock?: boolean })._mock && (
-                    <div className="flex items-center gap-1.5 mt-2">
-                      <span className="text-xs text-text-tertiary">One-time price:</span>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary text-xs">$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          defaultValue={p.price || ''}
-                          placeholder="0"
-                          onBlur={(e) => {
-                            const v = parseFloat(e.target.value) || 0;
-                            if (v !== (p.price || 0)) handleSetPrice(p, v);
-                          }}
-                          className="w-20 bg-surface border border-white/10 rounded-lg pl-4 pr-1.5 py-1 text-xs text-white focus:outline-none focus:border-accent/50"
-                        />
-                      </div>
-                      <span className="text-xs text-text-tertiary">(optional — lets clients buy this program without full membership)</span>
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <span className="text-xs text-text-tertiary">One-time price:</span>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary text-xs">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue={p.price || ''}
+                        placeholder="0"
+                        onBlur={(e) => {
+                          const v = parseFloat(e.target.value) || 0;
+                          if (v !== (p.price || 0)) handleSetPrice(p, v);
+                        }}
+                        className="w-20 bg-surface border border-white/10 rounded-lg pl-4 pr-1.5 py-1 text-xs text-white focus:outline-none focus:border-accent/50"
+                      />
                     </div>
-                  )}
+                    <span className="text-xs text-text-tertiary">(optional — lets clients buy this program without full membership)</span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {!(p as { _mock?: boolean })._mock && !p.isPublic && p.visibility !== 'coaching' && p.visibility !== 'public' && (
@@ -256,15 +316,23 @@ export default function ProgramsPage() {
                       Publish
                     </Button>
                   )}
-                  {!(p as { _mock?: boolean })._mock && (
+                  {!(p as { _mock?: boolean })._mock && (p.isPublic || p.visibility === 'public') && (
                     <button
-                      onClick={() => handleTogglePremium(p)}
-                      title={p.isPremium ? 'Set Free' : 'Set Premium'}
-                      className={`p-2 rounded-lg transition-colors ${p.isPremium ? 'text-yellow-400 hover:bg-yellow-400/10' : 'text-text-secondary hover:text-yellow-400 hover:bg-yellow-400/10'}`}
+                      onClick={() => handleUnpublish(p)}
+                      title="Hide (move back to Draft — no longer visible to clients)"
+                      disabled={publishing === p.id}
+                      className="p-2 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors disabled:opacity-50"
                     >
-                      <Crown className="w-4 h-4" />
+                      <EyeOff className="w-4 h-4" />
                     </button>
                   )}
+                  <button
+                    onClick={() => handleTogglePremium(p)}
+                    title={p.isPremium ? 'Set Free' : 'Set Premium'}
+                    className={`p-2 rounded-lg transition-colors ${p.isPremium ? 'text-yellow-400 hover:bg-yellow-400/10' : 'text-text-secondary hover:text-yellow-400 hover:bg-yellow-400/10'}`}
+                  >
+                    <Crown className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => setAssignModal(p)}
                     title="Assign to client"
@@ -279,18 +347,81 @@ export default function ProgramsPage() {
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
-                  <button
-                    onClick={() => handleDelete(p)}
-                    title="Delete"
-                    className="p-2 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {(p as { _mock?: boolean })._mock ? (
+                    <button
+                      onClick={() => handleDelete(p)}
+                      title="Hide (move to Hidden Built-in Programs — can restore later)"
+                      className="p-2 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors"
+                    >
+                      <EyeOff className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleDelete(p)}
+                      title="Delete"
+                      className="p-2 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             </Card>
           ))}
         </div>
+      )}
+
+      {programs.some((p) => !p._mock && !p.isPublic && p.visibility !== 'coaching' && p.visibility !== 'public') && (
+        <Card className="p-4 mt-4">
+          <p className="text-sm font-bold text-white mb-1">Hidden / Draft Programs</p>
+          <p className="text-xs text-text-secondary mb-3">
+            Unpublished — not visible to clients. Restore to publish them again.
+          </p>
+          <div className="space-y-2">
+            {programs
+              .filter((p) => !p._mock && !p.isPublic && p.visibility !== 'coaching' && p.visibility !== 'public')
+              .map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-2 py-1.5">
+                  <span className="text-sm text-white">{p.name}</span>
+                  <Button size="sm" variant="secondary" onClick={() => handlePublish(p)} loading={publishing === p.id}>
+                    Restore
+                  </Button>
+                </div>
+              ))}
+          </div>
+        </Card>
+      )}
+
+      {hiddenMockIds.length > 0 && (
+        <Card className="p-4 mt-4">
+          <p className="text-sm font-bold text-white mb-1">Hidden Built-in Programs</p>
+          <p className="text-xs text-text-secondary mb-3">
+            Hidden from the list above but not gone — restore one to bring it back, or delete it forever.
+          </p>
+          <div className="space-y-2">
+            {hiddenMockIds.map((id) => {
+              const mock = MOCK_PROGRAMS.find((p) => p.id === id);
+              return (
+                <div key={id} className="flex items-center justify-between gap-2 py-1.5">
+                  <span className="text-sm text-white">{mock?.name ?? id}</span>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => handleRestoreMock(id)} loading={restoring === id}>
+                      Restore
+                    </Button>
+                    <button
+                      onClick={() => handleDeleteForever(id, mock?.name ?? id)}
+                      title="Delete forever"
+                      className="p-2 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors disabled:opacity-50"
+                      disabled={deletingForever === id}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       )}
 
       {/* Assign modal */}

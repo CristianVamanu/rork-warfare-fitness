@@ -15,6 +15,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  runTransaction,
   deleteDoc,
   collection,
   query,
@@ -30,6 +31,8 @@ import {
   deleteField,
   arrayUnion,
   arrayRemove,
+  getCountFromServer,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { stripUndefinedDeep } from './utils';
@@ -78,12 +81,22 @@ async function safeGetEvents(
   toTs?: Timestamp,
   limitN?: number
 ) {
-  // Compound query — requires deployed composite index
+  // Compound query — requires deployed composite index.
+  // orderBy is ALWAYS applied, not just when a date range is given. Without
+  // it, Firestore returns matches in document-ID order — and event IDs are
+  // random (see createEvent's addDoc) — so any caller passing `limitN`
+  // without `fromTs` got an arbitrary N events rather than the newest N.
+  // That silently corrupted every "recent" read in the app: recent workouts
+  // and the weekly summary could miss today's session entirely, personal
+  // bests missed the actual best, the session player's progressive-overload
+  // suggestion read a random old session (so it could suggest going DOWN in
+  // weight), and the weight chart plotted points out of chronological order.
   const compoundConstraints = [
     where('userId', '==', userId),
     where('type', '==', type),
-    ...(fromTs ? [where('createdAt', '>=', fromTs), orderBy('createdAt', 'desc')] : []),
+    ...(fromTs ? [where('createdAt', '>=', fromTs)] : []),
     ...(toTs ? [where('createdAt', '<=', toTs)] : []),
+    orderBy('createdAt', 'desc'),
     ...(limitN ? [limit(limitN)] : []),
   ];
 
@@ -96,7 +109,36 @@ async function safeGetEvents(
 
     // Fallback: userId-only (auto-indexed by Firestore, no manual index needed)
     // Filter and sort entirely on the client.
-    console.warn('[Firestore] Missing index for events type=' + type + ' — using client-side filter fallback.');
+    //
+    // This is a correctness backstop, NOT a viable steady state. It downloads
+    // every event this user has ever created — every workout, set, meal, water
+    // log and weigh-in — and filters in the browser, on every call. Views that
+    // make several of these (nutrition does meals + water, then again on the
+    // analyze screen) therefore pull the whole history several times per page,
+    // and it degrades a little more with every day the account is used. The
+    // symptom is "the tab takes forever to load", getting steadily worse, with
+    // nothing failing outright — which is exactly why this needs to be louder
+    // than a console.warn nobody scrolls back far enough to see.
+    //
+    // The composite indexes it wants ARE defined in firestore.indexes.json;
+    // they just have to be PUBLISHED, and deploy.sh does not do that (same as
+    // firestore.rules). Two ways: `firebase deploy --only firestore:indexes`,
+    // or click the console link Firestore puts inside its own error message —
+    // it opens the Add-index form with every field pre-filled.
+    //
+    // That link is the whole reason the ORIGINAL error is logged below and not
+    // just this summary. Replacing Firestore's message with our own wording
+    // reads better and throws away the one-click fix, which is the opposite of
+    // helpful when the person reading the console would rather not touch a
+    // terminal at all.
+    const msg = `[Firestore] Missing composite index for events type=${type} — falling back to a full client-side scan of this user's events. Fix: open the console.firebase.google.com link in the error below and click Create, or run: firebase deploy --only firestore:indexes`;
+    // Logged as an error, not a warning: this is a silent performance cliff
+    // (a full client-side scan of the user's whole event history on every
+    // call) that nothing else surfaces. The original Firestore error follows,
+    // because it carries the console.firebase.google.com link that creates
+    // the missing index in one click.
+    console.error(msg);
+    console.error(e);
     const allSnap = await getDocs(query(collection(db, 'events'), where('userId', '==', userId)));
     const filtered = allSnap.docs.filter((d) => {
       const data = d.data();
@@ -120,21 +162,40 @@ async function safeGetEvents(
 // ---------------------------------------------------------------------------
 // System config
 // ---------------------------------------------------------------------------
+// Called from generateMetadata() in the root layout — i.e. on EVERY page
+// request, server-side, for the whole site — plus a few individual pages.
+// Next.js blocks the initial HTML response until metadata resolves (the
+// tags land in <head>), so an unbounded network call here can hang every
+// single route at once if Firestore is ever slow/unreachable from the
+// server (flaky egress, DNS hiccup, throttling) — indistinguishable from a
+// blank/black page in any browser, since the failure never reaches the
+// client. The race guarantees callers' existing `.catch(() => null)`
+// fallback fires within a bounded time instead of hanging indefinitely.
 export async function getSystemConfig() {
-  const snap = await getDoc(doc(db, 'system', 'config'));
+  const snap = await Promise.race([
+    getDoc(doc(db, 'system', 'config')),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('getSystemConfig timed out')), 3000)),
+  ]);
   return snap.exists() ? snap.data() : null;
 }
 
-export async function getInstallerStatus() {
+// Shared by src/lib/auth.ts's signUp() and AuthContext's ensureUserDoc() —
+// both create a fresh user doc right after createUserWithEmailAndPassword
+// and can race each other (onAuthStateChanged fires immediately). Firestore
+// rules forbid trainerId from ever changing on update, so if the two
+// writers resolved it differently, whichever write landed second would get
+// rejected as an unauthorized "change" to an already-set field. A single
+// shared resolver makes that agreement structural instead of relying on two
+// independent copies of the same three lines staying in sync by hand.
+export async function resolveTrainerId(): Promise<string | null> {
   try {
-    const snap = await getDoc(doc(db, 'system', 'installer'));
-    return snap.exists()
-      ? (snap.data() as { installed: boolean; installedAt?: Timestamp })
-      : null;
+    const cfg = await getSystemConfig();
+    return (cfg?.trainerId as string) ?? null;
   } catch {
-    return null;
+    return null; // Non-fatal: trainerId will be null for legacy installs / offline
   }
 }
+
 
 export async function setSystemConfig(config: Record<string, unknown>) {
   await setDoc(doc(db, 'system', 'config'), config, { merge: true });
@@ -145,7 +206,7 @@ export async function setSystemConfig(config: Record<string, unknown>) {
 // reviewed manually in the admin panel (this is a sales-assisted,
 // manually-provisioned offer, not self-serve).
 // ---------------------------------------------------------------------------
-import type { TrainerLead } from '@/types';
+import type { TrainerLead, LandingLead } from '@/types';
 
 export async function createTrainerLead(data: {
   name: string; email: string; businessName?: string; phone?: string; message?: string; clientCount?: string;
@@ -171,6 +232,20 @@ export async function createTrainerLead(data: {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Landing page exit-intent lead capture — a visitor's email before they
+// abandon the quiz, so there's something to retarget/nurture instead of
+// losing them entirely. See LandingLead in types/index.ts.
+// ---------------------------------------------------------------------------
+export async function createLandingLead(email: string) {
+  await addDoc(collection(db, 'landingLeads'), { email, createdAt: serverTimestamp() });
+}
+
+export async function getLandingLeads(): Promise<LandingLead[]> {
+  const snap = await getDocs(query(collection(db, 'landingLeads'), orderBy('createdAt', 'desc')));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as LandingLead);
+}
+
 export async function getTrainerLeads(): Promise<TrainerLead[]> {
   const snap = await getDocs(query(collection(db, 'trainerLeads'), orderBy('createdAt', 'desc')));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TrainerLead);
@@ -180,12 +255,6 @@ export async function updateTrainerLeadStatus(id: string, status: TrainerLead['s
   await updateDoc(doc(db, 'trainerLeads', id), { status });
 }
 
-export async function markInstalled() {
-  await setDoc(doc(db, 'system', 'installer'), {
-    installed: true,
-    installedAt: serverTimestamp(),
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Users
@@ -248,42 +317,64 @@ export async function stopFasting(userId: string): Promise<void> {
 // "Days Without" streak goals (quit smoking, quit porn, custom, etc.)
 // ---------------------------------------------------------------------------
 
+// All three below use runTransaction (not a plain getDoc-then-updateDoc)
+// because that read-modify-write pattern is a classic lost-update race:
+// two tabs (or a fast double-tap) reading the same array both compute
+// their own "next" array from the same stale snapshot, and whichever
+// write lands second silently discards the first's change. A transaction
+// re-reads and retries automatically on conflict instead.
 export async function addDaysWithoutGoal(userId: string, label: string): Promise<void> {
-  const snap = await getDoc(doc(db, 'users', userId));
-  const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
   const goal: DaysWithoutGoal = {
     id: Math.random().toString(36).slice(2),
     label: label.trim().slice(0, 40),
     startedAt: Timestamp.now(),
   };
-  await updateDoc(doc(db, 'users', userId), { daysWithoutGoals: [...goals, goal] });
+  const userRef = doc(db, 'users', userId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(userRef);
+    const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
+    tx.update(userRef, { daysWithoutGoals: [...goals, goal] });
+  });
 }
 
 export async function resetDaysWithoutGoal(userId: string, goalId: string): Promise<void> {
-  const snap = await getDoc(doc(db, 'users', userId));
-  const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
-  const updated = goals.map((g) => g.id === goalId ? { ...g, startedAt: Timestamp.now() } : g);
-  await updateDoc(doc(db, 'users', userId), { daysWithoutGoals: updated });
+  const userRef = doc(db, 'users', userId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(userRef);
+    const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
+    const updated = goals.map((g) => g.id === goalId ? { ...g, startedAt: Timestamp.now() } : g);
+    tx.update(userRef, { daysWithoutGoals: updated });
+  });
 }
 
 export async function deleteDaysWithoutGoal(userId: string, goalId: string): Promise<void> {
-  const snap = await getDoc(doc(db, 'users', userId));
-  const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
-  await updateDoc(doc(db, 'users', userId), { daysWithoutGoals: goals.filter((g) => g.id !== goalId) });
+  const userRef = doc(db, 'users', userId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(userRef);
+    const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
+    tx.update(userRef, { daysWithoutGoals: goals.filter((g) => g.id !== goalId) });
+  });
 }
 
+export const DEFAULT_USER_GOALS: UserGoals = {
+  calories: 2200,
+  protein: 160,
+  carbs: 250,
+  fat: 70,
+  water: 3000,
+};
+
+/**
+ * Re-reads users/{uid} purely for its `goals` field. Prefer reading
+ * `profile.goals` directly anywhere the profile is already in hand —
+ * AuthContext streams that exact document live via onSnapshot, so calling
+ * this there is a second fetch of a document you already have (the dashboard
+ * used to do exactly that). Still correct for callers without a profile.
+ */
 export async function getUserGoals(uid: string): Promise<UserGoals> {
   const snap = await getDoc(doc(db, 'users', uid));
   const data = snap.data();
-  return (
-    (data?.goals as UserGoals) ?? {
-      calories: 2200,
-      protein: 160,
-      carbs: 250,
-      fat: 70,
-      water: 3000,
-    }
-  );
+  return (data?.goals as UserGoals) ?? DEFAULT_USER_GOALS;
 }
 
 export async function updateUserGoals(uid: string, goals: UserGoals) {
@@ -349,19 +440,29 @@ export async function getTodayMeals(userId: string, localDateStr?: string): Prom
  * Deletes a meal. Tries events collection first (post-migration id), then
  * falls back to legacy meals collection (pre-migration id).
  */
-export async function deleteMeal(id: string) {
-  try {
-    await deleteDoc(doc(db, 'events', id));
-    return;
-  } catch {
-    // Event doc not found — fall through to legacy collection
-  }
-  try {
+export async function deleteMeal(id: string, userId: string) {
+  // Firestore's deleteDoc on a doc that doesn't exist succeeds silently
+  // (it's a no-op, not an error) — the previous try/catch here assumed a
+  // missing 'events' doc would throw and fall through to the legacy
+  // 'meals' collection, but it never did. Any pre-migration meal id just
+  // "succeeded" without deleting anything, and the meal reappeared on the
+  // next load. Checking existence first makes the fallback actually reachable.
+  const eventRef = doc(db, 'events', id);
+  const eventSnap = await getDoc(eventRef);
+  if (eventSnap.exists()) {
+    await deleteDoc(eventRef);
+  } else {
     await deleteDoc(doc(db, 'meals', id));
-  } catch (err) {
-    console.error('[Firestore] deleteMeal failed for id', id, err);
-    throw err;
   }
+  // logMealAction increments this on create; without a matching decrement
+  // here, repeatedly logging-then-deleting meals inflates
+  // totalMealsLogged forever, unlocking nutrition achievements/quests for
+  // meals that no longer exist.
+  await updateDoc(doc(db, 'users', userId), {
+    'stats.totalMealsLogged': increment(-1),
+  }).catch(() => {
+    // Non-critical — background recompute self-heals the count
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -437,17 +538,17 @@ export async function getTodayWaterLogs(userId: string, localDateStr?: string): 
 }
 
 export async function deleteWaterLog(id: string) {
-  try {
-    await deleteDoc(doc(db, 'events', id));
-    return;
-  } catch {
-    // Not in events — try legacy
-  }
-  try {
+  // Same fix as deleteMeal above — deleteDoc on a nonexistent doc SUCCEEDS
+  // (it's a no-op, not an error), so the previous try/catch's legacy
+  // fallback was unreachable: a pre-migration waterLogs id "succeeded"
+  // against 'events' without deleting anything, and the entry reappeared on
+  // the next load. Check existence first so the fallback actually runs.
+  const eventRef = doc(db, 'events', id);
+  const eventSnap = await getDoc(eventRef);
+  if (eventSnap.exists()) {
+    await deleteDoc(eventRef);
+  } else {
     await deleteDoc(doc(db, 'waterLogs', id));
-  } catch (err) {
-    console.error('[Firestore] deleteWaterLog failed for id', id, err);
-    throw err;
   }
 }
 
@@ -455,7 +556,60 @@ export async function deleteWaterLog(id: string) {
 // Workout history — event-primary reads with legacy fallback
 // ---------------------------------------------------------------------------
 
-export async function getUserWorkouts(userId: string, limitCount = 10) {
+// Workout event documents are the heaviest thing the dashboard reads — each
+// one carries the full set-by-set `payload.exercises` log. The dashboard used
+// to fetch them TWICE on every mount: getWeeklySummary(20) and, waterfalled
+// behind resolveProgram, getPersonalBest(30) — ~50 heavy docs for what is one
+// underlying "most recent N workouts" query. This caches the largest fetch per
+// user for a short window and serves any smaller N as a slice of it, and dedupes
+// concurrent callers onto a single in-flight promise. Invalidated explicitly on
+// workout completion (see invalidateWorkoutsCache) so a just-finished workout
+// shows up immediately rather than after the TTL.
+const WORKOUTS_CACHE_TTL_MS = 30_000;
+type UserWorkoutRow = Awaited<ReturnType<typeof fetchUserWorkouts>>[number];
+let workoutsCache: { userId: string; limit: number; rows: UserWorkoutRow[]; fetchedAt: number } | null = null;
+let workoutsInFlight: { userId: string; limit: number; promise: Promise<UserWorkoutRow[]> } | null = null;
+let workoutsGeneration = 0;
+
+/** Clears the cached recent-workout list so the next read hits Firestore. */
+export function invalidateWorkoutsCache() {
+  workoutsCache = null;
+  workoutsGeneration++;
+}
+
+export async function getUserWorkouts(userId: string, limitCount = 10): Promise<UserWorkoutRow[]> {
+  if (
+    workoutsCache &&
+    workoutsCache.userId === userId &&
+    workoutsCache.limit >= limitCount &&
+    Date.now() - workoutsCache.fetchedAt < WORKOUTS_CACHE_TTL_MS
+  ) {
+    return workoutsCache.rows.slice(0, limitCount);
+  }
+
+  // Reuse an in-flight fetch only when it will cover this caller's window.
+  if (workoutsInFlight && workoutsInFlight.userId === userId && workoutsInFlight.limit >= limitCount) {
+    return (await workoutsInFlight.promise).slice(0, limitCount);
+  }
+
+  const startedAtGeneration = workoutsGeneration;
+  const promise = fetchUserWorkouts(userId, limitCount)
+    .then((rows) => {
+      if (startedAtGeneration === workoutsGeneration) {
+        workoutsCache = { userId, limit: limitCount, rows, fetchedAt: Date.now() };
+      }
+      if (workoutsInFlight?.promise === promise) workoutsInFlight = null;
+      return rows;
+    })
+    .catch((err) => {
+      if (workoutsInFlight?.promise === promise) workoutsInFlight = null;
+      throw err;
+    });
+  workoutsInFlight = { userId, limit: limitCount, promise };
+  return promise;
+}
+
+async function fetchUserWorkouts(userId: string, limitCount: number) {
   // 1. Try events (primary)
   try {
     const snap = await safeGetEvents(userId, 'WORKOUT_COMPLETED', undefined, undefined, limitCount);
@@ -533,7 +687,11 @@ export interface WeeklySummary {
 
 /** Real, computed-from-history weekly totals — no estimation. */
 export async function getWeeklySummary(userId: string): Promise<WeeklySummary> {
-  const workouts = await getUserWorkouts(userId, 20) as unknown as UserWorkoutRecord[];
+  // 30, not 20, deliberately: getPersonalBest below asks for 30 and the two
+  // run on the same dashboard mount. Matching the window lets both share one
+  // cached fetch (see getUserWorkouts) — 30 heavy documents total instead of
+  // 50 — and only the last 7 days are summed here regardless.
+  const workouts = await getUserWorkouts(userId, 30) as unknown as UserWorkoutRecord[];
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   let volumeKg = 0;
   let workoutsCompleted = 0;
@@ -593,11 +751,49 @@ export async function getLastExercisePerformance(userId: string, exerciseName: s
 // ---------------------------------------------------------------------------
 // Programs — scoped by trainerId when provided
 // ---------------------------------------------------------------------------
+// Program docs carry full exercise schedules/phases, so a full collection
+// scan isn't cheap — and the Training tab used to trigger TWO of them on
+// every visit (getPrograms + getUserCustomPrograms each doing their own
+// independent getDocs over the same collection), with no caching at all.
+// Share one cached raw fetch between both instead.
+let programsCache: { all: Record<string, unknown>[]; fetchedAt: number } | null = null;
+let programsInFlight: Promise<Record<string, unknown>[]> | null = null;
+// Bumped by every invalidation. A fetch that was already in flight when an
+// invalidation happened captures the generation it started under, and
+// refuses to populate the cache if that no longer matches — otherwise an
+// admin saving an edit mid-load would have the pre-edit snapshot written
+// into the cache by the still-pending read a moment later, making their
+// own change invisible for the full TTL (the exact "I saved it but it's
+// not showing up" symptom this cache was supposed to avoid causing).
+let programsGeneration = 0;
+const PROGRAMS_CACHE_TTL_MS = 30_000;
+
+async function fetchAllPrograms(): Promise<Record<string, unknown>[]> {
+  if (programsCache && Date.now() - programsCache.fetchedAt < PROGRAMS_CACHE_TTL_MS) {
+    return programsCache.all;
+  }
+  if (programsInFlight) return programsInFlight;
+  const startedAtGeneration = programsGeneration;
+  programsInFlight = getDocs(collection(db, 'programs')).then((snap) => {
+    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (startedAtGeneration === programsGeneration) {
+      programsCache = { all, fetchedAt: Date.now() };
+    }
+    programsInFlight = null;
+    return all;
+  }).catch((err) => { programsInFlight = null; throw err; });
+  return programsInFlight;
+}
+
+export function invalidateProgramsCache() {
+  programsCache = null;
+  programsGeneration++;
+}
+
 export async function getPrograms(trainerId?: string) {
   // Full collection scan + client-side filter avoids composite index requirement
-  const snap = await getDocs(collection(db, 'programs'));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const all: any[] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const all = await fetchAllPrograms() as any[];
   if (trainerId) {
     return all.filter((p) => p.trainerId === trainerId).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   }
@@ -614,9 +810,8 @@ export async function getPrograms(trainerId?: string) {
 // just invisible. This surfaces the ones a given user owns so the training
 // screen can list them separately and let the user re-select one.
 export async function getUserCustomPrograms(uid: string) {
-  const snap = await getDocs(collection(db, 'programs'));
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
+  const all = await fetchAllPrograms();
+  return all
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .filter((p: any) => p.ownerId === uid)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -663,11 +858,14 @@ export async function resolveProgram(programId: string): Promise<Program | null>
 }
 
 export async function createProgram(data: Record<string, unknown>) {
-  return addDoc(collection(db, 'programs'), { ...stripUndefinedDeep(data), createdAt: serverTimestamp() });
+  const ref = await addDoc(collection(db, 'programs'), { ...stripUndefinedDeep(data), createdAt: serverTimestamp() });
+  invalidateProgramsCache();
+  return ref;
 }
 
 export async function updateProgram(id: string, data: Record<string, unknown>) {
   await updateDoc(doc(db, 'programs', id), { ...stripUndefinedDeep(data), updatedAt: serverTimestamp() });
+  invalidateProgramsCache();
 }
 
 /**
@@ -679,10 +877,12 @@ export async function updateProgram(id: string, data: Record<string, unknown>) {
  */
 export async function upsertProgram(id: string, data: Record<string, unknown>) {
   await setDoc(doc(db, 'programs', id), { ...stripUndefinedDeep(data), updatedAt: serverTimestamp() }, { merge: true });
+  invalidateProgramsCache();
 }
 
 export async function deleteProgram(id: string) {
   await deleteDoc(doc(db, 'programs', id));
+  invalidateProgramsCache();
 }
 
 // ---------------------------------------------------------------------------
@@ -733,16 +933,68 @@ export async function getPosts(limitCount = 20, trainerId?: string) {
 // Program enrollment
 // ---------------------------------------------------------------------------
 
+// Switching programs used to be destructive: it always reset
+// completedWorkouts to 0 and deleted lastCompletedDayIndex, so a user who'd
+// gotten to Week 6 of one program and tried a different one for a day lost
+// that position permanently. Now every program's progress is preserved
+// under `programProgress[programId]` the moment the user switches away from
+// it, and switching BACK to a program restores its saved position instead
+// of starting over — `activeProgram` still mirrors whichever program is
+// currently active (unchanged shape), so every existing screen that reads
+// `profile.activeProgram.*` keeps working with no further changes.
 export async function enrollInProgram(
   userId: string,
-  program: { id: string; name: string; weeks: number; daysPerWeek: number }
+  program: { id: string; name: string; weeks: number; daysPerWeek: number },
+  // True when the user explicitly chose "Restart from Day 1" over "Resume"
+  // on a program that already has saved progress (either currently active,
+  // or left mid-way via a prior switch — see programProgress below).
+  // Without this, switching away from a program to test another one and
+  // back always silently resumed old progress, which is the right default
+  // but had no escape hatch for someone who genuinely wanted a clean start.
+  restart = false
 ) {
+  const userRef = doc(db, 'users', userId);
+  const snap = await getDoc(userRef);
+  const data = snap.data() ?? {};
+  const current = data.activeProgram as
+    | { programId?: string; programName?: string; enrolledAt?: unknown; programStartDate?: string; completedWorkouts?: number; totalWorkouts?: number; lastCompletedDayIndex?: number }
+    | undefined;
+  const savedProgress = (data.programProgress ?? {}) as Record<string, {
+    programName: string; enrolledAt?: unknown; programStartDate?: string;
+    completedWorkouts: number; totalWorkouts: number; lastCompletedDayIndex?: number;
+  }>;
+
+  const updates: Record<string, unknown> = {};
+
+  // Save the program we're leaving, if any and if it's actually a
+  // different one (re-enrolling in the same program is a no-op switch).
+  // This also opportunistically "migrates" an existing user's first-ever
+  // switch — they never had a programProgress map before this change, but
+  // whatever's live in activeProgram right now is captured here regardless.
+  if (current?.programId && current.programId !== program.id) {
+    updates[`programProgress.${current.programId}`] = {
+      programName: current.programName ?? '',
+      enrolledAt: current.enrolledAt ?? serverTimestamp(),
+      programStartDate: current.programStartDate,
+      completedWorkouts: current.completedWorkouts ?? 0,
+      totalWorkouts: current.totalWorkouts ?? 0,
+      ...(current.lastCompletedDayIndex !== undefined ? { lastCompletedDayIndex: current.lastCompletedDayIndex } : {}),
+    };
+  }
+
+  // Resume the target program's own saved position if it has one;
+  // otherwise this is a genuinely fresh start for it. `restart` forces the
+  // fresh-start path even when a saved position exists.
+  const saved = restart || program.id === current?.programId ? undefined : savedProgress[program.id];
+
   // Count REAL training days from the resolved schedule (phase-aware, rest
   // slots excluded) rather than trusting weeks × daysPerWeek — the two
   // drift apart on phased programs, and completedWorkouts (see
   // incrementProgramWorkouts) counts actual training sessions, so the
-  // denominator must use the same unit or progress % lies.
-  let totalWorkouts = program.weeks * program.daysPerWeek;
+  // denominator must use the same unit or progress % lies. Recomputed even
+  // for a resumed program in case an admin edited its schedule since the
+  // last time the user was on it.
+  let totalWorkouts = saved?.totalWorkouts ?? program.weeks * program.daysPerWeek;
   try {
     const resolved = await resolveProgram(program.id);
     if (resolved) {
@@ -750,32 +1002,96 @@ export async function enrollInProgram(
       totalWorkouts = getTotalTrainingDays(resolved);
     }
   } catch { /* offline etc. — the approximation above is an acceptable fallback */ }
+
   // updateDoc (not setDoc+merge) — dotted field paths only reliably resolve
   // to nested fields with updateDoc; setDoc's merge doesn't parse dotted
   // string keys as paths, so a previous version of this using setDoc wrote
   // nothing where the rest of the app expected it (enroll/switch appeared
-  // to silently do nothing). This also lets us explicitly delete any
-  // leftover lastCompletedDayIndex from a prior enrollment in the same
-  // write, so completedWorkouts (derived from it elsewhere) can't desync
-  // from stale progress on re-enroll/switch.
-  await updateDoc(doc(db, 'users', userId), {
-    'activeProgram.programId': program.id,
-    'activeProgram.programName': program.name,
-    'activeProgram.enrolledAt': serverTimestamp(),
-    'activeProgram.programStartDate': new Date().toISOString(),
-    'activeProgram.completedWorkouts': 0,
-    'activeProgram.totalWorkouts': totalWorkouts,
-    'activeProgram.lastCompletedDayIndex': deleteField(),
-    lastActive: serverTimestamp(),
-  });
+  // to silently do nothing).
+  updates['activeProgram.programId'] = program.id;
+  updates['activeProgram.programName'] = program.name;
+  updates['activeProgram.enrolledAt'] = saved?.enrolledAt ?? serverTimestamp();
+  updates['activeProgram.programStartDate'] = saved?.programStartDate ?? new Date().toISOString();
+  updates['activeProgram.completedWorkouts'] = saved?.completedWorkouts ?? 0;
+  updates['activeProgram.totalWorkouts'] = totalWorkouts;
+  // Explicitly deleted when there's no saved position (fresh start), same
+  // as before — completedWorkouts (derived from it elsewhere) can't desync
+  // from stale progress left over from whatever was active previously.
+  updates['activeProgram.lastCompletedDayIndex'] = saved?.lastCompletedDayIndex !== undefined
+    ? saved.lastCompletedDayIndex
+    : deleteField();
+  // The program being resumed is no longer "unswitched-from" progress —
+  // clear its now-stale saved snapshot so activeProgram is unambiguously
+  // the live source of truth for it again (avoids the two ever drifting
+  // apart while it's the active one).
+  if (program.id in savedProgress) {
+    updates[`programProgress.${program.id}`] = deleteField();
+  }
+  updates['lastActive'] = serverTimestamp();
+
+  // Firestore's UpdateData typing can't express a dynamically-built object
+  // of dotted field paths (some deleteField() sentinels, some plain
+  // values) — this is the same shape of update every other dotted-path
+  // write in this file does inline, just built up conditionally first.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await updateDoc(userRef, updates as any);
 }
 
+// Currently unused (no UI wires up "leave program" without switching to
+// another one), but kept aligned with enrollInProgram's non-destructive
+// design rather than left as dead code that would silently wipe progress
+// with no way to recover it the moment something DOES call it.
 export async function unenrollProgram(userId: string) {
-  await setDoc(
-    doc(db, 'users', userId),
-    { activeProgram: deleteField(), lastActive: serverTimestamp() },
-    { merge: true }
-  );
+  const userRef = doc(db, 'users', userId);
+  const snap = await getDoc(userRef);
+  const current = snap.data()?.activeProgram as
+    | { programId?: string; programName?: string; enrolledAt?: unknown; programStartDate?: string; completedWorkouts?: number; totalWorkouts?: number; lastCompletedDayIndex?: number }
+    | undefined;
+
+  const updates: Record<string, unknown> = { activeProgram: deleteField(), lastActive: serverTimestamp() };
+  if (current?.programId) {
+    updates[`programProgress.${current.programId}`] = {
+      programName: current.programName ?? '',
+      enrolledAt: current.enrolledAt ?? serverTimestamp(),
+      programStartDate: current.programStartDate,
+      completedWorkouts: current.completedWorkouts ?? 0,
+      totalWorkouts: current.totalWorkouts ?? 0,
+      ...(current.lastCompletedDayIndex !== undefined ? { lastCompletedDayIndex: current.lastCompletedDayIndex } : {}),
+    };
+  }
+
+  await setDoc(userRef, updates, { merge: true });
+}
+
+/**
+ * All programs the user has ever made progress on, keyed by programId —
+ * merges the live `activeProgram` (if any) with the saved `programProgress`
+ * map, for a "My Programs" screen that needs to show every program's
+ * position regardless of which one is currently active.
+ */
+export async function getAllProgramProgress(userId: string): Promise<Record<string, {
+  programName: string; completedWorkouts: number; totalWorkouts: number;
+  lastCompletedDayIndex?: number; isActive: boolean;
+}>> {
+  const snap = await getDoc(doc(db, 'users', userId));
+  const data = snap.data() ?? {};
+  const active = data.activeProgram as { programId?: string; programName?: string; completedWorkouts?: number; totalWorkouts?: number; lastCompletedDayIndex?: number } | undefined;
+  const saved = (data.programProgress ?? {}) as Record<string, { programName: string; completedWorkouts: number; totalWorkouts: number; lastCompletedDayIndex?: number }>;
+
+  const result: Record<string, { programName: string; completedWorkouts: number; totalWorkouts: number; lastCompletedDayIndex?: number; isActive: boolean }> = {};
+  for (const [id, p] of Object.entries(saved)) {
+    result[id] = { ...p, isActive: false };
+  }
+  if (active?.programId) {
+    result[active.programId] = {
+      programName: active.programName ?? '',
+      completedWorkouts: active.completedWorkouts ?? 0,
+      totalWorkouts: active.totalWorkouts ?? 0,
+      lastCompletedDayIndex: active.lastCompletedDayIndex,
+      isActive: true,
+    };
+  }
+  return result;
 }
 
 // lastCompletedDayIndex is the single source of truth for program progress;
@@ -784,10 +1100,64 @@ export async function unenrollProgram(userId: string) {
 // incremented counter — the previous version updated them independently,
 // which meant any code path that forgot to touch one of them (or an
 // enrollment reset that missed clearing the other) let them drift apart.
-export async function incrementProgramWorkouts(userId: string, dayIndex?: number) {
+// Returned so callers (e.g. completeWorkout's Live Activity post) can tell
+// which program day was just finished and, distinctly, whether that
+// completion just finished the WHOLE program for the first time.
+export interface ProgramProgressResult {
+  programName: string;
+  dayIndex: number; // 0-based, matches lastCompletedDayIndex
+  completedWorkouts: number;
+  totalWorkouts?: number;
+  justFinishedProgram: boolean;
+}
+
+export async function incrementProgramWorkouts(userId: string, dayIndex?: number, programId?: string): Promise<ProgramProgressResult | undefined> {
   const snap = await getDoc(doc(db, 'users', userId));
   if (!snap.exists() || !snap.data()?.activeProgram) return;
   const activeProgram = snap.data()?.activeProgram;
+  // If the user switched to a DIFFERENT program between starting and
+  // finishing this workout, activeProgram no longer belongs to the program
+  // this workout was actually for — writing into it would silently corrupt
+  // whichever program happens to be active now instead of the one just
+  // trained. Record the completion into that program's OWN saved snapshot
+  // instead, so it's never lost, without touching the (unrelated) currently
+  // active program at all.
+  if (programId && activeProgram?.programId && activeProgram.programId !== programId) {
+    const savedProgress = (snap.data()?.programProgress ?? {}) as Record<string, {
+      programName?: string; completedWorkouts?: number; totalWorkouts?: number; lastCompletedDayIndex?: number;
+    }>;
+    const prior = savedProgress[programId];
+    const priorLastCompleted = prior?.lastCompletedDayIndex ?? -1;
+    if (dayIndex !== undefined && dayIndex <= priorLastCompleted) return; // repeat, not a new day
+    const newLastCompleted = dayIndex !== undefined ? dayIndex : priorLastCompleted + 1;
+    let completedTraining = newLastCompleted + 1;
+    let totalWorkouts = prior?.totalWorkouts ?? 0;
+    try {
+      const resolved = await resolveProgram(programId);
+      if (resolved) {
+        const { countTrainingSlotsThrough, getTotalTrainingDays } = await import('./programs');
+        completedTraining = countTrainingSlotsThrough(resolved, newLastCompleted);
+        totalWorkouts = getTotalTrainingDays(resolved);
+      }
+    } catch { /* fall back to slot count rather than blocking the workout save */ }
+    await updateDoc(doc(db, 'users', userId), {
+      [`programProgress.${programId}`]: {
+        programName: prior?.programName ?? '',
+        completedWorkouts: completedTraining,
+        totalWorkouts,
+        lastCompletedDayIndex: newLastCompleted,
+      },
+      lastActive: serverTimestamp(),
+    });
+    return {
+      programName: prior?.programName ?? '',
+      dayIndex: newLastCompleted,
+      completedWorkouts: completedTraining,
+      totalWorkouts,
+      justFinishedProgram: totalWorkouts > 0 && (prior?.completedWorkouts ?? 0) < totalWorkouts && completedTraining >= totalWorkouts,
+    };
+  }
+
   const lastCompleted: number = activeProgram?.lastCompletedDayIndex ?? -1;
   // Only advance when doing a genuinely new (later) day, not a repeat
   const isNewDay = dayIndex === undefined || dayIndex > lastCompleted;
@@ -801,25 +1171,109 @@ export async function incrementProgramWorkouts(userId: string, dayIndex?: number
   // "done" after one calendar week. Recomputing from the schedule here also
   // self-heals any user whose stored count was inflated by the old formula
   // the next time they finish a workout.
+  //
+  // totalWorkouts (the denominator) gets recomputed here too, not just at
+  // enrollment — enrollInProgram only sets it once, so if an admin later
+  // edits this program's phases/weeks while someone's already enrolled,
+  // their stored denominator went stale and progress% could silently read
+  // past 100% or freeze early. Recomputing it fresh on every completion
+  // keeps it in sync the same way completedTraining already self-heals.
   let completedTraining = newLastCompleted + 1;
+  let totalWorkouts: number | undefined;
   try {
     const resolved = await resolveProgram(activeProgram.programId);
     if (resolved) {
-      const { countTrainingSlotsThrough } = await import('./programs');
+      const { countTrainingSlotsThrough, getTotalTrainingDays } = await import('./programs');
       completedTraining = countTrainingSlotsThrough(resolved, newLastCompleted);
+      totalWorkouts = getTotalTrainingDays(resolved);
     }
   } catch { /* fall back to slot count rather than blocking the workout save */ }
+
+  const priorCompletedWorkouts: number = activeProgram?.completedWorkouts ?? 0;
+  const resolvedTotalWorkouts = totalWorkouts ?? activeProgram?.totalWorkouts;
 
   await updateDoc(doc(db, 'users', userId), {
     'activeProgram.completedWorkouts': completedTraining,
     'activeProgram.lastCompletedDayIndex': newLastCompleted,
+    ...(totalWorkouts !== undefined ? { 'activeProgram.totalWorkouts': totalWorkouts } : {}),
     lastActive: serverTimestamp(),
   });
+
+  return {
+    programName: activeProgram?.programName ?? '',
+    dayIndex: newLastCompleted,
+    completedWorkouts: completedTraining,
+    totalWorkouts: resolvedTotalWorkouts,
+    justFinishedProgram: !!resolvedTotalWorkouts && priorCompletedWorkouts < resolvedTotalWorkouts && completedTraining >= resolvedTotalWorkouts,
+  };
 }
 
 // ---------------------------------------------------------------------------
 // Meal history — by date
 // ---------------------------------------------------------------------------
+
+
+/**
+ * Explicitly skips a rest slot: moves the active program's pointer onto the
+ * rest slot so getNextSession offers the next training day. Does NOT count
+ * as a completed workout — completedWorkouts is recomputed from training
+ * slots only, exactly as incrementProgramWorkouts does. Repeat-safe: a
+ * pointer already at or past `restIndex` is left alone.
+ */
+export type SkipRestResult =
+  | { ok: true }
+  | { ok: false; reason: 'not-active' | 'already-past' | 'not-a-rest-day' | 'locked' | 'failed' };
+
+/**
+ * Advances the active program's pointer onto a rest slot so the next workout
+ * becomes available, without counting a workout.
+ *
+ * Every failure path used to be a silent `return`, so tapping "Skip rest
+ * day" and having nothing happen was indistinguishable from it working. It
+ * now reports why, and the callers say so.
+ *
+ * `completedWorkouts` is recomputed from TRAINING slots only (never
+ * `index + 1`), exactly as incrementProgramWorkouts does, so skipping a rest
+ * day cannot inflate progress.
+ */
+export async function skipRestDay(userId: string, programId: string, restIndex: number): Promise<SkipRestResult> {
+  const ref = doc(db, 'users', userId);
+  const snap = await getDoc(ref);
+  const activeProgram = snap.data()?.activeProgram as { programId?: string; lastCompletedDayIndex?: number } | undefined;
+  if (!activeProgram || activeProgram.programId !== programId) return { ok: false, reason: 'not-active' };
+  const lastCompleted = activeProgram.lastCompletedDayIndex ?? -1;
+  // Already skipped (double tap, or two tabs) — treat as success so the UI
+  // doesn't show an error for a state that is exactly what was asked for.
+  if (restIndex <= lastCompleted) return { ok: true };
+
+  let completedTraining: number | undefined;
+  try {
+    const resolved = await resolveProgram(programId);
+    if (resolved) {
+      const { countTrainingSlotsThrough, getProgramDayForDow } = await import('./programs');
+      // Refuse to "skip" a training day — this action is only for rest slots.
+      const slot = getProgramDayForDow(resolved, restIndex);
+      if (slot && !slot.isRest) return { ok: false, reason: 'not-a-rest-day' };
+      completedTraining = countTrainingSlotsThrough(resolved, restIndex);
+    }
+  } catch { /* fall through — the pointer move alone is still correct */ }
+
+  try {
+    await updateDoc(ref, {
+      'activeProgram.lastCompletedDayIndex': restIndex,
+      ...(completedTraining !== undefined ? { 'activeProgram.completedWorkouts': completedTraining } : {}),
+      lastActive: serverTimestamp(),
+    });
+    return { ok: true };
+  } catch (err) {
+    // firestore.rules' activeProgramWriteAllowed() caps how far a non-member
+    // can advance (trialDayLimit). Hitting that is a paywall, not a glitch,
+    // and telling someone to "try again" for it is just wrong.
+    if ((err as { code?: string })?.code === 'permission-denied') return { ok: false, reason: 'locked' };
+    console.error('[skipRestDay] failed:', err);
+    return { ok: false, reason: 'failed' };
+  }
+}
 
 export async function getMealsForDate(userId: string, date: Date): Promise<NormalizedMeal[]> {
   const start = new Date(date);
@@ -952,20 +1406,13 @@ export async function createAIProgram(program: Omit<Program, 'id'>): Promise<str
     ...program,
     createdAt: serverTimestamp(),
   });
+  invalidateProgramsCache();
   return ref.id;
 }
 
 // ---------------------------------------------------------------------------
 // Admin — user management
 // ---------------------------------------------------------------------------
-
-export async function banUser(userId: string) {
-  await updateDoc(doc(db, 'users', userId), { banned: true });
-}
-
-export async function unbanUser(userId: string) {
-  await updateDoc(doc(db, 'users', userId), { banned: false });
-}
 
 export async function markFlameIgnited(userId: string) {
   await updateDoc(doc(db, 'users', userId), { flameIgnited: true });
@@ -974,6 +1421,20 @@ export async function markFlameIgnited(userId: string) {
 export async function getAllUsers() {
   const snap = await getDocs(collection(db, 'users'));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Admin-only writes — 'role' and 'trainerId' are both in the restricted-
+// fields list a regular user can't touch on their own doc, but the same
+// firestore.rules update rule lets isAdmin() write anything, so these are
+// plain client-side writes rather than a server route (unlike
+// set-membership, which additionally needs to cancel a Stripe
+// subscription — nothing here needs Admin SDK access).
+export async function setUserRole(userId: string, role: 'user' | 'trainer' | 'admin') {
+  await updateDoc(doc(db, 'users', userId), { role });
+}
+
+export async function setUserTrainer(userId: string, trainerId: string | null) {
+  await updateDoc(doc(db, 'users', userId), { trainerId });
 }
 
 export async function getAllPrograms() {
@@ -989,12 +1450,31 @@ export async function getHiddenMockIds(): Promise<string[]> {
   return snap.exists() ? ((snap.data().ids as string[]) ?? []) : [];
 }
 
+// arrayUnion/arrayRemove (not a getDoc-then-setDoc read-modify-write) —
+// atomic set-membership ops, immune to the lost-update race where two
+// concurrent calls both read the same array and the second write drops
+// whatever the first one added/removed.
 export async function hideMockProgram(id: string) {
-  const snap = await getDoc(doc(db, 'config', 'hiddenMocks'));
-  const ids: string[] = snap.exists() ? (snap.data().ids ?? []) : [];
-  if (!ids.includes(id)) {
-    await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: [...ids, id] }, { merge: true });
-  }
+  await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: arrayUnion(id) }, { merge: true });
+}
+
+export async function unhideMockProgram(id: string) {
+  await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: arrayRemove(id) }, { merge: true });
+}
+
+// ---------------------------------------------------------------------------
+// Permanently deleted built-in programs — stored at config/deletedMocks
+// { ids: string[] }. Separate from hiddenMocks: a hidden one can still be
+// restored, a deleted one is gone from every list for good (short of
+// editing Firestore directly) — no restore path is exposed for it.
+// ---------------------------------------------------------------------------
+export async function getDeletedMockIds(): Promise<string[]> {
+  const snap = await getDoc(doc(db, 'config', 'deletedMocks'));
+  return snap.exists() ? ((snap.data().ids as string[]) ?? []) : [];
+}
+
+export async function permanentlyDeleteMockProgram(id: string) {
+  await setDoc(doc(db, 'config', 'deletedMocks'), { ids: arrayUnion(id) }, { merge: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -1002,14 +1482,77 @@ export async function hideMockProgram(id: string) {
 // ---------------------------------------------------------------------------
 import type { MembershipConfig, MembershipPlan } from '@/types';
 
+/**
+ * Cache for the two membership config documents.
+ *
+ * Every page wrapped in PaywallGate calls both of these on mount, through
+ * useFeatureAccess — and PaywallGate renders NOTHING until they resolve. So
+ * each navigation to an AI tool paid two serial Firestore round-trips before a
+ * single pixel appeared, on a screen whose whole job is to show an upload
+ * button. That is the "clicking analyze food takes ages" delay.
+ *
+ * These are global config documents: identical for every user, changed only by
+ * an admin in the settings panel. Holding the in-flight promise (not just the
+ * value) also collapses the duplicate fetches a single page makes when several
+ * gated components mount together. saveMembershipConfig/Plans clear it, so an
+ * admin's own edit is never served stale to them; the TTL bounds how long
+ * anyone else's tab can lag behind a change.
+ */
+const CONFIG_TTL_MS = 5 * 60 * 1000;
+let membershipConfigCache: { at: number; promise: Promise<MembershipConfig | null> } | null = null;
+let membershipPlansCache: { at: number; promise: Promise<MembershipPlan[]> } | null = null;
+
+export function clearMembershipCache() {
+  membershipConfigCache = null;
+  membershipPlansCache = null;
+}
+
 export async function getMembershipConfig(): Promise<MembershipConfig | null> {
-  const snap = await getDoc(doc(db, 'config', 'membership'));
-  if (!snap.exists()) return null;
-  return snap.data() as MembershipConfig;
+  if (membershipConfigCache && Date.now() - membershipConfigCache.at < CONFIG_TTL_MS) {
+    return membershipConfigCache.promise;
+  }
+  const promise = (async () => {
+    const snap = await getDoc(doc(db, 'config', 'membership'));
+    if (!snap.exists()) return null;
+    return snap.data() as MembershipConfig;
+  })();
+  // A failed fetch must not be cached — otherwise one blip locks the whole tab
+  // out of its own membership config for the full TTL.
+  promise.catch(() => { membershipConfigCache = null; });
+  membershipConfigCache = { at: Date.now(), promise };
+  return promise;
 }
 
 export async function saveMembershipConfig(data: Partial<MembershipConfig>) {
   await setDoc(doc(db, 'config', 'membership'), data, { merge: true });
+  clearMembershipCache();
+}
+
+// ---------------------------------------------------------------------------
+// Exercise category/equipment taxonomy — stored at config/exerciseTaxonomy.
+// The admin panel's own MUSCLE_CATEGORIES/EQUIPMENT_OPTIONS constants are
+// the default set; this doc only exists once an admin adds or removes a
+// value, so a fresh install with no doc yet just falls back to the built-in
+// defaults instead of showing an empty picker.
+// ---------------------------------------------------------------------------
+
+export interface ExerciseTaxonomy {
+  muscleGroups: string[];
+  equipment: string[];
+}
+
+export async function getExerciseTaxonomy(): Promise<ExerciseTaxonomy | null> {
+  const snap = await getDoc(doc(db, 'config', 'exerciseTaxonomy'));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return {
+    muscleGroups: (data.muscleGroups as string[]) ?? [],
+    equipment: (data.equipment as string[]) ?? [],
+  };
+}
+
+export async function saveExerciseTaxonomy(taxonomy: ExerciseTaxonomy) {
+  await setDoc(doc(db, 'config', 'exerciseTaxonomy'), taxonomy);
 }
 
 // ---------------------------------------------------------------------------
@@ -1020,23 +1563,29 @@ export async function saveMembershipConfig(data: Partial<MembershipConfig>) {
 // self-serve subscriptions.
 // ---------------------------------------------------------------------------
 export async function getMembershipPlans(): Promise<MembershipPlan[]> {
-  const snap = await getDoc(doc(db, 'config', 'membershipPlans'));
-  return (snap.data()?.plans as MembershipPlan[]) ?? [];
+  if (membershipPlansCache && Date.now() - membershipPlansCache.at < CONFIG_TTL_MS) {
+    return membershipPlansCache.promise;
+  }
+  const promise = (async () => {
+    const snap = await getDoc(doc(db, 'config', 'membershipPlans'));
+    return (snap.data()?.plans as MembershipPlan[]) ?? [];
+  })();
+  promise.catch(() => { membershipPlansCache = null; });
+  membershipPlansCache = { at: Date.now(), promise };
+  return promise;
 }
 
 export async function saveMembershipPlans(plans: MembershipPlan[]): Promise<void> {
   await setDoc(doc(db, 'config', 'membershipPlans'), { plans });
-}
-
-export async function setUserMembership(userId: string, status: 'active' | 'none') {
-  await updateDoc(doc(db, 'users', userId), {
-    'membership.status': status,
-    'membership.grantedAt': serverTimestamp(),
-  });
+  clearMembershipCache();
 }
 
 // ---------------------------------------------------------------------------
-// Conversations — admin-initiated DMs
+// Conversations — staff-initiated only (see firestore.rules' conversations
+// create rule: only isAdmin()). A member can reply to an existing thread
+// but never create one, and never message another member — there is no
+// member-to-member path anywhere in this model (every conversation has
+// exactly one adminId and one userId).
 // ---------------------------------------------------------------------------
 
 import type { Conversation, Message } from '@/types';
@@ -1081,6 +1630,24 @@ export async function getAdminConversations(adminId: string): Promise<Conversati
   return docs;
 }
 
+// Live version of getAdminConversations — a client starting a new "Message
+// Support" thread (or sending a follow-up) now shows up in the admin panel
+// immediately instead of only after leaving/re-entering the Messages tab
+// (loadConversations() was a one-time fetch, only ever called once per tab
+// visit since it's gated on conversations.length === 0).
+export function subscribeAdminConversations(adminId: string, onUpdate: (convs: Conversation[]) => void): () => void {
+  const q = query(collection(db, 'conversations'), where('adminId', '==', adminId));
+  return onSnapshot(q, (snap) => {
+    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Conversation));
+    docs.sort((a, b) => {
+      const ta = (a.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+      const tb = (b.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+      return tb - ta;
+    });
+    onUpdate(docs);
+  }, (err) => console.error('[Firestore] subscribeAdminConversations error:', err));
+}
+
 export async function getUserConversations(userId: string): Promise<Conversation[]> {
   const q = query(collection(db, 'conversations'), where('userId', '==', userId));
   const snap = await getDocs(q);
@@ -1093,14 +1660,47 @@ export async function getUserConversations(userId: string): Promise<Conversation
   return docs;
 }
 
+// Live conversation list — same query as getUserConversations(), just kept
+// open so a coach/admin reply updates the inbox (unread dot, last-message
+// preview) without the user having to leave and come back to this page.
+export function subscribeUserConversations(userId: string, onUpdate: (convs: Conversation[]) => void): () => void {
+  const q = query(collection(db, 'conversations'), where('userId', '==', userId));
+  return onSnapshot(q, (snap) => {
+    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Conversation));
+    docs.sort((a, b) => {
+      const ta = (a.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+      const tb = (b.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+      return tb - ta;
+    });
+    onUpdate(docs);
+  }, (err) => console.error('[Firestore] subscribeUserConversations error:', err));
+}
+
+// Most recent N messages, oldest-first — a support conversation only ever
+// needs its recent tail on open, and without a cap a long-running thread
+// would download and re-render its *entire* history on every single
+// snapshot update. Ordering desc+limit then reversing (rather than
+// asc+limit) is what gets you the most recent N instead of the oldest N.
+const MESSAGES_PAGE_SIZE = 200;
+
+// Live messages for one open conversation — a coach's reply appears as it's
+// sent instead of only showing up after the user reopens the thread.
+export function subscribeMessages(convId: string, onUpdate: (messages: Message[]) => void): () => void {
+  const q = query(collection(db, 'conversations', convId, 'messages'), orderBy('createdAt', 'desc'), limit(MESSAGES_PAGE_SIZE));
+  return onSnapshot(q, (snap) => {
+    onUpdate(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)).reverse());
+  }, (err) => console.error('[Firestore] subscribeMessages error:', err));
+}
+
 export async function getMessages(convId: string): Promise<Message[]> {
   try {
     const q = query(
       collection(db, 'conversations', convId, 'messages'),
-      orderBy('createdAt', 'asc')
+      orderBy('createdAt', 'desc'),
+      limit(MESSAGES_PAGE_SIZE)
     );
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)).reverse();
   } catch {
     const snap = await getDocs(collection(db, 'conversations', convId, 'messages'));
     const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message));
@@ -1127,6 +1727,10 @@ export async function sendMessage(
     isFromAdmin,
     createdAt: serverTimestamp(),
   });
+  // No separate notification doc — the conversation's own unreadByUser/
+  // unreadByAdmin flag (surfaced as the dot in the Messages list) is the
+  // only "you have a reply" signal. A bell notification duplicated that
+  // and leaked the real sender's account name instead of "Support".
   await updateDoc(doc(db, 'conversations', convId), {
     lastMessage: content,
     lastMessageAt: serverTimestamp(),
@@ -1143,6 +1747,155 @@ export async function deleteConversation(convId: string) {
 
 export async function markConversationRead(convId: string, isAdmin: boolean) {
   await updateDoc(doc(db, 'conversations', convId), {
+    ...(isAdmin ? { unreadByAdmin: false } : { unreadByUser: false }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Support tickets — member-initiated, unlike conversations above.
+//
+// The whole lifecycle lives on the ticket doc: 'pending' the moment a member
+// opens it, 'ongoing' once staff engage, 'resolved' when it's done. Resolved
+// is a real lock, not a label — firestore.rules refuses message creates on a
+// resolved ticket, so hiding the composer client-side is a convenience rather
+// than the enforcement.
+// ---------------------------------------------------------------------------
+import type { SupportTicket, SupportTicketStatus } from '@/types';
+
+const SUPPORT_TICKETS_LIMIT = 200;
+
+function sortByLastMessage<T extends { lastMessageAt?: unknown }>(docs: T[]): T[] {
+  return docs.sort((a, b) => {
+    const ta = (a.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+    const tb = (b.lastMessageAt as import('firebase/firestore').Timestamp)?.toMillis?.() ?? 0;
+    return tb - ta;
+  });
+}
+
+export interface SupportAttachment {
+  url: string;
+  name: string;
+  type: string;
+}
+
+// Firestore rejects a document containing an `undefined` value outright, so
+// an absent attachment has to be an omitted key rather than an undefined one.
+function attachmentFields(a?: SupportAttachment | null) {
+  return a ? { attachmentUrl: a.url, attachmentName: a.name, attachmentType: a.type } : {};
+}
+
+/** Opens a ticket and posts its first message in one go. Returns the ticket id. */
+export async function createSupportTicket(
+  userId: string,
+  userDisplayName: string,
+  userEmail: string,
+  subject: string,
+  firstMessage: string,
+  attachment?: SupportAttachment | null
+): Promise<string> {
+  // One atomic batch. Two separate addDoc()s meant a failure between them
+  // left a ticket with no message — visible to staff as an empty request
+  // and to the member as a request that "sent" but shows nothing.
+  const ref = doc(collection(db, 'supportTickets'));
+  const batch = writeBatch(db);
+  batch.set(ref, {
+    userId,
+    userDisplayName,
+    userEmail,
+    subject,
+    status: 'pending' as SupportTicketStatus,
+    lastMessage: firstMessage,
+    lastMessageAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+    unreadByUser: false,
+    unreadByAdmin: true,
+  });
+  batch.set(doc(collection(db, 'supportTickets', ref.id, 'messages')), {
+    senderId: userId,
+    senderName: userDisplayName,
+    content: firstMessage,
+    isFromAdmin: false,
+    createdAt: serverTimestamp(),
+    ...attachmentFields(attachment),
+  });
+  await batch.commit();
+  return ref.id;
+}
+
+export function subscribeUserSupportTickets(userId: string, onUpdate: (tickets: SupportTicket[]) => void): () => void {
+  const q = query(collection(db, 'supportTickets'), where('userId', '==', userId));
+  return onSnapshot(q, (snap) => {
+    onUpdate(sortByLastMessage(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SupportTicket))));
+  }, (err) => console.error('[Firestore] subscribeUserSupportTickets error:', err));
+}
+
+// Admin-side: every ticket in the system. Capped and sorted client-side for
+// the same reason the conversation lists are — it keeps this off a composite
+// index that would otherwise have to be deployed before the tab worked at all.
+export function subscribeAllSupportTickets(onUpdate: (tickets: SupportTicket[]) => void): () => void {
+  const q = query(collection(db, 'supportTickets'), limit(SUPPORT_TICKETS_LIMIT));
+  return onSnapshot(q, (snap) => {
+    onUpdate(sortByLastMessage(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SupportTicket))));
+  }, (err) => console.error('[Firestore] subscribeAllSupportTickets error:', err));
+}
+
+export function subscribeSupportMessages(ticketId: string, onUpdate: (messages: Message[]) => void): () => void {
+  const q = query(
+    collection(db, 'supportTickets', ticketId, 'messages'),
+    orderBy('createdAt', 'desc'),
+    limit(MESSAGES_PAGE_SIZE)
+  );
+  return onSnapshot(q, (snap) => {
+    onUpdate(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message)).reverse());
+  }, (err) => console.error('[Firestore] subscribeSupportMessages error:', err));
+}
+
+export async function sendSupportMessage(
+  ticketId: string,
+  senderId: string,
+  senderName: string,
+  content: string,
+  isFromAdmin: boolean,
+  attachment?: SupportAttachment | null
+) {
+  await addDoc(collection(db, 'supportTickets', ticketId, 'messages'), {
+    senderId,
+    senderName,
+    content,
+    isFromAdmin,
+    createdAt: serverTimestamp(),
+    ...attachmentFields(attachment),
+  });
+  await updateDoc(doc(db, 'supportTickets', ticketId), {
+    // An attachment-only message would otherwise leave the list preview
+    // showing the previous message's text, which reads as "nothing happened".
+    lastMessage: content || (attachment ? `📎 ${attachment.name}` : ''),
+    lastMessageAt: serverTimestamp(),
+    // An admin reply moves a brand-new ticket to 'ongoing' on its own, so
+    // staff don't have to remember to flip a dropdown to reflect what they
+    // just visibly did. An already-resolved ticket can't be replied to at
+    // all (rules), so there's no risk of this reopening one by accident.
+    ...(isFromAdmin ? { unreadByUser: true, status: 'ongoing' as SupportTicketStatus } : { unreadByAdmin: true }),
+  });
+}
+
+export async function setSupportTicketStatus(ticketId: string, status: SupportTicketStatus, adminUid: string) {
+  await updateDoc(doc(db, 'supportTickets', ticketId), {
+    status,
+    ...(status === 'resolved'
+      ? { resolvedAt: serverTimestamp(), resolvedBy: adminUid }
+      : { resolvedAt: null, resolvedBy: null }),
+  });
+}
+
+export async function deleteSupportTicket(ticketId: string) {
+  const msgs = await getDocs(collection(db, 'supportTickets', ticketId, 'messages'));
+  await Promise.all(msgs.docs.map((d) => deleteDoc(d.ref)));
+  await deleteDoc(doc(db, 'supportTickets', ticketId));
+}
+
+export async function markSupportTicketRead(ticketId: string, isAdmin: boolean) {
+  await updateDoc(doc(db, 'supportTickets', ticketId), {
     ...(isAdmin ? { unreadByAdmin: false } : { unreadByUser: false }),
   });
 }
@@ -1213,11 +1966,43 @@ export async function deleteAllReadNotifications(userId: string) {
   await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
 }
 
+/** Badge caps out here; past it the UI shows "99+". Bounds the initial read. */
+export const UNREAD_BADGE_CAP = 99;
+
+/**
+ * Live unread count for the header badge.
+ *
+ * Replaces a 30-second setInterval poll. Every open tab hit Firestore twice a
+ * minute whether anything had changed or not — at a few thousand concurrent
+ * tabs that is millions of reads a day for a number that changes a handful of
+ * times. A listener costs the matching documents once, then only deltas, and
+ * the badge updates the moment a notification arrives instead of up to 30s
+ * later. Limited so a user with a huge unread backlog can't pull it all down.
+ *
+ * Two equality filters need no composite index — Firestore serves those from
+ * its automatic single-field indexes.
+ */
+export function subscribeUnreadNotificationCount(userId: string, cb: (count: number) => void): () => void {
+  const q = query(
+    collection(db, 'notifications'),
+    where('userId', '==', userId),
+    where('read', '==', false),
+    limit(UNREAD_BADGE_CAP + 1),
+  );
+  return onSnapshot(q, (snap) => cb(snap.size), (err) => {
+    console.error('[Firestore] unread notification listener failed:', err);
+    cb(0);
+  });
+}
+
 export async function getUnreadNotificationCount(userId: string): Promise<number> {
-  const snap = await getDocs(
+  // A count aggregate — the header polls this every 30s on every open tab,
+  // and getDocs() was downloading every unread notification each time just
+  // to read `.size`.
+  const snap = await getCountFromServer(
     query(collection(db, 'notifications'), where('userId', '==', userId), where('read', '==', false))
   );
-  return snap.size;
+  return snap.data().count;
 }
 
 export async function getNotificationConfig(): Promise<NotificationConfig | null> {
@@ -1234,9 +2019,71 @@ export async function saveNotificationConfig(data: Partial<NotificationConfig>) 
 // ---------------------------------------------------------------------------
 import type { Channel, ChannelPost } from '@/types';
 
+// Channel list rarely changes, but both the community list page and every
+// channel detail page re-fetch it on every visit. Cache the raw (unfiltered)
+// docs briefly in memory so hopping list -> channel -> back doesn't refetch
+// the whole collection each time, and so the detail page's "does this
+// channel exist" check resolves instantly instead of racing the live posts
+// listener (which used to flash "Channel not found" for a moment).
+let channelsCache: { all: Channel[]; fetchedAt: number } | null = null;
+let channelsInFlight: Promise<Channel[]> | null = null;
+// Same generation guard as fetchAllPrograms above — an invalidation while a
+// read is in flight must not be undone by that read's stale result landing
+// afterwards. Especially reachable here: createChannelPost invalidates on
+// every single post, which can easily overlap a channel-list load.
+let channelsGeneration = 0;
+const CHANNELS_CACHE_TTL_MS = 30_000;
+
+async function fetchAllChannels(): Promise<Channel[]> {
+  if (channelsCache && Date.now() - channelsCache.fetchedAt < CHANNELS_CACHE_TTL_MS) {
+    return channelsCache.all;
+  }
+  if (channelsInFlight) return channelsInFlight;
+  const startedAtGeneration = channelsGeneration;
+  channelsInFlight = getDocs(collection(db, 'channels')).then((snap) => {
+    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Channel);
+    if (startedAtGeneration === channelsGeneration) {
+      channelsCache = { all, fetchedAt: Date.now() };
+    }
+    channelsInFlight = null;
+    return all;
+  }).catch((err) => { channelsInFlight = null; throw err; });
+  return channelsInFlight;
+}
+
+export function invalidateChannelsCache() {
+  channelsCache = null;
+  channelsGeneration++;
+}
+
+/**
+ * Which tenant's channels a given account should see.
+ *
+ * An ADMIN manages the whole install and sees every channel — including
+ * channels created by a different admin. This matters because an admin
+ * promoted by hand (signed up as a normal user, then role flipped to
+ * 'admin' in the console) still carries the trainerId their signup
+ * assigned, or none at all. The community list used to fall back to
+ * `user.uid` for any admin/trainer, so such an account was scoped to a
+ * tenant root that owns nothing, and the channel list came back EMPTY —
+ * reported live as "the channels don't show at all in community".
+ *
+ * A TRAINER is scoped to their own uid (they own their channels). A regular
+ * user is scoped to the trainer they were assigned at signup. Returning
+ * undefined means "no filter" — see getChannels.
+ */
+export function channelScopeFor(
+  role: string | undefined,
+  trainerId: string | null | undefined,
+  uid: string | undefined,
+): string | undefined {
+  if (role === 'admin') return undefined;
+  if (role === 'trainer') return uid ?? undefined;
+  return trainerId ?? undefined;
+}
+
 export async function getChannels(trainerId?: string): Promise<Channel[]> {
-  const snap = await getDocs(collection(db, 'channels'));
-  const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Channel);
+  const all = await fetchAllChannels();
   return all
     .filter((c) => !trainerId || c.trainerId === trainerId || !c.trainerId)
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
@@ -1244,17 +2091,21 @@ export async function getChannels(trainerId?: string): Promise<Channel[]> {
 
 export async function createChannel(data: Omit<Channel, 'id' | 'postCount' | 'createdAt'>) {
   const clean = Object.fromEntries(Object.entries({ ...data, postCount: 0, createdAt: serverTimestamp() }).filter(([, v]) => v !== undefined));
-  return addDoc(collection(db, 'channels'), clean);
+  const ref = await addDoc(collection(db, 'channels'), clean);
+  invalidateChannelsCache();
+  return ref;
 }
 
 export async function updateChannel(id: string, data: Partial<Channel>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const clean: Record<string, any> = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
   await updateDoc(doc(db, 'channels', id), clean);
+  invalidateChannelsCache();
 }
 
 export async function deleteChannel(id: string) {
   await deleteDoc(doc(db, 'channels', id));
+  invalidateChannelsCache();
 }
 
 export async function getChannelPosts(channelId: string): Promise<ChannelPost[]> {
@@ -1264,8 +2115,28 @@ export async function getChannelPosts(channelId: string): Promise<ChannelPost[]>
   return snap.docs.map((d) => ({ id: d.id, channelId, ...d.data() }) as ChannelPost).reverse();
 }
 
+// Live version of getChannelPosts — a user sitting in a channel while
+// someone else posts previously never saw the new message until they
+// navigated away and back (the page only fetched once on mount), which
+// reads as broken chat rather than a static community wall. Mirrors the
+// same query/ordering as the one-shot version above.
+export function subscribeChannelPosts(
+  channelId: string,
+  onUpdate: (posts: ChannelPost[]) => void,
+  onError?: (err: Error) => void,
+): () => void {
+  const q = query(collection(db, 'channels', channelId, 'posts'), orderBy('createdAt', 'desc'), limit(50));
+  return onSnapshot(
+    q,
+    (snap) => {
+      onUpdate(snap.docs.map((d) => ({ id: d.id, channelId, ...d.data() }) as ChannelPost).reverse());
+    },
+    (err) => onError?.(err),
+  );
+}
+
 export async function createChannelPost(channelId: string, data: {
-  userId: string; userDisplayName: string; userPhotoURL?: string;
+  userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean;
   content: string; imageURL?: string;
 }): Promise<string> {
   const ref = await addDoc(collection(db, 'channels', channelId, 'posts'), {
@@ -1276,10 +2147,22 @@ export async function createChannelPost(channelId: string, data: {
     replyTo: null,
     createdAt: serverTimestamp(),
   });
-  // bump post count on channel
-  await updateDoc(doc(db, 'channels', channelId), { postCount: increment(1) });
-  // track last post time for slow mode
-  await setDoc(doc(db, 'channels', channelId, 'members', data.userId), { lastPostAt: serverTimestamp() }, { merge: true });
+  // Bump post count on the channel — best-effort ONLY. firestore.rules
+  // allows updating a channel doc solely for isAdmin(), so for every
+  // regular member this throws permission-denied AFTER their post has
+  // already been created successfully. Left unguarded, that rejection
+  // propagated all the way out to the caller's catch, which showed
+  // "Failed to post" and never cleared the compose box — so members saw
+  // an error on every single post (and re-sent, double-posting), even
+  // though the post itself went through fine and appeared in the feed.
+  // The count is cosmetic; the post is what matters.
+  await updateDoc(doc(db, 'channels', channelId), { postCount: increment(1) }).catch(() => {});
+  invalidateChannelsCache();
+  // Track last post time for slow mode. Also best-effort: it must not be
+  // able to fail the post either — but note that if this DOES fail, slow
+  // mode silently stops applying to that member, since the timestamp it
+  // reads back is never written.
+  await setDoc(doc(db, 'channels', channelId, 'members', data.userId), { lastPostAt: serverTimestamp() }, { merge: true }).catch(() => {});
   return ref.id;
 }
 
@@ -1296,51 +2179,99 @@ export async function getPostReplies(channelId: string, postId: string): Promise
 }
 
 export async function createReply(channelId: string, postId: string, data: {
-  userId: string; userDisplayName: string; userPhotoURL?: string; content: string;
+  userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean; content: string;
+  /** Set to thread this under another reply instead of the post itself. */
+  parentReplyId?: string;
 }) {
+  const { parentReplyId, ...rest } = data;
   await addDoc(collection(db, 'channels', channelId, 'posts', postId, 'replies'), {
-    ...data, channelId, likes: [], replyCount: 0, replyTo: postId, createdAt: serverTimestamp(),
+    ...rest, channelId, likes: [], replyCount: 0, replyTo: postId,
+    // Stored flat in the same subcollection and grouped client-side, so a
+    // whole thread is still one read no matter how deep it looks.
+    ...(parentReplyId ? { parentReplyId } : {}),
+    createdAt: serverTimestamp(),
   });
-  await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { replyCount: increment(1) });
+  // Best-effort for the same reason as createChannelPost's postCount:
+  // firestore.rules only allows updating a post you own (or a likes-only
+  // diff), so bumping replyCount on SOMEONE ELSE's post throws — which
+  // meant replying to another member's post always surfaced "Failed to
+  // reply" and left the reply box open, even though the reply itself was
+  // saved. Replying to your own post happened to work, which is why this
+  // survived: it only breaks for the case that actually matters.
+  await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { replyCount: increment(1) }).catch(() => {});
 }
 
 export async function deleteChannelPost(channelId: string, postId: string) {
   await deleteDoc(doc(db, 'channels', channelId, 'posts', postId));
   await updateDoc(doc(db, 'channels', channelId), { postCount: increment(-1) }).catch(() => {});
+  invalidateChannelsCache();
 }
 
 export async function pinChannelPost(channelId: string, postId: string) {
   await updateDoc(doc(db, 'channels', channelId), { pinnedPostId: postId });
   await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { pinned: true });
+  invalidateChannelsCache();
 }
 
 export async function unpinChannelPost(channelId: string, postId: string) {
   await updateDoc(doc(db, 'channels', channelId), { pinnedPostId: deleteField() });
   await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { pinned: false });
+  invalidateChannelsCache();
 }
 
-export interface LeaderboardEntry {
+// The public leaderboard was removed. Ranking members against each other on
+// self-reported workouts rewarded whoever logged the most fiction, not whoever
+// trained — ten "workouts" in ten minutes outranked a real week. XP and power
+// level survive as PERSONAL progression on users/{uid}; nothing mirrors them
+// to a public collection now, and leaderboardPublic is inert (existing
+// documents are left in place; firestore.rules allows admin writes only).
+// Community and the PR wall carry the social side instead — both show what
+// someone actually posted rather than a number they typed.
+
+// ---------------------------------------------------------------------------
+// Community Live Activity — a deliberately minimal, PUBLIC feed of meaningful
+// training events across the whole community ("what's happening right now",
+// distinct from the Leaderboard's "who's ranked where"). Same pattern as
+// leaderboardPublic above: a separate, field-limited collection rather than
+// exposing anything from the private `events` collection (whose payloads
+// hold exactly the granular stuff — duration, calories, meal contents —
+// this must never show). Never write anything beyond ActivityType/label/
+// displayName/createdAt; no raw stats, no timestamps-of-day, no numbers
+// beyond what the label itself needs (e.g. a PR's weight).
+// ---------------------------------------------------------------------------
+export type CommunityActivityType = 'workout' | 'program_day' | 'program_completed' | 'pr' | 'achievement' | 'quest' | 'streak';
+
+export interface CommunityActivity {
   id: string;
+  userId: string;
   displayName: string;
-  xp: number;
-  powerLevel: number;
-  streak: number;
-  totalWorkouts: number;
-  totalWeightLifted: number;
-  questsCompleted: string[];
+  type: CommunityActivityType;
+  label: string;
+  createdAt: unknown;
 }
 
-function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): LeaderboardEntry {
-  return {
-    id,
-    displayName: (data.displayName as string) || 'Athlete',
-    xp: (data.xp as number) ?? 0,
-    powerLevel: (data.powerLevel as number) ?? 0,
-    streak: (data.statsCache as Record<string, number> | undefined)?.streak ?? (data.stats as Record<string, number> | undefined)?.streak ?? 0,
-    totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? (data.stats as Record<string, number> | undefined)?.totalWorkouts ?? 0,
-    totalWeightLifted: (data.stats as Record<string, number> | undefined)?.totalWeightLifted ?? 0,
-    questsCompleted: (data.questsCompleted as string[]) ?? [],
-  };
+export async function postCommunityActivity(
+  userId: string,
+  displayName: string,
+  type: CommunityActivityType,
+  label: string
+): Promise<void> {
+  try {
+    await addDoc(collection(db, 'communityActivity'), {
+      userId, displayName, type, label, createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    // Best-effort — a failed activity post should never block the
+    // workout/achievement/etc. write that triggered it.
+    console.error('[Firestore] postCommunityActivity failed:', err);
+  }
+}
+
+export function subscribeCommunityActivity(onUpdate: (items: CommunityActivity[]) => void, limitCount = 30): () => void {
+  const q = query(collection(db, 'communityActivity'), orderBy('createdAt', 'desc'), limit(limitCount));
+  return onSnapshot(q, (snap) => {
+    onUpdate(snap.docs.map((d) => ({ id: d.id, ...d.data() } as CommunityActivity)));
+  }, (err) => console.error('[Firestore] subscribeCommunityActivity error:', err));
 }
 
 // NOTE: This app is currently single-tenant (one trainer per install), so the
@@ -1348,28 +2279,10 @@ function mapToLeaderboardEntry(id: string, data: Record<string, unknown>): Leade
 // trainerId — that filter was fragile (any mismatch between a user's stored
 // trainerId and the live admin uid made them silently invisible) and adds no
 // value with only one trainer. Revisit if true multi-tenant coaching ships.
-export async function getLeaderboard(limitCount = 10): Promise<LeaderboardEntry[]> {
-  const snap = await getDocs(query(collection(db, 'users'), limit(200)));
-  const entries = snap.docs
-    .filter((d) => !d.data().banned)
-    .map((d) => mapToLeaderboardEntry(d.id, d.data()))
-    .filter((e) => e.totalWorkouts > 0);
-  return entries.sort((a, b) => b.xp - a.xp).slice(0, limitCount);
-}
-
-export function subscribeLeaderboard(
-  onUpdate: (entries: LeaderboardEntry[]) => void,
-  limitCount = 10,
-): () => void {
-  const q = query(collection(db, 'users'), limit(200));
-  return onSnapshot(q, (snap) => {
-    const entries = snap.docs
-      .filter((d) => !d.data().banned)
-      .map((d) => mapToLeaderboardEntry(d.id, d.data()))
-      .filter((e) => e.totalWorkouts > 0);
-    onUpdate(entries.sort((a, b) => b.xp - a.xp).slice(0, limitCount));
-  }, (err) => console.error('[Firestore] subscribeLeaderboard error:', err));
-}
+// The "N people trained today" ticker was removed with the leaderboard. It
+// counted leaderboardPublic rows whose lastWorkoutDate was today, and nothing
+// writes that mirror any more — so it could only ever have reported zero,
+// while still running a count query from every open dashboard every minute.
 
 // ── PR Wall — community-posted personal records with a trust/verification badge ──
 import type { VerificationLevel, PRPost } from '@/types';
@@ -1445,7 +2358,7 @@ export async function likePRPost(postId: string, userId: string, liked: boolean)
 export async function setPRPostModeration(
   postId: string,
   status: 'pending' | 'approved' | 'rejected',
-  post?: { userId: string; exerciseName: string },
+  post?: { userId: string; exerciseName: string; displayName?: string; weightKg?: number },
 ) {
   await updateDoc(doc(db, 'prPosts', postId), {
     moderationStatus: status,
@@ -1463,6 +2376,14 @@ export async function setPRPostModeration(
       actionLabel: 'View PR Wall',
       actionUrl: '/community/prs',
     }).catch(() => {});
+  }
+
+  // Only an admin-approved PR counts as a real, verified event worth
+  // surfacing community-wide — a pending/rejected submission is unverified
+  // and shouldn't imply "this actually happened" to everyone else.
+  if (post && status === 'approved') {
+    const weightPhrase = post.weightKg ? ` — ${post.weightKg}kg` : '';
+    postCommunityActivity(post.userId, post.displayName || 'A member', 'pr', `hit a new PR: ${post.exerciseName}${weightPhrase}`).catch(() => {});
   }
 }
 
@@ -1639,6 +2560,9 @@ export async function submitCoachingApplication(data: {
   experience: string;
   injuries: string;
   availability: string;
+  // Health screening / lifestyle habits, moved here from signup onboarding.
+  // Optional — the applicant answers what they're comfortable sharing.
+  medicalHistory?: Record<string, unknown>;
 }): Promise<string> {
   // Block duplicate submissions while one is already pending for this plan —
   // the UI is supposed to hide the Apply button in this state, but guard
@@ -1654,18 +2578,32 @@ export async function submitCoachingApplication(data: {
     createdAt: serverTimestamp(),
   });
 
-  // Notify every admin so they know to review it.
-  const adminSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin')));
-  await Promise.all(
-    adminSnap.docs.map((d) => sendNotification({
-      userId: d.id,
-      title: 'New 1:1 Coaching Application',
-      body: `${data.userName} applied for "${data.planName}". Review it in Admin → Coaching Apps.`,
-      type: 'manual',
-      actionLabel: 'Review Application',
-      actionUrl: '/admin?tab=coaching',
-    }))
-  );
+  // Notify the admin so they know to review it. A regular user can't run a
+  // `where('role','==','admin')` query against /users — Firestore rejects
+  // the whole query since it can't prove every possible matching doc is
+  // readable by this caller, even though the notification create rule
+  // itself would allow it. That used to throw here, AFTER the application
+  // doc above had already been saved — so the user saw "Failed to submit"
+  // on an application that actually went through. This is a single-tenant
+  // install (one admin), so instead of listing /users, notify the admin id
+  // already public on system/config — same source messages/page.tsx's
+  // fallback resolves to, and no extra read permissions needed.
+  try {
+    const cfg = await getSystemConfig();
+    const adminId = (cfg?.trainerId as string) || (cfg?.adminUid as string) || null;
+    if (adminId) {
+      await sendNotification({
+        userId: adminId,
+        title: 'New 1:1 Coaching Application',
+        body: `${data.userName} applied for "${data.planName}". Review it in Admin → Coaching Apps.`,
+        type: 'manual',
+        actionLabel: 'Review Application',
+        actionUrl: '/admin?tab=coaching',
+      });
+    }
+  } catch (err) {
+    console.error('[Firestore] Failed to notify admin of new coaching application:', err);
+  }
 
   return ref.id;
 }
@@ -1720,6 +2658,16 @@ export async function rejectCoachingApplication(app: CoachingApplication, review
   });
 }
 
+// Removes the application outright. Note this genuinely frees the applicant
+// to apply again — submitCoachingApplication() blocks a second submission by
+// looking for an existing doc (see getUserCoachingApplication above), so
+// deleting a rejected application is also how you let someone re-apply
+// without waiting. No notification is sent: to the applicant this is a
+// record being cleared, not a decision being made.
+export async function deleteCoachingApplication(appId: string): Promise<void> {
+  await deleteDoc(doc(db, 'coachingApplications', appId));
+}
+
 export async function getUserLastPostInChannel(channelId: string, userId: string): Promise<Date | null> {
   const snap = await getDoc(doc(db, 'channels', channelId, 'members', userId));
   if (!snap.exists()) return null;
@@ -1761,7 +2709,7 @@ function normalizeActivityDoc(d: { id: string; data: () => Record<string, unknow
   } else if (type === 'WATER_LOGGED') {
     const ml = Number(payload.amountMl ?? 0);
     label = 'Water logged';
-    sub = ml >= 1000 ? `${(ml / 1000).toFixed(1)} L` : `${ml} ml`;
+    sub = ml >= 1000 ? `${(ml / 1000).toFixed(2)} L` : `${ml} ml`;
   } else if (type === 'WEIGHT_RECORDED') {
     const kg = Number(payload.weightKg ?? 0);
     label = 'Weight recorded';

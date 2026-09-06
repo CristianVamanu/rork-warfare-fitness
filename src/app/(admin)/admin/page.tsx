@@ -8,30 +8,38 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
-  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target,
+  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail, Star,
+  LifeBuoy,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getIdToken } from 'firebase/auth';
-import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
+import { uploadVideo, deleteVideo, type StorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail, extractVideoThumbnailFromUrl } from '@/lib/videoThumbnail';
 import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_B2B_TERMS } from '@/lib/legalDefaults';
 import {
   getSystemConfig, setSystemConfig,
-  banUser, unbanUser, getAllUsers,
-  getAdminConversations, getOrCreateConversation, getMessages, sendMessage, markConversationRead, deleteConversation,
-  getMembershipConfig, saveMembershipConfig, setUserMembership,
+  getAllUsers, setUserRole, setUserTrainer,
+  subscribeAdminConversations, getOrCreateConversation, subscribeMessages, sendMessage, markConversationRead, deleteConversation,
+  getMembershipConfig, saveMembershipConfig,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
-  getChannels, createChannel, updateChannel, deleteChannel,
+  getChannels, channelScopeFor, createChannel, updateChannel, deleteChannel,
   getCoachingPlans, saveCoachingPlans, assignCoachingPlan, revokeCoachingPlan,
   getMembershipPlans, saveMembershipPlans,
   getExerciseVideos, saveExerciseVideo, deleteExerciseVideo, updateExerciseVideoThumbnail,
+  getExerciseTaxonomy, saveExerciseTaxonomy,
   assignNutritionPlan,
-  getCoachingApplications, approveCoachingApplication, rejectCoachingApplication,
-  getProgressPhotos,
+  getCoachingApplications, approveCoachingApplication, rejectCoachingApplication, deleteCoachingApplication,
+  subscribeAllSupportTickets, subscribeSupportMessages, sendSupportMessage,
+  setSupportTicketStatus, deleteSupportTicket, markSupportTicketRead,
+  getProgressPhotos, getUserWorkouts,
   createGoal, getClientGoals, setGoalStatus, deleteGoal,
   getTrainerLeads, updateTrainerLeadStatus,
+  getLandingLeads,
+  getAllPrograms, getHiddenMockIds, getDeletedMockIds,
 } from '@/lib/firestore';
+import { MOCK_PROGRAMS } from '@/lib/programs';
+import { useSupportUpload, AttachButton, PendingAttachment, MessageAttachment } from '@/components/support/SupportAttachment';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -40,11 +48,55 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, TrainerLead } from '@/types';
+import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, TrainerLead, LandingLead, SupportTicket, SupportTicketStatus } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
-import { getPlanBillingPeriods } from '@/lib/utils';
+import { getPlanBillingPeriods, getYouTubeEmbedUrl } from '@/lib/utils';
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'settings';
+const SUPPORT_STATUS_STYLES: Record<SupportTicketStatus, string> = {
+  pending: 'bg-yellow-400/10 text-yellow-400',
+  ongoing: 'bg-accent/10 text-accent',
+  resolved: 'bg-success/10 text-success',
+};
+
+function SupportStatusPill({ status }: { status: SupportTicketStatus }) {
+  return (
+    <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full whitespace-nowrap ${SUPPORT_STATUS_STYLES[status] ?? SUPPORT_STATUS_STYLES.pending}`}>
+      {status}
+    </span>
+  );
+}
+
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'settings';
+
+// Shared by both plan editors (CoachingPlan's Tool Access and
+// MembershipPlan's Tool Access) — feature ids here must match what
+// PaywallGate/useFeatureAccess check against on the gated pages
+// themselves (community, quests, breathing pages; the PR wall
+// within community; FastingWidget on the dashboard).
+const TOOL_ACCESS_OPTIONS = [
+  { id: 'barcode', label: 'Barcode Scanner' },
+  { id: 'nutrition-ai', label: 'AI Food Analyzer' },
+  { id: 'meal-planner', label: 'AI Meal Planner' },
+  { id: 'premium-programs', label: 'Premium Training Plans' },
+  { id: 'community', label: 'Community' },
+  { id: 'pr-wall', label: 'PR Wall' },
+  { id: 'quests', label: 'Quests & Achievements' },
+  { id: 'fasting', label: 'Fasting Timer' },
+  { id: 'breathing', label: 'Breathing Exercises' },
+] as const;
+
+const LOCKABLE_FEATURE_OPTIONS = [
+  { id: 'barcode', label: 'Barcode Scanner', desc: 'Nutrition lookup via product barcode' },
+  { id: 'nutrition-ai', label: 'AI Food Analyzer', desc: 'Photo-based nutrition analysis' },
+  { id: 'meal-planner', label: 'AI Meal Planner', desc: 'Generates a full daily meal plan' },
+  { id: 'scan-and-go', label: 'Scan & Go', desc: 'Photo-based workout builder from gym equipment' },
+  { id: 'premium-programs', label: 'Premium Training Plans', desc: 'Programs marked as Premium require membership' },
+  { id: 'community', label: 'Community', desc: 'Channels — browsing and posting' },
+  { id: 'pr-wall', label: 'PR Wall', desc: 'Personal-record posts feed' },
+  { id: 'quests', label: 'Quests & Achievements', desc: 'Quest tracking and achievement badges' },
+  { id: 'fasting', label: 'Fasting Timer', desc: 'Intermittent fasting tracker on the dashboard' },
+  { id: 'breathing', label: 'Breathing Exercises', desc: 'Guided breathing sessions' },
+] as const;
 
 interface SecretStatusUI {
   key: string;
@@ -146,9 +198,12 @@ interface UserData {
   displayName?: string;
   email?: string;
   role?: string;
+  trainerId?: string | null;
   banned?: boolean;
   statsCache?: { totalWorkouts?: number; streak?: number };
   stats?: { totalWorkouts?: number };
+  xp?: number;
+  powerLevel?: number;
   activeProgram?: { programName?: string; completedWorkouts?: number; totalWorkouts?: number };
   createdAt?: unknown;
   lastLoginAt?: unknown;
@@ -162,6 +217,14 @@ interface UserData {
   heightCm?: number;
   currentWeightKg?: number;
   medicalHistory?: MedicalHistoryAnswers;
+}
+
+interface AdminClientWorkout {
+  id: string;
+  duration?: number;
+  totalWeightLifted?: number;
+  exercises?: unknown[];
+  completedAt: unknown;
 }
 
 function formatLastLogin(ts: unknown): string {
@@ -194,7 +257,7 @@ function AdminPageInner() {
   const { user, profile, tenant } = useAuth();
   const [tab, setTab] = useState<Tab>(() => {
     const t = searchParams.get('tab');
-    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'community', 'notifications', 'membership', 'coaching', 'library', 'integrations', 'settings'];
+    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'support', 'community', 'notifications', 'membership', 'coaching', 'library', 'analytics', 'integrations', 'leads', 'settings'];
     return (valid as string[]).includes(t ?? '') ? (t as Tab) : 'overview';
   });
 
@@ -219,13 +282,137 @@ function AdminPageInner() {
   const [sendingMsg, setSendingMsg] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // ── Support state ──────────────────────────────────────────────────────────
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [supportLoading, setSupportLoading] = useState(true);
+  const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
+  const [supportMessages, setSupportMessages] = useState<Message[]>([]);
+  const [supportMsgLoading, setSupportMsgLoading] = useState(false);
+  const [supportMsgText, setSupportMsgText] = useState('');
+  const [sendingSupport, setSendingSupport] = useState(false);
+  const [supportFilter, setSupportFilter] = useState<SupportTicketStatus | 'all'>('all');
+  const [supportFile, setSupportFile] = useState<File | null>(null);
+  const [updatingTicket, setUpdatingTicket] = useState<string | null>(null);
+  const supportEndRef = useRef<HTMLDivElement>(null);
+  const { upload: uploadSupportFile, uploading: supportUploading, progress: supportProgress } = useSupportUpload();
+
+  // Derived from the live list rather than stored, so a status change is
+  // reflected in the open thread (and its composer) without a refetch.
+  const activeTicket = supportTickets.find(t => t.id === activeTicketId) ?? null;
+
+  // Subscribed unconditionally rather than on tab entry: this is what powers
+  // the unread count on the Support tab label, which has to be right before
+  // the admin ever opens the tab.
+  useEffect(() => {
+    const unsub = subscribeAllSupportTickets((list) => {
+      setSupportTickets(list);
+      setSupportLoading(false);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    if (!activeTicketId) { setSupportMessages([]); return; }
+    setSupportMsgLoading(true);
+    const unsub = subscribeSupportMessages(activeTicketId, (msgs) => {
+      setSupportMessages(msgs);
+      setSupportMsgLoading(false);
+      setTimeout(() => supportEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    });
+    return unsub;
+  }, [activeTicketId]);
+
+  function openTicket(t: SupportTicket) {
+    setActiveTicketId(t.id);
+    if (t.unreadByAdmin) markSupportTicketRead(t.id, true).catch(() => {});
+  }
+
+  async function handleSendSupport() {
+    if (!activeTicket || !user || !profile) return;
+    if (!supportMsgText.trim() && !supportFile) return;
+    setSendingSupport(true);
+    const text = supportMsgText.trim();
+    const file = supportFile;
+    setSupportMsgText('');
+    setSupportFile(null);
+    try {
+      let attachment = null;
+      if (file) {
+        attachment = await uploadSupportFile(user, file);
+        if (!attachment) { setSupportMsgText(text); setSupportFile(file); setSendingSupport(false); return; }
+      }
+      await sendSupportMessage(activeTicket.id, user.uid, profile.displayName || 'Support', text, true, attachment);
+    } catch {
+      toast.error('Failed to send');
+      setSupportMsgText(text);
+      setSupportFile(file);
+    } finally {
+      setSendingSupport(false);
+    }
+  }
+
+  async function handleTicketStatus(t: SupportTicket, status: SupportTicketStatus) {
+    if (!user) return;
+    setUpdatingTicket(t.id);
+    try {
+      await setSupportTicketStatus(t.id, status, user.uid);
+      toast.success(status === 'resolved' ? 'Marked resolved — the member can no longer reply' : `Marked ${status}`);
+    } catch {
+      toast.error('Could not update status');
+    } finally {
+      setUpdatingTicket(null);
+    }
+  }
+
+  async function handleDeleteTicket(t: SupportTicket) {
+    if (!confirm(`Delete this support request from ${t.userDisplayName}? The whole conversation goes with it and this cannot be undone.`)) return;
+    setUpdatingTicket(t.id);
+    try {
+      await deleteSupportTicket(t.id);
+      if (activeTicketId === t.id) setActiveTicketId(null);
+      toast.success('Support request deleted');
+    } catch {
+      toast.error('Could not delete');
+    } finally {
+      setUpdatingTicket(null);
+    }
+  }
+
+  const filteredTickets = supportFilter === 'all'
+    ? supportTickets
+    : supportTickets.filter(t => t.status === supportFilter);
+  const unresolvedSupport = supportTickets.filter(t => t.unreadByAdmin && t.status !== 'resolved').length;
+
+  // Live messages for whichever conversation the admin has open — a
+  // client's incoming message now appears immediately instead of only on
+  // the next manual reopen of the thread.
+  useEffect(() => {
+    if (!activeConv) { setMessages([]); return; }
+    setMsgLoading(true);
+    const unsub = subscribeMessages(activeConv.id, (msgs) => {
+      setMessages(msgs);
+      setMsgLoading(false);
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    });
+    return unsub;
+  }, [activeConv?.id]);
+
   // ── Settings state ─────────────────────────────────────────────────────────
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15 });
+  // Client list pagination. getAllUsers() still fetches everything (search and
+  // CSV export both need the full set), but rendering thousands of cards at
+  // once is what actually makes this page unusable — so the DOM is paged.
+  const [clientsPerPage, setClientsPerPage] = useState(50);
+  const [clientsPage, setClientsPage] = useState(1);
+  const [orgAiUsage, setOrgAiUsage] = useState<{ used: number; limit: number; byFeature: Record<string, number>; date: string } | null>(null);
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, aiOrgDailyLimit: 0 });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const [uploadingGreetingVideo, setUploadingGreetingVideo] = useState(false);
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [uploadingDemoVideo, setUploadingDemoVideo] = useState(false);
   const [uploadingScreenshots, setUploadingScreenshots] = useState(false);
+  const [uploadingTransformationPhotos, setUploadingTransformationPhotos] = useState(false);
   const [legalForm, setLegalForm] = useState({ privacyPolicyText: '', termsText: '', b2bTermsText: '' });
   const [savingLegal, setSavingLegal] = useState(false);
   const [runningBackup, setRunningBackup] = useState(false);
@@ -238,6 +425,8 @@ function AdminPageInner() {
   const [membershipLoading, setMembershipLoading] = useState(false);
   const [savingMembership, setSavingMembership] = useState(false);
   const [togglingMember, setTogglingMember] = useState<string | null>(null);
+  const [changingRole, setChangingRole] = useState<string | null>(null);
+  const [assigningTrainer, setAssigningTrainer] = useState<string | null>(null);
 
   // ── Membership plans state (multiple, fully admin-editable pricing tiers) ──
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
@@ -245,11 +434,6 @@ function AdminPageInner() {
   const [showMembershipPlanForm, setShowMembershipPlanForm] = useState(false);
   const [editingMembershipPlan, setEditingMembershipPlan] = useState<MembershipPlan | null>(null);
   const [membershipPlanForm, setMembershipPlanForm] = useState<{ name: string; description: string; priceMonthly: string; price3mo: string; price6mo: string; price12mo: string; currency: string; features: string; active: boolean; featureAccess: string[] }>({ name: '', description: '', priceMonthly: '', price3mo: '', price6mo: '', price12mo: '', currency: 'USD', features: '', active: true, featureAccess: [] });
-  // The edit form renders ABOVE the plan list, inside the same card — with
-  // enough plans on the page, clicking a lower plan's pencil icon opened
-  // the form off the top of the viewport with no visual feedback at all,
-  // reading as "nothing happens." Scroll it into view on open instead.
-  const membershipPlanFormRef = useRef<HTMLDivElement>(null);
 
   // ── Analytics state (real visitor data pulled from Cloudflare's edge) ──────
   const [analytics, setAnalytics] = useState<{
@@ -266,7 +450,7 @@ function AdminPageInner() {
 
   // ── Notifications state ────────────────────────────────────────────────────
   const DEFAULT_NOTIF_CONFIG: NotificationConfig = {
-    rules: { missed_workout: false, streak_reminder: false },
+    rules: { missed_workout: false, streak_reminder: false, weekly_recap: false },
     aiMotivationEnabled: false,
     aiMotivationSchedule: 'daily',
   };
@@ -288,6 +472,8 @@ function AdminPageInner() {
   // ── Coaching applications state ────────────────────────────────────────────
   const [coachingApplications, setCoachingApplications] = useState<CoachingApplication[]>([]);
   const [loadingApplications, setLoadingApplications] = useState(false);
+  const [deletingApp, setDeletingApp] = useState<string | null>(null);
+  const [resettingTrial, setResettingTrial] = useState<string | null>(null);
   const [reviewingApp, setReviewingApp] = useState<string | null>(null);
   const [rejectingApp, setRejectingApp] = useState<CoachingApplication | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -295,6 +481,17 @@ function AdminPageInner() {
   // ── Exercise library state ────────────────────────────────────────────────
   const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseVideo[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
+  const [exSearchQuery, setExSearchQuery] = useState('');
+  const [exCategoryFilter, setExCategoryFilter] = useState<string | null>(null);
+  // Admin-manageable on top of the built-in defaults below — starts as the
+  // defaults, then getExerciseTaxonomy() overwrites with the saved lists
+  // once an admin has actually added/removed anything.
+  const [muscleCategories, setMuscleCategories] = useState<string[]>(MUSCLE_CATEGORIES);
+  const [equipmentOptions, setEquipmentOptions] = useState<string[]>(EQUIPMENT_OPTIONS);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [newCategoryInput, setNewCategoryInput] = useState('');
+  const [newEquipmentInput, setNewEquipmentInput] = useState('');
+  const [savingTaxonomy, setSavingTaxonomy] = useState(false);
   const [showExForm, setShowExForm] = useState(false);
   const [editingEx, setEditingEx] = useState<ExerciseVideo | null>(null);
   const [exForm, setExForm] = useState({ name: '', aliases: '', muscleGroups: '', equipment: '' });
@@ -326,6 +523,7 @@ function AdminPageInner() {
   const [nutritionModalUser, setNutritionModalUser] = useState<UserData | null>(null);
   const [profileDetailUser, setProfileDetailUser] = useState<UserData | null>(null);
   const [profileDetailPhotos, setProfileDetailPhotos] = useState<ProgressPhoto[]>([]);
+  const [profileDetailWorkouts, setProfileDetailWorkouts] = useState<AdminClientWorkout[]>([]);
   const [nutritionTrainerNotes, setNutritionTrainerNotes] = useState('');
   const [nutritionDraft, setNutritionDraft] = useState<Omit<NutritionPlan, 'assignedAt' | 'assignedBy'> | null>(null);
   const [generatingNutrition, setGeneratingNutrition] = useState(false);
@@ -359,6 +557,8 @@ function AdminPageInner() {
   const [uploadingB2bVideo, setUploadingB2bVideo] = useState(false);
   const [trainerLeads, setTrainerLeads] = useState<TrainerLead[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(false);
+  const [landingLeads, setLandingLeads] = useState<LandingLead[]>([]);
+  const [loadingLandingLeads, setLoadingLandingLeads] = useState(false);
 
   // ── Initial load ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -368,7 +568,21 @@ function AdminPageInner() {
     Promise.all([
       getAllUsers().catch(() => [] as UserData[]),
       getSystemConfig(),
-      Promise.resolve([]), // programs count loaded separately
+      // Mirrors /admin/programs' own counting logic: published Firestore
+      // programs plus whichever built-in seed programs haven't been
+      // hidden/deleted/promoted into a Firestore doc already (promoted ones
+      // would otherwise be double-counted, once as a mock and once as its
+      // own program doc). This card was previously hardcoded to always
+      // read 0 via a stray `Promise.resolve([])` placeholder that was never
+      // replaced with a real fetch.
+      Promise.all([getAllPrograms().catch(() => []), getHiddenMockIds().catch(() => []), getDeletedMockIds().catch(() => [])])
+        .then(([published, hiddenIds, deletedIds]) => {
+          const publishedIds = new Set((published as { id: string }[]).map((p) => p.id));
+          const hidden = new Set(hiddenIds);
+          const deleted = new Set(deletedIds);
+          const visibleMocks = MOCK_PROGRAMS.filter((p) => !publishedIds.has(p.id) && !hidden.has(p.id) && !deleted.has(p.id));
+          return [...(published as unknown[]), ...visibleMocks];
+        }),
       trainerId
         ? getDocs(query(collection(db, 'events'),
             where('trainerId', '==', trainerId),
@@ -392,10 +606,12 @@ function AdminPageInner() {
           videoGreetingUrl: cfg.videoGreetingUrl || '',
           stripePublishableKey: cfg.stripePublishableKey || '',
           logoUrl: cfg.logoUrl || '',
+          faviconUrl: cfg.faviconUrl || '',
           pwaInstallBannerEnabled: cfg.pwaInstallBannerEnabled !== false as unknown,
           vapidPublicKey: cfg.vapidPublicKey || '',
           barcodeScanDailyLimit: Number(cfg.barcodeScanDailyLimit) || 20,
           foodAnalysisDailyLimit: Number(cfg.foodAnalysisDailyLimit) || 20,
+          aiOrgDailyLimit: Number(cfg.aiOrgDailyLimit) || 0,
           mealIdeasDailyLimit: Number(cfg.mealIdeasDailyLimit) || 15,
         });
         setStorageProvider((cfg.storageProvider as StorageProvider) || 'firebase');
@@ -419,6 +635,8 @@ function AdminPageInner() {
   useEffect(() => {
     setLoadingLeads(true);
     getTrainerLeads().then(setTrainerLeads).catch(() => {}).finally(() => setLoadingLeads(false));
+    setLoadingLandingLeads(true);
+    getLandingLeads().then(setLandingLeads).catch(() => {}).finally(() => setLoadingLandingLeads(false));
   }, []);
 
   // Load real Stripe/OpenAI/etc config status once on mount for the Overview card
@@ -427,16 +645,26 @@ function AdminPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Load this client's private progress photos whenever the profile modal opens
+  // Load this client's private progress photos + recent workout history
+  // whenever the profile modal opens — previously this modal only showed
+  // onboarding answers and the health screening, nothing about what the
+  // client has actually been doing in training.
   useEffect(() => {
-    if (!profileDetailUser) { setProfileDetailPhotos([]); return; }
+    if (!profileDetailUser) { setProfileDetailPhotos([]); setProfileDetailWorkouts([]); return; }
     getProgressPhotos(profileDetailUser.id).then(setProfileDetailPhotos).catch(() => setProfileDetailPhotos([]));
+    getUserWorkouts(profileDetailUser.id, 10).then((w) => setProfileDetailWorkouts(w as AdminClientWorkout[])).catch(() => setProfileDetailWorkouts([]));
   }, [profileDetailUser]);
 
   // ── Tab loaders ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (tab === 'clients' && users.length === 0) loadUsers();
-    if (tab === 'messages' && conversations.length === 0) loadConversations();
+    if (tab === 'settings' && user) {
+      getIdToken(user)
+        .then((t) => fetch('/api/admin/ai-usage', { headers: { Authorization: `Bearer ${t}` } }))
+        .then((r) => r.json())
+        .then((d) => { if (!d?.error) setOrgAiUsage(d); })
+        .catch(() => {});
+    }
     if (tab === 'membership') { loadMembership(); loadCoachingPlans(); loadMembershipPlans(); }
     if (tab === 'coaching') loadCoachingApplications();
     if (tab === 'notifications') loadNotifConfig();
@@ -537,24 +765,45 @@ function AdminPageInner() {
     finally { setClientsLoading(false); }
   }
 
-  async function loadConversations() {
+  // Live — a client starting or replying to a "Message Support" thread now
+  // shows up here immediately. This used to be a one-time fetch gated on
+  // "tab === messages && conversations.length === 0", so a new conversation
+  // created after the admin had already visited the tab once (leaving
+  // conversations at []) never appeared until the tab was left and reopened.
+  useEffect(() => {
     if (!user) return;
     setConvsLoading(true);
-    try { setConversations(await getAdminConversations(user.uid)); }
-    catch { toast.error('Failed to load conversations'); }
-    finally { setConvsLoading(false); }
-  }
+    const unsub = subscribeAdminConversations(user.uid, (convs) => {
+      setConversations(convs);
+      setConvsLoading(false);
+    });
+    return unsub;
+  }, [user]);
+
+  // The header's Messages icon links straight to /admin?tab=messages, which
+  // previously always landed on the conversation LIST, not the actual
+  // thread — the admin had to click again to see the message that made the
+  // icon appear in the first place, which read as "this just took me to
+  // the dashboard" instead of into messages. Auto-opens the most recently
+  // active unread conversation the first time this tab loads with unread
+  // messages waiting, same as tapping it manually would. Guarded by a ref
+  // (not state) so it fires at most once per mount — an admin deliberately
+  // going Back to the list (setActiveConv(null)) must stay on the list even
+  // if `conversations` hasn't changed since, not get bounced straight back
+  // into the thread.
+  const autoOpenedUnreadRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedUnreadRef.current || tab !== 'messages' || activeConv || conversations.length === 0) return;
+    const firstUnread = conversations.find((c) => c.unreadByAdmin);
+    if (firstUnread) {
+      autoOpenedUnreadRef.current = true;
+      openConversation(firstUnread);
+    }
+  }, [tab, activeConv, conversations]);
 
   async function openConversation(conv: Conversation) {
     setActiveConv(conv);
-    setMsgLoading(true);
-    try {
-      const msgs = await getMessages(conv.id);
-      setMessages(msgs);
-      if (conv.unreadByAdmin) await markConversationRead(conv.id, true);
-    } catch { toast.error('Failed to load messages'); }
-    finally { setMsgLoading(false); }
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    if (conv.unreadByAdmin) markConversationRead(conv.id, true).catch(() => {});
   }
 
   async function startConversation(u: UserData) {
@@ -580,28 +829,29 @@ function AdminPageInner() {
     setMsgText('');
     try {
       await sendMessage(activeConv.id, user.uid, profile.displayName, text, true);
-      const msgs = await getMessages(activeConv.id);
-      setMessages(msgs);
       setConversations(prev => prev.map(c => c.id === activeConv.id ? { ...c, lastMessage: text, unreadByUser: true } : c));
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     } catch { toast.error('Failed to send message'); setMsgText(text); }
     finally { setSendingMsg(false); }
   }
 
   async function handleBanToggle(u: UserData) {
+    if (!u.banned && !confirm(`Ban ${u.displayName}? Their account will be disabled — they won't be able to sign in at all.`)) return;
     setBanningUser(u.id);
     try {
-      if (u.banned) {
-        await unbanUser(u.id);
-        toast.success(`${u.displayName} unbanned`);
-      } else {
-        if (!confirm(`Ban ${u.displayName}? They will be locked out of the app.`)) { setBanningUser(null); return; }
-        await banUser(u.id);
-        toast.success(`${u.displayName} banned`);
-      }
+      if (!user) throw new Error('Not signed in');
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/ban-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId: u.id, action: u.banned ? 'unban' : 'ban' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update user');
+      toast.success(u.banned ? `${u.displayName} unbanned` : `${u.displayName} banned — account disabled`);
       await loadUsers();
-    } catch { toast.error('Failed to update user'); }
-    finally { setBanningUser(null); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update user');
+    } finally { setBanningUser(null); }
   }
 
   async function handleDeleteUser(u: UserData) {
@@ -659,7 +909,7 @@ function AdminPageInner() {
       // thread they can reply in, not just a one-way alert.
       await sendNotification({
         userId: goalModalUser.id,
-        title: 'New goal from your coach',
+        title: 'New goal set for you',
         body: goalForm.targetValue
           ? `${goalForm.title} — target: ${goalForm.targetValue}${goalForm.unit ? ` ${goalForm.unit}` : ''}`
           : goalForm.title,
@@ -814,6 +1064,108 @@ function AdminPageInner() {
     setShowPlanForm(true);
   }
 
+  function renderCoachingPlanForm() {
+    return (
+      <>
+                  <p className="text-sm font-bold text-white">{editingPlan ? 'Edit Plan' : 'New Coaching Plan'}</p>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
+                    <input
+                      value={planForm.name}
+                      onChange={e => setPlanForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="e.g. 1:1 Personal Coaching"
+                      className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Description</label>
+                    <textarea
+                      value={planForm.description}
+                      onChange={e => setPlanForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder="What clients get with this plan…"
+                      rows={2}
+                      className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Price / Month</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={planForm.priceMonthly}
+                          onChange={e => setPlanForm(f => ({ ...f, priceMonthly: e.target.value }))}
+                          placeholder="99.00"
+                          className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Currency</label>
+                      <select
+                        value={planForm.currency}
+                        onChange={e => setPlanForm(f => ({ ...f, currency: e.target.value }))}
+                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                      >
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Features (one per line)</label>
+                    <textarea
+                      value={planForm.features}
+                      onChange={e => setPlanForm(f => ({ ...f, features: e.target.value }))}
+                      placeholder={"Weekly check-in calls\nPersonalised training plan\nDirect messaging with coach"}
+                      rows={4}
+                      className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Tool Access</label>
+                    <p className="text-xs text-text-tertiary mb-2">
+                      Leave all unchecked to grant every feature (default). Check specific ones to restrict this plan to only those.
+                    </p>
+                    <div className="space-y-1.5">
+                      {TOOL_ACCESS_OPTIONS.map(({ id, label }) => (
+                        <label key={id} className="flex items-center gap-2.5 py-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={planForm.featureAccess.includes(id)}
+                            onChange={() => togglePlanFeatureAccess(id)}
+                            className="w-4 h-4 accent-accent"
+                          />
+                          <span className="text-sm text-white">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-white">Active</p>
+                      <p className="text-xs text-text-secondary">Visible to clients for purchase</p>
+                    </div>
+                    <button
+                      onClick={() => setPlanForm(f => ({ ...f, active: !f.active }))}
+                      className={`w-11 h-6 rounded-full transition-colors relative ${planForm.active ? 'bg-accent' : 'bg-surface-elevated'}`}
+                    >
+                      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${planForm.active ? 'left-6' : 'left-1'}`} />
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" fullWidth onClick={() => { setShowPlanForm(false); setEditingPlan(null); }}>Cancel</Button>
+                    <Button fullWidth loading={savingPlans} disabled={!planForm.name.trim() || !planForm.priceMonthly} onClick={handleSavePlan}>
+                      {editingPlan ? 'Save' : 'Create'}
+                    </Button>
+                  </div>
+      </>
+    );
+  }
+
+
   function togglePlanFeatureAccess(id: string) {
     setPlanForm(f => ({
       ...f,
@@ -848,6 +1200,10 @@ function AdminPageInner() {
         features: membershipPlanForm.features.split('\n').map(f => f.trim()).filter(Boolean),
         active: membershipPlanForm.active,
         featureAccess: membershipPlanForm.featureAccess,
+        // Was dropped entirely on every edit (rebuilt object never carried
+        // it forward), silently un-featuring a plan the moment its price or
+        // description was next touched.
+        mostPopular: editingMembershipPlan?.mostPopular ?? false,
       };
       const updated = editingMembershipPlan
         ? membershipPlans.map(p => p.id === plan.id ? plan : p)
@@ -860,6 +1216,19 @@ function AdminPageInner() {
       toast.success(editingMembershipPlan ? 'Plan updated' : 'Plan created');
     } catch { toast.error('Failed to save plan'); }
     finally { setSavingMembershipPlans(false); }
+  }
+
+  // At most one plan is "Most Popular" — setting it on one clears it from
+  // every other plan, rather than the admin having to manually un-check the
+  // old one first (which they might just forget to do, leaving two plans
+  // both badged, or leaving mostPopular:true stuck on a plan they meant to
+  // demote once they moved the badge elsewhere).
+  async function handleSetMostPopular(planId: string) {
+    try {
+      const updated = membershipPlans.map(p => ({ ...p, mostPopular: p.id === planId }));
+      await saveMembershipPlans(updated);
+      setMembershipPlans(updated);
+    } catch { toast.error('Failed to update Most Popular plan'); }
   }
 
   async function handleDeleteMembershipPlan(plan: MembershipPlan) {
@@ -887,8 +1256,150 @@ function AdminPageInner() {
       featureAccess: plan.featureAccess ?? [],
     });
     setShowMembershipPlanForm(true);
-    setTimeout(() => membershipPlanFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
+
+  function renderMembershipPlanForm() {
+    return (
+      <>
+                  <p className="text-sm font-bold text-white">{editingMembershipPlan ? 'Edit Plan' : 'New Membership Plan'}</p>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
+                    <input
+                      value={membershipPlanForm.name}
+                      onChange={e => setMembershipPlanForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="e.g. Conquer"
+                      className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Description</label>
+                    <textarea
+                      value={membershipPlanForm.description}
+                      onChange={e => setMembershipPlanForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder="What members get with this plan…"
+                      rows={2}
+                      className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Price / Month (optional)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={membershipPlanForm.priceMonthly}
+                          onChange={e => setMembershipPlanForm(f => ({ ...f, priceMonthly: e.target.value }))}
+                          placeholder="49.00"
+                          className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-secondary mb-1 block">Currency</label>
+                      <select
+                        value={membershipPlanForm.currency}
+                        onChange={e => setMembershipPlanForm(f => ({ ...f, currency: e.target.value }))}
+                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                      >
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Longer Terms (optional — leave blank to not offer that term)</label>
+                    <p className="text-[11px] text-text-tertiary mb-2">Total price for the whole term, not per month — e.g. $250 for 6 months billed once every 6 months.</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={membershipPlanForm.price3mo}
+                          onChange={e => setMembershipPlanForm(f => ({ ...f, price3mo: e.target.value }))}
+                          placeholder="3 months"
+                          className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={membershipPlanForm.price6mo}
+                          onChange={e => setMembershipPlanForm(f => ({ ...f, price6mo: e.target.value }))}
+                          placeholder="6 months"
+                          className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={membershipPlanForm.price12mo}
+                          onChange={e => setMembershipPlanForm(f => ({ ...f, price12mo: e.target.value }))}
+                          placeholder="12 months"
+                          className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Features (one per line, shown on the pricing card)</label>
+                    <textarea
+                      value={membershipPlanForm.features}
+                      onChange={e => setMembershipPlanForm(f => ({ ...f, features: e.target.value }))}
+                      placeholder={"Full access to all training programs\nAI food analyzer\nCommunity & PR wall access"}
+                      rows={4}
+                      className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Tool Access</label>
+                    <p className="text-xs text-text-tertiary mb-2">
+                      Leave all unchecked to grant every feature (default). Check specific ones to restrict this plan to only those.
+                    </p>
+                    <div className="space-y-1.5">
+                      {TOOL_ACCESS_OPTIONS.map(({ id, label }) => (
+                        <label key={id} className="flex items-center gap-2.5 py-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={membershipPlanForm.featureAccess.includes(id)}
+                            onChange={() => toggleMembershipPlanFeatureAccess(id)}
+                            className="w-4 h-4 accent-accent"
+                          />
+                          <span className="text-sm text-white">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-white">Active</p>
+                      <p className="text-xs text-text-secondary">Visible to non-members for purchase</p>
+                    </div>
+                    <button
+                      onClick={() => setMembershipPlanForm(f => ({ ...f, active: !f.active }))}
+                      className={`w-11 h-6 rounded-full transition-colors relative ${membershipPlanForm.active ? 'bg-accent' : 'bg-surface-elevated'}`}
+                    >
+                      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membershipPlanForm.active ? 'left-6' : 'left-1'}`} />
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" fullWidth onClick={() => { setShowMembershipPlanForm(false); setEditingMembershipPlan(null); }}>Cancel</Button>
+                    <Button
+                      fullWidth
+                      loading={savingMembershipPlans}
+                      disabled={!membershipPlanForm.name.trim() || ![membershipPlanForm.priceMonthly, membershipPlanForm.price3mo, membershipPlanForm.price6mo, membershipPlanForm.price12mo].some(v => parseFloat(v) > 0)}
+                      onClick={handleSaveMembershipPlan}
+                    >
+                      {editingMembershipPlan ? 'Save' : 'Create'}
+                    </Button>
+                  </div>
+      </>
+    );
+  }
+
 
   function toggleMembershipPlanFeatureAccess(id: string) {
     setMembershipPlanForm(f => ({
@@ -951,6 +1462,20 @@ function AdminPageInner() {
     finally { setReviewingApp(null); }
   }
 
+  async function handleDeleteApplication(app: CoachingApplication) {
+    // Worth spelling out that this unblocks re-application, because that's a
+    // real side effect rather than housekeeping: submitCoachingApplication()
+    // refuses a second submission while any application doc exists.
+    if (!confirm(`Delete ${app.userName}'s application? This removes the intake form permanently and lets them apply again.`)) return;
+    setDeletingApp(app.id);
+    try {
+      await deleteCoachingApplication(app.id);
+      setCoachingApplications(prev => prev.filter(a => a.id !== app.id));
+      toast.success('Application deleted');
+    } catch { toast.error('Failed to delete application'); }
+    finally { setDeletingApp(null); }
+  }
+
   async function notifyCoachingStatusEmail(applicationId: string) {
     if (!user) return;
     try {
@@ -965,16 +1490,72 @@ function AdminPageInner() {
     }
   }
 
+  async function handleResetTrial(u: UserData) {
+    if (!user) return;
+    if (!confirm(`Make ${u.displayName || 'this user'} eligible for a trial again? They'll get the full trial on their next checkout instead of being billed immediately.`)) return;
+    setResettingTrial(u.id);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/reset-trial', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: u.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to reset trial');
+      toast.success(data.alreadyEligible ? 'Already eligible for a trial' : 'Trial eligibility restored');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to reset trial');
+    } finally {
+      setResettingTrial(null);
+    }
+  }
+
   async function handleToggleMember(u: UserData) {
+    if (!user) return;
     setTogglingMember(u.id);
     const currentStatus = (u as UserData & { membership?: { status?: string } }).membership?.status ?? 'none';
     const newStatus = currentStatus === 'active' ? 'none' : 'active';
     try {
-      await setUserMembership(u.id, newStatus);
+      // Goes through the server (not the client-side setUserMembership
+      // write) so revoking a user with a real Stripe subscription actually
+      // cancels it — otherwise Stripe keeps billing them every cycle while
+      // the app shows them as not a member, and the next subscription
+      // webhook silently flips membership.status back to 'active' anyway.
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/set-membership', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: u.id, status: newStatus }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to update membership');
       toast.success(newStatus === 'active' ? `${u.displayName} is now a member` : `${u.displayName}'s membership revoked`);
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, membership: { status: newStatus } } : x));
-    } catch { toast.error('Failed to update membership'); }
-    finally { setTogglingMember(null); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update membership');
+    } finally { setTogglingMember(null); }
+  }
+
+  async function handleSetRole(u: UserData, role: 'user' | 'trainer') {
+    if (!user || u.id === user.uid) return; // can't change your own role — avoids locking yourself out of /admin
+    setChangingRole(u.id);
+    try {
+      await setUserRole(u.id, role);
+      toast.success(`${u.displayName || 'User'} is now ${role === 'trainer' ? 'a trainer' : 'a regular user'}`);
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, role, ...(role === 'trainer' ? { trainerId: null } : {}) } : x));
+    } catch { toast.error('Failed to update role'); }
+    finally { setChangingRole(null); }
+  }
+
+  async function handleAssignTrainer(u: UserData, trainerId: string) {
+    setAssigningTrainer(u.id);
+    try {
+      await setUserTrainer(u.id, trainerId || null);
+      toast.success(trainerId ? `Assigned to trainer` : 'Unassigned from trainer');
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, trainerId: trainerId || null } : x));
+    } catch { toast.error('Failed to assign trainer'); }
+    finally { setAssigningTrainer(null); }
   }
 
   function toggleLockedFeature(f: string) {
@@ -986,7 +1567,9 @@ function AdminPageInner() {
 
   async function loadChannels() {
     setChannelsLoading(true);
-    try { setChannels(await getChannels(profile?.trainerId)); }
+    // Admins manage every channel in the install, not just the ones under
+    // whatever trainerId their own account happens to carry.
+    try { setChannels(await getChannels(channelScopeFor(profile?.role, profile?.trainerId, user?.uid))); }
     catch { toast.error('Failed to load channels'); }
     finally { setChannelsLoading(false); }
   }
@@ -1047,6 +1630,79 @@ function AdminPageInner() {
       allowUserPosts: ch.allowUserPosts ?? true,
     });
     setShowChannelForm(true);
+  }
+
+  function renderChannelForm() {
+    return (
+      <>
+        <h3 className="text-sm font-bold text-white">{editingChannel ? 'Edit Channel' : 'Create Channel'}</h3>
+        <div className="flex gap-2">
+          <input
+            value={channelForm.emoji}
+            onChange={e => setChannelForm(f => ({ ...f, emoji: e.target.value }))}
+            placeholder="📢"
+            maxLength={2}
+            className="w-14 text-center bg-surface border border-white/10 rounded-xl px-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+          />
+          <input
+            value={channelForm.name}
+            onChange={e => setChannelForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="Channel name"
+            className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+        </div>
+        <input
+          value={channelForm.description}
+          onChange={e => setChannelForm(f => ({ ...f, description: e.target.value }))}
+          placeholder="Description (optional)"
+          className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+        />
+        <div>
+          <label className="text-xs text-text-secondary mb-1.5 block">Slow Mode</label>
+          <div className="flex gap-2">
+            {([0, 7, 21, 30] as const).map(d => (
+              <button
+                key={d}
+                onClick={() => setChannelForm(f => ({ ...f, slowModeDays: d }))}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${channelForm.slowModeDays === d ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}
+              >
+                {d === 0 ? 'Off' : `${d}d`}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-white">Photo Upload</p>
+            <p className="text-xs text-text-secondary">Allow users to attach images</p>
+          </div>
+          <button
+            onClick={() => setChannelForm(f => ({ ...f, photoUploadEnabled: !f.photoUploadEnabled }))}
+            className={`w-11 h-6 rounded-full transition-colors relative ${channelForm.photoUploadEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.photoUploadEnabled ? 'left-6' : 'left-1'}`} />
+          </button>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-white">Allow User Posts</p>
+            <p className="text-xs text-text-secondary">Off = announcement-only, only admin/trainer can post</p>
+          </div>
+          <button
+            onClick={() => setChannelForm(f => ({ ...f, allowUserPosts: !f.allowUserPosts }))}
+            className={`w-11 h-6 rounded-full transition-colors relative ${channelForm.allowUserPosts ? 'bg-accent' : 'bg-surface-elevated'}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.allowUserPosts ? 'left-6' : 'left-1'}`} />
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="ghost" fullWidth onClick={() => { setShowChannelForm(false); setEditingChannel(null); }}>Cancel</Button>
+          <Button fullWidth loading={savingChannel} disabled={!channelForm.name.trim()} onClick={handleSaveChannel}>
+            {editingChannel ? 'Save' : 'Create'}
+          </Button>
+        </div>
+      </>
+    );
   }
 
   async function loadNotifConfig() {
@@ -1113,7 +1769,7 @@ function AdminPageInner() {
         const sentCount = data.sent?.length ?? 0;
         if (sentCount === 0 && data.debug) {
           const { rulesEnabled, aiEnabled, usersConsidered, usersWithActiveProgram } = data.debug;
-          const noRulesOn = !rulesEnabled?.missed_workout && !rulesEnabled?.streak_reminder && !aiEnabled;
+          const noRulesOn = !rulesEnabled?.missed_workout && !rulesEnabled?.streak_reminder && !rulesEnabled?.weekly_recap && !aiEnabled;
           toast(
             noRulesOn
               ? `0 sent — no rules are enabled. Toggle a rule and click "Save Rules" first, then Run Now.`
@@ -1137,6 +1793,61 @@ function AdminPageInner() {
     setLibraryLoading(true);
     try { setExerciseLibrary(await getExerciseVideos()); } catch { /* noop */ }
     finally { setLibraryLoading(false); }
+    try {
+      const taxonomy = await getExerciseTaxonomy();
+      if (taxonomy) {
+        if (taxonomy.muscleGroups.length > 0) setMuscleCategories(taxonomy.muscleGroups);
+        if (taxonomy.equipment.length > 0) setEquipmentOptions(taxonomy.equipment);
+      }
+    } catch { /* noop — falls back to the built-in defaults */ }
+  }
+
+  async function addCategory(kind: 'muscleGroups' | 'equipment', value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const current = kind === 'muscleGroups' ? muscleCategories : equipmentOptions;
+    if (current.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+      toast.error(`"${trimmed}" already exists`);
+      return;
+    }
+    const next = [...current, trimmed];
+    setSavingTaxonomy(true);
+    try {
+      await saveExerciseTaxonomy({
+        muscleGroups: kind === 'muscleGroups' ? next : muscleCategories,
+        equipment: kind === 'equipment' ? next : equipmentOptions,
+      });
+      if (kind === 'muscleGroups') { setMuscleCategories(next); setNewCategoryInput(''); }
+      else { setEquipmentOptions(next); setNewEquipmentInput(''); }
+    } catch {
+      toast.error('Failed to save — try again');
+    } finally {
+      setSavingTaxonomy(false);
+    }
+  }
+
+  async function removeCategory(kind: 'muscleGroups' | 'equipment', value: string) {
+    const inUse = kind === 'muscleGroups'
+      ? exerciseLibrary.filter(ex => ex.muscleGroups.includes(value)).length
+      : exerciseLibrary.filter(ex => ex.equipment.includes(value)).length;
+    if (inUse > 0 && !confirm(`"${value}" is still tagged on ${inUse} exercise${inUse !== 1 ? 's' : ''}. Removing it from the list won't untag those exercises — just hides it from the picker for future edits. Continue?`)) {
+      return;
+    }
+    const current = kind === 'muscleGroups' ? muscleCategories : equipmentOptions;
+    const next = current.filter(c => c !== value);
+    setSavingTaxonomy(true);
+    try {
+      await saveExerciseTaxonomy({
+        muscleGroups: kind === 'muscleGroups' ? next : muscleCategories,
+        equipment: kind === 'equipment' ? next : equipmentOptions,
+      });
+      if (kind === 'muscleGroups') setMuscleCategories(next);
+      else setEquipmentOptions(next);
+    } catch {
+      toast.error('Failed to save — try again');
+    } finally {
+      setSavingTaxonomy(false);
+    }
   }
 
   function startEditEx(ex?: ExerciseVideo) {
@@ -1157,6 +1868,111 @@ function AdminPageInner() {
     setShowExForm(true);
   }
 
+  // Shared by both the "Add Single" form (top of the list) and the inline
+  // edit form (rendered in place of whichever row you clicked the pencil
+  // on) — no scrolling either way since the form now opens exactly where
+  // you are instead of somewhere else on the page.
+  function renderExerciseForm() {
+    return (
+      <>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-white">{editingEx ? 'Edit Exercise' : 'New Exercise'}</h3>
+          <button onClick={() => { setShowExForm(false); setEditingEx(null); }}><XIcon className="w-4 h-4 text-text-secondary" /></button>
+        </div>
+        <Input placeholder="Exercise name (e.g. Barbell Back Squat)" value={exForm.name} onChange={e => setExForm(f => ({ ...f, name: e.target.value }))} />
+        <Input placeholder="Aliases — comma separated (e.g. squat, back squat, bb squat)" value={exForm.aliases} onChange={e => setExForm(f => ({ ...f, aliases: e.target.value }))} />
+
+        {/* Tap-to-select chips instead of free text — typing "chest" vs "Chest"
+            silently didn't match the canonical MUSCLE_CATEGORIES list used by
+            the library's filter chips, which is exactly why existing
+            exercises couldn't be cleanly reassigned to a category. */}
+        <div>
+          <label className="text-xs text-text-secondary mb-1.5 block">Muscle Groups</label>
+          <div className="flex flex-wrap gap-1.5">
+            {muscleCategories.map(cat => {
+              const selected = exForm.muscleGroups.split(',').map(s => s.trim()).filter(Boolean).includes(cat);
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => {
+                    const current = exForm.muscleGroups.split(',').map(s => s.trim()).filter(Boolean);
+                    const next = selected ? current.filter(c => c !== cat) : [...current, cat];
+                    setExForm(f => ({ ...f, muscleGroups: next.join(', ') }));
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    selected ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary hover:text-white'
+                  }`}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs text-text-secondary mb-1.5 block">Equipment</label>
+          <div className="flex flex-wrap gap-1.5">
+            {equipmentOptions.map(eq => {
+              const selected = exForm.equipment.split(',').map(s => s.trim()).filter(Boolean).includes(eq);
+              return (
+                <button
+                  key={eq}
+                  type="button"
+                  onClick={() => {
+                    const current = exForm.equipment.split(',').map(s => s.trim()).filter(Boolean);
+                    const next = selected ? current.filter(c => c !== eq) : [...current, eq];
+                    setExForm(f => ({ ...f, equipment: next.join(', ') }));
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    selected ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary hover:text-white'
+                  }`}
+                >
+                  {eq}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div>
+          <label className="text-xs text-text-secondary mb-1 block">Video file (MP4, MOV, WebM)</label>
+          {editingEx?.videoUrl && !exFile && (
+            <button
+              type="button"
+              onClick={() => setPreviewVideo(editingEx.videoUrl)}
+              className={`w-full h-28 mb-2 rounded-xl flex items-center justify-center relative overflow-hidden transition-colors ${editingEx.thumbnailUrl ? 'bg-black' : 'bg-white/10 hover:bg-accent/20'}`}
+            >
+              {editingEx.thumbnailUrl && (
+                <img src={editingEx.thumbnailUrl} alt={editingEx.name} className="absolute inset-0 w-full h-full object-cover" />
+              )}
+              <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center ${editingEx.thumbnailUrl ? 'bg-black/50' : ''}`}>
+                <Play className={`w-5 h-5 ${editingEx.thumbnailUrl ? 'text-white' : 'text-accent'}`} />
+              </div>
+            </button>
+          )}
+          <input
+            type="file"
+            accept="video/*"
+            className="text-sm text-text-secondary w-full"
+            onChange={e => setExFile(e.target.files?.[0] ?? null)}
+          />
+          {editingEx?.videoUrl && !exFile && (
+            <p className="text-xs text-text-tertiary mt-1">Tap the preview above to confirm this is the right clip — upload a new file to replace it.</p>
+          )}
+        </div>
+        {savingEx && exUploadProgress > 0 && exUploadProgress < 100 && (
+          <div className="w-full bg-white/10 rounded-full h-1.5">
+            <div className="bg-accent h-1.5 rounded-full transition-all" style={{ width: `${exUploadProgress}%` }} />
+          </div>
+        )}
+        <Button onClick={handleSaveEx} loading={savingEx} className="w-full">
+          {savingEx ? (exUploadProgress > 0 ? `Uploading ${exUploadProgress}%…` : 'Saving…') : 'Save Exercise'}
+        </Button>
+      </>
+    );
+  }
+
   async function handleSaveEx() {
     if (!user || !exForm.name.trim()) { toast.error('Exercise name required'); return; }
     if (!editingEx && !exFile) { toast.error('Please select a video file'); return; }
@@ -1165,12 +1981,17 @@ function AdminPageInner() {
       let videoUrl = editingEx?.videoUrl ?? '';
       let thumbnailUrl = editingEx?.thumbnailUrl;
       if (exFile) {
+        const oldVideoUrl = editingEx?.videoUrl;
+        const oldThumbnailUrl = editingEx?.thumbnailUrl;
         videoUrl = await uploadVideo(storageProvider, user, exFile, 'exerciseLibrary', setExUploadProgress);
         const thumbBlob = await extractVideoThumbnail(exFile).catch(() => null);
         if (thumbBlob) {
           const thumbFile = new File([thumbBlob], 'thumb.jpg', { type: 'image/jpeg' });
           thumbnailUrl = await uploadVideo(storageProvider, user, thumbFile, 'exerciseLibrary').catch(() => thumbnailUrl);
         }
+        // Clean up the files being replaced now that the new ones are safely uploaded.
+        if (oldVideoUrl && oldVideoUrl !== videoUrl) deleteVideo(storageProvider, user, oldVideoUrl);
+        if (oldThumbnailUrl && oldThumbnailUrl !== thumbnailUrl) deleteVideo(storageProvider, user, oldThumbnailUrl);
       }
       const payload = {
         name: exForm.name.trim(),
@@ -1184,6 +2005,7 @@ function AdminPageInner() {
       await saveExerciseVideo(payload, editingEx?.id);
       toast.success(editingEx ? 'Exercise updated' : 'Exercise added to library');
       setShowExForm(false);
+      setEditingEx(null);
       await loadExerciseLibrary();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1197,23 +2019,35 @@ function AdminPageInner() {
 
   async function handleDeleteEx(id: string) {
     if (!confirm('Delete this exercise from the library?')) return;
+    const ex = exerciseLibrary.find(e => e.id === id);
     try {
       await deleteExerciseVideo(id);
       setExerciseLibrary(prev => prev.filter(e => e.id !== id));
       toast.success('Deleted');
+      if (user && ex) {
+        deleteVideo(storageProvider, user, ex.videoUrl);
+        deleteVideo(storageProvider, user, ex.thumbnailUrl);
+      }
     } catch { toast.error('Failed to delete'); }
   }
 
-  // One-time cleanup for videos uploaded before thumbnails were generated —
-  // pulls a frame straight off each hosted video URL and saves it back.
-  async function handleBackfillThumbnails() {
+  // Pulls a frame straight off each hosted video URL and saves it back.
+  // `force: false` only fills in videos with no thumbnail at all (the
+  // original one-time-cleanup use case); `force: true` regenerates every
+  // video's thumbnail, including ones that already have one — needed
+  // because some earlier thumbnails were bad captures (a black/near-black
+  // frame grabbed before the video's decoder had anything buffered) that
+  // still counted as "has a thumbnailUrl" and so never got backfilled.
+  async function handleBackfillThumbnails(force = false) {
     if (!user) return;
-    const missing = exerciseLibrary.filter(e => !e.thumbnailUrl && e.videoUrl);
-    if (missing.length === 0) { toast('Every exercise already has a thumbnail'); return; }
+    const targets = force
+      ? exerciseLibrary.filter(e => e.videoUrl)
+      : exerciseLibrary.filter(e => !e.thumbnailUrl && e.videoUrl);
+    if (targets.length === 0) { toast('Every exercise already has a thumbnail'); return; }
     setBackfillRunning(true);
-    setBackfillProgress({ done: 0, total: missing.length, failed: 0 });
+    setBackfillProgress({ done: 0, total: targets.length, failed: 0 });
     let failed = 0;
-    for (const ex of missing) {
+    for (const ex of targets) {
       try {
         const blob = await extractVideoThumbnailFromUrl(ex.videoUrl);
         if (!blob) throw new Error('no frame');
@@ -1228,9 +2062,9 @@ function AdminPageInner() {
     }
     setBackfillRunning(false);
     if (failed > 0) {
-      toast.error(`Backfilled ${missing.length - failed} of ${missing.length} — ${failed} couldn't be read (likely a CORS-blocked host)`, { duration: 6000 });
+      toast.error(`Backfilled ${targets.length - failed} of ${targets.length} — ${failed} couldn't be read (likely a CORS-blocked host)`, { duration: 6000 });
     } else {
-      toast.success(`Generated thumbnails for ${missing.length} exercise${missing.length !== 1 ? 's' : ''}`);
+      toast.success(`Generated thumbnails for ${targets.length} exercise${targets.length !== 1 ? 's' : ''}`);
     }
   }
 
@@ -1318,6 +2152,14 @@ function AdminPageInner() {
     }));
   }
 
+  function addLandingFeature() {
+    setLandingForm(f => ({ ...f, features: [...f.features, { title: '', desc: '' }] }));
+  }
+
+  function removeLandingFeature(i: number) {
+    setLandingForm(f => ({ ...f, features: f.features.filter((_, idx) => idx !== i) }));
+  }
+
   function updateSocialProof(i: number, value: string) {
     setLandingForm(f => ({
       ...f,
@@ -1338,6 +2180,71 @@ function AdminPageInner() {
 
   function removeTestimonial(i: number) {
     setLandingForm(f => ({ ...f, testimonials: (f.testimonials ?? []).filter((_, idx) => idx !== i) }));
+  }
+
+  function updateTransformationPhoto(i: number, patch: Partial<{ caption: string }>) {
+    setLandingForm(f => ({
+      ...f,
+      transformationPhotos: (f.transformationPhotos ?? []).map((p, idx) => idx === i ? { ...p, ...patch } : p),
+    }));
+  }
+
+  function removeTransformationPhoto(i: number) {
+    setLandingForm(f => ({ ...f, transformationPhotos: (f.transformationPhotos ?? []).filter((_, idx) => idx !== i) }));
+  }
+
+  // Generic CSV export — quotes every field and escapes embedded quotes so
+  // a comma/quote/newline inside a name or message (e.g. "This is a test")
+  // can't corrupt the column structure when opened in Excel/Brevo's
+  // importer. Triggers a real browser download via a throwaway <a> — safe
+  // here since this is the actual production admin page, not a sandboxed
+  // preview that blocks script-driven downloads.
+  function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
+    // Guard against CSV/formula injection: a field starting with =, +, -, @
+    // (or tab/CR) is executed as a formula by Excel/Sheets even when
+    // quoted, so prefix such values with a leading apostrophe to force
+    // text interpretation — this is what Google/OWASP recommend.
+    const escape = (v: string | number) => {
+      let s = String(v);
+      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const csv = [headers, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function leadDate(lead: { createdAt: unknown }): string {
+    const ts = lead.createdAt as { toDate?: () => Date } | null;
+    return ts?.toDate?.().toISOString().slice(0, 10) ?? '';
+  }
+
+  async function handleTransformationPhotosUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length || !user) return;
+    setUploadingTransformationPhotos(true);
+    try {
+      const urls: string[] = [];
+      for (const file of files) {
+        urls.push(await uploadVideo(storageProvider, user, file, 'branding'));
+      }
+      setLandingForm(f => ({
+        ...f,
+        transformationPhotos: [...(f.transformationPhotos ?? []), ...urls.map((imageUrl) => ({ imageUrl, caption: '' }))],
+      }));
+      toast.success(`${urls.length} photo${urls.length > 1 ? 's' : ''} uploaded — click Save Landing Page below to publish`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to upload photos: ${msg}`, { duration: 6000 });
+    } finally {
+      setUploadingTransformationPhotos(false);
+      e.target.value = '';
+    }
   }
 
   async function handleSaveLanding() {
@@ -1368,6 +2275,41 @@ function AdminPageInner() {
       toast.error(`Failed to upload logo: ${msg}`, { duration: 6000 });
     } finally {
       setUploadingLogo(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleFaviconUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingFavicon(true);
+    try {
+      const url = await uploadVideo(storageProvider, user, file, 'branding');
+      setSettingsForm(s => ({ ...s, faviconUrl: url }));
+      await setSystemConfig({ faviconUrl: url });
+      toast.success('Favicon uploaded');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to upload favicon: ${msg}`, { duration: 6000 });
+    } finally {
+      setUploadingFavicon(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleGreetingVideoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingGreetingVideo(true);
+    try {
+      const url = await uploadVideo(storageProvider, user, file, 'branding');
+      setSettingsForm(s => ({ ...s, videoGreetingUrl: url }));
+      toast.success('Video uploaded — click Save Configuration below to publish it');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to upload video: ${msg}`, { duration: 6000 });
+    } finally {
+      setUploadingGreetingVideo(false);
       e.target.value = '';
     }
   }
@@ -1503,16 +2445,27 @@ function AdminPageInner() {
 
   const stripeConfigured = secretStatuses.find(s => s.key === 'STRIPE_SECRET_KEY')?.configured ?? false;
   const clients = users.filter(u => u.role !== 'admin');
+  const clientsTotalPages = Math.max(1, Math.ceil(clients.length / clientsPerPage));
+  // Clamp rather than reset: changing page size or banning the last user on
+  // page 9 should land somewhere real, not on an empty page.
+  const clientsPageSafe = Math.min(clientsPage, clientsTotalPages);
+  const pagedClients = clients.slice((clientsPageSafe - 1) * clientsPerPage, clientsPageSafe * clientsPerPage);
+  const trainers = users.filter(u => u.role === 'trainer');
 
   // Exports the currently-loaded client list as a CSV — client-side only,
   // no new API surface, since the admin panel already has this exact data
   // loaded for the Clients tab. Quotes every field and escapes embedded
   // quotes so a comma or quote in someone's name can't corrupt the file.
   function handleExportClientsCsv() {
-    const csvField = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = [
+    // Routed through the shared downloadCsv helper rather than a local
+    // escaper: the formula-injection guard (a leading =, +, - or @ executes
+    // as a formula in Excel/Sheets even inside quotes) lived only in
+    // downloadCsv, so this exporter — which writes fully attacker-controlled
+    // displayName/email from anyone who can sign up — was still vulnerable.
+    downloadCsv(
+      `clients-${new Date().toISOString().slice(0, 10)}.csv`,
       ['Name', 'Email', 'Fitness Goal', 'Experience', 'Membership Status', 'Total Workouts', 'Streak', 'Joined'],
-      ...clients.map((u) => {
+      clients.map((u) => {
         const uu = u as UserData & { membership?: { status?: string } };
         const joined = (u.createdAt as { toDate?: () => Date } | undefined)?.toDate?.();
         return [
@@ -1526,22 +2479,36 @@ function AdminPageInner() {
           joined ? joined.toLocaleDateString('en-US') : '',
         ];
       }),
-    ];
-    const csv = rows.map((row) => row.map(csvField).join(',')).join('\r\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `clients-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    );
   }
+
+  const exSearchQueryLower = exSearchQuery.trim().toLowerCase();
+  const filteredExerciseLibrary = exerciseLibrary
+    .filter(ex => !exSearchQueryLower ||
+      ex.name.toLowerCase().includes(exSearchQueryLower) ||
+      ex.aliases.some(a => a.toLowerCase().includes(exSearchQueryLower))
+    )
+    .filter(ex => {
+      if (!exCategoryFilter) return true;
+      if (exCategoryFilter === '__uncategorized__') return ex.muscleGroups.length === 0;
+      return ex.muscleGroups.includes(exCategoryFilter);
+    });
+
+  // Live per-category counts so curating a messy library is actually
+  // possible — e.g. a "Cardio" chip showing 40 exercises when only 5 are
+  // real cardio moves is the exact signal that those 35 are miscategorized.
+  const exCategoryCounts: Record<string, number> = {};
+  for (const cat of muscleCategories) {
+    exCategoryCounts[cat] = exerciseLibrary.filter(ex => ex.muscleGroups.includes(cat)).length;
+  }
+  const uncategorizedCount = exerciseLibrary.filter(ex => ex.muscleGroups.length === 0).length;
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'overview', label: 'Overview', icon: Activity },
     { id: 'programs', label: 'Programs', icon: Dumbbell },
     { id: 'clients', label: 'Clients', icon: Users },
     { id: 'messages', label: 'Messages', icon: MessageSquare },
+    { id: 'support', label: 'Support', icon: LifeBuoy },
     { id: 'community', label: 'Community', icon: Users },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'membership', label: 'Membership', icon: CreditCard },
@@ -1549,6 +2516,7 @@ function AdminPageInner() {
     { id: 'library', label: 'Library', icon: Video },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     { id: 'integrations', label: 'Integrations', icon: Key },
+    { id: 'leads', label: 'Leads', icon: Mail },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -1570,6 +2538,16 @@ function AdminPageInner() {
             }`}
           >
             <Icon className="w-3.5 h-3.5" /> {label}
+            {/* The "a user submitted a support request" signal inside the
+                dashboard itself — the Header carries the same count for when
+                the admin is anywhere else in the app. */}
+            {id === 'support' && unresolvedSupport > 0 && (
+              <span className={`ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
+                tab === id ? 'bg-black/25 text-black' : 'bg-danger text-white'
+              }`}>
+                {unresolvedSupport > 9 ? '9+' : unresolvedSupport}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1667,11 +2645,23 @@ function AdminPageInner() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-text-secondary text-sm">{clients.length} client{clients.length !== 1 ? 's' : ''}</p>
-            {clients.length > 0 && (
-              <Button size="sm" variant="ghost" onClick={handleExportClientsCsv}>
-                <Download className="w-3.5 h-3.5" /> Export CSV
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {clients.length > clientsPerPage && (
+                <select
+                  aria-label="Clients per page"
+                  value={clientsPerPage}
+                  onChange={(e) => { setClientsPerPage(Number(e.target.value)); setClientsPage(1); }}
+                  className="bg-surface border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent/50"
+                >
+                  {[20, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
+                </select>
+              )}
+              {clients.length > 0 && (
+                <Button size="sm" variant="ghost" onClick={handleExportClientsCsv}>
+                  <Download className="w-3.5 h-3.5" /> Export CSV
+                </Button>
+              )}
+            </div>
           </div>
           {clientsLoading ? (
             <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
@@ -1682,7 +2672,7 @@ function AdminPageInner() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {clients.map((u) => (
+              {pagedClients.map((u) => (
                 <Card key={u.id} className={`p-4 ${u.banned ? 'border-danger/30 opacity-70' : ''}`}>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -1758,6 +2748,32 @@ function AdminPageInner() {
                   </div>
                 </Card>
               ))}
+            </div>
+          )}
+          {clientsTotalPages > 1 && (
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={clientsPageSafe <= 1}
+                onClick={() => setClientsPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <p className="text-xs text-text-secondary">
+                Page {clientsPageSafe} of {clientsTotalPages}
+                <span className="text-text-tertiary">
+                  {' '}· showing {(clientsPageSafe - 1) * clientsPerPage + 1}–{Math.min(clientsPageSafe * clientsPerPage, clients.length)}
+                </span>
+              </p>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={clientsPageSafe >= clientsTotalPages}
+                onClick={() => setClientsPage((p) => Math.min(clientsTotalPages, p + 1))}
+              >
+                Next
+              </Button>
             </div>
           )}
         </div>
@@ -1893,74 +2909,9 @@ function AdminPageInner() {
             </Button>
           </div>
 
-          {showChannelForm && (
+          {showChannelForm && !editingChannel && (
             <Card className="p-5 space-y-3 border-accent/30">
-              <h3 className="text-sm font-bold text-white">{editingChannel ? 'Edit Channel' : 'Create Channel'}</h3>
-              <div className="flex gap-2">
-                <input
-                  value={channelForm.emoji}
-                  onChange={e => setChannelForm(f => ({ ...f, emoji: e.target.value }))}
-                  placeholder="📢"
-                  maxLength={2}
-                  className="w-14 text-center bg-surface border border-white/10 rounded-xl px-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                />
-                <input
-                  value={channelForm.name}
-                  onChange={e => setChannelForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="Channel name"
-                  className="flex-1 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-                />
-              </div>
-              <input
-                value={channelForm.description}
-                onChange={e => setChannelForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Description (optional)"
-                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-              />
-              <div>
-                <label className="text-xs text-text-secondary mb-1.5 block">Slow Mode</label>
-                <div className="flex gap-2">
-                  {([0, 7, 21, 30] as const).map(d => (
-                    <button
-                      key={d}
-                      onClick={() => setChannelForm(f => ({ ...f, slowModeDays: d }))}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${channelForm.slowModeDays === d ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}
-                    >
-                      {d === 0 ? 'Off' : `${d}d`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-white">Photo Upload</p>
-                  <p className="text-xs text-text-secondary">Allow users to attach images</p>
-                </div>
-                <button
-                  onClick={() => setChannelForm(f => ({ ...f, photoUploadEnabled: !f.photoUploadEnabled }))}
-                  className={`w-11 h-6 rounded-full transition-colors relative ${channelForm.photoUploadEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
-                >
-                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.photoUploadEnabled ? 'left-6' : 'left-1'}`} />
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-white">Allow User Posts</p>
-                  <p className="text-xs text-text-secondary">Off = announcement-only, only admin/trainer can post</p>
-                </div>
-                <button
-                  onClick={() => setChannelForm(f => ({ ...f, allowUserPosts: !f.allowUserPosts }))}
-                  className={`w-11 h-6 rounded-full transition-colors relative ${channelForm.allowUserPosts ? 'bg-accent' : 'bg-surface-elevated'}`}
-                >
-                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.allowUserPosts ? 'left-6' : 'left-1'}`} />
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" fullWidth onClick={() => { setShowChannelForm(false); setEditingChannel(null); }}>Cancel</Button>
-                <Button fullWidth loading={savingChannel} disabled={!channelForm.name.trim()} onClick={handleSaveChannel}>
-                  {editingChannel ? 'Save' : 'Create'}
-                </Button>
-              </div>
+              {renderChannelForm()}
             </Card>
           )}
 
@@ -1974,6 +2925,11 @@ function AdminPageInner() {
           ) : (
             <div className="space-y-2">
               {channels.map(ch => (
+                editingChannel?.id === ch.id && showChannelForm ? (
+                  <Card key={ch.id} className="p-5 space-y-3 border-accent/30">
+                    {renderChannelForm()}
+                  </Card>
+                ) : (
                 <Card key={ch.id} className="p-4">
                   <div className="flex items-center gap-3">
                     <span className="text-xl">{ch.emoji || '#'}</span>
@@ -1996,6 +2952,7 @@ function AdminPageInner() {
                     </div>
                   </div>
                 </Card>
+                )
               ))}
             </div>
           )}
@@ -2068,6 +3025,7 @@ function AdminPageInner() {
                 {[
                   { id: 'missed_workout', label: 'Missed Workout', desc: 'Notify users who haven\'t logged a workout in 24h while on an active program', icon: Dumbbell, color: 'text-yellow-400' },
                   { id: 'streak_reminder', label: 'Streak Celebration', desc: 'Remind users with an active streak to keep going', icon: Flame, color: 'text-orange-400' },
+                  { id: 'weekly_recap', label: 'Weekly Recap', desc: 'Sunday digest of the week\'s workouts, volume, and streak — sent only to users who trained that week', icon: TrendingUp, color: 'text-blue-400' },
                 ].map(({ id, label, desc, icon: Icon, color }) => (
                   <div key={id} className="flex items-start gap-3 py-1">
                     <div className="w-8 h-8 rounded-lg bg-surface-elevated flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -2185,23 +3143,112 @@ function AdminPageInner() {
                         {([0, 7, 14, 30] as const).map((d) => (
                           <button
                             key={d}
-                            onClick={() => setMembership(m => ({ ...m, trialDays: d }))}
+                            onClick={() => setMembership(m => ({
+                              ...m,
+                              trialDays: d,
+                              // Paid Trial's own toggle only renders inside
+                              // the trialDays > 0 block below — setting Trial
+                              // Days back to "None" without also clearing this
+                              // hid the only control that could turn it off,
+                              // while leaving Full Platform Lock's toggle
+                              // permanently disabled (it's disabled whenever
+                              // paidTrialEnabled is true), trapping the admin.
+                              paidTrialEnabled: d === 0 ? false : m.paidTrialEnabled,
+                            }))}
                             className={`py-2 rounded-xl text-xs font-bold transition-all border ${membership.trialDays === d ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
                           >
                             {d === 0 ? 'None' : `${d}d`}
                           </button>
                         ))}
                       </div>
-                      <p className="text-xs text-text-tertiary mt-1.5">New members get this many days free before being charged.</p>
+                      <p className="text-xs text-text-tertiary mt-1.5">
+                        {membership.paidTrialEnabled
+                          ? 'New members get this many days on the trial price below before being charged the plan\'s full price.'
+                          : 'New members get this many days free before being charged.'}
+                      </p>
                     </div>
+                    {membership.trialDays > 0 && (
+                      <div className="p-3 bg-surface-elevated rounded-xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-white">Paid Trial</p>
+                            <p className="text-xs text-text-secondary mt-0.5">Charge a small fee upfront instead of a free, no-card trial — filters out non-payers and gets you paid from day one.</p>
+                          </div>
+                          <button
+                            onClick={() => setMembership(m => ({
+                              ...m,
+                              paidTrialEnabled: !m.paidTrialEnabled,
+                              // A paid trial only ever gets enforced through
+                              // the checkout paywall (LockedScreen) — without
+                              // Full Platform Lock also on, nothing would
+                              // ever prompt payment and the trial fee would
+                              // never actually get charged to anyone.
+                              fullLock: !m.paidTrialEnabled ? true : m.fullLock,
+                            }))}
+                            className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${membership.paidTrialEnabled ? 'bg-accent' : 'bg-surface'}`}
+                          >
+                            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membership.paidTrialEnabled ? 'left-6' : 'left-1'}`} />
+                          </button>
+                        </div>
+                        {membership.paidTrialEnabled && (
+                          <div>
+                            <label className="text-xs text-text-secondary mb-1 block">Trial Price (USD, charged immediately)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={((membership.trialPriceCents ?? 100) / 100).toFixed(2)}
+                              onChange={e => setMembership(m => ({ ...m, trialPriceCents: Math.round((parseFloat(e.target.value) || 0) * 100) }))}
+                              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                            />
+                            <p className="text-xs text-text-tertiary mt-1.5">
+                              e.g. $1.00 for {membership.trialDays} days, then the member&apos;s chosen plan price applies automatically.
+                            </p>
+                          </div>
+                        )}
+
+                        {!membership.paidTrialEnabled && (
+                          <div className="flex items-center justify-between pt-3 border-t border-white/8">
+                            <div className="pr-3">
+                              <p className="text-sm font-medium text-white">Card Up Front</p>
+                              <p className="text-xs text-text-secondary mt-0.5">
+                                Still {membership.trialDays} days free, but the member checks out and enters a card on day one —
+                                then it bills automatically when the trial ends. Without this, they hit a paywall on day{' '}
+                                {membership.trialDays + 1} and have to actively decide to subscribe.
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => setMembership(m => ({
+                                ...m,
+                                cardUpFrontTrial: !m.cardUpFrontTrial,
+                                // Same reasoning as Paid Trial: this is only
+                                // ever enforced through the checkout paywall,
+                                // so without Full Platform Lock nothing would
+                                // send anyone to checkout and no card would
+                                // ever be collected.
+                                fullLock: !m.cardUpFrontTrial ? true : m.fullLock,
+                              }))}
+                              className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${membership.cardUpFrontTrial ? 'bg-accent' : 'bg-surface'}`}
+                            >
+                              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membership.cardUpFrontTrial ? 'left-6' : 'left-1'}`} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-white">Full Platform Lock</p>
-                        <p className="text-xs text-text-secondary mt-0.5">Non-members can only see the dashboard</p>
+                        <p className="text-xs text-text-secondary mt-0.5">
+                          {membership.paidTrialEnabled || membership.cardUpFrontTrial
+                            ? `Required while ${membership.paidTrialEnabled ? 'Paid Trial' : 'Card Up Front'} is on — non-members must check out to get in.`
+                            : 'Non-members can only see the dashboard'}
+                        </p>
                       </div>
                       <button
-                        onClick={() => setMembership(m => ({ ...m, fullLock: !m.fullLock }))}
-                        className={`w-11 h-6 rounded-full transition-colors relative ${membership.fullLock ? 'bg-danger' : 'bg-surface-elevated'}`}
+                        onClick={() => !membership.paidTrialEnabled && !membership.cardUpFrontTrial && setMembership(m => ({ ...m, fullLock: !m.fullLock }))}
+                        disabled={membership.paidTrialEnabled}
+                        className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${membership.fullLock ? 'bg-danger' : 'bg-surface-elevated'} ${membership.paidTrialEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membership.fullLock ? 'left-6' : 'left-1'}`} />
                       </button>
@@ -2219,6 +3266,11 @@ function AdminPageInner() {
                   <p className="text-xs text-text-secondary">
                     Applies to the first payment on new membership and coaching plan checkouts while active. Leave at 0% to disable.
                   </p>
+                  {membership.paidTrialEnabled && (membership.discountPercent ?? 0) > 0 && (
+                    <div className="p-2.5 bg-accent/10 border border-accent/20 rounded-xl text-xs text-accent">
+                      Under Paid Trial, Stripe has no way to discount a later charge from a checkout-time coupon — so this discount is applied to the ${((membership.trialPriceCents ?? 100) / 100).toFixed(2)} trial fee itself instead, not the ongoing plan price, which stays full price after the trial.
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-text-secondary mb-1 block">Discount %</label>
@@ -2256,12 +3308,7 @@ function AdminPageInner() {
                     <Shield className="w-4 h-4 text-accent" /> Lockable Features
                   </h2>
                   <p className="text-xs text-text-secondary">Non-members see a paywall on these features.</p>
-                  {[
-                    { id: 'barcode', label: 'Barcode Scanner', desc: 'Nutrition lookup via product barcode' },
-                    { id: 'nutrition-ai', label: 'AI Food Analyzer', desc: 'Photo-based nutrition analysis' },
-                    { id: 'meal-planner', label: 'AI Meal Planner', desc: 'Generates a full daily meal plan' },
-                    { id: 'premium-programs', label: 'Premium Training Plans', desc: 'Programs marked as Premium require membership' },
-                  ].map(({ id, label, desc }) => (
+                  {LOCKABLE_FEATURE_OPTIONS.map(({ id, label, desc }) => (
                     <div key={id} className="flex items-center justify-between py-1">
                       <div>
                         <p className="text-sm font-medium text-white">{label}</p>
@@ -2293,7 +3340,6 @@ function AdminPageInner() {
                     setEditingMembershipPlan(null);
                     setMembershipPlanForm({ name: '', description: '', priceMonthly: '', price3mo: '', price6mo: '', price12mo: '', currency: 'USD', features: '', active: true, featureAccess: [] });
                     setShowMembershipPlanForm(true);
-                    setTimeout(() => membershipPlanFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
                   }}>
                     <Plus className="w-3.5 h-3.5" /> New Plan
                   </Button>
@@ -2302,148 +3348,9 @@ function AdminPageInner() {
                   Create as many pricing tiers as you want — users pick one and pay instantly. Each plan controls its own price and which tools it unlocks (Tool Access below). Leave Tool Access unchecked to grant every feature.
                 </p>
 
-                {showMembershipPlanForm && (
-                  <div ref={membershipPlanFormRef} className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
-                    <p className="text-sm font-bold text-white">{editingMembershipPlan ? 'Edit Plan' : 'New Membership Plan'}</p>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
-                      <input
-                        value={membershipPlanForm.name}
-                        onChange={e => setMembershipPlanForm(f => ({ ...f, name: e.target.value }))}
-                        placeholder="e.g. Conquer"
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Description</label>
-                      <textarea
-                        value={membershipPlanForm.description}
-                        onChange={e => setMembershipPlanForm(f => ({ ...f, description: e.target.value }))}
-                        placeholder="What members get with this plan…"
-                        rows={2}
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-text-secondary mb-1 block">Price / Month (optional)</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={membershipPlanForm.priceMonthly}
-                            onChange={e => setMembershipPlanForm(f => ({ ...f, priceMonthly: e.target.value }))}
-                            placeholder="49.00"
-                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-text-secondary mb-1 block">Currency</label>
-                        <select
-                          value={membershipPlanForm.currency}
-                          onChange={e => setMembershipPlanForm(f => ({ ...f, currency: e.target.value }))}
-                          className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                        >
-                          <option value="USD">USD</option>
-                          <option value="EUR">EUR</option>
-                          <option value="GBP">GBP</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Longer Terms (optional — leave blank to not offer that term)</label>
-                      <p className="text-[11px] text-text-tertiary mb-2">Total price for the whole term, not per month — e.g. $250 for 6 months billed once every 6 months.</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={membershipPlanForm.price3mo}
-                            onChange={e => setMembershipPlanForm(f => ({ ...f, price3mo: e.target.value }))}
-                            placeholder="3 months"
-                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                          />
-                        </div>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={membershipPlanForm.price6mo}
-                            onChange={e => setMembershipPlanForm(f => ({ ...f, price6mo: e.target.value }))}
-                            placeholder="6 months"
-                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                          />
-                        </div>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={membershipPlanForm.price12mo}
-                            onChange={e => setMembershipPlanForm(f => ({ ...f, price12mo: e.target.value }))}
-                            placeholder="12 months"
-                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-2 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Features (one per line, shown on the pricing card)</label>
-                      <textarea
-                        value={membershipPlanForm.features}
-                        onChange={e => setMembershipPlanForm(f => ({ ...f, features: e.target.value }))}
-                        placeholder={"Full access to all training programs\nAI food analyzer\nCommunity & leaderboard access"}
-                        rows={4}
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Tool Access</label>
-                      <p className="text-xs text-text-tertiary mb-2">
-                        Leave all unchecked to grant every feature (default). Check specific ones to restrict this plan to only those.
-                      </p>
-                      <div className="space-y-1.5">
-                        {[
-                          { id: 'barcode', label: 'Barcode Scanner' },
-                          { id: 'nutrition-ai', label: 'AI Food Analyzer' },
-                          { id: 'meal-planner', label: 'AI Meal Planner' },
-                          { id: 'premium-programs', label: 'Premium Training Plans' },
-                        ].map(({ id, label }) => (
-                          <label key={id} className="flex items-center gap-2.5 py-1 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={membershipPlanForm.featureAccess.includes(id)}
-                              onChange={() => toggleMembershipPlanFeatureAccess(id)}
-                              className="w-4 h-4 accent-accent"
-                            />
-                            <span className="text-sm text-white">{label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-white">Active</p>
-                        <p className="text-xs text-text-secondary">Visible to non-members for purchase</p>
-                      </div>
-                      <button
-                        onClick={() => setMembershipPlanForm(f => ({ ...f, active: !f.active }))}
-                        className={`w-11 h-6 rounded-full transition-colors relative ${membershipPlanForm.active ? 'bg-accent' : 'bg-surface-elevated'}`}
-                      >
-                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${membershipPlanForm.active ? 'left-6' : 'left-1'}`} />
-                      </button>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" fullWidth onClick={() => { setShowMembershipPlanForm(false); setEditingMembershipPlan(null); }}>Cancel</Button>
-                      <Button
-                        fullWidth
-                        loading={savingMembershipPlans}
-                        disabled={!membershipPlanForm.name.trim() || ![membershipPlanForm.priceMonthly, membershipPlanForm.price3mo, membershipPlanForm.price6mo, membershipPlanForm.price12mo].some(v => parseFloat(v) > 0)}
-                        onClick={handleSaveMembershipPlan}
-                      >
-                        {editingMembershipPlan ? 'Save' : 'Create'}
-                      </Button>
-                    </div>
+                {showMembershipPlanForm && !editingMembershipPlan && (
+                  <div className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+                    {renderMembershipPlanForm()}
                   </div>
                 )}
 
@@ -2452,12 +3359,18 @@ function AdminPageInner() {
                 ) : (
                   <div className="space-y-3">
                     {membershipPlans.map((plan) => (
+                      editingMembershipPlan?.id === plan.id && showMembershipPlanForm ? (
+                        <div key={plan.id} className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+                          {renderMembershipPlanForm()}
+                        </div>
+                      ) : (
                       <div key={plan.id} className={`p-4 rounded-2xl border ${plan.active ? 'border-accent/20 bg-accent/5' : 'border-white/8 opacity-60'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-sm font-bold text-white">{plan.name}</p>
                               {plan.active ? <Badge variant="success">Active</Badge> : <Badge variant="muted">Inactive</Badge>}
+                              {plan.mostPopular && <Badge variant="accent">★ Most Popular</Badge>}
                             </div>
                             <p className="text-sm font-black text-accent mt-0.5">
                               {[
@@ -2482,6 +3395,14 @@ function AdminPageInner() {
                             )}
                           </div>
                           <div className="flex gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => handleSetMostPopular(plan.id)}
+                              disabled={plan.mostPopular}
+                              title={plan.mostPopular ? 'This is the Most Popular plan' : 'Mark as Most Popular'}
+                              className={`p-2.5 rounded-lg transition-colors ${plan.mostPopular ? 'text-accent cursor-default' : 'text-text-secondary hover:text-accent hover:bg-accent/10'}`}
+                            >
+                              <Star className="w-3.5 h-3.5" fill={plan.mostPopular ? 'currentColor' : 'none'} />
+                            </button>
                             <button onClick={() => startEditMembershipPlan(plan)} className="p-2.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
@@ -2491,6 +3412,7 @@ function AdminPageInner() {
                           </div>
                         </div>
                       </div>
+                      )
                     ))}
                   </div>
                 )}
@@ -2503,113 +3425,19 @@ function AdminPageInner() {
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
                     <Trophy className="w-4 h-4 text-accent" /> Coaching Plans <span className="text-xs font-normal text-text-tertiary">(1:1 application)</span>
                   </h2>
-                  <Button size="sm" onClick={() => { setEditingPlan(null); setPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] }); setShowPlanForm(true); }}>
+                  <Button size="sm" onClick={() => {
+                    setEditingPlan(null);
+                    setPlanForm({ name: '', description: '', priceMonthly: '', currency: 'USD', features: '', active: true, featureAccess: [] });
+                    setShowPlanForm(true);
+                  }}>
                     <Plus className="w-3.5 h-3.5" /> New Plan
                   </Button>
                 </div>
                 <p className="text-xs text-text-secondary">Separate from Membership Plans above — these are reviewed manually via a coaching application, not purchased instantly. Coaching programs (marked 1:1) are unlocked by any active plan.</p>
 
-                {showPlanForm && (
+                {showPlanForm && !editingPlan && (
                   <div className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
-                    <p className="text-sm font-bold text-white">{editingPlan ? 'Edit Plan' : 'New Coaching Plan'}</p>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Plan Name</label>
-                      <input
-                        value={planForm.name}
-                        onChange={e => setPlanForm(f => ({ ...f, name: e.target.value }))}
-                        placeholder="e.g. 1:1 Personal Coaching"
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Description</label>
-                      <textarea
-                        value={planForm.description}
-                        onChange={e => setPlanForm(f => ({ ...f, description: e.target.value }))}
-                        placeholder="What clients get with this plan…"
-                        rows={2}
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-text-secondary mb-1 block">Price / Month</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={planForm.priceMonthly}
-                            onChange={e => setPlanForm(f => ({ ...f, priceMonthly: e.target.value }))}
-                            placeholder="99.00"
-                            className="w-full bg-surface border border-white/10 rounded-xl pl-7 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-text-secondary mb-1 block">Currency</label>
-                        <select
-                          value={planForm.currency}
-                          onChange={e => setPlanForm(f => ({ ...f, currency: e.target.value }))}
-                          className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-                        >
-                          <option value="USD">USD</option>
-                          <option value="EUR">EUR</option>
-                          <option value="GBP">GBP</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Features (one per line)</label>
-                      <textarea
-                        value={planForm.features}
-                        onChange={e => setPlanForm(f => ({ ...f, features: e.target.value }))}
-                        placeholder={"Weekly check-in calls\nPersonalised training plan\nDirect messaging with coach"}
-                        rows={4}
-                        className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-text-secondary mb-1 block">Tool Access</label>
-                      <p className="text-xs text-text-tertiary mb-2">
-                        Leave all unchecked to grant every feature (default). Check specific ones to restrict this plan to only those.
-                      </p>
-                      <div className="space-y-1.5">
-                        {[
-                          { id: 'barcode', label: 'Barcode Scanner' },
-                          { id: 'nutrition-ai', label: 'AI Food Analyzer' },
-                          { id: 'meal-planner', label: 'AI Meal Planner' },
-                          { id: 'premium-programs', label: 'Premium Training Plans' },
-                        ].map(({ id, label }) => (
-                          <label key={id} className="flex items-center gap-2.5 py-1 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={planForm.featureAccess.includes(id)}
-                              onChange={() => togglePlanFeatureAccess(id)}
-                              className="w-4 h-4 accent-accent"
-                            />
-                            <span className="text-sm text-white">{label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-white">Active</p>
-                        <p className="text-xs text-text-secondary">Visible to clients for purchase</p>
-                      </div>
-                      <button
-                        onClick={() => setPlanForm(f => ({ ...f, active: !f.active }))}
-                        className={`w-11 h-6 rounded-full transition-colors relative ${planForm.active ? 'bg-accent' : 'bg-surface-elevated'}`}
-                      >
-                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${planForm.active ? 'left-6' : 'left-1'}`} />
-                      </button>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" fullWidth onClick={() => { setShowPlanForm(false); setEditingPlan(null); }}>Cancel</Button>
-                      <Button fullWidth loading={savingPlans} disabled={!planForm.name.trim() || !planForm.priceMonthly} onClick={handleSavePlan}>
-                        {editingPlan ? 'Save' : 'Create'}
-                      </Button>
-                    </div>
+                    {renderCoachingPlanForm()}
                   </div>
                 )}
 
@@ -2618,6 +3446,11 @@ function AdminPageInner() {
                 ) : (
                   <div className="space-y-3">
                     {coachingPlans.map((plan) => (
+                      editingPlan?.id === plan.id && showPlanForm ? (
+                        <div key={plan.id} className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+                          {renderCoachingPlanForm()}
+                        </div>
+                      ) : (
                       <div key={plan.id} className={`p-4 rounded-2xl border ${plan.active ? 'border-accent/20 bg-accent/5' : 'border-white/8 opacity-60'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -2647,6 +3480,7 @@ function AdminPageInner() {
                           </div>
                         </div>
                       </div>
+                      )
                     ))}
                   </div>
                 )}
@@ -2696,7 +3530,13 @@ function AdminPageInner() {
                       {(membershipPlans.filter(p => p.active).length > 0 || coachingPlans.filter(p => p.active).length > 0) && (
                         <div className="flex items-center gap-2 pl-11">
                           <select
-                            className="flex-1 bg-surface border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent/50"
+                            // min-w-0 is load-bearing: a flex item's default
+                            // min-width:auto means this select refuses to
+                            // shrink below its widest OPTION's text ("1:1
+                            // Personal Coaching — USD 299.00/mo"), which
+                            // pushed the "Remove plan" button clean off the
+                            // right edge of the screen on mobile.
+                            className="flex-1 min-w-0 bg-surface border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent/50"
                             defaultValue=""
                             onChange={async (e) => {
                               const pid = e.target.value;
@@ -2738,6 +3578,50 @@ function AdminPageInner() {
                           )}
                         </div>
                       )}
+                      <div className="flex items-center gap-2 pl-11">
+                        <Badge variant={u.role === 'trainer' ? 'accent' : 'muted'}>{u.role === 'trainer' ? 'Trainer' : 'User'}</Badge>
+                        {u.id !== user?.uid && (
+                          <button
+                            onClick={() => handleSetRole(u, u.role === 'trainer' ? 'user' : 'trainer')}
+                            disabled={changingRole === u.id}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors whitespace-nowrap"
+                          >
+                            {changingRole === u.id ? '…' : u.role === 'trainer' ? 'Demote to User' : 'Make Trainer'}
+                          </button>
+                        )}
+                        {u.role !== 'trainer' && trainers.length > 0 && (
+                          <select
+                            className="flex-1 bg-surface border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent/50"
+                            value={u.trainerId || ''}
+                            disabled={assigningTrainer === u.id}
+                            onChange={(e) => handleAssignTrainer(u, e.target.value)}
+                          >
+                            <option value="">No trainer assigned</option>
+                            {trainers.map((t) => (
+                              <option key={t.id} value={t.id}>{t.displayName || t.email}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                      {/* trialUsedAt is one-way by design (it's what stops
+                          cancel-and-resubscribe farming a fresh trial every
+                          cycle) but had no reset at all — so a signup that
+                          broke halfway, or a refunded charge, left someone
+                          permanently billed in full on their next checkout
+                          with no way to put it right short of editing
+                          Firestore by hand. */}
+                      {(u as UserData & { trialUsedAt?: unknown }).trialUsedAt != null && (
+                        <div className="flex items-center gap-2 pl-11">
+                          <span className="text-xs text-text-tertiary">Trial already used</span>
+                          <button
+                            onClick={() => handleResetTrial(u)}
+                            disabled={resettingTrial === u.id}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors whitespace-nowrap disabled:opacity-50"
+                          >
+                            {resettingTrial === u.id ? '…' : 'Reset trial'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -2748,6 +3632,159 @@ function AdminPageInner() {
       )}
 
       {/* ── Coaching Applications ─────────────────────────────────────────────── */}
+      {/* ── Support ──────────────────────────────────────────────────────────── */}
+      {tab === 'support' && (
+        activeTicket ? (
+          <div className="flex flex-col h-[70vh]">
+            <div className="flex items-center gap-3 pb-3 border-b border-white/8 mb-3">
+              <button
+                onClick={() => setActiveTicketId(null)}
+                aria-label="Back to all support requests"
+                className="p-1.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white truncate">{activeTicket.subject}</p>
+                <p className="text-xs text-text-secondary truncate">
+                  {activeTicket.userDisplayName} · {activeTicket.userEmail}
+                </p>
+              </div>
+              <SupportStatusPill status={activeTicket.status} />
+            </div>
+
+            <div className="flex flex-wrap gap-2 pb-3 border-b border-white/8 mb-3">
+              {(['pending', 'ongoing', 'resolved'] as SupportTicketStatus[]).map((s) => (
+                <Button
+                  key={s}
+                  size="sm"
+                  variant={activeTicket.status === s ? 'primary' : 'secondary'}
+                  disabled={updatingTicket === activeTicket.id || activeTicket.status === s}
+                  onClick={() => handleTicketStatus(activeTicket, s)}
+                >
+                  {s === 'resolved' ? 'Mark Resolved' : `Mark ${s.charAt(0).toUpperCase() + s.slice(1)}`}
+                </Button>
+              ))}
+              <Button size="sm" variant="danger" disabled={updatingTicket === activeTicket.id} onClick={() => handleDeleteTicket(activeTicket)}>
+                <Trash2 className="w-3.5 h-3.5" /> Delete
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {supportMsgLoading ? (
+                <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-10 rounded-xl" />)}</div>
+              ) : (
+                supportMessages.map((m) => (
+                  <div key={m.id} className={`flex ${m.isFromAdmin ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${m.isFromAdmin ? 'bg-accent text-black' : 'bg-surface-elevated text-white'}`}>
+                      {m.content && <p className="text-sm whitespace-pre-wrap break-words">{m.content}</p>}
+                      <MessageAttachment message={m} />
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={supportEndRef} />
+            </div>
+
+            {activeTicket.status === 'resolved' ? (
+              <div className="mt-3 pt-3 border-t border-white/8">
+                <p className="text-xs text-text-secondary text-center">
+                  This request is resolved — neither side can post to it. Mark it pending or ongoing to reopen the thread.
+                </p>
+              </div>
+            ) : (
+              <div className="pt-3 border-t border-white/8 mt-3 space-y-2">
+                {supportFile && (
+                  <PendingAttachment
+                    file={supportFile}
+                    uploading={supportUploading}
+                    progress={supportProgress}
+                    onClear={() => setSupportFile(null)}
+                  />
+                )}
+                <div className="flex gap-2">
+                  <AttachButton onPick={setSupportFile} disabled={sendingSupport || supportUploading} />
+                  <input
+                    value={supportMsgText}
+                    onChange={e => setSupportMsgText(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendSupport(); } }}
+                    placeholder="Reply to this request…"
+                    aria-label="Reply"
+                    className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                  />
+                  <Button onClick={handleSendSupport} loading={sendingSupport || supportUploading} disabled={!supportMsgText.trim() && !supportFile}>
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-white">Support Requests</h2>
+              <p className="text-xs text-text-secondary mt-0.5">
+                Opened by members from their profile. Marking one resolved closes the thread for both sides.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {(['all', 'pending', 'ongoing', 'resolved'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setSupportFilter(f)}
+                  aria-pressed={supportFilter === f}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+                    supportFilter === f ? 'bg-accent text-black' : 'text-text-secondary hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  {f} ({f === 'all' ? supportTickets.length : supportTickets.filter(t => t.status === f).length})
+                </button>
+              ))}
+            </div>
+
+            {supportLoading ? (
+              <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+            ) : filteredTickets.length === 0 ? (
+              <Card className="p-6 text-center">
+                <p className="text-sm text-text-secondary">
+                  {supportFilter === 'all' ? 'No support requests yet.' : `No ${supportFilter} requests.`}
+                </p>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {filteredTickets.map((t) => (
+                  <Card key={t.id} className={`p-4 ${t.unreadByAdmin && t.status !== 'resolved' ? 'border-accent/40' : ''}`}>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openTicket(t)}>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-white truncate">{t.subject}</p>
+                          {t.unreadByAdmin && t.status !== 'resolved' && <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
+                        </div>
+                        <p className="text-xs text-text-secondary truncate">{t.userDisplayName} · {t.userEmail}</p>
+                        <p className="text-xs text-text-tertiary truncate mt-0.5">{t.lastMessage}</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <SupportStatusPill status={t.status} />
+                        <button
+                          onClick={() => handleDeleteTicket(t)}
+                          disabled={updatingTicket === t.id}
+                          title="Delete request"
+                          aria-label={`Delete support request: ${t.subject}`}
+                          className="p-2 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      )}
+
       {tab === 'coaching' && (
         <div className="space-y-4">
           <div>
@@ -2790,6 +3827,30 @@ function AdminPageInner() {
                     {app.injuries && (
                       <div className="col-span-2"><span className="text-text-tertiary">Injuries:</span> <span className="text-white">{app.injuries}</span></div>
                     )}
+                    {/* Health screening / lifestyle answers from the
+                        application form. Rendered generically so any
+                        question added to HealthScreening.tsx shows up here
+                        without needing a matching change in this file —
+                        collecting answers a trainer can't read would be
+                        pointless. Booleans render as Yes/No; the free-text
+                        detail fields render as-is. */}
+                    {app.medicalHistory && Object.keys(app.medicalHistory).length > 0 && (
+                      <div className="col-span-2 mt-1 pt-2 border-t border-white/8">
+                        <p className="text-text-tertiary mb-1.5">Health screening &amp; lifestyle</p>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                          {Object.entries(app.medicalHistory).map(([key, value]) => (
+                            <div key={key}>
+                              <span className="text-text-tertiary">
+                                {key.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())}:
+                              </span>{' '}
+                              <span className="text-white">
+                                {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {app.status === 'rejected' && app.rejectionReason && (
                       <div className="col-span-2"><span className="text-text-tertiary">Rejection reason:</span> <span className="text-danger">{app.rejectionReason}</span></div>
                     )}
@@ -2817,14 +3878,26 @@ function AdminPageInner() {
                     </div>
                   )}
 
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    fullWidth
-                    onClick={() => startConversation({ id: app.userId, displayName: app.userName, email: app.userEmail })}
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" /> Message {app.userName}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      fullWidth
+                      onClick={() => startConversation({ id: app.userId, displayName: app.userName, email: app.userEmail })}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" /> Message {app.userName}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      loading={deletingApp === app.id}
+                      onClick={() => handleDeleteApplication(app)}
+                      aria-label={`Delete ${app.userName}'s application`}
+                      className="!text-text-tertiary hover:!text-danger"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </Card>
               ))}
             </div>
@@ -2879,7 +3952,7 @@ function AdminPageInner() {
                   onChange={e => setBulkCategory(e.target.value)}
                   className="w-full bg-surface-elevated border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
                 >
-                  {MUSCLE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {muscleCategories.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
@@ -2889,7 +3962,7 @@ function AdminPageInner() {
                   onChange={e => setBulkEquipment(e.target.value)}
                   className="w-full bg-surface-elevated border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
                 >
-                  {EQUIPMENT_OPTIONS.map(e => <option key={e} value={e}>{e}</option>)}
+                  {equipmentOptions.map(e => <option key={e} value={e}>{e}</option>)}
                 </select>
               </div>
             </div>
@@ -2991,10 +4064,23 @@ function AdminPageInner() {
             <p className="text-xs text-text-secondary">Library ({exerciseLibrary.length})</p>
             <div className="flex items-center gap-2">
               {exerciseLibrary.some(e => !e.thumbnailUrl) && (
-                <Button size="sm" variant="ghost" onClick={handleBackfillThumbnails} loading={backfillRunning}>
+                <Button size="sm" variant="ghost" onClick={() => handleBackfillThumbnails(false)} loading={backfillRunning}>
                   {backfillRunning
                     ? `Generating ${backfillProgress.done}/${backfillProgress.total}…`
                     : `Backfill Thumbnails (${exerciseLibrary.filter(e => !e.thumbnailUrl).length})`}
+                </Button>
+              )}
+              {exerciseLibrary.some(e => e.videoUrl) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { if (confirm('Regenerate thumbnails for every video in the library? This replaces existing ones too.')) handleBackfillThumbnails(true); }}
+                  loading={backfillRunning}
+                  title="Re-captures a frame for every video, including ones that already have a thumbnail — fixes bad/black captures"
+                >
+                  {backfillRunning
+                    ? `Generating ${backfillProgress.done}/${backfillProgress.total}…`
+                    : 'Regenerate All Thumbnails'}
                 </Button>
               )}
               <Button size="sm" variant="ghost" onClick={() => startEditEx()}>
@@ -3003,37 +4089,107 @@ function AdminPageInner() {
             </div>
           </div>
 
-          {showExForm && (
-            <Card className="p-4 space-y-3 border border-accent/30">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white">{editingEx ? 'Edit Exercise' : 'New Exercise'}</h3>
-                <button onClick={() => setShowExForm(false)}><XIcon className="w-4 h-4 text-text-secondary" /></button>
-              </div>
-              <Input placeholder="Exercise name (e.g. Barbell Back Squat)" value={exForm.name} onChange={e => setExForm(f => ({ ...f, name: e.target.value }))} />
-              <Input placeholder="Aliases — comma separated (e.g. squat, back squat, bb squat)" value={exForm.aliases} onChange={e => setExForm(f => ({ ...f, aliases: e.target.value }))} />
-              <Input placeholder="Muscle groups — comma separated (e.g. Quadriceps, Glutes)" value={exForm.muscleGroups} onChange={e => setExForm(f => ({ ...f, muscleGroups: e.target.value }))} />
-              <Input placeholder="Equipment — comma separated (e.g. Barbell, Rack)" value={exForm.equipment} onChange={e => setExForm(f => ({ ...f, equipment: e.target.value }))} />
-              <div>
-                <label className="text-xs text-text-secondary mb-1 block">Video file (MP4, MOV, WebM)</label>
+          {showExForm && !editingEx && (
+            <div className="p-4 space-y-3 rounded-2xl bg-surface border border-accent/30">
+              {renderExerciseForm()}
+            </div>
+          )}
+
+          {exerciseLibrary.length > 0 && (
+            <>
+              <div className="relative">
+                <Search className="w-4 h-4 text-text-tertiary absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
-                  type="file"
-                  accept="video/*"
-                  className="text-sm text-text-secondary w-full"
-                  onChange={e => setExFile(e.target.files?.[0] ?? null)}
+                  value={exSearchQuery}
+                  onChange={e => setExSearchQuery(e.target.value)}
+                  placeholder="Search exercises by name or alias…"
+                  className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
                 />
-                {editingEx?.videoUrl && !exFile && (
-                  <p className="text-xs text-text-tertiary mt-1">Current video on file — upload a new one to replace it.</p>
+              </div>
+
+              {/* Category chips — counts make miscategorized exercises visible at
+                  a glance (a "Cardio" chip with 40 when only 5 belong there is
+                  exactly the signal a messy library needs to get curated). */}
+              <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+                <button
+                  onClick={() => setExCategoryFilter(null)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors flex-shrink-0 ${
+                    exCategoryFilter === null ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary hover:text-white'
+                  }`}
+                >
+                  All ({exerciseLibrary.length})
+                </button>
+                {muscleCategories.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setExCategoryFilter(exCategoryFilter === cat ? null : cat)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors flex-shrink-0 ${
+                      exCategoryFilter === cat ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary hover:text-white'
+                    }`}
+                  >
+                    {cat} ({exCategoryCounts[cat]})
+                  </button>
+                ))}
+                {uncategorizedCount > 0 && (
+                  <button
+                    onClick={() => setExCategoryFilter(exCategoryFilter === '__uncategorized__' ? null : '__uncategorized__')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors flex-shrink-0 ${
+                      exCategoryFilter === '__uncategorized__' ? 'bg-accent text-black' : 'bg-danger/10 text-danger hover:bg-danger/20'
+                    }`}
+                  >
+                    Uncategorized ({uncategorizedCount})
+                  </button>
                 )}
               </div>
-              {savingEx && exUploadProgress > 0 && exUploadProgress < 100 && (
-                <div className="w-full bg-white/10 rounded-full h-1.5">
-                  <div className="bg-accent h-1.5 rounded-full transition-all" style={{ width: `${exUploadProgress}%` }} />
-                </div>
+
+              <button
+                onClick={() => setShowCategoryManager(v => !v)}
+                className="text-xs text-accent hover:underline flex items-center gap-1"
+              >
+                {showCategoryManager ? 'Hide' : 'Manage'} categories &amp; equipment
+              </button>
+
+              {showCategoryManager && (
+                <Card className="p-4 space-y-4 border border-accent/20">
+                  {([
+                    ['muscleGroups', 'Muscle Group Categories', muscleCategories, newCategoryInput, setNewCategoryInput] as const,
+                    ['equipment', 'Equipment Types', equipmentOptions, newEquipmentInput, setNewEquipmentInput] as const,
+                  ]).map(([kind, label, list, inputValue, setInputValue]) => (
+                    <div key={kind}>
+                      <p className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-2">{label}</p>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {list.map(item => (
+                          <span key={item} className="pl-3 pr-1.5 py-1.5 rounded-lg text-xs font-bold bg-surface-elevated text-white flex items-center gap-1.5">
+                            {item}
+                            <button
+                              onClick={() => removeCategory(kind, item)}
+                              disabled={savingTaxonomy}
+                              className="p-0.5 rounded hover:bg-danger/20 hover:text-danger transition-colors disabled:opacity-50"
+                              title={`Remove ${item}`}
+                            >
+                              <XIcon className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                        {list.length === 0 && <p className="text-xs text-text-tertiary">None yet.</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          value={inputValue}
+                          onChange={e => setInputValue(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') addCategory(kind, inputValue); }}
+                          placeholder={`Add a new ${kind === 'muscleGroups' ? 'category' : 'equipment type'}…`}
+                          className="flex-1 bg-surface border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                        />
+                        <Button size="sm" onClick={() => addCategory(kind, inputValue)} loading={savingTaxonomy} disabled={!inputValue.trim()}>
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </Card>
               )}
-              <Button onClick={handleSaveEx} loading={savingEx} className="w-full">
-                {savingEx ? (exUploadProgress > 0 ? `Uploading ${exUploadProgress}%…` : 'Saving…') : 'Save Exercise'}
-              </Button>
-            </Card>
+            </>
           )}
 
           {/* ── Library list ─────────────────────────────────────────────────── */}
@@ -3041,7 +4197,7 @@ function AdminPageInner() {
             <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setPreviewVideo(null)}>
               <div className="relative w-full max-w-lg" onClick={e => e.stopPropagation()}>
                 <button className="absolute -top-8 right-0 text-white" onClick={() => setPreviewVideo(null)}><XIcon className="w-5 h-5" /></button>
-                <video src={previewVideo} controls autoPlay className="w-full rounded-xl" />
+                <video src={previewVideo} controls autoPlay crossOrigin="anonymous" className="w-full rounded-xl" />
               </div>
             </div>
           )}
@@ -3054,34 +4210,52 @@ function AdminPageInner() {
               <p className="text-text-secondary text-sm">No exercises yet.</p>
               <p className="text-text-tertiary text-xs mt-1">Use bulk upload above to get started.</p>
             </Card>
+          ) : filteredExerciseLibrary.length === 0 ? (
+            <Card className="p-8 text-center">
+              <Search className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
+              <p className="text-text-secondary text-sm">
+                No exercises
+                {exSearchQuery ? ` match "${exSearchQuery}"` : ''}
+                {exCategoryFilter === '__uncategorized__' ? ' are uncategorized' : exCategoryFilter ? ` in ${exCategoryFilter}` : ''}.
+              </p>
+            </Card>
           ) : (
             <div className="space-y-2">
-              {exerciseLibrary.map(ex => (
-                <Card key={ex.id} className="p-3 flex items-center gap-3">
-                  <button
-                    onClick={() => setPreviewVideo(ex.videoUrl)}
-                    className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 hover:bg-accent/20 transition-colors"
-                  >
-                    <Play className="w-5 h-5 text-accent" />
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{ex.name}</p>
-                    <p className="text-xs text-text-secondary truncate">
-                      {[...ex.muscleGroups, ...ex.equipment].join(' · ')}
-                    </p>
-                    {ex.aliases.length > 0 && (
-                      <p className="text-xs text-text-tertiary truncate">Also: {ex.aliases.join(', ')}</p>
-                    )}
+              {filteredExerciseLibrary.map(ex => (
+                editingEx?.id === ex.id && showExForm ? (
+                  <div key={ex.id} className="p-4 space-y-3 rounded-2xl bg-surface border border-accent/30">
+                    {renderExerciseForm()}
                   </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <button onClick={() => startEditEx(ex)} className="p-2.5 rounded-lg hover:bg-white/10 transition-colors">
-                      <Edit2 className="w-4 h-4 text-text-secondary" />
+                ) : (
+                  <Card key={ex.id} className="p-3 flex items-center gap-3">
+                    <button
+                      onClick={() => setPreviewVideo(ex.videoUrl)}
+                      className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 relative overflow-hidden transition-colors ${ex.thumbnailUrl ? 'bg-black' : 'bg-white/10 hover:bg-accent/20'}`}
+                    >
+                      {ex.thumbnailUrl && (
+                        <img src={ex.thumbnailUrl} alt={ex.name} className="absolute inset-0 w-full h-full object-cover" />
+                      )}
+                      <Play className={`w-5 h-5 relative z-10 ${ex.thumbnailUrl ? 'text-white' : 'text-accent'}`} />
                     </button>
-                    <button onClick={() => handleDeleteEx(ex.id)} className="p-2.5 rounded-lg hover:bg-red-500/20 transition-colors">
-                      <Trash2 className="w-4 h-4 text-red-400" />
-                    </button>
-                  </div>
-                </Card>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{ex.name}</p>
+                      <p className="text-xs text-text-secondary truncate">
+                        {[...ex.muscleGroups, ...ex.equipment].join(' · ')}
+                      </p>
+                      {ex.aliases.length > 0 && (
+                        <p className="text-xs text-text-tertiary truncate">Also: {ex.aliases.join(', ')}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <button onClick={() => startEditEx(ex)} className="p-2.5 rounded-lg hover:bg-white/10 transition-colors">
+                        <Edit2 className="w-4 h-4 text-text-secondary" />
+                      </button>
+                      <button onClick={() => handleDeleteEx(ex.id)} className="p-2.5 rounded-lg hover:bg-red-500/20 transition-colors">
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                      </button>
+                    </div>
+                  </Card>
+                )
               ))}
             </div>
           )}
@@ -3325,6 +4499,103 @@ function AdminPageInner() {
         </div>
       )}
 
+      {/* ── Leads ─────────────────────────────────────────────────────────────── */}
+      {tab === 'leads' && (
+        <div className="space-y-5">
+          {/* Trainer demo-request leads */}
+          <Card className="p-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-accent" /> Trainer Leads
+              </h2>
+              {trainerLeads.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => downloadCsv(
+                    'trainer-leads.csv',
+                    ['Name', 'Email', 'Phone', 'Business', 'Client Count', 'Message', 'Status', 'Date'],
+                    trainerLeads.map((l) => [l.name, l.email, l.phone ?? '', l.businessName ?? '', l.clientCount ?? '', l.message ?? '', l.status, leadDate(l)]),
+                  )}
+                >
+                  <Download className="w-3.5 h-3.5" /> Export CSV
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-text-secondary">Demo requests submitted from the /trainers page, newest first.</p>
+            {loadingLeads ? (
+              <p className="text-xs text-text-tertiary">Loading…</p>
+            ) : trainerLeads.length === 0 ? (
+              <p className="text-xs text-text-tertiary">No demo requests yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {trainerLeads.map((lead) => (
+                  <div key={lead.id} className="border border-white/10 rounded-xl p-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white truncate">{lead.name} {lead.businessName ? `· ${lead.businessName}` : ''}</p>
+                      <p className="text-xs text-text-secondary truncate">{lead.email} {lead.phone ? `· ${lead.phone}` : ''} {lead.clientCount ? `· ${lead.clientCount} clients` : ''}</p>
+                      {lead.message && <p className="text-xs text-text-tertiary mt-1">{lead.message}</p>}
+                    </div>
+                    <select
+                      className="bg-surface-elevated border border-border rounded-lg px-2 py-1 text-xs text-white flex-shrink-0"
+                      value={lead.status}
+                      onChange={(e) => {
+                        const status = e.target.value as TrainerLead['status'];
+                        setTrainerLeads(ls => ls.map(l => l.id === lead.id ? { ...l, status } : l));
+                        updateTrainerLeadStatus(lead.id, status).catch(() => toast.error('Failed to update status'));
+                      }}
+                    >
+                      <option value="new">New</option>
+                      <option value="contacted">Contacted</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Exit-intent email captures from the consumer landing page */}
+          <Card className="p-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Mail className="w-4 h-4 text-accent" /> Landing Page Leads
+              </h2>
+              {landingLeads.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => downloadCsv(
+                    'landing-page-leads.csv',
+                    ['Email', 'Date'],
+                    landingLeads.map((l) => [l.email, leadDate(l)]),
+                  )}
+                >
+                  <Download className="w-3.5 h-3.5" /> Export CSV
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-text-secondary">
+              Emails captured by the exit-intent popup on the main landing page before someone left without converting, newest first. Export as CSV to import into Brevo (or any other list).
+            </p>
+            {loadingLandingLeads ? (
+              <p className="text-xs text-text-tertiary">Loading…</p>
+            ) : landingLeads.length === 0 ? (
+              <p className="text-xs text-text-tertiary">No captures yet.</p>
+            ) : (
+              <div className="rounded-xl border border-white/10 divide-y divide-white/5 overflow-hidden">
+                {landingLeads.map((lead) => (
+                  <div key={lead.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-sm font-medium text-white truncate">{lead.email}</span>
+                    <span className="text-xs text-text-tertiary flex-shrink-0">{leadDate(lead)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
       {/* ── Settings ──────────────────────────────────────────────────────────── */}
       {tab === 'settings' && (
         <div className="space-y-5">
@@ -3350,16 +4621,36 @@ function AdminPageInner() {
                 <Input value={settingsForm.openaiModel} onChange={e => setSettingsForm(s => ({ ...s, openaiModel: e.target.value }))} placeholder="gpt-4o-mini" />
               </div>
               <div>
-                <label className="text-xs text-text-secondary mb-1 block">Video Greeting URL</label>
-                <Input value={settingsForm.videoGreetingUrl} onChange={e => setSettingsForm(s => ({ ...s, videoGreetingUrl: e.target.value }))} placeholder="https://… (YouTube link, or an MP4 / hosted video URL)" />
-                <p className="text-xs text-text-tertiary mt-1">Plays automatically after a new user completes onboarding. YouTube links and direct video files both work. Leave blank to skip.</p>
+                <label className="text-xs text-text-secondary mb-1 block">Video Greeting</label>
+                <p className="text-xs text-text-tertiary mb-2">Plays automatically after a new user completes onboarding. Upload a file directly (stored via the storage provider configured above — R2 or Firebase), or paste a YouTube/hosted video link instead. Leave blank to skip.</p>
+                <div className="flex items-center gap-3 mb-2">
+                  {settingsForm.videoGreetingUrl && !getYouTubeEmbedUrl(settingsForm.videoGreetingUrl) && (
+                    <video src={settingsForm.videoGreetingUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted crossOrigin="anonymous" onError={() => toast.error('Video greeting URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-video-greeting', duration: 6000 })} />
+                  )}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-white/10 text-xs font-bold text-white cursor-pointer hover:border-accent/40 transition-colors">
+                      <input type="file" accept="video/*" className="hidden" onChange={handleGreetingVideoUpload} disabled={uploadingGreetingVideo} />
+                      <Upload className="w-4 h-4" /> {uploadingGreetingVideo ? 'Uploading…' : 'Upload Video'}
+                    </label>
+                    {settingsForm.videoGreetingUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setSettingsForm(s => ({ ...s, videoGreetingUrl: '' }))}
+                        className="text-[11px] text-danger hover:underline text-left"
+                      >
+                        Remove video
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <Input value={settingsForm.videoGreetingUrl} onChange={e => setSettingsForm(s => ({ ...s, videoGreetingUrl: e.target.value }))} placeholder="…or paste a YouTube link / hosted video URL" />
               </div>
               <div>
                 <label className="text-xs text-text-secondary mb-1 block">Logo / Brand Image</label>
                 <p className="text-xs text-text-tertiary mb-2">Replaces the default &quot;W&quot; icon in the header and throughout the app. Square image recommended.</p>
                 <div className="flex items-center gap-3">
                   {settingsForm.logoUrl && (
-                    <img src={settingsForm.logoUrl} alt="Logo preview" className="w-12 h-12 rounded-xl object-cover border border-white/10 flex-shrink-0" />
+                    <img src={settingsForm.logoUrl} alt="Logo preview" className="w-12 h-12 rounded-xl object-cover border border-white/10 flex-shrink-0" onError={() => toast.error('Logo URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-logo', duration: 6000 })} />
                   )}
                   <label className="flex-1">
                     <input
@@ -3374,6 +4665,44 @@ function AdminPageInner() {
                   </label>
                 </div>
               </div>
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Favicon</label>
+                <p className="text-xs text-text-tertiary mb-2">The small icon shown in the browser tab and PWA/home-screen icon. Separate from the logo above on purpose — a favicon needs to be simple and square (it gets shrunk down to as little as 16×16px), while the logo can be a larger banner-style image that would turn into an unrecognizable blob at that size. Falls back to the logo, then a default icon, if left blank.</p>
+                <div className="flex items-center gap-3">
+                  {settingsForm.faviconUrl && (
+                    <img src={settingsForm.faviconUrl} alt="Favicon preview" className="w-12 h-12 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" onError={() => toast.error('Favicon URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-favicon', duration: 6000 })} />
+                  )}
+                  <label className="flex-1">
+                    {/* SVG deliberately excluded from `accept` — the presign
+                        route rejects image/svg+xml outright (an SVG can carry
+                        an embedded script and this bucket is served publicly),
+                        so offering it here only produced a confusing hard
+                        failure after the admin had already picked a file. */}
+                    <input
+                      type="file"
+                      accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/webp,image/jpeg"
+                      className="hidden"
+                      onChange={handleFaviconUpload}
+                    />
+                    <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-elevated border border-white/10 text-sm text-white hover:border-accent/40 cursor-pointer transition-colors">
+                      <Upload className="w-4 h-4" /> {uploadingFavicon ? 'Uploading…' : settingsForm.faviconUrl ? 'Change Favicon' : 'Upload Favicon'}
+                    </span>
+                  </label>
+                  {settingsForm.faviconUrl && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setSettingsForm(s => ({ ...s, faviconUrl: '' }));
+                        await setSystemConfig({ faviconUrl: '' }).catch(() => {});
+                        toast.success('Favicon removed — falling back to logo/default');
+                      }}
+                      className="text-xs text-danger hover:underline flex-shrink-0"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-white">PWA Install Banner</p>
@@ -3386,7 +4715,14 @@ function AdminPageInner() {
                   <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.pwaInstallBannerEnabled ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              {/* Three columns only once there's room for them. On a phone
+                  these were three ~100px cells whose labels wrapped to
+                  different line counts ("Barcode Scans / Day" over two lines,
+                  "Meal Ideas / Day" over one), which left the three number
+                  inputs sitting at three different heights. items-end keeps
+                  the inputs on one baseline at sm+ even if a label still
+                  wraps at some width. */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                 <div>
                   <label className="text-xs text-text-secondary mb-1 block">Barcode Scans / Day</label>
                   <input
@@ -3419,6 +4755,48 @@ function AdminPageInner() {
                 </div>
               </div>
               <p className="text-xs text-text-tertiary -mt-2">Per-user daily caps to prevent abuse of paid API usage (OpenAI, OpenFoodFacts).</p>
+              {/* Per-user caps bound what any ONE person can spend. This bounds
+                  the total, which is the only place a bad day costs real money. */}
+              <div className="pt-3 mt-1 border-t border-white/8">
+                <label className="text-xs text-text-secondary mb-1 block">App-Wide AI Calls / Day</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={settingsForm.aiOrgDailyLimit}
+                  onChange={e => setSettingsForm(s => ({ ...s, aiOrgDailyLimit: Math.max(0, parseInt(e.target.value) || 0) }))}
+                  className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                />
+                <p className="text-xs text-text-tertiary mt-1.5">
+                  Total AI calls across all users per day. <b>0 = no limit.</b> Past the ceiling, AI
+                  features show &ldquo;paused for today&rdquo; instead of failing with an error when
+                  your OpenAI balance runs out.
+                </p>
+                {orgAiUsage && (
+                  <div className="mt-3 p-3 rounded-xl bg-surface border border-white/8">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-text-secondary">Today ({orgAiUsage.date})</span>
+                      <span className="font-mono text-white">
+                        {orgAiUsage.used}{orgAiUsage.limit > 0 ? ` / ${orgAiUsage.limit}` : ''} calls
+                      </span>
+                    </div>
+                    {orgAiUsage.limit > 0 && (
+                      <div className="mt-2 h-1.5 rounded-full bg-white/8 overflow-hidden">
+                        <div
+                          className={`h-full ${orgAiUsage.used >= orgAiUsage.limit ? 'bg-danger' : orgAiUsage.used / orgAiUsage.limit > 0.8 ? 'bg-yellow-400' : 'bg-accent'}`}
+                          style={{ width: `${Math.min(100, (orgAiUsage.used / orgAiUsage.limit) * 100)}%` }}
+                        />
+                      </div>
+                    )}
+                    {Object.keys(orgAiUsage.byFeature ?? {}).length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                        {Object.entries(orgAiUsage.byFeature).map(([f, n]) => (
+                          <span key={f} className="text-[11px] text-text-tertiary">{f}: <span className="text-text-secondary">{n}</span></span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <Button onClick={handleSaveSettings} loading={savingSettings} fullWidth>Save Configuration</Button>
           </Card>
@@ -3443,6 +4821,10 @@ function AdminPageInner() {
             <p className="text-[11px] text-text-tertiary">
               To automate daily backups, add a cron job on the server: <code className="bg-surface px-1 py-0.5 rounded">curl -X POST https://yourdomain.com/api/admin/backup -H &quot;Authorization: Bearer $CRON_SECRET&quot;</code>
             </p>
+            {/* A backup nobody knows how to restore is not a backup. */}
+            <a href="/admin/restore" className="text-xs text-accent hover:underline inline-block">
+              Restore from a backup →
+            </a>
           </Card>
 
           {/* Landing Page */}
@@ -3462,7 +4844,7 @@ function AdminPageInner() {
               <p className="text-[11px] text-text-tertiary mb-2">Shows behind the headline, blended into the dark background. Best results: a tall portrait-orientation photo with the subject roughly centered — it gets cropped differently on mobile vs desktop.</p>
               <div className="flex items-center gap-3">
                 {landingForm.heroImageUrl && (
-                  <img src={landingForm.heroImageUrl} alt="Hero preview" className="w-16 h-20 rounded-xl object-cover border border-white/10 flex-shrink-0" />
+                  <img src={landingForm.heroImageUrl} alt="Hero preview" className="w-16 h-20 rounded-xl object-cover border border-white/10 flex-shrink-0" onError={() => toast.error('Hero image URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-hero-image', duration: 6000 })} />
                 )}
                 <div className="flex flex-col gap-1.5">
                   <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-white/10 text-xs font-bold text-white cursor-pointer hover:border-accent/40 transition-colors">
@@ -3486,7 +4868,7 @@ function AdminPageInner() {
               <p className="text-[11px] text-text-tertiary mb-2">A short walkthrough of the app. Adds a "Watch Demo" link near the hero CTA that opens it in a lightbox — visitors who want proof before signing up can see the product working without leaving the page.</p>
               <div className="flex items-center gap-3">
                 {landingForm.heroDemoVideoUrl && (
-                  <video src={landingForm.heroDemoVideoUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted />
+                  <video src={landingForm.heroDemoVideoUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted crossOrigin="anonymous" onError={() => toast.error('Demo video URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-hero-demo-video', duration: 6000 })} />
                 )}
                 <div className="flex flex-col gap-1.5">
                   <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-white/10 text-xs font-bold text-white cursor-pointer hover:border-accent/40 transition-colors">
@@ -3530,6 +4912,42 @@ function AdminPageInner() {
                 <Upload className="w-4 h-4" /> {uploadingScreenshots ? 'Uploading…' : 'Add Screenshots'}
               </label>
             </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Member Transformation Photos (optional)</label>
+              <p className="text-[11px] text-text-tertiary mb-2">
+                Real member photos only — this section stays hidden on the landing page until at least one is added here. Visual proof converts far better than copy alone in this niche, so it&apos;s worth adding as soon as you have any real ones.
+              </p>
+              {landingForm.transformationPhotos && landingForm.transformationPhotos.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-2">
+                  {landingForm.transformationPhotos.map((p, i) => (
+                    <div key={p.imageUrl + i} className="relative bg-surface-elevated rounded-xl p-2 space-y-2">
+                      <div className="relative">
+                        <img src={p.imageUrl} alt={`Transformation ${i + 1}`} className="w-full aspect-[3/4] rounded-lg object-cover border border-white/10" />
+                        <button
+                          type="button"
+                          onClick={() => removeTransformationPhoto(i)}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-danger rounded-full flex items-center justify-center"
+                          aria-label={`Remove transformation photo ${i + 1}`}
+                        >
+                          <XIcon className="w-3 h-3 text-white" />
+                        </button>
+                      </div>
+                      <Input
+                        value={p.caption ?? ''}
+                        onChange={e => updateTransformationPhoto(i, { caption: e.target.value })}
+                        placeholder="Caption (optional)"
+                        className="text-xs"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-white/10 text-xs font-bold text-white cursor-pointer hover:border-accent/40 transition-colors">
+                <input type="file" accept="image/*" multiple className="hidden" onChange={handleTransformationPhotosUpload} disabled={uploadingTransformationPhotos} />
+                <Upload className="w-4 h-4" /> {uploadingTransformationPhotos ? 'Uploading…' : 'Add Photos'}
+              </label>
+            </div>
             <div>
               <label className="text-xs text-text-secondary mb-1 block">Badge Text (above headline)</label>
               <Input value={landingForm.badgeText} onChange={e => setLandingForm(f => ({ ...f, badgeText: e.target.value }))} placeholder="Your coach. Your plan. Your results." />
@@ -3569,11 +4987,17 @@ function AdminPageInner() {
               <div className="space-y-2">
                 {landingForm.features.map((f, i) => (
                   <div key={i} className="p-3 bg-surface-elevated rounded-xl space-y-2">
-                    <Input
-                      value={f.title}
-                      onChange={e => updateLandingFeature(i, { title: e.target.value })}
-                      placeholder={`Feature ${i + 1} title`}
-                    />
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={f.title}
+                        onChange={e => updateLandingFeature(i, { title: e.target.value })}
+                        placeholder={`Feature ${i + 1} title`}
+                        className="flex-1"
+                      />
+                      <Button variant="ghost" size="sm" onClick={() => removeLandingFeature(i)}>
+                        Remove
+                      </Button>
+                    </div>
                     <textarea
                       value={f.desc}
                       onChange={e => updateLandingFeature(i, { desc: e.target.value })}
@@ -3583,6 +5007,9 @@ function AdminPageInner() {
                     />
                   </div>
                 ))}
+                <Button variant="ghost" size="sm" onClick={addLandingFeature}>
+                  + Add Feature
+                </Button>
               </div>
             </div>
 
@@ -3649,18 +5076,17 @@ function AdminPageInner() {
               </div>
             </div>
 
-            <label className="flex items-center gap-3 p-3 bg-surface border border-white/10 rounded-xl cursor-pointer">
-              <input
-                type="checkbox"
-                checked={landingForm.showPublicLeaderboard !== false}
-                onChange={e => setLandingForm(f => ({ ...f, showPublicLeaderboard: e.target.checked }))}
-                className="w-4 h-4 accent-accent"
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Programs to show on landing page</label>
+              <Input
+                type="number"
+                min="0"
+                value={landingForm.programsToShow || ''}
+                onChange={e => setLandingForm(f => ({ ...f, programsToShow: parseInt(e.target.value, 10) || 0 }))}
+                placeholder="0 = show all"
               />
-              <div>
-                <p className="text-sm font-medium text-white">Show public leaderboard</p>
-                <p className="text-xs text-text-tertiary">Displays top athletes (name, level, streak — no email or private data) to logged-out visitors as social proof.</p>
-              </div>
-            </label>
+              <p className="text-xs text-text-tertiary mt-1">Limits the Programs section to this many cards. Leave at 0 to show every published program.</p>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -3692,7 +5118,7 @@ function AdminPageInner() {
               <label className="text-xs text-text-secondary mb-1 block">Hero Image</label>
               <div className="flex items-center gap-3">
                 {b2bForm.heroImageUrl && (
-                  <img src={b2bForm.heroImageUrl} alt="Hero preview" className="w-16 h-20 rounded-xl object-cover border border-white/10 flex-shrink-0" />
+                  <img src={b2bForm.heroImageUrl} alt="Hero preview" className="w-16 h-20 rounded-xl object-cover border border-white/10 flex-shrink-0" onError={() => toast.error('B2B hero image URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-b2b-hero-image', duration: 6000 })} />
                 )}
                 <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-elevated border border-border text-xs font-medium text-white cursor-pointer">
                   <input type="file" accept="image/*" className="hidden" onChange={handleB2bHeroImageUpload} disabled={uploadingB2bHero} />
@@ -3708,7 +5134,7 @@ function AdminPageInner() {
               <label className="text-xs text-text-secondary mb-1 block">Hero Demo Video (optional — shown as a "Watch Demo" player instead of the static image)</label>
               <div className="flex items-center gap-3">
                 {b2bForm.heroDemoVideoUrl && (
-                  <video src={b2bForm.heroDemoVideoUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted />
+                  <video src={b2bForm.heroDemoVideoUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted crossOrigin="anonymous" onError={() => toast.error('B2B demo video URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-b2b-hero-demo-video', duration: 6000 })} />
                 )}
                 <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-elevated border border-border text-xs font-medium text-white cursor-pointer">
                   <input type="file" accept="video/*" className="hidden" onChange={handleB2bVideoUpload} disabled={uploadingB2bVideo} />
@@ -3912,44 +5338,6 @@ function AdminPageInner() {
             </div>
           </Card>
 
-          {/* Trainer demo-request leads */}
-          <Card className="p-5 space-y-3">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-accent" /> Trainer Leads
-            </h2>
-            <p className="text-xs text-text-secondary">Demo requests submitted from the /trainers page.</p>
-            {loadingLeads ? (
-              <p className="text-xs text-text-tertiary">Loading…</p>
-            ) : trainerLeads.length === 0 ? (
-              <p className="text-xs text-text-tertiary">No demo requests yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {trainerLeads.map((lead) => (
-                  <div key={lead.id} className="border border-white/10 rounded-xl p-3 flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-white truncate">{lead.name} {lead.businessName ? `· ${lead.businessName}` : ''}</p>
-                      <p className="text-xs text-text-secondary truncate">{lead.email} {lead.phone ? `· ${lead.phone}` : ''} {lead.clientCount ? `· ${lead.clientCount} clients` : ''}</p>
-                      {lead.message && <p className="text-xs text-text-tertiary mt-1">{lead.message}</p>}
-                    </div>
-                    <select
-                      className="bg-surface-elevated border border-border rounded-lg px-2 py-1 text-xs text-white flex-shrink-0"
-                      value={lead.status}
-                      onChange={(e) => {
-                        const status = e.target.value as TrainerLead['status'];
-                        setTrainerLeads(ls => ls.map(l => l.id === lead.id ? { ...l, status } : l));
-                        updateTrainerLeadStatus(lead.id, status).catch(() => toast.error('Failed to update status'));
-                      }}
-                    >
-                      <option value="new">New</option>
-                      <option value="contacted">Contacted</option>
-                      <option value="closed">Closed</option>
-                    </select>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
           {/* Legal Pages */}
           <Card className="p-5 space-y-4">
             <h2 className="text-base font-bold text-white">Legal Pages</h2>
@@ -4053,6 +5441,41 @@ function AdminPageInner() {
                 <div className="pt-1.5 border-t border-white/5">
                   <p className="text-text-tertiary text-xs mb-0.5">Limitations</p>
                   <p className="text-white text-xs">{profileDetailUser.limitations}</p>
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-4 space-y-3">
+              <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wide">Training Activity</h3>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2.5 bg-surface-elevated rounded-xl">
+                  <p className="text-sm font-bold text-white">{profileDetailUser.powerLevel ?? 0}</p>
+                  <p className="text-[10px] text-text-tertiary">Power Level</p>
+                </div>
+                <div className="p-2.5 bg-surface-elevated rounded-xl">
+                  <p className="text-sm font-bold text-white">{profileDetailUser.statsCache?.streak ?? 0}d</p>
+                  <p className="text-[10px] text-text-tertiary">Streak</p>
+                </div>
+                <div className="p-2.5 bg-surface-elevated rounded-xl">
+                  <p className="text-sm font-bold text-white">{profileDetailUser.statsCache?.totalWorkouts ?? profileDetailUser.stats?.totalWorkouts ?? 0}</p>
+                  <p className="text-[10px] text-text-tertiary">Total Workouts</p>
+                </div>
+              </div>
+              {profileDetailWorkouts.length === 0 ? (
+                <p className="text-xs text-text-tertiary">No workouts logged yet.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-text-tertiary uppercase tracking-wide">Recent Sessions</p>
+                  {profileDetailWorkouts.map((w) => {
+                    const ts = w.completedAt as { toDate?: () => Date } | null;
+                    const d = ts?.toDate?.();
+                    return (
+                      <div key={w.id} className="flex items-center justify-between text-xs px-3 py-2 bg-surface-elevated rounded-lg">
+                        <span className="text-white">{w.duration ? `${w.duration} min` : 'Session'} · {Array.isArray(w.exercises) ? w.exercises.length : 0} exercises</span>
+                        <span className="text-text-tertiary">{d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </Card>

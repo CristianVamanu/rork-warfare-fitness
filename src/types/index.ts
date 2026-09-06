@@ -72,6 +72,18 @@ export interface ActiveProgram {
   lastCompletedDayIndex?: number;  // absolute day index (0-based) of the last non-repeated day completed
 }
 
+// Saved position for a program the user isn't currently active on — same
+// fields as ActiveProgram minus programId (that's the map key) since it's
+// otherwise the exact same shape mirrored to/from `activeProgram` on switch.
+export interface ProgramProgressSnapshot {
+  programName: string;
+  enrolledAt: unknown;
+  programStartDate?: string;
+  completedWorkouts: number;
+  totalWorkouts: number;
+  lastCompletedDayIndex?: number;
+}
+
 export type FitnessGoal = 'lose-fat' | 'build-muscle' | 'recomposition' | 'strength';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 export type EquipmentType = 'home' | 'full-gym' | 'minimal';
@@ -97,8 +109,9 @@ export interface OnboardingData {
 // current weight) and read by the dashboard/goals page to show ongoing
 // progress toward it. Separate from ClientGoal (goals/{goalId} collection)
 // deliberately — that collection is coach/admin-authored only per
-// firestore.rules (`allow create: if isStaff()`), and this one needs to be
-// self-serve at signup, before any coach relationship necessarily exists.
+// firestore.rules (`allow create: if isAdminOrOwnTrainer(...)`), and this
+// one needs to be self-serve at signup, before any coach relationship
+// necessarily exists.
 export interface WeightGoal {
   startWeightKg: number;
   targetWeightKg: number;
@@ -186,6 +199,10 @@ export interface UserProfile {
   fitnessGoal?: FitnessGoal;
   experience?: ExperienceLevel;
   limitations?: string;
+  // Only present on accounts that answered these during onboarding, back
+  // when the health screening lived there — it's collected on the 1:1
+  // coaching application form now, and prefilled from here when present.
+  medicalHistory?: MedicalHistoryAnswers;
   role: 'user' | 'trainer' | 'admin';
   trainerId?: string;        // uid of the owning trainer / tenant
   createdAt: unknown;
@@ -193,7 +210,29 @@ export interface UserProfile {
   lastLoginAt?: unknown;
   goals?: UserGoals;
   statsCache?: StatsCache;  // derived — computed by events engine
+  // One freeze grants automatically every 7 days and absorbs a single missed
+  // day without breaking the streak — spent (available -> false) the moment
+  // it actually saves a gap, not just for holding one.
+  streakFreeze?: { available: boolean; lastGrantedAt: unknown; lastUsedAt?: unknown };
+  // Taste-then-paywall: a non-member gets exactly one real, successful use of
+  // each locked AI tool before the paywall shows on subsequent visits —
+  // people convert far better after they've already seen the tool work for
+  // them. Keyed by the same feature id PaywallGate/MembershipConfig use
+  // ('barcode' | 'nutrition-ai' | 'meal-planner'). Set true only after an
+  // actual successful result, not just for opening the page.
+  aiTaste?: Record<string, boolean>;
   activeProgram?: ActiveProgram;
+  // Per-program progress snapshots, keyed by programId — every program the
+  // user has ever enrolled in keeps its own saved position here, so
+  // switching `activeProgram` to a different program never has to destroy
+  // progress the way overwriting a single global pointer used to. Whichever
+  // program is currently active is mirrored into `activeProgram` above (so
+  // every existing screen that reads `profile.activeProgram.*` keeps
+  // working unchanged) — this map is the actual source of truth for a
+  // program's progress once the user has switched away from it at least
+  // once. A program the user has never switched away from yet may not have
+  // an entry here at all; its live progress is simply `activeProgram`.
+  programProgress?: Record<string, ProgramProgressSnapshot>;
   onboardingComplete?: boolean;
   onboarding?: OnboardingData;
   // One-time flag — the streak flame's "ignition" welcome animation on the
@@ -205,17 +244,50 @@ export interface UserProfile {
   achievements?: string[];
   questsCompleted?: string[];
   prBan?: { until: unknown /* Timestamp | null; null = indefinite */; bannedAt: unknown };
+  // Set once, server-side only (Stripe webhook), the first time this
+  // account actually uses a trial (free or paid) via Stripe checkout — see
+  // api/stripe/plan-checkout's alreadyUsedTrial check. Never client-writable
+  // (see firestore.rules' self-update blocklist).
+  trialUsedAt?: unknown;
   xp?: number;
   powerLevel?: number;
   currentWeightKg?: number;
   weightGoal?: WeightGoal;
   purchasedProgramIds?: string[];
   banned?: boolean;
+  // Email-code 2FA, opt-in via Settings. twoFactorPendingSince is set the
+  // moment a code is issued at login and cleared on successful verification
+  // — (app)/layout.tsx redirects to /verify-2fa whenever it's set, so a
+  // user can't navigate past the code screen just by hitting back/a
+  // bookmark while a login is mid-verification.
+  twoFactorEnabled?: boolean;
+  twoFactorPendingSince?: unknown;
+  // Where codes actually get sent — falls back to the account's login email
+  // when unset. Exists because a login email isn't always a real inbox
+  // (e.g. a domain configured for the app but never hooked up to receive
+  // mail); this lets 2FA codes go somewhere that's actually monitored.
+  twoFactorEmail?: string;
   membership?: {
     status: 'active' | 'none';
     expiresAt?: unknown;
     grantedBy?: string;
-    planId?: string;    // coaching plan ID if on a specific plan
+    planId?: string;
+    planName?: string;
+    stripeSubscriptionId?: string;
+    cancelAtPeriodEnd?: boolean;
+  };
+  // Separate from `membership` — a user can hold both an active membership
+  // plan AND an active 1:1 coaching plan simultaneously (coaching is a paid
+  // add-on tier, not a replacement). They're two independent Stripe
+  // subscriptions; tracking them in one shared field meant buying the
+  // second one silently overwrote the first's subscription ID, making it
+  // impossible to cancel through the app and — worse — un-cancelable by
+  // account deletion too, leaving an orphaned subscription still billing
+  // a deleted account's card indefinitely.
+  coaching?: {
+    status: 'active' | 'none';
+    expiresAt?: unknown;
+    planId?: string;
     planName?: string;
     stripeSubscriptionId?: string;
     cancelAtPeriodEnd?: boolean;
@@ -314,6 +386,16 @@ export interface TrainerLead {
   createdAt: unknown;
 }
 
+// A visitor's email captured by the exit-intent modal on the consumer
+// landing page — before they abandon the quiz/checkout, not a submitted
+// application like TrainerLead. Purely for a later "come back and finish"
+// nudge email; reviewed manually in the admin panel same as trainerLeads.
+export interface LandingLead {
+  id: string;
+  email: string;
+  createdAt: unknown;
+}
+
 export interface LandingFeature {
   title: string;
   desc: string;
@@ -332,7 +414,7 @@ export interface LandingPageConfig {
   quoteAuthor: string;
   finalCtaHeadline: string;
   finalCtaSubtext: string;
-  showPublicLeaderboard?: boolean; // opt-in — shows top athletes (name, level, streak only) on the logged-out landing page
+  programsToShow?: number; // how many programs to display in the landing page's Programs section — unset/0 means show all
   // Empty by default and hidden until an admin adds real ones — inventing
   // fake customer quotes and presenting them as genuine is deceptive
   // marketing regardless of which app it's on, so this only ever shows
@@ -342,6 +424,10 @@ export interface LandingPageConfig {
   heroDemoVideoUrl?: string; // optional product-demo video shown in the hero as a "Watch Demo" player
   heroDemoPosterUrl?: string; // poster frame for the demo video, shown before play + while it loads
   screenshotUrls?: string[]; // real in-app screenshots shown in a "See It In Action" gallery on the landing page
+  // Empty by default and hidden until an admin adds real ones — same
+  // never-fabricate rule as testimonials above, just for member transformation
+  // photos instead of quotes.
+  transformationPhotos?: { imageUrl: string; caption?: string }[];
 }
 
 export interface Channel {
@@ -365,11 +451,22 @@ export interface ChannelPost {
   userId: string;
   userDisplayName: string;
   userPhotoURL?: string;
+  // Denormalized at write time (like userDisplayName) rather than looked up
+  // per-render — a regular member can't read the admin's users/{uid} doc
+  // anyway (see firestore.rules), so this is the only way the badge could
+  // render for anyone but the admin's own client.
+  userIsAdmin?: boolean;
   content: string;
   imageURL?: string;
   likes: string[];
   replyCount: number;
   replyTo?: string | null;
+  // Set when this reply answers ANOTHER reply rather than the post itself.
+  // Threads are capped at two visible levels (post -> reply -> reply), the
+  // same shape Facebook uses: a reply to a nested reply is stored against
+  // the same top-level parent so a thread can never run away sideways on a
+  // phone. Absent on top-level replies and on posts.
+  parentReplyId?: string | null;
   pinned?: boolean;
   createdAt: unknown;
 }
@@ -487,7 +584,7 @@ export interface Post {
 
 export type NotificationType =
   | 'manual' | 'auto_missed_workout' | 'auto_streak' | 'auto_milestone' | 'ai_motivation'
-  | 'coaching_approved' | 'coaching_rejected' | 'pr_approved' | 'pr_rejected' | 'goal_assigned';
+  | 'coaching_approved' | 'coaching_rejected' | 'pr_approved' | 'pr_rejected' | 'goal_assigned' | 'message';
 
 export interface AppNotification {
   id: string;
@@ -572,6 +669,9 @@ export interface CoachingApplication {
   experience: string;
   injuries: string;
   availability: string;
+  // Health screening / lifestyle habits answers, collected on the coaching
+  // application form (they used to be mandatory onboarding steps).
+  medicalHistory?: MedicalHistoryAnswers;
   status: CoachingApplicationStatus;
   createdAt: unknown;
   reviewedAt?: unknown;
@@ -638,9 +738,39 @@ export interface MembershipConfig {
   lockedFeatures?: string[];
   lockedProgramIds?: string[];
   fullLock: boolean; // lock entire app for non-members/non-trial users
-  trialDays: 0 | 7 | 14 | 30; // free trial length; grants full access to every feature regardless of plan
+  trialDays: 0 | 7 | 14 | 30; // trial length; grants full access to every feature regardless of plan
   discountPercent?: number;   // 1-100, applied to new checkouts while active
   discountExpiresAt?: string; // ISO datetime; discount inactive after this
+  // MadMuscles-style paid trial: charge trialPriceCents immediately at
+  // checkout instead of granting `trialDays` of free no-card access. When
+  // this is on, the createdAt-based free-trial bypass (inTrial in
+  // useFeatureAccess.ts/MembershipGuard.tsx, trialActive() in
+  // firestore.rules) is disabled entirely — access is only ever granted
+  // via an actual Stripe subscription (which itself starts in Stripe's
+  // own 'trialing' status for `trialDays`, already treated as active
+  // access by the webhook). Requires fullLock so the paywall/checkout
+  // actually gets shown to someone with no subscription yet — enforced by
+  // the admin UI, not just documented here.
+  paidTrialEnabled?: boolean;
+  trialPriceCents?: number; // e.g. 100 = $1.00, charged once at checkout
+  // Card-up-front trial: the member goes through Stripe Checkout on day 0,
+  // hands over a card, and gets `trialDays` free via Stripe's own
+  // trial_period_days. Nothing is charged until the trial ends, and then it
+  // bills automatically.
+  //
+  // The point is WHO decides on day 8. The createdAt-anchored free trial
+  // (isInFreeTrial) grants access with no Stripe subscription at all, so
+  // when it lapses the member hits a paywall and has to actively choose to
+  // subscribe — an opt-IN at the exact moment the product stopped working.
+  // With a card up front, day 8 is passive: they do nothing and become a
+  // customer. Same 7 free days either way; very different conversion.
+  //
+  // Like paidTrialEnabled, this disables the createdAt-based free window
+  // entirely — access comes only from a real Stripe subscription, which
+  // starts in 'trialing' and is already treated as active by the webhook.
+  // Mutually exclusive with paidTrialEnabled (which charges immediately);
+  // paidTrialEnabled wins if both are somehow set.
+  cardUpFrontTrial?: boolean;
 }
 
 export interface MembershipPlan {
@@ -659,6 +789,15 @@ export interface MembershipPlan {
   price12mo?: number;
   currency: string; // e.g. 'USD'
   features: string[]; // bullet points shown on the pricing card
+  // Which plan gets the "Most Popular" badge on the landing page and the
+  // in-app paywalls. Previously not a real field at all — every pricing
+  // card just badged whichever plan happened to be array index 0, with no
+  // way for an admin to actually choose which one that was short of
+  // deleting and recreating plans in a different order. At most one plan
+  // should have this true at a time (enforced by the admin toggle, not by
+  // this type) — if none do, callers fall back to index 0 so existing
+  // installs keep behaving exactly as before.
+  mostPopular?: boolean;
   // Which gated tools this plan unlocks — 'barcode' | 'nutrition-ai' |
   // 'meal-planner' | 'premium-programs'. Empty = every feature (the
   // default — a plan only restricts once an admin explicitly picks a
@@ -689,6 +828,38 @@ export interface Message {
   content: string;
   isFromAdmin: boolean;
   createdAt: unknown;
+  // Support attachments only (coach DMs don't currently offer uploads).
+  // Optional throughout, so every message written before this existed still
+  // parses as a valid Message.
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
+}
+
+// ── Support tickets ────────────────────────────────────────────────────────
+// Deliberately a separate collection from `conversations` rather than a flag
+// on it. A conversation is a staff-initiated coach DM that no member may ever
+// create (see firestore.rules); a support ticket is the exact opposite — the
+// member opens it, and it carries a lifecycle (pending → ongoing → resolved)
+// that a DM has no concept of. Folding the two together would have meant
+// loosening the conversations create rule for everyone, which is the one rule
+// standing between this app and member-to-member messaging.
+export type SupportTicketStatus = 'pending' | 'ongoing' | 'resolved';
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  userDisplayName: string;
+  userEmail: string;
+  subject: string;
+  status: SupportTicketStatus;
+  lastMessage: string;
+  lastMessageAt: unknown;
+  createdAt: unknown;
+  unreadByUser: boolean;
+  unreadByAdmin: boolean;
+  resolvedAt?: unknown;
+  resolvedBy?: string;
 }
 
 export interface NutritionAnalysis {

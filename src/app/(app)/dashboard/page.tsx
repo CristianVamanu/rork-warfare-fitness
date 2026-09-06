@@ -1,14 +1,14 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Droplets, Dumbbell, Apple, Droplets as WaterIcon, ChevronRight, Play, Moon, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
+import { Moon, Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserGoals, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayMeals, getTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, getLeaderboard, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest, type LeaderboardEntry } from '@/lib/firestore';
+import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
 import { logWaterAction } from '@/lib/actions';
-import { getMockProgram, stripWeekdayPrefix, getProgramDayForDow, getNextSession } from '@/lib/programs';
+import { getMockProgram, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
@@ -20,7 +20,6 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -40,9 +39,17 @@ export default function DashboardPage() {
   const router = useRouter();
   const [waterMl, setWaterMl] = useState<number | null>(null);
   const [calories, setCalories] = useState<number | null>(null);
-  const [leaderboardTop, setLeaderboardTop] = useState<LeaderboardEntry[]>([]);
-  const [myRank, setMyRank] = useState<number | null>(null);
-  const [goals, setGoals] = useState(DEFAULT_GOALS);
+  // Goals live on users/{uid}, the document AuthContext already streams live —
+  // reading them here used to mean a second getDoc of that same doc on every
+  // dashboard mount, which could also render one frame behind an edit made on
+  // the nutrition page. Derived, so it stays in sync for free.
+  const goals = useMemo(
+    () => ({
+      calories: profile?.goals?.calories ?? DEFAULT_GOALS.calories,
+      water: profile?.goals?.water ?? DEFAULT_GOALS.water,
+    }),
+    [profile?.goals?.calories, profile?.goals?.water]
+  );
   const [loading, setLoading] = useState(true);
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [resolvedProgram, setResolvedProgram] = useState<Program | null>(null);
@@ -59,8 +66,18 @@ export default function DashboardPage() {
     getProgressPhotos(user.uid).then(setProgressPhotos).catch(() => {});
   }, [user]);
 
-  // Sync calories + water from profile.statsCache whenever it updates (real-time via AuthContext)
+  // Today's calories + water used to arrive from THREE places at once: a
+  // one-shot getTodayMeals/getTodayWater pair on mount, these two live
+  // listeners, and profile.statsCache. The one-shot pair queried exactly what
+  // the listeners already deliver on their first snapshot, so it was a pure
+  // duplicate read that also raced them (whichever resolved last won). Now
+  // statsCache — already streamed in by AuthContext, costing no read at all —
+  // paints instantly, and the listeners are the single source of truth from
+  // their first snapshot onward.
+  const liveNutritionRef = useRef(false);
+
   useEffect(() => {
+    if (liveNutritionRef.current) return;
     const localDateStr = new Date().toLocaleDateString('sv-SE');
     const cache = profile?.statsCache;
     if (cache && cache.cacheDate === localDateStr) {
@@ -73,39 +90,33 @@ export default function DashboardPage() {
     if (!user) return;
 
     const localDateStr = new Date().toLocaleDateString('sv-SE');
+    liveNutritionRef.current = false;
 
-    // Direct queries on mount for goals and initial nutrition totals
-    Promise.all([
-      getTodayMeals(user.uid, localDateStr),
-      getTodayWater(user.uid, localDateStr),
-      getUserGoals(user.uid),
-    ])
-      .then(([meals, water, g]) => {
-        const cal = (meals as Array<{ calories?: number }>).reduce((s, m) => s + (m.calories ?? 0), 0);
-        setCalories(cal);
-        setWaterMl(water as number);
-        setGoals({ calories: g.calories, water: g.water });
-      })
-      .catch((err) => console.error('[Dashboard] Data load error:', err))
-      .finally(() => setLoading(false));
+    const markLive = () => {
+      liveNutritionRef.current = true;
+      setLoading(false);
+    };
 
-    // Real-time listeners — update immediately on any new write
-    const unsubCal = subscribeTodayCalories(user.uid, localDateStr, setCalories);
-    const unsubWater = subscribeTodayWater(user.uid, localDateStr, setWaterMl);
+    const unsubCal = subscribeTodayCalories(user.uid, localDateStr, (v) => {
+      setCalories(v);
+      markLive();
+    });
+    const unsubWater = subscribeTodayWater(user.uid, localDateStr, (v) => {
+      setWaterMl(v);
+      markLive();
+    });
+
+    // A listener that errors out (e.g. permission denied) never calls back at
+    // all, so loading must not depend solely on a snapshot arriving — the
+    // previous one-shot read cleared it in a .finally(). The dashboard renders
+    // fine with null totals, so failing open after a moment is correct.
+    const loadingGuard = setTimeout(() => setLoading(false), 4000);
 
     return () => {
+      clearTimeout(loadingGuard);
       unsubCal();
       unsubWater();
     };
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    getLeaderboard(200).then((entries) => {
-      setLeaderboardTop(entries.slice(0, 3));
-      const myIdx = entries.findIndex((e) => e.id === user.uid);
-      setMyRank(myIdx === -1 ? null : myIdx + 1);
-    }).catch(() => {});
   }, [user]);
 
   const greeting = getGreeting();
@@ -123,14 +134,20 @@ export default function DashboardPage() {
   // broken. Derive the *real* state here from the day-gap instead of
   // trusting the cached number on its own: 0 days = trained today, 1 day =
   // still salvageable today (the one grace day), 2+ days = the streak is
-  // dead until a fresh workout starts a new one.
+  // dead until a fresh workout starts a new one — UNLESS a streak freeze
+  // is available, which absorbs exactly one missed day and pushes the dead
+  // threshold out by one, matching computeStreak()'s own freeze logic in
+  // src/lib/events.ts. Without this, a server-side freeze save would be
+  // invisible: the UI would still show the streak as dead.
   const lastWorkoutDateStr = profile?.statsCache?.lastWorkoutDate as string | undefined;
   const daysSinceLastWorkout = lastWorkoutDateStr
     ? Math.round((new Date(localDateStr + 'T00:00:00').getTime() - new Date(lastWorkoutDateStr + 'T00:00:00').getTime()) / 86_400_000)
     : null;
-  const streakBroken = daysSinceLastWorkout !== null && daysSinceLastWorkout >= 2;
+  const freezeAvailable = profile?.streakFreeze?.available ?? true;
+  const streakBroken = daysSinceLastWorkout !== null && daysSinceLastWorkout >= (freezeAvailable ? 3 : 2);
   const streak = streakBroken ? 0 : (profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0);
   const streakAtRisk = !loading && streak > 0 && !workedOutToday;
+  const streakSavedByFreeze = daysSinceLastWorkout === 2 && freezeAvailable && streak > 0;
 
   const WATER_STEP_ML = 250;
 
@@ -183,7 +200,7 @@ export default function DashboardPage() {
   const FLAME_COPY: Record<FlameState, string> = {
     unlit: 'Light it — finish your first workout',
     blazing: 'Blazing — keep it going',
-    flickering: 'Flickering — train today to keep it lit',
+    flickering: streakSavedByFreeze ? '🧊 Freeze saved your streak — train today to keep it' : 'Flickering — train today to keep it lit',
     out: "Flame's out — start a new streak today",
   };
 
@@ -221,31 +238,54 @@ export default function DashboardPage() {
   // copy renders immediately and gets replaced if the admin has saved edits.
   const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
   const programSource = resolvedProgram ?? activeMock;
-  // getNextSession is the single shared answer to "what's next" — it skips
-  // stale rest slots (deadlock fix) and only reports isRestToday when the
-  // user actually trained yesterday, so a rest day is shown for exactly one
-  // real day instead of trapping the pointer forever.
-  const nextSession = programSource && !workedOutToday
+  // getNextSession is the single shared answer to "what's next" — always the
+  // next TRAINING slot after the last completed one; rest slots are skipped.
+  // Always points at the next not-yet-completed session, regardless of
+  // workedOutToday — training more than once in a day used to be blocked
+  // entirely (this card only offered "Repeat Today" once workedOutToday
+  // was true, with no way to actually start the next session until the
+  // calendar date rolled over, up to a ~24h wait). getNextSession already
+  // advances past lastCompleted and correctly honors/skips a stale rest
+  // day via lastWorkoutDate.
+  const nextSession = programSource
     ? getNextSession(programSource, lastCompleted, profile?.statsCache?.lastWorkoutDate)
     : null;
-  // nextAbsIdx: absolute slot index the user should do next (or just did today)
-  const nextAbsIdx = workedOutToday ? lastCompleted : (nextSession?.index ?? lastCompleted + 1);
-  const todayDay = workedOutToday
-    ? (programSource ? getProgramDayForDow(programSource, lastCompleted) : null)
-    : (nextSession?.day ?? null);
-  const isRestToday = !workedOutToday && (nextSession?.isRestToday ?? false);
-  // After today's session is done, preview what's next — fills the card
-  // (which spans 3 grid rows) instead of leaving a dead gap under the
-  // congrats message, and answers the natural next question anyway.
-  const upcomingSession = programSource && workedOutToday
-    ? getNextSession(programSource, lastCompleted, profile?.statsCache?.lastWorkoutDate)
-    : null;
-  const upcomingDay = upcomingSession?.day ?? null;
-  const programPct = activeProgram
+  const nextAbsIdx = nextSession?.index ?? lastCompleted + 1;
+  const todayDay = nextSession?.day ?? null;
+  const isRestToday = nextSession?.isRestToday ?? false;
+  // After a skipped rest day the pointer sits on a rest slot — "Repeat" must
+  // open the last real session, not that.
+  const repeatIdx = programSource ? getLastTrainingSlotIndex(programSource, lastCompleted) : null;
+  const [skippingRest, setSkippingRest] = useState(false);
+  const handleSkipRest = async () => {
+    if (!user || !activeProgram?.programId || !nextSession?.isRestToday) return;
+    setSkippingRest(true);
+    try {
+      const res = await skipRestDay(user.uid, activeProgram.programId, nextSession.index);
+      if (!res.ok) {
+        toast.error(
+          res.reason === 'locked'
+            ? 'Your trial covers a limited number of days — upgrade to keep going.'
+            : res.reason === 'not-a-rest-day'
+            ? 'That session is a workout, not a rest day.'
+            : 'Could not skip the rest day. Try again.'
+        );
+      }
+      // profile streams live via AuthContext; the card re-renders on its own.
+    } catch {
+      toast.error('Could not skip the rest day. Try again.');
+    } finally {
+      setSkippingRest(false);
+    }
+  };
+  // Guarded against a zero/missing totalWorkouts — enrollInProgram always
+  // sets it now, but a legacy activeProgram written before that field
+  // existed divides by undefined and renders a literal "NaN%".
+  const programPct = activeProgram && activeProgram.totalWorkouts
     ? Math.min(100, Math.round((completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
 
-  const firstExerciseName = !isRestToday ? todayDay?.exercises?.[0]?.name : undefined;
+  const firstExerciseName = !isRestToday ? todayDay?.exercises?.[0]?.name : nextSession?.nextTraining?.day.exercises?.[0]?.name;
 
   useEffect(() => {
     if (!user) return;
@@ -266,7 +306,11 @@ export default function DashboardPage() {
   return (
     <div>
       <Header />
-      <div className="px-4 py-4 space-y-5">
+      {/* space-y-3 matches the bento grid's own gap-3 between tiles — this
+          used to be space-y-5, so the gap between the last grid tile and the
+          next section (e.g. Personal Trackers) read visibly larger/uneven
+          against the grid's own internal 12px spacing. */}
+      <div className="px-4 py-4 space-y-3">
         {/* Streak Urgency Banner */}
         {streakAtRisk && (
           <motion.div
@@ -309,7 +353,7 @@ export default function DashboardPage() {
 
           {/* Streak — hero tile, flame centered behind the number */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-2">
-            <Card className="p-4 h-full flex flex-col bg-gradient-to-br from-surface-elevated to-surface relative overflow-hidden">
+            <Card className="p-4 h-full flex flex-col bg-gradient-to-br from-surface-elevated to-surface relative overflow-hidden card-float">
               <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide relative">Streak</span>
 
               <div className="flex-1 flex items-center justify-center relative">
@@ -442,7 +486,7 @@ export default function DashboardPage() {
             never padded with empty space either. */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} className="mb-3">
             {activeProgram ? (
-              <Card className="p-5 h-full relative overflow-hidden flex flex-col">
+              <Card className="p-5 h-full relative overflow-hidden flex flex-col card-float">
                 <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
                   <Dumbbell className="w-28 h-28 text-accent" />
                 </div>
@@ -462,14 +506,14 @@ export default function DashboardPage() {
                   <h3 className="text-base font-bold text-white">{activeProgram.programName}</h3>
                   {workedOutToday && completedWorkouts > 0 ? (
                     <p className="text-sm text-success mt-0.5">
-                      🎉 Great work! Come back tomorrow for Day {completedWorkouts + 1}.
+                      🎉 Great work on Day {Math.max(1, completedWorkouts)}!
                       {activeProgram.totalWorkouts - completedWorkouts > 0 &&
                         ` ${activeProgram.totalWorkouts - completedWorkouts} session${activeProgram.totalWorkouts - completedWorkouts !== 1 ? 's' : ''} remaining.`
                       }
                     </p>
                   ) : todayDay ? (
                     <p className="text-sm text-text-secondary mt-0.5">
-                      {isRestToday ? '😴 Rest Day — recover well' : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
+                      {isRestToday ? 'Rest day — recover, or skip it below' : workedOutToday ? `Next: ${stripWeekdayPrefix(todayDay.label)}` : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
                     </p>
                   ) : null}
                   {/* Full session preview — the card spans 3 grid rows, so a
@@ -477,7 +521,7 @@ export default function DashboardPage() {
                       header and the progress bar. Listing every exercise for
                       today fills that space with the thing the user actually
                       opens this card to know: what's in the session. */}
-                  {!workedOutToday && !isRestToday && (todayDay?.exercises?.length ?? 0) > 0 && (
+                  {!isRestToday && (todayDay?.exercises?.length ?? 0) > 0 && (
                     <div className="mt-3 space-y-1.5">
                       {todayDay!.exercises.slice(0, 4).map((ex) => (
                         <div key={ex.id} className="flex items-center justify-between text-xs">
@@ -497,35 +541,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                   )}
-                  {/* Same idea for the day-complete state: the congrats line
-                      alone left the tall card mostly empty, so preview what
-                      tomorrow holds in that space instead. */}
-                  {workedOutToday && completedWorkouts > 0 && upcomingDay && (
-                    <div className="mt-3">
-                      <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-wide mb-1.5">
-                        Next workout: {upcomingDay.isRest ? 'Rest Day' : stripWeekdayPrefix(upcomingDay.label)}
-                      </p>
-                      {upcomingDay.isRest ? (
-                        <p className="text-xs text-text-secondary flex items-center gap-1.5"><Moon className="w-3 h-3" /> Recovery — let your muscles grow.</p>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {upcomingDay.exercises.slice(0, 4).map((ex) => (
-                            <div key={ex.id} className="flex items-center justify-between text-xs">
-                              <span className="flex items-center gap-1.5 text-text-secondary min-w-0">
-                                <Dumbbell className="w-3 h-3 text-text-tertiary flex-shrink-0" />
-                                <span className="truncate">{ex.name}</span>
-                              </span>
-                              <span className="text-text-tertiary flex-shrink-0 ml-2">{ex.sets}×{ex.reps}</span>
-                            </div>
-                          ))}
-                          {upcomingDay.exercises.length > 4 && (
-                            <p className="text-[11px] text-text-tertiary">+{upcomingDay.exercises.length - 4} more in session</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {!workedOutToday && !isRestToday && personalBest && (
+                  {!isRestToday && personalBest && (
                     <div className="mt-2 flex items-center gap-1.5 p-2 bg-accent/5 border border-accent/20 rounded-lg">
                       <Trophy className="w-3.5 h-3.5 text-accent flex-shrink-0" />
                       <p className="text-xs text-accent">
@@ -549,32 +565,39 @@ export default function DashboardPage() {
                       {programPct}% complete · {activeProgram.totalWorkouts - completedWorkouts} sessions remaining
                     </p>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
+                  {/* One primary action, full width. Secondary actions in a
+                      single evenly-divided row below it — the previous
+                      flex-wrap put "Repeat Today / View" on one line and
+                      "Switch" orphaned on the next at phone widths. */}
+                  <div className="space-y-2">
                     {isRestToday ? (
-                      <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-                        <Moon className="w-3.5 h-3.5" /> Rest day
-                      </div>
-                    ) : workedOutToday && completedWorkouts > 0 ? (
-                      <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                        <RotateCcw className="w-3.5 h-3.5" /> Repeat Today
+                      <Button fullWidth variant="secondary" loading={skippingRest} onClick={handleSkipRest}>
+                        <Moon className="w-4 h-4" /> Skip rest day{nextSession?.nextTraining ? ` · ${stripWeekdayPrefix(nextSession.nextTraining.day.label)}` : ''}
                       </Button>
                     ) : (
-                      <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                        <Play className="w-4 h-4" /> Start Workout
+                      <Button fullWidth onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
+                        <Play className="w-4 h-4" /> {workedOutToday ? 'Start Next Workout' : 'Start Workout'}
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
-                      View <ChevronRight className="w-3 h-3" />
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => router.push('/training')}>
-                      <RefreshCw className="w-3 h-3" /> Switch
-                    </Button>
+                    <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                      {workedOutToday && repeatIdx !== null && (
+                        <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${repeatIdx}`)}>
+                          <RotateCcw className="w-3.5 h-3.5" /> Repeat
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
+                        <ChevronRight className="w-3.5 h-3.5" /> View
+                      </Button>
+                      <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push('/training')}>
+                        <RefreshCw className="w-3.5 h-3.5" /> Switch
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </Card>
             ) : (
               <Link href="/training" className="block h-full">
-                <Card className="p-4 h-full relative overflow-hidden hover:border-accent/20 transition-colors flex flex-col justify-center">
+                <Card className="p-4 h-full relative overflow-hidden hover:border-accent/20 transition-colors flex flex-col justify-center card-float">
                   <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
                     <Dumbbell className="w-28 h-28 text-accent" />
                   </div>
@@ -589,13 +612,44 @@ export default function DashboardPage() {
 
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
 
-          {/* Rank */}
+          {/* Quick Actions — moved above the social/stats tiles below since these
+              are the highest-frequency taps on the whole screen (used multiple
+              times a day) and don't deserve to be buried under lower-frequency
+              content like the leaderboard or weekly stats. */}
+          {[
+            { icon: Dumbbell, label: 'Workout', href: '/training', from: 'from-purple-400/20', to: 'to-purple-400/5', border: 'border-purple-400/20', color: 'text-purple-300' },
+            { icon: Apple, label: 'Log Food', href: '/nutrition', from: 'from-green-400/20', to: 'to-green-400/5', border: 'border-green-400/20', color: 'text-green-300' },
+            { icon: Camera, label: 'Scan & Go', href: '/training/scan-go', from: 'from-blue-400/20', to: 'to-blue-400/5', border: 'border-blue-400/20', color: 'text-blue-300' },
+            { icon: CheckSquare, label: 'Habits', href: '/habits', from: 'from-indigo-400/20', to: 'to-indigo-400/5', border: 'border-indigo-400/20', color: 'text-indigo-300' },
+            { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner', from: 'from-orange-400/20', to: 'to-orange-400/5', border: 'border-orange-400/20', color: 'text-orange-300' },
+            { icon: TrendingUp, label: 'Progress', href: '/progress', from: 'from-teal-400/20', to: 'to-teal-400/5', border: 'border-teal-400/20', color: 'text-teal-300' },
+            { icon: Trophy, label: 'Achievements', href: '/achievements', from: 'from-yellow-400/20', to: 'to-yellow-400/5', border: 'border-yellow-400/20', color: 'text-yellow-300' },
+            { icon: Swords, label: 'Quests', href: '/quests', from: 'from-pink-400/20', to: 'to-pink-400/5', border: 'border-pink-400/20', color: 'text-pink-300' },
+          ].map((action) => (
+            <motion.div key={action.label} variants={stagger.item} className="col-span-1 row-span-1">
+              <Link href={action.href} className="block h-full">
+                <motion.div
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`h-full flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-br ${action.from} ${action.to} border ${action.border} card-float`}
+                >
+                  <action.icon className={`w-5 h-5 ${action.color}`} strokeWidth={2.25} />
+                  <span className="text-[9px] font-medium text-text-secondary text-center leading-tight">{action.label}</span>
+                </motion.div>
+              </Link>
+            </motion.div>
+          ))}
+
+          {/* Level — personal progression, not a ranking. This tile used to
+              show "#42" from the leaderboard; ranking members against each
+              other on self-reported workouts rewarded whoever logged the most
+              fiction, so the comparison is gone and the progression stays. */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-1">
-            <Link href="/community?tab=leaderboard" className="block h-full">
-              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors">
-                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Leaderboard</span>
-                <p className="text-xl font-black text-accent leading-tight mt-0.5">{myRank ? `#${myRank}` : '—'}</p>
-                <p className="text-[10px] text-text-tertiary mt-0.5">Lvl {powerLevel} · {profile?.xp ?? 0} XP</p>
+            <Link href="/achievements" className="block h-full">
+              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors card-float">
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Your Level</span>
+                <p className="text-xl font-black text-accent leading-tight mt-0.5">Lvl {powerLevel}</p>
+                <p className="text-[10px] text-text-tertiary mt-0.5">{(profile?.xp ?? 0).toLocaleString()} XP</p>
               </Card>
             </Link>
           </motion.div>
@@ -603,7 +657,7 @@ export default function DashboardPage() {
           {/* PR Wall teaser */}
           <motion.div variants={stagger.item} className="col-span-2 row-span-1">
             <Link href="/community/prs" className="block h-full">
-              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors">
+              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors card-float">
                 <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR Wall</span>
                 <span className="text-lg mt-0.5">🏅</span>
                 <p className="text-[10px] text-text-tertiary mt-0.5">Post a lift, get verified</p>
@@ -614,7 +668,7 @@ export default function DashboardPage() {
           {/* Breathing / meditation widget */}
           <motion.div variants={stagger.item} className="col-span-4 row-span-1">
             <Link href="/breathing" className="block h-full">
-              <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors relative overflow-hidden">
+              <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors relative overflow-hidden card-float">
                 <div className="relative w-11 h-11 flex-shrink-0 flex items-center justify-center">
                   <motion.div
                     animate={{ scale: [0.6, 1, 0.6], opacity: [0.5, 0.9, 0.5] }}
@@ -642,13 +696,13 @@ export default function DashboardPage() {
           {activeGoalCount > 0 && (
             <motion.div variants={stagger.item} className="col-span-4 row-span-1">
               <Link href="/goals" className="block h-full">
-                <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors">
+                <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors card-float">
                   <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
                     <Target className="w-5 h-5 text-accent" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Goals</span>
-                    <p className="text-sm font-bold text-white">{activeGoalCount} active {activeGoalCount === 1 ? 'goal' : 'goals'} from your coach</p>
+                    <p className="text-sm font-bold text-white">{activeGoalCount} active {activeGoalCount === 1 ? 'goal' : 'goals'}</p>
                     <p className="text-[10px] text-text-tertiary mt-0.5">Tap to check in on your progress</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
@@ -661,7 +715,7 @@ export default function DashboardPage() {
           {progressPhotos.length > 0 && (
             <motion.div variants={stagger.item} className="col-span-4 row-span-1">
               <Link href="/progress" className="block h-full">
-                <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors">
+                <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors card-float">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={progressPhotos[0].photoUrl} alt="" className="w-11 h-11 rounded-xl object-cover flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -675,107 +729,6 @@ export default function DashboardPage() {
             </motion.div>
           )}
 
-          {/* Weekly volume — real numbers only, no invented daily breakdown */}
-          {weeklySummary && (weeklySummary.workoutsCompleted > 0 || weeklySummary.volumeKg > 0) && (
-            <motion.div variants={stagger.item} className="col-span-4 row-span-1">
-              <Card className="p-3.5 h-full flex items-center justify-between relative overflow-hidden">
-                <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
-                  <TrendingUp className="w-20 h-20 text-accent" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-accent-muted">
-                    <TrendingUp className="w-4 h-4 text-accent" />
-                  </div>
-                  <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-wide">This Week</span>
-                </div>
-                <div className="flex items-center gap-5">
-                  <div className="text-right">
-                    <p className="text-base font-black text-white leading-none">
-                      {weeklySummary.volumeKg.toLocaleString()}<span className="text-xs font-medium text-text-secondary ml-1">{profile?.weightUnit ?? 'kg'}</span>
-                    </p>
-                    <p className="text-[10px] text-text-tertiary mt-0.5">volume</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-base font-black text-white leading-none">
-                      {weeklySummary.workoutsCompleted}{activeMock?.daysPerWeek ? <span className="text-xs font-medium text-text-secondary ml-1">/{activeMock.daysPerWeek}</span> : null}
-                    </p>
-                    <p className="text-[10px] text-text-tertiary mt-0.5">workouts</p>
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-          )}
-
-          {/* Quick Actions — same tinted-card language as the rest of the bento grid */}
-          {[
-            { icon: Dumbbell, label: 'Workout', href: '/training', from: 'from-purple-400/20', to: 'to-purple-400/5', border: 'border-purple-400/20', color: 'text-purple-300' },
-            { icon: Apple, label: 'Log Food', href: '/nutrition/analyze', from: 'from-green-400/20', to: 'to-green-400/5', border: 'border-green-400/20', color: 'text-green-300' },
-            { icon: WaterIcon, label: 'Water', href: '/nutrition', from: 'from-blue-400/20', to: 'to-blue-400/5', border: 'border-blue-400/20', color: 'text-blue-300' },
-            { icon: CheckSquare, label: 'Habits', href: '/habits', from: 'from-indigo-400/20', to: 'to-indigo-400/5', border: 'border-indigo-400/20', color: 'text-indigo-300' },
-            { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner', from: 'from-orange-400/20', to: 'to-orange-400/5', border: 'border-orange-400/20', color: 'text-orange-300' },
-            { icon: TrendingUp, label: 'Progress', href: '/progress', from: 'from-teal-400/20', to: 'to-teal-400/5', border: 'border-teal-400/20', color: 'text-teal-300' },
-            { icon: Trophy, label: 'Achievements', href: '/achievements', from: 'from-yellow-400/20', to: 'to-yellow-400/5', border: 'border-yellow-400/20', color: 'text-yellow-300' },
-            { icon: Swords, label: 'Quests', href: '/quests', from: 'from-pink-400/20', to: 'to-pink-400/5', border: 'border-pink-400/20', color: 'text-pink-300' },
-          ].map((action) => (
-            <motion.div key={action.label} variants={stagger.item} className="col-span-1 row-span-1">
-              <Link href={action.href} className="block h-full">
-                <motion.div
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  className={`h-full flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-br ${action.from} ${action.to} border ${action.border}`}
-                >
-                  <action.icon className={`w-5 h-5 ${action.color}`} strokeWidth={2.25} />
-                  <span className="text-[9px] font-medium text-text-secondary text-center leading-tight">{action.label}</span>
-                </motion.div>
-              </Link>
-            </motion.div>
-          ))}
-        </motion.div>
-
-        {/* Leaderboard preview — kept full-width; ranked list doesn't compress into a tile */}
-        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-white">Leaderboard</h2>
-            <Link href="/community?tab=leaderboard" className="text-xs text-accent flex items-center gap-0.5">
-              Full board <ChevronRight className="w-3 h-3" />
-            </Link>
-          </div>
-          <Link href="/community?tab=leaderboard">
-            <Card className="p-4 relative overflow-hidden hover:border-accent/20 transition-colors">
-              <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
-                <Trophy className="w-28 h-28 text-accent" />
-              </div>
-              {myRank && (
-                <div className="flex items-center gap-3 mb-3 pb-3 border-b border-white/8">
-                  <div className="w-9 h-9 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-black text-accent">#{myRank}</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white">Your Rank</p>
-                    <p className="text-xs text-text-secondary">Out of {leaderboardTop.length > 0 ? 'active athletes' : '—'}</p>
-                  </div>
-                </div>
-              )}
-              {leaderboardTop.length === 0 ? (
-                <p className="text-text-secondary text-sm text-center py-2">Complete a workout to join the leaderboard</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {leaderboardTop.map((entry, i) => (
-                    <div key={entry.id} className="flex items-center gap-3">
-                      <span className={`text-sm font-black w-5 flex-shrink-0 ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-gray-300' : 'text-orange-400'}`}>
-                        {i + 1}
-                      </span>
-                      <span className="text-sm text-white flex-1 truncate flex items-center gap-1">
-                        {entry.displayName}
-                        <QuestBadgeRow questIds={entry.questsCompleted} max={2} />
-                      </span>
-                      <span className="text-xs text-text-tertiary flex-shrink-0">Lvl {entry.powerLevel} · {entry.xp} XP</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </Link>
         </motion.div>
 
         {/* Personal Trackers — fasting timer + custom "days without" streaks; kept

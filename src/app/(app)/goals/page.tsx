@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Target, Dumbbell, Scale, Flame, Apple, CheckCircle, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatBodyWeight } from '@/lib/utils';
 import { getClientGoals, updateGoalProgress } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -91,12 +92,16 @@ function GoalCard({ goal, onUpdate }: { goal: ClientGoal; onUpdate: (value: numb
 
 // Self-serve weight goal set at onboarding (UserProfile.weightGoal) — kept
 // separate from ClientGoal below since those are coach/admin-authored only
-// (firestore.rules: allow create: if isStaff()). Progress reads straight
+// (firestore.rules: allow create: if isAdminOrOwnTrainer(...)). Progress reads straight
 // from profile.currentWeightKg, which the progress/profile weigh-in flows
 // already keep updated — no separate check-in mechanism needed here.
-function WeightGoalCard({ startWeightKg, targetWeightKg, currentWeightKg, estimatedTargetDate, direction }: {
+function WeightGoalCard({ startWeightKg, targetWeightKg, currentWeightKg, estimatedTargetDate, direction, weightUnit }: {
   startWeightKg: number; targetWeightKg: number; currentWeightKg: number; estimatedTargetDate: string; direction: 'lose' | 'gain' | 'maintain';
+  weightUnit: 'kg' | 'lbs';
 }) {
+  // All three weights are stored in kg (see formatBodyWeight) — the
+  // percentage math below works in kg either way, only the display converts.
+  const fmt = (kg: number) => formatBodyWeight(kg, weightUnit);
   const totalChange = Math.abs(targetWeightKg - startWeightKg);
   const progressSoFar = direction === 'lose' ? startWeightKg - currentWeightKg : currentWeightKg - startWeightKg;
   const pct = totalChange > 0 ? Math.min(100, Math.max(0, Math.round((progressSoFar / totalChange) * 100))) : 100;
@@ -111,7 +116,7 @@ function WeightGoalCard({ startWeightKg, targetWeightKg, currentWeightKg, estima
         <div className="flex-1 min-w-0">
           <p className="font-bold text-white">Weight Goal</p>
           <p className="text-xs text-text-secondary mt-0.5">
-            {reached ? 'Goal reached!' : `${direction === 'lose' ? 'Lose' : 'Gain'} to ${targetWeightKg}kg`}
+            {reached ? 'Goal reached!' : `${direction === 'lose' ? 'Lose' : 'Gain'} to ${fmt(targetWeightKg)}`}
           </p>
           <p className="text-[10px] text-text-tertiary mt-1 flex items-center gap-1">
             <Calendar className="w-3 h-3" /> Estimated {new Date(estimatedTargetDate).toLocaleDateString()}
@@ -120,7 +125,7 @@ function WeightGoalCard({ startWeightKg, targetWeightKg, currentWeightKg, estima
       </div>
       <div className="mt-3">
         <div className="flex items-center justify-between text-xs mb-1.5">
-          <span className="text-text-secondary">{currentWeightKg}kg of {targetWeightKg}kg (started at {startWeightKg}kg)</span>
+          <span className="text-text-secondary">{fmt(currentWeightKg)} of {fmt(targetWeightKg)} (started at {fmt(startWeightKg)})</span>
           {!reached && <span className="text-accent font-bold">{pct}%</span>}
         </div>
         <ProgressBar value={pct} max={100} size="sm" />
@@ -151,13 +156,14 @@ export default function GoalsPage() {
   return (
     <div>
       <Header title="My Goals" showBack />
-      <div className="px-4 py-4 max-w-lg mx-auto space-y-3">
+      <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-3">
         {weightGoal && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <WeightGoalCard
               startWeightKg={weightGoal.startWeightKg}
               targetWeightKg={weightGoal.targetWeightKg}
               currentWeightKg={profile?.currentWeightKg ?? weightGoal.startWeightKg}
+              weightUnit={(profile?.weightUnit as 'kg' | 'lbs') ?? 'kg'}
               estimatedTargetDate={weightGoal.estimatedTargetDate}
               direction={weightGoal.direction}
             />
@@ -170,7 +176,7 @@ export default function GoalsPage() {
             <Card className="p-10 text-center">
               <Target className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
               <p className="text-white font-bold">No goals yet</p>
-              <p className="text-text-secondary text-sm mt-1">Your coach hasn&apos;t set any goals for you yet.</p>
+              <p className="text-text-secondary text-sm mt-1">No goals have been set for you yet.</p>
             </Card>
           )
         ) : (

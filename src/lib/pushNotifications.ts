@@ -7,6 +7,17 @@
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 
+// A subscription lives at pushSubscriptions/{userId}/devices/{deviceId},
+// not a single doc per userId — subscribing on a second device (e.g. phone
+// after already enabling it on desktop) used to silently overwrite the
+// first device's subscription there, since both wrote to the exact same
+// doc. Keying by a stable id derived from the subscription's own endpoint
+// (unique per browser/device registration) lets every device coexist, and
+// the send route now delivers to all of a user's registered devices.
+function deviceIdFromEndpoint(endpoint: string): string {
+  return encodeURIComponent(endpoint).slice(0, 500);
+}
+
 export async function subscribeToPush(userId: string, vapidPublicKey: string): Promise<boolean> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
 
@@ -21,7 +32,7 @@ export async function subscribeToPush(userId: string, vapidPublicKey: string): P
     });
 
     // Store subscription in Firestore so the server can send messages
-    await setDoc(doc(db, 'pushSubscriptions', userId), {
+    await setDoc(doc(db, 'pushSubscriptions', userId, 'devices', deviceIdFromEndpoint(sub.endpoint)), {
       userId,
       subscription: JSON.parse(JSON.stringify(sub)),
       updatedAt: serverTimestamp(),
@@ -39,8 +50,13 @@ export async function unsubscribeFromPush(userId: string): Promise<void> {
   try {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
-    if (sub) await sub.unsubscribe();
-    await deleteDoc(doc(db, 'pushSubscriptions', userId));
+    if (sub) {
+      const endpoint = sub.endpoint;
+      await sub.unsubscribe();
+      // Only this device's registration — leaves any other device's
+      // subscription (e.g. a phone, if unsubscribing from desktop) intact.
+      await deleteDoc(doc(db, 'pushSubscriptions', userId, 'devices', deviceIdFromEndpoint(endpoint)));
+    }
   } catch (err) {
     console.error('[Push] unsubscribe failed:', err);
   }

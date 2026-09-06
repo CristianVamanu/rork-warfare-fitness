@@ -45,8 +45,211 @@ const withPWA = require('next-pwa')({
     {
       urlPattern: ({ request }) => request.mode === 'navigate',
       handler: 'NetworkOnly',
+      options: {
+        // Workbox's NetworkOnly re-throws as an unhandled "no-response"
+        // rejection whenever the underlying fetch doesn't resolve to a
+        // Response. That covers two very different situations, which used
+        // to get the SAME 503 "you're offline" fallback response —
+        // wrongly, since only one of them is actually an outage:
+        //  1. A genuinely failed request (offline, DNS failure, etc.) —
+        //     real, worth telling the user about.
+        //  2. An ABORTED navigation — the browser/Next.js cancelling this
+        //     exact in-flight fetch because the user (or Next's own
+        //     prefetching) already navigated elsewhere before it finished.
+        //     This is routine and constant (fast clicks, Link hover-
+        //     prefetch superseded by a real navigation, back/forward) and
+        //     was being misreported as a fake "503 Service Unavailable"
+        //     for a page that never actually had a problem — nothing was
+        //     ever listening for this response anyway, since the
+        //     navigation that requested it no longer exists.
+        // Distinguishing them here means a real outage still gets the
+        // offline page, while a routine cancellation reports success and
+        // generates no error at all.
+        plugins: [
+          {
+            handlerDidError: async ({ error }) =>
+              (error && error.details && error.details.error && error.details.error.name === 'AbortError')
+                ? new Response(null, { status: 200 })
+                : new Response(
+                    '<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding:3rem 1rem;color:#666"><p>You\'re offline. Check your connection and try again.</p></body></html>',
+                    { status: 503, headers: { 'Content-Type': 'text/html' } }
+                  ),
+          },
+        ],
+      },
     },
-    ...require('next-pwa/cache'),
+    // The rule above only matches a hard/full page load — App Router
+    // client-side transitions (clicking a <Link>, router.push, e.g.
+    // switching between /training/[id] program pages, or the redirect
+    // straight from signup into /onboarding) fetch the RSC payload via
+    // plain fetch(), request.mode 'cors'/'same-origin', NOT 'navigate'.
+    // Those fell through to next-pwa's bundled "others" catch-all below
+    // (NetworkFirst, 10s timeout) — reported as program switching taking a
+    // very long time, and confirmed by a real "no-response" Workbox error
+    // on a /training/[id] navigation. Matching same-origin non-API
+    // requests here, before the next-pwa spread, and forcing NetworkOnly
+    // closes that gap.
+    //
+    // The urlPattern used to match EVERY same-origin non-API request with
+    // no further scoping, on the assumption static assets were already
+    // claimed by next-pwa's earlier default rules — true for JS/CSS chunks
+    // (precached separately, never reaching runtimeCaching at all) but NOT
+    // true for plain static files like /favicon.ico or /icons/*.png, which
+    // have no more specific earlier rule and so were also being forced
+    // through this handler. That mattered once the AbortError branch below
+    // was added: a favicon/icon fetch that gets aborted (routine — browsers
+    // deprioritize icon requests under load) got the SAME empty-200
+    // fallback as a cancelled page navigation, which a browser then treats
+    // as "successfully fetched, nothing there" and stops retrying — a
+    // favicon that silently goes blank and stays that way. RSC/document
+    // requests are always extension-less paths (/dashboard, /training/123),
+    // so excluding any pathname with a file extension scopes this back to
+    // its actual intent without needing to enumerate every static path.
+    {
+      urlPattern: ({ url }) =>
+        url.origin === self.location.origin &&
+        !url.pathname.startsWith('/api/') &&
+        !/\.[a-zA-Z0-9]+$/.test(url.pathname),
+      handler: 'NetworkOnly',
+      options: {
+        // This rule handles Next.js App Router's RSC/prefetch fetches
+        // (clicking a <Link>, router.push, and the background hover-
+        // prefetch Next.js does automatically), NOT the actual document
+        // the user is looking at — that's the separate 'navigate' rule
+        // above, which already gets the real offline page on a genuine
+        // failure. Returning that same HTML blob here was always wrong on
+        // two counts, discovered while chasing a reported "/dashboard is
+        // down" that turned out to never actually be visible to the user
+        // (the dashboard kept rendering correctly every time it was
+        // checked live): (1) Next.js's RSC client expects a specific
+        // streamed payload format, not raw HTML — feeding it an HTML
+        // "offline" page here was already nonsensical/would itself error
+        // in the router, regardless of the status code attached; and
+        // (2) when an RSC fetch genuinely fails, Next.js's own router
+        // already falls back to a real full-page navigation on its own,
+        // which correctly hits the 'navigate' rule and gets the real
+        // offline page THERE. So this rule's fallback response is never
+        // actually shown to a user either way — it only exists to stop
+        // Workbox's unhandled "no-response" rejection — and always
+        // returning a benign empty 200 for ANY failure here (cancelled or
+        // genuine) does that without ever misreporting a background
+        // prefetch as if the whole page were down.
+        plugins: [
+          { handlerDidError: async () => new Response(null, { status: 200 }) },
+        ],
+      },
+    },
+    // Google Tag Manager / GA4's own script + beacon requests — without
+    // this, they fell through to next-pwa's bundled cross-origin catch-all
+    // (NetworkFirst, 10s timeout, 1hr cache), which is wrong on two counts:
+    // analytics requests should never be served from a stale cache (an
+    // old, months-ago gtag.js has no value), and that generic handler has
+    // no handlerDidError fallback, so any failure (including a CSP block,
+    // an ad-blocker, or a plain offline visitor) re-threw as the same
+    // unhandled "no-response" rejection this file works around everywhere
+    // else. Analytics failing to load should never be user-visible or
+    // console-spamming — it's non-essential telemetry, not app
+    // functionality — so this is NetworkOnly with a silent no-op fallback.
+    {
+      urlPattern: ({ url }) =>
+        url.hostname === 'www.googletagmanager.com' ||
+        url.hostname === 'www.google-analytics.com' ||
+        url.hostname.endsWith('.google-analytics.com') ||
+        url.hostname.endsWith('.analytics.google.com'),
+      handler: 'NetworkOnly',
+      options: {
+        plugins: [{ handlerDidError: async () => new Response('', { status: 204 }) }],
+      },
+    },
+    // Firestore traffic must never be served from cache — without this,
+    // next-pwa's bundled cross-origin catch-all (NetworkFirst, 1 hour
+    // cache) can serve a stale Firestore read for up to an hour after an
+    // admin edits content, e.g. a shortened program description still
+    // showing the old, longer text. Scoped to Firestore's own hostname
+    // specifically (not a blanket **.googleapis.com match) so it doesn't
+    // shadow the Firebase Storage video-caching rule right below, which
+    // also lives under googleapis.com.
+    {
+      urlPattern: ({ url }) => url.hostname === 'firestore.googleapis.com',
+      handler: 'NetworkOnly',
+    },
+    // Firebase Auth's SDK lazily loads https://apis.google.com/js/api.js on
+    // init (a redirect/cross-tab helper it preloads even for plain
+    // email/password auth) — the CSP's connect-src correctly blocks it since
+    // this app never uses it. Routing it to NetworkOnly (rather than
+    // falling through to next-pwa's bundled cross-origin NetworkFirst
+    // default) stopped it from being cached/retried, but NetworkOnly still
+    // re-throws as an unhandled "no-response" rejection when the fetch
+    // itself fails — which it always will here, by design (CSP blocks it).
+    // A handlerDidError fallback (same technique as the navigate rule
+    // above) suppresses that: nothing about the CSP block changes, this
+    // just stops it from being logged as an error every time.
+    {
+      urlPattern: ({ url }) => url.hostname === 'apis.google.com',
+      handler: 'NetworkOnly',
+      options: {
+        plugins: [{ handlerDidError: async () => new Response('', { status: 204 }) }],
+      },
+    },
+    // next-pwa's bundled defaults match video files with /\.(?:mp4)$/ —
+    // requires the URL to literally END in ".mp4". Firebase Storage and R2
+    // download URLs always have `?alt=media&token=...` (or similar) appended
+    // after the extension, so exercise-library videos never match that rule
+    // and fall through to the generic cross-origin NetworkFirst handler,
+    // which has no rangeRequests support. <video> elements always fetch via
+    // HTTP Range requests, and Workbox can't correctly serve/cache a partial
+    // response without that option — surfaces as "no-response" errors and
+    // videos failing to load/play. Matching on pathname (which strips the
+    // query string) instead, with rangeRequests enabled, fixes this for
+    // every video host the app uses.
+    {
+      urlPattern: ({ url }) => /\.(?:mp4|mov|webm|m4v)$/i.test(url.pathname),
+      handler: 'CacheFirst',
+      options: {
+        rangeRequests: true,
+        cacheName: 'remote-video-assets',
+        expiration: { maxEntries: 48, maxAgeSeconds: 24 * 60 * 60 },
+      },
+    },
+    // next-pwa's bundled defaults (fonts, images, JS/CSS, /_next/image,
+    // /api/* calls under its "apis" rule, and the "others"/"cross-origin"
+    // catch-alls for literally everything else) are all NetworkFirst/
+    // StaleWhileRevalidate/CacheFirst with NO handlerDidError of their own.
+    // This session fixed the identical unhandled "no-response" rejection
+    // one host at a time as each one got reported (navigate, RSC/same-
+    // origin, GTM/GA, apis.google.com) — an audit afterward confirmed that
+    // pattern was incomplete by construction: any OTHER cross-origin host
+    // the app talks to (Sentry, Supabase, R2, Cloudinary/imgur/Unsplash,
+    // digimetrix.ai's own runtime calls, Meta Pixel beacons) or any
+    // same-origin /api/* call would reproduce the exact same error the
+    // moment it got cancelled (a component unmounting mid-fetch, a
+    // superseded polling call), just not yet reported. Rather than keep
+    // chasing it domain by domain, every default rule below gets the same
+    // AbortError-safe handlerDidError applied uniformly: a cancelled
+    // request reports success silently (nothing was ever going to read
+    // the response anyway — whatever awaited it already unmounted/moved
+    // on), while a GENUINE failure returns undefined, which is Workbox's
+    // own signal to fall through to its default behavior (reject the
+    // promise) — exactly what happens today with no handlerDidError at
+    // all. This does NOT swallow real failures: an actual failed /api/
+    // call still rejects so the calling code's own error handling/toast
+    // still fires correctly; only a cancelled request is treated as a
+    // non-event instead of a fake error.
+    ...require('next-pwa/cache').map((rule) => ({
+      ...rule,
+      options: {
+        ...rule.options,
+        plugins: [
+          ...(rule.options && rule.options.plugins ? rule.options.plugins : []),
+          {
+            handlerDidError: async ({ error }) =>
+              error && error.details && error.details.error && error.details.error.name === 'AbortError'
+                ? new Response(null, { status: 200 })
+                : undefined,
+          },
+        ],
+      },
+    })),
   ],
 });
 
@@ -67,8 +270,37 @@ function getAppVersion() {
   return `${y}.${m}.${d}.${hm}`;
 }
 
+// A security scan flagged every response as missing standard security
+// headers (HSTS, CSP, X-Content-Type-Options, X-Frame-Options,
+// Referrer-Policy, Permissions-Policy) plus a leaked X-Powered-By: Next.js
+// header — all fixed below. Content-Security-Policy is NOT here — it needs
+// a fresh nonce per request (so an attacker can't just read a static CSP
+// and forge a matching inline script), which a static next.config.js
+// header can't provide. It's generated per-request in src/middleware.ts
+// instead. Checkout is a full-page redirect to Stripe's hosted page (see
+// src/lib/checkout.ts's window.location.href), not an embedded iframe, so
+// no frame-src/frame-ancestors allowance for Stripe is needed there.
+const SECURITY_HEADERS = [
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  // Camera is genuinely used (barcode scan, food photo, scan-a-gym) so it's
+  // allowed for this origin only; everything else this app never uses is
+  // denied outright rather than left to browser defaults.
+  { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(), payment=(self)' },
+  // Isolates this origin's browsing context from other tabs/windows opened
+  // via window.open() — safe to set unconditionally here since this app
+  // has no popup-based OAuth flow (only email/password sign-in, see
+  // src/lib/auth.ts) that COOP could otherwise interfere with.
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+];
+
 const nextConfig = {
   reactStrictMode: true,
+  // Removes the X-Powered-By: Next.js response header — free reconnaissance
+  // for an attacker (framework + implied version range) with zero upside.
+  poweredByHeader: false,
   // Lets deploy.sh build into a staging directory instead of overwriting
   // the live .next that the running server is still lazily loading route
   // bundles from (see deploy.sh for the full rationale). Unset at runtime,
@@ -95,6 +327,22 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: '/:path*',
+        headers: SECURITY_HEADERS,
+      },
+      // Keeps every authenticated route out of search indexes without
+      // naming any of them in the public robots.txt (see src/app/robots.ts)
+      // — a security scan flagged listing exact authenticated paths there
+      // as free reconnaissance for enumerating hidden areas of the site.
+      {
+        source: '/:path(admin|dashboard|training|nutrition|community|settings|install)/:rest*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      },
+      {
+        source: '/api/:path*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      },
+      {
         source: '/sw.js',
         headers: [
           { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
@@ -107,32 +355,50 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.googleapis.com' },
       { protocol: 'https', hostname: '**.firebaseapp.com' },
       { protocol: 'https', hostname: 'images.openfoodfacts.org' },
-      { protocol: 'https', hostname: '**.unsplash.com' },
       { protocol: 'https', hostname: '**.firebasestorage.googleapis.com' },
-      { protocol: 'https', hostname: '**.cloudinary.com' },
-      { protocol: 'https', hostname: '**.imgur.com' },
-      { protocol: 'https', hostname: 'i.imgur.com' },
+      // **.unsplash.com, **.cloudinary.com and **.imgur.com were listed here
+      // with zero references anywhere in the codebase. Every wildcard host in
+      // this list is a host the VPS will fetch from and re-encode on demand
+      // for ANY visitor who asks /_next/image to — on a self-hosted install
+      // that is an open CPU/disk amplifier (GHSA-9g9p-9gw9-jx7f). The only
+      // thing they enabled was an admin pasting a third-party image URL into
+      // a logo/hero field; uploads go to R2, which stays allowed below.
+      // R2 storage (Admin -> Settings -> Storage Provider) — CSP's
+      // connect-src already allowed these two hostnames, but next/image's
+      // own optimizer has a SEPARATE allowlist and never had them added.
+      // Any image uploaded while R2 is the active storage provider (logo,
+      // hero images, etc.) 400s through /_next/image with no allowlist
+      // match, which next/image's <Image> renders as a load failure —
+      // Header's logo <Image onError=...> falls back to the plain "W" icon
+      // exactly as if no logo were set, even though logoUrl is populated.
+      { protocol: 'https', hostname: '**.r2.dev' },
+      { protocol: 'https', hostname: '**.r2.cloudflarestorage.com' },
     ],
   },
-  experimental: {
-    serverComponentsExternalPackages: ['firebase-admin'],
-  },
+  // pdf-parse (built on pdfjs-dist) locates its worker script relative to
+  // its own module location at runtime — webpack bundling it into a
+  // .next/server/chunks/*.js file breaks that lookup because the sibling
+  // pdf.worker.mjs asset doesn't get copied alongside it. Marking it
+  // external keeps it as a plain `require('pdf-parse')` from node_modules
+  // at runtime instead, where the worker file sits right where the
+  // library expects it.
+  //
+  // Next 15 promoted this out of `experimental` (where it was
+  // serverComponentsExternalPackages). The old key is now silently ignored
+  // with a build warning — which would have re-bundled pdf-parse and broken
+  // document extraction at runtime without any build failure.
+  serverExternalPackages: ['firebase-admin', 'pdf-parse'],
 };
 
-const { withSentryConfig } = require('@sentry/nextjs');
-
-// Wrapping with Sentry is safe even when it isn't configured — with no
-// NEXT_PUBLIC_SENTRY_DSN set, Sentry.init() (in the sentry.*.config.ts
-// files) never fires, so this only adds a no-op build step. Source-map
-// upload (for readable stack traces instead of minified ones) additionally
-// needs SENTRY_AUTH_TOKEN/ORG/PROJECT — without those it just skips that
-// step with a build-time warning rather than failing.
-module.exports = withSentryConfig(withPWA(nextConfig), {
-  silent: true,
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-  widenClientFileUpload: true,
-  disableLogger: true,
-  automaticVercelMonitors: false,
-});
+// Sentry was removed. Its browserTracingIntegration ships a vendored copy of
+// the web-vitals library whose getLCP reads `entry.startTime` off an entry
+// that can be undefined, throwing
+//   Uncaught TypeError: Cannot read properties of undefined (reading 'startTime')
+//     at reportAllChanges
+// on client-side navigations. Inside a requestIdleCallback, so it never broke
+// the page — it just filled the console and buried real errors. Disabling
+// only the tracing half did not clear it; error reporting alone was not worth
+// a whole SDK, a wrapped build and 100KB of client bundle for an app with a
+// handful of users. Bring it back by reinstalling @sentry/nextjs and adding
+// instrumentation-client.ts (sentry.client.config.ts is deprecated in v10).
+module.exports = withPWA(nextConfig);

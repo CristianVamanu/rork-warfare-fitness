@@ -3,11 +3,11 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight, Sparkles, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayMeals, getTodayWaterLogs, deleteWaterLog, deleteMeal, getUserGoals, updateUserGoals, getMealsForDate } from '@/lib/firestore';
-import { logWaterAction } from '@/lib/actions';
+import { logWaterAction, logMealAction } from '@/lib/actions';
 import toast from 'react-hot-toast';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -46,6 +46,8 @@ function NutritionPageInner() {
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const d = new Date(); d.setHours(0, 0, 0, 0); return d;
   });
+  const [manualEntry, setManualEntry] = useState<{ editingId: string | null; mealType: Meal['mealType']; name: string; calories: string; protein: string; carbs: string; fat: string } | null>(null);
+  const [savingManualEntry, setSavingManualEntry] = useState(false);
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
   const waterMl = waterLogs.reduce((sum, w) => sum + w.amountMl, 0);
@@ -94,7 +96,11 @@ function NutritionPageInner() {
   }, [refresh, loading]);
 
 
-  const totals = meals.reduce(
+  // Rounded once here (to 1 decimal for macros, whole kcal for calories)
+  // rather than at each render site — summing many meals' decimal grams
+  // (e.g. AI-estimated 24.4g + 24.4g + ...) accumulates plain binary
+  // floating-point error, showing as "24.400000000000002g" if left raw.
+  const rawTotals = meals.reduce(
     (acc, m) => ({
       calories: acc.calories + (m.calories || 0),
       protein: acc.protein + (m.protein || 0),
@@ -103,6 +109,12 @@ function NutritionPageInner() {
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
+  const totals = {
+    calories: Math.round(rawTotals.calories),
+    protein: Math.round(rawTotals.protein * 10) / 10,
+    carbs: Math.round(rawTotals.carbs * 10) / 10,
+    fat: Math.round(rawTotals.fat * 10) / 10,
+  };
 
   const addWater = async (ml: number) => {
     if (!user) return;
@@ -139,10 +151,70 @@ function NutritionPageInner() {
     }
   };
 
+  const openManualAdd = (mealType: Meal['mealType']) => {
+    setManualEntry({ editingId: null, mealType, name: '', calories: '', protein: '', carbs: '', fat: '' });
+  };
+
+  const openManualEdit = (meal: Meal) => {
+    setManualEntry({
+      editingId: meal.id,
+      mealType: meal.mealType,
+      name: meal.name,
+      calories: String(meal.calories),
+      protein: String(meal.protein),
+      carbs: String(meal.carbs),
+      fat: String(meal.fat),
+    });
+  };
+
+  const saveManualEntry = async () => {
+    if (!user || !manualEntry || !manualEntry.name.trim()) return;
+    setSavingManualEntry(true);
+    try {
+      const mealData = {
+        name: manualEntry.name.trim(),
+        calories: Number(manualEntry.calories) || 0,
+        protein: Number(manualEntry.protein) || 0,
+        carbs: Number(manualEntry.carbs) || 0,
+        fat: Number(manualEntry.fat) || 0,
+        mealType: manualEntry.mealType,
+      };
+      // Editing rewrites the underlying event rather than mutating it in
+      // place — events are an append-only log everywhere else in this app
+      // (see events.ts), so an edit is modeled as relog-then-delete against
+      // the same date instead of carving out a one-off mutable exception.
+      //
+      // Order matters: this used to delete FIRST, so if the re-log then
+      // failed (flaky connection — createEvent gives up after one retry),
+      // the meal was gone entirely with only a toast to show for it, and
+      // the user's totalMealsLogged was left one short. Writing the
+      // replacement first means the worst case is a duplicate the user can
+      // see and delete, not silent data loss.
+      //
+      // isToday's actual "now" gets a live server timestamp (so it sorts
+      // correctly against anything logged moments before/after); a past
+      // date is pinned to noon that day so it can never drift across a
+      // day boundary from timezone rounding.
+      const loggedAt = isToday ? undefined : new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 12);
+      await logMealAction(user.uid, mealData, loggedAt);
+      if (manualEntry.editingId) {
+        await deleteMeal(manualEntry.editingId, user.uid);
+      }
+      toast.success(manualEntry.editingId ? 'Meal updated' : 'Meal logged');
+      setManualEntry(null);
+      await refresh();
+    } catch (err) {
+      toast.error((err as Error)?.message || 'Failed to save meal');
+    } finally {
+      setSavingManualEntry(false);
+    }
+  };
+
   const removeMeal = async (meal: Meal) => {
+    if (!user) return;
     if (!window.confirm(`Remove "${meal.name}"?`)) return;
     try {
-      await deleteMeal(meal.id);
+      await deleteMeal(meal.id, user.uid);
       setMeals((prev) => prev.filter((m) => m.id !== meal.id));
       toast.success('Meal removed');
     } catch (err: unknown) {
@@ -206,7 +278,7 @@ function NutritionPageInner() {
                   <Beef className="w-4 h-4 text-accent" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-white">Your Coach&apos;s Nutrition Plan</p>
+                  <p className="text-sm font-bold text-white">Your Nutrition Plan</p>
                   <p className="text-xs text-text-secondary">
                     {profile.assignedNutritionPlan.calories}kcal · {profile.assignedNutritionPlan.protein}p / {profile.assignedNutritionPlan.carbs}c / {profile.assignedNutritionPlan.fat}f
                   </p>
@@ -275,7 +347,7 @@ function NutritionPageInner() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-white">
-                  {(waterMl / 1000).toFixed(1)}L
+                  {(waterMl / 1000).toFixed(2)}L
                   <span className="text-text-secondary font-normal"> / {goals.water / 1000}L</span>
                 </span>
                 {waterLogs.length > 0 && (
@@ -383,28 +455,47 @@ function NutritionPageInner() {
                   </span>
                 </div>
                 {mealsByType[type].length === 0 ? (
-                  <Link href={`/nutrition/analyze?mealType=${type}`}>
-                    <Card className="p-3 border-dashed border-white/8 flex items-center gap-2 text-text-tertiary hover:border-accent/30 transition-colors cursor-pointer">
-                      <Plus className="w-4 h-4" />
-                      <span className="text-xs">Add {type}</span>
-                    </Card>
-                  </Link>
+                  <div className="grid grid-cols-2 gap-2">
+                    {isToday && (
+                      <Link href={`/nutrition/analyze?mealType=${type}`}>
+                        <Card className="p-3 border-dashed border-white/8 flex items-center gap-2 text-text-tertiary hover:border-accent/30 transition-colors cursor-pointer">
+                          <Sparkles className="w-4 h-4" />
+                          <span className="text-xs">AI scan</span>
+                        </Card>
+                      </Link>
+                    )}
+                    <button onClick={() => openManualAdd(type)} className={isToday ? '' : 'col-span-2'}>
+                      <Card className="p-3 border-dashed border-white/8 flex items-center gap-2 text-text-tertiary hover:border-accent/30 transition-colors cursor-pointer">
+                        <Plus className="w-4 h-4" />
+                        <span className="text-xs">Add manually</span>
+                      </Card>
+                    </button>
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     {mealsByType[type].map((meal) => (
                       <Card key={meal.id} className="p-3 flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-white">{meal.name}</p>
+                        <button onClick={() => openManualEdit(meal)} className="text-left flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{meal.name}</p>
                           <p className="text-xs text-text-secondary">{meal.protein}g P · {meal.carbs}g C · {meal.fat}g F</p>
-                        </div>
-                        <div className="flex items-center gap-2">
+                        </button>
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           <Badge variant="muted">{meal.calories} kcal</Badge>
+                          <button onClick={() => openManualEdit(meal)} className="text-text-tertiary hover:text-white transition-colors p-1">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
                           <button onClick={() => removeMeal(meal)} className="text-text-tertiary hover:text-red-400 transition-colors p-1">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </Card>
                     ))}
+                    <button onClick={() => openManualAdd(type)} className="w-full">
+                      <Card className="p-2.5 border-dashed border-white/8 flex items-center justify-center gap-1.5 text-text-tertiary hover:border-accent/30 transition-colors cursor-pointer">
+                        <Plus className="w-3.5 h-3.5" />
+                        <span className="text-xs">Add another {type}</span>
+                      </Card>
+                    </button>
                   </div>
                 )}
               </motion.div>
@@ -412,6 +503,56 @@ function NutritionPageInner() {
           </div>
         )}
       </div>
+
+      {/* Manual meal entry / edit — works for the currently selected date,
+          including past days, unlike the AI scanner/barcode/planner tools
+          above which only ever log against "now". */}
+      <Modal open={!!manualEntry} onClose={() => setManualEntry(null)} title={manualEntry?.editingId ? 'Edit Meal' : `Add ${manualEntry?.mealType ?? ''}`}>
+        {manualEntry && (
+          <div className="space-y-4 p-4">
+            <div>
+              <label className="text-xs text-text-secondary block mb-1.5">Meal name</label>
+              <input
+                type="text"
+                value={manualEntry.name}
+                onChange={(e) => setManualEntry((m) => m && { ...m, name: e.target.value })}
+                placeholder="e.g. Grilled chicken & rice"
+                className="w-full bg-surface-elevated text-white px-3 py-2.5 rounded-xl border border-white/10 focus:outline-none focus:border-accent text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { key: 'calories', label: 'Calories (kcal)' },
+                { key: 'protein', label: 'Protein (g)' },
+                { key: 'carbs', label: 'Carbs (g)' },
+                { key: 'fat', label: 'Fat (g)' },
+              ] as const).map(({ key, label }) => (
+                <div key={key}>
+                  <label className="text-xs text-text-secondary block mb-1.5">{label}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={manualEntry[key]}
+                    onChange={(e) => setManualEntry((m) => m && { ...m, [key]: e.target.value })}
+                    className="w-full bg-surface-elevated text-white px-3 py-2.5 rounded-xl border border-white/10 focus:outline-none focus:border-accent text-sm"
+                  />
+                </div>
+              ))}
+            </div>
+            {!isToday && (
+              <p className="text-xs text-text-tertiary">Logging for {formatDate(selectedDate)}</p>
+            )}
+            <div className="flex gap-3 pt-2">
+              <Button variant="secondary" fullWidth onClick={() => setManualEntry(null)}>
+                <X className="w-4 h-4" /> Cancel
+              </Button>
+              <Button fullWidth loading={savingManualEntry} disabled={!manualEntry.name.trim()} onClick={saveManualEntry}>
+                <Check className="w-4 h-4" /> Save
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Goals Modal */}
       <Modal open={showGoalsModal} onClose={() => setShowGoalsModal(false)} title="Daily Goals">

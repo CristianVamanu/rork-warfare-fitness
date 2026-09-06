@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { Home } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { tenantHasAdminAccess } from '@/lib/tenants';
-import { FullPageSpinner } from '@/components/ui/Spinner';
+import { BrandSplash } from '@/components/ui/BrandSplash';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, tenant, loading } = useAuth();
@@ -22,7 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [user, profile, tenant, loading, router]);
 
-  if (loading || (user && !profile)) return <FullPageSpinner />;
+  if (loading || (user && !profile)) return <BrandSplash />;
   if (!user || !profile || profile.role !== 'admin') return null;
   if (!tenantHasAdminAccess(tenant)) return null;
 

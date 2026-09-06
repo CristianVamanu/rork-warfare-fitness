@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
+import { getOrCreateStripeCustomer } from '@/lib/stripeCustomer';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import type { MembershipPlan } from '@/types';
@@ -44,6 +45,16 @@ export async function POST(req: NextRequest) {
     const plan = plans.find((p) => p.id === planId && p.active);
     if (!plan) return NextResponse.json({ error: 'Plan not found or inactive' }, { status: 404 });
 
+    // Reject a second checkout attempt while one is already active — with
+    // nothing checking for an existing subscription, a double-click or a
+    // retry on a slow connection could each create their own Stripe
+    // Checkout Session, and if the user completed both, two separate
+    // subscriptions would get created for the same plan.
+    const userSnap = await db.collection('users').doc(userId).get();
+    if (userSnap.data()?.membership?.status === 'active') {
+      return NextResponse.json({ error: 'You already have an active membership.' }, { status: 400 });
+    }
+
     // Price and Stripe billing cadence are both derived server-side from the
     // requested term, never trusted from the client — a client could
     // otherwise request periodMonths: 12 while still being charged the
@@ -59,32 +70,139 @@ export async function POST(req: NextRequest) {
     const intervalCount = months === 12 ? 1 : months;
 
     const stripe = await getStripe();
+    // One durable Customer per account, instead of customer_email making
+    // Stripe mint a fresh one on every checkout — which split a single
+    // member's cards and invoices across several customers and left
+    // anyone without a live subscription unable to reach their billing.
+    const customerId = await getOrCreateStripeCustomer({
+      db, stripe, uid: userId, email: userEmail,
+    });
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
 
     // Reuse the same site-wide time-limited discount as the rest of checkout
     let discounts: { coupon: string }[] | undefined;
+    let trialFeeDiscountMultiplier: number | undefined;
     const membershipCfgSnap = await db.collection('config').doc('membership').get();
     const membershipCfg = membershipCfgSnap.data() ?? {};
     const discountPercent = Number(membershipCfg.discountPercent ?? 0);
     const discountExpiresAt = membershipCfg.discountExpiresAt ? new Date(membershipCfg.discountExpiresAt as string) : null;
     if (discountPercent > 0 && discountExpiresAt && discountExpiresAt.getTime() > Date.now()) {
-      const coupon = await stripe.coupons.create({ percent_off: discountPercent, duration: 'once' });
-      discounts = [{ coupon: coupon.id }];
+      const willChargeTrialFeeFirst = membershipCfg.paidTrialEnabled === true
+        && Number(membershipCfg.trialDays ?? 0) > 0
+        && !userSnap.data()?.trialUsedAt;
+      if (willChargeTrialFeeFirst) {
+        // Checkout Sessions can only apply a coupon session-wide, never to
+        // one specific line item, and a subscription-level coupon can only
+        // target the FIRST invoice ('once') or a fixed number of calendar
+        // MONTHS from attachment ('repeating'/duration_in_months) — neither
+        // lines up with "discount the plan's real first charge" here. The
+        // trial fee's one-time invoice fires immediately at checkout, so a
+        // 'once' coupon lands entirely there instead of on the plan price.
+        // A previous fix tried `duration_in_months: 2` to still be attached
+        // when the real charge lands — but that counts from attachment
+        // (checkout time), not from the real invoice, so for monthly plans
+        // it also silently discounted the SECOND real payment too (an extra
+        // cycle of over-discounting nobody asked for). There's no coupon
+        // shape that reaches exactly the second invoice and no other, so
+        // instead the discount is applied directly to the trial fee itself
+        // — the one charge Stripe guarantees fires exactly once, right now.
+        // The plan's ongoing price is left at full rate under a paid trial.
+        trialFeeDiscountMultiplier = 1 - discountPercent / 100;
+      } else {
+        const coupon = await stripe.coupons.create({ percent_off: discountPercent, duration: 'once' });
+        discounts = [{ coupon: coupon.id }];
+      }
     }
 
-    // If the user is still inside the app-level free trial, tell Stripe to
-    // defer the first charge until the trial actually ends — otherwise
-    // "subscribing" during a free trial charges the card immediately.
-    let trialEnd: number | undefined;
     const trialDays = Number(membershipCfg.trialDays ?? 0);
-    if (trialDays > 0) {
-      const userSnap = await db.collection('users').doc(userId).get();
+    const paidTrialEnabled = membershipCfg.paidTrialEnabled === true;
+    // paidTrialEnabled wins if both are somehow set — it charges at checkout,
+    // which is the stricter of the two and must not be silently downgraded
+    // into a free trial by a stale config flag.
+    const cardUpFrontTrial = !paidTrialEnabled && membershipCfg.cardUpFrontTrial === true;
+    // Cancel-then-resubscribe would otherwise get the discounted trial fee
+    // (or another free ride) every single time — set once, by the webhook,
+    // the first time either kind of trial is actually used (see
+    // checkout.session.completed below).
+    const alreadyUsedTrial = !!userSnap.data()?.trialUsedAt;
+
+    // A trial (paid or free) is what a throwaway address farms. A verified
+    // address is required to START one; a returning member paying full price
+    // (alreadyUsedTrial) is never blocked here — nobody farms full price.
+    if (trialDays > 0 && !alreadyUsedTrial && !authCheck.emailVerified) {
+      return NextResponse.json(
+        { error: 'Verify your email address to start your trial — check your inbox for the link, then try again.', code: 'EMAIL_NOT_VERIFIED' },
+        { status: 403 },
+      );
+    }
+
+    let trialPeriodDays: number | undefined;
+    // A one-time charge alongside the recurring price — Stripe Checkout
+    // supports mixing a one-time price_data item with a recurring one in
+    // 'subscription' mode; the one-time item invoices immediately at
+    // checkout regardless of the recurring item's own trial_period_days.
+    // This is the actual MadMuscles mechanic: pay the small trial fee now,
+    // the real plan price only starts billing after trialDays.
+    let trialFeeLineItem: { quantity: number; price_data: { currency: string; unit_amount: number; product_data: { name: string } } } | undefined;
+
+    if (paidTrialEnabled && trialDays > 0 && !alreadyUsedTrial) {
+      trialPeriodDays = trialDays;
+      const baseTrialPriceCents = Math.max(0, Math.round(Number(membershipCfg.trialPriceCents ?? 100)));
+      const trialPriceCents = trialFeeDiscountMultiplier !== undefined
+        ? Math.round(baseTrialPriceCents * trialFeeDiscountMultiplier)
+        : baseTrialPriceCents;
+      trialFeeLineItem = {
+        quantity: 1,
+        price_data: {
+          currency: (plan.currency ?? 'USD').toLowerCase(),
+          unit_amount: trialPriceCents,
+          // Deliberately does NOT call this "N-day trial" — Stripe's own
+          // Checkout UI already puts an auto-generated "N days free" badge
+          // under the RECURRING line item below (driven by
+          // subscription_data.trial_period_days, not any text we control),
+          // since that item's own charge genuinely doesn't start for N
+          // days. Naming this one-time item "{plan} — N-day trial" too put
+          // two lines on the same receipt both claiming to BE the trial —
+          // one for free, one for $1 — reading as a direct contradiction
+          // even though both statements are true (a one-time access fee is
+          // due today; the plan itself is free for N days). Calling this
+          // one what it actually is removes the collision.
+          product_data: { name: `${plan.name} — Trial Access Fee (one-time)` },
+        },
+      };
+    } else if (cardUpFrontTrial && trialDays > 0 && !alreadyUsedTrial) {
+      // Card-up-front trial: the full trialDays start HERE, at checkout, not
+      // at account creation. There is no app-level window ticking down
+      // beforehand (isInFreeTrial returns false in this mode), so anchoring
+      // to createdAt like the branch below would quietly shorten the trial —
+      // and for anyone who signed up more than trialDays ago it would remove
+      // the trial altogether and bill them immediately, which is the last
+      // thing that should happen at the moment they hand over a card.
+      trialPeriodDays = trialDays;
+    } else if (!paidTrialEnabled && trialDays > 0 && !alreadyUsedTrial) {
+      // Free, no-card trial: tell Stripe to defer the first charge until
+      // the app-level free-trial window (anchored to account creation, not
+      // checkout time) actually ends — otherwise "subscribing" during the
+      // free trial would charge the card immediately.
+      //
+      // Uses trial_period_days (relative, computed here) rather than an
+      // absolute trial_end timestamp. The trial's real anchor is still
+      // account creation — trialEndMs below is computed exactly the same
+      // way either way — but handing Stripe an absolute timestamp that's a
+      // few minutes (or hours) short of a full N*24h from now made its own
+      // checkout-page day count round DOWN, e.g. a user who finished
+      // onboarding and landed on checkout 10 minutes after signup saw "6
+      // days free trial" advertised for what both the promo copy and the
+      // backend intended to be a full 7. Ceiling the remaining time into
+      // whole days ourselves before calling Stripe means the number we ask
+      // for is exactly the number Stripe displays and honors.
       const createdAtRaw = userSnap.data()?.createdAt as { toDate?: () => Date } | string | undefined;
       const createdAt = typeof createdAtRaw === 'object' && createdAtRaw?.toDate ? createdAtRaw.toDate() : (createdAtRaw ? new Date(createdAtRaw as string) : null);
       if (createdAt) {
         const trialEndMs = createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000;
-        if (trialEndMs > Date.now() + 60 * 1000) {
-          trialEnd = Math.floor(trialEndMs / 1000);
+        const remainingMs = trialEndMs - Date.now();
+        if (remainingMs > 60 * 1000) {
+          trialPeriodDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
         }
       }
     }
@@ -92,7 +210,7 @@ export async function POST(req: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
-      customer_email: userEmail ?? undefined,
+      customer: customerId,
       line_items: [
         {
           quantity: 1,
@@ -103,20 +221,32 @@ export async function POST(req: NextRequest) {
             product_data: { name: months === 1 ? plan.name : `${plan.name} (${months}-month term)` },
           },
         },
+        ...(trialFeeLineItem ? [trialFeeLineItem] : []),
       ],
       ...(discounts ? { discounts } : { allow_promotion_codes: true }),
+      // Stated explicitly rather than left to Stripe's default, because on a
+      // free trial the amount due today is $0 and a card-less signup is the
+      // difference between a trial that converts on day 8 and one that
+      // silently expires into an unpayable invoice. Requiring the card up
+      // front is also what makes the trial self-converting: nothing for the
+      // member to come back and do.
+      payment_method_collection: 'always',
       subscription_data: {
-        ...(trialEnd ? { trial_end: trialEnd } : {}),
-        metadata: { userId, planId, planName: plan.name, periodMonths: String(months) },
+        ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),
+        metadata: { userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership' },
       },
-      metadata: { userId, planId, planName: plan.name, periodMonths: String(months) },
+      metadata: {
+        userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership',
+        ...(trialPeriodDays ? { trialUsed: 'true' } : {}),
+      },
       success_url: `${appUrl}/profile?subscribed=1`,
       cancel_url: `${appUrl}/profile`,
     });
 
     return NextResponse.json({ url: session.url });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Failed to create checkout session';
+    console.error('[plan-checkout] Stripe error:', err instanceof Error ? err.message : err);
+    const msg = 'Could not start checkout right now. Try again in a moment.';
     console.error('[Stripe] plan-checkout error:', msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

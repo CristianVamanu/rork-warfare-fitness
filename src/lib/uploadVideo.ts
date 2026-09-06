@@ -1,5 +1,5 @@
 import { getIdToken, type User } from 'firebase/auth';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 
 export type StorageProvider = 'firebase' | 'r2';
@@ -20,7 +20,7 @@ async function uploadToR2(
   const presignRes = await fetch(presignEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ filename: file.name, contentType: file.type, folder, ...extraBody }),
+    body: JSON.stringify({ filename: file.name, contentType: file.type, sizeBytes: file.size, folder, ...extraBody }),
   });
   if (!presignRes.ok) {
     const data = await presignRes.json().catch(() => ({}));
@@ -42,6 +42,43 @@ async function uploadToR2(
     xhr.onerror = () => reject(new Error('R2 upload network error'));
     xhr.send(file);
   });
+
+  // The PUT above only proves the write succeeded — R2 treats write access
+  // (via this presigned URL) and public READ access (the bucket's Public
+  // Development URL / custom domain) as two separate permission layers.
+  // A successful upload here used to always report "success" even when the
+  // bucket's public access was off/misconfigured, silently saving a URL
+  // that 403s for every actual visitor — reported live as a logo that
+  // "used to work" going blank with no error anywhere pointing at why.
+  // Confirming the file is actually publicly fetchable right after upload
+  // turns that into a real, immediate error instead of a stored dead link.
+  // Only a response we can actually READ is proof of anything. A thrown
+  // fetch (network error, or CORS refusing to expose the response) is
+  // ambiguous — the file may well be perfectly readable to a normal <img>
+  // load, which isn't subject to CORS the way this fetch is. Treating that
+  // ambiguous case as failure would block legitimate uploads outright in
+  // any setup where the bucket doesn't send CORS headers on its public
+  // URL, which is a worse bug than the dead-link one this guards against.
+  // So: a real, readable non-OK status is a hard failure; anything we
+  // can't actually observe only warns and lets the upload stand.
+  let verifyStatus: number | null = null;
+  try {
+    const verifyRes = await fetch(publicUrl, { method: 'HEAD', cache: 'no-store' });
+    verifyStatus = verifyRes.status;
+  } catch {
+    console.warn(
+      '[uploadVideo] Could not verify public readability of', publicUrl,
+      '— the check itself was blocked (likely CORS). Upload is being kept; ' +
+      'if the file turns out not to be publicly reachable, check the R2 ' +
+      "bucket's Public Development URL / custom domain is enabled."
+    );
+  }
+  if (verifyStatus !== null && (verifyStatus < 200 || verifyStatus >= 300)) {
+    throw new Error(
+      `File uploaded, but isn't publicly readable (HTTP ${verifyStatus}). ` +
+      `Check the R2 bucket's Public Development URL / custom domain is enabled.`
+    );
+  }
 
   return publicUrl;
 }
@@ -77,13 +114,35 @@ export async function uploadVideo(
     : uploadToFirebaseStorage(file, folder, onProgress);
 }
 
+/** Best-effort delete of a previously-uploaded file (video or thumbnail) by
+ * its public URL — so replacing/removing an exercise video doesn't leave the
+ * old file orphaned in storage forever. Never throws: a failed cleanup
+ * shouldn't block the save/delete the admin actually asked for. */
+export async function deleteVideo(provider: StorageProvider, user: User, url: string | undefined): Promise<void> {
+  if (!url) return;
+  try {
+    if (provider === 'r2') {
+      const token = await getIdToken(user);
+      await fetch('/api/admin/r2-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ url }),
+      });
+    } else {
+      await deleteObject(ref(storage, url));
+    }
+  } catch (err) {
+    console.error('[uploadVideo] Failed to delete old file', url, err);
+  }
+}
+
 /** Uploads user-generated content (e.g. PR wall posts) via the user-scoped
  * presign route when R2 is configured, falling back to Firebase Storage. */
 export async function uploadUserContent(
   provider: StorageProvider,
   user: User,
   file: File,
-  root: 'prPosts' | 'progressPhotos',
+  root: 'prPosts' | 'progressPhotos' | 'community' | 'support',
   onProgress?: (pct: number) => void
 ): Promise<string> {
   return provider === 'r2'

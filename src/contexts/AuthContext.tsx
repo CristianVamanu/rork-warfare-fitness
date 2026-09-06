@@ -4,7 +4,8 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, onSnapshot, runTransaction } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { getUserDoc } from '@/lib/firestore';
+import { getUserDoc, resolveTrainerId } from '@/lib/firestore';
+import { isPendingSignup } from '@/lib/auth';
 import { getTenant } from '@/lib/tenants';
 import { checkAndRunMigration } from '@/lib/migration';
 import type { UserProfile, Tenant } from '@/types';
@@ -40,9 +41,32 @@ const AuthContext = createContext<AuthContextValue>({
 // document, not a separate client-side read that can go stale.
 async function ensureUserDoc(firebaseUser: User): Promise<void> {
   const ref = doc(db, 'users', firebaseUser.uid);
+
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     if (snap.exists()) return;
+
+    // Resolved via the SAME shared helper signUp() uses (src/lib/auth.ts),
+    // not a separate copy of the same logic — this function and signUp()
+    // both race to create the same fresh user doc right after
+    // createUserWithEmailAndPassword (onAuthStateChanged fires immediately,
+    // so this can run concurrently with signUp()'s own explicit doc write).
+    // Firestore's security rules forbid trainerId from ever being CHANGED
+    // on an update (by design — it's how a client could otherwise grant
+    // itself access to another trainer's tenant). If the two writers
+    // resolved trainerId differently (or one omitted it), whichever write
+    // landed second — now an update, since the doc exists — would get
+    // rejected as an unauthorized "change". A shared resolver guarantees
+    // agreement instead of relying on two copies staying in sync by hand.
+    //
+    // Called here, inside the transaction after the existence check, not
+    // before it — this is the ensureUserDoc() safety-net path that also
+    // runs on every ordinary login/session-restore for already-onboarded
+    // users, where snap.exists() is true and trainerId is never used;
+    // resolving it up front would cost every login an extra Firestore read
+    // (up to the full 3s timeout on a slow network) for a value that gets
+    // thrown away immediately.
+    const trainerId = await resolveTrainerId();
 
     console.info('[Auth] Creating missing Firestore doc for', firebaseUser.uid);
     tx.set(ref, {
@@ -52,12 +76,14 @@ async function ensureUserDoc(firebaseUser: User): Promise<void> {
       photoURL: firebaseUser.photoURL ?? null,
       weightUnit: 'kg',
       role: 'user',
+      trainerId,
       onboardingComplete: false,
       createdAt: serverTimestamp(),
       lastActive: serverTimestamp(),
       stats: {
         streak: 0,
-        powerLevel: 0,
+        // 1, not 0 — matches signUp()'s seed in auth.ts and xpToPowerLevel(0).
+        powerLevel: 1,
         totalWorkouts: 0,
         totalWeightLifted: 0,
       },
@@ -72,37 +98,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const profileUnsubRef = useRef<(() => void) | null>(null);
 
-  const subscribeToProfile = (firebaseUser: User) => {
+  const subscribeToProfile = (firebaseUser: User, retriedAfterAuthError = false) => {
     const uid = firebaseUser.uid;
 
     // Cancel any previous listener
     profileUnsubRef.current?.();
 
-    // Guarantee user doc exists first, then open a real-time listener
-    ensureUserDoc(firebaseUser)
-      .catch((err) => console.error('[Auth] ensureUserDoc failed:', err))
-      .then(() => {
-        // Record login time on every session start — ensureUserDoc only sets
-        // this once (at account creation, via its merge-and-return-early
-        // guard), so it doesn't reflect actual last-login without this.
-        setDoc(doc(db, 'users', uid), { lastLoginAt: serverTimestamp() }, { merge: true }).catch(() => {});
-        const unsub = onSnapshot(
-          doc(db, 'users', uid),
-          (snap) => {
-            if (!snap.exists()) return;
-            const p = snap.data() as UserProfile;
-            setProfile(p);
-            if (p.trainerId) {
-              getTenant(p.trainerId).then(setTenant).catch(console.error);
-            }
-          },
-          (err) => console.error('[Auth] profile listener error:', err),
-        );
-        profileUnsubRef.current = unsub;
-      });
+    // Right after onAuthStateChanged fires with a new user (especially when
+    // switching accounts in the same session), the Firestore SDK's
+    // underlying connection needs a brief moment to actually attach the new
+    // ID token — Firestore requests issued in that window can transiently
+    // fail with permission-denied even though the user IS properly signed
+    // in. Forcing a fresh token here (rather than relying on whatever's
+    // cached) closes most of that gap before the first Firestore call.
+    firebaseUser.getIdToken(true).catch(() => {}).then(() => {
+      // signUp() just wrote (or is actively writing) this exact doc itself
+      // — running the transactional check-and-create here too is not just
+      // redundant, it's the actual race that was surfacing as a permission
+      // error on new-user onboarding (this transaction's write racing
+      // signUp()'s own write to the same doc). Skipping it here closes
+      // that window entirely instead of relying on the transaction to lose
+      // the race gracefully.
+      const ensureTask = isPendingSignup(uid) ? Promise.resolve() : ensureUserDoc(firebaseUser).catch((err) => console.error('[Auth] ensureUserDoc failed:', err));
+      // Guarantee user doc exists first, then open a real-time listener
+      ensureTask
+        .then(() => {
+          // Record login time on every session start — ensureUserDoc only sets
+          // this once (at account creation, via its merge-and-return-early
+          // guard), so it doesn't reflect actual last-login without this.
+          setDoc(doc(db, 'users', uid), { lastLoginAt: serverTimestamp() }, { merge: true }).catch(() => {});
+          const unsub = onSnapshot(
+            doc(db, 'users', uid),
+            (snap) => {
+              if (!snap.exists()) return;
+              const p = snap.data() as UserProfile;
+              setProfile(p);
+              if (p.trainerId) {
+                getTenant(p.trainerId).then(setTenant).catch(console.error);
+              }
+            },
+            (err) => {
+              console.error('[Auth] profile listener error:', err);
+              // Self-heal from the token-propagation race above instead of
+              // leaving the user stuck on placeholder data until they
+              // manually refresh — one retry, ~1.5s later, is enough once
+              // the token has actually attached.
+              if (!retriedAfterAuthError && err.code === 'permission-denied') {
+                setTimeout(() => subscribeToProfile(firebaseUser, true), 1500);
+              }
+            },
+          );
+          profileUnsubRef.current = unsub;
 
-    // Non-blocking stats migration
-    checkAndRunMigration(uid).catch(console.error);
+          // Non-blocking stats migration — moved inside this same
+          // getIdToken(true) chain (it used to fire immediately, outside
+          // it) so its own Firestore reads get the same token-propagation
+          // protection as everything else here, instead of racing ahead of
+          // the connection's auth handshake on a brand-new sign-in.
+          checkAndRunMigration(uid).catch(console.error);
+        });
+    });
   };
 
   const refreshProfile = async () => {

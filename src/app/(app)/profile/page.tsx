@@ -3,16 +3,18 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp } from 'lucide-react';
+import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  updateUserDoc, getUserConversations, getMembershipConfig, getCoachingPlans, getMembershipPlans,
+  updateUserDoc, subscribeUserConversations, getMembershipConfig, getCoachingPlans, getMembershipPlans,
   submitCoachingApplication, getUserCoachingApplication,
 } from '@/lib/firestore';
-import { startCoachingCheckout, startPlanCheckout } from '@/lib/checkout';
+import { startCoachingCheckout, startPlanCheckout, openBillingPortal, confirmAndChangePlan } from '@/lib/checkout';
+import { trackEvent } from '@/lib/analytics';
+import { isInFreeTrial, freeTrialEndsAt } from '@/lib/membership';
 import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Header } from '@/components/layout/Header';
@@ -23,7 +25,8 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
 import { Modal } from '@/components/ui/Modal';
-import type { MembershipConfig, MembershipPlan, CoachingPlan, CoachingApplication, PlanBillingPeriodMonths } from '@/types';
+import { HealthScreeningFields, LifestyleHabitsFields } from '@/components/ui/HealthScreening';
+import type { MembershipConfig, MembershipPlan, CoachingPlan, CoachingApplication, PlanBillingPeriodMonths, MedicalHistoryAnswers } from '@/types';
 
 // Separate component so useSearchParams doesn't block the page render
 function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
@@ -32,9 +35,11 @@ function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
     const subscribed = searchParams.get('subscribed');
     if (subscribed === '1') {
       toast.success('Membership activated! Welcome aboard 🎉');
+      trackEvent('Purchase');
       onSuccess();
     } else if (subscribed === 'coaching') {
       toast.success('Coaching plan activated! Your trainer has been notified 🎉');
+      trackEvent('Purchase');
       onSuccess();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -48,6 +53,7 @@ export default function ProfilePage() {
   const [editModal, setEditModal] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.displayName || '');
   const [saving, setSaving] = useState(false);
+  const [hasConversation, setHasConversation] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [membershipConfig, setMembershipConfig] = useState<MembershipConfig | null>(null);
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
@@ -58,6 +64,13 @@ export default function ProfilePage() {
   const [coachingApplication, setCoachingApplication] = useState<CoachingApplication | null>(null);
   const [applyPlan, setApplyPlan] = useState<CoachingPlan | null>(null);
   const [applyForm, setApplyForm] = useState({ currentWeight: '', goals: '', experience: '', injuries: '', availability: '' });
+  // Health screening / lifestyle habits moved here from signup onboarding,
+  // where they were fifteen mandatory questions gating first use. Here a
+  // human trainer actually reads them, and the person filling this in has
+  // already decided they want 1:1 coaching.
+  const [applyMedical, setApplyMedical] = useState<MedicalHistoryAnswers>({});
+  const updateApplyMedical = (patch: Partial<MedicalHistoryAnswers>) =>
+    setApplyMedical((m) => ({ ...m, ...patch }));
   const [applySubmitting, setApplySubmitting] = useState(false);
 
   const refreshCoachingApplication = () => {
@@ -65,11 +78,22 @@ export default function ProfilePage() {
     getUserCoachingApplication(user.uid).then(setCoachingApplication).catch(() => {});
   };
 
+  // Live, and gates the tile's visibility (see below) — a member has no
+  // conversation until staff messages them first, so this used to link to
+  // an inbox that opened to nothing, with no explanation why. Matches the
+  // same gating already used for the Messages icon in Header.
   useEffect(() => {
     if (!user) return;
-    getUserConversations(user.uid)
-      .then(convs => setUnreadMessages(convs.filter(c => c.unreadByUser).length))
-      .catch(() => {});
+    const unsub = subscribeUserConversations(user.uid, (convs) => {
+      setHasConversation(convs.length > 0);
+      setUnreadMessages(convs.filter(c => c.unreadByUser).length);
+    });
+    return unsub;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
     getMembershipConfig().then(setMembershipConfig).catch(() => {});
     getCoachingPlans().then(plans => setCoachingPlans(plans.filter(p => p.active))).catch((err) => console.error('[Profile] Failed to load coaching plans:', err));
     getMembershipPlans().then(plans => setMembershipPlans(plans.filter(p => p.active))).catch((err) => console.error('[Profile] Failed to load membership plans:', err));
@@ -86,6 +110,10 @@ export default function ProfilePage() {
 
   const openApplyModal = (plan: CoachingPlan) => {
     setApplyForm({ currentWeight: '', goals: '', experience: '', injuries: '', availability: '' });
+    // Prefill from whatever the profile already has (e.g. an older account
+    // that answered these during onboarding before they moved here), so a
+    // returning user isn't re-answering questions the app already knows.
+    setApplyMedical(profile?.medicalHistory ?? {});
     setApplyPlan(plan);
   };
 
@@ -97,6 +125,12 @@ export default function ProfilePage() {
     }
     setApplySubmitting(true);
     try {
+      // Only send answers actually given — undefined values would be
+      // rejected by Firestore, and an empty object is cleaner than a doc
+      // full of nulls for the trainer reading it in the admin panel.
+      const answeredMedical = Object.fromEntries(
+        Object.entries(applyMedical).filter(([, v]) => v !== undefined && v !== '')
+      );
       await submitCoachingApplication({
         userId: user.uid,
         userName: profile?.displayName || user.email || 'Unknown',
@@ -104,6 +138,7 @@ export default function ProfilePage() {
         planId: applyPlan.id,
         planName: applyPlan.name,
         ...applyForm,
+        ...(Object.keys(answeredMedical).length > 0 ? { medicalHistory: answeredMedical } : {}),
       });
       toast.success('Application submitted! Your trainer will review it shortly.');
       setApplyPlan(null);
@@ -144,41 +179,55 @@ export default function ProfilePage() {
   const handleManageBilling = async () => {
     if (!user) return;
     setOpeningPortal(true);
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/stripe/create-portal-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json() as { url?: string; error?: string };
-      if (data.url) window.location.href = data.url;
-      else toast.error(data.error ?? 'Failed to open billing portal');
-    } catch {
-      toast.error('Failed to open billing portal');
-    } finally {
-      setOpeningPortal(false);
-    }
+    const err = await openBillingPortal(user);
+    if (err) { toast.error(err); setOpeningPortal(false); }
   };
 
-  const handleCancelMembership = async () => {
+  const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
+  // Switches the existing subscription's price directly instead of sending
+  // an already-active member to Stripe's billing portal — the portal can't
+  // offer "Update subscription" here since these plans only ever exist as
+  // inline price_data at checkout time, never as permanent Stripe Price
+  // objects the portal could list a catalog from. See
+  // /api/stripe/change-plan's own comment for the full reasoning.
+  const handleSwitchPlan = async (planId: string, planName: string, periodMonths: PlanBillingPeriodMonths) => {
     if (!user) return;
-    if (!confirm('Cancel your membership? You will keep access until the end of your current billing period.')) return;
+    setChangingPlanId(planId);
+    // Previews the proration amount and confirms with the user before
+    // committing — same shared flow PlanUpgradeScreen uses.
+    const { changed, error } = await confirmAndChangePlan(user, planId, planName, periodMonths);
+    if (error) toast.error(error);
+    else if (changed) {
+      toast.success('Plan updated');
+      await refreshProfile().catch(() => {});
+    }
+    setChangingPlanId(null);
+  };
+
+  // membership and coaching are two independent Stripe subscriptions a
+  // user can hold at once — cancelling one must never touch the other, so
+  // which one is explicit rather than assumed.
+  const handleCancelSubscription = async (kind: 'membership' | 'coaching') => {
+    if (!user) return;
+    const label = kind === 'coaching' ? '1:1 coaching' : 'membership';
+    if (!confirm(`Cancel your ${label}? You will keep access until the end of your current billing period.`)) return;
     setCancelling(true);
     try {
       const token = await user.getIdToken();
       const res = await fetch('/api/stripe/cancel-subscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ kind }),
       });
       const data = await res.json() as { ok?: boolean; error?: string };
       if (data.ok) {
-        toast.success('Membership cancelled — access continues until your billing period ends');
+        toast.success(`${kind === 'coaching' ? 'Coaching' : 'Membership'} cancelled — access continues until your billing period ends`);
         await refreshProfile();
       } else {
-        toast.error(data.error ?? 'Failed to cancel membership');
+        toast.error(data.error ?? `Failed to cancel ${label}`);
       }
     } catch {
-      toast.error('Failed to cancel membership');
+      toast.error(`Failed to cancel ${label}`);
     } finally {
       setCancelling(false);
     }
@@ -199,26 +248,21 @@ export default function ProfilePage() {
       })()
     : null;
 
-  // Check free trial
+  const weightUnit = (profile?.weightUnit as 'kg' | 'lbs') ?? 'kg';
   const trialDays = (membershipConfig as (MembershipConfig & { trialDays?: number }) | null)?.trialDays ?? 0;
+  const paidTrialEnabled = !!membershipConfig?.paidTrialEnabled;
   const discountPercent = getActiveDiscountPercent(membershipConfig);
-  const inTrial = (() => {
-    if (!trialDays || !profile?.createdAt) return false;
-    const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
-    return Date.now() - created.getTime() < trialDays * 24 * 60 * 60 * 1000;
-  })();
-
-  const trialEndsAt = (() => {
-    if (!trialDays || !profile?.createdAt) return null;
-    const created = (profile.createdAt as { toDate?: () => Date })?.toDate?.() ?? new Date(profile.createdAt as string);
-    return new Date(created.getTime() + trialDays * 24 * 60 * 60 * 1000);
-  })();
+  const inTrial = isInFreeTrial(membershipConfig, profile?.createdAt);
+  const trialEndsAt = freeTrialEndsAt(membershipConfig, profile?.createdAt);
 
   const stats = [
     { icon: Dumbbell, label: 'Workouts', value: totalWorkouts, color: 'text-purple-400' },
     { icon: Flame, label: 'Streak', value: `${streak}d`, color: 'text-orange-400' },
     { icon: Zap, label: 'Fitness Level', value: powerLevel, color: 'text-accent' },
-    { icon: Trophy, label: 'Total kg', value: profile?.currentWeightKg ?? profile?.stats?.totalWeightLifted ?? 0, color: 'text-yellow-400' },
+    // Was `currentWeightKg ?? totalWeightLifted` — i.e. it showed the user's
+    // BODY weight under a "total lifted" label for anyone who'd ever logged a
+    // weigh-in, contradicting the badge above that reads totalWeightLifted.
+    { icon: Trophy, label: `Total ${weightUnit}`, value: (profile?.stats?.totalWeightLifted ?? 0).toLocaleString(), color: 'text-yellow-400' },
   ];
 
   // Show membership to all non-admin/trainer users, and also to admin so they can see what users see
@@ -315,6 +359,14 @@ export default function ProfilePage() {
                       )}
                       <span className="text-sm text-text-secondary">{activePeriod.months === 1 ? '/month' : ` / ${activePeriod.months}mo`}</span>
                     </div>
+                    {/* Discount coupon is duration:'once' (see
+                        plan-checkout/route.ts) — first payment only, not
+                        the ongoing rate. */}
+                    {discountPercent > 0 && !isCurrentPlan && (
+                      <p className="text-[11px] text-text-tertiary mt-1">
+                        First payment only — renews at ${activePeriod.price.toFixed(2)}{activePeriod.months === 1 ? '/month' : ` / ${activePeriod.months}mo`}
+                      </p>
+                    )}
                     {periods.length > 1 && !isCurrentPlan && (
                       <div className="flex gap-1.5 mt-3 flex-wrap">
                         {periods.map((p) => (
@@ -328,8 +380,10 @@ export default function ProfilePage() {
                         ))}
                       </div>
                     )}
-                    {trialDays > 0 && !isCurrentPlan && !inTrial && (
-                      <p className="text-xs text-accent mt-1">{trialDays}-day free trial included</p>
+                    {trialDays > 0 && !isCurrentPlan && (paidTrialEnabled || !inTrial) && (
+                      <p className="text-xs text-accent mt-1">
+                        {paidTrialEnabled ? `$${((membershipConfig?.trialPriceCents ?? 100) / 100).toFixed(2)} for ${trialDays} days, then this price applies` : `${trialDays}-day free trial included`}
+                      </p>
                     )}
                     {plan.description && (
                       <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>
@@ -358,22 +412,38 @@ export default function ProfilePage() {
                                 {expiresAt ? `Renews ${expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Active'}
                               </p>
                             </div>
-                            <Button size="sm" variant="ghost" fullWidth onClick={handleCancelMembership} loading={cancelling}>
+                            <Button size="sm" variant="ghost" fullWidth onClick={() => handleCancelSubscription('membership')} loading={cancelling}>
                               Cancel Membership
                             </Button>
                           </>
                         )
                       ) : (
-                        <>
-                          <Button
-                            fullWidth
-                            onClick={() => handleSubscribeMembershipPlan(plan.id)}
-                            loading={subscribingMembershipPlanId === plan.id}
-                          >
-                            <Crown className="w-4 h-4" /> {subscribingMembershipPlanId === plan.id ? 'Opening Checkout…' : (trialDays > 0 && !inTrial ? 'Start Free Trial' : isActive ? 'Switch to This Plan' : 'Subscribe Now')}
-                          </Button>
-                          <p className="text-[10px] text-text-tertiary text-center mt-2">Secure payment via Stripe. Cancel anytime.</p>
-                        </>
+                        isActive ? (
+                          // Was wired to Stripe's billing portal — which
+                          // can't offer a plan switcher for these plans at
+                          // all (see handleSwitchPlan's comment above), so
+                          // this button dead-ended with no options to pick
+                          // from. Now switches the subscription's price
+                          // directly, same server route the paywall's
+                          // PlanUpgradeScreen uses.
+                          <>
+                            <Button fullWidth variant="secondary" onClick={() => handleSwitchPlan(plan.id, plan.name, activePeriod.months)} loading={changingPlanId === plan.id}>
+                              <Crown className="w-4 h-4" /> {changingPlanId === plan.id ? 'Updating Plan…' : 'Switch to This Plan'}
+                            </Button>
+                            <p className="text-[10px] text-text-tertiary text-center mt-2">Prorated automatically by Stripe.</p>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              fullWidth
+                              onClick={() => handleSubscribeMembershipPlan(plan.id)}
+                              loading={subscribingMembershipPlanId === plan.id}
+                            >
+                              <Crown className="w-4 h-4" /> {subscribingMembershipPlanId === plan.id ? 'Opening Checkout…' : (trialDays > 0 && !inTrial ? (paidTrialEnabled ? `Start for $${((membershipConfig?.trialPriceCents ?? 100) / 100).toFixed(2)}` : 'Start Free Trial') : 'Subscribe Now')}
+                            </Button>
+                            <p className="text-[10px] text-text-tertiary text-center mt-2">Secure payment via Stripe. Cancel anytime.</p>
+                          </>
+                        )
                       )}
                     </div>
                   </div>
@@ -381,7 +451,7 @@ export default function ProfilePage() {
               })}
 
               {coachingPlans.map((plan) => {
-                const isCurrentPlan = profile?.membership?.status === 'active' && profile?.membership?.planId === plan.id;
+                const isCurrentPlan = profile?.coaching?.status === 'active' && profile?.coaching?.planId === plan.id;
                 return (
                   <div key={plan.id} className={`relative rounded-2xl border-2 p-5 ${isCurrentPlan ? 'border-accent bg-accent/[0.03]' : 'border-white/10 bg-surface'}`}>
                     {isCurrentPlan && (
@@ -409,6 +479,12 @@ export default function ProfilePage() {
                       )}
                       <span className="text-sm text-text-secondary">/month</span>
                     </div>
+                    {/* First-payment-only discount — same as above. */}
+                    {discountPercent > 0 && !isCurrentPlan && (
+                      <p className="text-[11px] text-text-tertiary mt-1">
+                        First payment only — renews at ${plan.priceMonthly.toFixed(2)}/month
+                      </p>
+                    )}
                     {plan.description && <p className="text-xs text-text-secondary mt-2">{plan.description}</p>}
 
                     {plan.features?.length > 0 && (
@@ -423,9 +499,20 @@ export default function ProfilePage() {
 
                     <div className="mt-5">
                       {isCurrentPlan ? (
-                        <div className="text-center py-2 bg-success/10 border border-success/20 rounded-xl">
-                          <p className="text-xs text-success font-medium">Active</p>
-                        </div>
+                        profile?.coaching?.cancelAtPeriodEnd ? (
+                          <p className="text-xs text-text-tertiary text-center py-2">
+                            Cancelled — access continues until the end of your billing period.
+                          </p>
+                        ) : (
+                          <>
+                            <div className="text-center py-2 mb-2 bg-success/10 border border-success/20 rounded-xl">
+                              <p className="text-xs text-success font-medium">Active</p>
+                            </div>
+                            <Button size="sm" variant="ghost" fullWidth onClick={() => handleCancelSubscription('coaching')} loading={cancelling}>
+                              Cancel Coaching
+                            </Button>
+                          </>
+                        )
                       ) : coachingApplication?.planId === plan.id && coachingApplication.status === 'pending' ? (
                         <div className="text-center py-2.5 bg-yellow-400/10 border border-yellow-400/20 rounded-xl">
                           <p className="text-xs text-yellow-400 font-medium">Application under review — we&apos;ll notify you soon</p>
@@ -499,22 +586,6 @@ export default function ProfilePage() {
           </Card>
         </motion.div>
 
-        {/* PT Test — simplified military-style fitness test tracker */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.157 }}>
-          <Link href="/pt-test">
-            <Card className="p-4 flex items-center gap-3.5 hover:border-accent/30 transition-colors">
-              <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
-                <Trophy className="w-5 h-5 text-accent" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white">PT Test</p>
-                <p className="text-xs text-text-secondary mt-0.5">Push-ups, sit-ups, timed run — see how you score</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-            </Card>
-          </Link>
-        </motion.div>
-
         {/* Progress Hub */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
           <Link href="/progress">
@@ -563,24 +634,46 @@ export default function ProfilePage() {
           </Link>
         </motion.div>
 
-        {/* Messages from Coach */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-          <Link href="/messages">
-            <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
-              <div className="relative">
-                <div className="p-2 bg-accent-muted rounded-lg">
-                  <MessageSquare className="w-4 h-4 text-accent" />
+        {/* Messages from Admin — hidden entirely until staff has actually
+            messaged this account at least once; previously always shown and
+            linked into an inbox with nothing in it and no explanation why. */}
+        {hasConversation && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+            <Link href="/messages">
+              <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+                <div className="relative">
+                  <div className="p-2 bg-accent-muted rounded-lg">
+                    <MessageSquare className="w-4 h-4 text-accent" />
+                  </div>
+                  {unreadMessages > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white">
+                      {unreadMessages}
+                    </span>
+                  )}
                 </div>
-                {unreadMessages > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white">
-                    {unreadMessages}
-                  </span>
-                )}
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-white">Messages</p>
+                  <p className="text-xs text-text-secondary">{unreadMessages > 0 ? `${unreadMessages} unread` : 'View your conversations'}</p>
+                </div>
+              </Card>
+            </Link>
+          </motion.div>
+        )}
+
+        {/* Support — always shown, unlike Messages above. A member with no
+            support history is exactly the person who needs to be able to find
+            this, so gating it on having already used it would defeat it. */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.185 }}>
+          <Link href="/support">
+            <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+              <div className="p-2 bg-blue-400/10 rounded-lg">
+                <LifeBuoy className="w-4 h-4 text-blue-400" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-white">Messages from Coach</p>
-                <p className="text-xs text-text-secondary">{unreadMessages > 0 ? `${unreadMessages} unread` : 'View your conversations'}</p>
+                <p className="text-sm font-medium text-white">Message Support</p>
+                <p className="text-xs text-text-secondary">Question, billing issue, or a bug? Tell us.</p>
               </div>
+              <ChevronRight className="w-4 h-4 text-text-tertiary" />
             </Card>
           </Link>
         </motion.div>
@@ -652,7 +745,19 @@ export default function ProfilePage() {
       </Modal>
 
       {/* 1:1 Coaching Application Modal */}
-      <Modal open={!!applyPlan} onClose={() => setApplyPlan(null)} title={`Apply for ${applyPlan?.name ?? '1:1 Coaching'}`}>
+      <Modal
+        open={!!applyPlan}
+        onClose={() => setApplyPlan(null)}
+        title={`Apply for ${applyPlan?.name ?? '1:1 Coaching'}`}
+        footer={
+          <div className="flex gap-3">
+            <Button variant="ghost" className="flex-1 min-w-0" onClick={() => setApplyPlan(null)}>Cancel</Button>
+            <Button className="flex-1 min-w-0" loading={applySubmitting} onClick={handleSubmitApplication}>
+              Submit
+            </Button>
+          </div>
+        }
+      >
         <div className="space-y-4">
           <p className="text-xs text-text-secondary">
             Tell your trainer a bit about yourself. They&apos;ll review your application and get back to you.
@@ -697,10 +802,14 @@ export default function ProfilePage() {
             onChange={(e) => setApplyForm((f) => ({ ...f, availability: e.target.value }))}
             placeholder="e.g. 4x/week, mornings only"
           />
-          <div className="flex gap-3">
-            <Button variant="ghost" fullWidth onClick={() => setApplyPlan(null)}>Cancel</Button>
-            <Button fullWidth loading={applySubmitting} onClick={handleSubmitApplication}>Submit Application</Button>
-          </div>
+          <div className="pt-1 border-t border-white/8" />
+          <p className="text-xs text-text-secondary">
+            The questions below help your trainer build a programme around any
+            medical considerations. All optional — answer what you&apos;re
+            comfortable sharing.
+          </p>
+          <HealthScreeningFields data={applyMedical} onChange={updateApplyMedical} />
+          <LifestyleHabitsFields data={applyMedical} onChange={updateApplyMedical} />
         </div>
       </Modal>
     </div>

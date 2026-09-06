@@ -1,17 +1,44 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
+import { verifyAuthed } from '@/lib/verifyAdmin';
+import { rateLimit } from '@/lib/rateLimit';
+import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
 
 function todayKey() {
   return new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
 }
 
-export async function GET() {
+// Was fully unauthenticated with no rate limiting — anyone could hit it
+// directly to burn OpenAI spend once the daily cache missed. Result is
+// shared across all users (cached at config/dailyTip, one doc per day), so
+// this only needs to gate who can trigger generation, not per-user usage.
+const WINDOW_MS = 60 * 1000;
+const MAX_PER_WINDOW = 5;
+
+export async function GET(req: NextRequest) {
+  const check = await verifyAuthed(req);
+  if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
+  const limited = await rateLimit({ scope: 'ai-tip', key: check.uid, windowMs: WINDOW_MS, max: MAX_PER_WINDOW });
+  if (!limited.allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
+  }
+
+  // This route calls OpenAI, so every authenticated account was a metered
+  // spend endpoint regardless of whether they pay for anything — the only
+  // AI route with no membership check. Bounded per user by the limiter
+  // above, unbounded across users.
+  const tipApp = getAdminApp();
+  if (tipApp) {
+    const access = await verifyFeatureAccess(tipApp, check.uid, 'ai-tip');
+    if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
+  }
+
   const dateKey = todayKey();
 
   // Try to serve from Firestore cache first
@@ -37,7 +64,7 @@ export async function GET() {
     });
   }
 
-  const openai = new OpenAI({ apiKey });
+  const openai = new OpenAI({ apiKey, timeout: 30_000, maxRetries: 1 });
 
   // Use the date as a seed so the tip is deterministic per day across server instances
   const dayNumber = Math.floor(Date.now() / 86400000);

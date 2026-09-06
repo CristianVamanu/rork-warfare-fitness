@@ -4,10 +4,12 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
 import nextDynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
-import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target, Camera, Lock, Trash2, GitCompare } from 'lucide-react';
+import Link from 'next/link';
+import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target, Camera, Lock, Trash2, GitCompare, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserWorkouts, getWeightHistory, getSystemConfig, subscribeProgressPhotos, createProgressPhoto, deleteProgressPhoto } from '@/lib/firestore';
+import { getUserWorkouts, getWeightHistory, getSystemConfig, subscribeProgressPhotos, createProgressPhoto, deleteProgressPhoto, getWeeklySummary, type WeeklySummary } from '@/lib/firestore';
 import { recordWeight } from '@/lib/actions';
+import { lbsToKg, kgToLbs, formatBodyWeight } from '@/lib/utils';
 import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import { getLevelTier, xpToNextLevel } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
@@ -19,6 +21,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Modal } from '@/components/ui/Modal';
+import { BeforeAfterSlider } from '@/components/progress/BeforeAfterSlider';
 import toast from 'react-hot-toast';
 
 // recharts is a large dependency — load it only when this page actually
@@ -50,6 +53,7 @@ export default function ProgressPage() {
   const [weightInput, setWeightInput] = useState('');
   const [savingWeight, setSavingWeight] = useState(false);
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoViewer, setPhotoViewer] = useState<ProgressPhoto | null>(null);
   const [compareMode, setCompareMode] = useState(false);
@@ -70,6 +74,7 @@ export default function ProgressPage() {
       .then((w) => setWorkouts(w as WorkoutEntry[]))
       .finally(() => setLoading(false));
     getWeightHistory(user.uid, 30).then(setWeightHistory).catch(() => {});
+    getWeeklySummary(user.uid).then(setWeeklySummary).catch(() => {});
     const unsub = subscribeProgressPhotos(user.uid, setPhotos);
     return unsub;
   }, [user]);
@@ -131,10 +136,20 @@ export default function ProgressPage() {
   // Build weekly volume chart from real workouts
   const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const volumeByDay: Record<string, number> = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 };
-  workouts.slice(0, 7).forEach((w) => {
+  // Filtered by DATE, not `.slice(0, 7)`. Taking the 7 most recent sessions
+  // regardless of when they happened plotted them all under a "this week"
+  // framing: someone who trained 7 times across the last 5 weeks saw every
+  // one of them as if it were this week (with same-weekday sessions from
+  // different weeks summed into a single bar), while someone who trained 10
+  // times this week only ever saw 7 of them.
+  const startOfWeek = new Date();
+  startOfWeek.setHours(0, 0, 0, 0);
+  // Week starts Monday, matching the Mon-Sun axis rendered below.
+  startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+  workouts.forEach((w) => {
     const ts = w.completedAt as { toDate?: () => Date } | null;
     const date = ts?.toDate?.();
-    if (date) {
+    if (date && date >= startOfWeek) {
       const key = DOW[date.getDay()];
       volumeByDay[key] = (volumeByDay[key] ?? 0) + (w.duration ?? 30);
     }
@@ -144,10 +159,17 @@ export default function ProgressPage() {
     minutes: volumeByDay[d] ?? 0,
   }));
 
+  const weightUnit = (profile?.weightUnit as 'kg' | 'lbs') ?? 'kg';
+
   const handleLogWeight = async () => {
     if (!user || !weightInput) return;
-    const kg = parseFloat(weightInput);
-    if (isNaN(kg) || kg < 20 || kg > 400) {
+    const entered = parseFloat(weightInput);
+    // recordWeight always expects kg — the input/label below is in the
+    // user's own unit, so an lbs user typing "180" must be converted
+    // before saving, or it's stored as 180kg (~397 lbs) and corrupts
+    // every weight-based chart/calculation downstream.
+    const kg = weightUnit === 'lbs' ? lbsToKg(entered) : entered;
+    if (isNaN(entered) || kg < 20 || kg > 400) {
       toast.error('Enter a valid weight');
       return;
     }
@@ -199,7 +221,7 @@ export default function ProgressPage() {
           {[
             { icon: Dumbbell, label: 'Total Workouts', value: totalWorkouts,                    color: 'text-purple-400', bg: 'bg-purple-400/10' },
             { icon: TrendingUp, label: 'Day Streak',   value: `${streak}d`,                    color: 'text-accent',    bg: 'bg-accent-muted'  },
-            { icon: Scale,      label: 'Current Weight', value: profile?.currentWeightKg ? `${profile.currentWeightKg}kg` : '—', color: 'text-green-400',  bg: 'bg-green-400/10'  },
+            { icon: Scale,      label: 'Current Weight', value: formatBodyWeight(profile?.currentWeightKg, weightUnit), color: 'text-green-400',  bg: 'bg-green-400/10'  },
             { icon: Award,      label: 'Achievements', value: `${earnedAchievements.size}/${ACHIEVEMENT_DEFS.length}`, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
           ].map(({ icon: Icon, label, value, color, bg }) => (
             <Card key={label} className="p-4">
@@ -211,6 +233,35 @@ export default function ProgressPage() {
             </Card>
           ))}
         </motion.div>
+
+        {/* Weekly volume — real numbers only, no invented daily breakdown */}
+        {weeklySummary && (weeklySummary.workoutsCompleted > 0 || weeklySummary.volumeKg > 0) && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }}>
+            <Card className="p-3.5 flex items-center justify-between relative overflow-hidden">
+              <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
+                <TrendingUp className="w-20 h-20 text-accent" />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-accent-muted">
+                  <TrendingUp className="w-4 h-4 text-accent" />
+                </div>
+                <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-wide">This Week</span>
+              </div>
+              <div className="flex items-center gap-5">
+                <div className="text-right">
+                  <p className="text-base font-black text-white leading-none">
+                    {weeklySummary.volumeKg.toLocaleString()}<span className="text-xs font-medium text-text-secondary ml-1">{weightUnit}</span>
+                  </p>
+                  <p className="text-[10px] text-text-tertiary mt-0.5">volume</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-base font-black text-white leading-none">{weeklySummary.workoutsCompleted}</p>
+                  <p className="text-[10px] text-text-tertiary mt-0.5">workouts</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Weight Tracker */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
@@ -228,7 +279,7 @@ export default function ProgressPage() {
                     <Scale className="w-5 h-5 text-green-400" />
                   </div>
                   <div>
-                    <p className="text-2xl font-black text-white">{profile.currentWeightKg} <span className="text-sm text-text-secondary">kg</span></p>
+                    <p className="text-2xl font-black text-white">{weightUnit === 'lbs' ? kgToLbs(profile.currentWeightKg) : profile.currentWeightKg} <span className="text-sm text-text-secondary">{weightUnit}</span></p>
                     <p className="text-xs text-text-tertiary">Last logged weight</p>
                   </div>
                 </div>
@@ -273,7 +324,7 @@ export default function ProgressPage() {
           </div>
           <Card className="p-4">
             <p className="text-xs text-text-tertiary mb-3 flex items-center gap-1.5">
-              <Lock className="w-3 h-3" /> Private — only visible to you and your coach
+              <Lock className="w-3 h-3" /> Private — only visible to you
             </p>
             {compareMode && (
               <p className="text-xs text-accent mb-3">
@@ -312,7 +363,7 @@ export default function ProgressPage() {
                           <p className="text-[10px] font-bold text-white leading-none">
                             {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </p>
-                          {p.weightKg && <p className="text-[9px] text-white/70 leading-none mt-0.5">{p.weightKg}kg</p>}
+                          {p.weightKg && <p className="text-[9px] text-white/70 leading-none mt-0.5">{formatBodyWeight(p.weightKg, weightUnit)}</p>}
                         </div>
                       )}
                       {compareMode && (
@@ -328,30 +379,23 @@ export default function ProgressPage() {
           </Card>
           {compareMode && comparePhotos.length === 2 && (
             <Card className="p-4 mt-3">
-              <div className="grid grid-cols-2 gap-2">
-                {comparePhotos.map((p, i) => {
-                  const date = photoDate(p);
-                  return (
-                    <div key={p.id}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.photoUrl} alt={i === 0 ? 'Before' : 'After'} className="w-full rounded-xl object-cover" />
-                      <p className="text-xs text-text-secondary text-center mt-1.5">
-                        {date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
-                        {p.weightKg && ` · ${p.weightKg}kg`}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
+              <BeforeAfterSlider
+                beforeUrl={comparePhotos[0].photoUrl}
+                afterUrl={comparePhotos[1].photoUrl}
+                beforeLabel={photoDate(comparePhotos[0])?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) ?? 'Before'}
+                afterLabel={photoDate(comparePhotos[1])?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) ?? 'After'}
+              />
+              <p className="text-center text-[10px] text-text-tertiary mt-2">Drag the handle to compare</p>
               {(() => {
                 const [a, b] = comparePhotos;
                 const dA = photoDate(a), dB = photoDate(b);
                 const days = dA && dB ? Math.round((dB.getTime() - dA.getTime()) / (1000 * 60 * 60 * 24)) : null;
-                const weightDelta = a.weightKg && b.weightKg ? +(b.weightKg - a.weightKg).toFixed(1) : null;
+                const deltaKg = a.weightKg && b.weightKg ? b.weightKg - a.weightKg : null;
+                const weightDelta = deltaKg === null ? null : +(weightUnit === 'lbs' ? kgToLbs(deltaKg) : deltaKg).toFixed(1);
                 return (days !== null || weightDelta !== null) && (
                   <p className="text-center text-sm font-bold text-accent mt-3">
                     {days !== null && `${days} day${days === 1 ? '' : 's'} apart`}
-                    {weightDelta !== null && ` · ${weightDelta > 0 ? '+' : ''}${weightDelta}kg`}
+                    {weightDelta !== null && ` · ${weightDelta > 0 ? '+' : ''}${weightDelta}${weightUnit}`}
                   </p>
                 );
               })()}
@@ -410,7 +454,12 @@ export default function ProgressPage() {
         {/* Recent Workouts Summary */}
         {!loading && workouts.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <h2 className="text-base font-bold text-white mb-3">Recent Sessions</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold text-white">Recent Sessions</h2>
+              <Link href="/progress/history" className="text-xs font-medium text-accent flex items-center gap-0.5 hover:underline">
+                Full history <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
             <div className="space-y-2">
               {workouts.slice(0, 5).map((w) => {
                 const ts = w.completedAt as { toDate?: () => Date } | null;
@@ -443,15 +492,13 @@ export default function ProgressPage() {
       <Modal open={weightModal} onClose={() => setWeightModal(false)} title="Log Body Weight">
         <div className="space-y-4">
           <div>
-            <label className="text-xs text-text-secondary mb-2 block">Weight (kg)</label>
+            <label className="text-xs text-text-secondary mb-2 block">Weight ({weightUnit})</label>
             <input
               type="number"
               step="0.1"
-              min="20"
-              max="400"
               value={weightInput}
               onChange={(e) => setWeightInput(e.target.value)}
-              placeholder="e.g. 82.5"
+              placeholder={weightUnit === 'lbs' ? 'e.g. 180' : 'e.g. 82.5'}
               className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:border-accent/50"
               autoFocus
             />

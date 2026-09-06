@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Camera, Upload, X as XIcon, Sparkles, Dumbbell, ArrowRight, Info } from 'lucide-react';
@@ -11,14 +11,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { PaywallGate } from '@/components/ui/PaywallGate';
+import { localDateHeader } from '@/lib/utils';
 import type { Exercise } from '@/types';
 
 const MAX_PHOTOS = 6;
 
 // Same resize approach as the food-photo analyzer — camera photos can be
 // several MB each; sending up to 6 of them raw would blow past Vercel's
-// serverless request body limit. OpenAI's vision "low detail" mode only
-// uses ~512px anyway, so nothing is lost.
+// serverless request body limit. The API route requests OpenAI's "high"
+// detail mode (needed to reliably tell visually-similar machines apart —
+// e.g. a leg press vs. a leg extension machine, previously getting blurred
+// together at low detail and producing generic/wrong exercise picks), so
+// this resize target is set high enough to still give it real detail to
+// work with while staying well under any request-size limits.
 function resizeImage(dataUrl: string, maxDimension: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
@@ -54,6 +60,11 @@ interface ScanResult {
   equipmentDetected: string[];
   ignoredNote: string;
   exercises: Exercise[];
+  // Display-only, keyed by index alongside `exercises` — not persisted
+  // into the workout session itself, just shown here so it's obvious
+  // which detected equipment each pick actually uses (and easy to spot if
+  // something looks off before starting).
+  equipmentPerExercise: string[];
 }
 
 export default function ScanAndGoPage() {
@@ -63,6 +74,16 @@ export default function ScanAndGoPage() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    getIdToken(user)
+      .then((token) => fetch('/api/ai/scan-and-go', { headers: { Authorization: `Bearer ${token}`, ...localDateHeader() } }))
+      .then((res) => res.json())
+      .then((data: { remaining?: number }) => { if (typeof data.remaining === 'number') setRemaining(data.remaining); })
+      .catch(() => {});
+  }, [user]);
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList) return;
@@ -91,17 +112,30 @@ export default function ScanAndGoPage() {
       const token = await getIdToken(user);
       const res = await fetch('/api/ai/scan-and-go', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...localDateHeader() },
         body: JSON.stringify({
-          base64Images: photos.map((p) => p.split(',')[1]),
+          // Full data URLs (not just the base64 payload) — resizeImage
+          // always re-encodes as JPEG via canvas, but its catch fallback
+          // keeps the ORIGINAL file's data URL if canvas resizing throws
+          // (e.g. a tainted canvas or decode failure), which isn't
+          // necessarily JPEG (PNG screenshots, HEIC-derived uploads).
+          // Sending the real data URL through means the API route never
+          // has to guess/hardcode a MIME type that might not match the
+          // actual bytes.
+          dataUrls: photos,
           experience: profile?.experience,
           fitnessGoal: profile?.fitnessGoal,
           limitations: profile?.limitations,
         }),
       });
       const text = await res.text();
-      if (!res.ok) throw new Error(text ? (JSON.parse(text).error ?? text) : `HTTP ${res.status}`);
-      const data = JSON.parse(text) as { equipmentDetected: string[]; ignoredNote: string; exercises: { name: string; sets: number; reps: string | number; restSeconds: number; notes?: string }[] };
+      const body = text ? JSON.parse(text) : {};
+      // Both success and refunded-failure responses carry the up-to-date
+      // count, so the display never drifts from what the server actually
+      // charged — updating it here regardless of res.ok.
+      if (typeof body.remaining === 'number') setRemaining(body.remaining);
+      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+      const data = body as { equipmentDetected: string[]; ignoredNote: string; exercises: { name: string; equipmentUsed?: string; sets: number; reps: string | number; restSeconds: number; notes?: string }[] };
       const exercises: Exercise[] = data.exercises.map((ex, i) => ({
         id: `scan-go-${i}`,
         name: ex.name,
@@ -110,7 +144,12 @@ export default function ScanAndGoPage() {
         restSeconds: ex.restSeconds,
         notes: ex.notes,
       }));
-      setResult({ equipmentDetected: data.equipmentDetected, ignoredNote: data.ignoredNote, exercises });
+      setResult({
+        equipmentDetected: data.equipmentDetected,
+        ignoredNote: data.ignoredNote,
+        exercises,
+        equipmentPerExercise: data.exercises.map((ex) => ex.equipmentUsed || 'bodyweight'),
+      });
     } catch (err: unknown) {
       const msg = (err as Error)?.message || String(err);
       toast.error(`Scan failed: ${msg}`, { duration: 8000 });
@@ -126,9 +165,10 @@ export default function ScanAndGoPage() {
   }
 
   return (
+    <PaywallGate feature="scan-and-go">
     <div>
       <Header title="Scan & Go" showBack />
-      <div className="px-4 py-4 space-y-5 max-w-lg mx-auto">
+      <div className="px-4 py-4 space-y-5 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
         {!result && (
           <>
             <Card className="p-5 text-center">
@@ -139,6 +179,11 @@ export default function ScanAndGoPage() {
               <p className="text-sm text-text-secondary leading-relaxed">
                 Take up to {MAX_PHOTOS} photos of the equipment around you — a hotel gym, a friend's setup, whatever's in front of you — and get a single workout built around exactly what's there. No commitment beyond today.
               </p>
+              {remaining !== null && (
+                <p className={`text-xs font-semibold mt-3 ${remaining === 0 ? 'text-red-400' : 'text-text-tertiary'}`}>
+                  {remaining === 0 ? 'No scans left today — try again tomorrow' : `${remaining} scan${remaining === 1 ? '' : 's'} left today`}
+                </p>
+              )}
             </Card>
 
             <div className="grid grid-cols-3 gap-2">
@@ -174,7 +219,7 @@ export default function ScanAndGoPage() {
               onChange={(e) => handleFiles(e.target.files)}
             />
 
-            <Button fullWidth size="lg" disabled={photos.length === 0} loading={scanning} onClick={handleScan}>
+            <Button fullWidth size="lg" disabled={photos.length === 0 || remaining === 0} loading={scanning} onClick={handleScan}>
               <Sparkles className="w-4 h-4" /> {scanning ? 'Scanning…' : 'Generate My Workout'}
             </Button>
           </>
@@ -208,7 +253,10 @@ export default function ScanAndGoPage() {
                   <div key={ex.id} className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-surface-elevated border border-white/10 flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-0.5">{i + 1}</div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white">{ex.name}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-sm font-semibold text-white">{ex.name}</p>
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/5 text-text-tertiary">{result.equipmentPerExercise[i]}</span>
+                      </div>
                       <p className="text-xs text-text-secondary">{ex.sets} sets × {ex.reps} · {ex.restSeconds}s rest</p>
                       {ex.notes && <p className="text-xs text-text-tertiary mt-0.5">{ex.notes}</p>}
                     </div>
@@ -227,5 +275,6 @@ export default function ScanAndGoPage() {
         )}
       </div>
     </div>
+    </PaywallGate>
   );
 }

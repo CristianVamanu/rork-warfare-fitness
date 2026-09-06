@@ -3,11 +3,12 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown, CheckCircle2, RotateCcw, Camera, ArrowRight } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Moon, Dumbbell, Play, Clock, Target, ChevronRight, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getPrograms, resolveProgram, getHiddenMockIds, getUserCustomPrograms } from '@/lib/firestore';
-import { MOCK_PROGRAMS, stripWeekdayPrefix, getProgramDayForDow, getNextSession } from '@/lib/programs';
+import { getPrograms, resolveProgram, getHiddenMockIds, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
+import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -52,9 +53,33 @@ export default function TrainingPage() {
   const workedOutToday = completedWorkouts > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
 
   const [resolvedActive, setResolvedActive] = useState<Program | null>(null);
-  const pct = activeProgram
-    ? Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100)
+  // Saved (non-active) per-program progress, keyed by programId — powers
+  // the "Continue — Week X • Day Y" line on programs other than the
+  // currently active one, so switching away and back is visibly
+  // non-destructive right from this browse list.
+  const [savedProgressMap, setSavedProgressMap] = useState<Record<string, { completedWorkouts: number }>>({});
+  useEffect(() => {
+    if (!user) { setSavedProgressMap({}); return; }
+    getAllProgramProgress(user.uid)
+      .then((all) => {
+        const nonActive: Record<string, { completedWorkouts: number }> = {};
+        for (const [pid, p] of Object.entries(all)) {
+          if (!p.isActive) nonActive[pid] = { completedWorkouts: p.completedWorkouts };
+        }
+        setSavedProgressMap(nonActive);
+      })
+      .catch(() => setSavedProgressMap({}));
+  }, [user, activeProgram?.programId]);
+  // Clamped to 100: getScheduleForWeek has no "program finished" concept of
+  // its own — once a user's position runs past the program's last defined
+  // week, it just keeps repeating that final phase's schedule rather than
+  // stopping, so completedWorkouts can keep climbing past totalWorkouts.
+  // Without clamping, that read as "112%" or "9/8 sessions" instead of a
+  // completed program.
+  const pct = activeProgram && activeProgram.totalWorkouts > 0
+    ? Math.min(100, Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100))
     : 0;
+  const programFinished = !!activeProgram && activeProgram.completedWorkouts >= activeProgram.totalWorkouts;
 
   // Shared resolver (Firestore-first, seed fallback) — this used to prefer
   // the built-in seed copy over the admin's saved Firestore edits, the
@@ -68,17 +93,35 @@ export default function TrainingPage() {
   }, [activeProgram]);
 
   // getNextSession skips stale rest slots (deadlock fix) — same shared
-  // logic as the dashboard card and program detail page.
-  const nextSession = resolvedActive && activeProgram && !workedOutToday
+  // logic as the dashboard card and program detail page. Always points at
+  // the next not-yet-completed day regardless of workedOutToday — training
+  // twice in one day is allowed, not blocked until the calendar date rolls
+  // over (see training/[id]/page.tsx for the full rationale).
+  const nextSession = resolvedActive && activeProgram
     ? getNextSession(resolvedActive, lastCompleted, profile?.statsCache?.lastWorkoutDate)
     : null;
-  const nextAbsIdx = activeProgram
-    ? (workedOutToday ? lastCompleted : (nextSession?.index ?? lastCompleted + 1))
-    : 0;
-  const todayDay = workedOutToday
-    ? (resolvedActive ? getProgramDayForDow(resolvedActive, lastCompleted) : null)
-    : (nextSession?.day ?? null);
-  const isRestToday = !workedOutToday && (nextSession?.isRestToday ?? false);
+  const nextAbsIdx = activeProgram ? (nextSession?.index ?? lastCompleted + 1) : 0;
+  const todayDay = nextSession?.day ?? null;
+  const isRestToday = nextSession?.isRestToday ?? false;
+  const repeatIdx = resolvedActive ? getLastTrainingSlotIndex(resolvedActive, lastCompleted) : null;
+  const [skippingRest, setSkippingRest] = useState(false);
+  const handleSkipRest = async () => {
+    if (!user || !activeProgram?.programId || !nextSession?.isRestToday) return;
+    setSkippingRest(true);
+    try {
+      const res = await skipRestDay(user.uid, activeProgram.programId, nextSession.index);
+      if (!res.ok) {
+        toast.error(
+          res.reason === 'locked'
+            ? 'Your trial covers a limited number of days — upgrade to keep going.'
+            : res.reason === 'not-a-rest-day'
+            ? 'That session is a workout, not a rest day.'
+            : 'Could not skip the rest day. Try again.'
+        );
+      }
+    } catch { toast.error('Could not skip the rest day. Try again.'); }
+    finally { setSkippingRest(false); }
+  };
 
   useEffect(() => {
     Promise.all([getPrograms(), getHiddenMockIds().catch(() => [] as string[])])
@@ -112,21 +155,6 @@ export default function TrainingPage() {
     <div>
       <Header title="Training" />
       <div className="px-4 py-4 space-y-5">
-        {/* Scan & Go — not tied to any program, so it's always available
-            regardless of what's active below */}
-        <Link href="/training/scan-go">
-          <Card className="p-4 flex items-center gap-3 border-accent/20 bg-gradient-to-r from-accent-muted/40 to-transparent hover:from-accent-muted/60 transition-colors">
-            <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
-              <Camera className="w-5 h-5 text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">Scan & Go</p>
-              <p className="text-xs text-text-secondary">Photograph any gym, get today's workout built around it</p>
-            </div>
-            <ArrowRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-          </Card>
-        </Link>
-
         {/* Active Program Hero */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <h2 className="text-sm font-medium text-text-secondary mb-2">ACTIVE PROGRAM</h2>
@@ -136,14 +164,12 @@ export default function TrainingPage() {
                 <Dumbbell className="w-32 h-32 text-accent" />
               </div>
               <Badge variant="accent" className="mb-3">
-                {activeProgram.completedWorkouts}/{activeProgram.totalWorkouts} sessions
+                {programFinished ? '🎉 Program complete' : `${activeProgram.completedWorkouts}/${activeProgram.totalWorkouts} sessions`}
               </Badge>
               <h3 className="text-xl font-black text-white">{activeProgram.programName}</h3>
               {todayDay && (
                 <p className="text-text-secondary text-sm mt-1">
-                  {workedOutToday
-                    ? `Completed: ${stripWeekdayPrefix(todayDay.label)}`
-                    : `Today: ${isRestToday ? '😴 Rest Day' : stripWeekdayPrefix(todayDay.label)}`}
+                  {isRestToday ? 'Rest day — recover, or skip it below' : `Next: ${stripWeekdayPrefix(todayDay.label)}`}
                 </p>
               )}
               <div className="mt-4 space-y-2">
@@ -153,39 +179,37 @@ export default function TrainingPage() {
                 </div>
                 <ProgressBar value={activeProgram.completedWorkouts} max={activeProgram.totalWorkouts} color="accent" size="sm" />
               </div>
-              {/* Three-way state, matching the dashboard card and program
-                  detail page exactly — this previously only branched on
-                  rest day, so it still said "Start Today's Workout" after
-                  the session was already done, contradicting both other
-                  screens. */}
+              {/* Non-blocking acknowledgment — training more than once a day
+                  is allowed, so the "Start next workout" CTA below always
+                  shows alongside this, not instead of it. */}
               {workedOutToday && (
                 <div className="mt-4 p-3 bg-success/10 border border-success/30 rounded-xl flex items-center gap-2.5">
                   <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-white">Day {Math.max(1, completedWorkouts)} Complete!</p>
-                    <p className="text-xs text-text-secondary">Come back tomorrow for Day {completedWorkouts + 1}</p>
+                    <p className="text-sm font-bold text-white">Day {Math.max(1, completedWorkouts)} complete</p>
                   </div>
                 </div>
               )}
-              <div className="flex gap-2 mt-4 flex-wrap">
-                {workedOutToday ? (
-                  <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                    <RotateCcw className="w-4 h-4" /> Repeat Today
-                  </Button>
-                ) : todayDay && !isRestToday ? (
-                  <Button size="sm" onClick={() => {
-                    router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`);
-                  }}>
-                    <Play className="w-4 h-4" /> Start Today&apos;s Workout
+              <div className="mt-4 space-y-2">
+                {todayDay && (isRestToday ? (
+                  <Button fullWidth variant="secondary" loading={skippingRest} onClick={handleSkipRest}>
+                    <Moon className="w-4 h-4" /> Skip rest day{nextSession?.nextTraining ? ` · ${stripWeekdayPrefix(nextSession.nextTraining.day.label)}` : ''}
                   </Button>
                 ) : (
-                  <div className="flex items-center gap-2 text-sm text-text-secondary">
-                    <Moon className="w-4 h-4" /> Rest day — recover well
-                  </div>
-                )}
-                <Button size="sm" variant="secondary" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
-                  View Program
-                </Button>
+                  <Button fullWidth onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
+                    <Play className="w-4 h-4" /> Start Next Workout
+                  </Button>
+                ))}
+                <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {workedOutToday && repeatIdx !== null && (
+                    <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${repeatIdx}`)}>
+                      <RotateCcw className="w-4 h-4" /> Repeat
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
+                    View Program
+                  </Button>
+                </div>
               </div>
             </Card>
           ) : (
@@ -228,6 +252,9 @@ export default function TrainingPage() {
                                 {prog.level}
                               </Badge>
                               {isActive && <Badge variant="success">Active</Badge>}
+                              {!isActive && savedProgressMap[prog.id] && (
+                                <Badge variant="muted">Continue — {savedProgressMap[prog.id].completedWorkouts} done</Badge>
+                              )}
                             </div>
                             <h3 className="font-bold text-white">{prog.name}</h3>
                             <p className="text-xs text-text-secondary mt-1 line-clamp-2">{prog.description}</p>
@@ -298,6 +325,9 @@ export default function TrainingPage() {
                                 {prog.level}
                               </Badge>
                               {isActive && <Badge variant="success">Active</Badge>}
+                              {!isActive && savedProgressMap[prog.id] && (
+                                <Badge variant="muted">Continue — {savedProgressMap[prog.id].completedWorkouts} done</Badge>
+                              )}
                               {(prog as { isPremium?: boolean }).isPremium && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
                               {(prog as { targetGender?: string }).targetGender && (prog as { targetGender?: string }).targetGender !== 'anyone' && (
                                 <Badge variant="muted">{(prog as { targetGender?: string }).targetGender}</Badge>

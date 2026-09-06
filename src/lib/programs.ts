@@ -390,7 +390,7 @@ export const MOCK_PROGRAMS: Program[] = [
         label: 'Interval Sprints',
         isRest: false,
         exercises: [
-          { id: 'p6-e8', name: 'Sprint Intervals (30s on / 90s off)', sets: 8, reps: 1, restSeconds: 90, muscleGroup: 'cardio', isCardio: true },
+          { id: 'p6-e8', name: 'Sprint Intervals (30s on / 90s off)', sets: 8, reps: 1, restSeconds: 90, muscleGroup: 'cardio', isCardio: true, cardioDurationSeconds: 30 },
           { id: 'p6-e4', name: 'Push-Up', sets: 4, reps: 20, restSeconds: 60, muscleGroup: 'chest', notes: 'Build toward 53 in 2 minutes — the RASP entry standard.' },
         ],
       },
@@ -1215,6 +1215,1138 @@ export const MOCK_PROGRAMS: Program[] = [
       },
     ],
   },
+  // ── P16: Alpha Bulk — 90-Day Muscle Mass Protocol ─────────────────────
+  // Adapted from a user-supplied hypertrophy doc built around a specific,
+  // deliberate philosophy: LOW volume, HIGH intensity, only 3 full-body-
+  // split sessions a week — designed for someone also training combat
+  // sports 2x/week and needing real recovery capacity left over. Every
+  // phase below preserves that identity rather than defaulting to the
+  // generic "add more sets each phase" progression model — the source
+  // material is explicit that piling on volume is the wrong lever here.
+  // Progression instead comes from proximity to true failure, exercise
+  // selection (more unilateral/technical work as phases advance), and one
+  // intensity technique (a single drop set) introduced only in Phase 3 —
+  // never from ballooning total sets, which would undermine the whole
+  // point of the program.
+  {
+    id: 'p16',
+    name: 'Alpha Bulk: 90-Day Muscle Mass Protocol',
+    description: 'A 90-day, 3-phase hypertrophy program built for maximum muscle growth from minimum time in the gym — 3 full-body-split sessions a week, deliberately low volume, so you still have the recovery capacity for martial arts or combat sports training at least twice weekly.\n\nThe method: mechanical tension — not endless sets — is what actually drives growth. Research on the "stimulating reps" model shows only the last ~5 reps before failure meaningfully trigger hypertrophy, which is why every set here is short, close to true failure, and performed at a strict 3-0-3-0 tempo (3 seconds down, no pause, 3 seconds up, no pause). At 8 reps that\'s ~48 seconds of time under tension per set — right in the 40-60 second window where muscle growth is maximized. Fewer, harder sets beat more, easier ones, and they leave far less fatigue to dig out of before your next combat session.\n\nPhase 1 (Weeks 1-4): Foundation. Learn the tempo, build the mind-muscle connection, establish your working weights.\n\nPhase 2 (Weeks 5-7): Escalation. New exercise selection with more single-arm/unilateral work, same low volume, pushed closer to true failure on every set.\n\nWeek 8: Deload. Same movement patterns, roughly half the effort — this is what makes Phase 3 sustainable instead of a burnout risk. Don\'t skip it.\n\nPhase 3 (Weeks 9-13): Peak Intensity. Train the last set of key lifts to true failure, with one drop set worked in on the hardest day — still only 3 sessions a week, still room for your combat training.\n\nForm notes: engage the target muscle before you move, keep tension constant through the whole rep, and never hold your breath through a slow rep — instead take several short, controlled "puff" inhales and exhales through each rep (Lamaze-style breathing), which keeps you stable and prevents you from leaning on momentum as you fatigue. Rest 2-3 minutes between compound lifts (squats, presses, rows, deadlifts), 1.5-2 minutes between isolation work — recovery between sets is what keeps every rep high-quality, not wasted time.',
+    level: 'intermediate',
+    goal: 'hypertrophy',
+    weeks: 13,
+    daysPerWeek: 3,
+    isPublic: true,
+    isPremium: true,
+    createdBy: 'system',
+    exercises: [
+      { id: 'p16-e1', name: 'Slight Incline Smith Press', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'chest', notes: '3-0-3-0 tempo. Engage the chest before you unrack — last 2-3 reps should be genuinely hard.' },
+      { id: 'p16-e2', name: 'Squat (Free Weight or Smith)', sets: 2, reps: 10, restSeconds: 150, muscleGroup: 'legs', notes: 'Chest up, knees tracking over toes. 3-0-3-0 tempo — no bouncing at the bottom.' },
+      { id: 'p16-e3', name: 'Lat Pulldown', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'back', notes: 'Pull to the chest, squeeze the lats at the bottom, control the return.' },
+      { id: 'p16-e4', name: 'Seated Machine Shoulder Press', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'shoulders', notes: 'Core tight, avoid locking out the elbows at the top.' },
+      { id: 'p16-e5', name: 'Triceps Rope Pushdowns', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms', notes: 'Elbows stay pinned to your sides the whole set.' },
+      { id: 'p16-e6', name: 'Lying Hamstring Curl', sets: 2, reps: 10, restSeconds: 120, muscleGroup: 'legs', notes: 'Squeeze the hamstrings hard at the top, lower under full control.' },
+      { id: 'p16-e7', name: 'Dual Dumbbell Row', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'back', notes: 'Pull to the waist, lead with the elbow, keep the back flat.' },
+      { id: 'p16-e8', name: 'Seated Dumbbell Curls (One Arm at a Time)', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms', notes: 'Full stretch at the bottom, hard squeeze at the top.' },
+      { id: 'p16-e9', name: 'Seated Calf Raise', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'legs' },
+      { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+    ],
+    // phases[0]'s full 7-day schedule doubles as the top-level `schedule`
+    // fallback for any older code path that reads program.schedule
+    // directly instead of going through phases — same reasoning as P15.
+    schedule: [
+      { label: 'Chest, Shoulders, Triceps, Abs', isRest: false, exercises: [
+        { id: 'p16-e1', name: 'Slight Incline Smith Press', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'chest', notes: '3-0-3-0 tempo (3s down, 3s up, no pauses). Engage the chest before you unrack.' },
+        { id: 'p16-e11', name: 'Dips (Chest Focus)', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'chest', notes: 'Lean forward to bias the chest. Elbows to ~90°, don\'t lock out at the top.' },
+        { id: 'p16-e12', name: 'Standing Dumbbell Lateral Raises', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Raise to shoulder height, slight bend in the elbow, no swinging.' },
+        { id: 'p16-e4', name: 'Seated Machine Shoulder Press', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'shoulders', notes: 'Core tight, avoid locking out at the top.' },
+        { id: 'p16-e13', name: 'Lying Dumbbell Triceps Extensions', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms', notes: 'Lower behind the head under control, extend back to full lockout.' },
+        { id: 'p16-e5', name: 'Triceps Rope Pushdowns', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms', notes: 'Elbows pinned to your sides the whole set.' },
+        { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      rest(),
+      { label: 'Legs (Quads, Hamstrings, Glutes, Calves)', isRest: false, exercises: [
+        { id: 'p16-e6', name: 'Lying Hamstring Curl', sets: 2, reps: 10, restSeconds: 120, muscleGroup: 'legs', notes: 'Squeeze at the top, lower under full control.' },
+        { id: 'p16-e2', name: 'Squat (Free Weight or Smith)', sets: 2, reps: 10, restSeconds: 150, muscleGroup: 'legs', notes: 'Chest up, knees tracking over toes, no bouncing at the bottom.' },
+        { id: 'p16-e14', name: 'Leg Extension', sets: 2, reps: 10, restSeconds: 90, muscleGroup: 'legs', notes: 'Pause and squeeze the quads at the top.' },
+        { id: 'p16-e15', name: 'Dumbbell Stiff-Leg Deadlift', sets: 2, reps: 10, restSeconds: 120, muscleGroup: 'legs', notes: 'Hinge at the hips, slight knee bend, lower until you feel the hamstring stretch.' },
+        { id: 'p16-e16', name: 'Abductor Machine', sets: 2, reps: 10, restSeconds: 90, muscleGroup: 'legs' },
+        { id: 'p16-e9', name: 'Seated Calf Raise', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'legs' },
+        { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      rest(),
+      { label: 'Back, Biceps, Rear Delts, Abs', isRest: false, exercises: [
+        { id: 'p16-e3', name: 'Lat Pulldown', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'back', notes: 'Pull to the chest, squeeze the lats, control the return.' },
+        { id: 'p16-e7', name: 'Dual Dumbbell Row', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'back', notes: 'Pull to the waist, lead with the elbow, keep the back flat.' },
+        { id: 'p16-e17', name: 'Mid-Back Row Machine', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'back' },
+        { id: 'p16-e18', name: 'Reverse Pec Deck (Rear Delts)', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Squeeze the rear delts, slight bend in the elbows throughout.' },
+        { id: 'p16-e8', name: 'Seated Dumbbell Curls (One Arm at a Time)', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms', notes: 'Full stretch at the bottom, hard squeeze at the top.' },
+        { id: 'p16-e19', name: 'Hammer Dumbbell Curls', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms' },
+        { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      rest(),
+      rest(),
+    ],
+    phases: [
+      {
+        id: 'p16-ph1',
+        label: 'Phase 1: Foundation',
+        startWeek: 1,
+        endWeek: 4,
+        schedule: [
+          { label: 'Chest, Shoulders, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p16-e1', name: 'Slight Incline Smith Press', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'chest', notes: '3-0-3-0 tempo (3s down, 3s up, no pauses). Engage the chest before you unrack.' },
+            { id: 'p16-e11', name: 'Dips (Chest Focus)', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'chest', notes: 'Lean forward to bias the chest. Elbows to ~90°, don\'t lock out at the top.' },
+            { id: 'p16-e12', name: 'Standing Dumbbell Lateral Raises', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Raise to shoulder height, slight bend in the elbow, no swinging.' },
+            { id: 'p16-e4', name: 'Seated Machine Shoulder Press', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'shoulders', notes: 'Core tight, avoid locking out at the top.' },
+            { id: 'p16-e13', name: 'Lying Dumbbell Triceps Extensions', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms', notes: 'Lower behind the head under control, extend back to full lockout.' },
+            { id: 'p16-e5', name: 'Triceps Rope Pushdowns', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms', notes: 'Elbows pinned to your sides the whole set.' },
+            { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+          { label: 'Legs (Quads, Hamstrings, Glutes, Calves)', isRest: false, exercises: [
+            { id: 'p16-e6', name: 'Lying Hamstring Curl', sets: 2, reps: 10, restSeconds: 120, muscleGroup: 'legs', notes: 'Squeeze at the top, lower under full control.' },
+            { id: 'p16-e2', name: 'Squat (Free Weight or Smith)', sets: 2, reps: 10, restSeconds: 150, muscleGroup: 'legs', notes: 'Chest up, knees tracking over toes, no bouncing at the bottom.' },
+            { id: 'p16-e14', name: 'Leg Extension', sets: 2, reps: 10, restSeconds: 90, muscleGroup: 'legs', notes: 'Pause and squeeze the quads at the top.' },
+            { id: 'p16-e15', name: 'Dumbbell Stiff-Leg Deadlift', sets: 2, reps: 10, restSeconds: 120, muscleGroup: 'legs', notes: 'Hinge at the hips, slight knee bend, lower until you feel the hamstring stretch.' },
+            { id: 'p16-e16', name: 'Abductor Machine', sets: 2, reps: 10, restSeconds: 90, muscleGroup: 'legs' },
+            { id: 'p16-e9', name: 'Seated Calf Raise', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'legs' },
+            { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+          { label: 'Back, Biceps, Rear Delts, Abs', isRest: false, exercises: [
+            { id: 'p16-e3', name: 'Lat Pulldown', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'back', notes: 'Pull to the chest, squeeze the lats, control the return.' },
+            { id: 'p16-e7', name: 'Dual Dumbbell Row', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'back', notes: 'Pull to the waist, lead with the elbow, keep the back flat.' },
+            { id: 'p16-e17', name: 'Mid-Back Row Machine', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'back' },
+            { id: 'p16-e18', name: 'Reverse Pec Deck (Rear Delts)', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Squeeze the rear delts, slight bend in the elbows throughout.' },
+            { id: 'p16-e8', name: 'Seated Dumbbell Curls (One Arm at a Time)', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms', notes: 'Full stretch at the bottom, hard squeeze at the top.' },
+            { id: 'p16-e19', name: 'Hammer Dumbbell Curls', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms' },
+            { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+          rest(),
+        ],
+      },
+      {
+        id: 'p16-ph2',
+        label: 'Phase 2: Escalation',
+        startWeek: 5,
+        endWeek: 7,
+        schedule: [
+          { label: 'Chest, Shoulders, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p16-e42', name: 'Chest Machine Press', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'chest', notes: 'Adjust the seat so the handles align with mid-chest. Same tempo, heavier load than Phase 1 — the last 2 reps should be genuinely hard.' },
+            { id: 'p16-e43', name: 'Cable Flyes', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'chest', notes: 'Pulleys at chest height, slight bend in the elbows, bring hands together in an arc.' },
+            { id: 'p16-e44', name: 'Smith Shoulder Press', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'shoulders' },
+            { id: 'p16-e45', name: 'JM Press', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms', notes: 'Elbows stay close as you lower the bar toward your upper chest.' },
+            { id: 'p16-e46', name: 'Single Arm Cable Lateral Raises', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Unilateral — constant tension on the delt, avoid leaning to the side.' },
+            { id: 'p16-e23', name: 'Single-Arm Cable Triceps Extensions', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms', notes: 'Unilateral — focus on full extension each rep.' },
+            { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+          { label: 'Legs (Quads, Hamstrings, Glutes, Calves)', isRest: false, exercises: [
+            { id: 'p16-e24', name: 'Seated Hamstring Curl', sets: 2, reps: 10, restSeconds: 120, muscleGroup: 'legs' },
+            { id: 'p16-e41', name: 'Leg Press', sets: 2, reps: 10, restSeconds: 150, muscleGroup: 'legs' },
+            { id: 'p16-e47', name: 'Split Squats', sets: 2, reps: 10, restSeconds: 120, muscleGroup: 'legs', notes: '10 reps per leg — unilateral work builds stability the bilateral lifts can\'t.' },
+            { id: 'p16-e14', name: 'Leg Extension', sets: 2, reps: 10, restSeconds: 90, muscleGroup: 'legs' },
+            { id: 'p16-e26', name: 'Standing Calf Raises', sets: 2, reps: 12, restSeconds: 60, muscleGroup: 'legs' },
+            { id: 'p16-e48', name: 'Toe Press on Leg Press Machine', sets: 2, reps: 12, restSeconds: 60, muscleGroup: 'legs' },
+            { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+          { label: 'Back, Biceps, Rear Delts, Abs', isRest: false, exercises: [
+            { id: 'p16-e49', name: 'Wide-Grip Lat Pulldown', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'back' },
+            { id: 'p16-e50', name: 'Romanian Deadlift', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'legs', notes: 'Knees slightly bent, hinge at the hips, engage glutes and hamstrings to stand.' },
+            { id: 'p16-e51', name: 'Seated Cable Row', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'back', notes: 'Knees slightly bent, pull to the torso, squeeze the shoulder blades together.' },
+            { id: 'p16-e52', name: 'High Cable Rear Delt Flyes', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Pulleys at head height, pull arms outward in a cross, slight bend in the elbows.' },
+            { id: 'p16-e53', name: 'Barbell Bicep Curls', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms' },
+            { id: 'p16-e19', name: 'Hammer Dumbbell Curls', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms' },
+            { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+          rest(),
+        ],
+      },
+      // Deload — same movement patterns as Phase 1, roughly half the
+      // effort. Going straight from Phase 2 into training the last set of
+      // every lift to true failure (Phase 3) without a break is a real
+      // burnout/injury risk, especially for someone also training combat
+      // sports on top of this. Same logic as P15's deload week.
+      {
+        id: 'p16-deload',
+        label: 'Deload / Recovery Week',
+        startWeek: 8,
+        endWeek: 8,
+        schedule: [
+          { label: 'Light Upper Body', isRest: false, exercises: [
+            { id: 'p16-e1', name: 'Slight Incline Smith Press', sets: 1, reps: 10, restSeconds: 120, muscleGroup: 'chest', notes: 'Deload week — lighter weight, focus purely on tempo and form.' },
+            { id: 'p16-e4', name: 'Seated Machine Shoulder Press', sets: 1, reps: 10, restSeconds: 120, muscleGroup: 'shoulders' },
+            { id: 'p16-e5', name: 'Triceps Rope Pushdowns', sets: 1, reps: 10, restSeconds: 60, muscleGroup: 'arms' },
+            { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 2, reps: 12, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+          { label: 'Light Legs', isRest: false, exercises: [
+            { id: 'p16-e2', name: 'Squat (Free Weight or Smith)', sets: 1, reps: 10, restSeconds: 120, muscleGroup: 'legs', notes: 'Deload week — lighter weight, focus purely on tempo and form.' },
+            { id: 'p16-e14', name: 'Leg Extension', sets: 1, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+            { id: 'p16-e9', name: 'Seated Calf Raise', sets: 2, reps: 12, restSeconds: 45, muscleGroup: 'legs' },
+            { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 2, reps: 12, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+          { label: 'Light Back & Arms', isRest: false, exercises: [
+            { id: 'p16-e3', name: 'Lat Pulldown', sets: 1, reps: 10, restSeconds: 120, muscleGroup: 'back', notes: 'Deload week — lighter weight, focus purely on tempo and form.' },
+            { id: 'p16-e8', name: 'Seated Dumbbell Curls (One Arm at a Time)', sets: 1, reps: 10, restSeconds: 60, muscleGroup: 'arms' },
+            { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 2, reps: 12, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+          rest(),
+        ],
+      },
+      {
+        id: 'p16-ph3',
+        label: 'Phase 3: Peak Intensity',
+        startWeek: 9,
+        endWeek: 13,
+        schedule: [
+          { label: 'Chest, Shoulders, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p16-e32', name: 'Barbell Bench Press', sets: 2, reps: 8, restSeconds: 180, muscleGroup: 'chest', notes: 'Take the last set to true failure — the last 2-3 reps should feel genuinely maximal.' },
+            { id: 'p16-e4', name: 'Seated Machine Shoulder Press', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'shoulders' },
+            { id: 'p16-e33', name: 'Incline Dumbbell Flyes', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'chest', notes: 'Slight bend in the elbows, full stretch at the bottom.' },
+            { id: 'p16-e34', name: 'Cable Lateral Raises', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'shoulders' },
+            { id: 'p16-e35', name: 'Overhead Triceps Extension', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms' },
+            { id: 'p16-e36', name: 'Triceps Dips', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'arms', notes: 'Final set: drop set — on failure, reduce assistance/weight and continue to a second failure point.' },
+            { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+          { label: 'Legs (Quads, Hamstrings, Glutes, Calves)', isRest: false, exercises: [
+            { id: 'p16-e37', name: 'Front Squat', sets: 2, reps: 10, restSeconds: 180, muscleGroup: 'legs', notes: 'The hardest lift of the week — prioritize depth and control over the weight on the bar.' },
+            { id: 'p16-e38', name: 'Walking Lunges', sets: 2, reps: 10, restSeconds: 120, muscleGroup: 'legs', notes: '10 reps per leg.' },
+            { id: 'p16-e39', name: 'Bulgarian Split Squat', sets: 2, reps: 10, restSeconds: 120, muscleGroup: 'legs', notes: '10 reps per leg — back knee nearly touches the ground.' },
+            { id: 'p16-e40', name: 'Seated Leg Curl', sets: 2, reps: 10, restSeconds: 90, muscleGroup: 'legs' },
+            { id: 'p16-e41', name: 'Leg Press', sets: 2, reps: 10, restSeconds: 120, muscleGroup: 'legs' },
+            { id: 'p16-e26', name: 'Standing Calf Raises', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'legs' },
+            { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+          { label: 'Back, Biceps, Rear Delts, Abs', isRest: false, exercises: [
+            { id: 'p16-e27', name: 'Pull-Ups (Assisted if needed)', sets: 2, reps: 8, restSeconds: 150, muscleGroup: 'back', notes: 'Take the last set as close to failure as clean form allows.' },
+            { id: 'p16-e28', name: 'One-Arm Dumbbell Row', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'back' },
+            { id: 'p16-e29', name: 'T-Bar Row', sets: 2, reps: 8, restSeconds: 120, muscleGroup: 'back' },
+            { id: 'p16-e18', name: 'Reverse Pec Deck (Rear Delts)', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'shoulders' },
+            { id: 'p16-e30', name: 'EZ Bar Preacher Curls', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms' },
+            { id: 'p16-e31', name: 'Concentration Curls', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'arms', notes: 'Final set: push to true failure — slow and controlled, no swinging even as it gets hard.' },
+            { id: 'p16-e10', name: 'Abs — Exercise of Choice', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+          rest(),
+        ],
+      },
+    ],
+  },
+
+  // ── P17: Cali 6 — Level Warrior Calisthenics Program ──────────────────
+  // Adapted from a user-supplied 6-level bodyweight program. Structure
+  // preserved exactly as written (Push/Legs/Pull split repeated twice a
+  // week, Sunday off, 40s rest between sets, tempo-driven reps instead of
+  // just chasing rep counts) — each level mapped to 2 weeks so there's
+  // real time to adapt before the next jump in volume/difficulty, rather
+  // than the source's fully self-paced "when you're ready" progression,
+  // which doesn't fit a calendar-based program engine. All exercises stay
+  // strictly bodyweight, matching the source material's intent.
+  {
+    id: 'p17',
+    name: 'Cali 6: Level Warrior Calisthenics Program',
+    description: 'A 12-week, 6-level bodyweight-only program — zero equipment required beyond a pull-up bar (or a sturdy door frame / tree branch / playground bar). Ancient Greek warriors trained this way; gymnasts still build the most aesthetic, injury-resistant physiques on earth doing nothing but calisthenics.\n\nThe split repeats twice a week: Push (chest/triceps/abs) on Monday & Thursday, Legs (thighs/calves/glutes) on Tuesday & Friday, Pull (back/biceps/abs) on Wednesday & Saturday, Sunday off. Six training days a week, every week.\n\nTime under tension is the whole game here — most people spend 20-25 seconds per set and wonder why bodyweight training "doesn\'t build muscle." This program uses a controlled tempo (4-1-2-0 or 3-1-2-0: seconds down / pause at the bottom / seconds up / pause at the top) to keep every set in the 40-80 second range that actually drives growth. Breathe in on the way down, breathe out on the way up — never hold your breath.\n\nLevel 1-2 (Weeks 1-4): Foundation. Learn the tempo, build baseline strength in the six basic patterns.\nLevel 3 (Weeks 5-6): Volume increases, tempo tightens to 3-1-2-0.\nLevel 4-5 (Weeks 7-10): Skill work begins — one-hand push-ups, pistol squats, L-sits, jumping variations. This is where real strength-to-weight-ratio gains show up.\nLevel 6 (Weeks 11-12): Peak difficulty across every movement — if you can complete this level clean, you\'re stronger relative to your bodyweight than most people who\'ve spent years under a barbell.\n\nNo pull-up bar at home? Substitute Pull-Ups/Chin-Ups with inverted rows under a sturdy table, or find a playground/park bar — don\'t skip the pulling work, it\'s half the program. Rest exactly 40 seconds between every set, every level — that\'s deliberate, not a typo; short rest keeps the metabolic demand high while the tempo keeps the tension high.',
+    level: 'beginner',
+    goal: 'general',
+    weeks: 12,
+    daysPerWeek: 6,
+    isPublic: true,
+    isPremium: true,
+    createdBy: 'system',
+    exercises: [
+      { id: 'p17-e1', name: 'Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'chest', notes: '4-1-2-0 tempo: 4s down, 1s pause at the bottom (chest open), 2s up, no pause at the top.' },
+      { id: 'p17-e2', name: 'Dips', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms', notes: 'No dip bars? Use parallel chairs or a sturdy countertop edge.' },
+      { id: 'p17-e3', name: 'Leg Raises', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+      { id: 'p17-e4', name: 'Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core' },
+      { id: 'p17-e5', name: 'Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+      { id: 'p17-e6', name: 'Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+      { id: 'p17-e7', name: 'Lateral Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+      { id: 'p17-e8', name: 'Calf Raises', sets: 3, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+      { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back', notes: 'No bar? Substitute inverted rows under a sturdy table.' },
+      { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+      { id: 'p17-e11', name: 'Scissors', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+      { id: 'p17-e12', name: 'Jackknife', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+    ],
+    // phases[0]'s full 7-day schedule doubles as the top-level `schedule`
+    // fallback for any older code path that reads program.schedule
+    // directly instead of going through phases — same reasoning as P15/P16.
+    schedule: [
+      { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+        { id: 'p17-e1', name: 'Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'chest', notes: '4-1-2-0 tempo: 4s down, 1s pause at the bottom, 2s up, no pause at the top.' },
+        { id: 'p17-e2', name: 'Dips', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms', notes: 'No dip bars? Use parallel chairs or a sturdy countertop edge.' },
+        { id: 'p17-e3', name: 'Leg Raises', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+        { id: 'p17-e4', name: 'Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core' },
+      ] },
+      { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+        { id: 'p17-e5', name: 'Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+        { id: 'p17-e6', name: 'Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+        { id: 'p17-e7', name: 'Lateral Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+        { id: 'p17-e8', name: 'Calf Raises', sets: 3, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+      ] },
+      { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+        { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back', notes: 'No bar? Substitute inverted rows under a sturdy table.' },
+        { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+        { id: 'p17-e11', name: 'Scissors', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+        { id: 'p17-e12', name: 'Jackknife', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+      ] },
+      { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+        { id: 'p17-e1', name: 'Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'chest', notes: '4-1-2-0 tempo throughout.' },
+        { id: 'p17-e2', name: 'Dips', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms' },
+        { id: 'p17-e3', name: 'Leg Raises', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+        { id: 'p17-e4', name: 'Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core' },
+      ] },
+      { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+        { id: 'p17-e5', name: 'Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+        { id: 'p17-e6', name: 'Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+        { id: 'p17-e7', name: 'Lateral Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+        { id: 'p17-e8', name: 'Calf Raises', sets: 3, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+      ] },
+      { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+        { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+        { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+        { id: 'p17-e11', name: 'Scissors', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+        { id: 'p17-e12', name: 'Jackknife', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+      ] },
+      rest(),
+    ],
+    phases: [
+      {
+        id: 'p17-lvl1',
+        label: 'Level 1: Foundation',
+        startWeek: 1,
+        endWeek: 2,
+        schedule: [
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e1', name: 'Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'chest', notes: '4-1-2-0 tempo: 4s down, 1s pause at the bottom, 2s up, no pause at the top. Breathe in on the way down, out on the way up.' },
+            { id: 'p17-e2', name: 'Dips', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms', notes: 'No dip bars? Use parallel chairs or a sturdy countertop edge.' },
+            { id: 'p17-e3', name: 'Leg Raises', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e5', name: 'Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e6', name: 'Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e7', name: 'Lateral Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e8', name: 'Calf Raises', sets: 3, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back', notes: 'No bar? Substitute inverted rows under a sturdy table.' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e11', name: 'Scissors', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e12', name: 'Jackknife', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e1', name: 'Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'chest', notes: '4-1-2-0 tempo throughout.' },
+            { id: 'p17-e2', name: 'Dips', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e3', name: 'Leg Raises', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e5', name: 'Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e6', name: 'Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e7', name: 'Lateral Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e8', name: 'Calf Raises', sets: 3, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e11', name: 'Scissors', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e12', name: 'Jackknife', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p17-lvl2',
+        label: 'Level 2: Building Volume',
+        startWeek: 3,
+        endWeek: 4,
+        schedule: [
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e1', name: 'Push Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'chest', notes: '4-1-2-0 tempo.' },
+            { id: 'p17-e2', name: 'Dips', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e3', name: 'Leg Raises', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 4, reps: '45s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e5', name: 'Lunges', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e6', name: 'Squats', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e7', name: 'Lateral Lunges', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e8', name: 'Calf Raises', sets: 4, reps: '12-14', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e11', name: 'Scissors', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e12', name: 'Jackknife', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e1', name: 'Push Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'chest' },
+            { id: 'p17-e2', name: 'Dips', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e3', name: 'Leg Raises', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 4, reps: '45s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e5', name: 'Lunges', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e6', name: 'Squats', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e7', name: 'Lateral Lunges', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e8', name: 'Calf Raises', sets: 4, reps: '12-14', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e11', name: 'Scissors', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e12', name: 'Jackknife', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p17-lvl3',
+        label: 'Level 3: Tempo Tightens',
+        startWeek: 5,
+        endWeek: 6,
+        schedule: [
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e1', name: 'Push Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'chest', notes: '3-1-2-0 tempo from here on — one second less on the eccentric, form has to be earned.' },
+            { id: 'p17-e2', name: 'Dips', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e3', name: 'Leg Raises', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 5, reps: '50s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e5', name: 'Lunges', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e6', name: 'Squats', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e7', name: 'Lateral Lunges', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e8', name: 'Calf Raises', sets: 5, reps: '14-16', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e11', name: 'Scissors', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e12', name: 'Jackknife', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e1', name: 'Push Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'chest', notes: '3-1-2-0 tempo.' },
+            { id: 'p17-e2', name: 'Dips', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e3', name: 'Leg Raises', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 5, reps: '50s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e5', name: 'Lunges', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e6', name: 'Squats', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e7', name: 'Lateral Lunges', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e8', name: 'Calf Raises', sets: 5, reps: '14-16', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e11', name: 'Scissors', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e12', name: 'Jackknife', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p17-lvl4',
+        label: 'Level 4: Skill Work Begins',
+        startWeek: 7,
+        endWeek: 8,
+        schedule: [
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e13', name: 'One-Hand Push Ups', sets: 3, reps: '4-6', restSeconds: 40, muscleGroup: 'chest', notes: 'Feet wide for a stable base. Not there yet? Do a slow archer push-up as a lead-up.' },
+            { id: 'p17-e14', name: 'Diamond Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms', notes: 'Hands together under the chest, elbows tucked — heavy triceps bias.' },
+            { id: 'p17-e15', name: 'L Sit', sets: 3, reps: '10s', restSeconds: 40, muscleGroup: 'core', notes: 'On parallettes, a bar, or the floor with hands beside your hips.' },
+            { id: 'p17-e4', name: 'Plank', sets: 3, reps: '55s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e16', name: 'Jumping Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs', notes: 'Explosive switch mid-air, land soft.' },
+            { id: 'p17-e17', name: 'Jumping Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e18', name: 'Pistol Squats', sets: 3, reps: '4-6', restSeconds: 40, muscleGroup: 'legs', notes: 'Hold a doorframe or rail for balance if needed — the range matters more than being unassisted.' },
+            { id: 'p17-e19', name: 'Sissy Squats', sets: 3, reps: '4-6', restSeconds: 40, muscleGroup: 'legs', notes: 'Hold something stable, drop the hips straight down, knees traveling forward.' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '12-14', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '12-14', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e20', name: 'Sit Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e21', name: 'Superman Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core', notes: 'Face down, arms and legs extended and lifted — squeeze the whole posterior chain.' },
+          ] },
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e13', name: 'One-Hand Push Ups', sets: 3, reps: '4-6', restSeconds: 40, muscleGroup: 'chest' },
+            { id: 'p17-e14', name: 'Diamond Push Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e15', name: 'L Sit', sets: 3, reps: '10s', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 3, reps: '55s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e16', name: 'Jumping Lunges', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e17', name: 'Jumping Squats', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e18', name: 'Pistol Squats', sets: 3, reps: '4-6', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e19', name: 'Sissy Squats', sets: 3, reps: '4-6', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 3, reps: '12-14', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 3, reps: '12-14', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e20', name: 'Sit Ups', sets: 3, reps: '6-8', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e21', name: 'Superman Plank', sets: 3, reps: '40s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p17-lvl5',
+        label: 'Level 5: Strength-to-Weight',
+        startWeek: 9,
+        endWeek: 10,
+        schedule: [
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e13', name: 'One-Hand Push Ups', sets: 4, reps: '6-8', restSeconds: 40, muscleGroup: 'chest' },
+            { id: 'p17-e14', name: 'Diamond Push Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e15', name: 'L Sit', sets: 4, reps: '15s', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 4, reps: '60s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e16', name: 'Jumping Lunges', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e17', name: 'Jumping Squats', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e18', name: 'Pistol Squats', sets: 4, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e19', name: 'Sissy Squats', sets: 4, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 4, reps: '14-16', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 4, reps: '14-16', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e20', name: 'Sit Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e21', name: 'Superman Plank', sets: 4, reps: '45s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e13', name: 'One-Hand Push Ups', sets: 4, reps: '6-8', restSeconds: 40, muscleGroup: 'chest' },
+            { id: 'p17-e14', name: 'Diamond Push Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e15', name: 'L Sit', sets: 4, reps: '15s', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 4, reps: '60s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e16', name: 'Jumping Lunges', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e17', name: 'Jumping Squats', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e18', name: 'Pistol Squats', sets: 4, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e19', name: 'Sissy Squats', sets: 4, reps: '6-8', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 4, reps: '14-16', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 4, reps: '14-16', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e20', name: 'Sit Ups', sets: 4, reps: '8-10', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e21', name: 'Superman Plank', sets: 4, reps: '45s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p17-lvl6',
+        label: 'Level 6: Peak Warrior',
+        startWeek: 11,
+        endWeek: 12,
+        schedule: [
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e13', name: 'One-Hand Push Ups', sets: 5, reps: '8-10', restSeconds: 40, muscleGroup: 'chest', notes: 'If you can do these clean for 5x8-10, you\'re pushing more relative strength than most lifters ever build.' },
+            { id: 'p17-e14', name: 'Diamond Push Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e15', name: 'L Sit', sets: 5, reps: '20s', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 5, reps: '60s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e16', name: 'Jumping Lunges', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e17', name: 'Jumping Squats', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e18', name: 'Pistol Squats', sets: 5, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e19', name: 'Sissy Squats', sets: 5, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 5, reps: '16-18', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 5, reps: '16-18', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e20', name: 'Sit Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e21', name: 'Superman Plank', sets: 5, reps: '50s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Push — Chest, Triceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e13', name: 'One-Hand Push Ups', sets: 5, reps: '8-10', restSeconds: 40, muscleGroup: 'chest' },
+            { id: 'p17-e14', name: 'Diamond Push Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'arms' },
+            { id: 'p17-e15', name: 'L Sit', sets: 5, reps: '20s', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e4', name: 'Plank', sets: 5, reps: '60s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          { label: 'Legs — Thighs, Calves, Glutes', isRest: false, exercises: [
+            { id: 'p17-e16', name: 'Jumping Lunges', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e17', name: 'Jumping Squats', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e18', name: 'Pistol Squats', sets: 5, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+            { id: 'p17-e19', name: 'Sissy Squats', sets: 5, reps: '8-10', restSeconds: 40, muscleGroup: 'legs' },
+          ] },
+          { label: 'Pull — Back, Biceps, Abs', isRest: false, exercises: [
+            { id: 'p17-e9', name: 'Pull Ups', sets: 5, reps: '16-18', restSeconds: 40, muscleGroup: 'back', notes: 'Final week — push every set as close to clean failure as your form allows.' },
+            { id: 'p17-e10', name: 'Chin Ups', sets: 5, reps: '16-18', restSeconds: 40, muscleGroup: 'back' },
+            { id: 'p17-e20', name: 'Sit Ups', sets: 5, reps: '10-12', restSeconds: 40, muscleGroup: 'core' },
+            { id: 'p17-e21', name: 'Superman Plank', sets: 5, reps: '50s', restSeconds: 40, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+    ],
+  },
+
+  // ── P18: Kettlebell Warfare — 90-Day Protocol ────────────────────────────
+  {
+    id: 'p18',
+    name: 'Kettlebell Warfare: 90-Day Protocol',
+    description: 'Kettlebell Warfare is a 90-day kettlebell-only training system built to forge a stronger, leaner, and more athletic body. Through progressive strength, conditioning, and full-body functional training, you\'ll build muscle, burn fat, improve endurance, and develop real-world power using nothing more than kettlebells. Whether your goal is better performance or a complete physique transformation, this program is designed to deliver measurable results.\n\nSix training days a week, one true rest day: Strength, Conditioning, Lower Body, Upper Body, Full Body Power, and an optional Conditioning/Mobility day built around the get-up and carries. Every movement pattern that actually matters gets covered — push, pull, squat, hinge, carry, and rotation — so nothing gets neglected over 90 days.\n\nPhase 1 (Weeks 1-3): Foundation. Learn every pattern, build baseline work capacity, moderate loads and rest periods so your technique locks in before the volume climbs.\n\nPhase 2 (Weeks 4-6): Build. More volume, tighter rest periods, and the Snatch and Clean & Press enter the rotation once your foundational patterns are solid.\n\nWeek 7: Deload. Same movements, roughly half the working sets — this is what makes Phase 4 sustainable instead of a burnout risk. Don\'t skip it.\n\nPhase 4 (Weeks 8-10): Intensification. Heavier loads on strength days, denser conditioning with shorter rest, and the Push Press joins the program.\n\nPhase 5 (Weeks 11-12): Peak. The heaviest loads, longest carries, and highest density of the entire program — this is where 90 days of built work capacity actually gets spent.\n\nWeek 13: Test & Taper. Volume drops, and a dedicated Benchmark Test Day puts a number on what changed: a timed 100-swing test, a max clean get-up, and a max farmer\'s carry hold — the same kind of standards you were building toward from day one. Log your numbers and compare them to where you started.\n\nEvery exercise on this program is a real kettlebell movement — swings, goblet squats, cleans, presses, snatches, rows, lunges, Turkish get-ups, carries, deadlifts, high pulls, windmills, and halos — no machines, no barbells, no gym required beyond a couple of kettlebells and floor space.',
+    level: 'intermediate',
+    goal: 'general',
+    weeks: 13,
+    daysPerWeek: 6,
+    isPublic: true,
+    isPremium: true,
+    createdBy: 'system',
+    targetGender: 'anyone',
+    exercises: [
+      { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+      { id: 'p18-e2', name: 'Kettlebell Swing', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+      { id: 'p18-e3', name: 'Kettlebell Single-Arm Swing', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+      { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back' },
+      { id: 'p18-e5', name: 'Kettlebell Single-Leg Deadlift', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+      { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back' },
+      { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'shoulders' },
+      { id: 'p18-e8', name: 'Kettlebell Push Press', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'shoulders' },
+      { id: 'p18-e9', name: 'Kettlebell Halo', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'shoulders' },
+      { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'shoulders' },
+      { id: 'p18-e11', name: 'Kettlebell Reverse Lunge', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+      { id: 'p18-e12', name: 'Kettlebell Walking Lunge', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+      { id: 'p18-e13', name: 'Kettlebell Suitcase Carry', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'core' },
+      { id: 'p18-e14', name: 'Kettlebell Farmer\'s Carry', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'core' },
+      { id: 'p18-e15', name: 'Kettlebell Front Rack Carry', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'core' },
+      { id: 'p18-e16', name: 'Kettlebell Overhead Carry', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'core' },
+      { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'core' },
+      { id: 'p18-e18', name: 'Kettlebell Clean', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+      { id: 'p18-e19', name: 'Kettlebell Single-Arm Clean', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+      { id: 'p18-e20', name: 'Kettlebell Clean & Press', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+      { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+      { id: 'p18-e22', name: 'Kettlebell Snatch', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'full-body' },
+    ],
+    // phases[0]'s schedule doubles as the top-level `schedule` fallback,
+    // same convention used by the other long/phased programs in this file.
+    schedule:
+    [
+      { label: 'Strength', isRest: false, exercises: [
+        { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'legs', notes: 'Pause 1 second at the bottom of every rep — no bouncing out of the hole.' },
+        { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'back', notes: 'Hinge at the hips, not the knees. Keep the bell close to your shins the whole rep.' },
+        { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 6, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Press per side. Brace your core hard before every rep — no leaning back.' },
+        { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back', notes: 'Row per side. Pull with your elbow, not your hand.' },
+        { id: 'p18-e9', name: 'Kettlebell Halo', sets: 2, reps: 8, restSeconds: 45, muscleGroup: 'shoulders', notes: 'Halo per direction. Keep this light — it is a shoulder-prep move, not a strength move.' },
+      ] },
+      { label: 'Conditioning', isRest: false, exercises: [
+        { id: 'p18-e2', name: 'Kettlebell Swing', sets: 5, reps: 15, restSeconds: 45, muscleGroup: 'full-body', notes: 'Hike the bell back like a football snap, then snap your hips forward — the arms are along for the ride.' },
+        { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 3, reps: 10, restSeconds: 45, muscleGroup: 'shoulders', notes: 'Pull per side. Lead with the elbow, keep the bell close to your body.' },
+        { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 12, restSeconds: 45, muscleGroup: 'legs' },
+      ] },
+      { label: 'Lower Body', isRest: false, exercises: [
+        { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+        { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back' },
+        { id: 'p18-e11', name: 'Kettlebell Reverse Lunge', sets: 3, reps: 8, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg. Keep your torso tall the whole way down.' },
+        { id: 'p18-e13', name: 'Kettlebell Suitcase Carry', sets: 3, reps: 30, restSeconds: 60, muscleGroup: 'core', notes: 'Distance/time per side, in seconds walked. Keep your ribs stacked over your hips — no leaning toward the weight.' },
+      ] },
+      { label: 'Upper Body', isRest: false, exercises: [
+        { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Per side.' },
+        { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back', notes: 'Per side.' },
+        { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 60, muscleGroup: 'core', notes: 'Per side. Go slow — this is a mobility move first, a strength move second.' },
+        { id: 'p18-e9', name: 'Kettlebell Halo', sets: 2, reps: 10, restSeconds: 45, muscleGroup: 'shoulders' },
+      ] },
+      { label: 'Full Body Power', isRest: false, exercises: [
+        { id: 'p18-e18', name: 'Kettlebell Clean', sets: 3, reps: 6, restSeconds: 75, muscleGroup: 'full-body', notes: 'Per side. Keep the bell close on the way up — a clean that swings out and slams your wrist means the weight is too heavy or the tempo is too fast.' },
+        { id: 'p18-e2', name: 'Kettlebell Swing', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+        { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+      ] },
+      { label: 'Optional Conditioning / Mobility', isRest: false, exercises: [
+        { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 3, reps: 3, restSeconds: 60, muscleGroup: 'full-body', notes: 'Reps per side, slow and controlled. This is the one exercise on the whole program where speed is never the goal.' },
+        { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 45, muscleGroup: 'core' },
+        { id: 'p18-e14', name: 'Kettlebell Farmer\'s Carry', sets: 3, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: 'Time walked per set. Grip is the limiter here, not your legs — when it fails, set the bells down and rest.' },
+      ] },
+      rest(),
+    ],
+    phases: [
+      {
+        id: 'p18-ph1',
+        label: 'Phase 1: Foundation',
+        startWeek: 1,
+        endWeek: 3,
+        schedule:
+          [
+            { label: 'Strength', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'legs', notes: 'Pause 1 second at the bottom of every rep — no bouncing out of the hole.' },
+              { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'back', notes: 'Hinge at the hips, not the knees. Keep the bell close to your shins the whole rep.' },
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 6, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Press per side. Brace your core hard before every rep — no leaning back.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back', notes: 'Row per side. Pull with your elbow, not your hand.' },
+              { id: 'p18-e9', name: 'Kettlebell Halo', sets: 2, reps: 8, restSeconds: 45, muscleGroup: 'shoulders', notes: 'Halo per direction. Keep this light — it is a shoulder-prep move, not a strength move.' },
+            ] },
+            { label: 'Conditioning', isRest: false, exercises: [
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 5, reps: 15, restSeconds: 45, muscleGroup: 'full-body', notes: 'Hike the bell back like a football snap, then snap your hips forward — the arms are along for the ride.' },
+              { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 3, reps: 10, restSeconds: 45, muscleGroup: 'shoulders', notes: 'Pull per side. Lead with the elbow, keep the bell close to your body.' },
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 12, restSeconds: 45, muscleGroup: 'legs' },
+            ] },
+            { label: 'Lower Body', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+              { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back' },
+              { id: 'p18-e11', name: 'Kettlebell Reverse Lunge', sets: 3, reps: 8, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg. Keep your torso tall the whole way down.' },
+              { id: 'p18-e13', name: 'Kettlebell Suitcase Carry', sets: 3, reps: 30, restSeconds: 60, muscleGroup: 'core', notes: 'Distance/time per side, in seconds walked. Keep your ribs stacked over your hips — no leaning toward the weight.' },
+            ] },
+            { label: 'Upper Body', isRest: false, exercises: [
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'back', notes: 'Per side.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 60, muscleGroup: 'core', notes: 'Per side. Go slow — this is a mobility move first, a strength move second.' },
+              { id: 'p18-e9', name: 'Kettlebell Halo', sets: 2, reps: 10, restSeconds: 45, muscleGroup: 'shoulders' },
+            ] },
+            { label: 'Full Body Power', isRest: false, exercises: [
+              { id: 'p18-e18', name: 'Kettlebell Clean', sets: 3, reps: 6, restSeconds: 75, muscleGroup: 'full-body', notes: 'Per side. Keep the bell close on the way up — a clean that swings out and slams your wrist means the weight is too heavy or the tempo is too fast.' },
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+            ] },
+            { label: 'Optional Conditioning / Mobility', isRest: false, exercises: [
+              { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 3, reps: 3, restSeconds: 60, muscleGroup: 'full-body', notes: 'Reps per side, slow and controlled. This is the one exercise on the whole program where speed is never the goal.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 45, muscleGroup: 'core' },
+              { id: 'p18-e14', name: 'Kettlebell Farmer\'s Carry', sets: 3, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: 'Time walked per set. Grip is the limiter here, not your legs — when it fails, set the bells down and rest.' },
+            ] },
+            rest(),
+          ],
+      },
+      {
+        id: 'p18-ph2',
+        label: 'Phase 2: Build',
+        startWeek: 4,
+        endWeek: 6,
+        schedule:
+          [
+            { label: 'Strength', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 4, reps: 8, restSeconds: 60, muscleGroup: 'legs', notes: 'Progressive overload: once you complete all 4 sets of 8 with clean form, add weight next session.' },
+              { id: 'p18-e5', name: 'Kettlebell Single-Leg Deadlift', sets: 3, reps: 6, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg. This will humble your balance before it challenges your hamstrings — go slow.' },
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 4, reps: 6, restSeconds: 60, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 4, reps: 10, restSeconds: 45, muscleGroup: 'back', notes: 'Per side.' },
+            ] },
+            { label: 'Conditioning', isRest: false, exercises: [
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 5, reps: 20, restSeconds: 40, muscleGroup: 'full-body' },
+              { id: 'p18-e3', name: 'Kettlebell Single-Arm Swing', sets: 3, reps: 10, restSeconds: 40, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 3, reps: 12, restSeconds: 40, muscleGroup: 'shoulders', notes: 'Per side.' },
+            ] },
+            { label: 'Lower Body', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 4, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+              { id: 'p18-e5', name: 'Kettlebell Single-Leg Deadlift', sets: 3, reps: 8, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg.' },
+              { id: 'p18-e12', name: 'Kettlebell Walking Lunge', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs', notes: 'Steps per side.' },
+              { id: 'p18-e15', name: 'Kettlebell Front Rack Carry', sets: 3, reps: 30, restSeconds: 60, muscleGroup: 'core', notes: 'Time per set. Racked bells hammer your core and upper back far more than a swinging carry does.' },
+            ] },
+            { label: 'Upper Body', isRest: false, exercises: [
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 4, reps: 8, restSeconds: 60, muscleGroup: 'shoulders', notes: 'Per side. Add weight once every set hits 8 clean reps.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 4, reps: 10, restSeconds: 45, muscleGroup: 'back', notes: 'Per side.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 3, reps: 6, restSeconds: 45, muscleGroup: 'core', notes: 'Per side.' },
+              { id: 'p18-e8', name: 'Kettlebell Push Press', sets: 3, reps: 6, restSeconds: 60, muscleGroup: 'shoulders', notes: 'Per side. Use your legs to drive the first few inches — this is about moving more weight overhead, not pure shoulder strength.' },
+            ] },
+            { label: 'Full Body Power', isRest: false, exercises: [
+              { id: 'p18-e20', name: 'Kettlebell Clean & Press', sets: 4, reps: 5, restSeconds: 75, muscleGroup: 'full-body', notes: 'Per side. Two skills in one rep — clean it clean, then press it clean. Don’t rush the transition.' },
+              { id: 'p18-e19', name: 'Kettlebell Single-Arm Clean', sets: 3, reps: 8, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+            ] },
+            { label: 'Optional Conditioning / Mobility', isRest: false, exercises: [
+              { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 3, reps: 4, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e22', name: 'Kettlebell Snatch', sets: 3, reps: 6, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side. Punch your hand through at the top — don’t muscle the bell up with your arm.' },
+              { id: 'p18-e16', name: 'Kettlebell Overhead Carry', sets: 3, reps: 25, restSeconds: 60, muscleGroup: 'core', notes: 'Time per side. If your arm shakes and drops, that’s the set — don’t force it.' },
+            ] },
+            rest(),
+          ],
+      },
+      {
+        id: 'p18-ph3',
+        label: 'Phase 3: Deload',
+        startWeek: 7,
+        endWeek: 7,
+        schedule:
+          [
+            { label: 'Strength (Deload)', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'legs', notes: 'Deload week — same movements, roughly half the working sets. This is what makes Phase 4 sustainable instead of a burnout risk. Do not skip it.' },
+              { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'back' },
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 2, reps: 6, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 2, reps: 10, restSeconds: 75, muscleGroup: 'back', notes: 'Per side.' },
+            ] },
+            { label: 'Conditioning (Deload)', isRest: false, exercises: [
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'full-body' },
+              { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 2, reps: 10, restSeconds: 60, muscleGroup: 'shoulders', notes: 'Per side.' },
+            ] },
+            { label: 'Lower Body (Deload)', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 2, reps: 10, restSeconds: 75, muscleGroup: 'legs' },
+              { id: 'p18-e11', name: 'Kettlebell Reverse Lunge', sets: 2, reps: 8, restSeconds: 75, muscleGroup: 'legs', notes: 'Per leg.' },
+              { id: 'p18-e13', name: 'Kettlebell Suitcase Carry', sets: 2, reps: 30, restSeconds: 75, muscleGroup: 'core', notes: 'Per side.' },
+            ] },
+            { label: 'Upper Body (Deload)', isRest: false, exercises: [
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 2, reps: 8, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 2, reps: 10, restSeconds: 75, muscleGroup: 'back', notes: 'Per side.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 60, muscleGroup: 'core', notes: 'Per side. Use this week to actually clean up your form — slow everything down.' },
+            ] },
+            { label: 'Full Body (Deload)', isRest: false, exercises: [
+              { id: 'p18-e18', name: 'Kettlebell Clean', sets: 2, reps: 6, restSeconds: 90, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 2, reps: 15, restSeconds: 60, muscleGroup: 'full-body' },
+            ] },
+            { label: 'Optional Mobility', isRest: false, exercises: [
+              { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 2, reps: 3, restSeconds: 75, muscleGroup: 'full-body', notes: 'Per side, unweighted or very light — pure movement quality this week.' },
+              { id: 'p18-e9', name: 'Kettlebell Halo', sets: 2, reps: 8, restSeconds: 60, muscleGroup: 'shoulders' },
+              { id: 'p18-e14', name: 'Kettlebell Farmer\'s Carry', sets: 2, reps: 40, restSeconds: 75, muscleGroup: 'core', notes: 'Light load, per side — active recovery for your grip and posture.' },
+            ] },
+            rest(),
+          ],
+      },
+      {
+        id: 'p18-ph4',
+        label: 'Phase 4: Intensification',
+        startWeek: 8,
+        endWeek: 10,
+        schedule:
+          [
+            { label: 'Strength', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 4, reps: 6, restSeconds: 90, muscleGroup: 'legs', notes: 'Heavier, lower reps than Phase 2 — this is a true strength block. Last set should be genuinely hard by rep 5-6.' },
+              { id: 'p18-e5', name: 'Kettlebell Single-Leg Deadlift', sets: 4, reps: 6, restSeconds: 75, muscleGroup: 'legs', notes: 'Per leg.' },
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 4, reps: 5, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 4, reps: 8, restSeconds: 60, muscleGroup: 'back', notes: 'Per side, heavier than Phase 2.' },
+            ] },
+            { label: 'Conditioning', isRest: false, exercises: [
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 6, reps: 20, restSeconds: 30, muscleGroup: 'full-body', notes: 'Density day: shorter rest than any prior phase. If your form breaks down, the rest period wins — extend it rather than let reps go sloppy.' },
+              { id: 'p18-e3', name: 'Kettlebell Single-Arm Swing', sets: 4, reps: 12, restSeconds: 30, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 4, reps: 12, restSeconds: 30, muscleGroup: 'shoulders', notes: 'Per side.' },
+            ] },
+            { label: 'Lower Body', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 4, reps: 8, restSeconds: 60, muscleGroup: 'legs' },
+              { id: 'p18-e5', name: 'Kettlebell Single-Leg Deadlift', sets: 4, reps: 6, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg.' },
+              { id: 'p18-e12', name: 'Kettlebell Walking Lunge', sets: 4, reps: 10, restSeconds: 60, muscleGroup: 'legs', notes: 'Steps per side.' },
+              { id: 'p18-e15', name: 'Kettlebell Front Rack Carry', sets: 4, reps: 30, restSeconds: 60, muscleGroup: 'core', notes: 'Time per set — heavier load than Phase 2.' },
+            ] },
+            { label: 'Upper Body', isRest: false, exercises: [
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 4, reps: 6, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Per side, heavier than Phase 2.' },
+              { id: 'p18-e8', name: 'Kettlebell Push Press', sets: 4, reps: 6, restSeconds: 60, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 4, reps: 8, restSeconds: 45, muscleGroup: 'back', notes: 'Per side.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 3, reps: 6, restSeconds: 45, muscleGroup: 'core', notes: 'Per side.' },
+            ] },
+            { label: 'Full Body Power', isRest: false, exercises: [
+              { id: 'p18-e20', name: 'Kettlebell Clean & Press', sets: 4, reps: 5, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side, tighter rest than Phase 2 — same weight, more work capacity demanded.' },
+              { id: 'p18-e22', name: 'Kettlebell Snatch', sets: 4, reps: 6, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 4, reps: 15, restSeconds: 40, muscleGroup: 'full-body' },
+            ] },
+            { label: 'Optional Conditioning / Mobility', isRest: false, exercises: [
+              { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 4, reps: 3, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side, heavier bell than Phase 2 if your form has been clean.' },
+              { id: 'p18-e19', name: 'Kettlebell Single-Arm Clean', sets: 3, reps: 8, restSeconds: 45, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e16', name: 'Kettlebell Overhead Carry', sets: 4, reps: 25, restSeconds: 60, muscleGroup: 'core', notes: 'Per side.' },
+            ] },
+            rest(),
+          ],
+      },
+      {
+        id: 'p18-ph5',
+        label: 'Phase 5: Peak',
+        startWeek: 11,
+        endWeek: 12,
+        schedule:
+          [
+            { label: 'Strength', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 5, reps: 5, restSeconds: 90, muscleGroup: 'legs', notes: 'Peak block — heaviest bell you own, lowest reps of the whole program. Every rep should look identical from the first to the last.' },
+              { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 5, reps: 5, restSeconds: 90, muscleGroup: 'back', notes: 'Heaviest deadlift bell of the program, if form has stayed clean through Phase 4.' },
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 5, reps: 5, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 4, reps: 8, restSeconds: 60, muscleGroup: 'back', notes: 'Per side.' },
+            ] },
+            { label: 'Conditioning', isRest: false, exercises: [
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 6, reps: 20, restSeconds: 25, muscleGroup: 'full-body', notes: 'Highest density of the program. Time yourself — this is a number worth writing down and beating next week.' },
+              { id: 'p18-e3', name: 'Kettlebell Single-Arm Swing', sets: 5, reps: 12, restSeconds: 25, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e10', name: 'Kettlebell High Pull', sets: 4, reps: 12, restSeconds: 25, muscleGroup: 'shoulders', notes: 'Per side.' },
+            ] },
+            { label: 'Lower Body', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 5, reps: 6, restSeconds: 75, muscleGroup: 'legs' },
+              { id: 'p18-e5', name: 'Kettlebell Single-Leg Deadlift', sets: 4, reps: 6, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg.' },
+              { id: 'p18-e12', name: 'Kettlebell Walking Lunge', sets: 4, reps: 12, restSeconds: 60, muscleGroup: 'legs', notes: 'Steps per side, heaviest bells of the program.' },
+              { id: 'p18-e15', name: 'Kettlebell Front Rack Carry', sets: 4, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: 'Longest carry time of the program, per set.' },
+            ] },
+            { label: 'Upper Body', isRest: false, exercises: [
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 5, reps: 5, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e8', name: 'Kettlebell Push Press', sets: 4, reps: 5, restSeconds: 60, muscleGroup: 'shoulders', notes: 'Per side, heaviest of the program.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 4, reps: 8, restSeconds: 45, muscleGroup: 'back', notes: 'Per side.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 3, reps: 6, restSeconds: 45, muscleGroup: 'core', notes: 'Per side.' },
+            ] },
+            { label: 'Full Body Power', isRest: false, exercises: [
+              { id: 'p18-e20', name: 'Kettlebell Clean & Press', sets: 5, reps: 4, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side, heaviest bell you can move with a clean transition.' },
+              { id: 'p18-e22', name: 'Kettlebell Snatch', sets: 5, reps: 6, restSeconds: 50, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 5, reps: 15, restSeconds: 35, muscleGroup: 'full-body' },
+            ] },
+            { label: 'Optional Conditioning / Mobility', isRest: false, exercises: [
+              { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 5, reps: 3, restSeconds: 60, muscleGroup: 'full-body', notes: 'Per side — heaviest get-up bell of the program, if earned.' },
+              { id: 'p18-e19', name: 'Kettlebell Single-Arm Clean', sets: 4, reps: 8, restSeconds: 40, muscleGroup: 'full-body', notes: 'Per side.' },
+              { id: 'p18-e16', name: 'Kettlebell Overhead Carry', sets: 4, reps: 30, restSeconds: 60, muscleGroup: 'core', notes: 'Per side, longest overhead carry of the program.' },
+            ] },
+            rest(),
+          ],
+      },
+      {
+        id: 'p18-ph6',
+        label: 'Phase 6: Test & Taper',
+        startWeek: 13,
+        endWeek: 13,
+        schedule:
+          [
+            { label: 'Strength (Taper)', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 6, restSeconds: 90, muscleGroup: 'legs', notes: 'Taper week — lighter than Phase 5, just enough to stay sharp before the benchmark day.' },
+              { id: 'p18-e4', name: 'Kettlebell Deadlift', sets: 3, reps: 6, restSeconds: 90, muscleGroup: 'back' },
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 5, restSeconds: 90, muscleGroup: 'shoulders', notes: 'Per side.' },
+            ] },
+            { label: 'Benchmark Test Day', isRest: false, exercises: [
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 1, reps: 100, restSeconds: 0, muscleGroup: 'full-body', notes: 'Timed test: 100 total swings, as fast as good form allows. Write down your time and compare it to how this felt back in Week 1 — this is the number that proves the last 90 days worked.' },
+              { id: 'p18-e21', name: 'Kettlebell Turkish Get-Up', sets: 1, reps: 5, restSeconds: 90, muscleGroup: 'full-body', notes: 'Test: heaviest clean get-up per side you can perform with textbook form. Log the weight.' },
+              { id: 'p18-e14', name: 'Kettlebell Farmer\'s Carry', sets: 1, reps: 60, restSeconds: 0, muscleGroup: 'core', notes: 'Test: max time carrying your heaviest comfortable pair, per side. Log the time.' },
+            ] },
+            { label: 'Lower Body (Taper)', isRest: false, exercises: [
+              { id: 'p18-e1', name: 'Kettlebell Goblet Squat', sets: 3, reps: 8, restSeconds: 75, muscleGroup: 'legs' },
+              { id: 'p18-e11', name: 'Kettlebell Reverse Lunge', sets: 2, reps: 8, restSeconds: 75, muscleGroup: 'legs', notes: 'Per leg.' },
+              { id: 'p18-e13', name: 'Kettlebell Suitcase Carry', sets: 2, reps: 30, restSeconds: 75, muscleGroup: 'core', notes: 'Per side.' },
+            ] },
+            { label: 'Upper Body (Taper)', isRest: false, exercises: [
+              { id: 'p18-e7', name: 'Kettlebell Overhead Press', sets: 3, reps: 6, restSeconds: 75, muscleGroup: 'shoulders', notes: 'Per side.' },
+              { id: 'p18-e6', name: 'Kettlebell Single-Arm Row', sets: 3, reps: 8, restSeconds: 60, muscleGroup: 'back', notes: 'Per side.' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 60, muscleGroup: 'core', notes: 'Per side.' },
+            ] },
+            { label: 'Full Body (Light)', isRest: false, exercises: [
+              { id: 'p18-e18', name: 'Kettlebell Clean', sets: 3, reps: 6, restSeconds: 75, muscleGroup: 'full-body', notes: 'Per side, light — this is a movement-quality day, not another strength test.' },
+              { id: 'p18-e2', name: 'Kettlebell Swing', sets: 3, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+            ] },
+            { label: 'Optional Mobility', isRest: false, exercises: [
+              { id: 'p18-e9', name: 'Kettlebell Halo', sets: 2, reps: 8, restSeconds: 45, muscleGroup: 'shoulders' },
+              { id: 'p18-e17', name: 'Kettlebell Windmill', sets: 2, reps: 6, restSeconds: 45, muscleGroup: 'core', notes: 'Per side.' },
+              { id: 'p18-e14', name: 'Kettlebell Farmer\'s Carry', sets: 2, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: 'Light, per side — celebratory lap, not a grind.' },
+            ] },
+            rest(),
+          ],
+      },
+    ],
+  },
+  // ── P19: French Foreign Legion: 90-Day Protocol ──────────────────────────
+  {
+    id: 'p19',
+    name: 'French Foreign Legion: 90-Day Protocol',
+    description: 'Not an official French Foreign Legion training plan — a realistic civilian program built to develop the strength, endurance, work capacity, and mental toughness Legionnaires train for. 90 days, 3 phases, 6 days a week, gym + rucksack + open ground.\n\nPhase 1 (Weeks 1-4): Foundation. Build the base — full-body strength, easy running, short rucks, and bodyweight conditioning — before load and pace start climbing.\n\nPhase 2 (Weeks 5-8): Build. Heavier lifts, interval running, longer/heavier ruck marches, and military-style conditioning circuits. This is where the volume and intensity really start to bite.\n\nWeek 9: Deload. Same movement patterns, meaningfully lighter — the reset that makes the final push survivable instead of a burnout risk. Don\'t skip it.\n\nPhase 3 (Weeks 10-13): Legion Ready. Peak strength work, hill sprints and tempo runs, your heaviest ruck marches, and a full Legion Challenge finale in the last training day of every week: timed 10K, max pull-ups, max push-ups and sit-ups in 2 minutes, a farmer carry test, and a full-body conditioning gauntlet.\n\nRucking progression targets 20-35kg over 5-20km on mixed terrain; running progression covers 1.5K, 5K, and 10K paces through easy runs, tempo runs, intervals, and fartlek work. Build toward 15-20 strict pull-ups, 80-100 push-ups, and 80+ sit-ups by the final phase. Train hard, recover on purpose, and respect the load progression — it\'s deliberate.',
+    level: 'advanced',
+    goal: 'endurance',
+    weeks: 13,
+    daysPerWeek: 6,
+    isPublic: true,
+    createdBy: 'system',
+    exercises: [
+      { id: 'p19-e1', name: 'Barbell Back Squat', sets: 4, reps: 8, restSeconds: 120, muscleGroup: 'legs' },
+      { id: 'p19-e2', name: 'Push-Up', sets: 4, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+      { id: 'p19-e3', name: 'Pull-Up', sets: 4, reps: 6, restSeconds: 90, muscleGroup: 'back', notes: 'Use a band or box-assist if needed — build toward strict reps.' },
+      { id: 'p19-e4', name: 'Dumbbell Row', sets: 4, reps: 12, restSeconds: 75, muscleGroup: 'back' },
+      { id: 'p19-e5', name: 'Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+      { id: 'p19-e6', name: 'Easy Run', sets: 1, reps: 30, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K at a conversational pace — this is base-building, not a test.' },
+      { id: 'p19-e7', name: 'Ruck March', sets: 1, reps: 60, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K, 15-20kg pack, steady pace on mixed terrain.' },
+      { id: 'p19-e8', name: 'Burpee', sets: 4, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+      { id: 'p19-e9', name: 'Box Jump', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+      { id: 'p19-e10', name: 'Bear Crawl', sets: 3, reps: '30s', restSeconds: 45, muscleGroup: 'full-body' },
+      { id: 'p19-e11', name: 'Kettlebell Swing', sets: 4, reps: 20, restSeconds: 45, muscleGroup: 'full-body' },
+      { id: 'p19-e12', name: 'Romanian Deadlift', sets: 4, reps: 10, restSeconds: 90, muscleGroup: 'legs' },
+    ],
+    schedule: [
+      { label: 'Full-Body Strength', isRest: false, exercises: [
+        { id: 'p19-e1', name: 'Barbell Back Squat', sets: 4, reps: 8, restSeconds: 120, muscleGroup: 'legs' },
+        { id: 'p19-e2', name: 'Push-Up', sets: 4, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+        { id: 'p19-e4', name: 'Dumbbell Row', sets: 4, reps: 12, restSeconds: 75, muscleGroup: 'back' },
+        { id: 'p19-e5', name: 'Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      { label: 'Easy Run + Core', isRest: false, exercises: [
+        { id: 'p19-e6', name: 'Easy Run', sets: 1, reps: 30, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K conversational pace.' },
+        { id: 'p19-e13', name: 'Hanging Knee Raise', sets: 3, reps: 12, restSeconds: 45, muscleGroup: 'core' },
+        { id: 'p19-e14', name: 'Russian Twist', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      { label: 'Upper Body + Pull-Up Progression', isRest: false, exercises: [
+        { id: 'p19-e3', name: 'Pull-Up', sets: 4, reps: 6, restSeconds: 90, muscleGroup: 'back', notes: 'Assisted if needed — track reps every session.' },
+        { id: 'p19-e15', name: 'Overhead Press', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'shoulders' },
+        { id: 'p19-e2', name: 'Push-Up', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+        { id: 'p19-e16', name: 'Farmer\'s Carry', sets: 3, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: 'Heavy dumbbells or kettlebells, 40m per set.' },
+      ] },
+      { label: 'Ruck March', isRest: false, exercises: [
+        { id: 'p19-e7', name: 'Ruck March', sets: 1, reps: 60, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K, 15-20kg pack, steady pace, mixed terrain if possible.' },
+      ] },
+      { label: 'Lower Body + Core', isRest: false, exercises: [
+        { id: 'p19-e12', name: 'Romanian Deadlift', sets: 4, reps: 10, restSeconds: 90, muscleGroup: 'legs' },
+        { id: 'p19-e17', name: 'Walking Lunge', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'legs', notes: 'Per leg.' },
+        { id: 'p19-e18', name: 'Step-Up', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg — use a bench or box.' },
+        { id: 'p19-e5', name: 'Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      { label: 'Conditioning Circuit', isRest: false, exercises: [
+        { id: 'p19-e8', name: 'Burpee', sets: 4, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+        { id: 'p19-e9', name: 'Box Jump', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+        { id: 'p19-e10', name: 'Bear Crawl', sets: 3, reps: '30s', restSeconds: 45, muscleGroup: 'full-body' },
+        { id: 'p19-e19', name: 'Mountain Climbers', sets: 3, reps: 30, restSeconds: 45, muscleGroup: 'core' },
+      ] },
+      rest(),
+    ],
+    phases: [
+      {
+        id: 'p19-ph1',
+        label: 'Phase 1: Foundation',
+        startWeek: 1,
+        endWeek: 4,
+        schedule: [
+          { label: 'Full-Body Strength', isRest: false, exercises: [
+            { id: 'p19-e1', name: 'Barbell Back Squat', sets: 4, reps: 8, restSeconds: 120, muscleGroup: 'legs' },
+            { id: 'p19-e2', name: 'Push-Up', sets: 4, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+            { id: 'p19-e4', name: 'Dumbbell Row', sets: 4, reps: 12, restSeconds: 75, muscleGroup: 'back' },
+            { id: 'p19-e5', name: 'Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Easy Run + Core', isRest: false, exercises: [
+            { id: 'p19-e6', name: 'Easy Run', sets: 1, reps: 30, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K conversational pace — build the aerobic base.' },
+            { id: 'p19-e13', name: 'Hanging Knee Raise', sets: 3, reps: 12, restSeconds: 45, muscleGroup: 'core' },
+            { id: 'p19-e14', name: 'Russian Twist', sets: 3, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Upper Body + Pull-Up Progression', isRest: false, exercises: [
+            { id: 'p19-e3', name: 'Pull-Up', sets: 4, reps: 6, restSeconds: 90, muscleGroup: 'back', notes: 'Assisted if needed — log reps every session, chase strict form first.' },
+            { id: 'p19-e15', name: 'Overhead Press', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'shoulders' },
+            { id: 'p19-e2', name: 'Push-Up', sets: 3, reps: 15, restSeconds: 60, muscleGroup: 'chest' },
+            { id: 'p19-e16', name: 'Farmer\'s Carry', sets: 3, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: 'Heavy dumbbells or kettlebells, 40m per set.' },
+          ] },
+          { label: 'Ruck March', isRest: false, exercises: [
+            { id: 'p19-e7', name: 'Ruck March', sets: 1, reps: 60, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Week 1-2: 5K @ 15kg. Week 3-4: 8K @ 18-20kg. Steady pace, mixed terrain if possible.' },
+          ] },
+          { label: 'Lower Body + Core', isRest: false, exercises: [
+            { id: 'p19-e12', name: 'Romanian Deadlift', sets: 4, reps: 10, restSeconds: 90, muscleGroup: 'legs' },
+            { id: 'p19-e17', name: 'Walking Lunge', sets: 3, reps: 12, restSeconds: 75, muscleGroup: 'legs', notes: 'Per leg.' },
+            { id: 'p19-e18', name: 'Step-Up', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg — use a bench or box.' },
+            { id: 'p19-e5', name: 'Plank', sets: 3, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Conditioning Circuit', isRest: false, exercises: [
+            { id: 'p19-e8', name: 'Burpee', sets: 4, reps: 15, restSeconds: 45, muscleGroup: 'full-body' },
+            { id: 'p19-e9', name: 'Box Jump', sets: 3, reps: 10, restSeconds: 60, muscleGroup: 'legs' },
+            { id: 'p19-e10', name: 'Bear Crawl', sets: 3, reps: '30s', restSeconds: 45, muscleGroup: 'full-body' },
+            { id: 'p19-e19', name: 'Mountain Climbers', sets: 3, reps: 30, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p19-ph2',
+        label: 'Phase 2: Build',
+        startWeek: 5,
+        endWeek: 8,
+        schedule: [
+          { label: 'Heavy Full-Body Strength', isRest: false, exercises: [
+            { id: 'p19-e20', name: 'Front Squat', sets: 5, reps: 6, restSeconds: 150, muscleGroup: 'legs' },
+            { id: 'p19-e21', name: 'Conventional Deadlift', sets: 4, reps: 5, restSeconds: 180, muscleGroup: 'back' },
+            { id: 'p19-e15', name: 'Overhead Press', sets: 4, reps: 6, restSeconds: 120, muscleGroup: 'shoulders' },
+            { id: 'p19-e5', name: 'Plank', sets: 3, reps: '60s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Interval Running + Core', isRest: false, exercises: [
+            { id: 'p19-e22', name: 'Interval Run (400m Repeats)', sets: 8, reps: '400m', restSeconds: 90, muscleGroup: 'cardio', isCardio: true, notes: '8x400m at 5K race pace, jog-recover between reps.' },
+            { id: 'p19-e13', name: 'Hanging Knee Raise', sets: 4, reps: 15, restSeconds: 45, muscleGroup: 'core' },
+            { id: 'p19-e14', name: 'Russian Twist', sets: 4, reps: 25, restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Upper Body + Weighted Pull-Ups', isRest: false, exercises: [
+            { id: 'p19-e3', name: 'Weighted Pull-Up', sets: 5, reps: 5, restSeconds: 120, muscleGroup: 'back', notes: 'Add light weight if strict bodyweight reps are solid; otherwise max strict reps.' },
+            { id: 'p19-e23', name: 'Bench Press', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'chest' },
+            { id: 'p19-e2', name: 'Push-Up', sets: 3, reps: 25, restSeconds: 45, muscleGroup: 'chest' },
+            { id: 'p19-e16', name: 'Farmer\'s Carry', sets: 4, reps: 50, restSeconds: 60, muscleGroup: 'core', notes: '50m per set, heavier load than Phase 1.' },
+          ] },
+          { label: 'Ruck March', isRest: false, exercises: [
+            { id: 'p19-e7', name: 'Ruck March', sets: 1, reps: 90, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Week 5-6: 10K @ 22-25kg. Week 7-8: 12K @ 25-28kg. Push the pace on flat sections.' },
+          ] },
+          { label: 'Lower Body + Loaded Carries', isRest: false, exercises: [
+            { id: 'p19-e1', name: 'Barbell Back Squat', sets: 5, reps: 6, restSeconds: 150, muscleGroup: 'legs' },
+            { id: 'p19-e12', name: 'Romanian Deadlift', sets: 4, reps: 8, restSeconds: 90, muscleGroup: 'legs' },
+            { id: 'p19-e24', name: 'Sandbag Carry', sets: 4, reps: 40, restSeconds: 60, muscleGroup: 'core', notes: '40m per set, heaviest sandbag you can control.' },
+            { id: 'p19-e18', name: 'Step-Up', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'legs', notes: 'Per leg, weighted vest if available.' },
+          ] },
+          { label: 'Military Conditioning Circuit', isRest: false, exercises: [
+            { id: 'p19-e25', name: 'Thruster', sets: 4, reps: 12, restSeconds: 60, muscleGroup: 'full-body' },
+            { id: 'p19-e26', name: 'Shuttle Run', sets: 5, reps: '40m', restSeconds: 45, muscleGroup: 'cardio', isCardio: true },
+            { id: 'p19-e11', name: 'Kettlebell Swing', sets: 4, reps: 20, restSeconds: 45, muscleGroup: 'full-body' },
+            { id: 'p19-e8', name: 'Burpee', sets: 4, reps: 20, restSeconds: 45, muscleGroup: 'full-body' },
+          ] },
+          rest(),
+        ],
+      },
+      // Deload — same movement patterns as Phase 2, meaningfully lighter.
+      // Going straight from Build into the heaviest ruck loads and the
+      // Legion Challenge finale without a break is exactly the kind of
+      // burnout risk this program is designed to avoid.
+      {
+        id: 'p19-deload',
+        label: 'Week 9: Deload',
+        startWeek: 9,
+        endWeek: 9,
+        schedule: [
+          { label: 'Light Full-Body', isRest: false, exercises: [
+            { id: 'p19-e1', name: 'Barbell Back Squat', sets: 3, reps: 8, restSeconds: 120, muscleGroup: 'legs', notes: '~60% of your Phase 2 working weight.' },
+            { id: 'p19-e2', name: 'Push-Up', sets: 3, reps: 12, restSeconds: 60, muscleGroup: 'chest' },
+            { id: 'p19-e4', name: 'Dumbbell Row', sets: 3, reps: 10, restSeconds: 75, muscleGroup: 'back' },
+            { id: 'p19-e5', name: 'Plank', sets: 2, reps: '45s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Easy Run', isRest: false, exercises: [
+            { id: 'p19-e6', name: 'Easy Run', sets: 1, reps: 20, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Short and easy — no pace targets this week.' },
+          ] },
+          { label: 'Light Upper Body', isRest: false, exercises: [
+            { id: 'p19-e3', name: 'Pull-Up', sets: 3, reps: 5, restSeconds: 90, muscleGroup: 'back', notes: 'Bodyweight only, stop well short of failure.' },
+            { id: 'p19-e15', name: 'Overhead Press', sets: 3, reps: 8, restSeconds: 90, muscleGroup: 'shoulders', notes: '~60% of your Phase 2 working weight.' },
+          ] },
+          { label: 'Short Ruck', isRest: false, exercises: [
+            { id: 'p19-e7', name: 'Ruck March', sets: 1, reps: 45, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K, light load (~15kg), easy pace.' },
+          ] },
+          { label: 'Light Lower Body', isRest: false, exercises: [
+            { id: 'p19-e12', name: 'Romanian Deadlift', sets: 3, reps: 10, restSeconds: 90, muscleGroup: 'legs', notes: '~60% of your Phase 2 working weight.' },
+            { id: 'p19-e17', name: 'Walking Lunge', sets: 2, reps: 10, restSeconds: 75, muscleGroup: 'legs', notes: 'Per leg, bodyweight.' },
+          ] },
+          { label: 'Mobility + Light Conditioning', isRest: false, exercises: [
+            { id: 'p19-e19', name: 'Mountain Climbers', sets: 2, reps: 20, restSeconds: 45, muscleGroup: 'core' },
+            { id: 'p19-e10', name: 'Bear Crawl', sets: 2, reps: '20s', restSeconds: 45, muscleGroup: 'full-body' },
+          ] },
+          rest(),
+        ],
+      },
+      {
+        id: 'p19-ph3',
+        label: 'Phase 3: Legion Ready',
+        startWeek: 10,
+        endWeek: 13,
+        schedule: [
+          { label: 'Peak Strength', isRest: false, exercises: [
+            { id: 'p19-e1', name: 'Barbell Back Squat', sets: 5, reps: 4, restSeconds: 180, muscleGroup: 'legs' },
+            { id: 'p19-e21', name: 'Conventional Deadlift', sets: 5, reps: 3, restSeconds: 210, muscleGroup: 'back' },
+            { id: 'p19-e23', name: 'Bench Press', sets: 4, reps: 5, restSeconds: 150, muscleGroup: 'chest' },
+            { id: 'p19-e5', name: 'Plank', sets: 3, reps: '75s', restSeconds: 45, muscleGroup: 'core' },
+          ] },
+          { label: 'Tempo Run + Hill Sprints', isRest: false, exercises: [
+            { id: 'p19-e27', name: 'Tempo Run', sets: 1, reps: 25, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: '5K at a "comfortably hard" pace you could hold for the full distance.' },
+            { id: 'p19-e28', name: 'Hill Sprint', sets: 6, reps: '30s', restSeconds: 90, muscleGroup: 'cardio', isCardio: true, notes: 'Walk back down for recovery.' },
+          ] },
+          { label: 'Max Pull-Ups + Upper Strength', isRest: false, exercises: [
+            { id: 'p19-e3', name: 'Weighted Pull-Up', sets: 5, reps: 5, restSeconds: 120, muscleGroup: 'back', notes: 'Working toward 15-20 strict bodyweight reps by the final week.' },
+            { id: 'p19-e15', name: 'Overhead Press', sets: 4, reps: 6, restSeconds: 120, muscleGroup: 'shoulders' },
+            { id: 'p19-e2', name: 'Push-Up', sets: 4, reps: 25, restSeconds: 45, muscleGroup: 'chest', notes: 'Working toward 80-100 total reps across sets by the final week.' },
+          ] },
+          { label: 'Heavy Ruck March', isRest: false, exercises: [
+            { id: 'p19-e7', name: 'Ruck March', sets: 1, reps: 150, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Week 10-11: 15K @ 28-30kg. Week 12-13: 18-20K @ 30-35kg. Mixed terrain, sustained pace.' },
+          ] },
+          { label: 'Lower Strength + Loaded Carry Gauntlet', isRest: false, exercises: [
+            { id: 'p19-e20', name: 'Front Squat', sets: 5, reps: 5, restSeconds: 150, muscleGroup: 'legs' },
+            { id: 'p19-e24', name: 'Sandbag Carry', sets: 4, reps: 60, restSeconds: 60, muscleGroup: 'core', notes: '60m per set, heaviest sandbag you can control.' },
+            { id: 'p19-e16', name: 'Farmer\'s Carry', sets: 4, reps: 60, restSeconds: 60, muscleGroup: 'core', notes: '60m per set, heaviest pair you can control.' },
+          ] },
+          // The last training day of every week in this phase — culminates
+          // in the full Legion Challenge in week 13.
+          { label: 'Legion Challenge', isRest: false, exercises: [
+            { id: 'p19-e29', name: 'Timed 10K Run', sets: 1, reps: 60, restSeconds: 0, muscleGroup: 'cardio', isCardio: true, notes: 'Race it. Log your time and try to beat it each week.' },
+            { id: 'p19-e30', name: 'Max Pull-Ups (AMRAP)', sets: 1, reps: 1, restSeconds: 120, muscleGroup: 'back', notes: 'One all-out set to failure, strict form.' },
+            { id: 'p19-e31', name: 'Max Push-Ups (2 min)', sets: 1, reps: 1, restSeconds: 120, muscleGroup: 'chest', notes: 'As many strict reps as possible in 2 minutes.' },
+            { id: 'p19-e32', name: 'Max Sit-Ups (2 min)', sets: 1, reps: 1, restSeconds: 120, muscleGroup: 'core', notes: 'As many strict reps as possible in 2 minutes.' },
+            { id: 'p19-e16', name: 'Farmer\'s Carry Test', sets: 1, reps: 100, restSeconds: 0, muscleGroup: 'core', notes: 'Heaviest pair you can carry, max distance in one unbroken set.' },
+            { id: 'p19-e8', name: 'Full-Body Conditioning Gauntlet', sets: 5, reps: 15, restSeconds: 30, muscleGroup: 'full-body', notes: 'Burpees — 5 rounds of 15, 30s rest between rounds. The Legion finisher.' },
+          ] },
+          rest(),
+        ],
+      },
+    ],
+  },
 ];
 
 /** Look up a mock program by id. Returns null if not found. */
@@ -1347,28 +2479,6 @@ export function getScheduleForWeek(program: Program, weekNumber: number): Progra
 }
 
 /**
- * Returns the ProgramDay for the current user based on days since enrollment.
- * Falls back to day-of-week logic for legacy users without programStartDate.
- */
-export function getProgramDayForUser(
-  program: Program,
-  programStartDate?: string
-): ProgramDay | null {
-  if (!program.schedule?.length && !program.phases?.length) return null;
-
-  if (programStartDate) {
-    const start = new Date(programStartDate);
-    const dayIndex = Math.floor((Date.now() - start.getTime()) / 86400000);
-    return getProgramDayForDow(program, dayIndex);
-  }
-  // fallback to DOW for existing users without programStartDate
-  return getProgramDayForDow(program, (() => {
-    const d = new Date().getDay();
-    return d === 0 ? 6 : d - 1;
-  })());
-}
-
-/**
  * Returns the ProgramDay for a given absolute day index since enrollment
  * (not day-of-week — despite the name, callers pass a running count of
  * training days/sessions), resolving through phases first if the program
@@ -1425,11 +2535,13 @@ export function countTrainingSlotsThrough(program: Program, lastSlotIndex: numbe
 }
 
 export interface NextSession {
-  /** Absolute slot index to pass to the workout session as `dow`. */
+  /** Absolute slot index of what the card shows — a rest slot when one is next, else the next training slot. */
   index: number;
   day: ProgramDay;
-  /** True when today should be displayed (and respected) as a rest day. */
+  /** True when the next slot is a rest day. Shown as such; the user skips it explicitly. */
   isRestToday: boolean;
+  /** The next TRAINING slot (after any rest slots). Null only for an all-rest schedule. */
+  nextTraining: { index: number; day: ProgramDay } | null;
 }
 
 /**
@@ -1437,45 +2549,53 @@ export interface NextSession {
  * the dashboard card, the training list, and the program detail page so
  * they can never disagree.
  *
- * Fixes the rest-day deadlock: the progress pointer only ever advances when
- * a workout is COMPLETED, but rest slots can't be completed — so before
- * this, a pointer that landed on a rest slot stayed there forever and every
- * screen showed "Rest day" for the rest of time. The rule now:
+ * Deterministic and date-free:
  *
- *   - If the user trained YESTERDAY and the next slot is a rest day, today
- *     genuinely is their rest day — show it as such, no workout offered.
- *   - Otherwise (they last trained 2+ days ago, or never), rest slots are
- *     considered already-served by the time away: skip forward to the next
- *     training slot so there is always a workout to start.
+ *   - Next slot is a training day → that's the next workout.
+ *   - Next slot is a rest day → show the rest day. The user moves past it
+ *     with an explicit "Skip rest day" action (skipRestDay in firestore.ts),
+ *     which advances the pointer onto the rest slot. Only then does the next
+ *     workout appear. Rest days are neither silently skipped nor enforced.
  *
- * Completing that skipped-ahead slot moves `lastCompletedDayIndex` past the
- * rest slots naturally, so the pointer can never wedge on one. A full week
- * of rest slots (pathological admin data) is bounded and falls back to
- * showing the rest day rather than looping.
+ * Two earlier designs were both wrong: (1) "honor the rest day if you
+ * trained today/yesterday, else skip it" tied recovery to the calendar date,
+ * which cannot measure it, and in alternating train/rest programs put a
+ * "Rest day" card on screen immediately after finishing a workout; (2)
+ * "always skip rest slots" hid the program's structure entirely. What the
+ * user asked for is the honest middle: show it, let them skip it, remember
+ * that they did.
  */
 export function getNextSession(
   program: Program,
   lastCompletedDayIndex: number,
-  lastWorkoutDate?: string,
+  _lastWorkoutDate?: string,
 ): NextSession | null {
   const start = lastCompletedDayIndex + 1;
   const first = getProgramDayForDow(program, start);
   if (!first) return null;
 
-  if (!first.isRest) return { index: start, day: first, isRestToday: false };
-
-  const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString('sv-SE');
-  const today = new Date().toLocaleDateString('sv-SE');
-  // Trained yesterday (or somehow already today) → this rest day is current,
-  // honor it. Anything older and the rest has already happened in real time.
-  if (lastWorkoutDate === yesterday || lastWorkoutDate === today) {
-    return { index: start, day: first, isRestToday: true };
+  let nextTraining: NextSession['nextTraining'] = null;
+  for (let offset = 0; offset <= 7; offset++) {
+    const idx = start + offset;
+    const day = getProgramDayForDow(program, idx);
+    if (!day) break;
+    if (!day.isRest) { nextTraining = { index: idx, day }; break; }
   }
 
-  for (let offset = 1; offset <= 7; offset++) {
-    const day = getProgramDayForDow(program, start + offset);
-    if (day && !day.isRest) return { index: start + offset, day, isRestToday: false };
+  if (!first.isRest) return { index: start, day: first, isRestToday: false, nextTraining };
+  return { index: start, day: first, isRestToday: true, nextTraining };
+}
+
+/**
+ * The most recent TRAINING slot at or before `lastCompletedDayIndex` — what
+ * "Repeat today's workout" should open. After a rest day is skipped the
+ * pointer sits on a rest slot, and repeating *that* would open an empty
+ * session. Null if nothing has been trained yet.
+ */
+export function getLastTrainingSlotIndex(program: Program, lastCompletedDayIndex: number): number | null {
+  for (let idx = lastCompletedDayIndex; idx >= 0 && idx > lastCompletedDayIndex - 8; idx--) {
+    const day = getProgramDayForDow(program, idx);
+    if (day && !day.isRest) return idx;
   }
-  // Entire week is rest slots — show the rest day rather than spin
-  return { index: start, day: first, isRestToday: true };
+  return null;
 }

@@ -3,6 +3,7 @@ import { getStorage } from 'firebase-admin/storage';
 import type { App } from 'firebase-admin/app';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getStripe } from '@/lib/stripe';
+import { deleteR2Prefix } from '@/lib/r2';
 
 /**
  * Collections that store docs keyed by `userId` (not by uid-as-doc-id) —
@@ -19,13 +20,34 @@ const USER_FIELD_COLLECTIONS = [
   'progressPhotos',
   'notifications',
   'coachingApplications',
+  // All of the below were previously missed, leaving a "deleted" account's
+  // data behind — most visibly communityActivity, which is publicly
+  // readable and kept the ex-user's displayName in the Live Activity feed.
+  'communityActivity',
+  'goals',
+  'ptTestResults',
+  // Keyed `${uid}_${date}` but also carries a userId field, so the same
+  // query path works — no doc-id range scan needed.
+  'habitLogs',
+  // Community feed posts (src/lib/firestore.ts createPost()) — same class
+  // of leak as communityActivity: keyed by userId, with userDisplayName/
+  // userPhotoURL embedded, publicly readable, and not swept previously.
+  'posts',
 ] as const;
 
 /** Docs keyed directly by uid — a straight doc().delete(), no query needed. */
 const USER_ID_DOC_COLLECTIONS = [
   'users',
-  'pushSubscriptions',
   'userPreferences',
+  // The public leaderboard mirror — holds displayName/xp/streak. Without
+  // this, a deleted user stayed listed by name on the public leaderboard
+  // (including the logged-out landing page) indefinitely.
+  'leaderboardPublic',
+  // Any in-flight 2FA code for this account.
+  'twoFactorCodes',
+  // Email-confirmation code and the lifetime change counter (server-only docs).
+  'emailVerifyCodes',
+  'emailChangeCounts',
 ] as const;
 
 async function deleteByQuery(db: Firestore, collection: string, field: string, uid: string) {
@@ -74,28 +96,83 @@ export interface DeletionSummary {
 export async function deleteUserCompletely(app: App, db: Firestore, uid: string): Promise<DeletionSummary> {
   let firestoreDocsDeleted = 0;
 
-  // Cancel any live Stripe subscription BEFORE wiping the user doc — once
-  // deleted, the app has no record of stripeSubscriptionId and no way to
-  // stop future billing, so a self-deleted (or admin-removed) user with an
-  // active membership would otherwise keep getting charged indefinitely
-  // with no account left to dispute it from.
+  // Cancel every live Stripe subscription BEFORE wiping the user doc — once
+  // deleted, the app has no record of any stripeSubscriptionId and no way
+  // to stop future billing, so a self-deleted (or admin-removed) user would
+  // otherwise keep getting charged indefinitely with no account left to
+  // dispute it from. membership and coaching are separate subscriptions —
+  // a user can hold both at once — so both need to be cancelled, not just
+  // whichever one happens to be checked.
   try {
     const userSnap = await db.collection('users').doc(uid).get();
-    const subId = userSnap.data()?.membership?.stripeSubscriptionId as string | undefined;
-    if (subId) {
+    const membershipSubId = userSnap.data()?.membership?.stripeSubscriptionId as string | undefined;
+    const coachingSubId = userSnap.data()?.coaching?.stripeSubscriptionId as string | undefined;
+    const email = userSnap.data()?.email as string | undefined;
+    const subIds = Array.from(new Set([membershipSubId, coachingSubId].filter((id): id is string => !!id)));
+    if (subIds.length > 0) {
       const stripe = await getStripe();
-      await stripe.subscriptions.cancel(subId);
-      console.log(`[accountDeletion] Cancelled Stripe subscription ${subId} for user ${uid}`);
+      for (const subId of subIds) {
+        // Each subscription gets its own try. Shared one, and a member holding
+        // BOTH membership and coaching who hit any error on the first would
+        // never have the second cancelled — it would bill their card forever,
+        // with the account that named it already gone.
+        try {
+          await stripe.subscriptions.cancel(subId);
+          console.log(`[accountDeletion] Cancelled Stripe subscription ${subId} for user ${uid}`);
+        } catch (err) {
+          console.error(`[accountDeletion] Could not cancel ${subId} for ${uid}:`, err);
+          // A console line is not a record. Deletion continues either way (a
+          // GDPR erasure must not be blocked by Stripe being down), so without
+          // this the only trace of a subscription still charging a deleted
+          // account's card is a log line nobody is reading. Written before the
+          // wipe, in a collection firestore.rules has no match for — so it is
+          // server-only and survives the account it refers to.
+          await db.collection('orphanedSubscriptions').doc(subId).set({
+            subscriptionId: subId,
+            uid,
+            email: email ?? null,
+            reason: err instanceof Error ? err.message : String(err),
+            createdAt: new Date(),
+            resolved: false,
+          }).catch(() => {});
+        }
+      }
     }
   } catch (err) {
-    // Non-fatal but logged loudly — an already-cancelled/missing subscription
-    // is fine, but any other failure here needs a human to check Stripe
-    // directly since deletion is about to make it much harder to trace.
+    // Reading the user doc, or constructing the Stripe client, failed — so we
+    // never learned which subscriptions exist. Nothing to record but the fact.
     console.error(`[accountDeletion] Stripe subscription cancellation failed for ${uid}:`, err);
   }
 
   for (const collection of USER_FIELD_COLLECTIONS) {
     firestoreDocsDeleted += await deleteByQuery(db, collection, 'userId', uid);
+  }
+
+  // Channel posts (channels/{channelId}/posts) and their replies
+  // (channels/{channelId}/posts/{postId}/replies) — both userId-keyed,
+  // both publicly readable, and not reachable by a top-level collection
+  // query since they're nested under each channel. collectionGroup finds
+  // every 'posts'/'replies' subcollection regardless of which channel/post
+  // it lives under (this also matches the top-level 'posts' community feed
+  // collection, which is fine — it's already gone from the loop above by
+  // this point, so the second delete attempt is just a harmless no-op).
+  for (const groupName of ['posts', 'replies'] as const) {
+    const groupSnap = await db.collectionGroup(groupName).where('userId', '==', uid).get();
+    if (groupSnap.empty) continue;
+    const batches: Promise<unknown>[] = [];
+    let batch = db.batch();
+    let count = 0;
+    for (const doc of groupSnap.docs) {
+      batch.delete(doc.ref);
+      count++;
+      if (count % 400 === 0) {
+        batches.push(batch.commit());
+        batch = db.batch();
+      }
+    }
+    batches.push(batch.commit());
+    await Promise.all(batches);
+    firestoreDocsDeleted += groupSnap.size;
   }
 
   // conversations use adminId/userId, not a single `userId` field
@@ -109,6 +186,26 @@ export async function deleteUserCompletely(app: App, db: Firestore, uid: string)
     firestoreDocsDeleted += messagesSnap.size + 1;
   }
 
+  // Support tickets and their messages — added after the deletion list was
+  // written, so a deleted member's entire support history (their own words,
+  // their email, their screenshots' URLs) survived erasure.
+  const ticketSnap = await db.collection('supportTickets').where('userId', '==', uid).get();
+  for (const ticket of ticketSnap.docs) {
+    const messagesSnap = await ticket.ref.collection('messages').get();
+    const batch = db.batch();
+    messagesSnap.docs.forEach((m) => batch.delete(m.ref));
+    batch.delete(ticket.ref);
+    await batch.commit();
+    firestoreDocsDeleted += messagesSnap.size + 1;
+  }
+
+  // The Stripe customer reverse index (stripeCustomers/{cid} → uid) and the
+  // email-change / verification bookkeeping are server-only docs keyed by
+  // this account. None referenced the user by a `userId` field, so the
+  // generic sweeps above never found them.
+  const custSnap = await db.collection('stripeCustomers').where('uid', '==', uid).get();
+  for (const c of custSnap.docs) { await c.ref.delete(); firestoreDocsDeleted++; }
+
   for (const collection of USER_ID_DOC_COLLECTIONS) {
     const ref = db.collection(collection).doc(uid);
     const snap = await ref.get();
@@ -116,6 +213,35 @@ export async function deleteUserCompletely(app: App, db: Firestore, uid: string)
       await ref.delete();
       firestoreDocsDeleted++;
     }
+  }
+
+  // Uploads live in R2, not Firebase Storage — the deleteStorageFolder calls
+  // below only ever cleaned the latter, which nothing writes to any more.
+  for (const root of ['support', 'progressPhotos', 'prPosts', 'community']) {
+    try {
+      const n = await deleteR2Prefix(`${root}/${uid}/`);
+      if (n) console.log(`[accountDeletion] removed ${n} R2 object(s) under ${root}/${uid}/`);
+    } catch (err) {
+      console.error(`[accountDeletion] R2 cleanup failed for ${root}/${uid}/:`, err);
+    }
+  }
+
+  // Subcollections Firestore never cascade-deletes on its own, even once
+  // the parent doc is gone:
+  //  - pushSubscriptions/{uid}/devices/{deviceId} (one doc per device)
+  //  - trustedDevices/{uid}/devices/{deviceId}    (2FA "remember this device")
+  //  - users/{uid}/usage/{feature}_{date}         (daily AI/scan usage counters)
+  for (const [parent, sub] of [
+    ['pushSubscriptions', 'devices'],
+    ['trustedDevices', 'devices'],
+    ['users', 'usage'],
+  ] as const) {
+    const subSnap = await db.collection(parent).doc(uid).collection(sub).get();
+    if (subSnap.empty) continue;
+    const batch = db.batch();
+    subSnap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    firestoreDocsDeleted += subSnap.size;
   }
 
   await deleteStorageFolder(app, `users/${uid}/`);
@@ -149,6 +275,14 @@ export async function exportUserData(db: Firestore, uid: string): Promise<Record
 
   const prefsSnap = await db.collection('userPreferences').doc(uid).get();
   result.preferences = prefsSnap.exists ? prefsSnap.data() : null;
+
+  // Support conversations are the member's own words — portability has to
+  // include them, and erasure (above) has to remove them.
+  const ticketSnap = await db.collection('supportTickets').where('userId', '==', uid).get();
+  result.supportTickets = await Promise.all(ticketSnap.docs.map(async (t) => {
+    const messages = await t.ref.collection('messages').get();
+    return { id: t.id, ...t.data(), messages: messages.docs.map((m) => ({ id: m.id, ...m.data() })) };
+  }));
 
   return result;
 }

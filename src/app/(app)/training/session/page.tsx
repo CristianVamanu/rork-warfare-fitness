@@ -13,6 +13,7 @@ import { resolveProgram, getLastExercisePerformance, getMembershipConfig } from 
 import { getProgramDayForDow } from '@/lib/programs';
 import { getProgramDayLimit } from '@/lib/membership';
 import { completeWorkout } from '@/lib/actions';
+import { trackEvent } from '@/lib/analytics';
 import { WorkoutShareCard } from '@/components/workout/WorkoutShareCard';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +22,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { WeightSlider } from '@/components/workout/WeightSlider';
 import { PlateCalculatorButton } from '@/components/workout/PlateCalculator';
 import type { Exercise, Program } from '@/types';
+import { parseDistance, type DistanceUnit } from '@/lib/distance';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -55,7 +57,7 @@ interface ExState {
   cardioDurationSeconds: number;
   isDistance: boolean;
   targetDistanceValue: number;
-  targetDistanceUnit: 'mi' | 'km';
+  targetDistanceUnit: DistanceUnit;
   isHiit: boolean;
   hiitWorkSeconds: number;
   hiitRestSeconds: number;
@@ -70,16 +72,6 @@ interface ExState {
 // distance+stopwatch logging UI instead of a fixed-duration countdown.
 // Returns null for anything that isn't phrased as a distance (e.g. "20 min",
 // a plain rep count), so those keep using the existing duration timer.
-function parseDistance(reps: number | string): { value: number; unit: 'mi' | 'km' } | null {
-  const str = String(reps).toLowerCase();
-  const match = str.match(/([\d.]+)\s*(mi|mile|miles|km|kilometer|kilometers|k)\b/);
-  if (!match) return null;
-  const value = parseFloat(match[1]);
-  if (isNaN(value)) return null;
-  const unit: 'mi' | 'km' = match[2].startsWith('mi') ? 'mi' : 'km';
-  return { value, unit };
-}
-
 // ─── Defaults ───────────────────────────────────────────────────────────────
 
 const DEFAULT_EXERCISES: Exercise[] = [
@@ -120,8 +112,27 @@ function buildExState(exercises: Exercise[]): ExState[] {
     const cardio = isCardioExercise(ex);
     const distance = cardio ? parseDistance(ex.reps) : null;
     const targetReps = typeof ex.reps === 'number' ? ex.reps : parseInt(String(ex.reps)) || 8;
-    // For cardio, treat reps as minutes unless cardioDurationSeconds is explicitly set
-    const cardioDuration = ex.cardioDurationSeconds ?? (targetReps * 60);
+    // For cardio, treat reps as minutes unless cardioDurationSeconds is
+    // explicitly set — EXCEPT this assumption breaks completely for
+    // interval-style cardio (sets > 1). An AI-generated "8 sets" stationary
+    // bike workout describing 30-second sprints has no way to say that
+    // through this field other than reps=30, but "minutes" x 8 sets is 4
+    // hours — physically impossible for a single exercise entry, and
+    // exactly the bug reported live (an AI scan-and-go workout showing
+    // "8 sets of 30 minutes" for bike intervals). If treating reps as
+    // MINUTES would make this one exercise's total working time exceed a
+    // generous 45-minute ceiling, reps almost certainly meant SECONDS
+    // instead — reinterpret it that way rather than trusting the minutes
+    // assumption into an impossible result. Single-set steady-state cardio
+    // (a 45-minute walk, sets=1) is unaffected: it can't cross this
+    // threshold from one set alone unless it's already implausible anyway.
+    const rawMinutesGuess = targetReps * 60;
+    const MAX_PLAUSIBLE_TOTAL_SECONDS = 45 * 60;
+    const cardioDuration = ex.cardioDurationSeconds ?? (
+      ex.sets > 1 && rawMinutesGuess * ex.sets > MAX_PLAUSIBLE_TOTAL_SECONDS
+        ? targetReps
+        : rawMinutesGuess
+    );
     const sets: SetState[] = Array.from({ length: ex.sets }, (_, i) => ({
       weight: 0,
       reps: targetReps,
@@ -171,7 +182,7 @@ function RestPill({ seconds, total, onSkip, onExtend }: RestPillProps) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 80, scale: 0.9 }}
       transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-      className="fixed bottom-24 left-4 right-4 z-50 max-w-lg mx-auto"
+      className="fixed bottom-24 left-4 right-4 z-50 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto"
     >
       <div className="bg-surface-elevated border border-white/12 rounded-2xl p-4 shadow-xl">
         <div className="flex items-center gap-4">
@@ -269,21 +280,34 @@ function CardioTimerRow({
   const label = mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}s`;
   const circumference = 2 * Math.PI * 22;
 
+  // Anchored to wall-clock time rather than counting interval ticks.
+  // Mobile browsers throttle background timers hard (~1/min), so a
+  // tick-counter loses almost all elapsed time whenever the user pockets
+  // their phone mid-exercise — the timer would simply stop advancing and
+  // never expire. Deriving from real timestamps means backgrounding has no
+  // effect on the result; the interval below only exists to repaint.
+  const anchorRef = useRef<{ startedAt: number; base: number } | null>(null);
+
   function toggle() {
     if (running) {
       clearInterval(tickRef.current);
+      anchorRef.current = null;
       setRunning(false);
     } else {
+      anchorRef.current = { startedAt: Date.now(), base: elapsed };
       setRunning(true);
       tickRef.current = setInterval(() => {
-        setElapsed((prev) => {
-          if (prev + 1 >= durationSeconds) {
-            clearInterval(tickRef.current);
-            setRunning(false);
-            return durationSeconds;
-          }
-          return prev + 1;
-        });
+        const anchor = anchorRef.current;
+        if (!anchor) return;
+        const next = anchor.base + Math.floor((Date.now() - anchor.startedAt) / 1000);
+        if (next >= durationSeconds) {
+          clearInterval(tickRef.current);
+          anchorRef.current = null;
+          setRunning(false);
+          setElapsed(durationSeconds);
+        } else {
+          setElapsed(next);
+        }
       }, 1000);
     }
   }
@@ -461,7 +485,7 @@ function formatPace(totalSeconds: number, distance: number): string {
 interface DistanceLogRowProps {
   setNum: number;
   targetDistanceValue: number;
-  targetDistanceUnit: 'mi' | 'km';
+  targetDistanceUnit: DistanceUnit;
   isActive: boolean;
   isPending: boolean;
   isCompleted: boolean;
@@ -486,21 +510,46 @@ function DistanceLogRow({
     return () => clearInterval(tickRef.current);
   }, []);
 
+  // Wall-clock anchored — see the cardio timer above for the full
+  // rationale. This one matters most: `elapsed` here is passed straight to
+  // onComplete and SAVED, so a tick-counter didn't just look wrong, it
+  // wrote a permanently wrong duration (and therefore pace) into the
+  // user's history. A 50-minute ruck with the phone pocketed recorded as
+  // roughly a minute.
+  const anchorRef = useRef<{ startedAt: number; base: number } | null>(null);
+
+  function currentElapsed() {
+    const anchor = anchorRef.current;
+    return anchor
+      ? anchor.base + Math.floor((Date.now() - anchor.startedAt) / 1000)
+      : elapsed;
+  }
+
   function toggle() {
     if (running) {
+      const settled = currentElapsed();
       clearInterval(tickRef.current);
+      anchorRef.current = null;
+      setElapsed(settled);
       setRunning(false);
     } else {
+      anchorRef.current = { startedAt: Date.now(), base: elapsed };
       setRunning(true);
-      tickRef.current = setInterval(() => setElapsed((prev) => prev + 1), 1000);
+      tickRef.current = setInterval(() => setElapsed(currentElapsed()), 1000);
     }
   }
 
   function handleComplete() {
+    // Read straight from the anchor rather than from `elapsed` state — if
+    // the tab was backgrounded, the last interval tick may be far behind
+    // real time, and this value is what gets persisted.
+    const finalElapsed = currentElapsed();
     clearInterval(tickRef.current);
+    anchorRef.current = null;
+    setElapsed(finalElapsed);
     setRunning(false);
     const distance = parseFloat(distanceInput) || targetDistanceValue;
-    onComplete(distance, elapsed);
+    onComplete(distance, finalElapsed);
   }
 
   if (isCompleted || isSkipped) {
@@ -547,8 +596,6 @@ function DistanceLogRow({
     );
   }
 
-  const currentPace = formatPace(elapsed, parseFloat(distanceInput) || targetDistanceValue);
-
   return (
     <motion.div
       layout
@@ -583,7 +630,15 @@ function DistanceLogRow({
             {formatClock(elapsed)}
           </motion.p>
           <p className="text-xs text-text-tertiary mt-1">
-            {running ? `Running… ${currentPace}/${targetDistanceUnit} pace` : elapsed > 0 ? 'Paused' : 'Tap ▶ to start your stopwatch'}
+            {/* No live pace here — without real distance tracking (GPS)
+                mid-run, the only "pace" available while running would be
+                elapsed time divided by the TARGET distance, which assumes
+                you've already covered the whole thing at every instant.
+                That's meaningless, not an estimate — showing nothing is
+                more honest than showing a fake number. Real pace is
+                calculated once, after the run, from the actual distance
+                logged below (see the completed-state pace display above). */}
+            {running ? 'Running…' : elapsed > 0 ? 'Paused' : 'Tap ▶ to start your stopwatch'}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -1091,6 +1146,7 @@ function ExerciseInfoButton({ videoUrl, tip, name }: { videoUrl?: string; tip?: 
               autoPlay
               playsInline
               preload="auto"
+              crossOrigin="anonymous"
               className="w-full h-full object-cover"
             />
           )
@@ -1112,6 +1168,7 @@ function ExerciseInfoButton({ videoUrl, tip, name }: { videoUrl?: string; tip?: 
                 loop
                 autoPlay
                 playsInline
+                crossOrigin="anonymous"
                 className="w-full rounded-2xl bg-black"
               />
             )}
@@ -1146,6 +1203,37 @@ export default function WorkoutSessionPage() {
   );
 }
 
+
+// ── Workout draft persistence ─────────────────────────────────────────────
+//
+// The in-progress draft (every set logged so far, current exercise, start
+// time) used to live in sessionStorage only. sessionStorage is per-tab AND is
+// discarded when iOS reclaims a backgrounded PWA — which it does routinely
+// mid-workout: a phone call, switching to music, the screen sleeping between
+// sets for a few minutes. Nothing reaches Firestore until "Complete Workout",
+// so a 40-minute session could vanish with no error and no trace. That is the
+// one failure a training app cannot have.
+//
+// localStorage survives the app being killed. It is also shared across tabs,
+// which is what we want here (one draft per program-day, not per tab). The
+// existing 4-hour staleness rule on restore still applies, so an abandoned
+// draft cannot resurface days later. sessionStorage is kept as a fallback for
+// the rare environment that blocks localStorage.
+const draftStore = {
+  get(key: string): string | null {
+    try { const v = localStorage.getItem(key); if (v !== null) return v; } catch { /* blocked */ }
+    try { return sessionStorage.getItem(key); } catch { return null; }
+  },
+  set(key: string, value: string) {
+    try { localStorage.setItem(key, value); return; } catch { /* quota/blocked — fall through */ }
+    try { sessionStorage.setItem(key, value); } catch { /* ignore */ }
+  },
+  remove(key: string) {
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
+    try { sessionStorage.removeItem(key); } catch { /* ignore */ }
+  },
+};
+
 function WorkoutSessionPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1169,10 +1257,10 @@ function WorkoutSessionPageInner() {
   const [dayLimit, setDayLimit] = useState(Infinity);
   useEffect(() => {
     getMembershipConfig()
-      .then((cfg) => setDayLimit(getProgramDayLimit(cfg, profile)))
+      .then((cfg) => setDayLimit(getProgramDayLimit(cfg, profile, programId ?? undefined)))
       .catch(() => setDayLimit(Infinity));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.membership?.status]);
+  }, [profile?.membership?.status, profile?.coaching?.status, profile?.purchasedProgramIds, programId]);
   const lastCompletedDayIndex = profile?.activeProgram?.lastCompletedDayIndex;
   // Never locks a repeat of a day already completed — only new progress
   // past the trial's day limit is gated.
@@ -1187,13 +1275,38 @@ function WorkoutSessionPageInner() {
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
   const [restTotal, setRestTotal] = useState(90);
   const restRef = useRef<NodeJS.Timeout>();
+  // Was previously stashed on `window.__advanceTimer` — a global, not
+  // component-scoped, and never cleared on unmount or on quitting mid-rest.
+  // A component-scoped ref cleaned up on unmount closes that leak.
+  const advanceTimerRef = useRef<NodeJS.Timeout>();
 
   // Modals
   const [quitModal, setQuitModal] = useState(false);
   const [completeModal, setCompleteModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [startTime] = useState(Date.now());
+  // Seeded from sessionStorage when resuming an interrupted session (tab
+  // closed/reloaded) so the logged duration still reflects when the workout
+  // actually started, not when the page happened to reload — otherwise
+  // completeWorkout() would silently undercount the real elapsed time.
+  const [startTime] = useState(() => {
+    try {
+      const saved = draftStore.get(sessionKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as { startTime?: number; lastActiveAt?: number };
+        // A tab can sit open for hours/days without being closed — sessionStorage
+        // survives that, but the cached startTime no longer reflects a real
+        // in-progress workout at that point. Discard it (and log a fresh start)
+        // if the session hasn't been touched in over 4 hours, otherwise a
+        // resumed-after-days session could log a multi-hour "duration" and
+        // award XP for it (calcWorkoutXP has no cap of its own).
+        const STALE_MS = 4 * 60 * 60 * 1000;
+        const isStale = typeof parsed.lastActiveAt === 'number' && Date.now() - parsed.lastActiveAt > STALE_MS;
+        if (typeof parsed.startTime === 'number' && !isStale) return parsed.startTime;
+      }
+    } catch { /* ignore */ }
+    return Date.now();
+  });
   const [workoutResult, setWorkoutResult] = useState<{
     duration: number; xpEarned: number; newPowerLevel: number; newAchievements: string[]; newQuests: string[];
   } | null>(null);
@@ -1211,7 +1324,7 @@ function WorkoutSessionPageInner() {
     // it lands, without disturbing anything the user already logged.
     let restoredFromCache = false;
     try {
-      const saved = sessionStorage.getItem(sessionKey);
+      const saved = draftStore.get(sessionKey);
       if (saved) {
         const { states, exIdx } = JSON.parse(saved) as { states: ExState[]; exIdx: number };
         if (states?.length) {
@@ -1219,6 +1332,7 @@ function WorkoutSessionPageInner() {
           setCurrentExIdx(exIdx ?? 0);
           setLoadingProgram(false);
           restoredFromCache = true;
+          trackEvent('WorkoutDraftRestored', { programId: programId ?? 'free', dow });
         }
       }
     } catch { /* ignore */ }
@@ -1227,11 +1341,25 @@ function WorkoutSessionPageInner() {
       let exercises: Exercise[] = DEFAULT_EXERCISES;
 
       if (isScanGo) {
+        let scanGoExercises: Exercise[] | null = null;
         try {
           const raw = sessionStorage.getItem('scan_go_exercises');
           const parsed = raw ? JSON.parse(raw) as Exercise[] : null;
-          if (parsed && parsed.length > 0) exercises = parsed;
-        } catch { /* falls back to DEFAULT_EXERCISES */ }
+          if (parsed && parsed.length > 0) scanGoExercises = parsed;
+        } catch { /* handled below like a missing result */ }
+
+        // Falling back to DEFAULT_EXERCISES here would silently hand
+        // someone a generic workout with no equipment match at all under
+        // the "Scan & Go" banner — worse than just telling them to rescan,
+        // since it looks like a real result. sessionStorage is per-tab, so
+        // this is reachable by opening the URL directly, in a new tab, or
+        // after it's been cleared.
+        if (!scanGoExercises) {
+          toast.error('Your scan result is gone — scan again to get a fresh workout.');
+          router.replace('/training/scan-go');
+          return;
+        }
+        exercises = scanGoExercises;
       } else if (programId) {
         // Shared resolver (Firestore-first, seed fallback) — the same one
         // every other program-rendering screen uses, so this session can
@@ -1248,6 +1376,15 @@ function WorkoutSessionPageInner() {
           } else {
             exercises = merged.exercises.length > 0 ? merged.exercises as Exercise[] : DEFAULT_EXERCISES;
           }
+        } else {
+          // Same reasoning as the scan-go branch above: silently substituting
+          // DEFAULT_EXERCISES here used to hand someone whose enrolled
+          // program was deleted a generic squat/RDL/leg-press workout with
+          // no connection to what they signed up for, and its results would
+          // still get saved tagged to a programId that no longer exists.
+          toast.error('This program is no longer available.');
+          router.replace('/training');
+          return;
         }
       }
 
@@ -1312,14 +1449,71 @@ function WorkoutSessionPageInner() {
     })();
   }, [user, exStates, weightUnit]);
 
-  // ── Persist session to sessionStorage ───────────────────────────────────
+  const startedTrackedRef = useRef(false);
+  useEffect(() => {
+    if (exStates.length === 0 || startedTrackedRef.current) return;
+    startedTrackedRef.current = true;
+    trackEvent('WorkoutStarted', { programId: programId ?? 'free', dow, exercises: exStates.length });
+  }, [exStates.length, programId, dow]);
+
+  // ── Persist draft (see draftStore above) ─────────────────────────────────
 
   useEffect(() => {
     if (exStates.length === 0) return;
     try {
-      sessionStorage.setItem(sessionKey, JSON.stringify({ states: exStates, exIdx: currentExIdx }));
+      draftStore.set(sessionKey, JSON.stringify({ states: exStates, exIdx: currentExIdx, startTime, lastActiveAt: Date.now() }));
     } catch { /* quota exceeded — ignore */ }
-  }, [exStates, currentExIdx, sessionKey]);
+  }, [exStates, currentExIdx, sessionKey, startTime]);
+
+  // ── Keep the screen on, and don't let a thumb-slip end the session ──────
+  //
+  // Between sets the phone sits on a bench and the screen sleeps; every
+  // re-wake is another chance for iOS to have reclaimed the PWA. The Screen
+  // Wake Lock API holds the display on while a session is active, and is
+  // re-requested on visibilitychange because the browser releases the lock
+  // whenever the tab is hidden. Unsupported browsers (Safari < 16.4) just
+  // skip it. Separately, the browser back button — and on Android the system
+  // back gesture — used to leave the session silently; a history guard turns
+  // that into the same quit-confirm the on-screen button gets.
+  const hasLoggedSets = exStates.some((ex) => ex.sets.some((st) => st.status === 'completed'));
+  useEffect(() => {
+    if (exStates.length === 0 || saved) return;
+    let lock: { release: () => Promise<void> } | null = null;
+    let released = false;
+    const acquire = async () => {
+      try {
+        if (document.visibilityState !== 'visible' || released) return;
+        const nav = navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } };
+        lock = (await nav.wakeLock?.request('screen')) ?? null;
+      } catch { lock = null; }
+    };
+    acquire();
+    document.addEventListener('visibilitychange', acquire);
+    return () => {
+      released = true;
+      document.removeEventListener('visibilitychange', acquire);
+      lock?.release().catch(() => {});
+    };
+  }, [exStates.length, saved]);
+
+  useEffect(() => {
+    if (!hasLoggedSets || saved) return;
+    // Push a sentinel entry so the first "back" lands on it instead of leaving.
+    history.pushState({ workoutGuard: true }, '');
+    const onPop = () => {
+      // Re-arm, then ask. Quitting from the modal uses router.replace, which
+      // does not trip this handler again.
+      history.pushState({ workoutGuard: true }, '');
+      setQuitModal(true);
+    };
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [hasLoggedSets, saved]);
 
   // ── Rest timer tick ─────────────────────────────────────────────────────
 
@@ -1332,18 +1526,24 @@ function WorkoutSessionPageInner() {
     clearInterval(restRef.current);
     setRestTotal(seconds);
     setRestSeconds(seconds);
+    // Countdown derived from a wall-clock deadline rather than by
+    // decrementing once per interval tick. A background tab throttles those
+    // ticks to roughly one a minute, so a 3-minute rest could sit there
+    // effectively frozen — the user comes back to a timer that never
+    // expired and has no idea how long they actually rested.
+    const endsAt = Date.now() + seconds * 1000;
     restRef.current = setInterval(() => {
-      setRestSeconds((prev) => {
-        if (prev === null || prev <= 1) {
-          clearInterval(restRef.current);
-          return null;
-        }
-        return prev - 1;
-      });
+      const remaining = Math.ceil((endsAt - Date.now()) / 1000);
+      if (remaining <= 0) {
+        clearInterval(restRef.current);
+        setRestSeconds(null);
+      } else {
+        setRestSeconds(remaining);
+      }
     }, 1000);
   }, []);
 
-  useEffect(() => () => clearInterval(restRef.current), []);
+  useEffect(() => () => { clearInterval(restRef.current); clearTimeout(advanceTimerRef.current); }, []);
 
   // ── Derived state ───────────────────────────────────────────────────────
 
@@ -1391,8 +1591,22 @@ function WorkoutSessionPageInner() {
     [],
   );
 
+  // completeSet's "is the exercise/workout done" branch reads exStates from
+  // the render closure rather than the just-computed next state — a very
+  // fast double-tap on the same set (before React re-renders) could
+  // otherwise invoke this twice against the same stale exStates, running
+  // the advance/rest/complete-modal branch twice in one tick. Guarding on
+  // the exact (exIdx, setIdx) pair (not a single shared flag) so a
+  // legitimate rapid tap on a genuinely different set right after isn't
+  // blocked by this.
+  const completingSetRef = useRef<string | null>(null);
   const completeSet = useCallback(
     (exIdx: number, setIdx: number) => {
+      const key = `${exIdx}:${setIdx}`;
+      if (completingSetRef.current === key) return;
+      completingSetRef.current = key;
+      setTimeout(() => { if (completingSetRef.current === key) completingSetRef.current = null; }, 500);
+
       stopRest();
 
       setExStates((prev) => {
@@ -1433,7 +1647,10 @@ function WorkoutSessionPageInner() {
       if (allDone) {
         const isLastEx = exIdx === exStates.length - 1;
         if (ex.isCardio) {
-          // Cardio: no rest timer, short delay then continue
+          // Finished the whole exercise (last rep done) — no rest screen
+          // before moving on to a DIFFERENT exercise. Rest BETWEEN reps of
+          // this same exercise is handled separately below and no longer
+          // shares this condition (see comment there).
           setTimeout(() => {
             if (isLastEx) {
               setCompleteModal(true);
@@ -1449,11 +1666,17 @@ function WorkoutSessionPageInner() {
           }, 1200);
         } else {
           startRest(ex.restSeconds);
-          const advanceTimer = setTimeout(advanceToNext, ex.restSeconds * 1000);
-          (window as Window & { __advanceTimer?: NodeJS.Timeout }).__advanceTimer = advanceTimer;
+          advanceTimerRef.current = setTimeout(advanceToNext, ex.restSeconds * 1000);
         }
-      } else if (!ex.isCardio) {
-        // Non-cardio: start rest between sets
+      } else if (!ex.isHiit) {
+        // Rest between reps/sets of the same exercise — this covers plain
+        // strength sets AND multi-rep cardio (interval repeats like "8x400m"
+        // or "5x2min bike"). Only HIIT is excluded: its work/rest rounds are
+        // handled internally by HiitTimerRow, so a separate rest screen here
+        // would double up. This used to key off `!ex.isCardio`, which also
+        // caught isDistance exercises (they're isCardio too) — meaning every
+        // distance interval ran back-to-back with zero rest between reps,
+        // defeating the entire point of interval training.
         startRest(ex.restSeconds);
       }
     },
@@ -1462,7 +1685,7 @@ function WorkoutSessionPageInner() {
 
   const skipRest = useCallback(() => {
     stopRest();
-    clearTimeout((window as Window & { __advanceTimer?: NodeJS.Timeout }).__advanceTimer);
+    clearTimeout(advanceTimerRef.current);
     // If all sets in current exercise done, advance to next
     if (currentEx) {
       const allDone = currentEx.sets.every((s) =>
@@ -1486,7 +1709,7 @@ function WorkoutSessionPageInner() {
   const skipSet = useCallback(
     (exIdx: number, setIdx: number) => {
       stopRest();
-      clearTimeout((window as Window & { __advanceTimer?: NodeJS.Timeout }).__advanceTimer);
+      clearTimeout(advanceTimerRef.current);
 
       setExStates((prev) => {
         const next = [...prev];
@@ -1542,9 +1765,16 @@ function WorkoutSessionPageInner() {
 
   const saveWorkout = async () => {
     if (!user) return;
+    // The button only disables after React re-renders; a second tap in that
+    // gap ran completeWorkout twice — two WORKOUT_COMPLETED events, double
+    // XP, and a streak bump for a workout that happened once.
+    if (saving) return;
     setSaving(true);
     try {
-      const duration = Math.round((Date.now() - startTime) / 60000) || 1;
+      // Hard cap as defense in depth on top of the staleness check above —
+      // no legitimate single workout runs past 5 hours, and calcWorkoutXP
+      // scales linearly off this with no cap of its own.
+      const duration = Math.min(Math.round((Date.now() - startTime) / 60000) || 1, 300);
       const logs = exStates.map((ex) => ({
         name: ex.name,
         sets: ex.sets.map((s) => ({
@@ -1558,8 +1788,9 @@ function WorkoutSessionPageInner() {
           } : {}),
         })),
       }));
-      const result = await completeWorkout(user.uid, logs, duration, programId, dow ?? undefined);
-      sessionStorage.removeItem(sessionKey);
+      const result = await completeWorkout(user.uid, logs, duration, programId, dow ?? undefined, weightUnit === 'lbs' ? 'lbs' : 'kg');
+      draftStore.remove(sessionKey);
+      trackEvent('WorkoutCompleted', { programId: programId ?? 'free', dow, duration, sets: logs.reduce((n, l) => n + l.sets.filter((x) => x.completed).length, 0) });
       setSaved(true);
       setWorkoutResult({ duration, ...result });
     } catch (err: unknown) {
@@ -1573,7 +1804,7 @@ function WorkoutSessionPageInner() {
 
   if (isLockedByTrial) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
         <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-4">
           <Lock className="w-8 h-8 text-accent" />
         </div>
@@ -1593,7 +1824,7 @@ function WorkoutSessionPageInner() {
 
   if (loadingProgram) {
     return (
-      <div className="min-h-screen bg-background flex flex-col px-4 py-8 gap-4 items-center justify-center">
+      <div className="min-h-screen flex flex-col px-4 py-8 gap-4 items-center justify-center">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
@@ -1608,10 +1839,17 @@ function WorkoutSessionPageInner() {
   if (!currentEx) return null;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    // No opaque bg-background fill on the root — that was painting flat
+    // solid black straight over AppLayout's fixed AppBackground grid
+    // texture, which is only ever visible through content that leaves it
+    // transparent. Matches the community channel page's own fix for the
+    // exact same look — root + header both transparent, only the fixed
+    // bottom bar stays translucent (bg-background/95) since it needs to
+    // stay legible over changing content scrolling behind it.
+    <div className="min-h-screen flex flex-col">
       {/* ── Sticky header ─────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-30 bg-background/90 backdrop-blur-xl border-b border-white/8">
-        <div className="px-4 py-3 max-w-lg mx-auto">
+      <div className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/8">
+        <div className="px-4 py-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-2">
             <button
               onClick={() => setQuitModal(true)}
@@ -1651,7 +1889,7 @@ function WorkoutSessionPageInner() {
 
       {/* ── Body ──────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto pb-40">
-        <div className="px-4 py-4 max-w-lg mx-auto space-y-3">
+        <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-3">
           {/* Exercise title card */}
           <AnimatePresence mode="wait">
             <motion.div
@@ -1762,7 +2000,7 @@ function WorkoutSessionPageInner() {
 
       {/* ── Finish Workout button (shown when all sets done) ─────────── */}
       {allExercisesDone && !completeModal && (
-        <div className="fixed bottom-20 left-4 right-4 z-50 max-w-lg mx-auto">
+        <div className="fixed bottom-20 left-4 right-4 z-50 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <Button fullWidth size="lg" onClick={() => setCompleteModal(true)}>
               <CheckCircle className="w-5 h-5" /> Finish Workout
@@ -1773,7 +2011,7 @@ function WorkoutSessionPageInner() {
 
       {/* ── Exercise nav ──────────────────────────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-xl border-t border-white/8 pb-safe">
-        <div className="px-4 py-3 max-w-lg mx-auto flex items-center gap-3">
+        <div className="px-4 py-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
@@ -1824,7 +2062,14 @@ function WorkoutSessionPageInner() {
             seconds={restSeconds}
             total={restTotal}
             onSkip={skipRest}
-            onExtend={() => setRestSeconds((s) => (s ?? 0) + 30)}
+            onExtend={() => {
+              // restTotal drives the progress ring's percentage — extending
+              // seconds without it made the ring math wrong the moment "+30s"
+              // was tapped (percentage computed against a total that no
+              // longer matched the actual remaining/elapsed time).
+              setRestSeconds((s) => (s ?? 0) + 30);
+              setRestTotal((t) => t + 30);
+            }}
           />
         )}
       </AnimatePresence>
@@ -1840,7 +2085,7 @@ function WorkoutSessionPageInner() {
           </div>
           <div className="flex gap-3">
             <Button variant="ghost" fullWidth onClick={() => setQuitModal(false)}>Continue</Button>
-            <Button variant="danger" fullWidth onClick={() => { sessionStorage.removeItem(sessionKey); router.replace('/training'); }}>Quit</Button>
+            <Button variant="danger" fullWidth onClick={() => { draftStore.remove(sessionKey); trackEvent('WorkoutAbandoned', { programId: programId ?? 'free', dow }); router.replace('/training'); }}>Quit</Button>
           </div>
         </div>
       </Modal>
@@ -1877,7 +2122,7 @@ function WorkoutSessionPageInner() {
             <Button fullWidth size="lg" loading={saving} onClick={saveWorkout}>
               Save Workout
             </Button>
-            <Button variant="ghost" fullWidth onClick={() => router.replace('/dashboard')}>
+            <Button variant="ghost" fullWidth onClick={() => { draftStore.remove(sessionKey); router.replace('/dashboard'); }}>
               Skip Save
             </Button>
           </div>

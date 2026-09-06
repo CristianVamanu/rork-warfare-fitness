@@ -1,24 +1,25 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown, Megaphone } from 'lucide-react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/lib/firebase';
 import { compressImage } from '@/lib/imageCompress';
+import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  getChannels, getChannelPosts, createChannelPost, deleteChannelPost,
+  getChannels, subscribeChannelPosts, createChannelPost, deleteChannelPost,
   likeChannelPost, getPostReplies, createReply, getUserLastPostInChannel,
-  pinChannelPost, unpinChannelPost,
+  pinChannelPost, unpinChannelPost, getSystemConfig, channelScopeFor,
 } from '@/lib/firestore';
 import { Avatar } from '@/components/ui/Avatar';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import type { Channel, ChannelPost } from '@/types';
 
 function toDate(ts: unknown): Date | null {
@@ -52,9 +53,43 @@ function fullTimestamp(ts: unknown): string | undefined {
   return d?.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+/**
+ * One reply. Rendered at two indent levels — a nested reply is visually
+ * quieter (smaller avatar, no card fill) so the eye reads the thread as
+ * "answer to the thing above" rather than another top-level comment.
+ */
+function ReplyRow({ reply, nested = false, onReply }: {
+  reply: ChannelPost;
+  nested?: boolean;
+  onReply: () => void;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <Avatar name={reply.userDisplayName} src={reply.userPhotoURL} size="sm" />
+      <div className="flex-1 min-w-0">
+        <div className={nested ? 'rounded-xl px-3 py-2 bg-white/[0.03]' : 'rounded-xl px-3 py-2 bg-surface-elevated'}>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-xs font-bold text-white">{reply.userDisplayName}</p>
+            {reply.userIsAdmin && <Badge variant="danger">Admin</Badge>}
+            <span className="text-xs text-text-tertiary" title={fullTimestamp(reply.createdAt)}>{timeAgo(reply.createdAt)}</span>
+          </div>
+          <p className="text-sm text-white mt-0.5 whitespace-pre-wrap break-words">{reply.content}</p>
+        </div>
+        <button
+          onClick={onReply}
+          className="mt-1 ml-1 text-[11px] font-medium text-text-tertiary hover:text-accent transition-colors"
+        >
+          Reply
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PostCard({
   post, userId, isAdmin, channelId, pinnedPostId,
   onLike, onReply, onDelete, onPin,
+  replyRefreshToken,
 }: {
   post: ChannelPost;
   userId: string;
@@ -62,7 +97,8 @@ function PostCard({
   channelId: string;
   pinnedPostId?: string;
   onLike: (post: ChannelPost) => void;
-  onReply: (post: ChannelPost) => void;
+  onReply: (post: ChannelPost, parentReply?: ChannelPost) => void;
+  replyRefreshToken: number;
   onDelete: (post: ChannelPost) => void;
   onPin: (post: ChannelPost, pin: boolean) => void;
 }) {
@@ -74,23 +110,62 @@ function PostCard({
   const canDelete = isAdmin || post.userId === userId;
   const isPinned = pinnedPostId === post.id;
 
+  // Fetch on every open, never cached across opens.
+  //
+  // This used to be guarded by `replies.length === 0 && post.replyCount > 0`,
+  // which broke threads two different ways. Once a thread had been opened
+  // the array was non-empty, so reopening it skipped the fetch entirely and
+  // any reply added since stayed invisible — reported as "you can only see
+  // the first reply". And replyCount is bumped best-effort (rules only allow
+  // updating a post you own, so replying to someone else's post silently
+  // leaves the counter behind), so a thread whose counter said 0 never
+  // loaded at all even though replies existed. Neither value is trustworthy;
+  // the subcollection is.
+  const loadReplies = useCallback(async () => {
+    setLoadingReplies(true);
+    try { setReplies(await getPostReplies(channelId, post.id)); }
+    catch { /* leave whatever we had */ }
+    finally { setLoadingReplies(false); }
+  }, [channelId, post.id]);
+
   const handleShowReplies = async () => {
     if (showReplies) { setShowReplies(false); return; }
     setShowReplies(true);
-    if (replies.length === 0 && post.replyCount > 0) {
-      setLoadingReplies(true);
-      try { setReplies(await getPostReplies(channelId, post.id)); }
-      catch { /* noop */ }
-      finally { setLoadingReplies(false); }
-    }
+    await loadReplies();
   };
+
+  // The parent bumps this after a reply is posted anywhere in this thread.
+  useEffect(() => {
+    if (replyRefreshToken > 0) { setShowReplies(true); loadReplies(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replyRefreshToken]);
+
+  // Two visible levels, Facebook-style: top-level replies, each with its own
+  // children. A reply to a child is stored against that child's parent (see
+  // handleReply), so the tree can never grow a third indent level and run
+  // off the side of a phone.
+  const topLevel = replies.filter((r) => !r.parentReplyId);
+  const childrenOf = (id: string) => replies.filter((r) => r.parentReplyId === id);
+  // Anything whose parent is missing (deleted, or written before threading
+  // existed) is shown at the top level rather than vanishing.
+  const orphans = replies.filter((r) => r.parentReplyId && !replies.some((x) => x.id === r.parentReplyId));
+  const roots = [...topLevel, ...orphans].sort((a, b) => {
+    const ta = (a.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+    const tb = (b.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+    return ta - tb;
+  });
+  // Prefer the real count once loaded — replyCount drifts (see above).
+  const shownCount = replies.length > 0 ? replies.length : post.replyCount;
 
   return (
     <Card className={`p-4 ${isPinned ? 'border border-accent/40 bg-accent/5' : ''}`}>
       <div className="flex items-start gap-3 mb-3">
         <Avatar name={post.userDisplayName} src={post.userPhotoURL} size="md" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-white">{post.userDisplayName}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-bold text-white">{post.userDisplayName}</p>
+            {post.userIsAdmin && <Badge variant="danger">Admin</Badge>}
+          </div>
           <p className="text-xs text-text-tertiary" title={fullTimestamp(post.createdAt)}>{timeAgo(post.createdAt)}</p>
         </div>
         <div className="flex items-center gap-1">
@@ -148,7 +223,7 @@ function PostCard({
           className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-white transition-colors"
         >
           <MessageCircle className="w-4 h-4" />
-          {post.replyCount} {post.replyCount === 1 ? 'reply' : 'replies'}
+          {shownCount} {shownCount === 1 ? 'reply' : 'replies'}
         </button>
         <button
           onClick={() => onReply(post)}
@@ -158,23 +233,40 @@ function PostCard({
         </button>
       </div>
       {showReplies && (
-        <div className="mt-3 pt-3 border-t border-white/8 space-y-3 pl-4">
-          {loadingReplies ? (
+        <div className="mt-3 pt-3 border-t border-white/8">
+          {loadingReplies && replies.length === 0 ? (
             <Skeleton className="h-12 rounded-xl" />
-          ) : replies.length === 0 ? (
+          ) : roots.length === 0 ? (
             <p className="text-xs text-text-tertiary">No replies yet.</p>
-          ) : replies.map((r) => (
-            <div key={r.id} className="flex items-start gap-2">
-              <Avatar name={r.userDisplayName} src={r.userPhotoURL} size="sm" />
-              <div className="flex-1 bg-surface-elevated rounded-xl px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-bold text-white">{r.userDisplayName}</p>
-                  <span className="text-xs text-text-tertiary" title={fullTimestamp(r.createdAt)}>{timeAgo(r.createdAt)}</span>
-                </div>
-                <p className="text-sm text-white mt-0.5">{r.content}</p>
-              </div>
+          ) : (
+            <div className="space-y-3">
+              {roots.map((r) => {
+                const kids = childrenOf(r.id);
+                return (
+                  <div key={r.id} className="relative">
+                    <ReplyRow reply={r} onReply={() => onReply(post, r)} />
+                    {kids.length > 0 && (
+                      /* Facebook-style thread rail: one vertical line down the
+                         left of the nested group, with a short elbow into each
+                         child, so it reads as "these answer that" instead of a
+                         flat list where everything looks like a sibling. */
+                      <div className="relative mt-2 pl-5">
+                        <span aria-hidden="true" className="absolute left-[13px] top-0 bottom-3 w-px bg-white/12" />
+                        <div className="space-y-2">
+                          {kids.map((c) => (
+                            <div key={c.id} className="relative pl-4">
+                              <span aria-hidden="true" className="absolute left-[-7px] top-4 w-[15px] h-px bg-white/12" />
+                              <ReplyRow reply={c} nested onReply={() => onReply(post, r)} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          )}
         </div>
       )}
     </Card>
@@ -189,14 +281,24 @@ export default function ChannelPage() {
   const isAdmin = profile?.role === 'admin' || profile?.role === 'trainer';
 
   const [channel, setChannel] = useState<Channel | null>(null);
+  const [channelLoaded, setChannelLoaded] = useState(false);
   const [posts, setPosts] = useState<ChannelPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [postsLoaded, setPostsLoaded] = useState(false);
+  const loading = !channelLoaded || !postsLoaded;
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [pendingImageURL, setPendingImageURL] = useState<string | null>(null);
   const [slowModeBlocked, setSlowModeBlocked] = useState<Date | null>(null);
-  const [replyTarget, setReplyTarget] = useState<ChannelPost | null>(null);
+  // The post the reply belongs to, plus (optionally) the reply being answered.
+  // Threading is capped at two levels: answering a nested reply targets its
+  // parent, so `parent` is always a TOP-LEVEL reply or undefined.
+  const [replyTarget, setReplyTarget] = useState<{ post: ChannelPost; parent?: ChannelPost } | null>(null);
+  // Bumped per POST after a successful reply so only the affected thread
+  // reloads. A single shared counter would re-run every mounted PostCard's
+  // refresh effect, which also force-expands them — replying to one post
+  // would have popped open every other thread on the page.
+  const [replyRefreshTokens, setReplyRefreshTokens] = useState<Record<string, number>>({});
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -210,19 +312,34 @@ export default function ChannelPage() {
 
   useEffect(() => {
     if (!channelId) return;
+    setChannelLoaded(false);
+    setPostsLoaded(false);
     Promise.all([
-      getChannels(trainerId ?? undefined),
-      getChannelPosts(channelId),
+      getChannels(channelScopeFor(profile?.role, trainerId, user?.uid)),
       user ? getUserLastPostInChannel(channelId, user.uid) : Promise.resolve(null),
-    ]).then(([chs, ps, lastPost]) => {
+    ]).then(([chs, lastPost]) => {
       const ch = chs.find(c => c.id === channelId) ?? null;
       setChannel(ch);
-      setPosts(ps);
       if (ch && ch.slowModeDays > 0 && lastPost) {
         const unlocksAt = new Date(lastPost.getTime() + ch.slowModeDays * 86400000);
         if (unlocksAt > new Date()) setSlowModeBlocked(unlocksAt);
       }
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => setChannel(null))
+      .finally(() => setChannelLoaded(true));
+
+    // Live listener (not a one-shot fetch) — otherwise a user sitting in a
+    // channel never sees a message someone else posts until they navigate
+    // away and back.
+    let firstSnapshot = true;
+    const unsub = subscribeChannelPosts(
+      channelId,
+      (ps) => {
+        setPosts(ps);
+        if (firstSnapshot) { firstSnapshot = false; setPostsLoaded(true); }
+      },
+      () => setPostsLoaded(true),
+    );
+    return () => unsub();
   }, [channelId, trainerId, user]);
 
   // Resume where the user left off instead of always jumping to the very
@@ -287,9 +404,9 @@ export default function ChannelPage() {
     setUploadingImage(true);
     try {
       const compressed = await compressImage(file);
-      const storageRef = ref(storage, `community/${channelId}/${user.uid}_${Date.now()}_${compressed.name}`);
-      await uploadBytes(storageRef, compressed);
-      const url = await getDownloadURL(storageRef);
+      const cfg = await getSystemConfig().catch(() => null);
+      const provider = (cfg?.storageProvider as StorageProvider) || 'firebase';
+      const url = await uploadUserContent(provider, user, compressed, 'community');
       setPendingImageURL(url);
       toast.success('Image ready — tap send to post');
     } catch {
@@ -312,24 +429,29 @@ export default function ChannelPage() {
         userId: user.uid,
         userDisplayName: profile.displayName || 'Athlete',
         ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
+        // Deliberately profile.role === 'admin' specifically, not the local
+        // isAdmin (which also covers trainer) — the matching rules check
+        // only recognizes role 'admin' as isAdmin(), so a trainer sending
+        // userIsAdmin:true here would just get the whole write rejected.
+        ...(profile.role === 'admin' ? { userIsAdmin: true } : {}),
         content: text.trim(),
         ...(pendingImageURL ? { imageURL: pendingImageURL } : {}),
       });
       setText('');
       setPendingImageURL(null);
       if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
-      const updated = await getChannelPosts(channelId);
-      setPosts(updated);
+      // No follow-up getChannelPosts()/setPosts() here — the live
+      // subscribeChannelPosts listener already picks up this post as soon
+      // as Firestore commits it. Re-fetching separately used to throw
+      // "Failed to post" on any transient network hiccup even though the
+      // post itself had already gone through successfully.
       if (channel && channel.slowModeDays > 0) {
         setSlowModeBlocked(new Date(Date.now() + channel.slowModeDays * 86400000));
       }
-      toast.success('Posted!');
       setTimeout(() => {
         postsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         setShowJumpToLatest(false);
         setUnreadCount(0);
-        const newest = updated[updated.length - 1];
-        if (newest) localStorage.setItem(lastReadKey, newest.id);
       }, 100);
     } catch { toast.error('Failed to post'); }
     finally { setPosting(false); }
@@ -348,13 +470,25 @@ export default function ChannelPage() {
   async function handleDelete(post: ChannelPost) {
     try {
       await deleteChannelPost(channelId, post.id);
-      setPosts(prev => prev.filter(p => p.id !== post.id));
       // If the pinned post was deleted, clear pinnedPostId from channel state
       if (channel?.pinnedPostId === post.id) {
         setChannel(prev => prev ? { ...prev, pinnedPostId: undefined } : prev);
       }
       toast.success('Post deleted');
-    } catch { toast.error('Failed to delete'); }
+    } catch {
+      // The live subscribeChannelPosts listener is the source of truth for
+      // `posts` now — a flaky connection can make deleteChannelPost's
+      // promise reject even though the delete was already durably queued
+      // and goes on to succeed server-side, which used to show "Failed to
+      // delete" on a post that had, in fact, just been deleted. Only surface
+      // the error if the post is still actually present a moment later.
+      setTimeout(() => {
+        setPosts(prev => {
+          if (prev.some(p => p.id === post.id)) toast.error('Failed to delete');
+          return prev;
+        });
+      }, 1500);
+    }
   }
 
   async function handlePin(post: ChannelPost, pin: boolean) {
@@ -375,15 +509,20 @@ export default function ChannelPage() {
     if (!user || !profile || !replyTarget || !replyText.trim()) return;
     setSendingReply(true);
     try {
-      await createReply(channelId, replyTarget.id, {
+      await createReply(channelId, replyTarget.post.id, {
         userId: user.uid,
         userDisplayName: profile.displayName || 'Athlete',
         ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
+        ...(profile.role === 'admin' ? { userIsAdmin: true } : {}),
         content: replyText.trim(),
+        ...(replyTarget.parent ? { parentReplyId: replyTarget.parent.id } : {}),
       });
-      setPosts(prev => prev.map(p => p.id === replyTarget.id ? { ...p, replyCount: p.replyCount + 1 } : p));
+      setPosts(prev => prev.map(p => p.id === replyTarget.post.id ? { ...p, replyCount: p.replyCount + 1 } : p));
       setReplyText('');
       setReplyTarget(null);
+      // Force the thread to reload — replyCount is best-effort and the local
+      // array would otherwise be a frame behind.
+      setReplyRefreshTokens((m) => ({ ...m, [replyTarget.post.id]: (m[replyTarget.post.id] ?? 0) + 1 }));
       toast.success('Reply sent!');
     } catch { toast.error('Failed to reply'); }
     finally { setSendingReply(false); }
@@ -392,7 +531,7 @@ export default function ChannelPage() {
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen max-w-2xl mx-auto w-full">
-        <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-white/8">
+        <div className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/8">
           <div className="flex items-center gap-3 px-4 py-3">
             <button onClick={() => router.back()} className="p-2 rounded-xl text-text-secondary">
               <ChevronLeft className="w-5 h-5" />
@@ -408,7 +547,7 @@ export default function ChannelPage() {
   if (!channel) {
     return (
       <div className="flex flex-col min-h-screen max-w-2xl mx-auto w-full">
-        <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-white/8">
+        <div className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/8">
           <div className="flex items-center gap-3 px-4 py-3">
             <button onClick={() => router.back()} className="p-2 rounded-xl text-text-secondary"><ChevronLeft className="w-5 h-5" /></button>
             <p className="text-white font-bold">Channel not found</p>
@@ -423,12 +562,17 @@ export default function ChannelPage() {
   const pinnedPost = channel.pinnedPostId ? posts.find(p => p.id === channel.pinnedPostId) : null;
 
   // Height of the compose box (approx) so the post list doesn't hide behind it
-  const COMPOSE_HEIGHT = channel.photoUploadEnabled ? 80 : 72;
+  const COMPOSE_HEIGHT = channel.photoUploadEnabled ? 68 : 60;
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <PaywallGate feature="community" noTaste>
+    <div className="flex flex-col min-h-screen">
       {/* ── Header ── */}
-      <div className="sticky top-0 z-30 bg-background/90 backdrop-blur-xl border-b border-white/8">
+      {/* Transparent (not an opaque bg-background fill) so the app
+          background's grid texture shows through, same as the shared
+          Header component elsewhere — this was a flat black bar sitting
+          on top of the grid instead of blending into it. */}
+      <div className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/8">
         <div className="flex items-center gap-3 px-4 py-3 max-w-2xl mx-auto w-full">
           <button
             onClick={() => router.back()}
@@ -454,7 +598,7 @@ export default function ChannelPage() {
       <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto"
-        style={{ paddingBottom: `${COMPOSE_HEIGHT + 64 + 16}px` }}
+        style={{ paddingBottom: `calc(${COMPOSE_HEIGHT + 64 + 26}px + env(safe-area-inset-bottom, 0px))` }}
       >
         <div className="px-4 py-4 space-y-3 max-w-2xl mx-auto w-full">
           {/* Pinned post banner */}
@@ -463,7 +607,10 @@ export default function ChannelPage() {
               <Pin className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-accent mb-1">Pinned message</p>
-                <p className="text-sm text-white font-bold">{pinnedPost.userDisplayName}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm text-white font-bold">{pinnedPost.userDisplayName}</p>
+                  {pinnedPost.userIsAdmin && <Badge variant="danger">Admin</Badge>}
+                </div>
                 <p className="text-sm text-text-secondary mt-0.5 whitespace-pre-wrap">{pinnedPost.content}</p>
                 {pinnedPost.imageURL && (
                   <img src={pinnedPost.imageURL} alt="pinned" loading="lazy" decoding="async" className="mt-2 rounded-lg w-full object-cover max-h-32" />
@@ -487,7 +634,8 @@ export default function ChannelPage() {
                 channelId={channelId}
                 pinnedPostId={channel.pinnedPostId}
                 onLike={handleLike}
-                onReply={setReplyTarget}
+                onReply={(p, parent) => setReplyTarget({ post: p, parent })}
+                replyRefreshToken={replyRefreshTokens[post.id] ?? 0}
                 onDelete={handleDelete}
                 onPin={handlePin}
               />
@@ -506,7 +654,7 @@ export default function ChannelPage() {
             exit={{ opacity: 0, scale: 0.8, y: 8 }}
             onClick={() => { postsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); setUnreadCount(0); }}
             className="fixed z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-accent text-black text-xs font-bold shadow-lg"
-            style={{ bottom: `${COMPOSE_HEIGHT + 64 + 12}px`, left: '50%', transform: 'translateX(-50%)' }}
+            style={{ bottom: `calc(${COMPOSE_HEIGHT + 64 + 22}px + env(safe-area-inset-bottom, 0px))`, left: '50%', transform: 'translateX(-50%)' }}
           >
             <ChevronsDown className="w-3.5 h-3.5" />
             Jump to latest{unreadCount > 0 ? ` · ${unreadCount} new` : ''}
@@ -516,15 +664,15 @@ export default function ChannelPage() {
 
       {/* ── Compose box (fixed above tab bar) ── */}
       {channel.allowUserPosts === false && !isAdmin ? (
-        <div className="fixed bottom-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
+        <div className="fixed above-bottom-nav left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
           <div className="px-4 py-3 max-w-2xl mx-auto w-full flex items-center gap-2 text-sm text-text-secondary">
             <Megaphone className="w-4 h-4 flex-shrink-0" />
-            Announcement-only channel — only your coach can post here.
+            Announcement-only channel — only admins can post here.
           </div>
         </div>
       ) : (
-      <div className="fixed bottom-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
-        <div className="px-4 py-3 max-w-2xl mx-auto w-full space-y-2">
+      <div className="fixed above-bottom-nav left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
+        <div className="px-4 py-2 max-w-2xl mx-auto w-full space-y-1.5">
           {isBlocked && (
             <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-400/10 rounded-lg px-3 py-2">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
@@ -556,11 +704,11 @@ export default function ChannelPage() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingImage}
-                className="p-2.5 rounded-xl bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors flex-shrink-0 disabled:opacity-50"
+                className="p-2 rounded-xl bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors flex-shrink-0 disabled:opacity-50"
               >
                 {uploadingImage
-                  ? <Loader2 className="w-5 h-5 animate-spin" />
-                  : <ImageIcon className="w-5 h-5" />
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <ImageIcon className="w-4 h-4" />
                 }
               </button>
             )}
@@ -571,20 +719,21 @@ export default function ChannelPage() {
               placeholder={isBlocked ? 'Slow mode active…' : 'Share something…'}
               disabled={isBlocked}
               rows={1}
-              className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent/50 disabled:opacity-40"
-              style={{ maxHeight: 96, overflowY: 'auto' }}
+              className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent/50 disabled:opacity-40"
+              style={{ maxHeight: 80, overflowY: 'auto' }}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(); } }}
               onInput={e => {
                 const t = e.currentTarget;
                 t.style.height = 'auto';
-                t.style.height = Math.min(t.scrollHeight, 96) + 'px';
+                t.style.height = Math.min(t.scrollHeight, 80) + 'px';
               }}
             />
             <Button
               onClick={handlePost}
               loading={posting}
               disabled={!canSend}
-              className="flex-shrink-0"
+              size="sm"
+              className="flex-shrink-0 !px-2.5 !py-2"
             >
               <Send className="w-4 h-4" />
             </Button>
@@ -612,7 +761,7 @@ export default function ChannelPage() {
               onClick={e => e.stopPropagation()}
             >
               <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-                <p className="text-sm font-bold text-white">Reply to {replyTarget.userDisplayName}</p>
+                <p className="text-sm font-bold text-white">Reply to {(replyTarget.parent ?? replyTarget.post).userDisplayName}</p>
                 <button
                   onClick={() => setReplyTarget(null)}
                   className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/8 transition-colors"
@@ -622,7 +771,7 @@ export default function ChannelPage() {
               </div>
               {/* Quoted post */}
               <div className="mx-4 mb-3 bg-surface rounded-xl px-3 py-2 border border-white/8">
-                <p className="text-xs text-text-secondary line-clamp-3">{replyTarget.content}</p>
+                <p className="text-xs text-text-secondary line-clamp-3">{(replyTarget.parent ?? replyTarget.post).content}</p>
               </div>
               {/* Reply input */}
               <div className="px-4 pb-4 flex gap-2 items-end">
@@ -651,5 +800,6 @@ export default function ChannelPage() {
         )}
       </AnimatePresence>
     </div>
+    </PaywallGate>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getNextSession, countTrainingSlotsThrough, getTotalTrainingDays, pickBestProgram, MOCK_PROGRAMS } from './programs';
+import { getNextSession, getLastTrainingSlotIndex, countTrainingSlotsThrough, getTotalTrainingDays, pickBestProgram, MOCK_PROGRAMS } from './programs';
 import type { Program, ProgramDay } from '@/types';
 
 const train = (label: string): ProgramDay => ({ label, isRest: false, exercises: [{ id: 'e', name: 'Squat', sets: 3, reps: 10, restSeconds: 60 }] });
@@ -17,52 +17,70 @@ const todayStr = () => new Date().toLocaleDateString('sv-SE');
 const yesterdayStr = () => new Date(Date.now() - 86_400_000).toLocaleDateString('sv-SE');
 const daysAgoStr = (n: number) => new Date(Date.now() - n * 86_400_000).toLocaleDateString('sv-SE');
 
-describe('getNextSession — rest-day deadlock fix', () => {
+describe('getNextSession — rest days are shown, then explicitly skipped', () => {
   it('returns the next training slot directly when it is not a rest day', () => {
     const s = getNextSession(standard, -1, undefined);
     expect(s).toMatchObject({ index: 0, isRestToday: false });
-    expect(s!.day.label).toBe('A');
+    expect(s!.nextTraining).toMatchObject({ index: 0 });
   });
 
-  it('honors a rest day when the user trained yesterday', () => {
-    // completed slot 1 (B) yesterday → slot 2 is rest → today IS the rest day
-    const s = getNextSession(standard, 1, yesterdayStr());
-    expect(s).toMatchObject({ index: 2, isRestToday: true });
-    expect(s!.day.isRest).toBe(true);
+  it('shows the rest day when it is next, regardless of when the user last trained', () => {
+    for (const when of [todayStr(), yesterdayStr(), daysAgoStr(5), undefined]) {
+      const s = getNextSession(standard, 1, when);
+      expect(s, `lastWorkoutDate=${when}`).toMatchObject({ index: 2, isRestToday: true });
+      expect(s!.day.isRest).toBe(true);
+      expect(s!.nextTraining).toMatchObject({ index: 3 });
+    }
   });
 
-  it('honors a rest day when the user already trained today', () => {
-    const s = getNextSession(standard, 1, todayStr());
-    expect(s).toMatchObject({ index: 2, isRestToday: true });
-  });
-
-  it('skips a stale rest slot when the last workout was 2+ days ago (the deadlock case)', () => {
-    const s = getNextSession(standard, 1, daysAgoStr(2));
+  it('after skipping the rest day (pointer on the rest slot) the next workout is offered', () => {
+    const s = getNextSession(standard, 2, todayStr()); // pointer now ON the rest slot
     expect(s).toMatchObject({ index: 3, isRestToday: false });
-    expect(s!.day.label).toBe('C');
   });
 
-  it('skips consecutive stale rest slots', () => {
-    // completed slot 5 (D) long ago → slot 6 rest, slot 7 wraps to week 2 slot 0 (A)
-    const s = getNextSession(standard, 5, daysAgoStr(5));
-    expect(s).toMatchObject({ index: 7, isRestToday: false });
-    expect(s!.day.label).toBe('A');
+  it('consecutive rest slots are shown one at a time; nextTraining points past all of them', () => {
+    const p = prog([train('A'), rest(), rest(), rest(), train('B'), rest(), rest()]);
+    expect(getNextSession(p, 0)).toMatchObject({ index: 1, isRestToday: true, nextTraining: { index: 4 } });
+    expect(getNextSession(p, 1)).toMatchObject({ index: 2, isRestToday: true, nextTraining: { index: 4 } });
+    expect(getNextSession(p, 3)).toMatchObject({ index: 4, isRestToday: false });
   });
 
-  it('never loops forever on an all-rest schedule; falls back to showing rest', () => {
+  it('alternating program: workout → rest shown → skip → workout, never stuck', () => {
+    const alt = prog([train('A'), rest(), train('B'), rest(), train('C'), rest(), rest()]);
+    expect(getNextSession(alt, 0)).toMatchObject({ index: 1, isRestToday: true });   // after A: rest shown
+    expect(getNextSession(alt, 1)).toMatchObject({ index: 2, isRestToday: false });  // skipped: B offered
+    expect(getNextSession(alt, 2)).toMatchObject({ index: 3, isRestToday: true });   // after B: rest shown
+    expect(getNextSession(alt, 6)).toMatchObject({ index: 7, isRestToday: false });  // week wraps to A
+  });
+
+  it('all-rest schedule shows rest with no next training', () => {
     const allRest = prog([rest(), rest(), rest(), rest(), rest(), rest(), rest()]);
-    const s = getNextSession(allRest, 0, daysAgoStr(10));
+    const s = getNextSession(allRest, 0);
     expect(s!.isRestToday).toBe(true);
+    expect(s!.nextTraining).toBeNull();
   });
 
-  it('never deadlocks on any seed program: from any slot, a stale user always gets a workout', () => {
+  it('every seed program: from any slot there is always a nextTraining', () => {
     for (const p of MOCK_PROGRAMS) {
       for (let last = -1; last < 14; last++) {
-        const s = getNextSession(p, last, daysAgoStr(3));
-        expect(s, `${p.id} stuck after slot ${last}`).not.toBeNull();
-        expect(s!.isRestToday, `${p.id} rest-locked after slot ${last}`).toBe(false);
+        const s = getNextSession(p, last);
+        expect(s, `${p.id} slot ${last}`).not.toBeNull();
+        expect(s!.nextTraining, `${p.id} no training after slot ${last}`).not.toBeNull();
       }
     }
+  });
+});
+
+describe('getLastTrainingSlotIndex — what "Repeat today" should open', () => {
+  it('returns the slot itself when it is a training day', () => {
+    expect(getLastTrainingSlotIndex(standard, 1)).toBe(1);
+  });
+  it('walks back past a skipped rest slot to the last real session', () => {
+    expect(getLastTrainingSlotIndex(standard, 2)).toBe(1); // slot 2 is Rest
+    expect(getLastTrainingSlotIndex(standard, 4)).toBe(3); // slot 4 is Rest
+  });
+  it('is null before anything has been trained', () => {
+    expect(getLastTrainingSlotIndex(standard, -1)).toBeNull();
   });
 });
 

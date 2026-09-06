@@ -11,6 +11,8 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
+import { PaywallGate } from '@/components/ui/PaywallGate';
+import { CommunityTabs } from '@/components/community/CommunityTabs';
 import { subscribePRFeed, createPRPost, likePRPost, deletePRPost, getSystemConfig } from '@/lib/firestore';
 import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import type { PRPost } from '@/types';
@@ -21,6 +23,15 @@ export default function PRWallPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [liked, setLiked] = useState<Set<string>>(new Set());
+  // Guards against a rapid double-click firing likePRPost() twice for the
+  // same post before the first call's optimistic setLiked() update has been
+  // committed and re-read — both calls would otherwise derive the same
+  // stale wasLiked/nextLiked from the closure and send two +1 increments to
+  // the server for what the UI shows as a single like (likeCount drifts
+  // upward; likedBy stays correct since arrayUnion is idempotent). A ref
+  // (not state) so it's read/written synchronously within one click handler
+  // call, immune to React's async state batching.
+  const likeInFlight = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const unsub = subscribePRFeed((p) => {
@@ -37,9 +48,30 @@ export default function PRWallPage() {
   const isBanned = !!profile?.prBan && (banUntil === null || (banUntil?.toDate?.() ?? new Date(0)) > new Date());
 
   const handleLike = (id: string) => {
-    if (!user || liked.has(id)) return;
-    setLiked((prev) => new Set(prev).add(id));
-    likePRPost(id, user.uid, true).catch(() => {});
+    if (!user || likeInFlight.current.has(id)) return;
+    likeInFlight.current.add(id);
+    // Toggle — was a one-way "add only" that permanently blocked unliking
+    // once liked.has(id) was true, even though likePRPost itself already
+    // supports the reverse direction (likedBy: arrayRemove, likeCount: -1).
+    const wasLiked = liked.has(id);
+    const nextLiked = !wasLiked;
+    setLiked((prev) => {
+      const next = new Set(prev);
+      if (nextLiked) next.add(id); else next.delete(id);
+      return next;
+    });
+    likePRPost(id, user.uid, nextLiked)
+      .catch(() => {
+        // Roll back the optimistic toggle so the UI doesn't keep showing a
+        // state that never actually landed server-side.
+        setLiked((prev) => {
+          const next = new Set(prev);
+          if (wasLiked) next.add(id); else next.delete(id);
+          return next;
+        });
+        toast.error('Failed to update like — try again');
+      })
+      .finally(() => likeInFlight.current.delete(id));
   };
 
   const isAdmin = profile?.role === 'admin' || profile?.role === 'trainer';
@@ -50,9 +82,15 @@ export default function PRWallPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <Header title="PR Wall" showBack />
-      <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
+    <div className="min-h-screen pb-24">
+      {/* No back arrow: the PR Wall is one of Community's two views, not a
+          sub-page of it, and the switcher below is what moves between them. */}
+      <Header title="Community" />
+      <div className="px-4 pt-4 max-w-2xl mx-auto w-full">
+        <CommunityTabs active="prs" />
+      </div>
+      <PaywallGate feature="pr-wall" noTaste>
+      <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-4">
         {isBanned ? (
           <Card className="p-4 border-danger/30">
             <p className="text-sm text-danger font-bold mb-1">You can&apos;t post to the PR Wall</p>
@@ -64,7 +102,7 @@ export default function PRWallPage() {
           <Card className="p-4">
             <p className="text-sm text-white font-bold mb-1">Post a PR, get it verified</p>
             <p className="text-xs text-text-secondary leading-relaxed mb-3">
-              Upload a video or photo of your lift. New posts are reviewed by an admin before showing to everyone. Verified PRs stand out on the leaderboard.
+              Upload a video or photo of your lift. New posts are reviewed by an admin before showing to everyone. Verified PRs get a badge on the wall.
             </p>
             <Button size="sm" onClick={() => setShowForm(true)}>
               <Upload className="w-3.5 h-3.5" /> Post a PR
@@ -102,6 +140,7 @@ export default function PRWallPage() {
           ))
         )}
       </div>
+      </PaywallGate>
     </div>
   );
 }
@@ -165,7 +204,7 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
         {post.mediaUrl && (
           <div className="rounded-xl overflow-hidden mb-3 bg-black">
             {post.mediaType === 'video' ? (
-              <video src={post.mediaUrl} controls className="w-full max-h-80" />
+              <video src={post.mediaUrl} controls crossOrigin="anonymous" className="w-full max-h-80" />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={post.mediaUrl} alt={post.exerciseName} className="w-full max-h-80 object-cover" />
@@ -180,7 +219,7 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
           className={`flex items-center gap-1.5 text-xs font-medium ${liked ? 'text-danger' : 'text-text-tertiary'}`}
         >
           <Heart className={`w-4 h-4 ${liked ? 'fill-danger' : ''}`} />
-          {post.likeCount + (liked ? 1 : 0)}
+          {post.likeCount}
         </button>
       </Card>
     </motion.div>

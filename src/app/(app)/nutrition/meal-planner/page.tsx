@@ -8,10 +8,12 @@ import { ArrowLeft, Sparkles, Flame, Beef, ChevronDown, Plus, Loader2 } from 'lu
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { logMealAction } from '@/lib/actions';
+import { logMealAction, consumeAiTaste } from '@/lib/actions';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PaywallGate } from '@/components/ui/PaywallGate';
+import { localDateHeader } from '@/lib/utils';
 
 interface MealIdea {
   name: string;
@@ -29,6 +31,7 @@ const EXAMPLE_CHIPS = ['eggs, spinach, cheese', 'chicken, rice, broccoli', 'oats
 export default function MealPlannerPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { tasteAvailable } = useFeatureAccess('meal-planner');
   const [ingredients, setIngredients] = useState('');
   const [loading, setLoading] = useState(false);
   const [meals, setMeals] = useState<MealIdea[] | null>(null);
@@ -43,12 +46,13 @@ export default function MealPlannerPage() {
       const token = await getIdToken(user);
       const res = await fetch('/api/ai/meal-ideas', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...localDateHeader() },
         body: JSON.stringify({ ingredients }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to generate ideas');
       setMeals(data.meals);
+      if (tasteAvailable) consumeAiTaste(user.uid, 'meal-planner').catch(console.error);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -79,14 +83,14 @@ export default function MealPlannerPage() {
 
   return (
     <PaywallGate feature="meal-planner">
-    <div className="min-h-screen bg-background pb-24">
-      <div className="px-4 pt-12 pb-4 max-w-lg mx-auto">
+    <div className="min-h-screen pb-24">
+      <div className="px-4 pt-12 pb-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
         <button onClick={() => router.back()} className="p-2 -ml-2 rounded-xl text-text-secondary hover:text-white transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
       </div>
 
-      <div className="px-4 max-w-lg mx-auto space-y-5">
+      <div className="px-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-5">
         <div className="text-center">
           <div className="w-14 h-14 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-3">
             <Sparkles className="w-7 h-7 text-accent" />
