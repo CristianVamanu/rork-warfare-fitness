@@ -83,9 +83,17 @@ else
   mv "$NPM_STAGING/node_modules" node_modules
   rm -rf "$NPM_STAGING"
   echo "$LOCK_NOW" > "$LOCK_HASH_FILE"
-  # If anything below fails, put the working tree back before exiting.
+  # If the BUILD fails, put the working tree back before exiting — a staged
+  # install that resolved cleanly can still be missing something the build
+  # needs. The trap is disarmed the moment the build succeeds, and
+  # deliberately does NOT cover the steps after it: by then the new tree has
+  # been proven and pm2 may already be serving from it, so swapping
+  # node_modules underneath a live server in response to an unrelated failure
+  # (a firebase rules push, a crontab write) would cause exactly the outage
+  # this whole section exists to prevent. That is not hypothetical — it fired
+  # on the ae1f8f5 deploy, after the app had already reloaded successfully.
   # shellcheck disable=SC2064
-  trap 'if [ -d "'"$NM_PREVIOUS"'" ]; then echo "*** deploy failed — restoring previous node_modules ***"; rm -rf node_modules; mv "'"$NM_PREVIOUS"'" node_modules; rm -f "'"$LOCK_HASH_FILE"'"; fi' ERR
+  trap 'if [ -d "'"$NM_PREVIOUS"'" ]; then echo "*** build failed — restoring previous node_modules ***"; rm -rf node_modules; mv "'"$NM_PREVIOUS"'" node_modules; rm -f "'"$LOCK_HASH_FILE"'"; fi' ERR
 fi
 
 echo "==> Building into $STAGING (live .next untouched)"
@@ -112,6 +120,11 @@ rm -rf .next/types
 # content hash for it — surfacing as "importScripts...not allowed" and a
 # blank page in production.
 NEXT_DIST_DIR="$STAGING" NEXT_PWA_DEST="$PWA_STAGING" npm run build
+
+# The build compiled against the new dependency tree, so the tree is good.
+# Stop guarding it — everything from here on runs with pm2 about to serve, or
+# already serving, from it.
+trap - ERR
 
 echo "==> Swapping in the new build"
 rm -rf "$PREVIOUS"
@@ -174,9 +187,8 @@ fi
 
 echo "==> Cleaning up previous build"
 rm -rf "$PREVIOUS"
-# The new dependency tree has now built and booted. Stop guarding it and drop
-# the old one.
-trap - ERR
+# The new tree built and booted; the old one is no longer needed as a fallback.
+# (The ERR trap that guarded it was already disarmed right after the build.)
 rm -rf "$NM_PREVIOUS"
 
 echo "==> Ensuring the notifications cron is installed"
