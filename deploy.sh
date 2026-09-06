@@ -23,15 +23,70 @@ PREVIOUS=".next-previous"
 PWA_STAGING="public-pwa-staging"
 
 echo "==> Pulling latest code"
+SELF_BEFORE="$(sha256sum "$0" | cut -d' ' -f1)"
 git fetch origin
 git reset --hard "origin/$(git rev-parse --abbrev-ref HEAD)"
+
+# This script git-resets ITSELF, and bash reads a script incrementally from a
+# byte offset rather than loading it whole. If the pull changes deploy.sh's
+# length, the still-running bash resumes at an offset that now points into
+# the middle of a different line — executing garbage, silently, halfway
+# through a production deploy. Re-exec the new version from the top instead.
+if [ "$(sha256sum "$0" | cut -d' ' -f1)" != "$SELF_BEFORE" ] && [ -z "${DEPLOY_REEXECED:-}" ]; then
+  echo "    deploy.sh changed in this pull — re-running the new version"
+  export DEPLOY_REEXECED=1
+  exec bash "$0" "$@"
+fi
 
 echo "==> Installing dependencies"
 # npm ci, not npm install: installs exactly what package-lock.json says and
 # fails loudly on drift, instead of quietly resolving something newer on the
 # server than was tested. Under `set -e` a resolution failure here used to
 # abort the deploy with nothing but a line in the webhook's stdout.
-npm ci --no-audit --no-fund
+#
+# BUT npm ci's first act is `rm -rf node_modules`, and this runs while pm2 is
+# still serving traffic. `next start` does not load every route at boot — it
+# lazily requires compiled files out of node_modules/next/... on first hit —
+# so deleting the tree under a live server crash-loops it for the whole
+# install. That is exactly what happened on the 50ab4c5 deploy: ~37 pm2
+# restarts, /api/health returning a raw "Internal Server Error", and a log
+# full of MODULE_NOT_FOUND for files inside node_modules/next. All of it
+# self-inflicted, on a deploy that changed no dependencies whatsoever.
+#
+# So: install only when package-lock.json actually differs from the lock that
+# produced the tree on disk, and when it does, build the new tree OUT OF
+# PLACE and swap it in with two renames. The live server keeps its modules
+# for the whole install; the window where node_modules is not the correct
+# tree drops from minutes to milliseconds.
+LOCK_HASH_FILE=".node-modules-lock-hash"
+NPM_STAGING=".npm-staging"
+NM_PREVIOUS=".node-modules-previous"
+LOCK_NOW="$(sha256sum package-lock.json | cut -d' ' -f1)"
+LOCK_INSTALLED="$(cat "$LOCK_HASH_FILE" 2>/dev/null || echo none)"
+
+if [ -d node_modules ] && [ "$LOCK_NOW" = "$LOCK_INSTALLED" ]; then
+  echo "    package-lock.json unchanged — keeping the installed tree (no downtime)"
+else
+  echo "    package-lock.json changed — installing out of place, then swapping"
+  rm -rf "$NPM_STAGING" "$NM_PREVIOUS"
+  mkdir -p "$NPM_STAGING"
+  cp package.json package-lock.json "$NPM_STAGING"/
+  # .npmrc carries registry/auth config the install may need.
+  [ -f .npmrc ] && cp .npmrc "$NPM_STAGING"/
+  npm ci --no-audit --no-fund --prefix "$NPM_STAGING"
+
+  # Swap. Keep the old tree until the build has proved the new one works —
+  # a staged install that resolved fine can still be missing something the
+  # build needs, and rolling back to a directory is far better than leaving
+  # the server with no node_modules at all.
+  if [ -e node_modules ]; then mv node_modules "$NM_PREVIOUS"; fi
+  mv "$NPM_STAGING/node_modules" node_modules
+  rm -rf "$NPM_STAGING"
+  echo "$LOCK_NOW" > "$LOCK_HASH_FILE"
+  # If anything below fails, put the working tree back before exiting.
+  # shellcheck disable=SC2064
+  trap 'if [ -d "'"$NM_PREVIOUS"'" ]; then echo "*** deploy failed — restoring previous node_modules ***"; rm -rf node_modules; mv "'"$NM_PREVIOUS"'" node_modules; rm -f "'"$LOCK_HASH_FILE"'"; fi' ERR
+fi
 
 echo "==> Building into $STAGING (live .next untouched)"
 rm -rf "$STAGING" "$PWA_STAGING"
@@ -119,6 +174,10 @@ fi
 
 echo "==> Cleaning up previous build"
 rm -rf "$PREVIOUS"
+# The new dependency tree has now built and booted. Stop guarding it and drop
+# the old one.
+trap - ERR
+rm -rf "$NM_PREVIOUS"
 
 echo "==> Ensuring the notifications cron is installed"
 # /api/notifications/process (trial-ending emails, payment-failed reminders,
