@@ -143,13 +143,24 @@ if [ -n "$ENV_FILE" ]; then
   APP_CRON_SECRET="$(grep -E '^CRON_SECRET=' "$ENV_FILE" | head -1 | cut -d '=' -f2-)"
   APP_URL="$(grep -E '^NEXT_PUBLIC_APP_URL=' "$ENV_FILE" | head -1 | cut -d '=' -f2-)"
   if [ -n "$APP_CRON_SECRET" ] && [ -n "$APP_URL" ]; then
-    CRON_CMD="curl -fsS -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${APP_URL%/}/api/notifications/process\" >/dev/null 2>&1 ${CRON_MARKER}"
+    # Cron jobs call the app on LOCALHOST, not the public domain.
+    #
+    # Going out through DNS -> Cloudflare -> back to this same box adds
+    # failure points for no benefit, and Cloudflare cuts origin requests off
+    # at ~100 seconds. A full backup export legitimately takes longer than
+    # that as data grows, so the public-domain version would fail with a 502
+    # forever while the export itself was working fine. The app's own
+    # self-calls (notifications -> push/send) already do this for the same
+    # reason. INTERNAL_APP_URL overrides it if the app isn't on :3000.
+    INTERNAL_URL="$(grep -E '^INTERNAL_APP_URL=' "$ENV_FILE" | head -1 | cut -d '=' -f2-)"
+    INTERNAL_URL="${INTERNAL_URL:-http://localhost:3000}"
+    CRON_CMD="curl -fsS --max-time 600 -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${INTERNAL_URL%/}/api/notifications/process\" >/dev/null 2>&1 ${CRON_MARKER}"
     # Daily reconciliation of Firestore membership state against Stripe. The
     # webhook is the hot path; this is the safety net for a delivery that was
     # lost for good (Stripe stops retrying after ~3 days), which used to mean
     # a cancelled subscription kept full paid access forever with nothing
     # anywhere that would notice. Runs at 04:17 to avoid the busy hour tick.
-    RECONCILE_CMD="curl -fsS -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${APP_URL%/}/api/admin/reconcile-subscriptions\" >/dev/null 2>&1 ${CRON_MARKER}"
+    RECONCILE_CMD="curl -fsS -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${INTERNAL_URL%/}/api/admin/reconcile-subscriptions\" >/dev/null 2>&1 ${CRON_MARKER}"
     # Nightly full Firestore export. The route existed and was CRON_SECRET-
     # protected from the start, but nothing ever scheduled it — so this app
     # has been running with no automated backup at all. Runs at 03:22 UTC,
@@ -157,12 +168,12 @@ if [ -n "$ENV_FILE" ]; then
     # overlaps the notification sweep. --max-time 900: a full dump of a
     # growing database is the one job here that legitimately takes minutes,
     # but it must not hang forever holding a worker.
-    BACKUP_CMD="curl -fsS --max-time 900 -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${APP_URL%/}/api/admin/backup\" >/dev/null 2>&1 ${CRON_MARKER}"
+    BACKUP_CMD="curl -fsS --max-time 900 -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${INTERNAL_URL%/}/api/admin/backup\" >/dev/null 2>&1 ${CRON_MARKER}"
     # Daily digest of unresolved client errors. Errors were being captured
     # and stored but nothing ever told anyone, so you only found out by going
     # to look. 08:05 UTC — first thing, and it sends nothing at all on a
     # quiet day so a delivered email always means something happened.
-    DIGEST_CMD="curl -fsS --max-time 120 -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${APP_URL%/}/api/admin/error-digest\" >/dev/null 2>&1 ${CRON_MARKER}"
+    DIGEST_CMD="curl -fsS --max-time 120 -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${INTERNAL_URL%/}/api/admin/error-digest\" >/dev/null 2>&1 ${CRON_MARKER}"
     ( crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" || true ; echo "0 * * * * ${CRON_CMD}" ; echo "17 4 * * * ${RECONCILE_CMD}" ; echo "22 3 * * * ${BACKUP_CMD}" ; echo "5 8 * * * ${DIGEST_CMD}" ) | crontab -
     echo "    cron installed: hourly POST to /api/notifications/process"
     echo "    cron installed: daily POST to /api/admin/reconcile-subscriptions"
