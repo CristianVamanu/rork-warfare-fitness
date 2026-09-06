@@ -119,17 +119,33 @@ export function makeAdminDb() {
     return ref;
   }
 
-  function queryRef(colPath: string, filters: { path: string; value: unknown }[], max?: number) {
+  function queryRef(
+    colPath: string,
+    filters: { path: string; value: unknown }[],
+    max?: number,
+    /** Document-id cursor, as produced by orderBy('__name__') + startAfter(). */
+    after?: string,
+  ) {
     const self = {
       where: (p: string, op: string, value: unknown) => {
         if (op !== '==') throw new Error(`fake: unsupported op ${op}`);
-        return queryRef(colPath, [...filters, { path: p, value }], max);
+        return queryRef(colPath, [...filters, { path: p, value }], max, after);
       },
-      limit: (n: number) => queryRef(colPath, filters, n),
+      // Only __name__ is supported: it is the one ordering the paging in the
+      // backup route uses, and pretending to order by arbitrary fields would
+      // let a test pass against behaviour Firestore does not actually have.
+      orderBy: (field: string) => {
+        if (field !== '__name__') throw new Error(`fake: only orderBy('__name__') is supported, got ${field}`);
+        return queryRef(colPath, filters, max, after);
+      },
+      startAfter: (cursor: { id: string }) => queryRef(colPath, filters, max, cursor.id),
+      limit: (n: number) => queryRef(colPath, filters, n, after),
       get: async () => {
         const rows = [...docs.entries()]
           .filter(([p]) => p.startsWith(colPath + '/') && p.slice(colPath.length + 1).split('/').length === 1)
           .filter(([, d]) => filters.every((f) => getPath(d, f.path) === f.value))
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .filter(([p]) => (after ? p.split('/').pop()! > after : true))
           .slice(0, max ?? Infinity)
           .map(([p]) => snapOf(p));
         return { docs: rows, empty: rows.length === 0, size: rows.length };

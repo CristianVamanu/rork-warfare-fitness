@@ -2,24 +2,39 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Full Firestore export — every collection dumped to a single timestamped
- * JSON file. Uploaded to Cloudflare R2 if configured (real off-server
- * backup); otherwise saved to local disk under ./backups on the VPS as a
- * fallback, which is better than nothing but does NOT protect against
- * losing the whole server — only against application-level mistakes
- * (a bad deploy, an admin mistake, a bug that deletes data). Configure R2
- * for this to actually function as disaster recovery.
+ * Full export of Firestore + Firebase Auth to a single gzipped JSONL file,
+ * uploaded to a private Cloudflare R2 bucket.
+ *
+ * STREAMED, not buffered. The previous version accumulated every collection
+ * into one in-memory object and then JSON.stringify'd it — holding the whole
+ * database in RAM twice over, on a box that is also serving requests. At 8
+ * accounts that was 1MB and invisible; in the low thousands it becomes a
+ * killed worker rather than a clear error, which is the worst way for a
+ * backup to fail (silently, and only discovered when you need it). Documents
+ * are now read in pages and written straight through gzip to a temp file, so
+ * peak memory is one page regardless of how large the database gets.
+ *
+ * FORMAT — one JSON object per line, gzipped:
+ *   {"c":"<collection>","id":"<docId>","d":{...}}
+ * Self-describing, so a restore reads it line by line without loading the
+ * file. The first line is a manifest:
+ *   {"c":"__meta","id":"manifest","d":{version,createdAt,collections}}
+ * Auth accounts appear as collection "__authUsers".
  *
  * Callable two ways:
- *   - By an admin from the browser (Admin -> Settings -> "Run Backup Now")
- *   - By a cron job on the VPS, authenticated with CRON_SECRET, e.g.:
- *       curl -X POST https://yourdomain.com/api/admin/backup \
- *         -H "Authorization: Bearer $CRON_SECRET"
+ *   - By an admin from the browser (Admin → Settings → "Run Backup Now")
+ *   - By the nightly cron, authenticated with CRON_SECRET. That job calls
+ *     localhost, NOT the public domain — Cloudflare cuts origin requests off
+ *     at ~100s and a full export legitimately runs longer. See deploy.sh.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import fs from 'fs/promises';
+import { createWriteStream, createReadStream } from 'fs';
+import { createGzip } from 'zlib';
+import { pipeline } from 'stream/promises';
+import os from 'os';
 import path from 'path';
 import { verifyAdmin } from '@/lib/verifyAdmin';
 import { getAuth } from 'firebase-admin/auth';
@@ -27,34 +42,27 @@ import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { getR2Client } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
 import { timingSafeEqualString } from '@/lib/crypto';
+import type { Firestore } from 'firebase-admin/firestore';
+
+/** Documents read per round trip. Bounds peak memory. */
+const PAGE = 500;
+
+/** Keep this many backups in R2. Older objects are pruned after each run. */
+const R2_RETENTION = 30;
+
+const BACKUP_FORMAT_VERSION = 2;
 
 // Top-level collections that hold real data worth backing up.
 //
-// `system` is now included but its `secrets` document is filtered out below.
-// The original exclusion was right about the secrets blob — there is no reason
-// to copy encrypted API keys into a second location — but it also dropped
-// system/config, which holds branding, the trainerId every user doc points at,
-// and the AI spend caps. That is configuration you cannot reconstruct.
+// `system` is included but its `secrets` document is filtered out below. The
+// original exclusion was right about the secrets blob — no reason to copy
+// encrypted API keys into a second location — but it also dropped
+// system/config, which holds branding, the trainerId every user doc points
+// at, and the AI spend caps. That is configuration you cannot reconstruct.
 const COLLECTIONS = [
   'users', 'events', 'meals', 'waterLogs', 'workoutLogs', 'weightLogs', 'habitLogs',
   'programs', 'posts', 'notifications', 'coachingApplications', 'config',
   'prPosts', 'progressPhotos', 'userPreferences', 'exerciseLibrary',
-  // Added after an audit found the dump was missing data that cannot be
-  // reconstructed from anything else:
-  //   system            — system/config (branding, AI caps, trainerId) and the
-  //                       encrypted system/secrets document
-  //   stripeCustomers   — the customer→uid reverse index. Losing it detaches
-  //                       every member from their Stripe billing identity
-  //   supportTickets    — members' own support conversations (messages are
-  //                       pulled from the subcollection below)
-  //   goals / ptTestResults / communityActivity — coach-assigned and
-  //                       self-logged records with no other source
-  //   trainerLeads / landingLeads — inbound sales enquiries
-  //   orphanedSubscriptions — the record of subscriptions that failed to
-  //                       cancel during account deletion, i.e. a live to-do
-  //                       list of billing problems
-  //   tenants           — per-trainer configuration
-  //   leaderboardPublic — retired, but the rows still exist and are cheap
   'system', 'stripeCustomers', 'goals', 'ptTestResults', 'communityActivity',
   'trainerLeads', 'landingLeads', 'orphanedSubscriptions', 'tenants', 'leaderboardPublic',
 ] as const;
@@ -63,12 +71,9 @@ const COLLECTIONS = [
  * Deliberately NOT backed up, because restoring them would be wrong or
  * pointless: rateLimits, users/*\/usage, twoFactorCodes, emailVerifyCodes and
  * trustedDevices are short-lived security/throttling state that must expire
- * rather than come back; stripeEvents is a replay ledger whose entries are
- * only meaningful against live Stripe deliveries; errorReports is diagnostics.
+ * rather than come back; stripeEvents is a replay ledger only meaningful
+ * against live Stripe deliveries; errorReports is diagnostics.
  */
-
-/** Keep this many backups in R2. Older objects are pruned after each run. */
-const R2_RETENTION = 30;
 
 async function authorize(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
@@ -88,96 +93,116 @@ export async function POST(req: NextRequest) {
   if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
   const db = getAdminDb(app);
 
+  const r2Client = await getR2Client();
+  // Deliberately NOT R2_BUCKET_NAME — that bucket serves public content
+  // (exercise videos, PR Wall photos), and a file containing every user's
+  // data plus password hashes must never sit somewhere publicly readable.
+  const backupBucket = await getSecret('R2_BACKUP_BUCKET_NAME');
+  const offSite = !!(r2Client && backupBucket);
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `backup-${timestamp}.jsonl.gz`;
+  const tmpPath = path.join(os.tmpdir(), filename);
+
+  const counts: Record<string, number> = {};
+  let authUsers: number | null = null;
+
   try {
-    const dump: Record<string, unknown[]> = {};
+    const gzip = createGzip();
+    const written = pipeline(gzip, createWriteStream(tmpPath));
+
+    /** Writes one line, applying backpressure so a fast reader can't outrun gzip. */
+    const write = async (c: string, id: string, d: unknown) => {
+      if (!gzip.write(JSON.stringify({ c, id, d }) + '\n')) {
+        await new Promise<void>((resolve) => gzip.once('drain', resolve));
+      }
+      counts[c] = (counts[c] ?? 0) + 1;
+    };
+
+    await write('__meta', 'manifest', {
+      version: BACKUP_FORMAT_VERSION,
+      createdAt: new Date().toISOString(),
+      note: 'One JSON object per line. Auth password hashes require the project hash parameters from the Firebase console to be importable.',
+    });
+
+    /** Streams a collection in pages, calling `emit` per document. */
+    const eachDoc = async (
+      dbRef: Firestore,
+      name: string,
+      emit: (id: string, data: Record<string, unknown>, ref: FirebaseFirestore.DocumentReference) => Promise<void>,
+    ) => {
+      let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+      for (;;) {
+        let q = dbRef.collection(name).orderBy('__name__').limit(PAGE);
+        if (cursor) q = q.startAfter(cursor);
+        const snap = await q.get();
+        if (snap.empty) return;
+        for (const d of snap.docs) await emit(d.id, d.data(), d.ref);
+        if (snap.size < PAGE) return;
+        cursor = snap.docs[snap.docs.length - 1];
+      }
+    };
 
     for (const name of COLLECTIONS) {
-      const snap = await db.collection(name).get();
-      dump[name] = snap.docs
+      await eachDoc(db, name, async (id, data) => {
         // system/secrets holds encrypted third-party API keys. Configuration
         // is worth backing up; that blob is not — copying it into a second
         // store only widens where a key can leak from, and it is restorable
         // by pasting the keys back in.
-        .filter((d) => !(name === 'system' && d.id === 'secrets'))
-        .map((d) => ({ id: d.id, ...d.data() }));
+        if (name === 'system' && id === 'secrets') return;
+        await write(name, id, data);
+      });
     }
 
-    // Nested subcollections that don't live at the top level
-    const channelsSnap = await db.collection('channels').get();
-    const channels: unknown[] = [];
-    for (const chDoc of channelsSnap.docs) {
-      const postsSnap = await chDoc.ref.collection('posts').get();
+    // Subcollections. Each parent's children are bounded by that parent, so
+    // they stay nested on the parent's line rather than needing their own.
+    await eachDoc(db, 'channels', async (id, data, ref) => {
+      const postsSnap = await ref.collection('posts').get();
       const posts = await Promise.all(postsSnap.docs.map(async (p) => {
-        const repliesSnap = await p.ref.collection('replies').get();
-        return { id: p.id, ...p.data(), replies: repliesSnap.docs.map((r) => ({ id: r.id, ...r.data() })) };
+        const replies = await p.ref.collection('replies').get();
+        return { id: p.id, ...p.data(), replies: replies.docs.map((r) => ({ id: r.id, ...r.data() })) };
       }));
-      channels.push({ id: chDoc.id, ...chDoc.data(), posts });
-    }
-    dump.channels = channels;
+      await write('channels', id, { ...data, posts });
+    });
 
-    const convSnap = await db.collection('conversations').get();
-    const conversations = await Promise.all(convSnap.docs.map(async (c) => {
-      const msgsSnap = await c.ref.collection('messages').get();
-      return { id: c.id, ...c.data(), messages: msgsSnap.docs.map((m) => ({ id: m.id, ...m.data() })) };
-    }));
-    dump.conversations = conversations;
+    await eachDoc(db, 'conversations', async (id, data, ref) => {
+      const msgs = await ref.collection('messages').get();
+      await write('conversations', id, { ...data, messages: msgs.docs.map((m) => ({ id: m.id, ...m.data() })) });
+    });
 
-    // Support tickets carry their messages in a subcollection, same shape as
-    // conversations — a ticket without its messages is not a restore.
-    const ticketSnap = await db.collection('supportTickets').get();
-    dump.supportTickets = await Promise.all(ticketSnap.docs.map(async (t) => {
-      const msgsSnap = await t.ref.collection('messages').get();
-      return { id: t.id, ...t.data(), messages: msgsSnap.docs.map((m) => ({ id: m.id, ...m.data() })) };
-    }));
+    // A ticket without its messages is not a restore.
+    await eachDoc(db, 'supportTickets', async (id, data, ref) => {
+      const msgs = await ref.collection('messages').get();
+      await write('supportTickets', id, { ...data, messages: msgs.docs.map((m) => ({ id: m.id, ...m.data() })) });
+    });
 
-    // pushSubscriptions/{userId}/devices/{deviceId} — a subcollection, not a
-    // top-level collection, so it needs a collectionGroup query rather than
-    // db.collection(name).get() like the flat COLLECTIONS list above.
+    // pushSubscriptions/{uid}/devices/{deviceId} — a subcollection, so it
+    // needs a collectionGroup query rather than db.collection(name).
     const devicesSnap = await db.collectionGroup('devices').get();
-    dump.pushSubscriptions = devicesSnap.docs
-      .filter((d) => d.ref.parent.parent?.parent.id === 'pushSubscriptions')
-      .map((d) => ({ id: d.id, userId: d.ref.parent.parent?.id, ...d.data() }));
-
-    const r2Client = await getR2Client();
-    // Deliberately NOT R2_BUCKET_NAME — that bucket serves public content
-    // (exercise videos, PR Wall photos) and backups containing every user's
-    // full data must never sit somewhere with public read access. Previously
-    // fell back to R2_BUCKET_NAME (with only a console.warn) when
-    // R2_BACKUP_BUCKET_NAME was unset — a warning nobody would ever see
-    // unless they were already watching server logs at that exact moment.
-    // Falls back to the local-disk path below instead, which stays private.
-    const backupBucket = await getSecret('R2_BACKUP_BUCKET_NAME');
-    const offSite = !!(r2Client && backupBucket);
+    for (const d of devicesSnap.docs) {
+      if (d.ref.parent.parent?.parent.id !== 'pushSubscriptions') continue;
+      await write('pushSubscriptions', d.id, { userId: d.ref.parent.parent?.id, ...d.data() });
+    }
 
     // ── Firebase Auth accounts ────────────────────────────────────────────
     //
-    // The `users` COLLECTION holds profile data — name, goals, membership.
-    // It does not hold the ACCOUNT: the email, the password hash, the MFA
-    // enrolment. Restoring Firestore alone therefore gives you a database
-    // full of profiles that nobody can log into, which for a paying member
-    // base is unrecoverable without asking everyone to register again.
+    // The `users` COLLECTION holds profile data. It does not hold the
+    // ACCOUNT: email, password hash, MFA enrolment. Restoring Firestore alone
+    // gives you a database full of profiles nobody can log into.
     //
-    // listUsers() returns passwordHash/passwordSalt, so these records can be
-    // put back with auth().importUsers() plus the project's hash parameters
-    // (Firebase console → Authentication → Users → ⋮ → Password hash
-    // parameters — copy those somewhere safe once; they are not in here).
-    //
-    // Written ONLY to the private off-site bucket. Password hashes must never
-    // land on the app server's own disk, which is where the fallback path
-    // below writes — so if R2 isn't configured, the accounts are skipped and
-    // the reason is logged rather than quietly downgrading the security of
-    // the most sensitive data in the app.
+    // Written ONLY to the private off-site bucket — password hashes must not
+    // land on the app server's own disk, which is where the fallback below
+    // writes. If R2 isn't configured they are skipped and the reason logged,
+    // rather than quietly downgrading the security of the most sensitive
+    // data in the app.
     if (offSite) {
-      // Named adminAuth, not auth — `auth` above is this request's
-      // authorization result, and shadowing it here reads as a bug.
       const adminAuth = getAuth(app);
-      const authUsers: unknown[] = [];
       let pageToken: string | undefined;
+      authUsers = 0;
       do {
         const page = await adminAuth.listUsers(1000, pageToken);
         for (const u of page.users) {
-          authUsers.push({
-            uid: u.uid,
+          await write('__authUsers', u.uid, {
             email: u.email ?? null,
             emailVerified: u.emailVerified,
             displayName: u.displayName ?? null,
@@ -192,41 +217,41 @@ export async function POST(req: NextRequest) {
             lastSignInAt: u.metadata.lastSignInTime,
           });
         }
+        authUsers += page.users.length;
         pageToken = page.pageToken;
       } while (pageToken);
-      dump._authUsers = authUsers;
-      console.log(`[admin/backup] included ${authUsers.length} Firebase Auth account(s)`);
+      console.log(`[admin/backup] included ${authUsers} Firebase Auth account(s)`);
     } else {
       console.error(
-        '[admin/backup] Firebase Auth accounts NOT backed up — they are only written to the private ' +
-        'off-site bucket, and R2_BACKUP_BUCKET_NAME is unset. Without them a restore produces profiles ' +
-        'nobody can log into. Set it in Admin → Integrations.'
+        '[admin/backup] Firebase Auth accounts NOT backed up — they go only to the private off-site ' +
+        'bucket and R2_BACKUP_BUCKET_NAME is unset. Without them a restore produces profiles nobody ' +
+        'can log into. Set it in Admin → Integrations.'
       );
     }
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `backup-${timestamp}.json`;
-    const json = JSON.stringify(dump);
-    const sizeBytes = Buffer.byteLength(json);
+    gzip.end();
+    await written;
+
+    const { size: sizeBytes } = await fs.stat(tmpPath);
     let location: string;
 
     if (offSite && r2Client && backupBucket) {
+      // Streamed from disk with a known length — the file is never held in
+      // memory as a Buffer.
       await r2Client.send(new PutObjectCommand({
         Bucket: backupBucket,
         Key: `backups/${filename}`,
-        Body: json,
-        ContentType: 'application/json',
+        Body: createReadStream(tmpPath),
+        ContentLength: sizeBytes,
+        ContentType: 'application/gzip',
       }));
       location = `r2:backups/${filename}`;
 
-      // Prune old objects. Nothing was deleting these, so a daily backup of a
-      // growing database would have accumulated in R2 indefinitely.
+      // Nothing pruned these, so daily backups of a growing database would
+      // have accumulated in R2 indefinitely.
       try {
         const listed = await r2Client.send(new ListObjectsV2Command({ Bucket: backupBucket, Prefix: 'backups/' }));
-        const keys = (listed.Contents ?? [])
-          .map((o) => o.Key)
-          .filter((k): k is string => !!k)
-          .sort(); // ISO timestamps in the name sort chronologically
+        const keys = (listed.Contents ?? []).map((o) => o.Key).filter((k): k is string => !!k).sort();
         const stale = keys.slice(0, Math.max(0, keys.length - R2_RETENTION));
         if (stale.length) {
           await r2Client.send(new DeleteObjectsCommand({
@@ -240,40 +265,41 @@ export async function POST(req: NextRequest) {
         console.error('[admin/backup] retention prune failed:', err);
       }
     } else {
-      // A backup written to the same box as the database it protects is not a
-      // backup — it dies with the server. This path exists so a dev/staging
-      // install still works, and says so loudly rather than looking healthy.
+      // A backup on the same box as the database it protects is not a backup
+      // — it dies with the server. This path exists so a dev install still
+      // works, and says so loudly rather than looking healthy.
       console.error(
-        '[admin/backup] R2_BACKUP_BUCKET_NAME is not configured — writing to local disk on the app server. ' +
-        'This does NOT protect against losing the server. Set it in Admin → Integrations.'
+        '[admin/backup] R2_BACKUP_BUCKET_NAME is not configured — writing to local disk on the app ' +
+        'server. This does NOT protect against losing the server. Set it in Admin → Integrations.'
       );
       const dir = path.join(process.cwd(), 'backups');
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(path.join(dir, filename), json, 'utf-8');
+      await fs.copyFile(tmpPath, path.join(dir, filename));
       location = `local:backups/${filename}`;
 
-      // Keep only the last 14 local backups — R2 is unbounded (Cloudflare
-      // bucket lifecycle rules can be set up separately if desired), but
-      // the local fallback shouldn't quietly fill up the VPS disk forever.
       const files = (await fs.readdir(dir)).filter((f) => f.startsWith('backup-')).sort();
       const excess = files.slice(0, Math.max(0, files.length - 14));
       await Promise.all(excess.map((f) => fs.unlink(path.join(dir, f)).catch(() => {})));
     }
 
-    // authUsers is reported explicitly because it is the one part of the
-    // backup that silently opts out (private bucket not configured), and it
-    // is also the part whose absence makes a restore useless. Without this in
-    // the response the only way to know was to read the server log.
+    const documents = Object.values(counts).reduce((n, c) => n + c, 0);
     return NextResponse.json({
       ok: true,
       location,
       sizeBytes,
-      collections: Object.keys(dump).length,
-      authUsers: offSite ? (dump._authUsers as unknown[]).length : null,
+      documents,
+      collections: Object.keys(counts).filter((c) => !c.startsWith('__')).length,
+      // Reported explicitly because this is the one part that silently opts
+      // out, and the part whose absence makes a restore useless.
+      authUsers,
       warning: offSite ? undefined : 'Local disk only — Firebase Auth accounts were NOT backed up. Set R2_BACKUP_BUCKET_NAME.',
     });
   } catch (err) {
     console.error('[admin/backup] Error:', err);
     return NextResponse.json({ error: 'Backup failed' }, { status: 500 });
+  } finally {
+    // The temp file is the full database in plaintext-gzip. Remove it whether
+    // the upload succeeded or not.
+    await fs.unlink(tmpPath).catch(() => {});
   }
 }
