@@ -7,6 +7,57 @@ parameters, and a rehearsal) can only be done *before* you need them.
 
 ---
 
+## Which recovery to reach for
+
+Three mechanisms, in the order you should think about them.
+
+| Situation | Use | Loses |
+|---|---|---|
+| Bad write or bad deploy, spotted within 7 days, damage is database-wide | **PITR** (below) | Everything written after the chosen second |
+| One collection or one member is mangled | **Admin → Backups → Restore from a backup** | Nothing outside that scope |
+| Server or project is gone; you need logins back | **CLI restore** into a fresh project (Step 1 onward) | Everything since last night's backup |
+
+### PITR — rewind the database to a point in time
+
+Enabled on 2026-09-06. Firestore keeps every version of every document for
+**7 days**, so you can read the database as it was at any second in that
+window — down to the minute for the last hour, and at whole minutes before
+that.
+
+```bash
+# What is the earliest second you can go back to?
+gcloud firestore databases describe --database='(default)' \
+  --project=warfare-fitness --format='value(earliestVersionTime)'
+
+# Export the database AS IT WAS, into a GCS bucket. Does NOT touch live data.
+gcloud firestore export gs://<your-gcs-bucket>/pitr-$(date +%s) \
+  --snapshot-time='2026-09-06T14:00:00Z' \
+  --database='(default)' --project=warfare-fitness
+```
+
+Then import that export — **into a scratch project first**, look at it, and
+only overwrite production once you have seen what you are about to write:
+
+```bash
+gcloud firestore import gs://<your-gcs-bucket>/pitr-<id> \
+  --database='(default)' --project=warfare-fitness-scratch
+```
+
+Two things PITR does **not** cover, both of which the table above assumes you
+already understand:
+
+- **Firebase Auth.** Accounts and passwords are not in Firestore, so PITR
+  cannot rewind a deleted user. Only the CLI restore does that.
+- **Stripe.** Rewinding Firestore does not rewind billing — see "Restoring
+  over production" for why that combination is dangerous.
+
+And PITR dies with the database: if the Firestore database itself is deleted,
+its 7 days of history go with it. That is what delete protection is for
+(`gcloud firestore databases update --database='(default)' --delete-protection`).
+Nightly R2 backups remain the only copy that survives losing the project.
+
+---
+
 ## What a backup contains
 
 `/api/admin/backup` runs nightly at 03:22 UTC and writes one gzipped JSONL
