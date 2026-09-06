@@ -4821,6 +4821,10 @@ function AdminPageInner() {
             <p className="text-[11px] text-text-tertiary">
               To automate daily backups, add a cron job on the server: <code className="bg-surface px-1 py-0.5 rounded">curl -X POST https://yourdomain.com/api/admin/backup -H &quot;Authorization: Bearer $CRON_SECRET&quot;</code>
             </p>
+            {/* A backup nobody knows how to restore is not a backup. */}
+            <a href="/admin/restore" className="text-xs text-accent hover:underline inline-block">
+              Restore from a backup →
+            </a>
           </Card>
 
           {/* Landing Page */}

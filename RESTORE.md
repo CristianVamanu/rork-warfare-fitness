@@ -78,7 +78,26 @@ restore is a file you are hoping about, not a backup.
 
 ---
 
-## Restoring
+## The quick path: Admin → Backups → Restore from a backup
+
+`/admin/restore` handles the common case without touching a terminal: pick a
+nightly backup, pick **one collection** or **one member**, preview what would
+be written, then type the confirmation phrase to apply it. Every apply is
+recorded in the `restoreLog` collection.
+
+It deliberately will **not**:
+
+- restore the whole database (Stripe holds billing state this cannot roll
+  back — see "Restoring over production" below);
+- restore Firebase Auth accounts (that silently reverts passwords);
+- delete anything (documents created since the backup survive).
+
+Use it when the damage is contained — a collection wiped, one member's data
+mangled. For anything wider, use the CLI below.
+
+---
+
+## Restoring (CLI — full restores and rehearsals)
 
 ### Step 1 — get the file
 

@@ -12,7 +12,7 @@
  * This one resolves dotted keys only where Firestore does, so a test that
  * asserts on the nested map fails for the dotted-set() shape.
  *
- * Supported: collection().doc().get/set/update/delete, collection().where()
+ * Supported: doc(path), collection().doc().get/set/update/delete, collection().where()
  * (equality, dotted paths) .limit().get(), doc refs on query results (`.ref`,
  * `.id`, `.data()`), runTransaction, batch, collectionGroup (by last segment),
  * FieldValue sentinels for serverTimestamp/delete/increment/arrayUnion/Remove.
@@ -164,6 +164,8 @@ export function makeAdminDb() {
   const db = {
     docs,
     collection: (c: string) => collectionRef(c),
+    /** Full-path document reference, as used by restores writing arbitrary paths. */
+    doc: (path: string) => docRef(path),
     collectionGroup: (name: string) => ({
       where: (p: string, _op: string, value: unknown) => ({
         get: async () => {
