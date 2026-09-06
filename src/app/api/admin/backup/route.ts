@@ -260,7 +260,18 @@ export async function POST(req: NextRequest) {
       await Promise.all(excess.map((f) => fs.unlink(path.join(dir, f)).catch(() => {})));
     }
 
-    return NextResponse.json({ ok: true, location, sizeBytes, collections: Object.keys(dump).length });
+    // authUsers is reported explicitly because it is the one part of the
+    // backup that silently opts out (private bucket not configured), and it
+    // is also the part whose absence makes a restore useless. Without this in
+    // the response the only way to know was to read the server log.
+    return NextResponse.json({
+      ok: true,
+      location,
+      sizeBytes,
+      collections: Object.keys(dump).length,
+      authUsers: offSite ? (dump._authUsers as unknown[]).length : null,
+      warning: offSite ? undefined : 'Local disk only — Firebase Auth accounts were NOT backed up. Set R2_BACKUP_BUCKET_NAME.',
+    });
   } catch (err) {
     console.error('[admin/backup] Error:', err);
     return NextResponse.json({ error: 'Backup failed' }, { status: 500 });
