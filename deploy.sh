@@ -158,10 +158,16 @@ if [ -n "$ENV_FILE" ]; then
     # growing database is the one job here that legitimately takes minutes,
     # but it must not hang forever holding a worker.
     BACKUP_CMD="curl -fsS --max-time 900 -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${APP_URL%/}/api/admin/backup\" >/dev/null 2>&1 ${CRON_MARKER}"
-    ( crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" || true ; echo "0 * * * * ${CRON_CMD}" ; echo "17 4 * * * ${RECONCILE_CMD}" ; echo "22 3 * * * ${BACKUP_CMD}" ) | crontab -
+    # Daily digest of unresolved client errors. Errors were being captured
+    # and stored but nothing ever told anyone, so you only found out by going
+    # to look. 08:05 UTC — first thing, and it sends nothing at all on a
+    # quiet day so a delivered email always means something happened.
+    DIGEST_CMD="curl -fsS --max-time 120 -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${APP_URL%/}/api/admin/error-digest\" >/dev/null 2>&1 ${CRON_MARKER}"
+    ( crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" || true ; echo "0 * * * * ${CRON_CMD}" ; echo "17 4 * * * ${RECONCILE_CMD}" ; echo "22 3 * * * ${BACKUP_CMD}" ; echo "5 8 * * * ${DIGEST_CMD}" ) | crontab -
     echo "    cron installed: hourly POST to /api/notifications/process"
     echo "    cron installed: daily POST to /api/admin/reconcile-subscriptions"
     echo "    cron installed: nightly POST to /api/admin/backup (03:22 UTC)"
+    echo "    cron installed: daily POST to /api/admin/error-digest (08:05 UTC)"
   else
     echo "    skipped — CRON_SECRET or NEXT_PUBLIC_APP_URL not set in $ENV_FILE"
   fi

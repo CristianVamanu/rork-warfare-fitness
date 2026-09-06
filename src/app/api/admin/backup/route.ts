@@ -22,6 +22,7 @@ import { PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@a
 import fs from 'fs/promises';
 import path from 'path';
 import { verifyAdmin } from '@/lib/verifyAdmin';
+import { getAuth } from 'firebase-admin/auth';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { getR2Client } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
@@ -137,11 +138,6 @@ export async function POST(req: NextRequest) {
       .filter((d) => d.ref.parent.parent?.parent.id === 'pushSubscriptions')
       .map((d) => ({ id: d.id, userId: d.ref.parent.parent?.id, ...d.data() }));
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `backup-${timestamp}.json`;
-    const json = JSON.stringify(dump);
-    const sizeBytes = Buffer.byteLength(json);
-
     const r2Client = await getR2Client();
     // Deliberately NOT R2_BUCKET_NAME — that bucket serves public content
     // (exercise videos, PR Wall photos) and backups containing every user's
@@ -151,9 +147,70 @@ export async function POST(req: NextRequest) {
     // unless they were already watching server logs at that exact moment.
     // Falls back to the local-disk path below instead, which stays private.
     const backupBucket = await getSecret('R2_BACKUP_BUCKET_NAME');
+    const offSite = !!(r2Client && backupBucket);
+
+    // ── Firebase Auth accounts ────────────────────────────────────────────
+    //
+    // The `users` COLLECTION holds profile data — name, goals, membership.
+    // It does not hold the ACCOUNT: the email, the password hash, the MFA
+    // enrolment. Restoring Firestore alone therefore gives you a database
+    // full of profiles that nobody can log into, which for a paying member
+    // base is unrecoverable without asking everyone to register again.
+    //
+    // listUsers() returns passwordHash/passwordSalt, so these records can be
+    // put back with auth().importUsers() plus the project's hash parameters
+    // (Firebase console → Authentication → Users → ⋮ → Password hash
+    // parameters — copy those somewhere safe once; they are not in here).
+    //
+    // Written ONLY to the private off-site bucket. Password hashes must never
+    // land on the app server's own disk, which is where the fallback path
+    // below writes — so if R2 isn't configured, the accounts are skipped and
+    // the reason is logged rather than quietly downgrading the security of
+    // the most sensitive data in the app.
+    if (offSite) {
+      // Named adminAuth, not auth — `auth` above is this request's
+      // authorization result, and shadowing it here reads as a bug.
+      const adminAuth = getAuth(app);
+      const authUsers: unknown[] = [];
+      let pageToken: string | undefined;
+      do {
+        const page = await adminAuth.listUsers(1000, pageToken);
+        for (const u of page.users) {
+          authUsers.push({
+            uid: u.uid,
+            email: u.email ?? null,
+            emailVerified: u.emailVerified,
+            displayName: u.displayName ?? null,
+            photoURL: u.photoURL ?? null,
+            disabled: u.disabled,
+            passwordHash: u.passwordHash ?? null,
+            passwordSalt: u.passwordSalt ?? null,
+            customClaims: u.customClaims ?? null,
+            providerData: u.providerData.map((p) => ({ providerId: p.providerId, uid: p.uid, email: p.email ?? null })),
+            multiFactorEnrolled: (u.multiFactor?.enrolledFactors ?? []).length,
+            createdAt: u.metadata.creationTime,
+            lastSignInAt: u.metadata.lastSignInTime,
+          });
+        }
+        pageToken = page.pageToken;
+      } while (pageToken);
+      dump._authUsers = authUsers;
+      console.log(`[admin/backup] included ${authUsers.length} Firebase Auth account(s)`);
+    } else {
+      console.error(
+        '[admin/backup] Firebase Auth accounts NOT backed up — they are only written to the private ' +
+        'off-site bucket, and R2_BACKUP_BUCKET_NAME is unset. Without them a restore produces profiles ' +
+        'nobody can log into. Set it in Admin → Integrations.'
+      );
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `backup-${timestamp}.json`;
+    const json = JSON.stringify(dump);
+    const sizeBytes = Buffer.byteLength(json);
     let location: string;
 
-    if (r2Client && backupBucket) {
+    if (offSite && r2Client && backupBucket) {
       await r2Client.send(new PutObjectCommand({
         Bucket: backupBucket,
         Key: `backups/${filename}`,
