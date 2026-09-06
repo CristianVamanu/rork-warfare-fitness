@@ -44,7 +44,12 @@ lines carry a `userId` naming the parent.
 ### 1. Export the password hash parameters
 
 Firebase Console → **Authentication** → **Users** → **⋮** (top-right of the
-table) → **Password hash parameters**. Save as `hash-params.json`:
+table) → **Password hash parameters**.
+
+The console prints an unquoted config block. Convert it to real JSON — the
+restore script does `JSON.parse`, so quotes are required. Save as
+`hash-params.json` (already gitignored, but keep the canonical copy in a
+password manager, not on the server):
 
 ```json
 {
@@ -56,7 +61,11 @@ table) → **Password hash parameters**. Save as `hash-params.json`:
 }
 ```
 
-Put it in your password manager. **Without this file the password hashes in
+`rounds` and `mem_cost` stay unquoted numbers; the three string fields need
+quotes. `base64_signer_key` is a **secret** — anyone holding it plus a backup
+file can verify passwords offline, so treat it like a private key.
+
+**Without this file the password hashes in
 every backup are unusable** and your members cannot sign in after a restore.
 There is no way to recover it from a backup, because it deliberately isn't in
 one.

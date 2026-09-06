@@ -36,6 +36,18 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# Firebase password hash parameters (RESTORE.md tells you to create this).
+# It is the key that makes every password hash in every backup usable — the
+# one thing deliberately kept OUT of backups, so committing it here would
+# undo that entirely. Belongs in a password manager, not in git.
+hash-params.json
+
+# A restored/downloaded backup is the whole database, password hashes included.
+restore.jsonl.gz
+backup-*.jsonl.gz
+backup-*.json
+backups/
+
 # written by deploy.sh / deploy-webhook, read by /api/health
 .deploy-status.json
 
