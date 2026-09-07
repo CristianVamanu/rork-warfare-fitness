@@ -7,7 +7,7 @@ import { Plus, Edit2, Trash2, EyeOff, Users, Sparkles, ChevronLeft, Dumbbell, Cr
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, unhideMockProgram, getDeletedMockIds, permanentlyDeleteMockProgram, restoreDeletedMockProgram, getPurgedMockIds, purgeMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
+import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, getDeletedMockIds, permanentlyDeleteMockProgram, getPurgedMockIds, purgeMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -38,16 +38,6 @@ export default function ProgramsPage() {
   const [publishing, setPublishing] = useState<string | null>(null);
   const [healthChecking, setHealthChecking] = useState(false);
   const [healthResult, setHealthResult] = useState<{ programsChecked: number; librarySize: number; findings: HealthFinding[] } | null>(null);
-  const [hiddenMockIds, setHiddenMockIds] = useState<string[]>([]);
-  // Permanently deleted built-ins. Tracked and shown so the admin panel can
-  // account for every built-in program: previously a deleted one vanished
-  // from this screen completely, leaving no way to see that it existed, to
-  // confirm it was gone, or to undo a mistake.
-  const [deletedMockIds, setDeletedMockIds] = useState<string[]>([]);
-  const [restoringDeleted, setRestoringDeleted] = useState<string | null>(null);
-  const [purgedMockIds, setPurgedMockIds] = useState<string[]>([]);
-  const [purging, setPurging] = useState<string | null>(null);
-  const [restoring, setRestoring] = useState<string | null>(null);
   const [deletingForever, setDeletingForever] = useState<string | null>(null);
 
   async function runHealthCheck() {
@@ -79,80 +69,16 @@ export default function ProgramsPage() {
     ]).then(([progs, u, hiddenIds, deletedIds, purgedIds]) => {
       const firestoreProgs = progs as (Program & { visibility?: string })[];
       const fpIds = new Set(firestoreProgs.map(p => p.id));
-      const deleted = new Set(deletedIds as string[]);
+      // Deleted and purged both mean "gone" — a purge always writes the id to
+      // deletedMocks as well, but reading both means an id recorded by only
+      // one of them (an older delete, a half-failed write) still stays gone.
+      const deleted = new Set([...(deletedIds as string[]), ...(purgedIds as string[])]);
       const hidden = new Set(hiddenIds as string[]);
       const mocks = MOCK_PROGRAMS.filter(p => !fpIds.has(p.id) && !hidden.has(p.id) && !deleted.has(p.id)).map(p => ({ ...p, _mock: true }));
       setPrograms([...firestoreProgs, ...mocks]);
-      setDeletedMockIds((deletedIds as string[]).filter((id) => MOCK_PROGRAMS.some((m) => m.id === id)));
-      setPurgedMockIds(purgedIds as string[]);
-      // A hidden mock id can be stale (the Firestore doc it once pointed to
-      // may since have been deleted) — only offer to restore ones that
-      // aren't already showing some other way, i.e. still actually hidden,
-      // and haven't been permanently deleted.
-      setHiddenMockIds((hiddenIds as string[]).filter((id) => !fpIds.has(id) && !deleted.has(id)));
       setUsers((u as UserRow[]).filter((x: UserRow & { role?: string }) => x.role !== 'admin'));
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
-
-  async function handleRestoreMock(id: string) {
-    setRestoring(id);
-    try {
-      await unhideMockProgram(id);
-      const mock = MOCK_PROGRAMS.find((p) => p.id === id);
-      if (mock) setPrograms((prev) => [...prev, { ...mock, _mock: true }]);
-      setHiddenMockIds((prev) => prev.filter((x) => x !== id));
-      toast.success('Restored');
-    } catch { toast.error('Failed to restore'); }
-    finally { setRestoring(null); }
-  }
-
-  const visibleDeletedIds = deletedMockIds.filter((id) => !purgedMockIds.includes(id));
-
-  async function handleRestoreDeleted(id: string) {
-    setRestoringDeleted(id);
-    try {
-      await restoreDeletedMockProgram(id);
-      setDeletedMockIds((prev) => prev.filter((x) => x !== id));
-      const mock = MOCK_PROGRAMS.find((p) => p.id === id);
-      if (mock) setPrograms((prev) => [...prev, { ...mock, _mock: true }]);
-      toast.success('Restored');
-    } catch { toast.error('Failed to restore'); }
-    finally { setRestoringDeleted(null); }
-  }
-
-  async function handlePurge(id: string, name: string) {
-    if (!confirm(`Remove "${name}" from this list for good?\n\nIt stays deleted for every user. This only clears it from the admin panel, and there is no undo button for it afterwards.`)) return;
-    setPurging(id);
-    try {
-      await purgeMockProgram(id);
-      setPurgedMockIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-      toast.success('Removed for good');
-    } catch { toast.error('Failed to remove'); }
-    finally { setPurging(null); }
-  }
-
-  async function handlePurgeAll(ids: string[]) {
-    if (!confirm(`Remove all ${ids.length} deleted programs from this list for good?\n\nThey stay deleted for every user. This only clears the list, and there is no undo button afterwards.`)) return;
-    setPurging('__all__');
-    try {
-      for (const id of ids) await purgeMockProgram(id);
-      setPurgedMockIds((prev) => [...new Set([...prev, ...ids])]);
-      toast.success('List cleared');
-    } catch { toast.error('Failed to clear the list'); }
-    finally { setPurging(null); }
-  }
-
-  async function handleDeleteForever(id: string, name: string) {
-    if (!confirm(`Permanently delete "${name}"? This can't be undone from the admin panel.`)) return;
-    setDeletingForever(id);
-    try {
-      await permanentlyDeleteMockProgram(id);
-      setHiddenMockIds((prev) => prev.filter((x) => x !== id));
-      setDeletedMockIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-      toast.success('Deleted — no longer visible to anyone');
-    } catch { toast.error('Failed to delete'); }
-    finally { setDeletingForever(null); }
-  }
 
   // Toggling premium/price on a built-in (mock) program promotes it to a
   // real Firestore doc in the same step — writing the mock's full content

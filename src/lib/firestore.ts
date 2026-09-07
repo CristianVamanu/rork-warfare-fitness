@@ -1501,14 +1501,6 @@ export async function getHiddenMockIds(): Promise<string[]> {
 // atomic set-membership ops, immune to the lost-update race where two
 // concurrent calls both read the same array and the second write drops
 // whatever the first one added/removed.
-export async function hideMockProgram(id: string) {
-  await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: arrayUnion(id) }, { merge: true });
-}
-
-export async function unhideMockProgram(id: string) {
-  await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: arrayRemove(id) }, { merge: true });
-}
-
 // ---------------------------------------------------------------------------
 // Permanently deleted built-in programs — stored at config/deletedMocks
 // { ids: string[] }. Separate from hiddenMocks: a hidden one can still be
@@ -1530,11 +1522,6 @@ export async function permanentlyDeleteMockProgram(id: string) {
   // the deleted program invisible in the admin panel, so it could not be
   // seen, confirmed or restored.
   await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: arrayRemove(id) }, { merge: true });
-}
-
-/** Undo a permanent delete. The admin panel should never be a dead end. */
-export async function restoreDeletedMockProgram(id: string) {
-  await setDoc(doc(db, 'config', 'deletedMocks'), { ids: arrayRemove(id) }, { merge: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -1562,11 +1549,6 @@ export async function purgeMockProgram(id: string) {
   // to the only person who could notice.
   await setDoc(doc(db, 'config', 'deletedMocks'), { ids: arrayUnion(id) }, { merge: true });
   await setDoc(doc(db, 'config', 'purgedMocks'), { ids: arrayUnion(id) }, { merge: true });
-}
-
-/** Bring a purged one back into the admin list (still deleted for users). */
-export async function unpurgeMockProgram(id: string) {
-  await setDoc(doc(db, 'config', 'purgedMocks'), { ids: arrayRemove(id) }, { merge: true });
 }
 
 // ---------------------------------------------------------------------------
