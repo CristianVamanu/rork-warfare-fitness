@@ -1505,6 +1505,19 @@ export async function getDeletedMockIds(): Promise<string[]> {
 
 export async function permanentlyDeleteMockProgram(id: string) {
   await setDoc(doc(db, 'config', 'deletedMocks'), { ids: arrayUnion(id) }, { merge: true });
+  // Also drop it from hiddenMocks, so deletedMocks is the single answer to
+  // "is this program gone". It used to be removed from the admin screen's
+  // local state only, leaving the id in BOTH documents — which happened to
+  // keep the program suppressed in-app for the wrong reason (the Training
+  // list filtered hiddenMocks and ignored deletedMocks entirely), and made
+  // the deleted program invisible in the admin panel, so it could not be
+  // seen, confirmed or restored.
+  await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: arrayRemove(id) }, { merge: true });
+}
+
+/** Undo a permanent delete. The admin panel should never be a dead end. */
+export async function restoreDeletedMockProgram(id: string) {
+  await setDoc(doc(db, 'config', 'deletedMocks'), { ids: arrayRemove(id) }, { merge: true });
 }
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ import { Plus, Edit2, Trash2, EyeOff, Users, Sparkles, ChevronLeft, Dumbbell, Cr
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, unhideMockProgram, getDeletedMockIds, permanentlyDeleteMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
+import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, unhideMockProgram, getDeletedMockIds, permanentlyDeleteMockProgram, restoreDeletedMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -39,6 +39,12 @@ export default function ProgramsPage() {
   const [healthChecking, setHealthChecking] = useState(false);
   const [healthResult, setHealthResult] = useState<{ programsChecked: number; librarySize: number; findings: HealthFinding[] } | null>(null);
   const [hiddenMockIds, setHiddenMockIds] = useState<string[]>([]);
+  // Permanently deleted built-ins. Tracked and shown so the admin panel can
+  // account for every built-in program: previously a deleted one vanished
+  // from this screen completely, leaving no way to see that it existed, to
+  // confirm it was gone, or to undo a mistake.
+  const [deletedMockIds, setDeletedMockIds] = useState<string[]>([]);
+  const [restoringDeleted, setRestoringDeleted] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
   const [deletingForever, setDeletingForever] = useState<string | null>(null);
 
@@ -74,6 +80,7 @@ export default function ProgramsPage() {
       const hidden = new Set(hiddenIds as string[]);
       const mocks = MOCK_PROGRAMS.filter(p => !fpIds.has(p.id) && !hidden.has(p.id) && !deleted.has(p.id)).map(p => ({ ...p, _mock: true }));
       setPrograms([...firestoreProgs, ...mocks]);
+      setDeletedMockIds((deletedIds as string[]).filter((id) => MOCK_PROGRAMS.some((m) => m.id === id)));
       // A hidden mock id can be stale (the Firestore doc it once pointed to
       // may since have been deleted) — only offer to restore ones that
       // aren't already showing some other way, i.e. still actually hidden,
@@ -95,13 +102,26 @@ export default function ProgramsPage() {
     finally { setRestoring(null); }
   }
 
+  async function handleRestoreDeleted(id: string) {
+    setRestoringDeleted(id);
+    try {
+      await restoreDeletedMockProgram(id);
+      setDeletedMockIds((prev) => prev.filter((x) => x !== id));
+      const mock = MOCK_PROGRAMS.find((p) => p.id === id);
+      if (mock) setPrograms((prev) => [...prev, { ...mock, _mock: true }]);
+      toast.success('Restored');
+    } catch { toast.error('Failed to restore'); }
+    finally { setRestoringDeleted(null); }
+  }
+
   async function handleDeleteForever(id: string, name: string) {
     if (!confirm(`Permanently delete "${name}"? This can't be undone from the admin panel.`)) return;
     setDeletingForever(id);
     try {
       await permanentlyDeleteMockProgram(id);
       setHiddenMockIds((prev) => prev.filter((x) => x !== id));
-      toast.success('Deleted forever');
+      setDeletedMockIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      toast.success('Deleted — no longer visible to anyone');
     } catch { toast.error('Failed to delete'); }
     finally { setDeletingForever(null); }
   }
@@ -417,6 +437,29 @@ export default function ProgramsPage() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {deletedMockIds.length > 0 && (
+        <Card className="p-4 mt-4 border-danger/20">
+          <p className="text-sm font-bold text-white mb-1">Deleted Built-in Programs</p>
+          <p className="text-xs text-text-secondary mb-3">
+            Not shown to anyone — not in the app, not on the landing page. They are listed
+            here only so you can see what has been removed, and undo it if it was a mistake.
+          </p>
+          <div className="space-y-2">
+            {deletedMockIds.map((id) => {
+              const mock = MOCK_PROGRAMS.find((p) => p.id === id);
+              return (
+                <div key={id} className="flex items-center justify-between gap-2 py-1.5">
+                  <span className="text-sm text-text-secondary line-through">{mock?.name ?? id}</span>
+                  <Button size="sm" variant="ghost" onClick={() => handleRestoreDeleted(id)} loading={restoringDeleted === id}>
+                    Undo delete
+                  </Button>
                 </div>
               );
             })}

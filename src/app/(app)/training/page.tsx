@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { Moon, Dumbbell, Play, Clock, Target, ChevronRight, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getPrograms, resolveProgram, getHiddenMockIds, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
+import { getPrograms, resolveProgram, getHiddenMockIds, getDeletedMockIds, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
 import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
@@ -124,13 +124,25 @@ export default function TrainingPage() {
   };
 
   useEffect(() => {
-    Promise.all([getPrograms(), getHiddenMockIds().catch(() => [] as string[])])
-      .then(([firestoreProgs, hiddenIds]) => {
+    // deletedMocks was missing here. This list filtered hidden built-ins and
+    // ignored permanently deleted ones entirely — it only looked correct
+    // because "Delete forever" was reachable only for already-hidden
+    // programs, so every deleted id happened to also be a hidden id. That is
+    // a coincidence of one screen's flow, not a guarantee, and the moment it
+    // stopped holding, deleted programs would have reappeared for every user
+    // while the admin panel insisted they were gone. The landing page's
+    // /api/public/programs already filtered both.
+    Promise.all([
+      getPrograms(),
+      getHiddenMockIds().catch(() => [] as string[]),
+      getDeletedMockIds().catch(() => [] as string[]),
+    ])
+      .then(([firestoreProgs, hiddenIds, deletedIds]) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fp = firestoreProgs as any as Program[];
         const fpIds = new Set(fp.map((p) => p.id));
-        const hidden = new Set(hiddenIds);
-        const mocks = MOCK_PROGRAMS.filter((m) => !fpIds.has(m.id) && !hidden.has(m.id));
+        const suppressed = new Set([...hiddenIds, ...deletedIds]);
+        const mocks = MOCK_PROGRAMS.filter((m) => !fpIds.has(m.id) && !suppressed.has(m.id));
         setPrograms([...fp, ...mocks as Program[]]);
       })
       .catch(() => setPrograms(MOCK_PROGRAMS))
