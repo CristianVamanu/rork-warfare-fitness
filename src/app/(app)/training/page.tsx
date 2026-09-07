@@ -53,6 +53,13 @@ export default function TrainingPage() {
   const workedOutToday = completedWorkouts > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
 
   const [resolvedActive, setResolvedActive] = useState<Program | null>(null);
+  // Whether the resolve has FINISHED — distinct from whether it found
+  // anything. The card below keys on the activeProgram pointer stored on the
+  // user doc, which outlives the program it points at: a program that has
+  // since been deleted (or a built-in removed from the seed data) leaves a
+  // member enrolled in something that no longer resolves, and they'd get a
+  // card with no sessions and no way out of it.
+  const [activeResolved, setActiveResolved] = useState(false);
   // Saved (non-active) per-program progress, keyed by programId — powers
   // the "Continue — Week X • Day Y" line on programs other than the
   // currently active one, so switching away and back is visibly
@@ -87,9 +94,10 @@ export default function TrainingPage() {
   // screens ended up disagreeing about the same program's schedule.
   useEffect(() => {
     if (!activeProgram) { setResolvedActive(null); return; }
+    setActiveResolved(false);
     resolveProgram(activeProgram.programId)
-      .then(setResolvedActive)
-      .catch(() => setResolvedActive(null));
+      .then((p) => { setResolvedActive(p); setActiveResolved(true); })
+      .catch(() => { setResolvedActive(null); setActiveResolved(true); });
   }, [activeProgram]);
 
   // getNextSession skips stale rest slots (deadlock fix) — same shared
@@ -184,7 +192,15 @@ export default function TrainingPage() {
         {/* Active Program Hero */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <h2 className="text-sm font-medium text-text-secondary mb-2">ACTIVE PROGRAM</h2>
-          {activeProgram ? (
+          {activeProgram && activeResolved && !resolvedActive ? (
+            <Card className="p-5">
+              <p className="text-text-secondary text-sm mb-2">Program no longer available</p>
+              <h3 className="text-lg font-bold text-white">This program has been removed</h3>
+              <p className="text-text-secondary text-sm mt-1 mb-3">
+                Your progress is safe. Pick another program below to carry on.
+              </p>
+            </Card>
+          ) : activeProgram ? (
             <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-surface to-surface-elevated">
               <div className="absolute right-0 bottom-0 opacity-5 pointer-events-none">
                 <Dumbbell className="w-32 h-32 text-accent" />

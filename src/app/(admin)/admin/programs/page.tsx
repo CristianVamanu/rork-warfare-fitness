@@ -7,7 +7,7 @@ import { Plus, Edit2, Trash2, EyeOff, Users, Sparkles, ChevronLeft, Dumbbell, Cr
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, unhideMockProgram, getDeletedMockIds, permanentlyDeleteMockProgram, restoreDeletedMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
+import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, hideMockProgram, unhideMockProgram, getDeletedMockIds, permanentlyDeleteMockProgram, restoreDeletedMockProgram, getPurgedMockIds, purgeMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -45,6 +45,8 @@ export default function ProgramsPage() {
   // confirm it was gone, or to undo a mistake.
   const [deletedMockIds, setDeletedMockIds] = useState<string[]>([]);
   const [restoringDeleted, setRestoringDeleted] = useState<string | null>(null);
+  const [purgedMockIds, setPurgedMockIds] = useState<string[]>([]);
+  const [purging, setPurging] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
   const [deletingForever, setDeletingForever] = useState<string | null>(null);
 
@@ -73,7 +75,8 @@ export default function ProgramsPage() {
       getAllUsers().catch(() => []),
       getHiddenMockIds().catch(() => [] as string[]),
       getDeletedMockIds().catch(() => [] as string[]),
-    ]).then(([progs, u, hiddenIds, deletedIds]) => {
+      getPurgedMockIds().catch(() => [] as string[]),
+    ]).then(([progs, u, hiddenIds, deletedIds, purgedIds]) => {
       const firestoreProgs = progs as (Program & { visibility?: string })[];
       const fpIds = new Set(firestoreProgs.map(p => p.id));
       const deleted = new Set(deletedIds as string[]);
@@ -81,6 +84,7 @@ export default function ProgramsPage() {
       const mocks = MOCK_PROGRAMS.filter(p => !fpIds.has(p.id) && !hidden.has(p.id) && !deleted.has(p.id)).map(p => ({ ...p, _mock: true }));
       setPrograms([...firestoreProgs, ...mocks]);
       setDeletedMockIds((deletedIds as string[]).filter((id) => MOCK_PROGRAMS.some((m) => m.id === id)));
+      setPurgedMockIds(purgedIds as string[]);
       // A hidden mock id can be stale (the Firestore doc it once pointed to
       // may since have been deleted) — only offer to restore ones that
       // aren't already showing some other way, i.e. still actually hidden,
@@ -102,6 +106,8 @@ export default function ProgramsPage() {
     finally { setRestoring(null); }
   }
 
+  const visibleDeletedIds = deletedMockIds.filter((id) => !purgedMockIds.includes(id));
+
   async function handleRestoreDeleted(id: string) {
     setRestoringDeleted(id);
     try {
@@ -112,6 +118,28 @@ export default function ProgramsPage() {
       toast.success('Restored');
     } catch { toast.error('Failed to restore'); }
     finally { setRestoringDeleted(null); }
+  }
+
+  async function handlePurge(id: string, name: string) {
+    if (!confirm(`Remove "${name}" from this list for good?\n\nIt stays deleted for every user. This only clears it from the admin panel, and there is no undo button for it afterwards.`)) return;
+    setPurging(id);
+    try {
+      await purgeMockProgram(id);
+      setPurgedMockIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      toast.success('Removed for good');
+    } catch { toast.error('Failed to remove'); }
+    finally { setPurging(null); }
+  }
+
+  async function handlePurgeAll(ids: string[]) {
+    if (!confirm(`Remove all ${ids.length} deleted programs from this list for good?\n\nThey stay deleted for every user. This only clears the list, and there is no undo button afterwards.`)) return;
+    setPurging('__all__');
+    try {
+      for (const id of ids) await purgeMockProgram(id);
+      setPurgedMockIds((prev) => [...new Set([...prev, ...ids])]);
+      toast.success('List cleared');
+    } catch { toast.error('Failed to clear the list'); }
+    finally { setPurging(null); }
   }
 
   async function handleDeleteForever(id: string, name: string) {
@@ -444,22 +472,34 @@ export default function ProgramsPage() {
         </Card>
       )}
 
-      {deletedMockIds.length > 0 && (
+      {visibleDeletedIds.length > 0 && (
         <Card className="p-4 mt-4 border-danger/20">
           <p className="text-sm font-bold text-white mb-1">Deleted Built-in Programs</p>
           <p className="text-xs text-text-secondary mb-3">
             Not shown to anyone — not in the app, not on the landing page. They are listed
             here only so you can see what has been removed, and undo it if it was a mistake.
+            &ldquo;Remove for good&rdquo; clears it from this list permanently — it stays deleted
+            for users either way.
           </p>
+          <div className="mb-3">
+            <Button size="sm" variant="secondary" onClick={() => handlePurgeAll(visibleDeletedIds)} loading={purging === '__all__'}>
+              Remove all {visibleDeletedIds.length} for good
+            </Button>
+          </div>
           <div className="space-y-2">
-            {deletedMockIds.map((id) => {
+            {visibleDeletedIds.map((id) => {
               const mock = MOCK_PROGRAMS.find((p) => p.id === id);
               return (
                 <div key={id} className="flex items-center justify-between gap-2 py-1.5">
                   <span className="text-sm text-text-secondary line-through">{mock?.name ?? id}</span>
-                  <Button size="sm" variant="ghost" onClick={() => handleRestoreDeleted(id)} loading={restoringDeleted === id}>
-                    Undo delete
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => handleRestoreDeleted(id)} loading={restoringDeleted === id}>
+                      Undo
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => handlePurge(id, mock?.name ?? id)} loading={purging === id}>
+                      Remove for good
+                    </Button>
+                  </div>
                 </div>
               );
             })}

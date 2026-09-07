@@ -1521,6 +1521,38 @@ export async function restoreDeletedMockProgram(id: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Purged built-ins — stored at config/purgedMocks { ids: string[] }.
+//
+// The built-in programs are compiled into the app bundle as seed data, so no
+// runtime action can remove them from the shipped JavaScript — only a source
+// change does that. What an admin can decide is that a deleted one is DONE:
+// gone for users (deletedMocks already guarantees that) and gone from the
+// admin panel too, instead of sitting in a list with an Undo button forever.
+//
+// Kept as its own list rather than as a delete from deletedMocks, because
+// deletedMocks is what suppresses the program everywhere. Removing the id
+// from it to tidy the admin screen would bring the program BACK for every
+// user — the opposite of what "remove permanently" means.
+// ---------------------------------------------------------------------------
+export async function getPurgedMockIds(): Promise<string[]> {
+  const snap = await getDoc(doc(db, 'config', 'purgedMocks'));
+  return snap.exists() ? ((snap.data().ids as string[]) ?? []) : [];
+}
+
+export async function purgeMockProgram(id: string) {
+  // Belt and braces: ensure it is actually deleted before hiding the row
+  // that says so, so a purge can never leave a program live but invisible
+  // to the only person who could notice.
+  await setDoc(doc(db, 'config', 'deletedMocks'), { ids: arrayUnion(id) }, { merge: true });
+  await setDoc(doc(db, 'config', 'purgedMocks'), { ids: arrayUnion(id) }, { merge: true });
+}
+
+/** Bring a purged one back into the admin list (still deleted for users). */
+export async function unpurgeMockProgram(id: string) {
+  await setDoc(doc(db, 'config', 'purgedMocks'), { ids: arrayRemove(id) }, { merge: true });
+}
+
+// ---------------------------------------------------------------------------
 // Membership configuration — stored at config/membership
 // ---------------------------------------------------------------------------
 import type { MembershipConfig, MembershipPlan } from '@/types';
