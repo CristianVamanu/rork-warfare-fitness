@@ -9,10 +9,11 @@ import {
   MessageSquare, Send, ChevronLeft, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
   Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail, Star,
-  LifeBuoy,
+  LifeBuoy, RotateCcw,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { RestorePanel } from '@/components/admin/RestorePanel';
 import { getIdToken } from 'firebase/auth';
 import { uploadVideo, deleteVideo, type StorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail, extractVideoThumbnailFromUrl } from '@/lib/videoThumbnail';
@@ -66,7 +67,7 @@ function SupportStatusPill({ status }: { status: SupportTicketStatus }) {
   );
 }
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'settings';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'settings' | 'restore';
 
 // Shared by both plan editors (CoachingPlan's Tool Access and
 // MembershipPlan's Tool Access) — feature ids here must match what
@@ -257,7 +258,7 @@ function AdminPageInner() {
   const { user, profile, tenant } = useAuth();
   const [tab, setTab] = useState<Tab>(() => {
     const t = searchParams.get('tab');
-    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'support', 'community', 'notifications', 'membership', 'coaching', 'library', 'analytics', 'integrations', 'leads', 'settings'];
+    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'support', 'community', 'notifications', 'membership', 'coaching', 'library', 'analytics', 'integrations', 'leads', 'settings', 'restore'];
     return (valid as string[]).includes(t ?? '') ? (t as Tab) : 'overview';
   });
 
@@ -2518,6 +2519,9 @@ function AdminPageInner() {
     { id: 'integrations', label: 'Integrations', icon: Key },
     { id: 'leads', label: 'Leads', icon: Mail },
     { id: 'settings', label: 'Settings', icon: Settings },
+    // Last in the bar, but a tab of its own: disaster recovery buried at the
+    // bottom of a settings page is not findable by someone who needs it now.
+    { id: 'restore', label: 'Restore', icon: RotateCcw },
   ];
 
   return (
@@ -2551,6 +2555,9 @@ function AdminPageInner() {
           </button>
         ))}
       </div>
+
+      {/* ── Restore ──────────────────────────────────────────────────────────── */}
+      {tab === 'restore' && <RestorePanel />}
 
       {/* ── Overview ─────────────────────────────────────────────────────────── */}
       {tab === 'overview' && (
@@ -4821,10 +4828,12 @@ function AdminPageInner() {
             <p className="text-[11px] text-text-tertiary">
               To automate daily backups, add a cron job on the server: <code className="bg-surface px-1 py-0.5 rounded">curl -X POST https://yourdomain.com/api/admin/backup -H &quot;Authorization: Bearer $CRON_SECRET&quot;</code>
             </p>
-            {/* A backup nobody knows how to restore is not a backup. */}
-            <a href="/admin/restore" className="text-xs text-accent hover:underline inline-block">
+            {/* A backup nobody knows how to restore is not a backup. The
+                Restore tab is the real home for this; keep a pointer here
+                because this card is where you land when thinking about it. */}
+            <button onClick={() => setTab('restore')} className="text-xs text-accent hover:underline text-left">
               Restore from a backup →
-            </a>
+            </button>
           </Card>
 
           {/* Landing Page */}
