@@ -910,8 +910,25 @@ export async function upsertProgram(id: string, data: Record<string, unknown>) {
   invalidateProgramsCache();
 }
 
+/**
+ * Delete a program. Gone — for users, for the landing page, and from the
+ * admin list, with nothing left behind to restore.
+ *
+ * The tombstone is what makes that true for the built-ins. Those ship inside
+ * the app bundle as seed data, so deleting the Firestore document alone would
+ * let the seed copy reappear in every list the moment the document stopped
+ * shadowing it: delete it and watch it come straight back. Recording the id
+ * in deletedMocks suppresses the seed everywhere, and in purgedMocks so it
+ * leaves no row in the admin panel either.
+ *
+ * Writing both for EVERY delete, not just seed ids: a program the admin
+ * created with an id that happens to match a seed's would otherwise resurrect
+ * a built-in on delete, and the write is two cheap set-merges either way.
+ */
 export async function deleteProgram(id: string) {
   await deleteDoc(doc(db, 'programs', id));
+  await setDoc(doc(db, 'config', 'deletedMocks'), { ids: arrayUnion(id) }, { merge: true });
+  await setDoc(doc(db, 'config', 'purgedMocks'), { ids: arrayUnion(id) }, { merge: true });
   invalidateProgramsCache();
 }
 

@@ -208,19 +208,20 @@ export default function ProgramsPage() {
   }
 
   async function handleDelete(p: Program & { _mock?: boolean }) {
-    const confirmMsg = p._mock
-      ? `Hide "${p.name}"? It'll move to Hidden Built-in Programs below, where you can restore or permanently delete it.`
-      : `Delete "${p.name}"?`;
-    if (!confirm(confirmMsg)) return;
+    // One path for every program. Deleting a built-in used to mean "hide it
+    // into a second list", which then had its own restore and its own
+    // delete-forever — three steps to remove a program, and a leftover row
+    // either way. Delete means delete.
+    if (!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
     try {
       if (p._mock) {
-        await hideMockProgram(p.id);
-        setHiddenMockIds((prev) => [...prev, p.id]);
+        await permanentlyDeleteMockProgram(p.id);
+        await purgeMockProgram(p.id);
       } else {
         await deleteProgram(p.id);
       }
       setPrograms(prev => prev.filter(x => x.id !== p.id));
-      toast.success(p._mock ? 'Hidden' : 'Deleted');
+      toast.success('Deleted');
     } catch { toast.error('Failed to delete'); }
   }
 
@@ -398,7 +399,7 @@ export default function ProgramsPage() {
                   {(p as { _mock?: boolean })._mock ? (
                     <button
                       onClick={() => handleDelete(p)}
-                      title="Hide (move to Hidden Built-in Programs — can restore later)"
+                      title="Delete permanently"
                       className="p-2 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors"
                     >
                       <EyeOff className="w-4 h-4" />
@@ -436,73 +437,6 @@ export default function ProgramsPage() {
                   </Button>
                 </div>
               ))}
-          </div>
-        </Card>
-      )}
-
-      {hiddenMockIds.length > 0 && (
-        <Card className="p-4 mt-4">
-          <p className="text-sm font-bold text-white mb-1">Hidden Built-in Programs</p>
-          <p className="text-xs text-text-secondary mb-3">
-            Hidden from the list above but not gone — restore one to bring it back, or delete it forever.
-          </p>
-          <div className="space-y-2">
-            {hiddenMockIds.map((id) => {
-              const mock = MOCK_PROGRAMS.find((p) => p.id === id);
-              return (
-                <div key={id} className="flex items-center justify-between gap-2 py-1.5">
-                  <span className="text-sm text-white">{mock?.name ?? id}</span>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => handleRestoreMock(id)} loading={restoring === id}>
-                      Restore
-                    </Button>
-                    <button
-                      onClick={() => handleDeleteForever(id, mock?.name ?? id)}
-                      title="Delete forever"
-                      className="p-2 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors disabled:opacity-50"
-                      disabled={deletingForever === id}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
-      {visibleDeletedIds.length > 0 && (
-        <Card className="p-4 mt-4 border-danger/20">
-          <p className="text-sm font-bold text-white mb-1">Deleted Built-in Programs</p>
-          <p className="text-xs text-text-secondary mb-3">
-            Not shown to anyone — not in the app, not on the landing page. They are listed
-            here only so you can see what has been removed, and undo it if it was a mistake.
-            &ldquo;Remove for good&rdquo; clears it from this list permanently — it stays deleted
-            for users either way.
-          </p>
-          <div className="mb-3">
-            <Button size="sm" variant="secondary" onClick={() => handlePurgeAll(visibleDeletedIds)} loading={purging === '__all__'}>
-              Remove all {visibleDeletedIds.length} for good
-            </Button>
-          </div>
-          <div className="space-y-2">
-            {visibleDeletedIds.map((id) => {
-              const mock = MOCK_PROGRAMS.find((p) => p.id === id);
-              return (
-                <div key={id} className="flex items-center justify-between gap-2 py-1.5">
-                  <span className="text-sm text-text-secondary line-through">{mock?.name ?? id}</span>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => handleRestoreDeleted(id)} loading={restoringDeleted === id}>
-                      Undo
-                    </Button>
-                    <Button size="sm" variant="secondary" onClick={() => handlePurge(id, mock?.name ?? id)} loading={purging === id}>
-                      Remove for good
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </Card>
       )}
