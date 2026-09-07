@@ -68,7 +68,7 @@ leave alone.
 
 ## 3. Bugs and risks, by priority
 
-### P1 — a mail failure locks a member out of their own account, silently
+### ~~P1~~ FIXED (`ff3a576`→) — a mail failure locks a member out of their own account, silently
 
 **`src/app/api/auth/2fa/login-check/route.ts:98`**
 
@@ -92,11 +92,14 @@ than a policy: `verify-email/send/route.ts:61` returns a 502 on failure, and
 `send-auth-email/route.ts:117` returns `delivered: sent`. This one route is
 the outlier.
 
-**Fix:** check the return value; on `false`, clear the pending claim and return
-an explicit error so the UI can say "we couldn't send your code" instead of
-"check your inbox". ~15 lines, plus a test.
+**Fixed.** The route now checks the return value and returns a 502 with a
+plain message. It still fails closed — the claim stays set, no session is
+granted — but the member is told what happened. Both callers already handled a
+non-ok response correctly (`LoginClient.tsx:180` signs out with an accurate
+toast; `verify-2fa/page.tsx:76` shows a resend error), so the fix composes
+without a client change.
 
-### P1 — email delivery failures are invisible to you
+### ~~P1~~ FIXED — email delivery failures are invisible to you
 
 **`src/lib/email.ts:13-28`**
 
@@ -115,9 +118,17 @@ Worth knowing: **Resend's free tier is 100 emails/day / 3,000 per month.** At
 1,000 users you will cross that on transactional mail alone, and the failure
 mode is exactly this silent one.
 
-**Fix:** have `sendEmail` record failures to a Firestore collection and fold a
-count into the existing daily digest; retry once on 429/5xx. ~60 lines. Also
-move to a paid Resend plan before launch, not after.
+**Fixed.** `sendEmail` now retries once on 429/5xx/network (Resend's limit is
+per-second, so a short pause genuinely clears the notification-sweep bursts)
+and records failures into `errorReports` — the collection the daily digest
+already reads. Rows are fingerprinted on the reason, so an outage reads as one
+row with a count of 400 rather than 400 rows burying everything else. Covered
+by 9 tests in `src/lib/email.test.ts`, including that the row carries
+`lastSeenAt` — the digest orders by it, and Firestore silently omits documents
+missing the ordered field, which would have made the whole fix invisible.
+
+**Still yours:** move to a paid Resend plan before launch. The free tier is
+100/day and you will cross it on transactional mail alone.
 
 ### P2 — three admin queries read an entire collection with no limit
 

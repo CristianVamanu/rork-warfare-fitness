@@ -95,11 +95,30 @@ export async function POST(req: NextRequest) {
 
     const cfgSnap = await db.collection('system').doc('config').get();
     const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
-    await sendEmail({
+    const delivered = await sendEmail({
       to: recipient,
       subject: `Your ${appName} sign-in code`,
       html: twoFactorCodeEmailHtml(code, appName),
     });
+
+    // sendEmail does NOT throw — it catches everything and returns false. The
+    // reasoning above about failing closed on mail trouble was right, but it
+    // assumed a throw that cannot happen, so this returned `required: true`
+    // even when nothing was sent. The member was then told "check your inbox",
+    // held in tfaPending (where the rules refuse every read), and given a
+    // "Resend code" button that failed the same silent way. Locked out of
+    // their own account by a mail outage, with nothing on screen saying so.
+    //
+    // Still fails closed — the claim stays set and no session is granted — but
+    // it now says what actually happened, so they contact support instead of
+    // assuming the account is gone, and the failure is recorded by sendEmail
+    // for the daily digest.
+    if (!delivered) {
+      return NextResponse.json(
+        { error: "We couldn't send your sign-in code right now. Please try again in a moment, or contact support if it keeps failing." },
+        { status: 502 },
+      );
+    }
 
     return NextResponse.json({ required: true });
   } catch (err) {

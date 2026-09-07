@@ -10,21 +10,104 @@ async function getResendClient(): Promise<Resend | null> {
   return new Resend(apiKey);
 }
 
+/**
+ * Records a send failure where someone will actually see it.
+ *
+ * Every failure here used to be a console.error and nothing else. The daily
+ * digest reads `errorReports` (client-side errors), never the server's stdout,
+ * so a Resend outage or a blown rate limit produced no signal anywhere — while
+ * password resets, 2FA codes, trial-ending reminders and dunning mail silently
+ * stopped arriving. Writing into the same collection the digest already reads
+ * means a mail problem shows up in the morning email instead of in nothing.
+ *
+ * Deliberately best-effort and never throws: the caller is already handling a
+ * failure, and a logging problem must not become a second one. Note it stores
+ * the recipient and subject but never the body — those carry reset links and
+ * one-time codes.
+ */
+async function recordFailure(to: string, subject: string, reason: string) {
+  try {
+    const { getAdminApp, getAdminDb } = await import('./firebase-admin');
+    const app = getAdminApp();
+    if (!app) return;
+    const { FieldValue } = await import('firebase-admin/firestore');
+    const crypto = await import('crypto');
+
+    // Same document shape as /api/client-error, because the digest reads this
+    // collection with orderBy('lastSeenAt') — and Firestore silently omits
+    // documents that lack the ordered field. A row written without
+    // lastSeenAt/count would sit in the collection forever and never once
+    // appear in the digest, which is the entire point of writing it.
+    //
+    // Fingerprinted on the reason, not the recipient: a Resend outage during
+    // the notification sweep is ONE problem, and it should read as one row
+    // with a count of 400 rather than 400 rows that bury everything else.
+    const message = `Email send failed: ${reason.slice(0, 200)}`;
+    const fingerprint = crypto.createHash('sha256').update(`email|${message}`).digest('hex').slice(0, 32);
+    const ref = getAdminDb(app).collection('errorReports').doc(fingerprint);
+    const existing = await ref.get();
+
+    await ref.set({
+      message,
+      kind: 'email',
+      // The subject names which mail stopped arriving — "sign-in code" and
+      // "achievement unlocked" are very different emergencies. Never the
+      // body: these carry reset links and one-time codes.
+      lastSubject: subject,
+      lastRecipient: to,
+      lastSeenAt: FieldValue.serverTimestamp(),
+      ...(existing.exists ? {} : { firstSeenAt: FieldValue.serverTimestamp() }),
+      count: FieldValue.increment(1),
+      ...(existing.data()?.resolved ? { resolved: false, reopenedAt: FieldValue.serverTimestamp() } : { resolved: false }),
+    }, { merge: true });
+  } catch (err) {
+    console.error('[email] Could not record send failure:', err);
+  }
+}
+
+/** Retry only what retrying can fix: rate limits and transient server errors. */
+function isRetryable(err: unknown): boolean {
+  const status = (err as { statusCode?: number; status?: number })?.statusCode
+    ?? (err as { status?: number })?.status;
+  if (status === 429) return true;
+  if (typeof status === 'number' && status >= 500) return true;
+  // Network-level failures surface with no status at all.
+  return status === undefined;
+}
+
 export async function sendEmail(opts: { to: string; subject: string; html: string }): Promise<boolean> {
   if (!opts.to) return false;
   const client = await getResendClient();
   if (!client) {
-    console.warn(`[email] RESEND_API_KEY not configured — skipped "${opts.subject}" to ${opts.to}`);
+    const msg = 'RESEND_API_KEY not configured';
+    console.warn(`[email] ${msg} — skipped "${opts.subject}" to ${opts.to}`);
+    await recordFailure(opts.to, opts.subject, msg);
     return false;
   }
   const from = (await getSecret('RESEND_FROM_EMAIL')) || 'Warfare Fitness <onboarding@resend.dev>';
-  try {
-    await client.emails.send({ from, to: opts.to, subject: opts.subject, html: opts.html });
-    return true;
-  } catch (err) {
-    console.error('[email] Send failed:', err);
-    return false;
+
+  // One retry, after a short pause. Resend's rate limit is per-second, so a
+  // brief wait genuinely clears it — most of what fails here is a burst from
+  // the notification sweep rather than anything actually broken.
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await client.emails.send({ from, to: opts.to, subject: opts.subject, html: opts.html });
+      return true;
+    } catch (err) {
+      lastErr = err;
+      if (attempt === 0 && isRetryable(err)) {
+        await new Promise((r) => setTimeout(r, 1100));
+        continue;
+      }
+      break;
+    }
   }
+
+  const reason = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  console.error('[email] Send failed:', lastErr);
+  await recordFailure(opts.to, opts.subject, reason);
+  return false;
 }
 
 // ── Shared shell — same dark/gold treatment as the app, kept deliberately
