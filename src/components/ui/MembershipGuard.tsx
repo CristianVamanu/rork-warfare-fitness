@@ -35,12 +35,67 @@ interface Props {
   children: React.ReactNode;
 }
 
+/**
+ * How long to keep waiting for the Stripe webhook after a member returns
+ * from a successful checkout. Webhook delivery is normally a second or two;
+ * this is the outer bound before we stop claiming it is still coming.
+ */
+const CONFIRMING_TIMEOUT_MS = 45_000;
+const JUST_PAID_KEY = 'wf:justPaidAt';
+
+/**
+ * Stripe sends a paying member back to /profile?subscribed=1. Nothing read
+ * that flag, so between the payment landing and the webhook writing
+ * membership into Firestore, the guard did what it does for anyone without a
+ * membership: it showed them "Members Only — Choose a Plan". Someone who had
+ * just typed in their card details was asked to pick a plan again, which
+ * reads as "my payment failed" or worse, "I have been charged twice".
+ *
+ * Recording the moment in sessionStorage (not a URL check) means the state
+ * survives the navigation away from /profile — the paywall the member
+ * actually hit was on Home, one tab later.
+ */
+function readJustPaidAt(): number | null {
+  try {
+    const raw = sessionStorage.getItem(JUST_PAID_KEY);
+    return raw ? Number(raw) || null : null;
+  } catch { return null; }
+}
+
 export function MembershipGuard({ pathname, children }: Props) {
   const { user, profile } = useAuth();
+  const [justPaidAt, setJustPaidAt] = useState<number | null>(null);
   const [config, setConfig] = useState<MembershipConfig | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+
+  // Stamp the marker as soon as we land back from checkout, then tick so the
+  // waiting state re-evaluates and eventually times out on its own.
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('subscribed') === '1' && !readJustPaidAt()) {
+        sessionStorage.setItem(JUST_PAID_KEY, String(Date.now()));
+      }
+    } catch { /* private mode — fall through to the normal paywall */ }
+    setJustPaidAt(readJustPaidAt());
+  }, [pathname]);
+
+  const paidNow = hasActiveSubscription(profile);
+  useEffect(() => {
+    // Membership arrived — the wait is over, and the marker must not linger
+    // into a later session where it would mask a genuine lapse.
+    if (paidNow) {
+      try { sessionStorage.removeItem(JUST_PAID_KEY); } catch { /* ignore */ }
+      setJustPaidAt(null);
+      return;
+    }
+    if (justPaidAt === null) return;
+    const remaining = CONFIRMING_TIMEOUT_MS - (Date.now() - justPaidAt);
+    if (remaining <= 0) return;
+    const t = setTimeout(() => setJustPaidAt(readJustPaidAt() ? Date.now() - CONFIRMING_TIMEOUT_MS - 1 : null), remaining);
+    return () => clearTimeout(t);
+  }, [justPaidAt, paidNow]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +135,11 @@ export function MembershipGuard({ pathname, children }: Props) {
       </div>
     );
   }
+
+  // Waiting on the webhook after a real payment. Never show the paywall to
+  // someone who just paid — say what is happening instead.
+  const awaitingWebhook = justPaidAt !== null && Date.now() - justPaidAt < CONFIRMING_TIMEOUT_MS;
+  if (awaitingWebhook && !paying && !isStaff && !isFreePath) return <ConfirmingPayment />;
 
   // No config or membership disabled → free access
   if (!config || !config.enabled) return <>{children}</>;
@@ -126,6 +186,25 @@ export function MembershipGuard({ pathname, children }: Props) {
 }
 
 /** Shown to non-members while the membership config loads. Reads as loading, not broken. */
+function ConfirmingPayment() {
+  return (
+    <div className="px-4 pt-16 max-w-sm mx-auto text-center">
+      <Card className="p-6 space-y-3">
+        <div className="w-12 h-12 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto">
+          <Check className="w-6 h-6 text-accent" />
+        </div>
+        <p className="text-sm text-white font-semibold">Payment received — setting up your access</p>
+        <p className="text-xs text-text-secondary">
+          This usually takes a few seconds. You don&apos;t need to pay again.
+        </p>
+        <div className="h-1 w-full bg-white/5 rounded overflow-hidden">
+          <div className="h-full w-1/3 bg-accent/60 animate-pulse rounded" />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function GuardSkeleton() {
   return (
     <div className="px-4 pt-6 space-y-3" aria-busy="true" aria-live="polite">
@@ -140,6 +219,14 @@ function GuardSkeleton() {
 function LockedScreen({ trialDays, paidTrialEnabled, cardUpFrontTrial, trialPriceCents, discountPercent, alreadyUsedTrial }: { trialDays: number; paidTrialEnabled: boolean; cardUpFrontTrial: boolean; trialPriceCents?: number; discountPercent: number; alreadyUsedTrial: boolean }) {
   const { user } = useAuth();
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
+  // Distinct from "no plans": this screen is the moment of purchase intent,
+  // and it previously rendered "Already a member? Contact support for
+  // access." for the entire duration of the plans fetch, because loading and
+  // empty were the same state. Someone who had just decided to pay was told
+  // to email support instead. Loading now shows plan-shaped skeletons; the
+  // support card is reserved for a genuinely empty list.
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [plansFailed, setPlansFailed] = useState(false);
   const [subscribingId, setSubscribingId] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<Record<string, PlanBillingPeriodMonths>>({});
   const trialPrice = ((trialPriceCents ?? 100) / 100).toFixed(2);
@@ -156,7 +243,12 @@ function LockedScreen({ trialDays, paidTrialEnabled, cardUpFrontTrial, trialPric
   // and each card states its own price and trial line.
 
   useEffect(() => {
-    getMembershipPlans().then((p) => setPlans(p.filter((x) => x.active && planHasAnyPrice(x)))).catch(() => {});
+    let alive = true;
+    getMembershipPlans()
+      .then((p) => { if (alive) setPlans(p.filter((x) => x.active && planHasAnyPrice(x))); })
+      .catch(() => { if (alive) setPlansFailed(true); })
+      .finally(() => { if (alive) setPlansLoading(false); });
+    return () => { alive = false; };
   }, []);
 
   async function handleSubscribe(planId: string) {
@@ -201,9 +293,31 @@ function LockedScreen({ trialDays, paidTrialEnabled, cardUpFrontTrial, trialPric
         </p>
       </div>
 
-      {plans.length === 0 ? (
-        <Card className="p-6 text-center max-w-sm w-full">
-          <p className="text-xs text-text-tertiary">Already a member? Contact support for access.</p>
+      {plansLoading ? (
+        <div className="grid gap-3 w-full max-w-sm" aria-busy="true" aria-label="Loading plans">
+          {[0, 1].map((i) => (
+            <Card key={i} className="p-6">
+              <div className="animate-pulse space-y-3">
+                <div className="h-4 w-24 bg-white/10 rounded" />
+                <div className="h-8 w-32 bg-white/10 rounded" />
+                <div className="h-3 w-full bg-white/5 rounded" />
+                <div className="h-3 w-5/6 bg-white/5 rounded" />
+                <div className="h-10 w-full bg-white/10 rounded-xl mt-4" />
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : plans.length === 0 ? (
+        <Card className="p-6 text-center max-w-sm w-full space-y-3">
+          {plansFailed ? (
+            <>
+              <p className="text-sm text-white">We couldn&apos;t load the plans.</p>
+              <p className="text-xs text-text-tertiary">This is usually a connection blip.</p>
+              <Button fullWidth variant="secondary" onClick={() => window.location.reload()}>Try again</Button>
+            </>
+          ) : (
+            <p className="text-xs text-text-tertiary">Already a member? Contact support for access.</p>
+          )}
         </Card>
       ) : (
         // Was a single narrow (max-w-sm) stacked column, and unlike the

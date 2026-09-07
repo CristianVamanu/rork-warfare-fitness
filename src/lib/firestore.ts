@@ -768,14 +768,44 @@ let programsInFlight: Promise<Record<string, unknown>[]> | null = null;
 let programsGeneration = 0;
 const PROGRAMS_CACHE_TTL_MS = 30_000;
 
+/**
+ * Reads the list through /api/programs/list, which returns every program
+ * WITHOUT its schedule/phases/exercises.
+ *
+ * Reading the collection directly from the browser meant downloading every
+ * session of every program — a 12-week, 6-day program is 72 workouts of 4-6
+ * exercises each — just to render cards showing a name, a level and a goal.
+ * On mobile data that is seconds of staring at skeletons.
+ *
+ * Falls back to the direct read if the endpoint is unreachable: a slow list
+ * is a much better failure than a Training tab that shows nothing.
+ */
+async function loadProgramList(): Promise<Record<string, unknown>[]> {
+  try {
+    const { getAuth } = await import('firebase/auth');
+    const user = getAuth().currentUser;
+    if (!user) throw new Error('not signed in');
+    const res = await fetch('/api/programs/list', {
+      headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+    });
+    if (!res.ok) throw new Error(`programs/list ${res.status}`);
+    const body = await res.json();
+    if (!Array.isArray(body.programs)) throw new Error('malformed program list');
+    return body.programs as Record<string, unknown>[];
+  } catch (err) {
+    console.warn('[programs] Lean list unavailable, falling back to a direct read:', err);
+    const snap = await getDocs(collection(db, 'programs'));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  }
+}
+
 async function fetchAllPrograms(): Promise<Record<string, unknown>[]> {
   if (programsCache && Date.now() - programsCache.fetchedAt < PROGRAMS_CACHE_TTL_MS) {
     return programsCache.all;
   }
   if (programsInFlight) return programsInFlight;
   const startedAtGeneration = programsGeneration;
-  programsInFlight = getDocs(collection(db, 'programs')).then((snap) => {
-    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  programsInFlight = loadProgramList().then((all) => {
     if (startedAtGeneration === programsGeneration) {
       programsCache = { all, fetchedAt: Date.now() };
     }
