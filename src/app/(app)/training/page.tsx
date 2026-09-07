@@ -150,6 +150,20 @@ export default function TrainingPage() {
   }, [user]);
 
   const filtered = filter === 'all' ? programs : programs.filter((p) => p.goal === filter || p.level === filter);
+  // Show a handful, not the whole catalogue. This is a browsing improvement
+  // rather than a loading one — the list arrives in a single request and the
+  // cards carry no images, so nothing is deferred by showing fewer. What it
+  // does buy is a screen you can take in at a glance instead of a long scroll
+  // past every program to reach the filters you actually wanted.
+  const PROGRAMS_PAGE = 4;
+  const [visibleCount, setVisibleCount] = useState(PROGRAMS_PAGE);
+  const visible = filtered.slice(0, visibleCount);
+  const remaining = filtered.length - visible.length;
+
+  // Changing the filter re-shows the first page — otherwise picking a filter
+  // after "Load more" leaves an expanded count applied to a different, often
+  // much shorter list, and the button vanishes for no visible reason.
+  useEffect(() => { setVisibleCount(PROGRAMS_PAGE); }, [filter]);
 
   return (
     <div>
@@ -238,7 +252,13 @@ export default function TrainingPage() {
                     key={prog.id}
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
+                    // Capped, and per-card rather than per-list. Uncapped, the
+                    // 19th program animated in 0.9s after the first: the data
+                    // had long arrived and the screen still visibly filled in
+                    // for a second, which reads as a slow load rather than as
+                    // an effect. Six cards of stagger keeps the entrance and
+                    // loses the wait.
+                    transition={{ delay: Math.min(i, 6) * 0.04 }}
                   >
                     <Link href={`/training/${prog.id}`}>
                       <Card className={`p-4 hover:border-accent/30 transition-colors ${isActive ? 'border-accent/40' : ''}`}>
@@ -304,7 +324,7 @@ export default function TrainingPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filtered.map((prog, i) => {
+              {visible.map((prog, i) => {
                 const isActive = activeProgram?.programId === prog.id;
                 return (
                   <motion.div
@@ -351,6 +371,15 @@ export default function TrainingPage() {
                   </motion.div>
                 );
               })}
+              {remaining > 0 && (
+                <Button
+                  fullWidth
+                  variant="secondary"
+                  onClick={() => setVisibleCount((n) => n + PROGRAMS_PAGE)}
+                >
+                  Load more ({remaining})
+                </Button>
+              )}
             </div>
           )}
         </div>
