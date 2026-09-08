@@ -10,6 +10,7 @@ import { BottomNav } from '@/components/layout/BottomNav';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { PwaInstallBanner } from '@/components/ui/PwaInstallBanner';
 import { MembershipGuard } from '@/components/ui/MembershipGuard';
+import { WelcomeVideo } from '@/components/ui/WelcomeVideo';
 import { VerifyEmailNotice } from '@/components/ui/VerifyEmailNotice';
 import { AppBackground } from '@/components/ui/AppBackground';
 
@@ -111,6 +112,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <MembershipGuard pathname={pathname}>{children}</MembershipGuard>
         </main>
       </HeaderDataProvider>
+      {/* Outside MembershipGuard on purpose: it only ever opens for someone
+          who already has access, and mounting it inside would tie it to
+          whichever page happens to be rendered. */}
+      <WelcomeVideo />
       {!hideNav && <BottomNav />}
       {!hideNav && <PwaInstallBanner />}
     </div>

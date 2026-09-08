@@ -190,6 +190,13 @@ export interface ProgressPhoto {
 
 export interface UserProfile {
   id: string;
+  /**
+   * Set the first time the member is shown the welcome video, so it plays
+   * once per ACCOUNT rather than once per browser. Absent on anyone who
+   * predates the feature — those are backfilled at deploy so an existing
+   * member is not greeted months into their membership.
+   */
+  welcomeVideoSeenAt?: unknown;
   displayName: string;
   email: string;
   photoURL: string | null;

@@ -17,11 +17,10 @@ import { startPlanCheckout, startCoachingCheckout } from '@/lib/checkout';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, resolveProgram } from '@/lib/firestore';
 import { trackEvent } from '@/lib/analytics';
 import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
-import { lbsToKg, kgToLbs, cmToFtIn, ftInToCm, getYouTubeEmbedUrl } from '@/lib/utils';
+import { lbsToKg, kgToLbs, cmToFtIn, ftInToCm } from '@/lib/utils';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Modal } from '@/components/ui/Modal';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex, MedicalHistoryAnswers } from '@/types';
 
@@ -162,8 +161,6 @@ function OnboardingPageInner() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'generating' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [videoGreetingUrl, setVideoGreetingUrl] = useState<string | null>(null);
-  const [showVideoModal, setShowVideoModal] = useState(false);
   const [revealProgram, setRevealProgram] = useState<{ name: string; description: string; weeks: number; daysPerWeek: number } | null>(null);
   const [revealNutrition, setRevealNutrition] = useState<(NutritionTargets & { goalLabel: string; rationale: string }) | null>(null);
   const [revealTimeline, setRevealTimeline] = useState<WeightGoalTimeline | null>(null);
@@ -699,25 +696,16 @@ function OnboardingPageInner() {
       setError(err);
       return;
     }
-    try {
-      const cfg = await getSystemConfig();
-      if (cfg?.videoGreetingUrl) {
-        setVideoGreetingUrl(cfg.videoGreetingUrl as string);
-        setShowVideoModal(true);
-        return; // navigation happens when user dismisses video
-      }
-    } catch { /* ignore */ }
+    // The welcome video used to play here. It now fires on entitlement
+    // instead (components/ui/WelcomeVideo), because anyone arriving with a
+    // plan selected returns from Stripe to /profile and never came back to
+    // this screen — the one place it played was the one place paying members
+    // skipped. Onboarding just hands over to the app now.
     router.replace('/dashboard');
   }
 
   const isGenerating = status === 'generating' || status === 'saving';
 
-  // Was previously `&& !showVideoModal`, which hid this whole reveal screen
-  // the instant the welcome-video modal opened — with nothing else to fall
-  // back on, the component then rendered the raw step-1 onboarding form
-  // underneath the (modal) video, looking exactly like onboarding had reset
-  // back to the start. The reveal screen should stay put as the backdrop
-  // while the video modal sits on top of it, same as any other modal here.
   // Deliberately gated on `status` ALONE, not `status && revealProgram`.
   // revealProgram is only set once enrollInProgram SUCCEEDS, and that call
   // failing is an expected, documented case (a members-only or priced
@@ -823,42 +811,6 @@ function OnboardingPageInner() {
           </Button>
         </motion.div>
 
-        {/* Video Greeting Modal — lives here (not the step-form return
-            below) since this reveal screen is now the backdrop while it's
-            open, not swapped out for the raw onboarding form. */}
-        <Modal open={showVideoModal} dismissOnOverlay={false} onClose={() => { setShowVideoModal(false); router.replace('/dashboard'); }} title="Welcome to the Team! 🎉">
-          <div className="space-y-4">
-            {videoGreetingUrl && (
-              <div className="rounded-xl overflow-hidden bg-black aspect-video">
-                {(() => {
-                  const embedUrl = getYouTubeEmbedUrl(videoGreetingUrl);
-                  return embedUrl ? (
-                    <iframe
-                      src={embedUrl}
-                      className="w-full h-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  ) : (
-                    <video
-                      src={videoGreetingUrl}
-                      controls
-                      autoPlay
-                      playsInline
-                      webkit-playsinline="true"
-                      crossOrigin="anonymous"
-                      className="w-full h-full object-contain"
-                    />
-                  );
-                })()}
-              </div>
-            )}
-            <p className="text-sm text-text-secondary text-center">A personal welcome to get you started.</p>
-            <Button fullWidth onClick={() => { setShowVideoModal(false); router.replace('/dashboard'); }}>
-              Let&apos;s Go! →
-            </Button>
-          </div>
-        </Modal>
       </div>
     );
   }
