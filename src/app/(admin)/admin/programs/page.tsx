@@ -7,7 +7,7 @@ import { Plus, Edit2, Trash2, EyeOff, Users, Sparkles, ChevronLeft, Dumbbell, Cr
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, getDeletedMockIds, permanentlyDeleteMockProgram, getPurgedMockIds, purgeMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
+import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getHiddenMockIds, unhideMockProgram, getDeletedMockIds, permanentlyDeleteMockProgram, getPurgedMockIds, purgeMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -30,12 +30,13 @@ interface HealthFinding {
 export default function ProgramsPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const [programs, setPrograms] = useState<(Program & { visibility?: string; _mock?: boolean })[]>([]);
+  const [programs, setPrograms] = useState<(Program & { visibility?: string; _mock?: boolean; _hidden?: boolean })[]>([]);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [assignModal, setAssignModal] = useState<(Program & { visibility?: string }) | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<string | null>(null);
+  const [unhiding, setUnhiding] = useState<string | null>(null);
   const [healthChecking, setHealthChecking] = useState(false);
   const [healthResult, setHealthResult] = useState<{ programsChecked: number; librarySize: number; findings: HealthFinding[] } | null>(null);
   const [deletingForever, setDeletingForever] = useState<string | null>(null);
@@ -74,7 +75,13 @@ export default function ProgramsPage() {
       // one of them (an older delete, a half-failed write) still stays gone.
       const deleted = new Set([...(deletedIds as string[]), ...(purgedIds as string[])]);
       const hidden = new Set(hiddenIds as string[]);
-      const mocks = MOCK_PROGRAMS.filter(p => !fpIds.has(p.id) && !hidden.has(p.id) && !deleted.has(p.id)).map(p => ({ ...p, _mock: true }));
+      // Hidden built-ins stay IN this list, flagged, rather than being
+      // filtered out into a section of their own. They were briefly filtered
+      // out with nowhere else to appear, which left them suppressed for users
+      // and invisible to the admin — hidden with no way back.
+      const mocks = MOCK_PROGRAMS
+        .filter(p => !fpIds.has(p.id) && !deleted.has(p.id))
+        .map(p => ({ ...p, _mock: true, _hidden: hidden.has(p.id) }));
       setPrograms([...firestoreProgs, ...mocks]);
       setUsers((u as UserRow[]).filter((x: UserRow & { role?: string }) => x.role !== 'admin'));
     }).catch(console.error).finally(() => setLoading(false));
@@ -131,6 +138,16 @@ export default function ProgramsPage() {
       toast.success('Hidden — moved back to Draft, no longer visible to clients');
     } catch { toast.error('Failed to hide'); }
     finally { setPublishing(null); }
+  }
+
+  async function handleUnhide(p: Program) {
+    setUnhiding(p.id);
+    try {
+      await unhideMockProgram(p.id);
+      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, _hidden: false } : x));
+      toast.success('Visible to clients again');
+    } catch { toast.error('Failed to unhide'); }
+    finally { setUnhiding(null); }
   }
 
   async function handleDelete(p: Program & { _mock?: boolean }) {
@@ -248,6 +265,7 @@ export default function ProgramsPage() {
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <p className="text-sm font-bold text-white">{p.name}</p>
                     {(p as { _mock?: boolean })._mock && <Badge variant="muted">Built-in</Badge>}
+                    {(p as { _hidden?: boolean })._hidden && <Badge variant="danger">Hidden from clients</Badge>}
                     {p.visibility === 'coaching' && <Badge variant="danger">1:1 Coaching</Badge>}
                     {p.isPublic && !p.visibility && <Badge variant="accent">Public</Badge>}
                     {p.visibility === 'public' && <Badge variant="accent">Public</Badge>}
@@ -286,6 +304,11 @@ export default function ProgramsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  {(p as { _hidden?: boolean })._hidden && (
+                    <Button size="sm" variant="secondary" onClick={() => handleUnhide(p)} loading={unhiding === p.id}>
+                      Unhide
+                    </Button>
+                  )}
                   {!(p as { _mock?: boolean })._mock && !p.isPublic && p.visibility !== 'coaching' && p.visibility !== 'public' && (
                     <Button size="sm" onClick={() => handlePublish(p)} loading={publishing === p.id}>
                       Publish

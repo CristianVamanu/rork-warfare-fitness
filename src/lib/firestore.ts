@@ -1507,6 +1507,16 @@ export async function getHiddenMockIds(): Promise<string[]> {
 // restored, a deleted one is gone from every list for good (short of
 // editing Firestore directly) — no restore path is exposed for it.
 // ---------------------------------------------------------------------------
+/**
+ * Un-hide a built-in. Hidden programs are listed in the admin panel alongside
+ * everything else with a Hidden badge, so this is reachable from the row
+ * itself — there is deliberately no separate hidden-programs screen to go
+ * hunting for.
+ */
+export async function unhideMockProgram(id: string) {
+  await setDoc(doc(db, 'config', 'hiddenMocks'), { ids: arrayRemove(id) }, { merge: true });
+}
+
 export async function getDeletedMockIds(): Promise<string[]> {
   const snap = await getDoc(doc(db, 'config', 'deletedMocks'));
   return snap.exists() ? ((snap.data().ids as string[]) ?? []) : [];
