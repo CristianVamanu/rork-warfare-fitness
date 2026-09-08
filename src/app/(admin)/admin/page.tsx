@@ -37,7 +37,7 @@ import {
   createGoal, getClientGoals, setGoalStatus, deleteGoal,
   getTrainerLeads, updateTrainerLeadStatus,
   getLandingLeads,
-  getAllPrograms, getHiddenMockIds, getDeletedMockIds,
+  getAllPrograms, getDeletedMockIds,
 } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { useSupportUpload, AttachButton, PendingAttachment, MessageAttachment } from '@/components/support/SupportAttachment';
@@ -576,12 +576,11 @@ function AdminPageInner() {
       // own program doc). This card was previously hardcoded to always
       // read 0 via a stray `Promise.resolve([])` placeholder that was never
       // replaced with a real fetch.
-      Promise.all([getAllPrograms().catch(() => []), getHiddenMockIds().catch(() => []), getDeletedMockIds().catch(() => [])])
-        .then(([published, hiddenIds, deletedIds]) => {
+      Promise.all([getAllPrograms().catch(() => []), getDeletedMockIds().catch(() => [])])
+        .then(([published, deletedIds]) => {
           const publishedIds = new Set((published as { id: string }[]).map((p) => p.id));
-          const hidden = new Set(hiddenIds);
           const deleted = new Set(deletedIds);
-          const visibleMocks = MOCK_PROGRAMS.filter((p) => !publishedIds.has(p.id) && !hidden.has(p.id) && !deleted.has(p.id));
+          const visibleMocks = MOCK_PROGRAMS.filter((p) => !publishedIds.has(p.id) && !deleted.has(p.id));
           return [...(published as unknown[]), ...visibleMocks];
         }),
       trainerId

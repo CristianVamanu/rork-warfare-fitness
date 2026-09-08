@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { Moon, Dumbbell, Play, Clock, Target, ChevronRight, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getPrograms, resolveProgram, getHiddenMockIds, getDeletedMockIds, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
+import { getPrograms, resolveProgram, getDeletedMockIds, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
 import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
@@ -142,14 +142,13 @@ export default function TrainingPage() {
     // /api/public/programs already filtered both.
     Promise.all([
       getPrograms(),
-      getHiddenMockIds().catch(() => [] as string[]),
       getDeletedMockIds().catch(() => [] as string[]),
     ])
-      .then(([firestoreProgs, hiddenIds, deletedIds]) => {
+      .then(([firestoreProgs, deletedIds]) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fp = firestoreProgs as any as Program[];
         const fpIds = new Set(fp.map((p) => p.id));
-        const suppressed = new Set([...hiddenIds, ...deletedIds]);
+        const suppressed = new Set(deletedIds);
         const mocks = MOCK_PROGRAMS.filter((m) => !fpIds.has(m.id) && !suppressed.has(m.id));
         setPrograms([...fp, ...mocks as Program[]]);
       })
