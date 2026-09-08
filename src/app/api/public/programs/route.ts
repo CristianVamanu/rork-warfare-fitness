@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
     let firestorePrograms: Program[] = [];
     let deletedIds = new Set<string>();
     let programsToShow = 0;
+    let builtinsImported = false;
 
     if (app) {
       const db = getAdminDb(app);
@@ -45,10 +46,15 @@ export async function GET(req: NextRequest) {
         .filter((p) => (p as Program & { visibility?: string }).visibility !== 'coaching');
       deletedIds = new Set((deletedSnap.data()?.ids as string[]) ?? []);
       programsToShow = (configSnap.data()?.landingPage?.programsToShow as number) || 0;
+      builtinsImported = configSnap.data()?.builtinsImported === true;
     }
 
     const fpIds = new Set(firestorePrograms.map((p) => p.id));
-    const mocks = MOCK_PROGRAMS.filter((p) => !fpIds.has(p.id) && !deletedIds.has(p.id));
+    // See /api/admin/import-builtins: once imported, the database is the only
+    // source of programs and the bundled copies are ignored.
+    const mocks = builtinsImported
+      ? []
+      : MOCK_PROGRAMS.filter((p) => !fpIds.has(p.id) && !deletedIds.has(p.id));
 
     let programs = [...firestorePrograms, ...mocks].map((p) => ({
       id: p.id,

@@ -7,7 +7,7 @@ import { Plus, Edit2, Trash2, EyeOff, Users, Sparkles, ChevronLeft, Dumbbell, Cr
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getDeletedMockIds, permanentlyDeleteMockProgram, getPurgedMockIds, purgeMockProgram, updateProgram, upsertProgram } from '@/lib/firestore';
+import { getAllPrograms, deleteProgram, getAllUsers, enrollInProgram, getDeletedMockIds, permanentlyDeleteMockProgram, getPurgedMockIds, purgeMockProgram, getSystemConfig, updateProgram, upsertProgram } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -36,6 +36,8 @@ export default function ProgramsPage() {
   const [assignModal, setAssignModal] = useState<(Program & { visibility?: string }) | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<string | null>(null);
+  const [builtinsImported, setBuiltinsImported] = useState(true);
+  const [importing, setImporting] = useState(false);
   const [healthChecking, setHealthChecking] = useState(false);
   const [healthResult, setHealthResult] = useState<{ programsChecked: number; librarySize: number; findings: HealthFinding[] } | null>(null);
   const [deletingForever, setDeletingForever] = useState<string | null>(null);
@@ -65,7 +67,8 @@ export default function ProgramsPage() {
       getAllUsers().catch(() => []),
       getDeletedMockIds().catch(() => [] as string[]),
       getPurgedMockIds().catch(() => [] as string[]),
-    ]).then(([progs, u, deletedIds, purgedIds]) => {
+      getSystemConfig().catch(() => null),
+    ]).then(([progs, u, deletedIds, purgedIds, cfg]) => {
       const firestoreProgs = progs as (Program & { visibility?: string })[];
       const fpIds = new Set(firestoreProgs.map(p => p.id));
       // Deleted and purged both mean "gone" — a purge always writes the id to
@@ -75,9 +78,16 @@ export default function ProgramsPage() {
       // One list, and it is the truth: every program here is live for clients.
       // There is no hidden state to reason about any more — the only way a
       // program leaves this list is Delete, and Delete is permanent.
-      const mocks = MOCK_PROGRAMS
-        .filter(p => !fpIds.has(p.id) && !deleted.has(p.id))
-        .map(p => ({ ...p, _mock: true }));
+      // After the import, the database holds every program and the bundled
+      // copies are not consulted at all — so what is listed here is exactly
+      // what exists, and Delete removes it outright.
+      const imported = (cfg as { builtinsImported?: boolean } | null)?.builtinsImported === true;
+      setBuiltinsImported(imported);
+      const mocks = imported
+        ? []
+        : MOCK_PROGRAMS
+            .filter(p => !fpIds.has(p.id) && !deleted.has(p.id))
+            .map(p => ({ ...p, _mock: true }));
       setPrograms([...firestoreProgs, ...mocks]);
       setUsers((u as UserRow[]).filter((x: UserRow & { role?: string }) => x.role !== 'admin'));
     }).catch(console.error).finally(() => setLoading(false));
@@ -136,6 +146,21 @@ export default function ProgramsPage() {
     finally { setPublishing(null); }
   }
 
+
+  async function handleImportBuiltins() {
+    if (!user) return;
+    if (!confirm('Move the built-in programs into your database?\n\nAfter this they behave like any program you created: edit them, and Delete removes them completely. Programs you already deleted stay deleted.')) return;
+    setImporting(true);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/import-builtins', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Import failed');
+      toast.success(`${data.imported} program${data.imported === 1 ? '' : 's'} moved into your database`);
+      window.location.reload();
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setImporting(false); }
+  }
 
   async function handleDelete(p: Program & { _mock?: boolean }) {
     // One path for every program. Deleting a built-in used to mean "hide it
@@ -348,6 +373,21 @@ export default function ProgramsPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {!builtinsImported && (
+        <Card className="p-4 mb-4 border-accent/30 space-y-2">
+          <p className="text-sm font-bold text-white">Take full control of the built-in programs</p>
+          <p className="text-xs text-text-secondary">
+            The built-in programs live inside the app itself, which is why deleting one only ever
+            hid it — every visitor still downloaded it. Move them into your database and that ends:
+            Delete removes a program completely, and nothing is downloaded that you have deleted.
+            Programs you have already deleted stay deleted.
+          </p>
+          <Button variant="secondary" onClick={handleImportBuiltins} loading={importing}>
+            Move built-in programs into my database
+          </Button>
+        </Card>
       )}
 
       {programs.some((p) => !p._mock && !p.isPublic && p.visibility !== 'coaching' && p.visibility !== 'public') && (

@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { Moon, Dumbbell, Play, Clock, Target, ChevronRight, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getPrograms, resolveProgram, getDeletedMockIds, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
+import { getPrograms, resolveProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
 import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
@@ -143,13 +143,20 @@ export default function TrainingPage() {
     Promise.all([
       getPrograms(),
       getDeletedMockIds().catch(() => [] as string[]),
+      getSystemConfig().catch(() => null),
     ])
-      .then(([firestoreProgs, deletedIds]) => {
+      .then(([firestoreProgs, deletedIds, cfg]) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fp = firestoreProgs as any as Program[];
         const fpIds = new Set(fp.map((p) => p.id));
+        // Once the built-ins have been imported into the database, the
+        // bundled copies are not a source of programs any more — the admin
+        // panel is. Merging them back in would resurrect anything deleted
+        // since, which is the whole thing the import exists to end.
         const suppressed = new Set(deletedIds);
-        const mocks = MOCK_PROGRAMS.filter((m) => !fpIds.has(m.id) && !suppressed.has(m.id));
+        const mocks = cfg?.builtinsImported
+          ? []
+          : MOCK_PROGRAMS.filter((m) => !fpIds.has(m.id) && !suppressed.has(m.id));
         setPrograms([...fp, ...mocks as Program[]]);
       })
       .catch(() => setPrograms(MOCK_PROGRAMS))
