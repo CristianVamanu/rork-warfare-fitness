@@ -160,7 +160,38 @@ echo "==> Reloading app (zero-downtime — restarts cluster workers one at a tim
 # The previous build stays on disk until after the reload: workers restart
 # one at a time, so a worker that hasn't cycled yet may still hold open
 # handles into the old build while its sibling already serves the new one.
-pm2 reload ecosystem.config.js --env production
+#
+# NEXT_DIST_DIR/NEXT_PWA_DEST are set ONLY as an inline prefix on the build
+# command above, so they are not in this script's environment — but pm2
+# remembers the environment a process was last started with, and a single
+# past start that inherited them pins the app to .next-staging forever. That
+# directory only exists mid-deploy: the swap renames it to .next, so the very
+# next restart hits
+#     Could not find a production build in '/root/.../.next-staging'
+# and the app fails to boot, on a deploy where nothing was actually wrong.
+# `pm2 reload` alone will not clear it — it reuses the stored env, which is
+# how such a value survives every subsequent deploy. Unset explicitly and
+# pass --update-env so the running processes take THIS environment.
+unset NEXT_DIST_DIR NEXT_PWA_DEST
+pm2 reload ecosystem.config.js --env production --update-env
+
+# Boot check. pm2 reports success once the process is spawned, not once it
+# can serve — an app that dies on startup (a bad dist dir, a missing env var)
+# looked like a clean deploy right up until the first user hit it.
+echo "==> Verifying the app actually serves"
+APP_OK=""
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -fsS --max-time 5 http://localhost:3000/api/health >/dev/null 2>&1; then APP_OK=1; break; fi
+  sleep 2
+done
+if [ -z "$APP_OK" ]; then
+  echo "*** DEPLOY FAILED: the app is not responding on :3000 after 20s ***"
+  echo "    Check: pm2 logs warfare-fitness --err --lines 40"
+  printf '{"ok":false,"sha":"%s","at":"%s","error":"app did not respond after reload"}\n' \
+    "$(git rev-parse --short HEAD)" "$(date -u +%FT%TZ)" > .deploy-status.json
+  exit 1
+fi
+echo "    serving"
 
 # Record what is live, for /api/health and for the webhook's failure path.
 # Until now a failed deploy left the previous build serving with nothing
