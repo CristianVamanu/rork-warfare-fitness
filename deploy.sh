@@ -32,11 +32,21 @@ cd "$(dirname "$0")"
 # waits for the first to finish rather than racing it — waits, rather than
 # exits, because that second run is usually someone deploying a NEWER commit
 # and silently dropping it would be worse than the collision.
+#
+# Re-exec through `bash "$SELF"` with an ABSOLUTE path, not `"$0"`. flock execs
+# its command directly — no shell — so a bare relative $0 is looked up on PATH
+# and is not found. The webhook listener invokes this as `bash deploy.sh`,
+# making $0 the string "deploy.sh", so every webhook deploy died with
+#     flock: failed to execute deploy.sh: No such file or directory
+# while a manual ./deploy.sh worked, because that $0 carries a path. The app
+# sat five commits behind for eight hours with the webhook reporting failures
+# nobody was reading. Going through bash also means the exec bit is irrelevant.
 LOCKFILE="/tmp/warfare-fitness-deploy.lock"
+SELF="$PWD/$(basename "$0")"
 if [ -z "${DEPLOY_LOCKED:-}" ]; then
   export DEPLOY_LOCKED=1
   echo "==> Acquiring deploy lock"
-  exec flock --wait 900 "$LOCKFILE" "$0" "$@"
+  exec flock --wait 900 "$LOCKFILE" bash "$SELF" "$@"
 fi
 
 STAGING=".next-staging"
@@ -56,7 +66,7 @@ git reset --hard "origin/$(git rev-parse --abbrev-ref HEAD)"
 if [ "$(sha256sum "$0" | cut -d' ' -f1)" != "$SELF_BEFORE" ] && [ -z "${DEPLOY_REEXECED:-}" ]; then
   echo "    deploy.sh changed in this pull — re-running the new version"
   export DEPLOY_REEXECED=1
-  exec bash "$0" "$@"
+  exec bash "$SELF" "$@"
 fi
 
 echo "==> Installing dependencies"
@@ -323,6 +333,26 @@ if [ -n "${APP_URL:-}" ]; then
     '')                   echo "    WARNING: could not reach ${APP_URL%/}/api/install to verify" ;;
     *)                    echo "    *** WARNING: INSTALLER IS NOT SEALED — /install is reachable. Complete setup or set system/installer.installed=true ***" ;;
   esac
+fi
+
+# The webhook listener runs from whatever copy of webhook.js it was started
+# with, and nothing here ever restarted it — so changes to it never took
+# effect. Its failure-marker code was added on 2026-09-05 and still had not
+# run by 2026-09-08, which is why five failed deploys reported ok:true and the
+# app sat eight hours behind with no outward sign.
+#
+# Restarting it from here is delicate: this script is usually a CHILD of that
+# listener, so restarting it directly would kill the deploy mid-flight.
+# Detach the restart so it happens a few seconds after this script exits.
+WEBHOOK_HASH_FILE=".webhook-js-hash"
+if [ -f deploy-webhook/webhook.js ]; then
+  WEBHOOK_NOW="$(sha256sum deploy-webhook/webhook.js | cut -d' ' -f1)"
+  if [ "$WEBHOOK_NOW" != "$(cat "$WEBHOOK_HASH_FILE" 2>/dev/null || echo none)" ]; then
+    echo "==> webhook.js changed — scheduling a detached listener restart"
+    echo "$WEBHOOK_NOW" > "$WEBHOOK_HASH_FILE"
+    setsid nohup bash -c 'sleep 10; pm2 restart webhook-listener --update-env' \
+      >/dev/null 2>&1 < /dev/null &
+  fi
 fi
 
 echo "==> Deploy complete"
