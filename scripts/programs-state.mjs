@@ -49,14 +49,22 @@ if (restore) {
 
 console.log(`\n${seeds.length} built-in programs in the app:\n`);
 let showing = 0;
+let suppressed = 0;
 for (const s of seeds) {
+  // Being overridden by a database program is NOT suppression: that program
+  // is on screen, it is simply served from Firestore rather than from the
+  // built-in copy. Counting it as missing made a perfectly healthy setup
+  // read as "0 showing, 19 suppressed", which is alarming and wrong.
+  const gone = deleted.has(s.id) || purged.has(s.id) || hidden.has(s.id);
   const why = [];
   if (deleted.has(s.id)) why.push('deleted');
   if (purged.has(s.id)) why.push('purged');
   if (hidden.has(s.id)) why.push('hidden');
-  if (live.has(s.id)) why.push('overridden by a database program');
-  if (!why.length) showing++;
-  console.log(`  ${why.length ? '✗' : '✓'} ${s.id.padEnd(4)} ${s.name.padEnd(46)} ${why.join(', ') || 'showing'}`);
+  if (gone) suppressed++;
+  else if (live.has(s.id)) { showing++; why.push('showing (as a database program you edited)'); }
+  else { showing++; why.push('showing'); }
+  console.log(`  ${gone ? '✗' : '✓'} ${s.id.padEnd(4)} ${s.name.padEnd(46)} ${why.join(', ')}`);
 }
-console.log(`\n${showing} showing, ${seeds.length - showing} suppressed.`);
+console.log(`\n${showing} showing, ${suppressed} removed by an admin.`);
+console.log('Any database-only programs you created are on top of this.');
 console.log('To bring them all back:  node --env-file=.env.production scripts/programs-state.mjs --restore-all\n');
