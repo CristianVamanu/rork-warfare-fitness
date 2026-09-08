@@ -18,6 +18,27 @@ cd "$(dirname "$0")"
 # build, so the old server keeps serving correctly until the swap. The swap
 # itself is two renames (milliseconds) instead of a ~90s exposure window.
 
+# Only one deploy at a time.
+#
+# The webhook listener runs this on every push, and a person runs it by hand
+# when a push seems not to have landed — so the two overlap exactly when you
+# are most likely to be checking. Both use the same .next-staging directory:
+# one build writes it while the other renames it to .next, and the loser dies
+# with
+#     Could not find a production build in '/root/.../.next-staging'
+# which reads like a broken build on a deploy where nothing was wrong at all.
+#
+# flock holds an exclusive lock for the life of the script. A second deploy
+# waits for the first to finish rather than racing it — waits, rather than
+# exits, because that second run is usually someone deploying a NEWER commit
+# and silently dropping it would be worse than the collision.
+LOCKFILE="/tmp/warfare-fitness-deploy.lock"
+if [ -z "${DEPLOY_LOCKED:-}" ]; then
+  export DEPLOY_LOCKED=1
+  echo "==> Acquiring deploy lock"
+  exec flock --wait 900 "$LOCKFILE" "$0" "$@"
+fi
+
 STAGING=".next-staging"
 PREVIOUS=".next-previous"
 PWA_STAGING="public-pwa-staging"
