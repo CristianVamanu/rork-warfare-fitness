@@ -126,8 +126,13 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
                   </div>
 
                   <div className="flex flex-wrap items-center gap-4 mt-8">
+                    {/* programId is what carries the choice through the quiz:
+                        onboarding reads it (page.tsx:223) and enrols the user
+                        in this exact program at the end. The landing page has
+                        always passed it; these pages linked to a bare
+                        /onboarding, so picking a program here picked nothing. */}
                     <Link
-                      href="/onboarding"
+                      href={`/onboarding?programId=${program.id}`}
                       className="bg-accent text-black font-bold rounded-xl px-8 py-3.5 hover:opacity-90 transition-opacity"
                     >
                       Start this program free
@@ -301,7 +306,7 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
                 cancel before then.
               </p>
               <Link
-                href="/onboarding"
+                href={`/onboarding?programId=${program.id}`}
                 className="inline-block mt-8 bg-accent text-black font-bold rounded-xl px-9 py-4 hover:opacity-90 transition-opacity"
               >
                 Start {m.headline}
