@@ -206,23 +206,6 @@ echo "==> Reloading app (zero-downtime — restarts cluster workers one at a tim
 unset NEXT_DIST_DIR NEXT_PWA_DEST
 pm2 reload ecosystem.config.js --env production --update-env
 
-# Boot check. pm2 reports success once the process is spawned, not once it
-# can serve — an app that dies on startup (a bad dist dir, a missing env var)
-# looked like a clean deploy right up until the first user hit it.
-echo "==> Verifying the app actually serves"
-APP_OK=""
-for i in 1 2 3 4 5 6 7 8 9 10; do
-  if curl -fsS --max-time 5 http://localhost:3000/api/health >/dev/null 2>&1; then APP_OK=1; break; fi
-  sleep 2
-done
-if [ -z "$APP_OK" ]; then
-  echo "*** DEPLOY FAILED: the app is not responding on :3000 after 20s ***"
-  echo "    Check: pm2 logs warfare-fitness --err --lines 40"
-  printf '{"ok":false,"sha":"%s","at":"%s","error":"app did not respond after reload"}\n' \
-    "$(git rev-parse --short HEAD)" "$(date -u +%FT%TZ)" > .deploy-status.json
-  exit 1
-fi
-echo "    serving"
 
 # Record what is live, for /api/health and for the webhook's failure path.
 # Until now a failed deploy left the previous build serving with nothing
@@ -354,5 +337,34 @@ if [ -f deploy-webhook/webhook.js ]; then
       >/dev/null 2>&1 < /dev/null &
   fi
 fi
+
+# Boot check, LAST. pm2 reports success once a process is spawned, not once it
+# can serve, so an app that dies on startup looked like a clean deploy right up
+# until the first user arrived.
+#
+# Two things this gets wrong if done naively, both of which it did:
+#
+#  - 20 seconds is not enough. A Next cold start on a 2-core box that has just
+#    finished a build routinely takes longer, so a perfectly good deploy
+#    reported itself failed. 90 seconds is generous enough to mean something.
+#  - Running it mid-script meant a slow boot skipped everything after it: the
+#    success marker, the rules push, the crontab install, the cleanup. The code
+#    was deployed and the deploy was abandoned halfway. It runs last now, so a
+#    slow boot costs a warning and nothing else.
+echo "==> Verifying the app actually serves"
+APP_OK=""
+for _ in $(seq 1 45); do
+  if curl -fsS --max-time 5 http://localhost:3000/api/health >/dev/null 2>&1; then APP_OK=1; break; fi
+  sleep 2
+done
+if [ -z "$APP_OK" ]; then
+  echo "*** WARNING: the app did not respond on :3000 within 90s ***"
+  echo "    The new build IS swapped in and pm2 was reloaded — check whether it"
+  echo "    is booting slowly or crashing:  pm2 logs warfare-fitness --err --lines 40"
+  printf '{"ok":false,"sha":"%s","at":"%s","error":"app did not respond within 90s of reload"}\n' \
+    "$(git rev-parse --short HEAD)" "$(date -u +%FT%TZ)" > .deploy-status.json
+  exit 1
+fi
+echo "    serving"
 
 echo "==> Deploy complete"
