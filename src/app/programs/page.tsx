@@ -6,17 +6,8 @@ import { PublicNav } from '@/components/public/PublicNav';
 import { PublicFooter } from '@/components/public/PublicFooter';
 import { TacticalBackdrop } from '@/components/public/TacticalBackdrop';
 import { Reveal } from '@/components/public/Reveal';
+import { ProgramCard } from '@/components/public/ProgramCard';
 
-/**
- * The public programme index — one of the few pages on this app a search
- * engine can actually read. Everything past login is kept out of the index,
- * which left eight indexable URLs, all of them login/legal/marketing. The
- * programmes are the only real content here, and they were entirely invisible.
- *
- * Revalidated rather than dynamic: the catalogue changes when an admin edits
- * it, not per request, and a cached page is the difference between a crawler
- * seeing a fast page and a slow one.
- */
 export const revalidate = 3600;
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -30,110 +21,162 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const GOAL_LABEL: Record<string, string> = {
-  strength: 'Strength', hypertrophy: 'Muscle Building', endurance: 'Endurance',
-  'weight-loss': 'Fat Loss', general: 'General Fitness',
+/** Presentation order — the military-inspired blocks lead, because that is
+ *  what the brand is known for and what people arrive searching for. */
+const GOAL_ORDER = ['endurance', 'strength', 'hypertrophy', 'weight-loss', 'general'] as const;
+const GOAL_META: Record<string, { label: string; blurb: string }> = {
+  endurance: { label: 'Endurance & Selection', blurb: 'Long efforts, rucks, work capacity. The blocks built on selection-style training.' },
+  strength: { label: 'Strength', blurb: 'Heavier loads, lower reps, real progression on the main lifts.' },
+  hypertrophy: { label: 'Muscle Building', blurb: 'Volume and tension, organised into blocks that keep growing.' },
+  'weight-loss': { label: 'Fat Loss', blurb: 'Conditioning and deficit work that keeps the strength you already have.' },
+  general: { label: 'General Fitness', blurb: 'Broad, hard, and hard to be bad at. Good all-round base building.' },
 };
 
 export default async function ProgramsIndexPage() {
   const [programs, brand] = await Promise.all([getPublicPrograms(), getPublicBranding()]);
   const navPrograms = programs.map((p) => ({ name: p.name, slug: p.slug }));
 
+  const totalSessions = programs.reduce((n, p) => n + p.weeks * p.daysPerWeek, 0);
+  const totalWeeks = programs.reduce((n, p) => n + p.weeks, 0);
+
+  const grouped = GOAL_ORDER
+    .map((goal) => ({ goal, meta: GOAL_META[goal], items: programs.filter((p) => p.goal === goal) }))
+    .filter((g) => g.items.length > 0);
+  // Anything with a goal outside the known set still has to appear — a silent
+  // drop here would hide a program an admin had published.
+  const known = new Set(GOAL_ORDER as readonly string[]);
+  const other = programs.filter((p) => !known.has(p.goal));
+
   return (
     <div className="min-h-screen bg-background">
       <div className="relative">
-        <TacticalBackdrop className="h-[460px]" />
+        <TacticalBackdrop className="h-[520px]" />
         <div className="relative z-10">
           <PublicNav programs={navPrograms} logoUrl={brand.logoUrl} appName={brand.appName} />
 
-          <header className="max-w-5xl mx-auto px-5 pt-10 pb-14 sm:pt-16 sm:pb-20">
+          <header className="max-w-5xl mx-auto px-5 pt-12 pb-16 sm:pt-20 sm:pb-24">
             <Reveal>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">
-                {programs.length} Programs · Every Level
-              </p>
-              <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight mt-4 max-w-3xl leading-[1.05]">
+              <div className="flex items-center gap-2.5">
+                <span className="w-8 h-px bg-accent" />
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
+                  The Program Library
+                </p>
+              </div>
+              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white tracking-tight mt-5 leading-[0.95]">
                 Pick your fight.
               </h1>
-              <p className="text-text-secondary mt-5 text-base sm:text-lg leading-relaxed max-w-2xl">
-                Every program below is a complete, week-by-week plan — not a list of exercises.
-                Sets, reps, rest and progression are prescribed for each session, and the app
-                tracks where you are so you never have to remember what week you&apos;re on.
+              <p className="text-text-secondary mt-6 text-base sm:text-lg leading-relaxed max-w-2xl">
+                Every program here is a complete campaign — not a list of exercises. Sets, reps,
+                tempo and rest are prescribed for every session, progression is built into the
+                weeks, and the app remembers exactly where you are.
               </p>
+
+              <div className="flex flex-wrap gap-x-10 gap-y-4 mt-9">
+                {[
+                  { v: programs.length, l: 'Programs' },
+                  { v: totalWeeks, l: 'Weeks of training' },
+                  { v: totalSessions.toLocaleString(), l: 'Sessions written' },
+                ].map((s) => (
+                  <div key={s.l}>
+                    <p className="text-3xl sm:text-4xl font-black text-white tabular-nums">{s.v}</p>
+                    <p className="text-[11px] uppercase tracking-wider text-text-tertiary mt-1">{s.l}</p>
+                  </div>
+                ))}
+              </div>
             </Reveal>
           </header>
         </div>
       </div>
 
-      <main className="max-w-5xl mx-auto px-5 pb-20">
+      <main className="max-w-5xl mx-auto px-5 pb-24">
         {programs.length === 0 ? (
           <p className="text-text-secondary">No programs published yet.</p>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2">
-            {programs.map((p, i) => (
-              <Reveal key={p.id} delay={i * 0.05}>
-                <Link
-                  href={`/programs/${p.slug}`}
-                  className="group relative block h-full rounded-2xl border border-white/8 bg-surface overflow-hidden hover:border-accent/40 transition-colors"
-                >
-                  {/* The cover art an admin already uploaded. It was on the
-                      landing page and in the app, and missing from the pages
-                      built to sell these programs to strangers. */}
-                  <div className="relative aspect-[16/9] bg-black/40 overflow-hidden">
-                    {p.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={p.imageUrl}
-                        alt={p.name}
-                        loading="lazy"
-                        className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-[1.03] transition-all duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-accent/15 via-transparent to-transparent flex items-center justify-center">
-                        <span className="text-5xl font-black text-white/10">{p.name[0]}</span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/20 to-transparent" />
-                    <div className="absolute bottom-3 left-4 right-4 flex flex-wrap gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-black bg-accent rounded-full px-2.5 py-1">
-                        {GOAL_LABEL[p.goal] ?? p.goal}
-                      </span>
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-white bg-black/60 backdrop-blur rounded-full px-2.5 py-1">
-                        {p.level}
-                      </span>
+          <>
+            {grouped.map((group) => (
+              <section key={group.goal} className="mb-16">
+                <Reveal>
+                  <div className="flex items-end justify-between gap-4 border-b border-white/8 pb-4 mb-6">
+                    <div>
+                      <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                        {group.meta.label}
+                      </h2>
+                      <p className="text-sm text-text-secondary mt-1.5 max-w-xl">{group.meta.blurb}</p>
                     </div>
+                    <span className="text-xs text-text-tertiary whitespace-nowrap pb-1">
+                      {group.items.length} program{group.items.length !== 1 ? 's' : ''}
+                    </span>
                   </div>
-
-                  <div className="p-5">
-                    <h2 className="text-lg font-black text-white group-hover:text-accent transition-colors">
-                      {p.name}
-                    </h2>
-                    <p className="text-sm text-text-secondary mt-2 line-clamp-3 leading-relaxed">
-                      {p.description}
-                    </p>
-                    <div className="flex items-center gap-4 mt-4 pt-4 border-t border-white/8 text-xs text-text-tertiary">
-                      <span>{p.weeks} weeks</span>
-                      <span>{p.daysPerWeek}×/week</span>
-                      <span className="text-accent font-semibold">{p.weeks * p.daysPerWeek} sessions</span>
-                    </div>
-                  </div>
-                </Link>
-              </Reveal>
+                </Reveal>
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {group.items.map((p, i) => (
+                    <Reveal key={p.id} delay={i * 0.05}>
+                      <ProgramCard p={p} />
+                    </Reveal>
+                  ))}
+                </div>
+              </section>
             ))}
-          </div>
+
+            {other.length > 0 && (
+              <section className="mb-16">
+                <h2 className="text-2xl font-black text-white border-b border-white/8 pb-4 mb-6">
+                  More Programs
+                </h2>
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {other.map((p, i) => (
+                    <Reveal key={p.id} delay={i * 0.05}>
+                      <ProgramCard p={p} />
+                    </Reveal>
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
         )}
 
+        {/* What every program includes — the same for all of them, so it
+            belongs here once rather than repeated on eleven pages. */}
         <Reveal>
-          <section className="mt-16 relative rounded-3xl border border-accent/25 bg-surface overflow-hidden p-8 sm:p-12 text-center">
-            <div className="absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-transparent" />
+          <section className="rounded-3xl border border-white/8 bg-surface p-8 sm:p-10">
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Every program comes with
+            </h2>
+            <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2 mt-7">
+              {[
+                ['Day-by-day prescription', 'Every session written out — no guessing what to do or how hard.'],
+                ['Automatic progression', 'Volume and intensity move week to week. You just follow it.'],
+                ['Tracking that remembers', 'Where you are, what you lifted last time, what comes next.'],
+                ['Nutrition targets', 'Calories and macros calculated for your body and this goal.'],
+                ['Exercise substitutions', 'Short on equipment? Swap a movement without breaking the plan.'],
+                ['The community', 'Channels and a PR wall full of people running the same programs.'],
+              ].map(([title, body]) => (
+                <div key={title} className="flex gap-3.5">
+                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+                  <div>
+                    <p className="font-bold text-white text-sm">{title}</p>
+                    <p className="text-sm text-text-secondary mt-1 leading-relaxed">{body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </Reveal>
+
+        <Reveal>
+          <section className="mt-8 relative rounded-3xl border border-accent/30 overflow-hidden p-10 sm:p-14 text-center">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(245,166,35,0.16),transparent_60%)]" />
             <div className="relative">
-              <h2 className="text-2xl sm:text-3xl font-black text-white">Pick one. Start this week.</h2>
-              <p className="text-text-secondary mt-3 max-w-xl mx-auto text-sm sm:text-base">
-                Every program comes with the tracking, nutrition targets and community.
-                Start free — you can cancel before you&apos;re charged.
+              <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                Pick one. Start this week.
+              </h2>
+              <p className="text-text-secondary mt-4 max-w-lg mx-auto">
+                Free to start. You won&apos;t be charged until the trial is up, and you can
+                cancel before then.
               </p>
               <Link
                 href="/onboarding"
-                className="inline-block mt-6 bg-accent text-black font-bold rounded-xl px-8 py-3.5 hover:opacity-90 transition-opacity"
+                className="inline-block mt-8 bg-accent text-black font-bold rounded-xl px-9 py-4 hover:opacity-90 transition-opacity"
               >
                 Start Free
               </Link>

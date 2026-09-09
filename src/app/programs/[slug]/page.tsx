@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Dumbbell, Check } from 'lucide-react';
 import { getPublicPrograms, getPublicProgramBySlug } from '@/lib/publicPrograms';
 import { buildProgramMarketing } from '@/lib/programMarketing';
 import { getPublicBranding } from '@/lib/publicBranding';
@@ -8,21 +9,24 @@ import { PublicNav } from '@/components/public/PublicNav';
 import { PublicFooter } from '@/components/public/PublicFooter';
 import { TacticalBackdrop } from '@/components/public/TacticalBackdrop';
 import { Reveal } from '@/components/public/Reveal';
+import { ProgramCard } from '@/components/public/ProgramCard';
 
 export const revalidate = 3600;
 
 /**
  * One indexable page per program.
  *
- * Every number and every workout on this page is computed from the program
- * document itself (see programMarketing.ts), so editing a program in the admin
- * panel updates its marketing page in the same act, and the page can never
- * advertise a twelve-week plan that is actually eight.
+ * Every number and every workout here is computed from the program document
+ * itself (see programMarketing.ts), so editing a program in the admin panel
+ * updates its marketing page in the same act, and the page can never advertise
+ * a twelve-week plan that is actually eight.
+ *
+ * The cover art is rendered `object-contain` in a square frame, matching the
+ * landing page: these are badge and emblem images, and cropping them to a wide
+ * banner cuts the artwork in half.
  */
 
 export async function generateStaticParams() {
-  // Pre-renders what exists at build time; anything published later is still
-  // served, just rendered on first request and then cached.
   try {
     const programs = await getPublicPrograms();
     return programs.map((p) => ({ slug: p.slug }));
@@ -58,10 +62,31 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
   const [all, brand] = await Promise.all([getPublicPrograms(), getPublicBranding()]);
   const related = all.filter((p) => p.slug !== slug && p.goal === program.goal).slice(0, 3);
 
+  // Structured data: lets the page show up as a rich result rather than a
+  // plain blue link, and costs nothing but markup.
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Course',
+    name: program.name,
+    description: program.description,
+    provider: { '@type': 'Organization', name: brand.appName },
+    ...(program.imageUrl ? { image: program.imageUrl } : {}),
+    hasCourseInstance: {
+      '@type': 'CourseInstance',
+      courseMode: 'online',
+      courseWorkload: `P${program.weeks}W`,
+    },
+  };
+
   return (
     <div className="min-h-screen bg-background">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
       <div className="relative">
-        <TacticalBackdrop className="h-[560px]" />
+        <TacticalBackdrop className="h-[640px]" />
         <div className="relative z-10">
           <PublicNav
             programs={all.map((p) => ({ name: p.name, slug: p.slug }))}
@@ -69,193 +94,241 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
             appName={brand.appName}
           />
 
-          <header className="max-w-3xl mx-auto px-5 py-10 sm:py-14">
+          <header className="max-w-5xl mx-auto px-5 pt-8 pb-14 sm:pt-10 sm:pb-20">
             <Reveal>
               <Link href="/programs" className="text-xs text-text-tertiary hover:text-white transition-colors">
                 ← All programs
               </Link>
 
-              {/* The program's own cover art, which existed all along and was
-                  the one thing missing from the page selling it. */}
-              {program.imageUrl && (
-                <div className="relative mt-5 rounded-2xl overflow-hidden border border-white/10 aspect-[21/9] bg-black/40">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={program.imageUrl} alt={program.name} className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background via-background/30 to-transparent" />
-                </div>
-              )}
-
-              <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight mt-6 leading-[1.05]">
-                {m.headline}
-              </h1>
-              <p className="text-base sm:text-lg text-text-secondary mt-4 leading-relaxed">
-                {m.subheadline}
-              </p>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8">
-                {m.stats.map((s) => (
-                  <div key={s.label} className="rounded-xl border border-white/8 bg-surface/80 backdrop-blur p-3.5">
-                    <p className="text-[11px] uppercase tracking-wide text-text-tertiary">{s.label}</p>
-                    <p className="text-lg font-black text-white mt-0.5">{s.value}</p>
+              <div className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-10 lg:gap-14 items-start mt-6">
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-8 h-px bg-accent" />
+                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
+                      {m.stats[3]?.value} · {program.weeks} Weeks
+                    </p>
                   </div>
-                ))}
-              </div>
 
-              <Link
-                href="/onboarding"
-                className="inline-block mt-8 bg-accent text-black font-bold rounded-xl px-8 py-3.5 hover:opacity-90 transition-opacity"
-              >
-                Start this program free
-              </Link>
+                  <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight mt-5 leading-[0.98]">
+                    {m.headline}
+                  </h1>
+                  <p className="text-base sm:text-lg text-text-secondary mt-5 leading-relaxed">
+                    {m.subheadline}
+                  </p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-8">
+                    {m.stats.map((s) => (
+                      <div key={s.label} className="rounded-xl border border-white/8 bg-surface/70 backdrop-blur-sm p-3.5">
+                        <p className="text-[10px] uppercase tracking-wider text-text-tertiary">{s.label}</p>
+                        <p className="text-lg font-black text-white mt-0.5">{s.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-4 mt-8">
+                    <Link
+                      href="/onboarding"
+                      className="bg-accent text-black font-bold rounded-xl px-8 py-3.5 hover:opacity-90 transition-opacity"
+                    >
+                      Start this program free
+                    </Link>
+                    <p className="text-xs text-text-tertiary">
+                      No charge until the trial ends · Cancel anytime
+                    </p>
+                  </div>
+                </div>
+
+                {/* Square frame, object-contain — the artwork is a badge, not a
+                    photo, so it must never be cropped to fit a banner. */}
+                <div className="relative w-full max-w-[300px] mx-auto lg:mx-0 aspect-square rounded-2xl border border-white/10 bg-surface-elevated overflow-hidden shrink-0">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(245,166,35,0.18),transparent_65%)]" />
+                  {program.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={program.imageUrl}
+                      alt={program.name}
+                      className="relative w-full h-full object-contain p-5"
+                    />
+                  ) : (
+                    <div className="relative w-full h-full flex items-center justify-center">
+                      <Dumbbell className="w-16 h-16 text-accent/30" />
+                    </div>
+                  )}
+                </div>
+              </div>
             </Reveal>
           </header>
         </div>
       </div>
 
-      <main className="max-w-3xl mx-auto px-5 pb-20">
-
-        {/* What it is */}
+      <main className="max-w-3xl mx-auto px-5 pb-24">
         <Reveal>
-        <section className="py-8 border-t border-white/8">
-          <h2 className="text-xl sm:text-2xl font-black text-white">What this program is</h2>
-          <p className="text-text-secondary mt-3 leading-relaxed whitespace-pre-line">{m.whoFor}</p>
-          <p className="text-sm text-text-tertiary mt-4 border-l-2 border-accent/40 pl-4">
-            {m.requirement}
-          </p>
-        </section>
+          <section className="py-10 border-t border-white/8">
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              What this program is
+            </h2>
+            <p className="text-text-secondary mt-4 leading-relaxed whitespace-pre-line">{m.whoFor}</p>
+            <div className="mt-6 rounded-xl border-l-2 border-accent bg-accent/[0.04] px-5 py-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-accent">Before you start</p>
+              <p className="text-sm text-text-secondary mt-1.5">{m.requirement}</p>
+            </div>
+          </section>
         </Reveal>
 
-        {/* Structure */}
         {m.phases.length > 0 && (
           <Reveal>
-          <section className="py-8 border-t border-white/8">
-            <h2 className="text-xl sm:text-2xl font-black text-white">How it&apos;s structured</h2>
-            <p className="text-text-secondary mt-2 text-sm">
-              {m.phases.length} phases across {program.weeks} weeks. Each one builds on the last —
-              volume, intensity and complexity all move.
-            </p>
-            <div className="mt-5 space-y-3">
-              {m.phases.map((ph, i) => (
-                <div key={i} className="rounded-xl border border-white/8 bg-surface p-4">
-                  <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                    <p className="font-bold text-white">{ph.label}</p>
-                    <p className="text-xs text-accent font-medium">{ph.weeks}</p>
-                  </div>
-                  {ph.focus && <p className="text-xs text-text-tertiary mt-1.5">{ph.focus}</p>}
-                </div>
-              ))}
-            </div>
-          </section>
+            <section className="py-10 border-t border-white/8">
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                How it&apos;s structured
+              </h2>
+              <p className="text-text-secondary mt-3">
+                {m.phases.length} phases across {program.weeks} weeks. Each builds on the last —
+                volume, intensity and complexity all move.
+              </p>
+              {/* A vertical timeline rather than a stack of boxes: it reads as
+                  a progression, which is what a phased program actually is. */}
+              <ol className="mt-7 relative border-l border-white/10 ml-3">
+                {m.phases.map((ph, i) => (
+                  <li key={i} className="relative pl-7 pb-7 last:pb-0">
+                    <span className="absolute -left-[7px] top-1 w-3.5 h-3.5 rounded-full bg-accent ring-4 ring-background" />
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-accent">{ph.weeks}</p>
+                    <p className="font-black text-white mt-1">{ph.label}</p>
+                    {ph.focus && <p className="text-sm text-text-tertiary mt-1.5">{ph.focus}</p>}
+                  </li>
+                ))}
+              </ol>
+            </section>
           </Reveal>
         )}
 
-        {/* The training week */}
         {m.weekPattern.length > 0 && (
           <Reveal>
-          <section className="py-8 border-t border-white/8">
-            <h2 className="text-xl sm:text-2xl font-black text-white">A week in this program</h2>
-            <div className="mt-5 grid gap-2">
-              {m.weekPattern.map((d, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center justify-between rounded-xl px-4 py-3 border ${
-                    d.isRest ? 'border-white/5 bg-transparent' : 'border-white/8 bg-surface'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-[11px] font-bold text-text-tertiary w-12">DAY {i + 1}</span>
-                    <span className={d.isRest ? 'text-sm text-text-tertiary' : 'text-sm font-semibold text-white'}>
+            <section className="py-10 border-t border-white/8">
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                A week in this program
+              </h2>
+              <p className="text-text-secondary mt-3">
+                {program.daysPerWeek} training days, {7 - program.daysPerWeek} rest.
+                This pattern repeats — the work inside it doesn&apos;t.
+              </p>
+              <div className="mt-7 grid gap-2.5">
+                {m.weekPattern.map((d, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-center gap-4 rounded-xl px-4 py-3.5 border transition-colors ${
+                      d.isRest
+                        ? 'border-white/5 bg-transparent'
+                        : 'border-white/8 bg-surface hover:border-accent/25'
+                    }`}
+                  >
+                    <span className={`text-[10px] font-black tracking-wider w-10 shrink-0 ${d.isRest ? 'text-text-tertiary/60' : 'text-accent'}`}>
+                      D{i + 1}
+                    </span>
+                    <span className={`flex-1 text-sm ${d.isRest ? 'text-text-tertiary' : 'font-bold text-white'}`}>
                       {d.label}
                     </span>
+                    {!d.isRest && (
+                      <span className="text-xs text-text-tertiary shrink-0">{d.exerciseCount} exercises</span>
+                    )}
                   </div>
-                  {!d.isRest && (
-                    <span className="text-xs text-text-tertiary">{d.exerciseCount} exercises</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
           </Reveal>
         )}
 
-        {/* Real sessions */}
         {m.sampleSessions.some((s) => s.exercises.length > 0) && (
-          <section className="py-8 border-t border-white/8">
-            <h2 className="text-xl sm:text-2xl font-black text-white">Sample sessions</h2>
-            <p className="text-text-secondary mt-2 text-sm">
-              Straight out of the program — this is exactly what you&apos;d see on the day.
-            </p>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              {m.sampleSessions.filter((s) => s.exercises.length > 0).map((s, i) => (
-                <div key={i} className="rounded-2xl border border-white/8 bg-surface p-5">
-                  <p className="font-black text-white">{s.label}</p>
-                  <ul className="mt-3 space-y-2.5">
-                    {s.exercises.map((e, j) => (
-                      <li key={j} className="flex justify-between gap-3 text-sm">
-                        <span className="text-text-secondary">{e.name}</span>
-                        <span className="text-text-tertiary whitespace-nowrap text-xs mt-0.5">{e.detail}</span>
-                      </li>
-                    ))}
-                  </ul>
+          <Reveal>
+            <section className="py-10 border-t border-white/8">
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                Real sessions from inside
+              </h2>
+              <p className="text-text-secondary mt-3">
+                Straight out of the program — this is exactly what you see on the day.
+              </p>
+              <div className="mt-7 grid gap-4 sm:grid-cols-2">
+                {m.sampleSessions.filter((s) => s.exercises.length > 0).map((s, i) => (
+                  <div key={i} className="rounded-2xl border border-white/8 bg-surface overflow-hidden">
+                    <div className="px-5 py-3.5 border-b border-white/8 bg-white/[0.02]">
+                      <p className="font-black text-white text-sm">{s.label}</p>
+                    </div>
+                    <ul className="p-5 space-y-3">
+                      {s.exercises.map((e, j) => (
+                        <li key={j} className="flex justify-between gap-3 items-baseline">
+                          <span className="text-sm text-white/90">{e.name}</span>
+                          <span className="text-[11px] text-accent font-medium whitespace-nowrap tabular-nums">
+                            {e.detail}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-text-tertiary mt-4">
+                {m.totalSessions - 2} more sessions are inside the app, with every set logged as you go.
+              </p>
+            </section>
+          </Reveal>
+        )}
+
+        <Reveal>
+          <section className="py-10 border-t border-white/8">
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">What you get</h2>
+            <div className="mt-6 grid gap-3">
+              {m.includes.map((item, i) => (
+                <div key={i} className="flex gap-3.5 items-start rounded-xl border border-white/8 bg-surface px-4 py-3.5">
+                  <Check className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+                  <span className="text-sm text-text-secondary">{item}</span>
                 </div>
               ))}
             </div>
           </section>
-        )}
+        </Reveal>
 
-        {/* Included */}
-        <section className="py-8 border-t border-white/8">
-          <h2 className="text-xl sm:text-2xl font-black text-white">What you get</h2>
-          <ul className="mt-4 space-y-2.5">
-            {m.includes.map((item, i) => (
-              <li key={i} className="flex gap-3 text-sm text-text-secondary">
-                <span className="text-accent font-bold shrink-0">✓</span>
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {/* CTA */}
-        <section className="mt-6 rounded-2xl border border-accent/25 bg-surface p-6 sm:p-8 text-center">
-          <h2 className="text-xl sm:text-2xl font-black text-white">
-            {m.totalSessions} sessions. Start the first one today.
-          </h2>
-          <p className="text-text-secondary mt-2 text-sm sm:text-base max-w-lg mx-auto">
-            Free to start. You won&apos;t be charged until the trial is up, and you can cancel before then.
-          </p>
-          <Link
-            href="/onboarding"
-            className="inline-block mt-5 bg-accent text-black font-bold rounded-xl px-6 py-3 hover:opacity-90 transition-opacity"
-          >
-            Start {m.headline} free
-          </Link>
-        </section>
-
-        {related.length > 0 && (
-          <section className="py-10">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-text-tertiary">
-              Similar programs
-            </h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              {related.map((r) => (
-                <Link
-                  key={r.slug}
-                  href={`/programs/${r.slug}`}
-                  className="rounded-xl border border-white/8 bg-surface p-4 hover:border-accent/30 transition-colors"
-                >
-                  <p className="text-sm font-bold text-white">{r.name}</p>
-                  <p className="text-xs text-text-tertiary mt-1">
-                    {r.weeks} weeks · {r.daysPerWeek}×/week
-                  </p>
-                </Link>
-              ))}
+        <Reveal>
+          <section className="mt-6 relative rounded-3xl border border-accent/30 overflow-hidden p-10 sm:p-14 text-center">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(245,166,35,0.16),transparent_60%)]" />
+            <div className="relative">
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
+                {program.weeks} weeks · {m.totalSessions} sessions
+              </p>
+              <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight mt-4">
+                Start the first one today.
+              </h2>
+              <p className="text-text-secondary mt-4 max-w-lg mx-auto">
+                Free to start. You won&apos;t be charged until the trial is up, and you can
+                cancel before then.
+              </p>
+              <Link
+                href="/onboarding"
+                className="inline-block mt-8 bg-accent text-black font-bold rounded-xl px-9 py-4 hover:opacity-90 transition-opacity"
+              >
+                Start {m.headline}
+              </Link>
             </div>
           </section>
-        )}
+        </Reveal>
       </main>
 
-      <PublicFooter />
+      {related.length > 0 && (
+        <section className="max-w-5xl mx-auto px-5 pb-24">
+          <Reveal>
+            <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-text-tertiary border-b border-white/8 pb-4">
+              Similar programs
+            </h2>
+          </Reveal>
+          <div className="grid gap-5 sm:grid-cols-3 mt-6">
+            {related.map((r, i) => (
+              <Reveal key={r.slug} delay={i * 0.05}>
+                <ProgramCard p={r} />
+              </Reveal>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <PublicFooter appName={brand.appName} />
     </div>
   );
 }
