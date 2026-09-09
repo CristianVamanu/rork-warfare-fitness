@@ -20,7 +20,7 @@ import { extractVideoThumbnail, extractVideoThumbnailFromUrl } from '@/lib/video
 import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_B2B_TERMS } from '@/lib/legalDefaults';
 import {
   getSystemConfig, setSystemConfig,
-  getAllUsers, setUserRole, setUserTrainer,
+  getAllUsers, countUsers, setUserRole, setUserTrainer,
   subscribeAdminConversations, getOrCreateConversation, subscribeMessages, sendMessage, markConversationRead, deleteConversation,
   getMembershipConfig, saveMembershipConfig,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
@@ -404,6 +404,12 @@ function AdminPageInner() {
   // once is what actually makes this page unusable — so the DOM is paged.
   const [clientsPerPage, setClientsPerPage] = useState(50);
   const [clientsPage, setClientsPage] = useState(1);
+  // getAllUsers() is now bounded (see firestore.ts). These track how much of
+  // the collection is actually loaded, so the page can say so honestly rather
+  // than showing a count that silently means "the first 500".
+  const USERS_PAGE = 500;
+  const [totalUsers, setTotalUsers] = useState<number | null>(null);
+  const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
   const [orgAiUsage, setOrgAiUsage] = useState<{ used: number; limit: number; byFeature: Record<string, number>; date: string } | null>(null);
   const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, aiOrgDailyLimit: 0 });
   const [savingSettings, setSavingSettings] = useState(false);
@@ -566,8 +572,11 @@ function AdminPageInner() {
     const trainerId = profile?.trainerId;
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
 
+    // Bounded read + a separate count aggregation: the stat card needs a
+    // total, not every document.
+    countUsers().then(setTotalUsers).catch(() => setTotalUsers(null));
     Promise.all([
-      getAllUsers().catch(() => [] as UserData[]),
+      getAllUsers(USERS_PAGE).catch(() => [] as UserData[]),
       getSystemConfig(),
       // Mirrors /admin/programs' own counting logic: published Firestore
       // programs plus whichever built-in seed programs haven't been
@@ -760,9 +769,29 @@ function AdminPageInner() {
 
   async function loadUsers() {
     setClientsLoading(true);
-    try { setUsers(await getAllUsers() as UserData[]); }
+    try {
+      setUsers(await getAllUsers(USERS_PAGE) as UserData[]);
+      // Aggregation query: one read, not one per user.
+      countUsers().then(setTotalUsers).catch(() => setTotalUsers(null));
+    }
     catch { toast.error('Failed to load users'); }
     finally { setClientsLoading(false); }
+  }
+
+  async function loadMoreUsers() {
+    const last = users[users.length - 1];
+    if (!last) return;
+    setLoadingMoreUsers(true);
+    try {
+      const next = await getAllUsers(USERS_PAGE, last.id) as UserData[];
+      // Append rather than replace, and de-dupe by id so a page boundary that
+      // shifts between requests cannot show anyone twice.
+      setUsers((prev) => {
+        const seen = new Set(prev.map((u) => u.id));
+        return [...prev, ...next.filter((u) => !seen.has(u.id))];
+      });
+    } catch { toast.error('Failed to load more clients'); }
+    finally { setLoadingMoreUsers(false); }
   }
 
   // Live — a client starting or replying to a "Message Support" thread now
@@ -2563,7 +2592,10 @@ function AdminPageInner() {
         <div className="space-y-5">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { icon: Users, label: 'Clients', value: clients.length, color: 'text-blue-400', bg: 'bg-blue-400/10' },
+              // The real total from the count aggregation when we have it —
+              // the loaded list is capped now, so clients.length would
+              // under-report the moment there are more than one page of them.
+              { icon: Users, label: 'Clients', value: totalUsers ?? clients.length, color: 'text-blue-400', bg: 'bg-blue-400/10' },
               { icon: Dumbbell, label: 'Programs', value: programCount, color: 'text-purple-400', bg: 'bg-purple-400/10' },
               { icon: Activity, label: 'Workouts Today', value: workoutsToday, color: 'text-green-400', bg: 'bg-green-400/10' },
               { icon: Shield, label: 'System', value: '✓', color: 'text-accent', bg: 'bg-accent-muted' },
@@ -2650,7 +2682,15 @@ function AdminPageInner() {
       {tab === 'clients' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-text-secondary text-sm">{clients.length} client{clients.length !== 1 ? 's' : ''}</p>
+            {/* Says what is LOADED, not what exists — the read is capped, and a
+                count that quietly means "the first 500" is how an admin ends
+                up believing a client vanished. */}
+            <p className="text-text-secondary text-sm">
+              {clients.length} client{clients.length !== 1 ? 's' : ''}
+              {totalUsers !== null && totalUsers > users.length && (
+                <span className="text-text-tertiary"> loaded of {totalUsers}</span>
+              )}
+            </p>
             <div className="flex items-center gap-2">
               {clients.length > clientsPerPage && (
                 <select
@@ -2781,6 +2821,16 @@ function AdminPageInner() {
                 Next
               </Button>
             </div>
+          )}
+          {totalUsers !== null && users.length < totalUsers && (
+            <Button
+              fullWidth
+              variant="secondary"
+              onClick={loadMoreUsers}
+              loading={loadingMoreUsers}
+            >
+              Load more clients ({totalUsers - users.length} not loaded)
+            </Button>
           )}
         </div>
       )}

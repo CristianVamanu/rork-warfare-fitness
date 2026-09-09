@@ -21,6 +21,7 @@ import {
   query,
   where,
   orderBy,
+  startAfter,
   getDocs,
   addDoc,
   serverTimestamp,
@@ -1465,9 +1466,34 @@ export async function markFlameIgnited(userId: string) {
   await updateDoc(doc(db, 'users', userId), { flameIgnited: true });
 }
 
-export async function getAllUsers() {
-  const snap = await getDocs(collection(db, 'users'));
+/**
+ * A page of users, newest-id-first is NOT what this does — see below.
+ *
+ * This used to read the ENTIRE users collection with no limit, on every visit
+ * to the admin Clients tab and on every program-assign modal. At a few users
+ * that is invisible; at a few thousand it is thousands of document reads per
+ * click and a browser asked to hold the lot in memory. The DOM was already
+ * paged; the read was not, which is the half that costs money.
+ *
+ * Ordered by __name__ (the document id) rather than createdAt DELIBERATELY.
+ * Firestore silently omits documents that lack the ordered field, so ordering
+ * by createdAt would quietly hide every user whose document predates that
+ * field — an admin list that is missing people and never says so is worse than
+ * one in an odd order. Document ids always exist, so this can never drop
+ * anyone. Callers that want chronological order can sort the page they get.
+ */
+export async function getAllUsers(limitCount = 500, afterId?: string) {
+  const constraints = afterId
+    ? [orderBy('__name__'), startAfter(afterId), limit(limitCount)]
+    : [orderBy('__name__'), limit(limitCount)];
+  const snap = await getDocs(query(collection(db, 'users'), ...constraints));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/** Total user count without reading a single document. */
+export async function countUsers(): Promise<number> {
+  const snap = await getCountFromServer(collection(db, 'users'));
+  return snap.data().count;
 }
 
 // Admin-only writes — 'role' and 'trainerId' are both in the restricted-
