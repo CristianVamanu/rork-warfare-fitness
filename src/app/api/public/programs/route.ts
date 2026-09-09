@@ -54,7 +54,8 @@ export async function GET(req: NextRequest) {
     // source of programs and the bundled copies are ignored.
     const mocks = builtinsImported
       ? []
-      : MOCK_PROGRAMS.filter((p) => !fpIds.has(p.id) && !deletedIds.has(p.id));
+      // isPublic checked on seeds as well — see lib/publicPrograms.ts.
+      : MOCK_PROGRAMS.filter((p) => !fpIds.has(p.id) && !deletedIds.has(p.id) && p.isPublic !== false);
 
     let programs = [...firestorePrograms, ...mocks].map((p) => ({
       id: p.id,

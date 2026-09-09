@@ -131,6 +131,7 @@ export default function ProgramsPage() {
     try {
       await updateProgram(p.id, { isPublic: true, status: 'published' });
       setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPublic: true } : x));
+      void revalidatePublicPrograms();
       toast.success('Program published — now visible to clients');
     } catch { toast.error('Failed to publish'); }
     finally { setPublishing(null); }
@@ -141,11 +142,28 @@ export default function ProgramsPage() {
     try {
       await updateProgram(p.id, { isPublic: false, status: 'draft' });
       setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPublic: false } : x));
+      void revalidatePublicPrograms();
       toast.success('Hidden — moved back to Draft, no longer visible to clients');
     } catch { toast.error('Failed to hide'); }
     finally { setPublishing(null); }
   }
 
+
+  /**
+   * Purges the cached public program pages. Fire-and-forget on purpose: the
+   * public pages being stale for an hour is a small problem, a delete that
+   * appears to fail because a cache purge failed is a worse one.
+   */
+  async function revalidatePublicPrograms() {
+    try {
+      if (!user) return;
+      const token = await getIdToken(user);
+      await fetch('/api/admin/revalidate-programs', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch { /* the 1h window is the fallback */ }
+  }
 
   async function handleImportBuiltins() {
     if (!user) return;
@@ -176,6 +194,7 @@ export default function ProgramsPage() {
         await deleteProgram(p.id);
       }
       setPrograms(prev => prev.filter(x => x.id !== p.id));
+      void revalidatePublicPrograms();
       toast.success('Deleted');
     } catch { toast.error('Failed to delete'); }
   }
