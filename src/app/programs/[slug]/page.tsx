@@ -3,8 +3,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getPublicPrograms, getPublicProgramBySlug } from '@/lib/publicPrograms';
 import { buildProgramMarketing } from '@/lib/programMarketing';
+import { getPublicBranding } from '@/lib/publicBranding';
 import { PublicNav } from '@/components/public/PublicNav';
 import { PublicFooter } from '@/components/public/PublicFooter';
+import { TacticalBackdrop } from '@/components/public/TacticalBackdrop';
+import { Reveal } from '@/components/public/Reveal';
 
 export const revalidate = 3600;
 
@@ -52,44 +55,67 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
   if (!program) notFound();
 
   const m = buildProgramMarketing(program);
-  const all = await getPublicPrograms();
+  const [all, brand] = await Promise.all([getPublicPrograms(), getPublicBranding()]);
   const related = all.filter((p) => p.slug !== slug && p.goal === program.goal).slice(0, 3);
 
   return (
     <div className="min-h-screen bg-background">
-      <PublicNav programs={all.map((p) => ({ name: p.name, slug: p.slug }))} />
+      <div className="relative">
+        <TacticalBackdrop className="h-[560px]" />
+        <div className="relative z-10">
+          <PublicNav
+            programs={all.map((p) => ({ name: p.name, slug: p.slug }))}
+            logoUrl={brand.logoUrl}
+            appName={brand.appName}
+          />
+
+          <header className="max-w-3xl mx-auto px-5 py-10 sm:py-14">
+            <Reveal>
+              <Link href="/programs" className="text-xs text-text-tertiary hover:text-white transition-colors">
+                ← All programs
+              </Link>
+
+              {/* The program's own cover art, which existed all along and was
+                  the one thing missing from the page selling it. */}
+              {program.imageUrl && (
+                <div className="relative mt-5 rounded-2xl overflow-hidden border border-white/10 aspect-[21/9] bg-black/40">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={program.imageUrl} alt={program.name} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background via-background/30 to-transparent" />
+                </div>
+              )}
+
+              <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight mt-6 leading-[1.05]">
+                {m.headline}
+              </h1>
+              <p className="text-base sm:text-lg text-text-secondary mt-4 leading-relaxed">
+                {m.subheadline}
+              </p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8">
+                {m.stats.map((s) => (
+                  <div key={s.label} className="rounded-xl border border-white/8 bg-surface/80 backdrop-blur p-3.5">
+                    <p className="text-[11px] uppercase tracking-wide text-text-tertiary">{s.label}</p>
+                    <p className="text-lg font-black text-white mt-0.5">{s.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <Link
+                href="/onboarding"
+                className="inline-block mt-8 bg-accent text-black font-bold rounded-xl px-8 py-3.5 hover:opacity-90 transition-opacity"
+              >
+                Start this program free
+              </Link>
+            </Reveal>
+          </header>
+        </div>
+      </div>
 
       <main className="max-w-3xl mx-auto px-5 pb-20">
-        {/* Hero */}
-        <header className="py-10 sm:py-14">
-          <Link href="/programs" className="text-xs text-text-tertiary hover:text-white transition-colors">
-            ← All programs
-          </Link>
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight mt-4">
-            {m.headline}
-          </h1>
-          <p className="text-base sm:text-lg text-text-secondary mt-4 leading-relaxed">
-            {m.subheadline}
-          </p>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-7">
-            {m.stats.map((s) => (
-              <div key={s.label} className="rounded-xl border border-white/8 bg-surface p-3.5">
-                <p className="text-[11px] uppercase tracking-wide text-text-tertiary">{s.label}</p>
-                <p className="text-lg font-black text-white mt-0.5">{s.value}</p>
-              </div>
-            ))}
-          </div>
-
-          <Link
-            href="/onboarding"
-            className="inline-block mt-7 bg-accent text-black font-bold rounded-xl px-6 py-3 hover:opacity-90 transition-opacity"
-          >
-            Start this program free
-          </Link>
-        </header>
 
         {/* What it is */}
+        <Reveal>
         <section className="py-8 border-t border-white/8">
           <h2 className="text-xl sm:text-2xl font-black text-white">What this program is</h2>
           <p className="text-text-secondary mt-3 leading-relaxed whitespace-pre-line">{m.whoFor}</p>
@@ -97,9 +123,11 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
             {m.requirement}
           </p>
         </section>
+        </Reveal>
 
         {/* Structure */}
         {m.phases.length > 0 && (
+          <Reveal>
           <section className="py-8 border-t border-white/8">
             <h2 className="text-xl sm:text-2xl font-black text-white">How it&apos;s structured</h2>
             <p className="text-text-secondary mt-2 text-sm">
@@ -118,10 +146,12 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
               ))}
             </div>
           </section>
+          </Reveal>
         )}
 
         {/* The training week */}
         {m.weekPattern.length > 0 && (
+          <Reveal>
           <section className="py-8 border-t border-white/8">
             <h2 className="text-xl sm:text-2xl font-black text-white">A week in this program</h2>
             <div className="mt-5 grid gap-2">
@@ -145,6 +175,7 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
               ))}
             </div>
           </section>
+          </Reveal>
         )}
 
         {/* Real sessions */}

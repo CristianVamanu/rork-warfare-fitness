@@ -20,9 +20,12 @@ import { ChevronDown, Menu, X as XIcon } from 'lucide-react';
 
 interface Props {
   programs: { name: string; slug: string }[];
+  /** Admin-configured branding, passed from the server so it renders on first paint. */
+  logoUrl?: string | null;
+  appName?: string;
 }
 
-export function PublicNav({ programs }: Props) {
+export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness' }: Props) {
   const [open, setOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -47,8 +50,20 @@ export function PublicNav({ programs }: Props) {
   return (
     <nav className="max-w-5xl mx-auto px-5 py-5">
       <div className="flex items-center justify-between gap-4">
-        <Link href="/" className="text-base font-black text-white tracking-tight">
-          Warfare Fitness
+        {/* Same logo treatment as the landing page — these pages are often a
+            visitor's FIRST contact with the brand, arriving from search rather
+            than the homepage, so an unbranded header is the worst place to
+            save a few bytes. */}
+        <Link href="/" className="flex items-center gap-2.5 shrink-0">
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden shrink-0 ${logoUrl ? '' : 'bg-accent'}`}>
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt={appName} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-lg font-black text-black">{appName[0]}</span>
+            )}
+          </div>
+          <span className="text-base font-black text-white tracking-tight">{appName}</span>
         </Link>
 
         <div className="hidden sm:flex items-center gap-6">
