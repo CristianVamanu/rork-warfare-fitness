@@ -81,7 +81,10 @@ interface PublicProgram {
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
-  { href: '#programs', label: 'Programs' },
+  // Points at the real, indexable pages rather than an anchor on this one.
+  // The anchor scrolled to a teaser; /programs is eleven pages of actual
+  // content a search engine can read and a visitor can dig into.
+  { href: '/programs', label: 'Programs' },
   { href: '/download', label: 'Download App' },
   { href: '/trainers', label: 'For Trainers' },
   { href: '/terms', label: 'Terms' },
