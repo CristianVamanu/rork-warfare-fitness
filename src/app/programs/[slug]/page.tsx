@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { Dumbbell, Check, Lock } from 'lucide-react';
 import { getPublicPrograms, getPublicProgramBySlug } from '@/lib/publicPrograms';
 import { buildProgramMarketing } from '@/lib/programMarketing';
-import { getPublicBranding } from '@/lib/publicBranding';
+import { getPublicBranding, getPublicTrialTerms } from '@/lib/publicBranding';
 import { PublicNav } from '@/components/public/PublicNav';
 import { PublicFooter } from '@/components/public/PublicFooter';
 import { TacticalBackdrop } from '@/components/public/TacticalBackdrop';
@@ -55,8 +55,12 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
   const program = await getPublicProgramBySlug(slug);
   if (!program) notFound();
 
-  const m = buildProgramMarketing(program);
-  const [all, brand] = await Promise.all([getPublicPrograms(), getPublicBranding()]);
+  const [all, brand, terms] = await Promise.all([
+    getPublicPrograms(),
+    getPublicBranding(),
+    getPublicTrialTerms(),
+  ]);
+  const m = buildProgramMarketing(program, terms.disclosure);
   const related = all.filter((p) => p.slug !== slug && p.goal === program.goal).slice(0, 3);
 
   // Course + FAQPage structured data. The FAQ block is the cheapest ranking
@@ -142,10 +146,10 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
                       href={`/onboarding?programId=${program.id}`}
                       className="bg-accent text-black font-bold rounded-xl px-8 py-3.5 hover:opacity-90 transition-opacity"
                     >
-                      Start this program free
+                      Start this program
                     </Link>
                     <p className="text-xs text-text-tertiary">
-                      No charge until the trial ends · Cancel anytime
+                      {terms.disclosure}
                     </p>
                   </div>
                 </div>
@@ -311,7 +315,7 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
                 Start the first one today.
               </h2>
               <p className="text-text-secondary mt-4 max-w-lg mx-auto">
-                Free to start. You won&apos;t be charged until the trial is up, and you can cancel before then.
+                {terms.disclosure}
               </p>
               <Link
                 href={`/onboarding?programId=${program.id}`}

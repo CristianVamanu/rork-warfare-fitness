@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getPublicPrograms } from '@/lib/publicPrograms';
-import { getPublicBranding } from '@/lib/publicBranding';
+import { getPublicBranding, getPublicTrialTerms } from '@/lib/publicBranding';
 import { PublicNav } from '@/components/public/PublicNav';
 import { PublicFooter } from '@/components/public/PublicFooter';
 import { TacticalBackdrop } from '@/components/public/TacticalBackdrop';
@@ -33,7 +33,11 @@ const GOAL_META: Record<string, { label: string; blurb: string }> = {
 };
 
 export default async function ProgramsIndexPage() {
-  const [programs, brand] = await Promise.all([getPublicPrograms(), getPublicBranding()]);
+  const [programs, brand, terms] = await Promise.all([
+    getPublicPrograms(),
+    getPublicBranding(),
+    getPublicTrialTerms(),
+  ]);
   const navPrograms = programs.map((p) => ({ name: p.name, slug: p.slug }));
 
   const totalSessions = programs.reduce((n, p) => n + p.weeks * p.daysPerWeek, 0);
@@ -171,14 +175,13 @@ export default async function ProgramsIndexPage() {
                 Pick one. Start this week.
               </h2>
               <p className="text-text-secondary mt-4 max-w-lg mx-auto">
-                Free to start. You won&apos;t be charged until the trial is up, and you can
-                cancel before then.
+                {terms.disclosure}
               </p>
               <Link
                 href="/onboarding"
                 className="inline-block mt-8 bg-accent text-black font-bold rounded-xl px-9 py-4 hover:opacity-90 transition-opacity"
               >
-                Start Free
+                {terms.ctaLabel}
               </Link>
             </div>
           </section>

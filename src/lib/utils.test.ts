@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripUndefinedDeep, getActiveDiscountPercent, applyDiscount, kgToLbs, lbsToKg } from './utils';
+import { stripUndefinedDeep, getActiveDiscountPercent, applyDiscount, kgToLbs, lbsToKg, buildTrialTerms, getCheapestEntryPrice } from './utils';
 
 describe('stripUndefinedDeep', () => {
   it('removes undefined keys at the top level', () => {
@@ -71,5 +71,65 @@ describe('kg/lbs conversion round-trip', () => {
     const original = 82.5;
     const roundTripped = lbsToKg(kgToLbs(original));
     expect(roundTripped).toBeCloseTo(original, 0);
+  });
+});
+
+describe('getCheapestEntryPrice', () => {
+  it('returns null when no plan has any price', () => {
+    expect(getCheapestEntryPrice([{}, { priceMonthly: 0 }])).toBeNull();
+  });
+
+  it('picks the lowest per-month cost across plans and terms', () => {
+    const cheapest = getCheapestEntryPrice([
+      { priceMonthly: 49 },
+      { priceMonthly: 19, price12mo: 180 }, // 180/12 = 15/mo, the winner
+    ]);
+    expect(cheapest).toMatchObject({ months: 12, price: 180 });
+  });
+});
+
+describe('buildTrialTerms', () => {
+  const plans = [{ priceMonthly: 49 }, { priceMonthly: 19 }];
+
+  it('quotes the ENTRY price, not the featured plan, on a paid trial', () => {
+    // The bug this helper exists for: the hero printed "then $49.00/mo" under
+    // a $1 button while a $19 tier was on sale further down the same page.
+    const t = buildTrialTerms({ trialDays: 7, paidTrialEnabled: true, cardUpFrontTrial: false, trialPriceCents: 100, plans });
+    expect(t.ctaLabel).toBe('Start for $1.00');
+    expect(t.disclosure).toBe('$1.00 for 7 days, then from $19.00/mo. Cancel anytime.');
+  });
+
+  it('drops the "from" when there is only one plan to choose', () => {
+    const t = buildTrialTerms({ trialDays: 7, paidTrialEnabled: true, cardUpFrontTrial: false, plans: [{ priceMonthly: 49 }] });
+    expect(t.disclosure).toBe('$1.00 for 7 days, then $49.00/mo. Cancel anytime.');
+  });
+
+  it('never renders a non-monthly term as a per-month price', () => {
+    const t = buildTrialTerms({ trialDays: 7, paidTrialEnabled: true, cardUpFrontTrial: false, plans: [{ price6mo: 99 }] });
+    expect(t.disclosure).toBe('$1.00 for 7 days, then $99.00 every 6 months. Cancel anytime.');
+  });
+
+  it('still states the terms when the plans fetch failed', () => {
+    // page.tsx fetches plans with .catch(() => []) — an empty list must not
+    // strip the renewal terms off a button that still says "$1.00".
+    const t = buildTrialTerms({ trialDays: 7, paidTrialEnabled: true, cardUpFrontTrial: false, plans: [] });
+    expect(t.disclosure).toBe("$1.00 for 7 days, then your plan's regular price. Cancel anytime.");
+  });
+
+  it('says a card-up-front free trial converts into a charge', () => {
+    const t = buildTrialTerms({ trialDays: 7, paidTrialEnabled: false, cardUpFrontTrial: true, plans });
+    expect(t.ctaLabel).toBe('Start 7-Day Free Trial');
+    expect(t.disclosure).toContain('then from $19.00/mo');
+  });
+
+  it('only claims "no credit card required" when that is actually true', () => {
+    const t = buildTrialTerms({ trialDays: 7, paidTrialEnabled: false, cardUpFrontTrial: false, plans });
+    expect(t.disclosure).toBe('Free for 7 days. No credit card required.');
+  });
+
+  it('falls back to the admin CTA label when there is no trial', () => {
+    const t = buildTrialTerms({ trialDays: 0, paidTrialEnabled: true, cardUpFrontTrial: false, plans, noTrialCtaLabel: 'Join Now' });
+    expect(t.ctaLabel).toBe('Join Now');
+    expect(t.disclosure).toBe('From $19.00/mo. Cancel anytime.');
   });
 });

@@ -161,7 +161,14 @@ function allExerciseNames(p: Program): string {
   return [...fromDays, ...flat].join(' | ');
 }
 
-export function buildProgramMarketing(p: Program): ProgramMarketing {
+/**
+ * @param trialDisclosure The live trial terms (getPublicTrialTerms). Passed in
+ *   rather than read here because this file is pure and synchronous — and
+ *   because the cancel/pricing FAQ is emitted as FAQPage structured data, so a
+ *   hardcoded "you start free" would have been a false claim served to Google
+ *   itself the moment Paid Trial was switched on.
+ */
+export function buildProgramMarketing(p: Program, trialDisclosure?: string): ProgramMarketing {
   const schedule = scheduleOf(p);
   const trainingDays = schedule.filter((d) => !d.isRest).length || p.daysPerWeek;
   const restDays = Math.max(0, 7 - trainingDays);
@@ -207,7 +214,7 @@ export function buildProgramMarketing(p: Program): ProgramMarketing {
     },
     {
       q: 'Can I cancel?',
-      a: 'Yes. You start free, you are not charged until the trial ends, and you can cancel before then from inside the app.',
+      a: `Yes, any time, from inside the app. ${trialDisclosure ?? 'Cancel anytime.'}`,
     },
   ];
 

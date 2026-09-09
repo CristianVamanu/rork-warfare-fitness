@@ -18,7 +18,7 @@ import { FullPageSpinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
-import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
+import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods, buildTrialTerms } from '@/lib/utils';
 import type { LandingPageConfig, MembershipConfig, CoachingPlan, MembershipPlan } from '@/types';
 
 // Icon/color is matched by keyword in the feature's title rather than by
@@ -335,12 +335,12 @@ export default function LandingPage({
   const cardUpFrontTrial = !paidTrialEnabled && !!membership?.cardUpFrontTrial;
   const trialPrice = ((membership?.trialPriceCents ?? 100) / 100).toFixed(2);
   const discountPercent = getActiveDiscountPercent(membership);
-  // Same plan the pricing section itself marks "Most Popular" — was
-  // hardcoded to index 0 regardless of which plan admin actually flagged.
-  // Used to spell out the post-trial price in the hero, since the hero CTA
-  // isn't tied to any specific plan the visitor has picked yet.
-  const featuredPlan = (anyPlanMarkedPopular ? membershipPlans.find((p) => p.mostPopular) : membershipPlans[0]) ?? membershipPlans[0];
-  const featuredPlanPrice = featuredPlan ? getPlanBillingPeriods(featuredPlan)[0]?.price ?? null : null;
+  // The hero used to spell out the post-trial price using the FEATURED plan,
+  // on the reasoning that the hero CTA isn't tied to any plan the visitor has
+  // picked. But "featured" is the plan the admin wants to sell, not the one
+  // the visitor will necessarily buy — with a $19 tier on the page it printed
+  // "then $49.00/mo" under the $1 button and misquoted everyone who chose the
+  // cheaper plan. buildTrialTerms quotes the entry price instead.
 
   if (loading || user) return <FullPageSpinner />;
 
@@ -360,9 +360,18 @@ export default function LandingPage({
   // get a card on file immediately, so both the label and every "no card
   // required" claim on this page have to say so honestly instead of
   // copy-pasting the free-trial promise onto a flow that now requires one.
-  const primaryCtaLabel = trialDays <= 0 ? landing.ctaPrimaryLabel
-    : paidTrialEnabled ? `Start for $${trialPrice}`
-    : `Start ${trialDays}-Day Free Trial`;
+  //
+  // Both the label and the terms under it now come from buildTrialTerms, so
+  // the hero cannot quote a price the pricing section below it contradicts.
+  const trialTerms = buildTrialTerms({
+    trialDays,
+    paidTrialEnabled,
+    cardUpFrontTrial,
+    trialPriceCents: membership?.trialPriceCents,
+    plans: membershipPlans,
+    noTrialCtaLabel: landing.ctaPrimaryLabel,
+  });
+  const primaryCtaLabel = trialTerms.ctaLabel;
 
   // "Start for $1.00" states a price without stating that it renews, which is
   // the single most complaint-generating shape a paid-trial CTA can take — so
@@ -376,11 +385,10 @@ export default function LandingPage({
   // disclosure from the hero too while leaving the price on the button.
   // Disclosure now degrades to naming the term without the amount rather than
   // disappearing, and is never conditional on a fetch succeeding.
-  const paidTrialDisclosure = paidTrialEnabled && trialDays > 0
-    ? featuredPlanPrice != null
-      ? `$${trialPrice} for ${trialDays} days, then $${featuredPlanPrice.toFixed(2)}/mo. Cancel anytime.`
-      : `$${trialPrice} for ${trialDays} days, then your plan's regular price. Cancel anytime.`
-    : null;
+  // Shown for EVERY trial mode now, not just the paid one. A free trial that
+  // takes a card still converts into a real charge, and saying so is what
+  // stops the charge being a surprise.
+  const paidTrialDisclosure = trialTerms.disclosure;
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
