@@ -17,6 +17,7 @@ import type { User } from 'firebase/auth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
+import { AuthBrandMark } from '@/components/auth/AuthBrandMark';
 
 const schema = z.object({
   email: z.string().email('Invalid email'),
@@ -216,26 +217,7 @@ export default function LoginClient({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Logo — links back to the public homepage. Same animated brand-mark
-          video as the landing page hero (logo emerging through smoke into
-          flame), at the same size — muted/looped/inline so it autoplays
-          everywhere including iOS Safari, same as there. */}
-      <Link href="/" className="flex flex-col items-center mb-8">
-        <div className="relative w-32 h-32 mb-4">
-          <video
-            className="relative w-full h-full rounded-2xl object-cover shadow-glow-accent"
-            src="/videos/hero-logo.mp4"
-            poster="/videos/hero-logo-poster.jpg"
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="auto"
-          />
-        </div>
-        <h1 className="text-2xl font-black text-white tracking-tight">{appName}</h1>
-        <p className="text-text-secondary text-sm mt-1">Welcome back</p>
-      </Link>
+      <AuthBrandMark title={appName} subtitle="Welcome back" eager />
 
       <Card glass className="p-6">
         {totpChallenge ? (

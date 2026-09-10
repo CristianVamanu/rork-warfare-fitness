@@ -14,6 +14,7 @@ import { signUp } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
+import { AuthBrandMark } from '@/components/auth/AuthBrandMark';
 
 const schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -80,13 +81,10 @@ export default function RegisterPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="flex flex-col items-center mb-8">
-        <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mb-4 shadow-glow-accent">
-          <span className="text-2xl font-black text-black">W</span>
-        </div>
-        <h1 className="text-2xl font-black text-white tracking-tight">Create Your Account</h1>
-        <p className="text-text-secondary text-sm mt-1">Start your fitness journey</p>
-      </div>
+      {/* Was a 16×16 gold square with a hardcoded "W" in it — the only place
+          in the app that assumed the brand's initial, and visibly smaller and
+          plainer than the mark on every other auth screen. */}
+      <AuthBrandMark title="Create Your Account" subtitle="Start your fitness journey" />
 
       <Card glass className="p-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

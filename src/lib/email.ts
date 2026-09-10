@@ -136,6 +136,21 @@ function brandOf(brand: EmailBrand): { name: string; logoUrl: string | null } {
  * inline, and `bgcolor` is set alongside the CSS background so a client that
  * drops one still gets the dark ground rather than white-on-white text.
  *
+ * WHY THE BODY IS LIGHT WHEN THE APP IS DARK. The first version of this was
+ * dark throughout, to match the login screen. Gmail on Android recoloured it
+ * into a light theme anyway — black text on white, and the gold CTA reduced to
+ * a muddy brown — because Gmail applies its own colour transform to mail whose
+ * palette fights the reader's theme, and the color-scheme meta only asks
+ * nicely. A dark email is therefore not a design choice you get to make; it is
+ * a bet on each client's transform, and the failure mode is an unreadable
+ * password reset.
+ *
+ * So the brand lives in a dark band at the top — logo, wordmark, gold rule,
+ * white text on near-black, which survives being inverted because it is
+ * high-contrast either way round — and the content sits on white beneath it.
+ * That reads as deliberate in a light client, transforms cleanly in a dark
+ * one, and never produces the brown-on-grey button again.
+ *
  * WHAT IS DELIBERATELY MISSING. No background image (Outlook needs VML for
  * that), no web font (they do not load), no gradient behind text, no CSS glow.
  * Rounded corners degrade to square in Outlook, which is fine.
@@ -162,40 +177,41 @@ function shell(brand: EmailBrand, bodyHtml: string, preheader = ''): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- Tells Gmail/Apple Mail this design is already dark, so they stop
-     "helpfully" inverting it into something unreadable. -->
-<meta name="color-scheme" content="dark">
-<meta name="supported-color-schemes" content="dark">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>${safeName}</title>
 </head>
-<body style="margin:0;padding:0;background-color:#0a0a0a;">
+<body style="margin:0;padding:0;background-color:#f2f2f2;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(preheader)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0a0a0a" style="background-color:#0a0a0a;margin:0;padding:0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f2f2f2" style="background-color:#f2f2f2;margin:0;padding:0;">
   <tr>
-    <td align="center" style="padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <td align="center" style="padding:28px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 
       <table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:520px;">
 
-        <!-- Header: logo, wordmark -->
+        <!-- Brand band. The one deliberately dark element: it carries the
+             logo and wordmark, and nothing inside it has to stay legible
+             against an inverted background because the text on it is white
+             on near-black either way round. -->
         <tr>
-          <td align="center" style="padding:0 0 28px;">
+          <td align="center" bgcolor="#0a0a0a" style="background-color:#0a0a0a;border-radius:16px 16px 0 0;padding:28px 24px 24px;">
             ${logoBlock}
-            <div style="margin:${logoUrl ? '16px' : '0'} 0 0;font-size:22px;font-weight:800;letter-spacing:0.04em;color:#ffffff;text-transform:uppercase;">${safeName}</div>
-            <div style="margin:10px auto 0;width:40px;height:3px;background-color:#F5A623;border-radius:2px;font-size:0;line-height:0;">&nbsp;</div>
+            <div style="margin:${logoUrl ? '16px' : '0'} 0 0;font-size:20px;font-weight:800;letter-spacing:0.06em;color:#ffffff;text-transform:uppercase;">${safeName}</div>
+            <div style="margin:12px auto 0;width:40px;height:3px;background-color:#F5A623;border-radius:2px;font-size:0;line-height:0;">&nbsp;</div>
           </td>
         </tr>
 
-        <!-- Card -->
+        <!-- Body. Light on purpose — see the note above shell(). -->
         <tr>
-          <td bgcolor="#111111" style="background-color:#111111;border:1px solid #1f1f1f;border-radius:16px;padding:32px 28px;">
+          <td bgcolor="#ffffff" style="background-color:#ffffff;border-radius:0 0 16px 16px;padding:32px 28px;">
             ${bodyHtml}
           </td>
         </tr>
 
         <!-- Footer -->
         <tr>
-          <td align="center" style="padding:24px 8px 0;">
-            <p style="margin:0;font-size:11px;line-height:1.6;color:#666666;">
+          <td align="center" style="padding:20px 8px 0;">
+            <p style="margin:0;font-size:11px;line-height:1.6;color:#8a8a8a;">
               You're receiving this because you have an account with ${safeName}.
             </p>
           </td>
@@ -263,8 +279,8 @@ export function welcomeEmailHtml(name: string, brand: EmailBrand, appUrl: string
   name = escapeHtml(name);
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Welcome, ${name}. 💪</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Welcome, ${name}. 💪</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
       Your account is live. Log your first workout, track a meal, and start your streak.
     </p>
     ${button('Open ' + appName, appUrl)}
@@ -282,16 +298,16 @@ export function verifyEmailHtml(name: string, link: string, brand: EmailBrand): 
   name = escapeHtml(name);
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Confirm your email, ${name}.</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Confirm your email, ${name}.</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
       One tap and your account is ready. This link expires in an hour.
     </p>
     ${button('Confirm Email', link)}
-    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#777;">
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#6b6b6b;">
       If the button doesn't work, paste this into your browser:<br>
-      <span style="color:#999;word-break:break-all;">${escapeHtml(link)}</span>
+      <span style="color:#666666;word-break:break-all;">${escapeHtml(link)}</span>
     </p>
-    <p style="margin:16px 0 0;font-size:12px;color:#777;">
+    <p style="margin:16px 0 0;font-size:12px;color:#6b6b6b;">
       Didn't sign up? Ignore this email and nothing happens.
     </p>
   `, "One tap and your account is ready.");
@@ -304,12 +320,12 @@ export function verifyEmailHtml(name: string, link: string, brand: EmailBrand): 
 export function verifyCodeEmailHtml(code: string, brand: EmailBrand): string {
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Your confirmation code</h1>
-    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#bbb;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Your confirmation code</h1>
+    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#444444;">
       Enter this in ${appName} to confirm your email. It expires in 15 minutes.
     </p>
     ${codeBlock(code)}
-    <p style="margin:20px 0 0;font-size:12px;color:#777;">
+    <p style="margin:20px 0 0;font-size:12px;color:#6b6b6b;">
       Didn't sign up? Ignore this email and nothing happens.
     </p>
   `, "Your code expires in 15 minutes.");
@@ -318,16 +334,16 @@ export function verifyCodeEmailHtml(code: string, brand: EmailBrand): string {
 export function passwordResetEmailHtml(link: string, brand: EmailBrand): string {
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Reset your password</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Reset your password</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
       Tap below to choose a new password. This link expires in an hour.
     </p>
     ${button('Reset Password', link)}
-    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#777;">
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#6b6b6b;">
       If the button doesn't work, paste this into your browser:<br>
-      <span style="color:#999;word-break:break-all;">${escapeHtml(link)}</span>
+      <span style="color:#666666;word-break:break-all;">${escapeHtml(link)}</span>
     </p>
-    <p style="margin:16px 0 0;font-size:12px;color:#777;">
+    <p style="margin:16px 0 0;font-size:12px;color:#6b6b6b;">
       Didn't ask for this? Ignore this email — your password stays as it is.
     </p>
   `, "Choose a new password — link expires in an hour.");
@@ -344,8 +360,8 @@ export function passwordResetEmailHtml(link: string, brand: EmailBrand): string 
 export function landingLeadFollowupEmailHtml(brand: EmailBrand, appUrl: string): string {
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Ready when you are.</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Ready when you are.</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
       You started building your program on ${appName} — here's your link to pick up right where you left off.
     </p>
     ${button('Continue My Program', `${appUrl}/onboarding`)}
@@ -365,9 +381,9 @@ export function trainerLeadEmailHtml(lead: {
     ['Client count', lead.clientCount],
     ['Message', lead.message],
   ].filter(([, v]) => v) as [string, string][];
-  const rowsHtml = rows.map(([k, v]) => `<p style="margin:0 0 8px;font-size:14px;color:#bbb;"><strong style="color:#fff;">${escapeHtml(k)}:</strong> ${escapeHtml(v)}</p>`).join('');
+  const rowsHtml = rows.map(([k, v]) => `<p style="margin:0 0 8px;font-size:14px;color:#444444;"><strong style="color:#111111;">${escapeHtml(k)}:</strong> ${escapeHtml(v)}</p>`).join('');
   return shell(brand, `
-    <h1 style="margin:0 0 16px;font-size:20px;font-weight:900;color:#fff;">New Demo Request 🎯</h1>
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:900;color:#111111;">New Demo Request 🎯</h1>
     ${rowsHtml}
     ${button('View in Admin Panel', `${appUrl}/admin`)}
   `);
@@ -378,8 +394,8 @@ export function achievementEmailHtml(name: string, titles: string[], brand: Emai
   const list = titles.map((t) => `<li style="margin:4px 0;">🏆 ${escapeHtml(t)}</li>`).join('');
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">New achievement${titles.length > 1 ? 's' : ''}, ${name}!</h1>
-    <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.7;color:#bbb;">${list}</ul>
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">New achievement${titles.length > 1 ? 's' : ''}, ${name}!</h1>
+    <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.7;color:#444444;">${list}</ul>
     ${button('View Achievements', `${appUrl}/achievements`)}
   `);
 }
@@ -393,8 +409,8 @@ export function coachingApplicationEmailHtml(
   if (status === 'approved') {
     const { name: appName } = brandOf(brand);
   return shell(brand, `
-      <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">You're approved for 1:1 Coaching!</h1>
-      <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+      <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">You're approved for 1:1 Coaching!</h1>
+      <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
         Great news, ${name} — your application for &quot;${planName}&quot; has been approved. Complete your payment to get started.
       </p>
       ${button('Complete Payment', `${appUrl}/profile`)}
@@ -402,8 +418,8 @@ export function coachingApplicationEmailHtml(
   }
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">1:1 Coaching Application Update</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">1:1 Coaching Application Update</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
       Thanks for applying, ${name}. We're not able to take you on for 1:1 coaching right now${reason ? `: ${reason}` : '.'}
       Keep crushing your training — you're welcome to re-apply later.
     </p>
@@ -414,8 +430,8 @@ export function trialEndingEmailHtml(name: string, daysLeft: number, brand: Emai
   name = escapeHtml(name);
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Your trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Your trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
       Hey ${name}, just a heads up — your free trial wraps up soon. Keep your progress, streak, and programs going without interruption.
     </p>
     ${button('Manage Membership', `${appUrl}/profile`)}
@@ -425,12 +441,12 @@ export function trialEndingEmailHtml(name: string, daysLeft: number, brand: Emai
 export function twoFactorCodeEmailHtml(code: string, brand: EmailBrand): string {
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#fff;">Your sign-in code</h1>
-    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#bbb;">
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#111111;">Your sign-in code</h1>
+    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#444444;">
       Enter this code to finish signing in. It expires in 10 minutes.
     </p>
     ${codeBlock(code)}
-    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#888;">
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#6b6b6b;">
       Didn't try to sign in? You can safely ignore this email — your password wasn't shared.
     </p>
   `, 'Your sign-in code expires in 10 minutes.');
@@ -448,11 +464,11 @@ export function twoFactorSettingsChangedEmailHtml(
   change = escapeHtml(change);
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#fff;">Security setting changed</h1>
-    <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#bbb;">
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#111111;">Security setting changed</h1>
+    <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#444444;">
       Hey ${name}, this is a heads up that ${change} on your account.
     </p>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
       If this was you, no action needed. If you didn't make this change, secure your account immediately by resetting your password.
     </p>
     ${button('Review Settings', `${appUrl}/settings`)}
@@ -463,8 +479,8 @@ export function paymentFailedEmailHtml(name: string, brand: EmailBrand, appUrl: 
   name = escapeHtml(name);
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#fff;">Your last payment didn't go through</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#bbb;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Your last payment didn't go through</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
       Hey ${name}, we couldn't process your most recent membership payment. Update your billing details to keep your access uninterrupted.
     </p>
     ${button('Update Billing', `${appUrl}/profile`)}
