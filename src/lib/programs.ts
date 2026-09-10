@@ -1465,6 +1465,46 @@ export function pickBestProgram(
   return scored[0].p;
 }
 
+/**
+ * Where a day sits in the WHOLE program, counting from day 1.
+ *
+ * A phase stores one 7-day template covering its week range, so slot 0 of
+ * phase 2 is not "day 1" — it is the first day of whatever week that phase
+ * begins on. The builder used to label every phase's slots Mon–Sun, which
+ * made each new phase look like it restarted the program, and matched
+ * nothing the athlete sees: the training screen has always numbered days
+ * absolutely (`weekIdx * scheduleLen + idx`).
+ *
+ * `startWeek` is 1-indexed and admin-editable, so a phase beginning at week 5
+ * with a 7-day template starts at day 29.
+ */
+export function absoluteDayNumber(startWeek: number, slotIndex: number, scheduleLen = 7): number {
+  return (Math.max(1, Math.floor(startWeek)) - 1) * scheduleLen + slotIndex + 1;
+}
+
+/**
+ * Every absolute day one template slot actually covers.
+ *
+ * A phase spanning weeks 5–7 repeats its template three times, so slot 0 is
+ * days 29, 36 and 43 — not just day 29. Callers show the first and mention
+ * the rest, so an admin editing "Day 29" knows they are editing three days of
+ * the athlete's program, not one.
+ */
+export function phaseDayOccurrences(
+  startWeek: number,
+  endWeek: number,
+  slotIndex: number,
+  scheduleLen = 7,
+): number[] {
+  const first = Math.max(1, Math.floor(startWeek));
+  // A phase whose endWeek is below its startWeek is a half-finished edit, not
+  // a reason to return nothing — treat it as a single week.
+  const last = Math.max(first, Math.floor(endWeek) || first);
+  const out: number[] = [];
+  for (let w = first; w <= last; w++) out.push(absoluteDayNumber(w, slotIndex, scheduleLen));
+  return out;
+}
+
 const WEEKDAY_PREFIX = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*[-–—]?\s*/i;
 
 /**

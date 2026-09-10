@@ -12,7 +12,7 @@ import {
   getProgram, createProgram, updateProgram, upsertProgram, getAllUsers, enrollInProgram,
   matchExercisesToVideos, getExerciseVideos, getSystemConfig, saveExerciseVideo,
 } from '@/lib/firestore';
-import { getMockProgram } from '@/lib/programs';
+import { getMockProgram, absoluteDayNumber, phaseDayOccurrences } from '@/lib/programs';
 import { parseDistance } from '@/lib/distance';
 import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
@@ -82,7 +82,13 @@ interface BProg {
 
 interface UserRow { id: string; displayName?: string; email?: string; role?: string; activeProgram?: { programName?: string } }
 
-const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// Day slots are labelled by their position in the WHOLE program, not by
+// weekday. Weekday names were wrong twice over: the athlete never sees them
+// (the training screen numbers days absolutely, and stripWeekdayPrefix strips
+// weekday names out of labels), and they made every phase look like it
+// restarted the program at Monday — Phase 3 of a 13-week block opened on
+// "Mon" exactly like Phase 1. See absoluteDayNumber in lib/programs.ts.
+const SLOTS = [0, 1, 2, 3, 4, 5, 6];
 const MUSCLE_GROUPS = ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Glutes', 'Core', 'Cardio', 'Full Body', 'Other'];
 
 // Program data (seed programs + some admin-created ones) stores muscleGroup
@@ -198,6 +204,22 @@ function BuilderInner() {
   const activeSchedule: BDay[] = prog.phases.length > 0
     ? (prog.phases[activePhase]?.schedule ?? [])
     : prog.schedule;
+
+  // Where the day slots on screen sit in the whole program.
+  //
+  // With no phases there is one template repeating for every week, so it
+  // starts at week 1 and runs to prog.weeks. With phases, the active phase's
+  // own week range decides — which is what stops Phase 2 from opening at
+  // "day 1" again. startWeek is admin-editable and these recompute from it,
+  // so dragging a phase from week 5 to week 6 renumbers its days immediately.
+  const phaseStartWeek = prog.phases.length > 0 ? (prog.phases[activePhase]?.startWeek ?? 1) : 1;
+  const phaseEndWeek = prog.phases.length > 0
+    ? (prog.phases[activePhase]?.endWeek ?? phaseStartWeek)
+    : Math.max(1, prog.weeks);
+  const slotLen = activeSchedule.length || 7;
+  const dayNumberFor = (slot: number) => absoluteDayNumber(phaseStartWeek, slot, slotLen);
+  /** Every absolute day this one slot covers — a phase spanning 3 weeks repeats it 3 times. */
+  const dayRepeatsFor = (slot: number) => phaseDayOccurrences(phaseStartWeek, phaseEndWeek, slot, slotLen);
 
   function setActiveSchedule(updater: (schedule: BDay[]) => BDay[]) {
     setProg((s) => {
@@ -1067,13 +1089,13 @@ function BuilderInner() {
 
         {/* Day tabs */}
         <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
-          {DOW.map((d, i) => {
+          {SLOTS.map((i) => {
             const isRest = activeSchedule[i]?.isRest;
             return (
               <button
-                key={d}
+                key={i}
                 onClick={() => setActiveDay(i)}
-                className={`flex flex-col items-center gap-0.5 px-2.5 py-2 rounded-xl min-w-[44px] transition-all ${
+                className={`flex flex-col items-center gap-0.5 px-2.5 py-2 rounded-xl min-w-[52px] transition-all ${
                   activeDay === i
                     ? 'bg-accent text-black'
                     : isRest
@@ -1081,7 +1103,8 @@ function BuilderInner() {
                     : 'bg-surface-elevated text-white border border-white/10 hover:border-accent/30'
                 }`}
               >
-                <span className="text-xs font-bold">{d}</span>
+                <span className="text-[9px] uppercase tracking-wide opacity-60 leading-none">Day</span>
+                <span className="text-xs font-bold leading-none">{dayNumberFor(i)}</span>
                 {isRest ? <Moon className="w-3 h-3" /> : <Dumbbell className="w-3 h-3" />}
               </button>
             );
@@ -1091,6 +1114,26 @@ function BuilderInner() {
         {/* Active day editor */}
         <div className="space-y-3">
           {/* Day header */}
+          {/* Which day of the whole program this slot is, and — because a
+              phase's 7-day template repeats across its week range — every
+              other day it also is. Editing "Day 29" on a phase covering weeks
+              5-7 edits days 29, 36 and 43 of the athlete's program; without
+              saying so, an admin reasonably assumes they changed one day. */}
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-sm font-bold text-white">
+              {prog.phases.length > 0 && prog.phases[activePhase]?.label
+                ? `${prog.phases[activePhase]?.label} · `
+                : ''}
+              Day {dayNumberFor(activeDay)}
+            </span>
+            {dayRepeatsFor(activeDay).length > 1 && (
+              <span className="text-[11px] text-text-tertiary">
+                repeats weeks {phaseStartWeek}–{phaseEndWeek} — also day
+                {dayRepeatsFor(activeDay).length > 2 ? 's' : ''}{' '}
+                {dayRepeatsFor(activeDay).slice(1).join(', ')}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <input
               value={day.isRest ? 'Rest Day' : day.label}
@@ -1463,20 +1506,21 @@ function BuilderInner() {
       {/* Week overview summary */}
       <Card className="p-4">
         <h2 className="text-sm font-bold text-white mb-3">
-          Week Overview{prog.phases.length > 0 ? ` — ${prog.phases[activePhase]?.label}` : ''}
+          Days {dayNumberFor(0)}–{dayNumberFor(SLOTS.length - 1)}
+          {prog.phases.length > 0 ? ` — ${prog.phases[activePhase]?.label}` : ''}
         </h2>
         <div className="grid grid-cols-7 gap-1">
-          {DOW.map((d, i) => {
+          {SLOTS.map((i) => {
             const s = activeSchedule[i];
             return (
               <button
-                key={d}
+                key={i}
                 onClick={() => setActiveDay(i)}
                 className={`flex flex-col items-center gap-1 p-2 rounded-lg text-[10px] transition-colors ${
                   activeDay === i ? 'bg-accent text-black' : s?.isRest ? 'bg-surface-elevated text-text-tertiary' : 'bg-surface-elevated text-white hover:bg-white/10'
                 }`}
               >
-                <span className="font-bold">{d}</span>
+                <span className="font-bold">Day {dayNumberFor(i)}</span>
                 {s?.isRest ? (
                   <Moon className="w-3 h-3" />
                 ) : (
