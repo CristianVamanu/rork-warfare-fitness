@@ -95,6 +95,9 @@ export async function POST(req: NextRequest) {
     const trialDays: number = trialIsStripeRun ? 0 : (membershipCfgData?.trialDays ?? 0);
     const systemCfgSnap = await db.doc('system/config').get();
     const appName = (systemCfgSnap.data()?.appName as string) || 'Warfare Fitness';
+    // logoUrl lives in the same config document appName came from, so the
+    // email header gets the real logo for no extra read.
+    const brand = { name: appName, logoUrl: (systemCfgSnap.data()?.logoUrl as string) || null };
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
 
     // Users are streamed in pages rather than loaded all at once.
@@ -375,7 +378,7 @@ export async function POST(req: NextRequest) {
               const ok = await sendEmail({
                 to: u.email,
                 subject: `Your free trial ends in ${daysLeft} days`,
-                html: trialEndingEmailHtml(u.displayName?.split(' ')[0] || 'there', daysLeft, appName, appUrl),
+                html: trialEndingEmailHtml(u.displayName?.split(' ')[0] || 'there', daysLeft, brand, appUrl),
               });
               if (ok) {
                 await db.collection('users').doc(u.id).update({ [sentFlag]: true });

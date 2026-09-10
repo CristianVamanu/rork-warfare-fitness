@@ -82,11 +82,14 @@ export async function POST(req: NextRequest) {
   if (user?.email) {
     const cfgSnap = await db.collection('system').doc('config').get();
     const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
+    // logoUrl lives in the same config document appName came from, so the
+    // email header gets the real logo for no extra read.
+    const brand = { name: appName, logoUrl: (cfgSnap.data()?.logoUrl as string) || null };
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
     await sendEmail({
       to: user.email,
       subject: `Security setting changed on ${appName}`,
-      html: twoFactorSettingsChangedEmailHtml(user.displayName?.split(' ')[0] || 'there', changeDescription, appName, appUrl),
+      html: twoFactorSettingsChangedEmailHtml(user.displayName?.split(' ')[0] || 'there', changeDescription, brand, appUrl),
     }).catch(() => {});
   }
 

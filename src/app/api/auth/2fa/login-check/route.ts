@@ -95,10 +95,13 @@ export async function POST(req: NextRequest) {
 
     const cfgSnap = await db.collection('system').doc('config').get();
     const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
+    // logoUrl lives in the same config document appName came from, so the
+    // email header gets the real logo for no extra read.
+    const brand = { name: appName, logoUrl: (cfgSnap.data()?.logoUrl as string) || null };
     const delivered = await sendEmail({
       to: recipient,
       subject: `Your ${appName} sign-in code`,
-      html: twoFactorCodeEmailHtml(code, appName),
+      html: twoFactorCodeEmailHtml(code, brand),
     });
 
     // sendEmail does NOT throw — it catches everything and returns false. The

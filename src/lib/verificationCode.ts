@@ -38,11 +38,14 @@ export async function issueVerificationCode(
 
   const cfgSnap = await db.collection('system').doc('config').get();
   const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
+  // logoUrl lives in the same config document appName came from, so the
+  // email header gets the real logo for no extra read.
+  const brand = { name: appName, logoUrl: (cfgSnap.data()?.logoUrl as string) || null };
 
   const sent = await sendEmail({
     to: email,
     subject: `Your ${appName} confirmation code`,
-    html: verifyCodeEmailHtml(code, appName),
+    html: verifyCodeEmailHtml(code, brand),
   });
 
   if (!sent) {

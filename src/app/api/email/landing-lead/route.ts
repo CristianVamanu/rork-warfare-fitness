@@ -51,11 +51,14 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
     const cfg = await getSystemConfig().catch(() => null);
     const appName = (cfg?.appName as string) || 'Warfare Fitness';
+    // logoUrl lives in the same config document appName came from, so the
+    // email header gets the real logo for no extra read.
+    const brand = { name: appName, logoUrl: (cfg?.logoUrl as string) || null };
 
     const sent = await sendEmail({
       to: body.email,
       subject: `Pick up where you left off on ${appName}`,
-      html: landingLeadFollowupEmailHtml(appName, appUrl),
+      html: landingLeadFollowupEmailHtml(brand, appUrl),
     });
 
     return NextResponse.json({ ok: sent });

@@ -65,6 +65,9 @@ export async function POST(req: NextRequest) {
 
     const cfgSnap = await getAdminDb(app).collection('system').doc('config').get().catch(() => null);
     const appName = (cfgSnap?.data()?.appName as string) || 'Warfare Fitness';
+    // logoUrl lives in the same config document appName came from, so the
+    // email header gets the real logo for no extra read.
+    const brand = { name: appName, logoUrl: (cfgSnap?.data()?.logoUrl as string) || null };
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
     const auth = getAuth(app);
 
@@ -84,11 +87,11 @@ export async function POST(req: NextRequest) {
         link = await auth.generateEmailVerificationLink(email, { url: `${appUrl}/login?verified=1` });
         const user = await auth.getUserByEmail(email).catch(() => null);
         const firstName = user?.displayName?.split(' ')[0] || 'there';
-        html = verifyEmailHtml(firstName, link, appName);
+        html = verifyEmailHtml(firstName, link, brand);
         subject = `Confirm your email — ${appName}`;
       } else {
         link = await auth.generatePasswordResetLink(email, { url: `${appUrl}/login` });
-        html = passwordResetEmailHtml(link, appName);
+        html = passwordResetEmailHtml(link, brand);
         subject = `Reset your password — ${appName}`;
       }
     } catch (err) {

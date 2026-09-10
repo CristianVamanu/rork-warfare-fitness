@@ -320,11 +320,14 @@ export async function POST(req: NextRequest) {
         const trialEndMs = (sub.trial_end ?? 0) * 1000;
         const daysLeft = Math.max(1, Math.ceil((trialEndMs - Date.now()) / (24 * 60 * 60 * 1000)));
         const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
+        // logoUrl lives in the same config document appName came from, so the
+        // email header gets the real logo for no extra read.
+        const brand = { name: appName, logoUrl: (cfgSnap.data()?.logoUrl as string) || null };
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
         await sendEmail({
           to: userEmail,
           subject: `Your trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`,
-          html: trialEndingEmailHtml(userSnap.data()?.displayName?.split(' ')[0] || 'there', daysLeft, appName, appUrl),
+          html: trialEndingEmailHtml(userSnap.data()?.displayName?.split(' ')[0] || 'there', daysLeft, brand, appUrl),
         });
         break;
       }
@@ -353,11 +356,14 @@ export async function POST(req: NextRequest) {
               const alreadyWarned = !!invoice.id && userSnap.data()?.lastPaymentFailedInvoice === invoice.id;
               if (userEmail && !alreadyWarned) {
                 const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
+                // logoUrl lives in the same config document appName came from, so the
+                // email header gets the real logo for no extra read.
+                const brand = { name: appName, logoUrl: (cfgSnap.data()?.logoUrl as string) || null };
                 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
                 await sendEmail({
                   to: userEmail,
                   subject: 'Payment failed — please update your billing info',
-                  html: paymentFailedEmailHtml(userSnap.data()?.displayName?.split(' ')[0] || 'there', appName, appUrl),
+                  html: paymentFailedEmailHtml(userSnap.data()?.displayName?.split(' ')[0] || 'there', brand, appUrl),
                 });
                 if (invoice.id) {
                   await db.collection('users').doc(userId).set({ lastPaymentFailedInvoice: invoice.id }, { merge: true });
