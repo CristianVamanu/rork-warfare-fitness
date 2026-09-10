@@ -41,7 +41,18 @@ function runDeploy() {
   }
   deploying = true;
   console.log(`[${new Date().toISOString()}] Deploying...`);
-  exec('bash deploy.sh', { cwd: REPO_DIR, maxBuffer: 1024 * 1024 * 20 }, (err, stdout, stderr) => {
+  // deploy.sh uses DEPLOY_LOCKED / DEPLOY_REEXECED as one-shot guards for its
+  // flock and its self-re-exec. This listener is itself restarted by pm2 from
+  // inside deploy.sh, and `pm2 restart --update-env` stores that shell's
+  // environment — so this process has, in the past, carried both flags and
+  // handed them to every deploy it launched, which made each one skip the
+  // lock and run a stale copy of the script. deploy.sh now unsets them before
+  // touching pm2; this strips them here too, so a listener that was started
+  // in a contaminated environment cannot pass the contamination on.
+  const env = { ...process.env };
+  delete env.DEPLOY_LOCKED;
+  delete env.DEPLOY_REEXECED;
+  exec('bash deploy.sh', { cwd: REPO_DIR, env, maxBuffer: 1024 * 1024 * 20 }, (err, stdout, stderr) => {
     deploying = false;
     if (err) {
       console.error('Deploy failed:', err.message);

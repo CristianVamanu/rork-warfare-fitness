@@ -69,6 +69,19 @@ if [ "$(sha256sum "$0" | cut -d' ' -f1)" != "$SELF_BEFORE" ] && [ -z "${DEPLOY_R
   exec bash "$SELF" "$@"
 fi
 
+# Both flags have now done their only job. Drop them from the environment
+# BEFORE anything below spawns a process, because two things below do —
+# `pm2 reload ... --update-env` for the app and a detached
+# `pm2 restart webhook-listener --update-env` — and pm2 stores the calling
+# shell's environment into the restarted process for good. The listener was
+# restarted from inside a run of this script, inherited DEPLOY_LOCKED=1 (and
+# DEPLOY_REEXECED=1), and passed both to every `bash deploy.sh` it launched
+# from then on. Each webhook deploy therefore skipped the lock AND skipped the
+# self-re-exec, running whichever deploy.sh bash had opened before the pull —
+# the stale one. A cron-line change shipped, deployed with ok:true, and the
+# crontab kept the old line. Unsetting here is what makes that impossible.
+unset DEPLOY_LOCKED DEPLOY_REEXECED
+
 echo "==> Installing dependencies"
 # npm ci, not npm install: installs exactly what package-lock.json says and
 # fails loudly on drift, instead of quietly resolving something newer on the
