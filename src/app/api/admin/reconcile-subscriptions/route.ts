@@ -29,9 +29,20 @@ import { verifyAdmin } from '@/lib/verifyAdmin';
 import { getStripe } from '@/lib/stripe';
 import { FieldValue } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
+import { mapWithConcurrency } from '@/lib/concurrency';
 
 type Field = 'membership' | 'coaching';
 const FIELDS: Field[] = ['membership', 'coaching'];
+
+// Users are read in pages and each page's Stripe lookups run a few at a
+// time. This used to load every active subscriber in one query and then
+// call Stripe strictly one after another — at 5,000 subscribers that is
+// 5,000 sequential round trips, fifteen to twenty-five minutes, holding one
+// of the two pm2 workers at half capacity every night. Stripe's live-mode
+// limit is 100 requests/second; a window of 8 stays nowhere near it while
+// cutting the run to a couple of minutes.
+const PAGE_SIZE = 200;
+const STRIPE_CONCURRENCY = 8;
 
 function periodEnd(sub: Stripe.Subscription): Date | undefined {
   const end = sub.current_period_end
@@ -85,67 +96,85 @@ export async function POST(req: NextRequest) {
   try {
     const stripe = await getStripe();
 
-    for (const field of FIELDS) {
-      // Only users Firestore currently believes are paying can be wrongly
-      // granted access, so that is the whole search space.
-      const snap = await db.collection('users').where(`${field}.status`, '==', 'active').get();
+    /** Verifies one user's record for one field against Stripe. Catches its
+     *  own transient failures so a single bad lookup never aborts the page. */
+    async function reconcileOne(doc: FirebaseFirestore.QueryDocumentSnapshot, field: Field) {
+      checked++;
+      const data = doc.data();
+      const rec = data[field] as { stripeSubscriptionId?: string; expiresAt?: { toDate?: () => Date } } | undefined;
+      const subId = rec?.stripeSubscriptionId;
 
-      for (const doc of snap.docs) {
-        checked++;
-        const data = doc.data();
-        const rec = data[field] as { stripeSubscriptionId?: string; expiresAt?: { toDate?: () => Date } } | undefined;
-        const subId = rec?.stripeSubscriptionId;
+      // No subscription id recorded at all — nothing to verify against.
+      // Deliberately NOT revoked here: coaching and comped access can be
+      // granted by an admin through /api/admin/set-membership without ever
+      // touching Stripe, and silently cancelling those would be worse than
+      // the problem this route exists to fix.
+      if (!subId) return;
 
-        // No subscription id recorded at all — nothing to verify against.
-        // Deliberately NOT revoked here: coaching and comped access can be
-        // granted by an admin through /api/admin/set-membership without ever
-        // touching Stripe, and silently cancelling those would be worse than
-        // the problem this route exists to fix.
-        if (!subId) continue;
-
-        let sub: Stripe.Subscription | null = null;
-        try {
-          sub = await stripe.subscriptions.retrieve(subId);
-        } catch (err) {
-          const code = (err as { code?: string })?.code;
-          if (code === 'resource_missing') {
-            corrections.push({ userId: doc.id, field, from: 'active', to: 'none', reason: 'subscription no longer exists in Stripe' });
-            if (!dryRun) {
-              await revoke(doc.ref, field);
-            }
-            continue;
-          }
-          console.error(`[reconcile] ${doc.id}/${field}: Stripe lookup failed`, err);
-          continue; // transient — leave it alone rather than revoke on an outage
-        }
-
-        const stripeSaysActive = ACTIVE_STATUSES.has(sub.status);
-        if (!stripeSaysActive) {
-          corrections.push({ userId: doc.id, field, from: 'active', to: 'none', reason: `Stripe status is "${sub.status}"` });
+      let sub: Stripe.Subscription | null = null;
+      try {
+        sub = await stripe.subscriptions.retrieve(subId);
+      } catch (err) {
+        const code = (err as { code?: string })?.code;
+        if (code === 'resource_missing') {
+          corrections.push({ userId: doc.id, field, from: 'active', to: 'none', reason: 'subscription no longer exists in Stripe' });
           if (!dryRun) {
             await revoke(doc.ref, field);
           }
-          continue;
+          return;
         }
+        console.error(`[reconcile] ${doc.id}/${field}: Stripe lookup failed`, err);
+        return; // transient — leave it alone rather than revoke on an outage
+      }
 
-        // Still active in Stripe — refresh the stored period end so a missed
-        // renewal webhook can't let a live subscription expire locally.
-        const end = periodEnd(sub);
-        const storedEnd = rec?.expiresAt?.toDate?.();
-        if (end && (!storedEnd || Math.abs(storedEnd.getTime() - end.getTime()) > 60_000)) {
-          corrections.push({
-            userId: doc.id, field, from: storedEnd?.toISOString() ?? 'unset', to: end.toISOString(),
-            reason: 'refreshed period end',
-          });
-          if (!dryRun) {
-            // update(), not set(): see revoke() below for why that matters.
-            await doc.ref.update({
-              [`${field}.expiresAt`]: end,
-              [`${field}.cancelAtPeriodEnd`]: sub.cancel_at_period_end,
-              [`${field}.updatedAt`]: FieldValue.serverTimestamp(),
-            });
-          }
+      const stripeSaysActive = ACTIVE_STATUSES.has(sub.status);
+      if (!stripeSaysActive) {
+        corrections.push({ userId: doc.id, field, from: 'active', to: 'none', reason: `Stripe status is "${sub.status}"` });
+        if (!dryRun) {
+          await revoke(doc.ref, field);
         }
+        return;
+      }
+
+      // Still active in Stripe — refresh the stored period end so a missed
+      // renewal webhook can't let a live subscription expire locally.
+      const end = periodEnd(sub);
+      const storedEnd = rec?.expiresAt?.toDate?.();
+      if (end && (!storedEnd || Math.abs(storedEnd.getTime() - end.getTime()) > 60_000)) {
+        corrections.push({
+          userId: doc.id, field, from: storedEnd?.toISOString() ?? 'unset', to: end.toISOString(),
+          reason: 'refreshed period end',
+        });
+        if (!dryRun) {
+          // update(), not set(): see revoke() below for why that matters.
+          await doc.ref.update({
+            [`${field}.expiresAt`]: end,
+            [`${field}.cancelAtPeriodEnd`]: sub.cancel_at_period_end,
+            [`${field}.updatedAt`]: FieldValue.serverTimestamp(),
+          });
+        }
+      }
+    }
+
+    for (const field of FIELDS) {
+      // Only users Firestore currently believes are paying can be wrongly
+      // granted access, so that is the whole search space. Paged by document
+      // id so memory stays flat however many subscribers there are, and each
+      // page fans out to Stripe a few at a time — see PAGE_SIZE above.
+      let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+      for (;;) {
+        let q = db.collection('users')
+          .where(`${field}.status`, '==', 'active')
+          .orderBy('__name__')
+          .limit(PAGE_SIZE);
+        if (cursor) q = q.startAfter(cursor);
+        const snap = await q.get();
+        if (snap.empty) break;
+        cursor = snap.docs[snap.docs.length - 1];
+
+        await mapWithConcurrency(snap.docs, STRIPE_CONCURRENCY, (doc) => reconcileOne(doc, field));
+
+        if (snap.size < PAGE_SIZE) break;
       }
     }
 

@@ -15,6 +15,7 @@ import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/
 import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
 import { getIdToken } from 'firebase/auth';
+import { DEFAULT_ORG_DAILY_LIMIT } from '@/lib/orgAiLimit';
 import { uploadVideo, deleteVideo, type StorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail, extractVideoThumbnailFromUrl } from '@/lib/videoThumbnail';
 import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_B2B_TERMS } from '@/lib/legalDefaults';
@@ -417,7 +418,7 @@ function AdminPageInner() {
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
   const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
   const [orgAiUsage, setOrgAiUsage] = useState<{ used: number; limit: number; byFeature: Record<string, number>; date: string } | null>(null);
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, aiOrgDailyLimit: 0 });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, aiOrgDailyLimit: DEFAULT_ORG_DAILY_LIMIT });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
@@ -626,7 +627,9 @@ function AdminPageInner() {
           vapidPublicKey: cfg.vapidPublicKey || '',
           barcodeScanDailyLimit: Number(cfg.barcodeScanDailyLimit) || 20,
           foodAnalysisDailyLimit: Number(cfg.foodAnalysisDailyLimit) || 20,
-          aiOrgDailyLimit: Number(cfg.aiOrgDailyLimit) || 0,
+          // Shows the EFFECTIVE ceiling: a stored 0 (or nothing) means the
+          // default applies, so that is what the field should say.
+          aiOrgDailyLimit: Number(cfg.aiOrgDailyLimit) || DEFAULT_ORG_DAILY_LIMIT,
           mealIdeasDailyLimit: Number(cfg.mealIdeasDailyLimit) || 15,
         });
         setStorageProvider((cfg.storageProvider as StorageProvider) || 'firebase');
@@ -4929,9 +4932,10 @@ function AdminPageInner() {
                   className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
                 />
                 <p className="text-xs text-text-tertiary mt-1.5">
-                  Total AI calls across all users per day. <b>0 = no limit.</b> Past the ceiling, AI
-                  features show &ldquo;paused for today&rdquo; instead of failing with an error when
-                  your OpenAI balance runs out.
+                  Total AI calls across all users per day. Always on — leaving it at 0 applies the
+                  default of {DEFAULT_ORG_DAILY_LIMIT.toLocaleString()}. Past the ceiling, AI features
+                  show &ldquo;paused for today&rdquo; instead of failing with an error when your OpenAI
+                  balance runs out. Set it very high if you genuinely want no practical ceiling.
                 </p>
                 {orgAiUsage && (
                   <div className="mt-3 p-3 rounded-xl bg-surface border border-white/8">

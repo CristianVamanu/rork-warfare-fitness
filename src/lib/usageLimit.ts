@@ -56,10 +56,20 @@ export function resolveLocalDate(req: NextRequest): string {
  * budget has to be a single window for everyone, or users in later
  * timezones would roll the counter over early for everybody.
  *
- * Disabled by default — `aiOrgDailyLimit` unset or 0 means no ceiling, and
- * this costs one extra read per AI call and nothing else.
+ * ALWAYS on. `aiOrgDailyLimit` unset or 0 falls back to DEFAULT_ORG_DAILY_LIMIT
+ * rather than meaning "no ceiling". A cost circuit breaker that ships switched
+ * off is not a circuit breaker — it was 0 on this deployment for its entire
+ * life, so the per-user caps were the only thing between a bug or an abuse
+ * spike and the OpenAI bill. An admin who genuinely wants no ceiling can set
+ * a very large number; there is no longer a way to set none by accident.
+ * Costs one extra read per AI call and nothing else.
  */
 export const ORG_USAGE_DOC = 'aiUsage';
+
+// Defined in orgAiLimit.ts (no Node/Firebase imports) so the admin panel can
+// show the same number without pulling firebase-admin into the browser.
+export { DEFAULT_ORG_DAILY_LIMIT, resolveOrgDailyLimit } from './orgAiLimit';
+import { resolveOrgDailyLimit } from './orgAiLimit';
 
 /**
  * Shown when the ORG budget is what blocked the call, so the user isn't told
@@ -139,8 +149,8 @@ export async function checkAndIncrementUsage(
   // has one slot left — overshoots a soft daily spend cap by one call, which
   // is not worth serialising every AI request in the product to prevent.
   const cfgSnap = await configRef.get();
-  const orgLimit = Number(cfgSnap.data()?.aiOrgDailyLimit ?? 0);
-  if (orgLimit > 0) {
+  const orgLimit = resolveOrgDailyLimit(cfgSnap.data()?.aiOrgDailyLimit);
+  {
     const { count } = await readOrgUsage(db, date);
     if (count >= orgLimit) {
       return { allowed: false, remaining: 0, orgLimitReached: true };
@@ -190,7 +200,9 @@ export async function getOrgAiUsage(app: App): Promise<{
   ]);
   return {
     used: usage.count,
-    limit: Number(cfgSnap.data()?.aiOrgDailyLimit ?? 0),
+    // The EFFECTIVE ceiling, so the admin panel's usage meter shows the
+    // number that will actually pause the app, not a 0 that means nothing.
+    limit: resolveOrgDailyLimit(cfgSnap.data()?.aiOrgDailyLimit),
     byFeature: usage.byFeature,
     date,
   };

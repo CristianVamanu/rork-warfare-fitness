@@ -296,7 +296,10 @@ if [ -n "$ENV_FILE" ]; then
     # lost for good (Stripe stops retrying after ~3 days), which used to mean
     # a cancelled subscription kept full paid access forever with nothing
     # anywhere that would notice. Runs at 04:17 to avoid the busy hour tick.
-    RECONCILE_CMD="curl -fsS -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${INTERNAL_URL%/}/api/admin/reconcile-subscriptions\" >/dev/null 2>&1 ${CRON_MARKER}"
+    # --max-time 1800: this was the one cron job with no ceiling at all. The
+    # route is now paged and batched, so a normal run is minutes, but a
+    # Stripe slowdown must not turn into a curl that holds a worker all day.
+    RECONCILE_CMD="curl -fsS --max-time 1800 -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${INTERNAL_URL%/}/api/admin/reconcile-subscriptions\" >/dev/null 2>&1 ${CRON_MARKER}"
     # Nightly full Firestore export. The route existed and was CRON_SECRET-
     # protected from the start, but nothing ever scheduled it — so this app
     # has been running with no automated backup at all. Runs at 03:22 UTC,

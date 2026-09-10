@@ -9,6 +9,13 @@ module.exports = {
       args: 'start -p 3000',
       exec_mode: 'cluster',
       instances: 2,
+      // Recycle a worker that grows past this, one at a time, instead of
+      // letting a slow leak run until the kernel OOM-kills whichever process
+      // it picks — which on a small box is as likely to be the other worker,
+      // nginx, or the webhook listener as the one actually leaking. A healthy
+      // `next start` sits at a few hundred MB; 1G is a leak, not a busy day.
+      // Cluster mode means the other worker keeps serving through the restart.
+      max_memory_restart: '1G',
       env: {
         NODE_ENV: 'production',
         // Pinned explicitly. next.config.js reads NEXT_DIST_DIR for distDir,
