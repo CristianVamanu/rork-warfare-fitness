@@ -23,6 +23,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { sendEmail, verifyEmailHtml, passwordResetEmailHtml } from '@/lib/email';
 import { rateLimit, clientIp } from '@/lib/rateLimit';
+import { toOwnAuthActionLink } from '@/lib/authActionLink';
 
 type Kind = 'verify' | 'reset';
 
@@ -74,6 +75,8 @@ export async function POST(req: NextRequest) {
     // Deliberately generic on every outcome below, including "no such
     // account": a differing response would turn this into an oracle for
     // which addresses are registered.
+    const toOwnDomain = (l: string) => toOwnAuthActionLink(l, appUrl);
+
     let link: string;
     let html: string;
     let subject: string;
@@ -84,13 +87,13 @@ export async function POST(req: NextRequest) {
         // and that browser has no session — so /dashboard silently bounced to
         // /login with no explanation, which reads as "the link did nothing".
         // ?verified=1 lets the login page say what actually happened.
-        link = await auth.generateEmailVerificationLink(email, { url: `${appUrl}/login?verified=1` });
+        link = toOwnDomain(await auth.generateEmailVerificationLink(email, { url: `${appUrl}/login?verified=1` }));
         const user = await auth.getUserByEmail(email).catch(() => null);
         const firstName = user?.displayName?.split(' ')[0] || 'there';
         html = verifyEmailHtml(firstName, link, brand);
         subject = `Confirm your email — ${appName}`;
       } else {
-        link = await auth.generatePasswordResetLink(email, { url: `${appUrl}/login` });
+        link = toOwnDomain(await auth.generatePasswordResetLink(email, { url: `${appUrl}/login` }));
         html = passwordResetEmailHtml(link, brand);
         subject = `Reset your password — ${appName}`;
       }
