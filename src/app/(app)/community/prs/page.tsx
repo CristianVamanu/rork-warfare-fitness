@@ -16,6 +16,7 @@ import { CommunityTabs } from '@/components/community/CommunityTabs';
 import { subscribePRFeed, createPRPost, likePRPost, deletePRPost, getSystemConfig } from '@/lib/firestore';
 import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import type { PRPost } from '@/types';
+import { FeedMedia } from '@/components/community/FeedMedia';
 
 export default function PRWallPage() {
   const { user, profile } = useAuth();
@@ -204,10 +205,10 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
         {post.mediaUrl && (
           <div className="rounded-xl overflow-hidden mb-3 bg-black">
             {post.mediaType === 'video' ? (
-              <video src={post.mediaUrl} controls crossOrigin="anonymous" className="w-full max-h-80" />
+              <FeedMedia url={post.mediaUrl} kind="video" />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={post.mediaUrl} alt={post.exerciseName} className="w-full max-h-80 object-cover" />
+              <FeedMedia url={post.mediaUrl} alt={post.exerciseName} />
             )}
           </div>
         )}

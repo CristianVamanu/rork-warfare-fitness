@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown, Megaphone } from 'lucide-react';
 import { compressImage } from '@/lib/imageCompress';
 import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
+import { FeedMedia } from '@/components/community/FeedMedia';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -208,7 +209,7 @@ function PostCard({
       </div>
       <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{post.content}</p>
       {post.imageURL && (
-        <img src={post.imageURL} alt="post" loading="lazy" decoding="async" className="mt-3 rounded-xl w-full object-cover max-h-64" />
+        <FeedMedia url={post.imageURL} alt="Photo attached to this post" />
       )}
       <div className="flex items-center gap-4 mt-4">
         <button
@@ -613,7 +614,7 @@ export default function ChannelPage() {
                 </div>
                 <p className="text-sm text-text-secondary mt-0.5 whitespace-pre-wrap">{pinnedPost.content}</p>
                 {pinnedPost.imageURL && (
-                  <img src={pinnedPost.imageURL} alt="pinned" loading="lazy" decoding="async" className="mt-2 rounded-lg w-full object-cover max-h-32" />
+                  <FeedMedia url={pinnedPost.imageURL} alt="Photo attached to the pinned post" compact className="mt-2" />
                 )}
               </div>
             </div>
