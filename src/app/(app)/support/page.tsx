@@ -24,6 +24,7 @@ import {
   MessageAttachment,
 } from '@/components/support/SupportAttachment';
 import type { SupportTicket, SupportTicketStatus, Message } from '@/types';
+import { SUPPORT_MAX_LABEL } from '@/lib/supportLimits';
 
 const STATUS_STYLES: Record<SupportTicketStatus, { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-yellow-400/10 text-yellow-400' },
@@ -336,7 +337,7 @@ export default function SupportPage() {
             <div className="flex items-center gap-2">
               <AttachButton onPick={setNewTicketFile} disabled={creating || uploading} />
               <p className="text-xs text-text-tertiary">
-                Attach a screenshot or screen recording — optional, up to 20MB.
+                Attach a screenshot or screen recording — optional, up to {SUPPORT_MAX_LABEL}.
               </p>
             </div>
             {newTicketFile && (

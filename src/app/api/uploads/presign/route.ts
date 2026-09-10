@@ -16,15 +16,17 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getR2Client, r2PublicUrl } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
+import { SUPPORT_MAX_BYTES } from '@/lib/supportLimits';
 
 const ALLOWED_ROOTS = ['prPosts', 'progressPhotos', 'community', 'support'];
 
-// Per-root size ceilings. A support attachment is a screenshot or a short
-// screen recording of a bug, not lift footage — 20MB covers that with room
-// to spare, and keeps a support form from becoming the cheapest way to push
-// 200MB files into the bucket.
+// Per-root size ceilings. A support attachment is a screenshot or, more often
+// than the old 20MB ceiling allowed for, a screen recording of a bug being
+// reproduced — the reports that most need a video are the ones that take
+// longest to capture. Still bounded well under the global limit below so a
+// support form never becomes the cheapest way to push 200MB into the bucket.
 const ROOT_MAX_SIZE_BYTES: Record<string, number> = {
-  support: 20 * 1024 * 1024,
+  support: SUPPORT_MAX_BYTES,
 };
 // PR posts legitimately need video (lift proof), everything else here is
 // images — but nothing previously restricted contentType at all, so any

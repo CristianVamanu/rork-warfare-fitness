@@ -7,12 +7,12 @@ import type { User } from 'firebase/auth';
 import { getSystemConfig, type SupportAttachment } from '@/lib/firestore';
 import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
 import type { Message } from '@/types';
+import { SUPPORT_MAX_BYTES, SUPPORT_MAX_LABEL } from '@/lib/supportLimits';
 
-// Mirrors ROOT_MAX_SIZE_BYTES.support in /api/uploads/presign. Checked here
-// too so an oversized file fails instantly against a clear message rather
-// than after a pointless round trip — the server check is still the one that
-// actually enforces it.
-export const SUPPORT_MAX_BYTES = 20 * 1024 * 1024;
+// Checked here so an oversized file fails instantly against a clear message
+// rather than after a pointless round trip — the presign route's check, which
+// reads this same constant, is still the one that actually enforces it.
+export { SUPPORT_MAX_BYTES } from '@/lib/supportLimits';
 
 // The presign route allows image/* and video/* and explicitly rejects SVG
 // (it can carry script, and the bucket serves its contents as active
@@ -42,7 +42,7 @@ export function useSupportUpload() {
       return null;
     }
     if (file.size > SUPPORT_MAX_BYTES) {
-      toast.error(`That file is ${(file.size / 1024 / 1024).toFixed(1)}MB — the limit is 20MB.`);
+      toast.error(`That file is ${(file.size / 1024 / 1024).toFixed(1)}MB — the limit is ${SUPPORT_MAX_LABEL}.`);
       return null;
     }
     setUploading(true);
@@ -111,7 +111,7 @@ export function AttachButton({
       className={`p-2.5 rounded-xl border border-white/10 bg-surface transition-colors flex-shrink-0 ${
         disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer text-text-secondary hover:text-white hover:border-accent/50'
       }`}
-      title="Attach a screenshot or video (max 20MB)"
+      title={`Attach a screenshot or video (max ${SUPPORT_MAX_LABEL})`}
     >
       <Paperclip className="w-4 h-4" aria-hidden="true" />
       <span className="sr-only">Attach a file</span>

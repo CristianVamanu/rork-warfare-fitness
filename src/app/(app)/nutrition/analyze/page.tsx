@@ -17,7 +17,8 @@ import { PaywallGate } from '@/components/ui/PaywallGate';
 import { localDateHeader } from '@/lib/utils';
 import type { NutritionAnalysis, UserGoals, Meal } from '@/types';
 
-type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+import { defaultMealTypeForNow, type MealType } from '@/lib/mealTypes';
+import { MealTypePicker } from '@/components/nutrition/MealTypePicker';
 
 const DEFAULT_GOALS: UserGoals = { calories: 2200, protein: 160, carbs: 250, fat: 70, water: 3000 };
 
@@ -75,7 +76,9 @@ function AnalyzeFoodPageInner() {
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<NutritionAnalysis | null>(null);
   const [saving, setSaving] = useState(false);
-  const initialMealType = (searchParams.get('mealType') as MealType | null) ?? 'lunch';
+  // Fall back to the time of day rather than a hardcoded 'lunch' — food
+  // photographed at 8pm is not lunch.
+  const initialMealType = (searchParams.get('mealType') as MealType | null) ?? defaultMealTypeForNow();
   const [mealType, setMealType] = useState<MealType>(initialMealType);
   const [todayCalories, setTodayCalories] = useState(0);
   const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
@@ -348,22 +351,7 @@ function AnalyzeFoodPageInner() {
                   ))}
                 </div>
 
-                <div>
-                  <p className="text-xs text-text-secondary mb-2">Add to meal:</p>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {(['breakfast', 'lunch', 'dinner', 'snack'] as MealType[]).map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setMealType(t)}
-                        className={`py-1.5 text-xs rounded-lg font-medium transition-all ${
-                          mealType === t ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <MealTypePicker value={mealType} onChange={setMealType} />
 
                 <Button fullWidth size="lg" loading={saving} onClick={addToLog}>
                   Add to {mealType.charAt(0).toUpperCase() + mealType.slice(1)}

@@ -137,7 +137,17 @@ export async function deleteVideo(provider: StorageProvider, user: User, url: st
 }
 
 /** Uploads user-generated content (e.g. PR wall posts) via the user-scoped
- * presign route when R2 is configured, falling back to Firebase Storage. */
+ * presign route when R2 is configured, falling back to Firebase Storage.
+ *
+ * `support` is the exception: it TRIES R2 regardless of the configured
+ * provider, and only falls back if R2 genuinely isn't set up. Support
+ * attachments are now up to 100MB and are deleted once the ticket is resolved,
+ * which is the worst possible shape for Firebase Storage — you pay egress
+ * every time staff opens the file, on data you are about to throw away. R2 has
+ * no egress fee, which is the whole reason the presign path exists. Leaving
+ * this to a global toggle meant one unset config value silently sent every
+ * large attachment to the expensive bucket.
+ */
 export async function uploadUserContent(
   provider: StorageProvider,
   user: User,
@@ -145,7 +155,21 @@ export async function uploadUserContent(
   root: 'prPosts' | 'progressPhotos' | 'community' | 'support',
   onProgress?: (pct: number) => void
 ): Promise<string> {
-  return provider === 'r2'
-    ? uploadToR2(user, file, root, onProgress, '/api/uploads/presign', { root })
-    : uploadToFirebaseStorage(file, `${root}/${user.uid}`, onProgress);
+  if (provider === 'r2') {
+    return uploadToR2(user, file, root, onProgress, '/api/uploads/presign', { root });
+  }
+  if (root === 'support') {
+    try {
+      return await uploadToR2(user, file, root, onProgress, '/api/uploads/presign', { root });
+    } catch (err) {
+      // The presign route answers 500 "R2 not configured" when the bucket
+      // credentials are absent. Any failure here is worth falling back on
+      // rather than losing the user's bug report — but it must be visible,
+      // because the silent version of this is what sent everything to
+      // Firebase in the first place.
+      console.warn('[uploadVideo] R2 unavailable for support attachment, falling back to Firebase Storage:', err);
+      onProgress?.(0);
+    }
+  }
+  return uploadToFirebaseStorage(file, `${root}/${user.uid}`, onProgress);
 }

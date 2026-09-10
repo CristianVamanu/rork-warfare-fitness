@@ -20,7 +20,8 @@ import { PaywallGate } from '@/components/ui/PaywallGate';
 import { localDateHeader } from '@/lib/utils';
 import type { NutritionAnalysis } from '@/types';
 
-type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+import { defaultMealTypeForNow, type MealType } from '@/lib/mealTypes';
+import { MealTypePicker } from '@/components/nutrition/MealTypePicker';
 
 interface NutrientLevels {
   fat?: 'low' | 'moderate' | 'high';
@@ -63,7 +64,9 @@ export default function BarcodePage() {
   const [nutrientLevels, setNutrientLevels] = useState<NutrientLevels | null>(null);
   const [labels, setLabels] = useState<string[]>([]);
   const [showScoreDetail, setShowScoreDetail] = useState(false);
+  // Was hardcoded to 'snack' — a scanned ready meal at 7pm is dinner.
   const [mealType, setMealType] = useState<MealType>('snack');
+  useEffect(() => { setMealType(defaultMealTypeForNow()); }, []);
   // OpenFoodFacts always returns values per 100g — logging that raw meant
   // scanning a whole box of cereal and hitting "Add to Log" always recorded
   // exactly 100g's worth, with no way to say "I actually ate 250g of this."
@@ -494,19 +497,7 @@ export default function BarcodePage() {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-4 gap-1.5">
-                  {(['breakfast', 'lunch', 'dinner', 'snack'] as MealType[]).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setMealType(t)}
-                      className={`py-1.5 text-xs rounded-lg font-medium transition-all ${
-                        mealType === t ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
+                <MealTypePicker value={mealType} onChange={setMealType} />
 
                 <Button fullWidth size="lg" loading={saving} disabled={servingGrams <= 0} onClick={addToLog}>
                   Add to Log
