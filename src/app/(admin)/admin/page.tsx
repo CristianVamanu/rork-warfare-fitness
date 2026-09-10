@@ -2502,7 +2502,12 @@ function AdminPageInner() {
   }
 
   const stripeConfigured = secretStatuses.find(s => s.key === 'STRIPE_SECRET_KEY')?.configured ?? false;
+  // NB: a document with no `role` field passes this (undefined !== 'admin'),
+  // so roleless accounts are listed as clients — which is what you want, and
+  // is why this is a JS filter rather than a Firestore `where('role','!=')`
+  // query, which would silently drop every document missing the field.
   const clients = users.filter(u => u.role !== 'admin');
+  const adminCount = users.length - clients.length;
   const clientsTotalPages = Math.max(1, Math.ceil(clients.length / clientsPerPage));
   // Clamp rather than reset: changing page size or banning the last user on
   // page 9 should land somewhere real, not on an empty page.
@@ -2624,7 +2629,14 @@ function AdminPageInner() {
               // The real total from the count aggregation when we have it —
               // the loaded list is capped now, so clients.length would
               // under-report the moment there are more than one page of them.
-              { icon: Users, label: 'Clients', value: totalUsers ?? clients.length, color: 'text-blue-400', bg: 'bg-blue-400/10' },
+              //
+              // Labelled "Users", not "Clients": countUsers() aggregates the
+              // WHOLE users collection, admins included, while the Clients tab
+              // lists only non-admins. Calling this "Clients" made the two
+              // screens contradict each other — 8 on the tile, 4 in the tab —
+              // which reads as lost data rather than as two different
+              // populations. The tab now spells out the difference too.
+              { icon: Users, label: 'Users', value: totalUsers ?? users.length, color: 'text-blue-400', bg: 'bg-blue-400/10' },
               { icon: Dumbbell, label: 'Programs', value: programCount, color: 'text-purple-400', bg: 'bg-purple-400/10' },
               { icon: Activity, label: 'Workouts Today', value: workoutsToday, color: 'text-green-400', bg: 'bg-green-400/10' },
               { icon: Shield, label: 'System', value: '✓', color: 'text-accent', bg: 'bg-accent-muted' },
@@ -2718,6 +2730,16 @@ function AdminPageInner() {
               {clients.length} client{clients.length !== 1 ? 's' : ''}
               {totalUsers !== null && totalUsers > users.length && (
                 <span className="text-text-tertiary"> loaded of {totalUsers}</span>
+              )}
+              {/* Reconciles this list against the Clients tile on the overview,
+                  which counts EVERY user document. Without this the two simply
+                  disagreed — 8 there, 4 here — with nothing on screen
+                  explaining that admins are excluded from the list by design,
+                  which reads as missing data rather than as a filter. */}
+              {adminCount > 0 && (
+                <span className="text-text-tertiary">
+                  {' '}· {adminCount} admin{adminCount !== 1 ? 's' : ''} not listed
+                </span>
               )}
             </p>
             <div className="flex items-center gap-2">
