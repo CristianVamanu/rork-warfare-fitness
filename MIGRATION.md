@@ -235,9 +235,11 @@ server {
         proxy_read_timeout 300s;
     }
 
-    # GitHub push -> auto-deploy. Keep this path secret-ish; the listener
-    # verifies the HMAC signature regardless.
-    location /deploy-hook {
+    # GitHub push -> auto-deploy. The path MUST be /webhook: webhook.js
+    # answers 404 to anything else (`req.url !== '/webhook'`), so a different
+    # location name here means GitHub gets a green 404 and nothing ever
+    # deploys. This is also the path configured on the GitHub webhook itself.
+    location /webhook {
         proxy_pass http://localhost:4001;
         proxy_set_header Host $host;
     }
