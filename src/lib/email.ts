@@ -235,7 +235,7 @@ function button(label: string, url: string): string {
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0;">
       <tr>
         <td bgcolor="#F5A623" align="center" style="background-color:#F5A623;border-radius:10px;">
-          <a href="${url}" style="display:inline-block;padding:13px 26px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:800;color:#000000;text-decoration:none;border-radius:10px;">${escapeHtml(label)}</a>
+          <a href="${escapeHtml(url)}" style="display:inline-block;padding:13px 26px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:800;color:#000000;text-decoration:none;border-radius:10px;">${escapeHtml(label)}</a>
         </td>
       </tr>
     </table>`;
