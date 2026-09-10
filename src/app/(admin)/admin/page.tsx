@@ -404,6 +404,12 @@ function AdminPageInner() {
   // once is what actually makes this page unusable — so the DOM is paged.
   const [clientsPerPage, setClientsPerPage] = useState(50);
   const [clientsPage, setClientsPage] = useState(1);
+  // Defaults to 'clients', so admin accounts are HIDDEN exactly as before.
+  // They are reachable through the filter rather than absent from the panel
+  // altogether — being unable to see them at all is what let an admin document
+  // with no Auth account behind it sit unnoticed from June, but they should
+  // not be sitting in the everyday list where a misclick can reach them.
+  const [clientRoleFilter, setClientRoleFilter] = useState<'all' | 'clients' | 'admins'>('clients');
   // getAllUsers() is now bounded (see firestore.ts). These track how much of
   // the collection is actually loaded, so the page can say so honestly rather
   // than showing a count that silently means "the first 500".
@@ -2508,11 +2514,24 @@ function AdminPageInner() {
   // query, which would silently drop every document missing the field.
   const clients = users.filter(u => u.role !== 'admin');
   const adminCount = users.length - clients.length;
-  const clientsTotalPages = Math.max(1, Math.ceil(clients.length / clientsPerPage));
+  // What the LIST shows, which is not the same as `clients` above. `clients`
+  // stays non-admin because it drives the CSV export and the broadcast
+  // notification target — a marketing push should not go to staff accounts.
+  // The list itself defaults to showing everyone: hiding admin accounts meant
+  // half of this deployment's users were invisible AND unmanageable here (you
+  // cannot delete or demote a row that never renders), which is how an admin
+  // document with no Auth account behind it sat unnoticed from June.
+  // `clients` (non-admin) is the default view and also drives the CSV export
+  // and the broadcast notification target — a marketing push should never go
+  // to staff accounts, whatever this filter is set to.
+  const listedUsers = clientRoleFilter === 'all' ? users
+    : clientRoleFilter === 'admins' ? users.filter(u => u.role === 'admin')
+    : clients;
+  const clientsTotalPages = Math.max(1, Math.ceil(listedUsers.length / clientsPerPage));
   // Clamp rather than reset: changing page size or banning the last user on
   // page 9 should land somewhere real, not on an empty page.
   const clientsPageSafe = Math.min(clientsPage, clientsTotalPages);
-  const pagedClients = clients.slice((clientsPageSafe - 1) * clientsPerPage, clientsPageSafe * clientsPerPage);
+  const pagedClients = listedUsers.slice((clientsPageSafe - 1) * clientsPerPage, clientsPageSafe * clientsPerPage);
   const trainers = users.filter(u => u.role === 'trainer');
 
   // Exports the currently-loaded client list as a CSV — client-side only,
@@ -2728,22 +2747,36 @@ function AdminPageInner() {
                 up believing a client vanished. */}
             <p className="text-text-secondary text-sm">
               {clients.length} client{clients.length !== 1 ? 's' : ''}
+              {adminCount > 0 && <> · {adminCount} admin{adminCount !== 1 ? 's' : ''}</>}
               {totalUsers !== null && totalUsers > users.length && (
-                <span className="text-text-tertiary"> loaded of {totalUsers}</span>
-              )}
-              {/* Reconciles this list against the Clients tile on the overview,
-                  which counts EVERY user document. Without this the two simply
-                  disagreed — 8 there, 4 here — with nothing on screen
-                  explaining that admins are excluded from the list by design,
-                  which reads as missing data rather than as a filter. */}
-              {adminCount > 0 && (
-                <span className="text-text-tertiary">
-                  {' '}· {adminCount} admin{adminCount !== 1 ? 's' : ''} not listed
-                </span>
+                <span className="text-text-tertiary"> · {users.length} loaded of {totalUsers}</span>
               )}
             </p>
             <div className="flex items-center gap-2">
-              {clients.length > clientsPerPage && (
+              {/* Staff accounts are the ones you most need to be able to find
+                  and revoke, so there is a direct filter for them rather than
+                  leaving them mixed into a long list. */}
+              {adminCount > 0 && (
+                <div className="flex rounded-lg border border-white/10 overflow-hidden">
+                  {([
+                    ['all', `All (${users.length})`],
+                    ['clients', `Clients (${clients.length})`],
+                    ['admins', `Admins (${adminCount})`],
+                  ] as const).map(([id, label]) => (
+                    <button
+                      key={id}
+                      onClick={() => { setClientRoleFilter(id); setClientsPage(1); }}
+                      aria-pressed={clientRoleFilter === id}
+                      className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                        clientRoleFilter === id ? 'bg-accent text-black' : 'text-text-secondary hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {listedUsers.length > clientsPerPage && (
                 <select
                   aria-label="Clients per page"
                   value={clientsPerPage}
@@ -2762,7 +2795,7 @@ function AdminPageInner() {
           </div>
           {clientsLoading ? (
             <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
-          ) : clients.length === 0 ? (
+          ) : listedUsers.length === 0 ? (
             <Card className="p-8 text-center">
               <Users className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
               <p className="text-text-secondary text-sm">No clients yet.</p>
@@ -2780,6 +2813,13 @@ function AdminPageInner() {
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-medium text-white truncate">{u.displayName || 'Unknown'}</p>
                           {u.banned && <Badge variant="danger">Banned</Badge>}
+                          {/* Staff are visible in this list now, so they have
+                              to be distinguishable at a glance — an account
+                              that bypasses every security rule should never
+                              look like an ordinary signup. */}
+                          {u.role === 'admin' && <Badge variant="accent">Admin</Badge>}
+                          {u.id === user?.uid && <Badge variant="muted">You</Badge>}
+                          {u.role === 'trainer' && <Badge variant="muted">Trainer</Badge>}
                         </div>
                         <p className="text-xs text-text-secondary truncate">{u.email}</p>
                         <p className="text-xs text-text-tertiary mt-0.5">Last login: {formatLastLogin(u.lastLoginAt)}</p>
@@ -2826,6 +2866,13 @@ function AdminPageInner() {
                       >
                         <Target className="w-4 h-4" />
                       </button>
+                      {/* Both ban-user and delete-user already refuse to act on
+                          the caller's own uid server-side. Hiding the buttons
+                          means you get that answer before a confirm dialog
+                          rather than as an error after it — this list shows
+                          your own admin row now, so the misclick is newly
+                          reachable. */}
+                      {u.id !== user?.uid && (
                       <button
                         onClick={() => handleBanToggle(u)}
                         disabled={banningUser === u.id}
@@ -2834,6 +2881,8 @@ function AdminPageInner() {
                       >
                         {u.banned ? <UserCheck className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
                       </button>
+                      )}
+                      {u.id !== user?.uid && (
                       <button
                         onClick={() => handleDeleteUser(u)}
                         title="Delete user"
@@ -2841,6 +2890,7 @@ function AdminPageInner() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      )}
                     </div>
                   </div>
                 </Card>
@@ -2860,7 +2910,7 @@ function AdminPageInner() {
               <p className="text-xs text-text-secondary">
                 Page {clientsPageSafe} of {clientsTotalPages}
                 <span className="text-text-tertiary">
-                  {' '}· showing {(clientsPageSafe - 1) * clientsPerPage + 1}–{Math.min(clientsPageSafe * clientsPerPage, clients.length)}
+                  {' '}· showing {(clientsPageSafe - 1) * clientsPerPage + 1}–{Math.min(clientsPageSafe * clientsPerPage, listedUsers.length)}
                 </span>
               </p>
               <Button
