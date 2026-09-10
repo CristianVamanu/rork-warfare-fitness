@@ -16,7 +16,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Skeleton } from '@/components/ui/Skeleton';
 import type { Program } from '@/types';
 
-interface UserRow { id: string; displayName?: string; email?: string; activeProgram?: { programName?: string } }
+interface UserRow { id: string; displayName?: string; email?: string; activeProgram?: { programId?: string; programName?: string } }
 
 interface HealthFinding {
   programId: string;
@@ -185,7 +185,18 @@ export default function ProgramsPage() {
     // into a second list", which then had its own restore and its own
     // delete-forever — three steps to remove a program, and a leftover row
     // either way. Delete means delete.
-    if (!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
+    // Who is currently ON this program. The confirm used to say only "this
+    // cannot be undone", which is true of the program and silent about the
+    // members: an enrolled member's training screen falls back to the seed
+    // copy if one exists and to "Program not found" if it doesn't, and either
+    // way they have lost the thing they are paying for without being told.
+    // Deleting is still allowed — it is the admin's call — but never blind.
+    const onIt = users.filter((u) => u.activeProgram?.programId === p.id || (!u.activeProgram?.programId && u.activeProgram?.programName === p.name));
+    const who = onIt.slice(0, 5).map((u) => u.displayName || u.email || u.id).join(', ') + (onIt.length > 5 ? ` and ${onIt.length - 5} more` : '');
+    const warning = onIt.length > 0
+      ? `\n\n⚠ ${onIt.length} member${onIt.length === 1 ? ' is' : 's are'} currently on this program: ${who}.\nAssign them a different program first (Assign → pick a member), or they will lose their plan.`
+      : '';
+    if (!confirm(`Delete "${p.name}"? This cannot be undone.${warning}`)) return;
     try {
       if (p._mock) {
         await permanentlyDeleteMockProgram(p.id);
