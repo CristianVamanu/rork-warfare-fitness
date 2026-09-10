@@ -19,6 +19,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
+import { resolveAccountEmail } from '@/lib/accountEmail';
 import { verifyAdmin } from '@/lib/verifyAdmin';
 import { timingSafeEqualString } from '@/lib/crypto';
 import { sendEmail } from '@/lib/email';
@@ -70,7 +71,9 @@ export async function POST(req: NextRequest) {
     ]);
     const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
-    const recipients = adminSnap.docs.map((d) => d.data().email as string | undefined).filter((e): e is string => !!e);
+    const recipients = (await Promise.all(
+      adminSnap.docs.map((d) => resolveAccountEmail(d.id, d.data().email as string | undefined)),
+    )).filter((e): e is string => !!e);
 
     if (recipients.length === 0) {
       console.error('[error-digest] No admin email on file — digest not sent');

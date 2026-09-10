@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
 import { FieldValue, FieldPath } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
+import { resolveAccountEmail } from '@/lib/accountEmail';
 import { sendEmail, paymentFailedEmailHtml, trialEndingEmailHtml } from '@/lib/email';
 import type Stripe from 'stripe';
 
@@ -315,7 +316,7 @@ export async function POST(req: NextRequest) {
           db.collection('users').doc(userId).get(),
           db.collection('system').doc('config').get(),
         ]);
-        const userEmail = userSnap.data()?.email as string | undefined;
+        const userEmail = await resolveAccountEmail(userId, userSnap.data()?.email as string | undefined);
         if (!userEmail) break;
         const trialEndMs = (sub.trial_end ?? 0) * 1000;
         const daysLeft = Math.max(1, Math.ceil((trialEndMs - Date.now()) / (24 * 60 * 60 * 1000)));
@@ -347,7 +348,7 @@ export async function POST(req: NextRequest) {
                 db.collection('users').doc(userId).get(),
                 db.collection('system').doc('config').get(),
               ]);
-              const userEmail = userSnap.data()?.email as string | undefined;
+              const userEmail = await resolveAccountEmail(userId, userSnap.data()?.email as string | undefined);
               // Stripe retries a failed renewal up to four times over a
               // dunning cycle and emits a DISTINCT payment_failed event each
               // time, so the event ledger (same id only) still let four

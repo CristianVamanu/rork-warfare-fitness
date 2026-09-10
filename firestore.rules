@@ -54,6 +54,26 @@ service cloud.firestore {
       return isAuthed() && callerRole() == 'admin';
     }
 
+    // ── Post body limits ─────────────────────────────────────────────────
+    // A URL is "sane" when it is https and of a length a real upload URL has.
+    // The scheme check is what matters: it rules out javascript: and data:
+    // outright. Host pinning to the R2 bucket would be stronger, but the
+    // public host is deployment configuration the rules cannot read, and a
+    // wrong literal here would silently break every upload.
+    function httpsUrl(v) {
+      return v is string && v.size() <= 2048 && v.matches('^https://.*');
+    }
+    // Community text is bounded; media, if present, must be a real URL.
+    function postBodySane(d) {
+      return d.content is string && d.content.size() <= 5000
+        && (!('imageURL' in d) || httpsUrl(d.imageURL));
+    }
+    // PR posts: same, for mediaUrl/mediaType.
+    function mediaSane(d) {
+      return (!('mediaUrl' in d) || httpsUrl(d.mediaUrl))
+        && (!('mediaType' in d) || d.mediaType in ['image', 'video']);
+    }
+
     // A trainer's staff access is meant to be scoped to their own assigned
     // clients (see users/{userId}.trainerId, already used to filter
     // programs/channels elsewhere) — not every client in the install. Admin
@@ -449,7 +469,11 @@ service cloud.firestore {
     // ── Community posts ───────────────────────────────────────────────────
     match /posts/{postId} {
       allow read:   if isAuthed();
-      allow create: if isAuthed() && request.resource.data.userId == uid();
+      // postBodySane(): authorship was checked, content was not. Nothing
+      // bounded the text, and imageURL could be any string at all — including
+      // a third-party image that logs the IP of everyone who scrolls past.
+      allow create: if isAuthed() && request.resource.data.userId == uid()
+        && postBodySane(request.resource.data);
       allow update: if isAuthed() && (resource.data.userId == uid() || isAdmin());
       allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }
@@ -641,6 +665,7 @@ service cloud.firestore {
         allow create: if isAuthed() && notTfaPending()
           && request.resource.data.userId == uid()
           && request.resource.data.get('userIsAdmin', false) == isAdmin()
+          && postBodySane(request.resource.data)
           && (
             isAdmin() ||
             get(/databases/$(database)/documents/channels/$(channelId)).data.get('allowUserPosts', true) == true
@@ -786,7 +811,8 @@ service cloud.firestore {
       allow create: if isAuthed() && notTfaPending()
         && request.resource.data.userId == uid()
         && request.resource.data.moderationStatus == 'pending'
-        && !prBanActive();
+        && !prBanActive()
+        && mediaSane(request.resource.data);
       // Only admins can touch moderation/verification state (that's the
       // whole point of the review gate) — the app never lets a post's own
       // author edit it, only delete it, so there's no legitimate case for

@@ -36,7 +36,11 @@ export const MOCK_PROGRAMS: Program[] = [
     // Test page (Commando PT Test standard).
     description: 'Do you have what it takes to be a Royal Marines Commando? An 8-week base-building program toward the real published entry standard: 30 push-ups, 40 sit-ups, 4 pull-ups, and a 1.5-mile run under 11:15.',
     level: 'beginner',
-    goal: 'weight-loss',
+    // 'general', not 'weight-loss'. This is Royal Marines selection prep — it
+    // was labelled a fat-loss program and so won the fat-loss beginners that
+    // Burn Ops (the actual fat-loss program) was built for, on a goal-match
+    // bonus it did not deserve. Burn Ops won 2% of onboarding as a result.
+    goal: 'general',
     weeks: 8,
     daysPerWeek: 4,
     isPublic: true,
@@ -1404,11 +1408,45 @@ const GOAL_TO_PROGRAM_GOAL: Record<string, Program['goal']> = {
 // spirit as the sex/limitations signals above: never a hard exclusion.
 const EQUIPMENT_RANK: Record<string, number> = { minimal: 0, home: 1, 'full-gym': 2 };
 
+/**
+ * `p.exercises` is the flat legacy list and, on a phased program, a stale
+ * ten-item leftover rather than the 70-odd exercises actually prescribed. The
+ * equipment estimate used to read only that list, so Alpha Bulk — barbells,
+ * cables, machines — scored as "home" kit and was recommended to people who
+ * had told onboarding they owned nothing. The user's equipment answer was
+ * asked for and then ignored. Same class of bug as the day-numbering one:
+ * code reading the flat fallback instead of the phases.
+ */
+/**
+ * Judged per exercise, then the program takes the heaviest tier it contains.
+ *
+ * Per exercise matters: "Dumbbell Bench Press" and "Dumbbell Romanian
+ * Deadlift" contain the words "bench press" and "deadlift", and a whole-string
+ * regex flagged Burn Ops — a program whose own description says "dumbbells +
+ * bodyweight, no gym required" — as full-gym on the strength of those two
+ * names. The implement named in the exercise wins over the movement pattern.
+ */
+function exerciseTier(name: string): 0 | 1 | 2 {
+  const n = name.toLowerCase();
+  const handheld = /kettlebell|dumbbell|\bdb\b|\bkb\b|band|resistance band/.test(n);
+  // Gym-only markers that no handheld prefix can soften.
+  if (/barbell|smith|machine|cable|leg press|lat pulldown|pec deck|hack squat|\bbb\b/.test(n)) return 2;
+  if (handheld) return 1;
+  // Bare "bench press" / "deadlift" / "squat" with no implement named is the
+  // barbell version by convention.
+  if (/bench press|deadlift|back squat|front squat|overhead press|power clean|snatch/.test(n)) return 2;
+  return 0;
+}
+
 function estimateEquipmentTier(p: Program): 'minimal' | 'home' | 'full-gym' {
-  const names = p.exercises.map((e) => e.name.toLowerCase()).join(' | ');
-  if (/barbell/.test(names)) return 'full-gym';
-  if (/kettlebell|dumbbell/.test(names)) return 'home';
-  return 'minimal';
+  const fromPhases = (p.phases ?? []).flatMap((ph) => ph.schedule ?? []);
+  const days = fromPhases.length > 0 ? fromPhases : (p.schedule ?? []);
+  const names = [
+    ...days.flatMap((d) => (d.exercises ?? []).map((e) => e.name)),
+    ...(p.exercises ?? []).map((e) => e.name),
+  ];
+  const max = names.reduce<0 | 1 | 2>((m, n) => Math.max(m, exerciseTier(n)) as 0 | 1 | 2, 0);
+  return max === 2 ? 'full-gym' : max === 1 ? 'home' : 'minimal';
 }
 
 export function pickBestProgram(
@@ -1439,7 +1477,18 @@ export function pickBestProgram(
     else if (p.goal === 'general') score += 4; // general programs are a reasonable fallback for any goal
     const levelGap = Math.abs((levelRank[p.level] ?? 1) - (levelRank[experience] ?? 1));
     score += levelGap === 0 ? 6 : levelGap === 1 ? 2 : 0;
-    score -= Math.abs(p.daysPerWeek - trainingDays);
+    // Two points per day of difference, not one. At one point, a goal match
+    // (+10) outweighed being asked for six days by someone who said three —
+    // simulated across every onboarding combination, 40% of people were sent
+    // a program two or more days off what they said they could do. Days are
+    // the commitment the person can actually keep; the goal label is the
+    // commitment they'd like to keep. Weight the real one more.
+    score -= 2 * Math.abs(p.daysPerWeek - trainingDays);
+    // A program with real phases is a better product than the same week
+    // repeated for twelve — and it is the tie-breaker that lets Legion win
+    // anything at all: it scored identically to SAS Selection on every
+    // endurance/advanced answer and lost every time to array order.
+    if ((p.phases?.length ?? 0) > 1) score += 1;
 
     if (sex && p.targetGender && p.targetGender !== 'anyone') {
       score += p.targetGender === sex ? 2 : -3;

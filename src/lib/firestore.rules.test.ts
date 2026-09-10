@@ -296,6 +296,29 @@ describe('channels', () => {
     }));
   });
 
+  it('bounds post content and refuses non-https media', async () => {
+    const base = { userId: BOB, likes: [], replyCount: 0, createdAt: new Date() };
+    // A real upload URL is fine.
+    await assertSucceeds(setDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p4'), {
+      ...base, content: 'PR day', imageURL: 'https://pub-123.r2.dev/community/bob/x.jpg',
+    }));
+    // javascript: / data: schemes are refused outright.
+    await assertFails(setDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p5'), {
+      ...base, content: 'x', imageURL: 'javascript:alert(1)',
+    }));
+    await assertFails(setDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p6'), {
+      ...base, content: 'x', imageURL: 'data:image/png;base64,AAAA',
+    }));
+    // Text is bounded — 5000 chars is a post, 50000 is storage abuse.
+    await assertFails(setDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p7'), {
+      ...base, content: 'a'.repeat(50_000),
+    }));
+    // And content must actually be a string.
+    await assertFails(setDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p8'), {
+      ...base, content: 12345,
+    }));
+  });
+
   it('allows a genuine reply, including a threaded one', async () => {
     await assertSucceeds(setDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), {
       userId: BOB, userDisplayName: 'Bob', content: 'nice', likes: [], replyCount: 0, replyTo: 'p1', createdAt: new Date(),
@@ -303,6 +326,21 @@ describe('channels', () => {
     await assertSucceeds(setDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r2'), {
       userId: ALICE, userDisplayName: 'Alice', content: 'thanks', likes: [], replyCount: 0, replyTo: 'p1', parentReplyId: 'r1', createdAt: new Date(),
     }));
+  });
+});
+
+// ── PR wall media ────────────────────────────────────────────────────────────
+
+describe('prPosts media', () => {
+  const base = { userId: BOB, moderationStatus: 'pending', likedBy: [], likeCount: 0, createdAt: new Date() };
+  it('accepts https media of a known type', async () => {
+    await assertSucceeds(setDoc(doc(asBob(), 'prPosts', 'pr-ok'), {
+      ...base, mediaUrl: 'https://pub-123.r2.dev/prPosts/bob/lift.mp4', mediaType: 'video',
+    }));
+  });
+  it('refuses a non-https mediaUrl and an unknown mediaType', async () => {
+    await assertFails(setDoc(doc(asBob(), 'prPosts', 'pr-bad1'), { ...base, mediaUrl: 'javascript:alert(1)', mediaType: 'image' }));
+    await assertFails(setDoc(doc(asBob(), 'prPosts', 'pr-bad2'), { ...base, mediaUrl: 'https://x.r2.dev/a.gif', mediaType: 'gif' }));
   });
 });
 

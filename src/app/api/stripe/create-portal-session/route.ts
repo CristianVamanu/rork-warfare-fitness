@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from 'firebase-admin/auth';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
+import { resolveAccountEmail } from '@/lib/accountEmail';
 import { getStripe } from '@/lib/stripe';
 import { getOrCreateStripeCustomer } from '@/lib/stripeCustomer';
 
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
     try {
       customerId = await getOrCreateStripeCustomer({
         db, stripe, uid,
-        email: userSnap.data()?.email as string | undefined,
+        email: await resolveAccountEmail(uid, userSnap.data()?.email as string | undefined),
         name: userSnap.data()?.displayName as string | undefined,
       });
     } catch (err) {

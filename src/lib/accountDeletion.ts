@@ -1,4 +1,5 @@
 import { getAuth } from 'firebase-admin/auth';
+import { resolveAccountEmail } from './accountEmail';
 import { getStorage } from 'firebase-admin/storage';
 import type { App } from 'firebase-admin/app';
 import type { Firestore } from 'firebase-admin/firestore';
@@ -107,7 +108,7 @@ export async function deleteUserCompletely(app: App, db: Firestore, uid: string)
     const userSnap = await db.collection('users').doc(uid).get();
     const membershipSubId = userSnap.data()?.membership?.stripeSubscriptionId as string | undefined;
     const coachingSubId = userSnap.data()?.coaching?.stripeSubscriptionId as string | undefined;
-    const email = userSnap.data()?.email as string | undefined;
+    const email = await resolveAccountEmail(uid, userSnap.data()?.email as string | undefined);
     const subIds = Array.from(new Set([membershipSubId, coachingSubId].filter((id): id is string => !!id)));
     if (subIds.length > 0) {
       const stripe = await getStripe();

@@ -1,5 +1,6 @@
 import type Stripe from 'stripe';
 import type { Firestore } from 'firebase-admin/firestore';
+import { resolveAccountEmail } from './accountEmail';
 
 /**
  * One Stripe Customer per Warfare Fitness account, resolved once and reused.
@@ -58,7 +59,9 @@ export async function getOrCreateStripeCustomer(opts: {
   // opens THEIR invoices, card and cancel button. users/{uid}.email is written
   // only by the server (signup, and change-email, which rejects an address
   // already registered), so it is the account's real address.
-  const accountEmail = (data.email as string | undefined) || undefined;
+  // Auth first, document second — see accountEmail.ts for why the document
+  // alone stopped being safe once recoverEmail was handled.
+  const accountEmail = await resolveAccountEmail(opts.uid, data.email as string | undefined);
   // Only ever used for CREATING a customer that doesn't exist yet, and only
   // when the account somehow has no email of its own — it decides where
   // receipts go, so a caller-supplied value must not win over the real one.
