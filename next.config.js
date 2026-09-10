@@ -260,6 +260,35 @@ const withPWA = require('next-pwa')({
 // clone undercounts commits, making the "version" look stale even on a
 // perfectly up-to-date deploy). The time component means multiple deploys
 // on the same day still get distinct, naturally-ordered version strings.
+/**
+ * The commit this bundle was BUILT from, resolved at build time and inlined
+ * by Next's `env` config so it travels with the build.
+ *
+ * /api/health used to claim it reported "the SHA baked in at build time" and
+ * simply didn't — the field never existed. The only deployment signal was
+ * .deploy-status.json, which the webhook writes on FAILURE and deploy.sh
+ * writes on success, so a run that failed after pm2 had already reloaded left
+ * a stale failure marker describing a deploy whose code was, in fact, live.
+ * Asking "what is actually running?" then had no honest answer short of an
+ * SSH session, and the wrong answer was the one everybody read.
+ *
+ * Resolved here rather than read from git at request time on purpose: at
+ * runtime `git rev-parse HEAD` reports whatever the checkout has moved on to,
+ * which is exactly the lie this is meant to end.
+ */
+function getBuildSha() {
+  if (process.env.BUILD_SHA) return process.env.BUILD_SHA;
+  try {
+    return require('child_process')
+      .execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    // Building from a tarball or a shallow copy with no git metadata.
+    return 'unknown';
+  }
+}
+
 function getAppVersion() {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -313,6 +342,7 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   env: {
     NEXT_PUBLIC_APP_VERSION: getAppVersion(),
+    BUILD_SHA: getBuildSha(),
   },
   // Mark all pages as dynamic to avoid SSR with Firebase
   output: undefined,

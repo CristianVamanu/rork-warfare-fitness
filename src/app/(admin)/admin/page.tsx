@@ -2741,23 +2741,28 @@ function AdminPageInner() {
       {/* ── Clients ───────────────────────────────────────────────────────────── */}
       {tab === 'clients' && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          {/* Stacks on a phone. All three of these — the count, a three-way
+              filter and Export CSV — used to share one flex row with no wrap
+              rules, so at 400px the count broke across two lines and collided
+              with the segmented control. Row only from sm: up, where there is
+              actually width for it. */}
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
             {/* Says what is LOADED, not what exists — the read is capped, and a
                 count that quietly means "the first 500" is how an admin ends
                 up believing a client vanished. */}
-            <p className="text-text-secondary text-sm">
+            <p className="text-text-secondary text-sm whitespace-nowrap">
               {clients.length} client{clients.length !== 1 ? 's' : ''}
               {adminCount > 0 && <> · {adminCount} admin{adminCount !== 1 ? 's' : ''}</>}
               {totalUsers !== null && totalUsers > users.length && (
                 <span className="text-text-tertiary"> · {users.length} loaded of {totalUsers}</span>
               )}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {/* Staff accounts are the ones you most need to be able to find
                   and revoke, so there is a direct filter for them rather than
                   leaving them mixed into a long list. */}
               {adminCount > 0 && (
-                <div className="flex rounded-lg border border-white/10 overflow-hidden">
+                <div className="flex rounded-lg border border-white/10 overflow-hidden flex-1 sm:flex-none">
                   {([
                     ['all', `All (${users.length})`],
                     ['clients', `Clients (${clients.length})`],
@@ -2767,7 +2772,7 @@ function AdminPageInner() {
                       key={id}
                       onClick={() => { setClientRoleFilter(id); setClientsPage(1); }}
                       aria-pressed={clientRoleFilter === id}
-                      className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                      className={`flex-1 sm:flex-none px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
                         clientRoleFilter === id ? 'bg-accent text-black' : 'text-text-secondary hover:text-white'
                       }`}
                     >
@@ -2787,7 +2792,7 @@ function AdminPageInner() {
                 </select>
               )}
               {clients.length > 0 && (
-                <Button size="sm" variant="ghost" onClick={handleExportClientsCsv}>
+                <Button size="sm" variant="ghost" onClick={handleExportClientsCsv} className="whitespace-nowrap">
                   <Download className="w-3.5 h-3.5" /> Export CSV
                 </Button>
               )}

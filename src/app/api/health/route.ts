@@ -30,6 +30,18 @@ export async function GET() {
   return NextResponse.json(
     {
       status: ok ? 'ok' : 'deploy-failed',
+      // The commit THIS RUNNING BUILD was compiled from, inlined at build
+      // time by next.config.js. This is the field that answers "is my change
+      // live?" — and the one this route's own docstring promised for months
+      // while never actually returning it.
+      //
+      // It is deliberately independent of `deploy` below. The marker is
+      // written by deploy.sh on success and by the webhook listener on
+      // failure, so a deploy that failed AFTER pm2 reloaded leaves a failure
+      // marker sitting on top of code that is genuinely serving. When these
+      // two disagree, sha is the one telling the truth about what is running;
+      // deploy tells you how the last attempt reported itself.
+      sha: process.env.BUILD_SHA ?? 'unknown',
       deploy,
       uptimeSeconds: Math.round(process.uptime()),
       now: new Date().toISOString(),
