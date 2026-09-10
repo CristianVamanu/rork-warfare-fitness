@@ -2,22 +2,33 @@
 export const dynamic = 'force-dynamic';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { BrandSplash } from '@/components/ui/BrandSplash';
+
+/**
+ * Firebase's email-action handler must run for SIGNED-IN users too — email
+ * verification is the whole point of it, and by then the member already has a
+ * session. Bouncing them to /dashboard like every other auth page would mean
+ * clicking "confirm your email" silently did nothing at all, and the account
+ * stayed unverified with no explanation anywhere.
+ */
+const RUNS_WHILE_SIGNED_IN = ['/auth/action'];
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const allowSignedIn = RUNS_WHILE_SIGNED_IN.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading && user && !allowSignedIn) {
       router.replace('/dashboard');
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, allowSignedIn]);
 
   if (loading) return <BrandSplash />;
-  if (user) return null;
+  if (user && !allowSignedIn) return null;
 
   return (
     <div className="relative isolate min-h-screen bg-background flex items-center justify-center px-4 overflow-hidden">
