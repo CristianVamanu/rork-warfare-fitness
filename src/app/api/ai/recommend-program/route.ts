@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { MOCK_PROGRAMS, pickBestProgram } from '@/lib/programs';
+import { buildProgramMarketing } from '@/lib/programMarketing';
 import type { Program } from '@/types';
 
 /**
@@ -53,6 +54,12 @@ export async function POST(req: NextRequest) {
         description: program.description,
         weeks: program.weeks,
         daysPerWeek: program.daysPerWeek,
+        // The same sales copy the public /programs pages use — hook, stats,
+        // who it's for — so the onboarding reveal can lead with a line and
+        // three numbers instead of the entire coaching description. Built
+        // here rather than shipping the whole program down: a phased program
+        // is 70-odd exercises, and the reveal needs none of them.
+        marketing: buildProgramMarketing(program),
       },
     });
   } catch (err: unknown) {

@@ -19,6 +19,7 @@ import { trackEvent } from '@/lib/analytics';
 import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
 import { lbsToKg, kgToLbs, cmToFtIn, ftInToCm } from '@/lib/utils';
 import { MOCK_PROGRAMS } from '@/lib/programs';
+import { buildProgramMarketing, type ProgramMarketing } from '@/lib/programMarketing';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FullPageSpinner } from '@/components/ui/Spinner';
@@ -161,7 +162,7 @@ function OnboardingPageInner() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'generating' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [revealProgram, setRevealProgram] = useState<{ name: string; description: string; weeks: number; daysPerWeek: number } | null>(null);
+  const [revealProgram, setRevealProgram] = useState<{ name: string; description: string; weeks: number; daysPerWeek: number; marketing?: ProgramMarketing } | null>(null);
   const [revealNutrition, setRevealNutrition] = useState<(NutritionTargets & { goalLabel: string; rationale: string }) | null>(null);
   const [revealTimeline, setRevealTimeline] = useState<WeightGoalTimeline | null>(null);
   // Snapshots taken once, at mount — whether this visitor already answered
@@ -473,7 +474,7 @@ function OnboardingPageInner() {
       // match against the seed library if the request itself fails, so
       // onboarding never blocks a new user from finishing.
       const programTask = (async () => {
-        let program: { id: string; name: string; description: string; weeks: number; daysPerWeek: number } | null = null;
+        let program: { id: string; name: string; description: string; weeks: number; daysPerWeek: number; marketing?: ProgramMarketing } | null = null;
 
         // If this visitor picked a specific program on the landing page's
         // catalog, honor that choice as-is instead of letting the AI matcher
@@ -482,7 +483,7 @@ function OnboardingPageInner() {
           try {
             const resolved = await resolveProgram(preselectedProgramId);
             if (resolved) {
-              program = { id: resolved.id, name: resolved.name, description: resolved.description, weeks: resolved.weeks, daysPerWeek: resolved.daysPerWeek };
+              program = { id: resolved.id, name: resolved.name, description: resolved.description, weeks: resolved.weeks, daysPerWeek: resolved.daysPerWeek, marketing: buildProgramMarketing(resolved) };
             }
           } catch {
             // fall through to AI matching / local fallback below
@@ -506,7 +507,8 @@ function OnboardingPageInner() {
             const { program: matched } = await res.json();
             program = matched;
           } catch {
-            program = fallbackRecommendProgram(timeline?.weeksToGoal ?? undefined);
+            const seed = fallbackRecommendProgram(timeline?.weeksToGoal ?? undefined);
+            program = { id: seed.id, name: seed.name, description: seed.description, weeks: seed.weeks, daysPerWeek: seed.daysPerWeek, marketing: buildProgramMarketing(seed) };
           }
         }
         const finalProgram = program!;
@@ -726,19 +728,55 @@ function OnboardingPageInner() {
           {revealProgram ? (
             <>
               <p className="text-xs font-bold text-accent uppercase tracking-wide mb-2">Your Personalized Plan</p>
-              <h1 className="text-2xl font-black text-white mb-2">{revealProgram.name}</h1>
-              <p className="text-text-secondary text-sm mb-5 leading-relaxed whitespace-pre-line">{revealProgram.description}</p>
-              <div className="flex items-center justify-center gap-6 mb-6">
-                <div>
-                  <p className="text-2xl font-black text-white">{revealProgram.weeks}</p>
-                  <p className="text-xs text-text-secondary">weeks</p>
-                </div>
-                <div className="w-px h-8 bg-white/10" />
-                <div>
-                  <p className="text-2xl font-black text-white">{revealProgram.daysPerWeek}</p>
-                  <p className="text-xs text-text-secondary">days/week</p>
-                </div>
-              </div>
+              <h1 className="text-2xl font-black text-white mb-3">{revealProgram.name}</h1>
+              {/* This screen used to print the ENTIRE coaching description —
+                  six paragraphs of tempo prescriptions and breathing cues —
+                  at the one moment a new member is deciding whether to
+                  continue. It is the highest-leverage screen in the funnel
+                  and it read like a textbook. Now: the same hook, stats and
+                  "who it's for" the public program pages lead with, with the
+                  full brief one tap away for anyone who wants it. */}
+              {revealProgram.marketing ? (
+                <>
+                  <p className="text-white/90 text-base font-medium leading-snug mb-5">{revealProgram.marketing.hook}</p>
+                  <div className="grid grid-cols-4 gap-2 mb-5">
+                    {revealProgram.marketing.stats.map((st) => (
+                      <div key={st.label} className="rounded-xl border border-white/8 bg-surface/70 p-2.5">
+                        <p className="text-base font-black text-white leading-tight">{st.value}</p>
+                        <p className="text-[10px] uppercase tracking-wider text-text-tertiary mt-0.5">{st.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-text-secondary text-sm leading-relaxed mb-3 line-clamp-4">
+                    {revealProgram.marketing.whoFor.split('\n')[0]}
+                  </p>
+                  <details className="mb-6 text-left group">
+                    <summary className="cursor-pointer list-none text-xs font-semibold text-accent text-center hover:underline">
+                      Read the full program brief
+                    </summary>
+                    <p className="text-text-secondary text-sm leading-relaxed whitespace-pre-line mt-3 max-h-64 overflow-y-auto pr-1">
+                      {revealProgram.description}
+                    </p>
+                  </details>
+                </>
+              ) : (
+                <>
+                  {/* No marketing object — an older client payload. Keep it
+                      readable rather than blank: first paragraph only. */}
+                  <p className="text-text-secondary text-sm mb-5 leading-relaxed line-clamp-4">{revealProgram.description.split('\n')[0]}</p>
+                  <div className="flex items-center justify-center gap-6 mb-6">
+                    <div>
+                      <p className="text-2xl font-black text-white">{revealProgram.weeks}</p>
+                      <p className="text-xs text-text-secondary">weeks</p>
+                    </div>
+                    <div className="w-px h-8 bg-white/10" />
+                    <div>
+                      <p className="text-2xl font-black text-white">{revealProgram.daysPerWeek}</p>
+                      <p className="text-xs text-text-secondary">days/week</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           ) : (
             <>
