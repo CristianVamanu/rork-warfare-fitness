@@ -1026,10 +1026,36 @@ function AdminPageInner() {
     finally { setMembershipLoading(false); }
   }
 
+  /**
+   * Purges the cached public pages after a pricing or trial change.
+   *
+   * /programs and /programs/[slug] are statically rendered on a one-hour
+   * revalidate window and they now print the LIVE trial terms — "$1.00 for 7
+   * days, then from $19.00/mo". Without this, switching Paid Trial on (or
+   * changing a price) left those pages advertising the old terms for up to an
+   * hour, to cold search traffic, which is precisely the false-advertising
+   * problem stating the real terms was meant to solve.
+   *
+   * Fire-and-forget, same as the programs tab's copy: a stale page for an hour
+   * is a small problem, a save that appears to fail because a cache purge
+   * failed is a worse one.
+   */
+  async function revalidatePublicPages() {
+    try {
+      if (!user) return;
+      const token = await getIdToken(user);
+      await fetch('/api/admin/revalidate-programs', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch { /* the 1h window is the fallback */ }
+  }
+
   async function handleSaveMembership() {
     setSavingMembership(true);
     try {
       await saveMembershipConfig(membership);
+      void revalidatePublicPages();
       toast.success('Membership settings saved');
     } catch { toast.error('Failed to save membership settings'); }
     finally { setSavingMembership(false); }
@@ -1239,6 +1265,7 @@ function AdminPageInner() {
         : [...membershipPlans, plan];
       await saveMembershipPlans(updated);
       setMembershipPlans(updated);
+      void revalidatePublicPages();
       setShowMembershipPlanForm(false);
       setEditingMembershipPlan(null);
       setMembershipPlanForm({ name: '', description: '', priceMonthly: '', price3mo: '', price6mo: '', price12mo: '', currency: 'USD', features: '', active: true, featureAccess: [] });
@@ -1257,6 +1284,7 @@ function AdminPageInner() {
       const updated = membershipPlans.map(p => ({ ...p, mostPopular: p.id === planId }));
       await saveMembershipPlans(updated);
       setMembershipPlans(updated);
+      void revalidatePublicPages();
     } catch { toast.error('Failed to update Most Popular plan'); }
   }
 
@@ -1266,6 +1294,7 @@ function AdminPageInner() {
       const updated = membershipPlans.filter(p => p.id !== plan.id);
       await saveMembershipPlans(updated);
       setMembershipPlans(updated);
+      void revalidatePublicPages();
       toast.success('Plan deleted');
     } catch { toast.error('Failed to delete plan'); }
   }
