@@ -255,9 +255,24 @@ ENV_FILE=""
 if [ -f .env.production ]; then ENV_FILE=".env.production"
 elif [ -f .env ]; then ENV_FILE=".env"
 fi
+
+# Reads one variable out of the env file, or prints nothing.
+#
+# This exists because of `set -euo pipefail` at the top of this script. A bare
+#     VALUE="$(grep -E '^FOO=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
+# EXITS THE WHOLE SCRIPT when FOO is simply absent: grep returns 1, pipefail
+# propagates it out of the pipeline, the assignment inherits it, and set -e
+# kills the deploy. For a genuinely optional variable that is catastrophic —
+# and it is silent, because grep prints nothing to stderr when it finds
+# nothing. The `|| true` is the entire point of this function; do not remove
+# it, and do not go back to inlining the pipeline at the call sites.
+env_value() {
+  grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d '=' -f2- || true
+}
+
 if [ -n "$ENV_FILE" ]; then
-  APP_CRON_SECRET="$(grep -E '^CRON_SECRET=' "$ENV_FILE" | head -1 | cut -d '=' -f2-)"
-  APP_URL="$(grep -E '^NEXT_PUBLIC_APP_URL=' "$ENV_FILE" | head -1 | cut -d '=' -f2-)"
+  APP_CRON_SECRET="$(env_value CRON_SECRET)"
+  APP_URL="$(env_value NEXT_PUBLIC_APP_URL)"
   if [ -n "$APP_CRON_SECRET" ] && [ -n "$APP_URL" ]; then
     # Cron jobs call the app on LOCALHOST, not the public domain.
     #
@@ -268,7 +283,12 @@ if [ -n "$ENV_FILE" ]; then
     # forever while the export itself was working fine. The app's own
     # self-calls (notifications -> push/send) already do this for the same
     # reason. INTERNAL_APP_URL overrides it if the app isn't on :3000.
-    INTERNAL_URL="$(grep -E '^INTERNAL_APP_URL=' "$ENV_FILE" | head -1 | cut -d '=' -f2-)"
+    # INTERNAL_APP_URL is OPTIONAL — the :- default below is the normal case,
+    # not the exception. Read through env_value precisely because it is
+    # usually absent: for four days its absence killed this script on this
+    # line, one step after pm2 had already reloaded, so every deploy shipped
+    # correctly and then reported itself as failed.
+    INTERNAL_URL="$(env_value INTERNAL_APP_URL)"
     INTERNAL_URL="${INTERNAL_URL:-http://localhost:3000}"
     CRON_CMD="curl -fsS --max-time 600 -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${INTERNAL_URL%/}/api/notifications/process\" >/dev/null 2>&1 ${CRON_MARKER}"
     # Daily reconciliation of Firestore membership state against Stripe. The
