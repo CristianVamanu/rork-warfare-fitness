@@ -353,3 +353,122 @@ describe('unauthenticated access', () => {
     await assertFails(getDoc(doc(asAnon(), 'leaderboardPublic', ALICE)));
   });
 });
+
+// ── The plan paywall, enforced server-side ──────────────────────────────────
+//
+// The client decides what to SHOW; these rules decide what may actually be
+// written. Before this, any active subscription satisfied the program gate,
+// so a member on the entry plan could switch into any premium program by
+// writing to Firestore directly and the tier existed only in the UI.
+
+describe('program access by plan', () => {
+  const CONQUER = ['nutrition-ai'];                   // no 'premium-programs'
+  const VANGUARD = ['nutrition-ai', 'premium-programs'];
+
+  const enrol = (programId: string) => ({
+    activeProgram: {
+      programId, programName: programId, enrolledAt: new Date(),
+      completedWorkouts: 0, totalWorkouts: 36,
+    },
+  });
+
+  /**
+   * Alice, paying on `planId`, already training `on`, with the entitlement
+   * map published exactly as saveMembershipPlans() writes it.
+   */
+  async function member(
+    planId: string | undefined,
+    entitlements: Record<string, string[]> | undefined,
+    on = 'sas',
+  ) {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'users', ALICE), {
+        role: 'user', displayName: 'Alice',
+        membership: { status: 'active', ...(planId ? { planId } : {}) },
+        ...enrol(on),
+      });
+      // Premium, and free of charge — so only the members-only gate is in play.
+      await setDoc(doc(db, 'programs', 'sas'), { name: 'SAS', isPremium: true, price: 0 });
+      await setDoc(doc(db, 'programs', 'alpha'), { name: 'Alpha Bulk', isPremium: true, price: 0 });
+      await setDoc(doc(db, 'programs', 'free'), { name: 'Freebie', isPremium: false, price: 0 });
+      if (entitlements) {
+        await setDoc(doc(db, 'config', 'planEntitlements'), { membership: entitlements });
+      }
+      // Trial off, so nothing passes on the trial branch by accident.
+      await setDoc(doc(db, 'config', 'membership'), { enabled: true, trialDays: 0 });
+    });
+  }
+
+  it('entry plan: may keep training the program they were assigned', async () => {
+    await member('conquer', { conquer: CONQUER });
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), {
+      'activeProgram.completedWorkouts': 1,
+      'activeProgram.lastCompletedDayIndex': 0,
+    }));
+  });
+
+  it('entry plan: may NOT switch into another premium program', async () => {
+    // The hole this closes. The app shows "Upgrade to unlock"; this is what
+    // happens when someone skips the app and writes the document themselves.
+    await member('conquer', { conquer: CONQUER });
+    await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), enrol('alpha')));
+  });
+
+  it('entry plan: may still switch to a non-premium program', async () => {
+    await member('conquer', { conquer: CONQUER });
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), enrol('free')));
+  });
+
+  it('full plan: may switch into any premium program', async () => {
+    await member('vanguard', { conquer: CONQUER, vanguard: VANGUARD });
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), enrol('alpha')));
+  });
+
+  it('a plan configured with no restrictions is unrestricted', async () => {
+    await member('openplan', { openplan: [] });
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), enrol('alpha')));
+  });
+
+  it('fails OPEN when the map has not been published yet', async () => {
+    // Nobody already paying may be locked out the moment this ships, before
+    // the plans have been saved once.
+    await member('conquer', undefined);
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), enrol('alpha')));
+  });
+
+  it('fails OPEN for a plan missing from the map', async () => {
+    await member('renamed-plan', { conquer: CONQUER });
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), enrol('alpha')));
+  });
+
+  it('an admin comp with no plan id keeps full access', async () => {
+    await member(undefined, { conquer: CONQUER });
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), enrol('alpha')));
+  });
+
+  it('a purchased program is allowed whatever the plan says', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'users', ALICE), {
+        role: 'user', displayName: 'Alice',
+        membership: { status: 'active', planId: 'conquer' },
+        purchasedProgramIds: ['alpha'],
+        ...enrol('sas'),
+      });
+      await setDoc(doc(db, 'programs', 'alpha'), { name: 'Alpha Bulk', isPremium: true, price: 0 });
+      await setDoc(doc(db, 'config', 'planEntitlements'), { membership: { conquer: CONQUER } });
+      await setDoc(doc(db, 'config', 'membership'), { enabled: true, trialDays: 0 });
+    });
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), enrol('alpha')));
+  });
+
+  it('a member cannot publish entitlements for themselves', async () => {
+    // The map is only trustworthy because config is admin-write-only.
+    await member('conquer', { conquer: CONQUER });
+    await assertFails(setDoc(doc(asAlice(), 'config', 'planEntitlements'), {
+      membership: { conquer: VANGUARD },
+    }));
+    await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), {
+      'membership.planId': 'vanguard',
+    }));
+  });
+});

@@ -203,12 +203,61 @@ service cloud.firestore {
     // gate too — so a membership lapsing mid-program silently froze that
     // user's progress on every future workout, even though nothing about
     // their enrollment itself changed.
+    // Does the plan this member pays for cover the whole program library, or
+    // only the one program they were assigned?
+    //
+    // Answered from `config/planEntitlements`, a plain map of
+    // planId -> unlocked tools that saveMembershipPlans()/saveCoachingPlans()
+    // rewrite every time plans are saved. Rules cannot search the plans
+    // themselves: those live in one document as an ARRAY, and the rules
+    // language has no find or loop. A map they can index directly.
+    //
+    // Rebuilt by the same call that saves the plans, so what the app shows
+    // and what these rules enforce cannot drift apart — the alternative,
+    // copying entitlements onto the user at purchase time, needs a manual
+    // re-sync after every plan edit.
+    //
+    // Anything unknown means UNRESTRICTED: no plan id, no map published yet,
+    // or a plan absent from the map. That direction is deliberate. Failing
+    // open costs a member access they did not pay for; failing closed locks
+    // a paying member out of the training they did pay for, and one of those
+    // is a refund and a bad review.
+    //
+    // Only read on an actual program SWITCH — every ordinary write, logging
+    // a set included, short-circuits on the unchanged-programId clause below
+    // before reaching this.
+    function planEntitlements(field) {
+      let planId = resource.data.get(field, {}).get('planId', null);
+      return planId == null || !exists(/databases/$(database)/documents/config/planEntitlements)
+        ? null
+        : get(/databases/$(database)/documents/config/planEntitlements).data.get(field, {}).get(planId, null);
+    }
+
+    function planCoversLibrary(field) {
+      let access = planEntitlements(field);
+      return access == null || access.size() == 0 || access.hasAny(['premium-programs']);
+    }
+
+    // Which program a member may make active.
+    //
+    // The entry tier sells "the one program onboarding matched you to"; the
+    // upgrade sells the rest of the library. Before this, ANY active
+    // subscription satisfied this gate, so a member on the cheap plan could
+    // switch into any premium program by writing to Firestore directly —
+    // the paywall existed only in the app, and the client is not an
+    // authorization boundary.
+    //
+    // Staying on the same program is always allowed (that clause is what
+    // lets progress be written on every completed session), as is a program
+    // they have actually purchased, a free/non-premium one, or any program
+    // during the trial — onboarding enrols a brand-new user BEFORE they ever
+    // reach Stripe, so that path must stay open or signup breaks outright.
     function premiumEnrollAllowed() {
       return !('activeProgram' in request.resource.data.diff(resource.data).affectedKeys())
         || !('programId' in request.resource.data.activeProgram)
         || request.resource.data.activeProgram.programId == resource.data.get('activeProgram', {}).get('programId', null)
-        || resource.data.get('membership', {}).get('status', 'none') == 'active'
-        || resource.data.get('coaching', {}).get('status', 'none') == 'active'
+        || (resource.data.get('membership', {}).get('status', 'none') == 'active' && planCoversLibrary('membership'))
+        || (resource.data.get('coaching', {}).get('status', 'none') == 'active' && planCoversLibrary('coaching'))
         // Having actually bought this program satisfies BOTH gates on its
         // own. This used to only satisfy the price gate, while the
         // members-only gate still demanded an active membership — so a

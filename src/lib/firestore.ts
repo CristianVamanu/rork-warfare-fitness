@@ -37,6 +37,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { stripUndefinedDeep } from './utils';
+import { buildEntitlementIndex } from './planEntitlements';
 import { matchExerciseNames } from './exerciseMatch';
 import type { UserGoals, CoachingPlan, ExerciseVideo, NutritionPlan } from '@/types';
 
@@ -1673,6 +1674,10 @@ export async function getMembershipPlans(): Promise<MembershipPlan[]> {
 
 export async function saveMembershipPlans(plans: MembershipPlan[]): Promise<void> {
   await setDoc(doc(db, 'config', 'membershipPlans'), { plans });
+  // Republish the id -> entitlements map the security rules read. Done here,
+  // in the same call that saves the plans, so the rules can never enforce a
+  // stale version of what a plan unlocks. See src/lib/planEntitlements.ts.
+  await setDoc(doc(db, 'config', 'planEntitlements'), { membership: buildEntitlementIndex(plans) }, { merge: true });
   clearMembershipCache();
 }
 
@@ -2555,6 +2560,7 @@ export async function getCoachingPlans(): Promise<CoachingPlan[]> {
 
 export async function saveCoachingPlans(plans: CoachingPlan[]): Promise<void> {
   await setDoc(doc(db, 'config', 'coachingPlans'), { plans });
+  await setDoc(doc(db, 'config', 'planEntitlements'), { coaching: buildEntitlementIndex(plans) }, { merge: true });
 }
 
 export async function assignCoachingPlan(userId: string, planId: string, planName: string): Promise<void> {
