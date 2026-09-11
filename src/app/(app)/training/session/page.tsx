@@ -64,6 +64,7 @@ interface ExState {
   hiitRounds: number;
   sets: SetState[];
   notes?: string;
+  rpe?: number;
   videoUrl?: string;
 }
 
@@ -156,9 +157,25 @@ function buildExState(exercises: Exercise[]): ExState[] {
       hiitRounds: ex.hiitRounds ?? 8,
       sets,
       notes: ex.notes,
+      rpe: ex.rpe,
       videoUrl: ex.videoUrl,
     };
   });
+}
+
+/**
+ * RPE in words.
+ *
+ * The number alone is jargon to anyone who has not been coached before, and
+ * this app's whole premise is that it coaches you. "Reps in reserve" is the
+ * clearest way to say it: how many more you could have done.
+ */
+function rpeMeaning(rpe: number): string {
+  if (rpe <= 6) return 'comfortable, 4+ reps left in the tank';
+  if (rpe <= 7) return 'moderate, about 3 reps left';
+  if (rpe <= 8) return 'hard, about 2 reps left';
+  if (rpe <= 9) return 'very hard, 1 rep left';
+  return 'maximum, nothing left';
 }
 
 // ─── Rest Timer Pill ─────────────────────────────────────────────────────────
@@ -1917,6 +1934,15 @@ function WorkoutSessionPageInner() {
                       : `${currentEx.targetSets} sets × ${currentEx.targetReps} reps${currentEx.restSeconds > 0 ? ` · ${currentEx.restSeconds}s rest` : ''}`
                     }
                   </p>
+                  {/* "RPE 8" means nothing to most people, so it is spelled
+                      out. Intensity is the instruction that decides whether a
+                      set builds anything, and until now the member never saw
+                      it even though the program always carried it. */}
+                  {typeof currentEx.rpe === 'number' && currentEx.rpe > 0 && !currentEx.isHiit && !currentEx.isDistance && (
+                    <p className="text-xs text-accent font-medium mt-0.5">
+                      Effort: RPE {currentEx.rpe}/10 — {rpeMeaning(currentEx.rpe)}
+                    </p>
+                  )}
                 </div>
                 <ExerciseInfoButton videoUrl={currentEx.videoUrl} tip={currentEx.notes} name={currentEx.name} />
               </div>

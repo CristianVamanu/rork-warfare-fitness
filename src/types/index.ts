@@ -526,6 +526,18 @@ export interface Exercise {
   sets: number;
   reps: number | string;
   restSeconds: number;
+  /**
+   * How hard the set should feel, 6-10 (Rate of Perceived Exertion).
+   *
+   * The admin builder has always had an RPE slider, the AI generator prompt
+   * has always asked for one, and both wrote it into the program document —
+   * but it was never on this type and the workout screen never showed it, so
+   * every member saw "4 sets x 8 reps" with no indication of whether that
+   * meant comfortable or close to failure. For strength work that is the most
+   * important instruction on the page, and it was being collected and thrown
+   * away at the last step.
+   */
+  rpe?: number;
   notes?: string;
   muscleGroup?: string;
   isCardio?: boolean;
