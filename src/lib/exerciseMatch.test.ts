@@ -59,10 +59,57 @@ describe('the specific arithmetic that caused this', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('treats equipment as mutually exclusive, not as agreement', () => {
+  it('treats equipment as part of the exercise, not as decoration', () => {
     const r = matchExerciseNames('Band Lateral Raise', 'Cable Lateral Raise');
-    expect(r.reason).toContain('contradictory');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain('different exercise');
   });
+});
+
+/**
+ * A first audit of the live catalogue flagged 115 pairings. Reading them
+ * showed a large share were the matcher's fault, not the data's: one-word
+ * spellings, verb forms and alternate spellings of the same movement. Each
+ * one below is a real pairing that was wrongly called a mismatch.
+ */
+describe('matchExerciseNames — spellings of the same movement', () => {
+  const samePairs: [string, string][] = [
+    ['Pullups', 'Pull Up'],
+    ['Pushups', 'Push Ups'],
+    ['Diamond Pushups', 'Diamond Push Up'],
+    ['Bench Dumbbell Flyes', 'Bench Dumbbell Fly'],
+    ['Standing Calf Raises', 'Standing Calf Rise'],
+    ['Wide-Grip Lat Pulldown', 'Wide Grip Lat Pull Down'],
+  ];
+
+  for (const [a, b] of samePairs) {
+    it(`accepts "${a}" → "${b}"`, () => {
+      const r = matchExerciseNames(a, b);
+      expect(r.ok, `refused with: ${r.reason}`).toBe(true);
+    });
+  }
+});
+
+/**
+ * The same audit offered these as REPLACEMENTS for a wrong clip. They are
+ * worse than what they would have replaced, and a bulk apply would have
+ * written every one of them in.
+ */
+describe('matchExerciseNames — refuses plausible-looking but wrong swaps', () => {
+  const wrongSwaps: [string, string][] = [
+    ['Dumbbell Floor Press', 'Dumbbell Shoulder Press'],
+    ['Barbell Rows', 'Barbell Upright Row'],
+    ['Hanging Knee Raises', 'Stretching Knee Raise'],
+    ['Dumbbell Overhead Tricep Extension', 'Dumbbell Lying Triceps Extension'],
+    ['Press-Ups', 'Kettlebell Sit Up Press'],
+    ['Seated Calf Raise', 'Lever Standing Calf Raise'],
+  ];
+
+  for (const [a, b] of wrongSwaps) {
+    it(`refuses "${a}" → "${b}"`, () => {
+      expect(matchExerciseNames(a, b).ok).toBe(false);
+    });
+  }
 });
 
 describe('tokenize', () => {
