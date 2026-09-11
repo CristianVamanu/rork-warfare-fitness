@@ -6,6 +6,7 @@ import { Lock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import { ACHIEVEMENT_DEFS, achievementProgress, achievementRemaining, type AchievementDef } from '@/lib/achievements';
 
 // Singular/plural unit per achievement category, for "2 workouts away" /
@@ -42,6 +43,9 @@ export default function AchievementsPage() {
   return (
     <div className="min-h-screen pb-24">
       <Header title="Achievements" showBack />
+      {/* See the habits page for why noTaste is set on gates with no
+          consumeAiTaste callback. */}
+      <PaywallGate feature="achievements" noTaste>
       <div className="px-4 pt-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-5">
         <Card className="p-4 flex items-center justify-between">
           <div>
@@ -100,6 +104,7 @@ export default function AchievementsPage() {
           </div>
         ))}
       </div>
+      </PaywallGate>
     </div>
   );
 }

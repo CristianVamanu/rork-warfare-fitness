@@ -11,6 +11,7 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import type { PtTestResult } from '@/types';
 
 // Published (unclassified) elite-unit selection PT standards, sourced from
@@ -365,6 +366,8 @@ export default function PtTestPage() {
   return (
     <div>
       <Header title="PT Test" showBack />
+      {/* See the habits page for why noTaste is set here. */}
+      <PaywallGate feature="pt-test" noTaste>
       <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-5">
         <div className="flex flex-wrap gap-2">
           <button
@@ -505,6 +508,7 @@ export default function PtTestPage() {
         )}
         {loading && <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-16 rounded-2xl" />)}</div>}
       </div>
+      </PaywallGate>
     </div>
   );
 }

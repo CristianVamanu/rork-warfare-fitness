@@ -12,6 +12,7 @@ import { toggleHabit, getRecentHabitLogs } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import { HABIT_KEYS, type HabitKey, type HabitLog } from '@/types';
 
 const HABIT_META: Record<HabitKey, { label: string; icon: React.ElementType; color: string }> = {
@@ -104,6 +105,11 @@ export default function HabitsPage() {
   return (
     <div className="min-h-screen pb-24">
       <Header title="Habits" showBack />
+      {/* Gated by the 'habits' entitlement so a plan can include or exclude
+          it, the same way quests and breathing already are. noTaste: there
+          is no consumeAiTaste callback here, so without it the taste banner
+          would show forever and the gate would never actually close. */}
+      <PaywallGate feature="habits" noTaste>
       <div className="px-4 pt-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-4">
         <Card className="p-4 flex items-center justify-between">
           <div>
@@ -186,6 +192,7 @@ export default function HabitsPage() {
           </Card>
         )}
       </div>
+      </PaywallGate>
     </div>
   );
 }

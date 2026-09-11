@@ -16,6 +16,7 @@ import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
 import { getIdToken } from 'firebase/auth';
 import { DEFAULT_ORG_DAILY_LIMIT } from '@/lib/orgAiLimit';
+import { GATED_FEATURES } from '@/lib/gatedFeatures';
 import { uploadVideo, deleteVideo, resolveStorageProvider, DEFAULT_STORAGE_PROVIDER, type StorageProvider } from '@/lib/uploadVideo';
 import { storageHostOf, storageHostLabel } from '@/lib/storageHost';
 import { extractVideoThumbnail, extractVideoThumbnailFromUrl } from '@/lib/videoThumbnail';
@@ -76,30 +77,14 @@ type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'commu
 // PaywallGate/useFeatureAccess check against on the gated pages
 // themselves (community, quests, breathing pages; the PR wall
 // within community; FastingWidget on the dashboard).
-const TOOL_ACCESS_OPTIONS = [
-  { id: 'barcode', label: 'Barcode Scanner' },
-  { id: 'nutrition-ai', label: 'AI Food Analyzer' },
-  { id: 'meal-planner', label: 'AI Meal Planner' },
-  { id: 'premium-programs', label: 'Premium Training Plans' },
-  { id: 'community', label: 'Community' },
-  { id: 'pr-wall', label: 'PR Wall' },
-  { id: 'quests', label: 'Quests & Achievements' },
-  { id: 'fasting', label: 'Fasting Timer' },
-  { id: 'breathing', label: 'Breathing Exercises' },
-] as const;
-
-const LOCKABLE_FEATURE_OPTIONS = [
-  { id: 'barcode', label: 'Barcode Scanner', desc: 'Nutrition lookup via product barcode' },
-  { id: 'nutrition-ai', label: 'AI Food Analyzer', desc: 'Photo-based nutrition analysis' },
-  { id: 'meal-planner', label: 'AI Meal Planner', desc: 'Generates a full daily meal plan' },
-  { id: 'scan-and-go', label: 'Scan & Go', desc: 'Photo-based workout builder from gym equipment' },
-  { id: 'premium-programs', label: 'Premium Training Plans', desc: 'Programs marked as Premium require membership' },
-  { id: 'community', label: 'Community', desc: 'Channels — browsing and posting' },
-  { id: 'pr-wall', label: 'PR Wall', desc: 'Personal-record posts feed' },
-  { id: 'quests', label: 'Quests & Achievements', desc: 'Quest tracking and achievement badges' },
-  { id: 'fasting', label: 'Fasting Timer', desc: 'Intermittent fasting tracker on the dashboard' },
-  { id: 'breathing', label: 'Breathing Exercises', desc: 'Guided breathing sessions' },
-] as const;
+// Both gating lists come from ONE registry (src/lib/gatedFeatures.ts). They
+// used to be two hand-written arrays that disagreed with each other and with
+// the code doing the enforcing: Scan & Go, Coach Chat and Daily Tip were all
+// checked server-side but had no per-plan checkbox, and since featureAccess
+// is an allowlist, any plan that restricted anything locked those three with
+// no way to grant them back.
+const TOOL_ACCESS_OPTIONS = GATED_FEATURES;
+const LOCKABLE_FEATURE_OPTIONS = GATED_FEATURES;
 
 interface SecretStatusUI {
   key: string;
