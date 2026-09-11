@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { startFasting, stopFasting } from '@/lib/firestore';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { CircularProgress } from '@/components/ui/CircularProgress';
@@ -99,15 +100,15 @@ export function FastingWidget() {
 
   if (accessLoaded && fastingLocked) {
     return (
-      <div className="bg-surface border border-white/10 p-3.5 flex items-center gap-3.5 opacity-70">
-        <div className="w-10 h-10 bg-blue-400/10 flex items-center justify-center flex-shrink-0">
-          <Lock className="w-5 h-5 text-blue-400" strokeWidth={1.75} />
+      <Card className="p-4 flex items-center gap-3 opacity-70">
+        <div className="p-2.5 rounded-xl bg-blue-400/10">
+          <Lock className="w-5 h-5 text-blue-400" />
         </div>
-        <div className="flex-1 min-w-0 space-y-0.5">
-          <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-text-tertiary">Fasting</span>
-          <p className="text-sm font-bold text-white">Included on select plans</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-white">Fasting</p>
+          <p className="text-xs text-text-secondary">Included on select plans</p>
         </div>
-      </div>
+      </Card>
     );
   }
 
@@ -115,17 +116,15 @@ export function FastingWidget() {
     return (
       <>
         <button onClick={() => setStartModal(true)} className="w-full text-left">
-          <div className="bg-surface border border-white/10 hover:border-accent/30 transition-colors p-3.5 flex items-center gap-3.5">
-            <div className="w-10 h-10 bg-blue-400/10 flex items-center justify-center flex-shrink-0">
-              <Timer className="w-5 h-5 text-blue-400" strokeWidth={1.75} />
+          <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+            <div className="p-2.5 rounded-xl bg-blue-400/10">
+              <Timer className="w-5 h-5 text-blue-400" />
             </div>
-            <div className="flex-1 min-w-0 space-y-0.5">
-              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-text-tertiary">Fasting</span>
-              <p className="text-sm font-bold text-white">No active fast</p>
-              <p className="text-[11px] text-text-secondary">Tap to start</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">Fasting</p>
+              <p className="text-xs text-text-secondary">Tap to start a fast</p>
             </div>
-            <span className="font-mono text-[11px] text-text-tertiary flex-shrink-0 tabular-nums">00:00:00</span>
-          </div>
+          </Card>
         </button>
 
         <Modal open={startModal} onClose={() => setStartModal(false)} title="Start a Fast">
@@ -179,17 +178,16 @@ export function FastingWidget() {
   return (
     <>
       <button onClick={() => setDetailModal(true)} className="w-full text-left">
-        <div className="bg-surface border border-white/10 border-l-2 border-l-blue-400 p-3.5 flex items-center gap-4">
-          <CircularProgress pct={pct} size={60} strokeWidth={6} color="#38bdf8">
-            <Timer className="w-5 h-5 text-blue-400" />
+        <Card className="p-4 flex items-center gap-4 bg-gradient-to-br from-blue-500/10 via-surface to-surface">
+          <CircularProgress pct={pct} size={72} strokeWidth={7} color="#38bdf8">
+            <Timer className="w-6 h-6 text-blue-400" />
           </CircularProgress>
-          <div className="flex-1 min-w-0 space-y-0.5">
-            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-text-tertiary">Fasting</span>
-            <p className="font-mono text-xl font-bold text-white leading-tight tabular-nums">{formatDuration(elapsedMs)}</p>
-            <p className="text-[11px] text-blue-300 font-medium truncate">{goalReached ? 'Goal reached' : stage.label}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-xl font-black text-white leading-tight">{formatDuration(elapsedMs)}</p>
+            <p className="text-xs text-blue-300 font-medium truncate">{goalReached ? 'Goal reached! 🎉' : stage.label}</p>
+            <p className="text-[10px] text-text-tertiary mt-0.5">Tap for details</p>
           </div>
-          <span className="font-mono text-[11px] text-text-tertiary flex-shrink-0 tabular-nums">{pct}%</span>
-        </div>
+        </Card>
       </button>
 
       <Modal open={detailModal} onClose={() => setDetailModal(false)} title="Fasting Progress">
