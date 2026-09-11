@@ -51,6 +51,41 @@ for (const e of library) {
   for (const n of [e.name, ...(e.aliases ?? [])]) if (n) libByName.set(norm(n), e);
 }
 
+/**
+ * Finds the library clip for an exercise name, by rules narrow enough to be
+ * obviously right.
+ *
+ * Exact name only was too strict: "Mountain Climbers" missed "Mountain
+ * Climber", and "Weighted Plank" missed "Plank", leaving real exercises with
+ * a dead video for want of an "s". The opposite failure is worse, though —
+ * the app's own name matcher scores loose word overlap at a 0.5 threshold and
+ * that is how "Band Pull-Apart" ended up showing a band twist and "Dumbbell
+ * Hip Thrust" a deadlift. So this does NOT guess: it tries the same name with
+ * a trailing plural dropped, and with load/effort qualifiers removed, because
+ * a weighted plank and a plank are the same movement demonstrated the same
+ * way. Anything beyond that is left for a human to decide.
+ *
+ * Returns the entry plus the rule that matched, so every suggestion in the
+ * output says why it was suggested and can be argued with.
+ */
+const QUALIFIERS = /\b(weighted|assisted|max|amrap|alternating|alternate|banded|single arm|one arm|standard)\b/g;
+function findLibraryMatch(rawName) {
+  const base = norm(rawName);
+  const singular = (s) => s.replace(/\b(\w+?)s\b/g, '$1');
+  const attempts = [
+    ['exact name', base],
+    ['plural/singular', singular(base)],
+    ['ignoring load/effort qualifier', norm(base.replace(QUALIFIERS, ''))],
+    ['qualifier + plural/singular', singular(norm(base.replace(QUALIFIERS, '')))],
+  ];
+  for (const [rule, key] of attempts) {
+    if (!key) continue;
+    const hit = libByName.get(key);
+    if (hit) return { entry: hit, rule };
+  }
+  return null;
+}
+
 // ── Programs: what IS stored ───────────────────────────────────────────────
 const progSnap = await db.collection('programs').get();
 const refs = []; // { program, programId, path, name, url }
@@ -111,22 +146,27 @@ for (const u of broken) {
   console.log(`✗ ${v.why}`);
   console.log(`  ${u}`);
   for (const r of users) {
-    const lib = libByName.get(norm(r.name));
+    const match = findLibraryMatch(r.name);
+    const lib = match?.entry;
     const fixable = lib?.videoUrl && lib.videoUrl !== u && verdict(lib.videoUrl).ok !== false;
-    console.log(`    ${pad(r.program, 28)} ${pad(r.name, 30)} ${fixable ? '→ library has a working "' + lib.name + '"' : (lib ? '(library entry has the same dead URL)' : '(no library entry by this name)')}`);
-    if (fixable) changes.push({ ...r, to: lib.videoUrl });
+    const note = fixable
+      ? `→ library has a working "${lib.name}"${match.rule === 'exact name' ? '' : ` (matched by ${match.rule})`}`
+      : (lib ? '(library entry has the same dead URL)' : '(no library entry by this name)');
+    console.log(`    ${pad(r.program, 28)} ${pad(r.name, 30)} ${note}`);
+    if (fixable) changes.push({ ...r, to: lib.videoUrl, via: match.rule, libName: lib.name });
   }
 }
 
 // Exercises with NO url at all whose name is in the library: the session shows
 // the plain "i" button for these — nothing plays, which reads as "broken".
-const missing = refs.filter((r) => !r.url && libByName.get(norm(r.name)));
+const missing = refs.filter((r) => !r.url && findLibraryMatch(r.name));
 if (missing.length) {
   console.log(`\n${missing.length} exercise slots have NO videoUrl stored but the library has a clip by that name:`);
   for (const r of missing) {
-    const lib = libByName.get(norm(r.name));
-    console.log(`    ${pad(r.program, 28)} ${pad(r.name, 30)} → "${lib.name}"`);
-    if (verdict(lib.videoUrl).ok !== false || !probe.has(lib.videoUrl)) changes.push({ ...r, to: lib.videoUrl });
+    const match = findLibraryMatch(r.name);
+    const lib = match.entry;
+    console.log(`    ${pad(r.program, 28)} ${pad(r.name, 30)} → "${lib.name}"${match.rule === 'exact name' ? '' : ` (matched by ${match.rule})`}`);
+    if (verdict(lib.videoUrl).ok !== false || !probe.has(lib.videoUrl)) changes.push({ ...r, to: lib.videoUrl, via: match.rule, libName: lib.name });
   }
 }
 
@@ -144,7 +184,18 @@ if (name) {
 if (!changes.length) { console.log('\nNothing to fix automatically.\n'); process.exit(0); }
 
 console.log(`\n${changes.length} slot(s) can be pointed at the current library clip${fix ? ' — applying' : ' — re-run with --fix to apply'}:`);
-if (!fix) { for (const c of changes) console.log(`    ${pad(c.program, 28)} ${pad(c.name, 30)} → ${c.to}`); console.log(''); process.exit(0); }
+if (!fix) {
+  // Grouped by the rule that produced them, so an inexact match gets looked
+  // at rather than scrolling past in a list of obvious ones. A wrong clip
+  // teaches the wrong movement, which is worse than no clip at all.
+  for (const rule of [...new Set(changes.map((c) => c.via ?? 'exact name'))]) {
+    const group = changes.filter((c) => (c.via ?? 'exact name') === rule);
+    console.log(`\n  matched by ${rule}${rule === 'exact name' ? '' : '  ← check these read correctly'}:`);
+    for (const c of group) console.log(`    ${pad(c.program, 28)} ${pad(c.name, 30)} → "${c.libName ?? ''}"`);
+  }
+  console.log('');
+  process.exit(0);
+}
 
 const byProgram = new Map();
 for (const c of changes) { if (!byProgram.has(c.programId)) byProgram.set(c.programId, []); byProgram.get(c.programId).push(c); }
