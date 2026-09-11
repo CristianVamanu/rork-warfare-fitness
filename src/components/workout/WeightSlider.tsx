@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
+import { useDoubleTap } from '@/lib/useDoubleTap';
 
 interface WeightSliderProps {
   value: number;
@@ -45,36 +46,58 @@ export function WeightSlider({
   }
 
   function commitDraft() {
-    const parsed = parseFloat(draftValue);
+    // Accept a comma decimal — half the world's phone keypads offer one.
+    const parsed = parseFloat(draftValue.replace(',', '.'));
     if (!isNaN(parsed)) {
       onChange(Math.max(0, Math.min(max, parsed)));
     }
     setEditing(false);
   }
 
+  // Two taps inside 320ms, on any device — onDoubleClick alone is a mouse
+  // event that Mobile Safari only sometimes synthesises.
+  const startEditing = useDoubleTap(() => { setDraftValue(String(value)); setEditing(true); });
+
   return (
     <div className="select-none">
-      {/* Large live number — double-tap/double-click to enter a value manually */}
+      {/* Large live number — double-tap to type a value */}
       {editing ? (
+        // type="text" + inputMode="decimal", not type="number": on iPhone
+        // a number input opens the FULL keyboard (letters, with a numbers
+        // row), which is what "the kg shows the wrong keyboard" was. The
+        // decimal inputmode is the numeric keypad with a decimal point.
         <input
           ref={inputRef}
-          type="number"
+          type="text"
+          inputMode="decimal"
+          pattern="[0-9]*[.,]?[0-9]*"
+          autoComplete="off"
+          enterKeyHint="done"
           value={draftValue}
           onChange={(e) => setDraftValue(e.target.value)}
+          onFocus={(e) => e.target.select()}
           onBlur={commitDraft}
           onKeyDown={(e) => { if (e.key === 'Enter') commitDraft(); }}
-          className="w-full text-center text-5xl font-black text-accent bg-transparent focus:outline-none mb-2"
+          aria-label={`Weight in ${unit}`}
+          className="w-full text-center text-5xl font-black text-accent bg-transparent focus:outline-none mb-2 tabular-nums"
         />
       ) : (
         <button
-          onDoubleClick={() => { setDraftValue(String(value)); setEditing(true); }}
+          type="button"
+          onClick={startEditing}
           disabled={disabled}
+          aria-label={`${value} ${unit} — double-tap to type a weight`}
           className="w-full text-center text-5xl font-black text-accent mb-2 tabular-nums"
         >
           {value % 1 === 0 ? value : value.toFixed(1)}
           <span className="text-lg text-text-tertiary ml-1.5">{unit}</span>
         </button>
       )}
+      {/* The hint is the only way anyone finds out the number is editable;
+          a double-tap has no visual affordance. Small print, not a banner. */}
+      <p className="text-[10px] text-text-tertiary text-center -mt-1 mb-2">
+        {editing ? 'Type the weight, then Done' : 'Double-tap the number to type a weight'}
+      </p>
 
       {/* Fine adjustment + slider */}
       <div className="flex items-center gap-3">

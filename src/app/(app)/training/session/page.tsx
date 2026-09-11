@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { WeightSlider } from '@/components/workout/WeightSlider';
+import { useDoubleTap } from '@/lib/useDoubleTap';
 import { PlateCalculatorButton } from '@/components/workout/PlateCalculator';
 import type { Exercise, Program } from '@/types';
 import { parseDistance, type DistanceUnit } from '@/lib/distance';
@@ -945,6 +946,8 @@ interface SetRowProps {
   onActivate: () => void;
   onWeightChange: (v: number) => void;
   onRepsChange: (delta: number) => void;
+  /** Absolute value, for the typed entry — the ± buttons use onRepsChange. */
+  onRepsSet: (reps: number) => void;
   onApplySuggestion: (weight: number, reps: number) => void;
   onComplete: () => void;
   onSkip: () => void;
@@ -953,8 +956,22 @@ interface SetRowProps {
 
 function SetRow({
   setNum, state, isActive, weightUnit,
-  onActivate, onWeightChange, onRepsChange, onApplySuggestion, onComplete, onSkip, onDuplicate,
+  onActivate, onWeightChange, onRepsChange, onRepsSet, onApplySuggestion, onComplete, onSkip, onDuplicate,
 }: SetRowProps) {
+  // Typed reps entry. Same gesture as the weight: double-tap the number,
+  // numeric keypad, Done. Hooks sit above the early returns so their order
+  // is stable whichever branch renders.
+  const [editingReps, setEditingReps] = useState(false);
+  const [repsDraft, setRepsDraft] = useState(String(state.reps));
+  const repsInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (editingReps) repsInputRef.current?.focus(); }, [editingReps]);
+  const startEditingReps = useDoubleTap(() => { setRepsDraft(String(state.reps)); setEditingReps(true); });
+  function commitReps() {
+    const parsed = parseInt(repsDraft, 10);
+    if (!isNaN(parsed)) onRepsSet(Math.max(1, Math.min(999, parsed)));
+    setEditingReps(false);
+  }
+
   const isCompleted = state.status === 'completed';
   const isSkipped = state.status === 'skipped';
   const isPending = state.status === 'pending';
@@ -1090,16 +1107,43 @@ function SetRow({
           >
             <Minus className="w-4 h-4" />
           </button>
-          <div className="text-center w-16">
-            <motion.p
-              key={state.reps}
-              initial={{ scale: 0.85, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-              className="text-4xl font-black text-foreground"
-            >
-              {state.reps}
-            </motion.p>
+          <div className="text-center w-20">
+            {editingReps ? (
+              // inputMode="numeric" is the plain digit keypad — reps are
+              // whole numbers, so no decimal point to mis-tap.
+              <input
+                ref={repsInputRef}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="off"
+                enterKeyHint="done"
+                value={repsDraft}
+                onChange={(e) => setRepsDraft(e.target.value.replace(/\D/g, ''))}
+                onFocus={(e) => e.target.select()}
+                onBlur={commitReps}
+                onKeyDown={(e) => { if (e.key === 'Enter') commitReps(); }}
+                aria-label="Reps completed"
+                className="w-full text-center text-4xl font-black text-foreground bg-transparent focus:outline-none tabular-nums"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={startEditingReps}
+                aria-label={`${state.reps} reps — double-tap to type a number`}
+                className="w-full"
+              >
+                <motion.p
+                  key={state.reps}
+                  initial={{ scale: 0.85, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                  className="text-4xl font-black text-foreground tabular-nums"
+                >
+                  {state.reps}
+                </motion.p>
+              </button>
+            )}
             <p className="text-[10px] text-text-tertiary">reps</p>
           </div>
           <button
@@ -1109,6 +1153,9 @@ function SetRow({
             <Plus className="w-4 h-4" />
           </button>
         </div>
+        <p className="text-[10px] text-text-tertiary text-center mt-2">
+          {editingReps ? 'Type the reps, then Done' : 'Double-tap the number to type reps'}
+        </p>
       </div>
 
       {/* Complete button */}
@@ -1943,6 +1990,11 @@ function WorkoutSessionPageInner() {
                       Effort: RPE {currentEx.rpe}/10 — {rpeMeaning(currentEx.rpe)}
                     </p>
                   )}
+                  {/* The button to the right has no label; a first-timer
+                      does not know the little clip opens anything. */}
+                  <p className="text-[10px] text-text-tertiary mt-1">
+                    {currentEx.videoUrl ? 'Tap the clip for the demo and form cue' : 'Tap ⓘ for the form cue'}
+                  </p>
                 </div>
                 <ExerciseInfoButton videoUrl={currentEx.videoUrl} tip={currentEx.notes} name={currentEx.name} />
               </div>
@@ -2011,6 +2063,7 @@ function WorkoutSessionPageInner() {
                           reps: Math.max(1, setState.reps + delta),
                         })
                       }
+                      onRepsSet={(reps) => updateSet(currentExIdx, si, { reps })}
                       onApplySuggestion={(weight, reps) => updateSet(currentExIdx, si, { weight, reps })}
                       onComplete={() => completeSet(currentExIdx, si)}
                       onSkip={() => skipSet(currentExIdx, si)}
