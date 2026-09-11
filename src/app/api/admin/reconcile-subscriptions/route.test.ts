@@ -11,7 +11,7 @@ import { makeAdminDb, FV } from '@/test/fakeAdminDb';
  */
 
 let db = makeAdminDb();
-let subs: Record<string, { status: string; current_period_end?: number; cancel_at_period_end?: boolean } | 'missing' | 'error'>;
+let subs: Record<string, { status: string; current_period_end?: number; cancel_at_period_end?: boolean; metadata?: Record<string, string> } | 'missing' | 'error'>;
 let adminOk = true;
 
 vi.mock('@/lib/firebase-admin', () => ({ getAdminApp: () => ({}), getAdminDb: () => db }));
@@ -70,6 +70,42 @@ describe('reconcile-subscriptions — corrections actually land', () => {
     expect(m.status).toBe('active');
     expect(m.cancelAtPeriodEnd).toBe(true);
     expect(new Date(m.expiresAt as string | Date).getTime()).toBe(inADay * 1000);
+  });
+
+  it('syncs the plan from Stripe when Firestore still has the old one', async () => {
+    // The lost-webhook case after an upgrade: Stripe knows the member is on
+    // vanguard, Firestore still says conquer, and both the app and the
+    // security rules lock by what Firestore says. Nothing else re-syncs it.
+    db.docs.set(USER, { membership: { status: 'active', stripeSubscriptionId: 'sub_1', planId: 'conquer', planName: 'Conquer' } });
+    subs.sub_1 = { status: 'active', current_period_end: inADay, metadata: { planId: 'vanguard', planName: 'Vanguard' } };
+    await run();
+    const m = db.sub(USER, 'membership');
+    expect(m.planId).toBe('vanguard');
+    expect(m.planName).toBe('Vanguard');
+    expect(m.status).toBe('active');
+  });
+
+  it('never overrides a plan an admin granted by hand', async () => {
+    // Admin comped Vanguard on top of a paid Conquer subscription. Stripe
+    // still bills conquer; the grant is deliberate and must survive the
+    // nightly run, or the admin's decision is silently reverted.
+    db.docs.set(USER, { membership: { status: 'active', stripeSubscriptionId: 'sub_1', planId: 'vanguard', planName: 'Vanguard', grantedBy: 'admin' } });
+    subs.sub_1 = { status: 'active', current_period_end: inADay, metadata: { planId: 'conquer', planName: 'Conquer' } };
+    await run();
+    const m = db.sub(USER, 'membership');
+    expect(m.planId).toBe('vanguard');
+    expect(m.grantedBy).toBe('admin');
+  });
+
+  it('leaves the plan alone when it already matches Stripe', async () => {
+    // Same plan id, but a different planName in Stripe's metadata: if the
+    // plan-sync branch ran, planName would be rewritten to it. It must not.
+    db.docs.set(USER, { membership: { status: 'active', stripeSubscriptionId: 'sub_1', planId: 'vanguard', planName: 'Vanguard' } });
+    subs.sub_1 = { status: 'active', current_period_end: inADay, metadata: { planId: 'vanguard', planName: 'SHOULD-NOT-BE-WRITTEN' } };
+    await run();
+    const m = db.sub(USER, 'membership');
+    expect(m.planId).toBe('vanguard');
+    expect(m.planName).toBe('Vanguard');
   });
 
   it('touches nothing in dryRun', async () => {

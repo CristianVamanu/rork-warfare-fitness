@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     async function reconcileOne(doc: FirebaseFirestore.QueryDocumentSnapshot, field: Field) {
       checked++;
       const data = doc.data();
-      const rec = data[field] as { stripeSubscriptionId?: string; expiresAt?: { toDate?: () => Date } } | undefined;
+      const rec = data[field] as { stripeSubscriptionId?: string; planId?: string; grantedBy?: string; expiresAt?: { toDate?: () => Date } } | undefined;
       const subId = rec?.stripeSubscriptionId;
 
       // No subscription id recorded at all — nothing to verify against.
@@ -150,6 +150,34 @@ export async function POST(req: NextRequest) {
           await doc.ref.update({
             [`${field}.expiresAt`]: end,
             [`${field}.cancelAtPeriodEnd`]: sub.cancel_at_period_end,
+            [`${field}.updatedAt`]: FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      // The plan is the tier. Stripe's subscription metadata carries the
+      // plan id the member is actually paying for (change-plan and checkout
+      // both put it there); Firestore's copy is what the app and the
+      // security rules key off. This route synced status and period end
+      // but never the plan, so a lost customer.subscription.updated after
+      // an upgrade left someone paying for the full tier and locked on the
+      // entry one, with nothing scheduled to ever notice.
+      //
+      // Not while an admin has granted the plan by hand (grantedBy: 'admin'):
+      // that is a deliberate override of what Stripe bills — a comped
+      // Vanguard on top of a paid Conquer, say — and syncing would undo it
+      // every night. change-plan clears grantedBy when the member picks a
+      // paid plan themselves, at which point Stripe is the authority again.
+      const stripePlanId = sub.metadata?.planId;
+      if (stripePlanId && stripePlanId !== rec?.planId && rec?.grantedBy !== 'admin') {
+        corrections.push({
+          userId: doc.id, field, from: rec?.planId ?? 'unset', to: stripePlanId,
+          reason: 'plan differs from Stripe',
+        });
+        if (!dryRun) {
+          await doc.ref.update({
+            [`${field}.planId`]: stripePlanId,
+            ...(sub.metadata?.planName ? { [`${field}.planName`]: sub.metadata.planName } : {}),
             [`${field}.updatedAt`]: FieldValue.serverTimestamp(),
           });
         }

@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import type { MembershipPlan } from '@/types';
 
@@ -123,7 +124,16 @@ export async function POST(req: NextRequest) {
     const item = subscription.items.data[0];
     if (!item) return NextResponse.json({ error: 'Subscription has no billed item to change' }, { status: 400 });
 
-    if (subscription.metadata?.planId === planId && subscription.metadata?.periodMonths === String(months)) {
+    // "Already on this plan" is judged against the plan the member is
+    // actually on — Firestore's membership.planId, which is what every
+    // screen shows them — not against the Stripe subscription's metadata.
+    // Those differ after an admin grant: Admin → assign Vanguard writes
+    // Firestore only, Stripe still says Conquer, and a member trying to
+    // downgrade to Conquer was told "you are already on this plan" while
+    // their profile said Vanguard. The billing term still comes from Stripe,
+    // because Firestore does not record it.
+    const currentPlanId = (userSnap.data()?.membership?.planId as string | undefined) ?? subscription.metadata?.planId;
+    if (currentPlanId === planId && subscription.metadata?.periodMonths === String(months)) {
       return NextResponse.json({ error: 'You are already on this plan' }, { status: 400 });
     }
 
@@ -180,9 +190,28 @@ export async function POST(req: NextRequest) {
       metadata: { userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership' },
     });
 
-    // customer.subscription.updated (fired by the update above) syncs
-    // membership.planId/planName in Firestore from this same metadata — no
-    // need to write it here too, that would just race the webhook.
+    // Written here as well as by the webhook, on purpose. The old comment
+    // said writing it here "would just race the webhook" — but the race runs
+    // the other way. The app shows "Plan updated" and re-reads the profile
+    // the moment this returns, seconds before customer.subscription.updated
+    // lands, so the member who just paid saw their old plan and every lock
+    // still in place. And if that webhook is delayed or lost, nothing else
+    // ever corrects it: reconcile syncs status, not plan. A paid upgrade
+    // that never unlocks is the worst bug a paywall can have.
+    //
+    // Both writers put the same value, so there is nothing to race. The
+    // webhook's ordering guard keys on lastEventCreated, which this leaves
+    // untouched.
+    // grantedBy is cleared: the member has now chosen a paid plan through
+    // Stripe, so Stripe is the authority on their tier again and the nightly
+    // reconcile may sync it. While grantedBy is 'admin', reconcile leaves the
+    // plan alone — otherwise an admin's Vanguard grant on top of a paid
+    // Conquer subscription would be reverted every night.
+    await db.collection('users').doc(userId).update({
+      'membership.planId': planId,
+      'membership.planName': plan.name,
+      'membership.grantedBy': FieldValue.delete(),
+    });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[change-plan] Stripe error:', err instanceof Error ? err.message : err);

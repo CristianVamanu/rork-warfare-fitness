@@ -2585,6 +2585,10 @@ export async function revokeCoachingPlan(userId: string): Promise<void> {
   await updateDoc(doc(db, 'users', userId), {
     'membership.planId': deleteField(),
     'membership.planName': deleteField(),
+    // The grant is over, so the marker that told reconcile "hands off, an
+    // admin set this" goes with it — otherwise Stripe's plan would never be
+    // synced back for this member.
+    'membership.grantedBy': deleteField(),
   });
 }
 

@@ -231,6 +231,21 @@ describe('customer.subscription.updated', () => {
     expect(db.sub(USER, 'membership').cancelAtPeriodEnd).toBe(true);
   });
 
+  it('an upgrade rewrites the plan id — the tier a paying member is on comes from here', async () => {
+    // The real-money path. change-plan puts the NEW plan id on the Stripe
+    // subscription's metadata; this event carries it back. Both the app
+    // (resolvePlanLock) and the security rules (planCoversLibrary) key
+    // off membership.planId, so if this did not update, a member who paid
+    // for the full tier would stay locked on the entry tier.
+    db.docs.set(USER, { email: 'a@b.c', membership: { status: 'active', planId: 'conquer', planName: 'Conquer', stripeSubscriptionId: 'sub_1' } });
+    await POST(req(evt('active', { metadata: { userId: 'u1', kind: 'membership', planId: 'vanguard', planName: 'Vanguard' } })));
+    const m = db.sub(USER, 'membership');
+    expect(m.planId).toBe('vanguard');
+    expect(m.planName).toBe('Vanguard');
+    expect(m.status).toBe('active');
+    expect(m.stripeSubscriptionId).toBe('sub_1');
+  });
+
   it('routes coaching to its own field, never membership', async () => {
     await POST(req({
       id: 'evt_c', type: 'customer.subscription.updated',
