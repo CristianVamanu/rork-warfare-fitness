@@ -16,7 +16,8 @@ import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
 import { getIdToken } from 'firebase/auth';
 import { DEFAULT_ORG_DAILY_LIMIT } from '@/lib/orgAiLimit';
-import { uploadVideo, deleteVideo, type StorageProvider } from '@/lib/uploadVideo';
+import { uploadVideo, deleteVideo, resolveStorageProvider, DEFAULT_STORAGE_PROVIDER, type StorageProvider } from '@/lib/uploadVideo';
+import { storageHostOf, storageHostLabel } from '@/lib/storageHost';
 import { extractVideoThumbnail, extractVideoThumbnailFromUrl } from '@/lib/videoThumbnail';
 import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_B2B_TERMS } from '@/lib/legalDefaults';
 import {
@@ -524,7 +525,7 @@ function AdminPageInner() {
   const bulkDropRef = useRef<HTMLDivElement>(null);
 
   // ── Integrations / API keys state ─────────────────────────────────────────
-  const [storageProvider, setStorageProvider] = useState<StorageProvider>('firebase');
+  const [storageProvider, setStorageProvider] = useState<StorageProvider>(DEFAULT_STORAGE_PROVIDER);
   const [savingProvider, setSavingProvider] = useState(false);
   const [secretStatuses, setSecretStatuses] = useState<SecretStatusUI[]>([]);
   const [secretsLoading, setSecretsLoading] = useState(false);
@@ -632,7 +633,7 @@ function AdminPageInner() {
           aiOrgDailyLimit: Number(cfg.aiOrgDailyLimit) || DEFAULT_ORG_DAILY_LIMIT,
           mealIdeasDailyLimit: Number(cfg.mealIdeasDailyLimit) || 15,
         });
-        setStorageProvider((cfg.storageProvider as StorageProvider) || 'firebase');
+        setStorageProvider(resolveStorageProvider(cfg.storageProvider));
         setLegalForm({
           privacyPolicyText: cfg.privacyPolicyText || DEFAULT_PRIVACY_POLICY,
           termsText: cfg.termsText || DEFAULT_TERMS,
@@ -2576,8 +2577,17 @@ function AdminPageInner() {
     .filter(ex => {
       if (!exCategoryFilter) return true;
       if (exCategoryFilter === '__uncategorized__') return ex.muscleGroups.length === 0;
+      // Not a muscle group — the storage filter reuses this control so the
+      // "which of these do I still have to re-upload" list is one tap away.
+      if (exCategoryFilter === '__firebase__') return storageHostOf(ex.videoUrl) === 'firebase';
       return ex.muscleGroups.includes(exCategoryFilter);
     });
+
+  // Files still on Firebase Storage. Every one of these needs re-uploading to
+  // R2: Firebase bills egress per GB, and the clips stop serving entirely the
+  // moment that project's billing account lapses — which is exactly what took
+  // the demo videos down. R2 has no egress charge and no such coupling.
+  const firebaseHostedCount = exerciseLibrary.filter(ex => storageHostOf(ex.videoUrl) === 'firebase').length;
 
   // Live per-category counts so curating a messy library is actually
   // possible — e.g. a "Cardio" chip showing 40 exercises when only 5 are
@@ -4284,6 +4294,19 @@ function AdminPageInner() {
                 >
                   All ({exerciseLibrary.length})
                 </button>
+                {/* Storage filter — the re-upload worklist. Amber rather than
+                    the accent colour because this is a "needs action" count,
+                    not a category, and it should read as one. */}
+                {firebaseHostedCount > 0 && (
+                  <button
+                    onClick={() => setExCategoryFilter(exCategoryFilter === '__firebase__' ? null : '__firebase__')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors flex-shrink-0 ${
+                      exCategoryFilter === '__firebase__' ? 'bg-amber-400 text-black' : 'bg-amber-400/15 text-amber-300 hover:bg-amber-400/25'
+                    }`}
+                  >
+                    On Firebase — re-upload ({firebaseHostedCount})
+                  </button>
+                )}
                 {muscleCategories.map(cat => (
                   <button
                     key={cat}
@@ -4403,7 +4426,34 @@ function AdminPageInner() {
                       <Play className={`w-5 h-5 relative z-10 ${ex.thumbnailUrl ? 'text-white' : 'text-accent'}`} />
                     </button>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{ex.name}</p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{ex.name}</p>
+                        {/* Where this file actually lives, read from its URL —
+                            not from the storage-provider setting, which only
+                            says where the NEXT upload goes. Anything marked
+                            Firebase is billed per GB of egress and dies with
+                            that project's billing account, so it is a file to
+                            re-upload. */}
+                        {(() => {
+                          const host = storageHostOf(ex.videoUrl);
+                          if (host === 'none') return null;
+                          const style = host === 'firebase'
+                            ? 'bg-amber-400/15 text-amber-300 border-amber-400/30'
+                            : host === 'r2'
+                              ? 'bg-emerald-400/10 text-emerald-300 border-emerald-400/25'
+                              : 'bg-white/5 text-text-tertiary border-white/10';
+                          return (
+                            <span
+                              title={host === 'firebase'
+                                ? 'Stored on Firebase Storage — re-upload this clip so it moves to R2'
+                                : host === 'r2' ? 'Stored on Cloudflare R2' : 'Hosted somewhere else'}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold border flex-shrink-0 ${style}`}
+                            >
+                              {storageHostLabel(host)}
+                            </span>
+                          );
+                        })()}
+                      </div>
                       <p className="text-xs text-text-secondary truncate">
                         {[...ex.muscleGroups, ...ex.equipment].join(' · ')}
                       </p>

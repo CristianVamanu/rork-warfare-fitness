@@ -14,7 +14,7 @@ import { VerificationBadge } from '@/components/ui/VerificationBadge';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import { CommunityTabs } from '@/components/community/CommunityTabs';
 import { subscribePRFeed, createPRPost, likePRPost, deletePRPost, getSystemConfig } from '@/lib/firestore';
-import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
+import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
 import type { PRPost } from '@/types';
 import { FeedMedia } from '@/components/community/FeedMedia';
 
@@ -247,7 +247,7 @@ function PRForm({ userId, displayName, photoURL, onDone }: { userId: string; dis
       if (file) {
         mediaType = file.type.startsWith('video') ? 'video' : 'image';
         const cfg = await getSystemConfig().catch(() => null);
-        const provider = ((cfg?.storageProvider as StorageProvider) || 'firebase');
+        const provider = resolveStorageProvider(cfg?.storageProvider);
         mediaUrl = await uploadUserContent(provider, user, file, 'prPosts', setProgress);
       }
       await createPRPost({

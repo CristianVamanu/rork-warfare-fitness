@@ -1,8 +1,27 @@
 import { getIdToken, type User } from 'firebase/auth';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
+import { storageHostOf } from '@/lib/storageHost';
 
 export type StorageProvider = 'firebase' | 'r2';
+
+/**
+ * Where an upload goes when the admin setting is missing or unreadable.
+ *
+ * This was 'firebase', duplicated as a literal at eight call sites, which
+ * meant one failed config read silently sent a file to the wrong bucket — and
+ * Firebase Storage is the bucket that bills per GB of egress and goes dark
+ * the moment that project's billing account lapses. R2 is the bucket every
+ * upload has gone to since July 2026 and has no egress charge, so it is the
+ * correct thing to fall back to.
+ */
+export const DEFAULT_STORAGE_PROVIDER: StorageProvider = 'r2';
+
+/** Reads the admin's storage-provider setting, defaulting safely. Accepts the
+ *  raw config value so every caller resolves it the same way. */
+export function resolveStorageProvider(value: unknown): StorageProvider {
+  return value === 'firebase' || value === 'r2' ? value : DEFAULT_STORAGE_PROVIDER;
+}
 
 /** Uploads a file to R2 via a presigned PUT URL. `presignEndpoint` defaults to
  * the admin-only route (exercise library / branding); pass the user-scoped
@@ -117,11 +136,21 @@ export async function uploadVideo(
 /** Best-effort delete of a previously-uploaded file (video or thumbnail) by
  * its public URL — so replacing/removing an exercise video doesn't leave the
  * old file orphaned in storage forever. Never throws: a failed cleanup
- * shouldn't block the save/delete the admin actually asked for. */
+ * shouldn't block the save/delete the admin actually asked for.
+ *
+ * The backend is chosen from the URL, NOT from the `provider` setting. The
+ * setting says where the next upload goes; a file uploaded before the switch
+ * to R2 still lives in Firebase Storage. Routing deletes by the setting meant
+ * deleting an old Firebase clip while set to R2 sent a Firebase URL to the R2
+ * delete endpoint, which cannot match it — the call failed quietly and the
+ * file stayed in the bucket forever. `provider` is now only a fallback for a
+ * URL we can't attribute to either host. */
 export async function deleteVideo(provider: StorageProvider, user: User, url: string | undefined): Promise<void> {
   if (!url) return;
+  const host = storageHostOf(url);
+  const target: StorageProvider = host === 'r2' ? 'r2' : host === 'firebase' ? 'firebase' : provider;
   try {
-    if (provider === 'r2') {
+    if (target === 'r2') {
       const token = await getIdToken(user);
       await fetch('/api/admin/r2-delete', {
         method: 'POST',

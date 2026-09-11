@@ -14,7 +14,7 @@ import {
 } from '@/lib/firestore';
 import { getMockProgram, absoluteDayNumber, phaseDayOccurrences } from '@/lib/programs';
 import { parseDistance } from '@/lib/distance';
-import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
+import { uploadVideo, resolveStorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -301,7 +301,7 @@ function BuilderInner() {
     setUploadingImage(true);
     try {
       const cfg = await getSystemConfig().catch(() => null);
-      const provider = ((cfg?.storageProvider as StorageProvider) || 'firebase');
+      const provider = resolveStorageProvider(cfg?.storageProvider);
       const url = await uploadVideo(provider, user, file, 'programImages');
       setProg((s) => ({ ...s, imageUrl: url }));
       toast.success('Cover image uploaded');
@@ -762,7 +762,7 @@ function BuilderInner() {
     setNewVideoUploadProgress(0);
     try {
       const cfg = await getSystemConfig().catch(() => null);
-      const provider = ((cfg?.storageProvider as StorageProvider) || 'firebase');
+      const provider = resolveStorageProvider(cfg?.storageProvider);
       const videoUrl = await uploadVideo(provider, user, file, 'exerciseLibrary', setNewVideoUploadProgress);
       const thumbBlob = await extractVideoThumbnail(file).catch(() => null);
       let thumbnailUrl: string | undefined;

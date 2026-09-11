@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getUserWorkouts, getWeightHistory, getSystemConfig, subscribeProgressPhotos, createProgressPhoto, deleteProgressPhoto, getWeeklySummary, type WeeklySummary } from '@/lib/firestore';
 import { recordWeight } from '@/lib/actions';
 import { lbsToKg, kgToLbs, formatBodyWeight } from '@/lib/utils';
-import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
+import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
 import { getLevelTier, xpToNextLevel } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
 import type { ProgressPhoto } from '@/types';
@@ -90,7 +90,7 @@ export default function ProgressPage() {
     setUploadingPhoto(true);
     try {
       const cfg = await getSystemConfig().catch(() => null);
-      const provider = ((cfg?.storageProvider as StorageProvider) || 'firebase');
+      const provider = resolveStorageProvider(cfg?.storageProvider);
       const photoUrl = await uploadUserContent(provider, user, file, 'progressPhotos');
       await createProgressPhoto({
         userId: user.uid,

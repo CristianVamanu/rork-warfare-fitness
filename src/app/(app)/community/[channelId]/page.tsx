@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown, Megaphone } from 'lucide-react';
 import { compressImage } from '@/lib/imageCompress';
-import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
+import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
 import { FeedMedia } from '@/components/community/FeedMedia';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -406,7 +406,7 @@ export default function ChannelPage() {
     try {
       const compressed = await compressImage(file);
       const cfg = await getSystemConfig().catch(() => null);
-      const provider = (cfg?.storageProvider as StorageProvider) || 'firebase';
+      const provider = resolveStorageProvider(cfg?.storageProvider);
       const url = await uploadUserContent(provider, user, compressed, 'community');
       setPendingImageURL(url);
       toast.success('Image ready — tap send to post');

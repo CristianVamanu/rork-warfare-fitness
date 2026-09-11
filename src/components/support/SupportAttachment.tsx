@@ -5,7 +5,7 @@ import { Paperclip, X, FileUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { User } from 'firebase/auth';
 import { getSystemConfig, type SupportAttachment } from '@/lib/firestore';
-import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
+import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
 import type { Message } from '@/types';
 import { SUPPORT_MAX_BYTES, SUPPORT_MAX_LABEL } from '@/lib/supportLimits';
 
@@ -49,7 +49,7 @@ export function useSupportUpload() {
     setProgress(0);
     try {
       const cfg = await getSystemConfig().catch(() => null);
-      const provider = ((cfg?.storageProvider as StorageProvider) || 'firebase');
+      const provider = resolveStorageProvider(cfg?.storageProvider);
       const url = await uploadUserContent(provider, user, file, 'support', setProgress);
       return { url, name: file.name, type: file.type };
     } catch (err) {
