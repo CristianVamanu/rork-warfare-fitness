@@ -412,6 +412,15 @@ export interface LandingLead {
 export interface LandingFeature {
   title: string;
   desc: string;
+  // Optional plan name shown as a small tag on the feature card, for
+  // anything that is NOT included in the entry-level plan — barcode
+  // scanning, for one, is a higher-tier feature. The landing page sells
+  // every feature in one grid, so without this an entry-plan buyer pays
+  // expecting a feature they are gated out of the moment they sign in,
+  // which is a refund request and a support ticket rather than a sale.
+  // Free text on purpose: it is matched to whatever the plans are actually
+  // called in the admin panel, and plan names are admin-editable.
+  tierNote?: string;
 }
 
 export interface LandingPageConfig {

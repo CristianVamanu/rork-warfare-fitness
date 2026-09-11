@@ -114,7 +114,7 @@ const PROGRAM_BADGE: Record<string, { icon: React.ElementType; color: string }> 
 };
 
 const TICKER_ITEMS = [
-  'Train Like The Elite', 'AI-Matched From Day One', 'Adapts To Every Rep',
+  'Train Like The Elite', 'Matched To You From Day One', 'Adapts To Every Rep',
   'No Generic Plans', 'Built To Adapt', 'Consistency Over Motivation',
 ];
 
@@ -659,7 +659,16 @@ export default function LandingPage({
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
                   <style.icon className={`w-5 h-5 ${style.color}`} />
                 </div>
-                <h3 className="font-bold text-white text-sm">{f.title}</h3>
+                <div className="flex items-start gap-2 flex-wrap">
+                  <h3 className="font-bold text-white text-sm">{f.title}</h3>
+                  {/* Only rendered when an admin has tagged the feature as
+                      higher-tier — see LandingFeature.tierNote. */}
+                  {f.tierNote?.trim() && (
+                    <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-accent-muted text-accent border border-accent/20 flex-shrink-0">
+                      {f.tierNote.trim()}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">{f.desc}</p>
               </motion.div>
             );

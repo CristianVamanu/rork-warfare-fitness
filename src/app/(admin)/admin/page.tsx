@@ -2213,7 +2213,7 @@ function AdminPageInner() {
     finally { setSavingSettings(false); }
   }
 
-  function updateLandingFeature(i: number, patch: Partial<{ title: string; desc: string }>) {
+  function updateLandingFeature(i: number, patch: Partial<{ title: string; desc: string; tierNote: string }>) {
     setLandingForm(f => ({
       ...f,
       features: f.features.map((feat, idx) => idx === i ? { ...feat, ...patch } : feat),
@@ -5222,6 +5222,17 @@ function AdminPageInner() {
                       rows={2}
                       placeholder="One-sentence benefit"
                       className="w-full bg-surface border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
+                    />
+                    {/* Tags the feature on the landing page with the plan it
+                        needs. Leave blank for anything every paid plan
+                        includes; fill it in for a higher-tier feature so an
+                        entry-plan buyer is not sold something they will be
+                        locked out of on their first sign-in. */}
+                    <Input
+                      value={f.tierNote ?? ''}
+                      onChange={e => updateLandingFeature(i, { tierNote: e.target.value })}
+                      placeholder="Plan tag — e.g. Vanguard (leave blank if in every plan)"
+                      className="text-xs"
                     />
                   </div>
                 ))}
