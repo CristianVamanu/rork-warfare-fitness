@@ -97,3 +97,6 @@ rork-eslint.config.js
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+# Generated on the server by scripts/generate-cues.mjs for review.
+cues-for-review.txt
