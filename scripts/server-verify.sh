@@ -61,9 +61,41 @@ LOAD=$(awk '{print $1", "$2", "$3}' /proc/loadavg)
 ok "load average $LOAD ($(nproc) cores)"
 
 echo "== env =="
-for v in CRON_SECRET NEXT_PUBLIC_APP_URL RESEND_API_KEY R2_PUBLIC_URL FIREBASE_PRIVATE_KEY; do
-  if grep -qE "^$v=." .env.production 2>/dev/null; then ok "$v set"; else warn "$v not set in .env.production"; fi
+# Third-party keys live in EITHER .env.production OR, encrypted, in Firestore
+# at system/secrets — that is what Admin → Integrations writes to, and
+# getSecret() reads the file only as a fallback. Checking the file alone
+# reported R2_PUBLIC_URL and RESEND_API_KEY as missing on a box where both
+# were set and working, which is a false alarm that wastes a morning.
+for v in CRON_SECRET NEXT_PUBLIC_APP_URL FIREBASE_PRIVATE_KEY ENCRYPTION_KEY; do
+  if grep -qE "^$v=." .env.production 2>/dev/null; then ok "$v set (.env.production)"; else fail "$v not set — it can only live in .env.production"; fi
 done
+
+node --env-file=.env.production -e '
+const { createHash, createDecipheriv } = require("crypto");
+const { initializeApp, cert } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
+const KEYS = ["R2_ACCOUNT_ID","R2_ACCESS_KEY_ID","R2_SECRET_ACCESS_KEY","R2_BUCKET_NAME","R2_PUBLIC_URL","RESEND_API_KEY","OPENAI_API_KEY","STRIPE_SECRET_KEY","STRIPE_WEBHOOK_SECRET"];
+(async () => {
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\\\n/g, "\n");
+  initializeApp({ credential: cert({ projectId: process.env.FIREBASE_PROJECT_ID, clientEmail: process.env.FIREBASE_CLIENT_EMAIL, privateKey }) });
+  const snap = await getFirestore().collection("system").doc("secrets").get();
+  const stored = snap.exists ? (snap.data() ?? {}) : {};
+  const master = process.env.ENCRYPTION_KEY ? createHash("sha256").update(process.env.ENCRYPTION_KEY).digest() : null;
+  for (const k of KEYS) {
+    if (process.env[k]) { console.log(`OK    ${k} set (.env.production)`); continue; }
+    const p = stored[k];
+    if (!p?.ciphertext) { console.log(`WARN  ${k} not set anywhere — feature is off`); continue; }
+    if (!master) { console.log(`WARN  ${k} stored in Firestore but ENCRYPTION_KEY is missing, so it cannot be read`); continue; }
+    try {
+      const d = createDecipheriv("aes-256-gcm", master, Buffer.from(p.iv, "base64"));
+      d.setAuthTag(Buffer.from(p.authTag, "base64"));
+      const v = Buffer.concat([d.update(Buffer.from(p.ciphertext, "base64")), d.final()]).toString("utf8");
+      console.log(v ? `OK    ${k} set (Admin → Integrations)` : `WARN  ${k} stored but empty`);
+    } catch { console.log(`FAIL  ${k} stored but will not decrypt — wrong ENCRYPTION_KEY?`); }
+  }
+})().catch((e) => console.log("WARN  could not read system/secrets: " + e.message));
+' 2>/dev/null || warn "could not check Firestore-stored secrets (needs firebase-admin and a reachable database)"
+
 grep -qE "^FIREBASE_TOKEN=." .env.production 2>/dev/null && ok "FIREBASE_TOKEN set — rules auto-deploy" || warn "FIREBASE_TOKEN not set — firestore.rules must be pasted by hand after every change"
 
 echo "== done =="
