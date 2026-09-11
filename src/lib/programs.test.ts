@@ -147,3 +147,30 @@ describe('pickBestProgram — weight-goal timeline scoring', () => {
     expect(result!.id).toBe('right-goal');
   });
 });
+
+describe('pickBestProgram — a program written for the other sex is not a candidate', () => {
+  // The live catalogue, reduced to the three programs that decide this case:
+  // the only beginner hypertrophy program is the women's one.
+  const valkyrie: Program = { ...standard, id: 'valkyrie', goal: 'hypertrophy', level: 'beginner', daysPerWeek: 4, targetGender: 'female' };
+  const alphaBulk: Program = { ...standard, id: 'alpha-bulk', goal: 'hypertrophy', level: 'intermediate', daysPerWeek: 3 };
+  const homeFront: Program = { ...standard, id: 'home-front', goal: 'general', level: 'beginner', daysPerWeek: 4 };
+  const pool = [valkyrie, alphaBulk, homeFront];
+
+  it('never hands a man the women\'s program, even when it is the closest fit on paper', () => {
+    // Before: Valkyrie scored 10 (goal) + 6 (level) - 3 (sex) = 13 and won.
+    const result = pickBestProgram(pool, 'build-muscle', 'beginner', 4, 'male');
+    expect(result!.id).not.toBe('valkyrie');
+  });
+
+  it('still gives it to a woman', () => {
+    expect(pickBestProgram(pool, 'build-muscle', 'beginner', 4, 'female')!.id).toBe('valkyrie');
+  });
+
+  it('with no sex given, nothing is excluded', () => {
+    expect(pickBestProgram(pool, 'build-muscle', 'beginner', 4)!.id).toBe('valkyrie');
+  });
+
+  it('falls back to it only when it is the only program there is', () => {
+    expect(pickBestProgram([valkyrie], 'build-muscle', 'beginner', 4, 'male')!.id).toBe('valkyrie');
+  });
+});

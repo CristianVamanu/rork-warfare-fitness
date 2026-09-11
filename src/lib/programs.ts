@@ -1471,7 +1471,17 @@ export function pickBestProgram(
   const levelRank: Record<string, number> = { beginner: 0, intermediate: 1, advanced: 2 };
   const userEquipmentRank = equipment ? EQUIPMENT_RANK[equipment] : undefined;
 
-  const scored = pool.map((p) => {
+  // A program written for the other sex is not a candidate, it is a wrong
+  // answer. As a -3 penalty it lost to the +6 for a level match: with only
+  // one beginner hypertrophy program in the catalogue, and that one being the
+  // women's program, every man who picked "Build Muscle" as a beginner at 4-5
+  // days was handed Valkyrie. Simulated over the live catalogue: 8 of 96
+  // onboarding combinations. It is excluded outright, unless it is genuinely
+  // the only thing available.
+  const wrongSex = (p: Program) => !!sex && !!p.targetGender && p.targetGender !== 'anyone' && p.targetGender !== sex;
+  const candidates = pool.some((p) => !wrongSex(p)) ? pool.filter((p) => !wrongSex(p)) : pool;
+
+  const scored = candidates.map((p) => {
     let score = 0;
     if (p.goal === targetGoal) score += 10;
     else if (p.goal === 'general') score += 4; // general programs are a reasonable fallback for any goal
