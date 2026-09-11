@@ -4,12 +4,13 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { Moon, Dumbbell, Play, Clock, Target, ChevronRight, Crown, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Moon, Dumbbell, Play, Clock, Target, ChevronRight, Crown, CheckCircle2, RotateCcw, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, resolveProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
 import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -34,6 +35,9 @@ const levelColors: Record<string, string> = {
 
 export default function TrainingPage() {
   const { user, profile } = useAuth();
+  // One read for the whole list — useFeatureAccess can't be called per
+  // program inside the map, since hooks cannot run in a loop.
+  const { otherProgramsLocked: programsLockedByPlan } = useFeatureAccess();
   const router = useRouter();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [customPrograms, setCustomPrograms] = useState<Program[]>([]);
@@ -360,6 +364,11 @@ export default function TrainingPage() {
             <div className="space-y-3">
               {visible.map((prog, i) => {
                 const isActive = activeProgram?.programId === prog.id;
+                // Locked programs stay in the list, badged, with their real
+                // description — hiding them hides the reason to upgrade.
+                // Wanting something you can see is what converts; an empty
+                // list just looks like a small catalogue.
+                const isLockedByPlan = programsLockedByPlan && !isActive;
                 return (
                   <motion.div
                     key={prog.id}
@@ -382,7 +391,13 @@ export default function TrainingPage() {
                               {!isActive && savedProgressMap[prog.id] && (
                                 <Badge variant="muted">Continue — {savedProgressMap[prog.id].completedWorkouts} done</Badge>
                               )}
-                              {(prog as { isPremium?: boolean }).isPremium && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
+                              {/* One badge, not two: to a member on the entry
+                                  plan "Premium" is just a label, while
+                                  "Upgrade to unlock" says what to do about
+                                  it. Everyone else keeps the old badge. */}
+                              {isLockedByPlan
+                                ? <Badge variant="accent"><Lock className="w-3 h-3 inline mr-0.5" />Upgrade to unlock</Badge>
+                                : (prog as { isPremium?: boolean }).isPremium && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
                               {(prog as { targetGender?: string }).targetGender && (prog as { targetGender?: string }).targetGender !== 'anyone' && (
                                 <Badge variant="muted">{(prog as { targetGender?: string }).targetGender}</Badge>
                               )}

@@ -12,7 +12,12 @@ import toast from 'react-hot-toast';
 import type { MembershipPlan } from '@/types';
 
 /** Does this plan's featureAccess actually cover what's currently locked?
- * Empty featureAccess list = the plan includes everything (no restriction). */
+ * Empty featureAccess list = the plan includes everything (no restriction).
+ *
+ * No "own program" exception here, deliberately: this picks which plans to
+ * OFFER as the fix for something already locked, and a member's own program
+ * never reaches that state (see useFeatureAccess). Adding the exception here
+ * would offer a plan that does not actually unlock what they tapped. */
 function planIncludesFeature(plan: MembershipPlan, feature: string | undefined, programId: string | undefined): boolean {
   return plan.featureAccess.length === 0
     || ((!feature || plan.featureAccess.includes(feature))

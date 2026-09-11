@@ -5,6 +5,7 @@ import { getMembershipConfig, getMembershipPlans } from './firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { isInFreeTrial, hasActiveSubscription } from './membership';
 import type { MembershipConfig, MembershipPlan } from '@/types';
+import { resolvePlanLock } from './planAccess';
 
 export interface FeatureAccess {
   loaded: boolean;
@@ -14,6 +15,12 @@ export interface FeatureAccess {
   inTrial: boolean;
   /** Would a paywall normally show for this feature/program, ignoring taste. */
   isLocked: boolean;
+  /**
+   * True when this member's plan covers their own assigned program but not
+   * the rest of the library — the entry-tier state. Answered once for a
+   * whole list, since a hook cannot be called per row.
+   */
+  otherProgramsLocked: boolean;
   /** True once this feature's one-time free taste has already been used. */
   tasted: boolean;
   /**
@@ -60,17 +67,15 @@ export function useFeatureAccess(feature?: string, programId?: string): FeatureA
   const isStaff = profile?.role === 'admin' || profile?.role === 'trainer';
 
   let isLocked = false;
+  let otherProgramsLocked = false;
   if (!isStaff && config && config.enabled && !inTrial) {
     if (hasMembership) {
       const activePlan = profile?.membership?.planId
         ? plans.find((p) => p.id === profile.membership!.planId) ?? null
         : null;
-      const planRestricts = !!activePlan?.featureAccess && activePlan.featureAccess.length > 0;
-      if (planRestricts) {
-        const featureAllowed = !feature || activePlan!.featureAccess.includes(feature);
-        const programAllowed = !programId || activePlan!.featureAccess.includes('premium-programs');
-        isLocked = !(featureAllowed && programAllowed);
-      }
+      const verdict = resolvePlanLock(activePlan, feature, programId, profile?.activeProgram?.programId);
+      isLocked = verdict.isLocked;
+      otherProgramsLocked = verdict.otherProgramsLocked;
     } else {
       isLocked =
         !!config.fullLock ||
@@ -82,5 +87,5 @@ export function useFeatureAccess(feature?: string, programId?: string): FeatureA
   const tasted = !!(feature && profile?.aiTaste?.[feature]);
   const tasteAvailable = isLocked && !hasMembership && !!feature && !tasted;
 
-  return { loaded, config, plans, hasMembership, inTrial, isLocked, tasted, tasteAvailable };
+  return { loaded, config, plans, hasMembership, inTrial, isLocked, otherProgramsLocked, tasted, tasteAvailable };
 }
