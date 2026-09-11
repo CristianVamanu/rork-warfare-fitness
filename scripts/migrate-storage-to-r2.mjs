@@ -216,8 +216,14 @@ async function migrateOne(url) {
 
   const res = await fetch(url).catch((e) => ({ ok: false, status: 0, statusText: String(e?.message ?? e) }));
   if (!res.ok) {
+    // A 402 does mean "billing", but not necessarily that billing is still
+    // off: after an account is reinstated, Google clears the block per object
+    // rather than all at once, so a scattered few keep answering 402 for a
+    // while after the rest succeed. Stating "billing is disabled" flatly sent
+    // someone back to the Cloud console to re-check an account that was
+    // already fixed. Which of the two it is, is readable from the run itself.
     const hint = res.status === 402
-      ? 'Firebase billing is still disabled — the file cannot be read yet, so it cannot be moved. Re-run once it is reinstated.'
+      ? 'Firebase answered 402 (billing). If other files in this run succeeded, this is propagation lag after a reinstatement — just re-run in a few minutes. If EVERY file is failing this way, billing really is disabled: check console.cloud.google.com/billing.'
       : `Firebase answered ${res.status} ${res.statusText ?? ''}`.trim();
     return { url, ok: false, why: hint };
   }
