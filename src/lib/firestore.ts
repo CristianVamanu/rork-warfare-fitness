@@ -37,6 +37,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { stripUndefinedDeep } from './utils';
+import { matchExerciseNames } from './exerciseMatch';
 import type { UserGoals, CoachingPlan, ExerciseVideo, NutritionPlan } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -2896,40 +2897,6 @@ export async function updateExerciseVideoThumbnail(id: string, thumbnailUrl: str
  * name → videoUrl for any exercises that exist in the library.
  * Matching is case-insensitive; also checks aliases.
  */
-const MATCH_STOPWORDS = new Set(['the', 'a', 'an', 'and', 'or', 'with', 'for', 'to', 'on', 'of', 'in']);
-
-function tokenize(name: string): string[] {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter((w) => w.length > 0 && !MATCH_STOPWORDS.has(w));
-}
-
-/**
- * Word-overlap similarity, not substring containment. Uploaded video names
- * are often verbose/specific (parsed from filenames, e.g. "45 Degree Bicycle
- * Twisting Crunches") while AI-generated exercise names are generic (e.g.
- * "Bicycle Crunch") — neither is a substring of the other despite clearly
- * being the same exercise, so a containment check alone misses almost every
- * real-world match. This scores by how much of the SHORTER name's word set
- * appears in the longer one.
- */
-function nameSimilarity(a: string, b: string): number {
-  const tokensA = tokenize(a);
-  const tokensB = tokenize(b);
-  if (tokensA.length === 0 || tokensB.length === 0) return 0;
-  const setA = new Set(tokensA);
-  const setB = new Set(tokensB);
-  const shorter = setA.size <= setB.size ? setA : setB;
-  const longer = setA.size <= setB.size ? setB : setA;
-  let overlap = 0;
-  shorter.forEach((word) => {
-    if (longer.has(word)) overlap++;
-  });
-  return overlap / shorter.size;
-}
-
 export async function matchExercisesToVideos(
   exerciseNames: string[],
 ): Promise<Record<string, string>> {
@@ -2946,25 +2913,35 @@ export async function matchExercisesToVideos(
       const candidates = [entry.name, ...(entry.aliases ?? [])];
       for (const candidate of candidates) {
         const c = candidate.toLowerCase().trim();
-        // Exact match or full substring containment — cheap, high-confidence fast path
-        if (c === normalized || normalized.includes(c) || c.includes(normalized)) {
+        // Exact equality is the only fast path left. Substring containment
+        // used to count as a certain match, which meant a library entry named
+        // "Row" was a perfect match for "Renegade Row" — the shorter the
+        // entry's name, the more exercises it could wrongly claim.
+        if (c === normalized) {
           bestScore = 1;
           bestUrl = entry.videoUrl;
           break;
         }
-        const score = nameSimilarity(normalized, c);
-        if (score > bestScore) {
-          bestScore = score;
+        // matchExerciseNames vetoes a different movement word and
+        // contradictory modifiers (band vs cable, overhead vs decline) before
+        // any amount of shared wording can outvote them. Scoring alone put a
+        // band twist behind "Band Pull-Apart" and a deadlift behind "Dumbbell
+        // Hip Thrust"; see src/lib/exerciseMatch.ts.
+        const m = matchExerciseNames(normalized, c);
+        if (m.ok && m.score > bestScore) {
+          bestScore = m.score;
           bestUrl = entry.videoUrl;
         }
       }
       if (bestScore === 1) break;
     }
 
-    // Require at least half the shorter name's significant words to match —
-    // loose enough to bridge naming-convention differences, tight enough to
-    // avoid matching unrelated exercises that just share one common word.
-    if (bestScore >= 0.5) {
+    // Any accepted match is already past the veto rules, so anything scoring
+    // above zero here is a match the rules endorsed. A name with no endorsed
+    // match gets no video, and the workout screen shows the plain info button
+    // — which is the right outcome: being shown the wrong movement is worse
+    // than being shown none, because the app taught it.
+    if (bestScore > 0) {
       result[queryName] = bestUrl;
     }
   }
