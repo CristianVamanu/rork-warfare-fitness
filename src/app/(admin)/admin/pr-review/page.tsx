@@ -12,6 +12,7 @@ import {
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
+import { FeedMedia } from '@/components/community/FeedMedia';
 import toast from 'react-hot-toast';
 import type { PRPost } from '@/types';
 
@@ -120,14 +121,10 @@ export default function PRReviewPage() {
                   </div>
 
                   {post.mediaUrl && (
-                    <div className="rounded-xl overflow-hidden mb-3 bg-black">
-                      {post.mediaType === 'video' ? (
-                        <video src={post.mediaUrl} controls crossOrigin="anonymous" className="w-full max-h-72" />
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={post.mediaUrl} alt={post.exerciseName} className="w-full max-h-72 object-cover" />
-                      )}
-                    </div>
+                    // Shown whole, not cropped — the reviewer is verifying the
+                    // number on the bar/screen, which is exactly what a cover
+                    // crop of a tall phone photo cuts off.
+                    <FeedMedia url={post.mediaUrl} kind={post.mediaType === 'video' ? 'video' : 'image'} alt={post.exerciseName} className="mb-3" />
                   )}
                   {!post.mediaUrl && (
                     <p className="text-xs text-text-tertiary italic mb-3">No photo/video attached — verify with care.</p>

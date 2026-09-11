@@ -84,7 +84,10 @@ for (const doc of snap.docs) {
   rows.push({
     id: p.id,
     name: p.name ?? '(unnamed)',
+    goal: p.goal ?? '?',
+    sex: p.targetGender ?? 'anyone',
     level: p.level ?? '?',
+    exNames: new Set(allEx.map((e) => String(e.name).toLowerCase().replace(/[^a-z ]/g, '').trim()).filter(Boolean)),
     weeks: p.weeks ?? 0,
     days: p.daysPerWeek ?? 0,
     restDays,
@@ -100,15 +103,42 @@ rows.sort((a, b) => a.cuePct - b.cuePct);
 
 const pad = (s, n) => String(s ?? '').slice(0, n).padEnd(n);
 console.log(`\n${rows.length} program${rows.length === 1 ? '' : 's'} in Firestore.\n`);
-console.log(pad('PROGRAM', 32), pad('LEVEL', 13), pad('WKS', 4), pad('D/WK', 5), pad('REST', 5), pad('PHASES', 7), pad('CUES', 6), pad('RPE', 6), 'PUBLIC');
-console.log('-'.repeat(104));
+console.log(pad('PROGRAM', 30), pad('GOAL', 12), pad('SEX', 7), pad('LEVEL', 13), pad('WKS', 4), pad('D/WK', 5), pad('REST', 5), pad('PHASES', 7), pad('CUES', 6), pad('RPE', 6), 'PUBLIC');
+console.log('-'.repeat(122));
 for (const r of rows) {
   console.log(
-    pad(r.name, 32), pad(r.level, 13), pad(r.weeks, 4), pad(r.days, 5),
+    pad(r.name, 30), pad(r.goal, 12), pad(r.sex, 7), pad(r.level, 13), pad(r.weeks, 4), pad(r.days, 5),
     pad(r.restDays, 5), pad(r.phases || '—', 7),
     pad(`${r.cuePct}%`, 6), pad(`${r.rpePct}%`, 6), r.isPublic ? 'yes' : 'no',
   );
 }
+
+// ── What the catalogue covers, measured ────────────────────────────────────
+// The onboarding recommender routes on goal, level, days and equipment. This
+// is the grid of what exists, so "what's missing" is read off the data rather
+// than guessed.
+console.log('\nCoverage — programs per goal x level:');
+const goals = [...new Set(rows.map((r) => r.goal))].sort();
+const levels = ['beginner', 'intermediate', 'advanced'];
+console.log('  ' + pad('', 14) + levels.map((l) => pad(l, 14)).join(''));
+for (const g of goals) {
+  console.log('  ' + pad(g, 14) + levels.map((l) => pad(rows.filter((r) => r.goal === g && r.level === l).map((r) => r.days + 'd').join(',') || '—', 14)).join(''));
+}
+console.log('  (cells show days/week of each program in that slot)');
+console.log('  targetGender set on: ' + (rows.filter((r) => r.sex !== 'anyone').map((r) => r.name + ' (' + r.sex + ')').join(', ') || 'none — the Male/Female answer changes nothing'));
+
+// Exercise-set overlap: how alike two programs are by what they actually prescribe.
+const pairs = [];
+for (let i = 0; i < rows.length; i++) for (let j = i + 1; j < rows.length; j++) {
+  const a = rows[i].exNames, b = rows[j].exNames;
+  if (a.size === 0 || b.size === 0) continue;
+  const inter = [...a].filter((x) => b.has(x)).length;
+  const uni = new Set([...a, ...b]).size;
+  pairs.push({ pct: Math.round((100 * inter) / uni), a: rows[i].name, b: rows[j].name });
+}
+pairs.sort((x, y) => y.pct - x.pct);
+console.log('\nMost similar pairs by shared exercises (Jaccard):');
+for (const pr of pairs.slice(0, 8)) console.log(`  ${String(pr.pct).padStart(3)}%  ${pad(pr.a, 30)} ~ ${pr.b}`);
 
 const findings = [];
 for (const r of rows) {
