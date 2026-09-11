@@ -532,7 +532,19 @@ export default function ProgramDetailPage() {
                       // Never locks a day the user already trained — this caps
                       // how much NEW progress a lapsed-trial user can make, not
                       // access to what they've already done.
-                      const isLocked = absoluteDay >= dayLimit && !isCompleted;
+                      const trialCapped = absoluteDay >= dayLimit && !isCompleted;
+                      // Three reasons a day is locked, and all three lock the
+                      // whole schedule, not just the tail: the member's plan
+                      // does not include this program, the program is priced
+                      // and unbought, or the trial day-cap has been reached.
+                      // Only the third used to count, so a "Members Only"
+                      // card sat above a schedule that listed every exercise
+                      // in the program — the lock was decorative, and the
+                      // upgrade it asked for bought nothing the page was not
+                      // already showing. Day labels and exercise counts stay
+                      // visible: that is the teaser; the exercises are the
+                      // product.
+                      const isLocked = isMembershipLocked || needsPurchase || trialCapped;
 
                       return (
                         <motion.div key={`${week}-${idx}`} layout id={`program-day-${absoluteDay}`}>
@@ -603,11 +615,23 @@ export default function ProgramDetailPage() {
                                 className="mt-3 pt-3 border-t border-white/8 text-center"
                               >
                                 <p className="text-xs text-text-secondary mb-2.5">
-                                  Your free trial covers the first {dayLimit} days of this program. Subscribe to keep going from here.
+                                  {isMembershipLocked
+                                    ? (hasMembership
+                                        ? "Your current plan doesn't include this program. Upgrade to see the workouts."
+                                        : 'This program is included with an active membership. Subscribe to see the workouts.')
+                                    : needsPurchase
+                                      ? 'Buy this program to see the workouts.'
+                                      : `Your free trial covers the first ${dayLimit} days of this program. Subscribe to keep going from here.`}
                                 </p>
-                                <Button size="sm" fullWidth onClick={(e) => { e.stopPropagation(); router.push('/profile'); }}>
-                                  <Crown className="w-3.5 h-3.5" /> View Plans
-                                </Button>
+                                {needsPurchase && !isMembershipLocked ? (
+                                  <Button size="sm" fullWidth loading={purchasing} onClick={(e) => { e.stopPropagation(); handleBuyProgram(); }}>
+                                    <Play className="w-3.5 h-3.5" /> Buy Program — ${program.price!.toFixed(2)}
+                                  </Button>
+                                ) : (
+                                  <Button size="sm" fullWidth onClick={(e) => { e.stopPropagation(); router.push('/profile'); }}>
+                                    <Crown className="w-3.5 h-3.5" /> View Plans
+                                  </Button>
+                                )}
                               </motion.div>
                             )}
                             {isExpanded && !isLocked && !day.isRest && day.exercises.length > 0 && (
