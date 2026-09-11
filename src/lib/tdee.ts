@@ -20,6 +20,9 @@ const ACTIVITY_MULTIPLIER: Record<number, number> = {
 };
 
 const GOAL_ADJUSTMENT: Record<FitnessGoal, number> = {
+  // Selection prep is work capacity, not a scale target: eat at maintenance
+  // and let the running and rucking do the shaping.
+  'military-prep':   0,
   'lose-fat':      -300,
   'recomposition':   0,
   'build-muscle':  +300,
@@ -49,6 +52,9 @@ const BASE_BMR: Record<ExperienceLevel, number> = {
 // ~2880 kcal target) worked out to 216g, i.e. 2.7 g/kg: well above the
 // accepted range, and it gets worse for anyone lighter running a surplus.
 const PROTEIN_G_PER_KG: Record<FitnessGoal, number> = {
+  // High-volume running plus calisthenics: enough to hold muscle through the
+  // mileage, without the surplus-scale intake a bulk needs.
+  'military-prep': 1.8,
   'lose-fat':      2.2,
   'build-muscle':  1.9,
   'strength':      1.9,

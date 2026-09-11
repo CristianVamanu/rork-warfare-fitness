@@ -84,7 +84,13 @@ export interface ProgramProgressSnapshot {
   lastCompletedDayIndex?: number;
 }
 
-export type FitnessGoal = 'lose-fat' | 'build-muscle' | 'recomposition' | 'strength';
+/**
+ * 'military-prep' maps to the `endurance` program goal. Without it the four
+ * selection programs — the brand's namesake — could not be reached from the
+ * quiz at all: none of the other goals maps to endurance, so in a simulation
+ * of every onboarding answer they were assigned zero times.
+ */
+export type FitnessGoal = 'military-prep' | 'lose-fat' | 'build-muscle' | 'recomposition' | 'strength';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 export type EquipmentType = 'home' | 'full-gym' | 'minimal';
 export type BiologicalSex = 'male' | 'female';

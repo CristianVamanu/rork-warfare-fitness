@@ -168,11 +168,21 @@ function allExerciseNames(p: Program): string {
  *   hardcoded "you start free" would have been a false claim served to Google
  *   itself the moment Paid Trial was switched on.
  */
-export function buildProgramMarketing(p: Program, trialDisclosure?: string): ProgramMarketing {
+/**
+ * `memberDays` is how many days a week the member said they can train. The
+ * program advances session by session, not by the calendar, so someone on
+ * three days a week finishes a six-day program in about twice the listed
+ * weeks — and the reveal should say so, rather than promising "6 sessions a
+ * week" to someone who just told us they have three.
+ */
+export function buildProgramMarketing(p: Program, trialDisclosure?: string, memberDays?: number): ProgramMarketing {
   const schedule = scheduleOf(p);
   const trainingDays = schedule.filter((d) => !d.isRest).length || p.daysPerWeek;
   const restDays = Math.max(0, 7 - trainingDays);
   const totalSessions = p.weeks * p.daysPerWeek;
+  const paceWeeks = memberDays && memberDays > 0 && memberDays !== p.daysPerWeek
+    ? Math.round(totalSessions / memberDays)
+    : null;
   const goalLabel = GOAL_LABEL[p.goal] ?? 'Fitness';
   const goalCopy = GOAL_COPY[p.goal] ?? GOAL_COPY.general;
   const levelCopy = LEVEL_COPY[p.level] ?? LEVEL_COPY.intermediate;
@@ -188,7 +198,9 @@ export function buildProgramMarketing(p: Program, trialDisclosure?: string): Pro
     weeks: ph.startWeek === ph.endWeek ? `Week ${ph.startWeek}` : `Weeks ${ph.startWeek}–${ph.endWeek}`,
   }));
 
-  const commitment = `${p.daysPerWeek} sessions a week for ${p.weeks} weeks — ${totalSessions} in total.`;
+  const commitment = paceWeeks
+    ? `${totalSessions} sessions, written as ${p.daysPerWeek} a week. At your ${memberDays} a week that's about ${paceWeeks} weeks — the program moves session by session, not by the calendar.`
+    : `${p.daysPerWeek} sessions a week for ${p.weeks} weeks — ${totalSessions} in total.`;
 
   const faq: ProgramFaq[] = [
     {

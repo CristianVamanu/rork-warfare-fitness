@@ -1382,6 +1382,7 @@ export function getMockProgram(id: string): Program | null {
 // ---------------------------------------------------------------------------
 
 const GOAL_TO_PROGRAM_GOAL: Record<string, Program['goal']> = {
+  'military-prep': 'endurance',
   'lose-fat': 'weight-loss',
   'build-muscle': 'hypertrophy',
   recomposition: 'hypertrophy',
@@ -1493,7 +1494,14 @@ export function pickBestProgram(
     // a program two or more days off what they said they could do. Days are
     // the commitment the person can actually keep; the goal label is the
     // commitment they'd like to keep. Weight the real one more.
-    score -= 2 * Math.abs(p.daysPerWeek - trainingDays);
+    // Days per week is a preference, not a fit. Programs advance day by day
+    // from a slot pointer (getNextSession), never by the calendar, so a
+    // six-day program done three days a week simply takes twice as long —
+    // it does not break. At -2 a day this outweighed the goal itself: a
+    // beginner who asked for three days and "lose fat" was steered off the
+    // only fat-loss program to a strength one. Now a light tiebreak between
+    // programs that already match on goal and level.
+    score -= 0.5 * Math.abs(p.daysPerWeek - trainingDays);
     // A program with real phases is a better product than the same week
     // repeated for twelve — and it is the tie-breaker that lets Legion win
     // anything at all: it scored identically to SAS Selection on every

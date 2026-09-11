@@ -174,3 +174,43 @@ describe('pickBestProgram — a program written for the other sex is not a candi
     expect(pickBestProgram([valkyrie], 'build-muscle', 'beginner', 4, 'male')!.id).toBe('valkyrie');
   });
 });
+
+describe('pickBestProgram — the selection programs are reachable', () => {
+  const sas: Program = { ...standard, id: 'sas', goal: 'endurance', level: 'intermediate', daysPerWeek: 5 };
+  const legion: Program = { ...standard, id: 'legion', goal: 'endurance', level: 'advanced', daysPerWeek: 6 };
+  const burnOps: Program = { ...standard, id: 'burn-ops', goal: 'weight-loss', level: 'beginner', daysPerWeek: 6 };
+  const forge: Program = { ...standard, id: 'forge', goal: 'strength', level: 'intermediate', daysPerWeek: 3 };
+  const homeFront: Program = { ...standard, id: 'home-front', goal: 'general', level: 'beginner', daysPerWeek: 4 };
+  const pool = [sas, legion, burnOps, forge, homeFront];
+
+  it('"military-prep" routes to an endurance program, not the general fallback', () => {
+    // Before the goal existed, endurance programs were assigned in 0 of 96
+    // simulated onboarding combinations.
+    expect(pickBestProgram(pool, 'military-prep', 'intermediate', 5)!.id).toBe('sas');
+    expect(pickBestProgram(pool, 'military-prep', 'advanced', 6)!.id).toBe('legion');
+  });
+
+  it('a beginner asking for military prep still gets a selection program, at the nearest level', () => {
+    expect(pickBestProgram(pool, 'military-prep', 'beginner', 4)!.goal).toBe('endurance');
+  });
+});
+
+describe('pickBestProgram — days per week is a preference, not a fit', () => {
+  const burnOps: Program = { ...standard, id: 'burn-ops', goal: 'weight-loss', level: 'beginner', daysPerWeek: 6 };
+  const forge: Program = { ...standard, id: 'forge', goal: 'strength', level: 'intermediate', daysPerWeek: 3 };
+  const homeFront: Program = { ...standard, id: 'home-front', goal: 'general', level: 'beginner', daysPerWeek: 3 };
+
+  it('a 3-day fat-loss beginner gets the fat-loss program, even though it is written for 6 days', () => {
+    // Programs advance session by session, so the 6-day program simply takes
+    // longer at 3 a week. At the old -2/day penalty this person was sent to
+    // a strength program instead.
+    expect(pickBestProgram([burnOps, forge, homeFront], 'lose-fat', 'beginner', 3)!.id).toBe('burn-ops');
+  });
+
+  it('days still break ties between programs that match on goal and level', () => {
+    const six: Program = { ...standard, id: 'six', goal: 'weight-loss', level: 'beginner', daysPerWeek: 6 };
+    const three: Program = { ...standard, id: 'three', goal: 'weight-loss', level: 'beginner', daysPerWeek: 3 };
+    expect(pickBestProgram([six, three], 'lose-fat', 'beginner', 3)!.id).toBe('three');
+    expect(pickBestProgram([six, three], 'lose-fat', 'beginner', 6)!.id).toBe('six');
+  });
+});

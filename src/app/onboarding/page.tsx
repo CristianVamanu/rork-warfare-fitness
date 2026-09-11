@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Flame, Dumbbell, RefreshCw, Zap,
+  Flame, Dumbbell, RefreshCw, Zap, Shield,
   ChevronRight, ChevronLeft, Loader2, CheckCircle,
   Home, Building2, Package, User, AlertCircle, TrendingDown, TrendingUp, PartyPopper,
 } from 'lucide-react';
@@ -28,6 +28,9 @@ import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, Biolo
 // ─── Step data ────────────────────────────────────────────────────────────────
 
 const GOALS: { value: FitnessGoal; label: string; sub: string; icon: React.ElementType }[] = [
+  // First, because it is what the name on the door promises. Routes to the
+  // endurance programs (SAS, Commando, Legion), which no other goal reaches.
+  { value: 'military-prep', label: 'Selection Prep',  sub: 'Pass the PT test — run, ruck, calisthenics', icon: Shield },
   { value: 'lose-fat',      label: 'Lose Fat',       sub: 'Burn fat, maintain muscle',       icon: Flame },
   { value: 'build-muscle',  label: 'Build Muscle',   sub: 'Maximize hypertrophy',            icon: Dumbbell },
   { value: 'recomposition', label: 'Recomposition',  sub: 'Build muscle & lose fat',         icon: RefreshCw },
@@ -386,6 +389,7 @@ function OnboardingPageInner() {
   function fallbackRecommendProgram(estimatedWeeksToGoal?: number): typeof MOCK_PROGRAMS[0] {
     // Goal → program goal mapping
     const goalMap: Record<FitnessGoal, string> = {
+      'military-prep': 'endurance',
       'lose-fat': 'weight-loss',
       'build-muscle': 'hypertrophy',
       'recomposition': 'hypertrophy',
@@ -548,7 +552,7 @@ function OnboardingPageInner() {
         } catch {
           const local = estimateNutritionTargets(goal, experience, trainingDays, biometricsPayload);
           const goalLabels: Record<FitnessGoal, string> = {
-            'lose-fat': 'Fat Loss', 'build-muscle': 'Muscle Gain', recomposition: 'Body Recomposition', strength: 'Strength',
+            'military-prep': 'Selection Prep', 'lose-fat': 'Fat Loss', 'build-muscle': 'Muscle Gain', recomposition: 'Body Recomposition', strength: 'Strength',
           };
           nutritionTargets = { ...local, goalLabel: goalLabels[goal], rationale: '' };
         }

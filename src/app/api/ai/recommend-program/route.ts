@@ -59,7 +59,9 @@ export async function POST(req: NextRequest) {
         // three numbers instead of the entire coaching description. Built
         // here rather than shipping the whole program down: a phased program
         // is 70-odd exercises, and the reveal needs none of them.
-        marketing: buildProgramMarketing(program),
+        // Third argument: the member's own days per week, so the commitment
+        // line is honest for someone on fewer days than the program lists.
+        marketing: buildProgramMarketing(program, undefined, trainingDays),
       },
     });
   } catch (err: unknown) {
