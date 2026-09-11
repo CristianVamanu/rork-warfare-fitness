@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Moon, Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
+import { Moon, Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, Medal } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
@@ -11,7 +11,7 @@ import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
-import { getLevelTier } from '@/lib/xp';
+import { getLevelTier, xpToNextLevel } from '@/lib/xp';
 import { Card } from '@/components/ui/Card';
 import { FastingWidget } from '@/components/dashboard/FastingWidget';
 import { DaysWithoutWidget } from '@/components/dashboard/DaysWithoutWidget';
@@ -123,6 +123,10 @@ export default function DashboardPage() {
   const firstName = profile?.displayName?.split(' ')[0] || 'Athlete';
   const powerLevel = profile?.powerLevel ?? 0;
   const tier = getLevelTier(powerLevel);
+  // Same helper the achievements screen uses, so the two never disagree
+  // about how far along the level someone is.
+  const levelProgress = xpToNextLevel(profile?.xp ?? 0);
+  const levelSegments = Math.round((levelProgress.current / levelProgress.needed) * 20);
 
   const localDateStr = new Date().toLocaleDateString('sv-SE');
   const workedOutToday = (profile?.activeProgram?.completedWorkouts ?? 0) > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
@@ -610,121 +614,159 @@ export default function DashboardPage() {
             )}
         </motion.div>
 
-        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
+        {/* ── Ops board ──────────────────────────────────────────────────────
+            One accent colour, monospace labels, numbered slots and a
+            segmented XP readout — an instrument panel rather than a row of
+            coloured app icons. The eight destinations, their order and their
+            links are unchanged; this is presentation only.
 
-          {/* Quick Actions — moved above the social/stats tiles below since these
-              are the highest-frequency taps on the whole screen (used multiple
-              times a day) and don't deserve to be buried under lower-frequency
-              content like the leaderboard or weekly stats. */}
-          {[
-            { icon: Dumbbell, label: 'Workout', href: '/training', from: 'from-purple-400/20', to: 'to-purple-400/5', border: 'border-purple-400/20', color: 'text-purple-300' },
-            { icon: Apple, label: 'Log Food', href: '/nutrition', from: 'from-green-400/20', to: 'to-green-400/5', border: 'border-green-400/20', color: 'text-green-300' },
-            { icon: Camera, label: 'Scan & Go', href: '/training/scan-go', from: 'from-blue-400/20', to: 'to-blue-400/5', border: 'border-blue-400/20', color: 'text-blue-300' },
-            { icon: CheckSquare, label: 'Habits', href: '/habits', from: 'from-indigo-400/20', to: 'to-indigo-400/5', border: 'border-indigo-400/20', color: 'text-indigo-300' },
-            { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner', from: 'from-orange-400/20', to: 'to-orange-400/5', border: 'border-orange-400/20', color: 'text-orange-300' },
-            { icon: TrendingUp, label: 'Progress', href: '/progress', from: 'from-teal-400/20', to: 'to-teal-400/5', border: 'border-teal-400/20', color: 'text-teal-300' },
-            { icon: Trophy, label: 'Achievements', href: '/achievements', from: 'from-yellow-400/20', to: 'to-yellow-400/5', border: 'border-yellow-400/20', color: 'text-yellow-300' },
-            { icon: Swords, label: 'Quests', href: '/quests', from: 'from-pink-400/20', to: 'to-pink-400/5', border: 'border-pink-400/20', color: 'text-pink-300' },
-          ].map((action) => (
-            <motion.div key={action.label} variants={stagger.item} className="col-span-1 row-span-1">
-              <Link href={action.href} className="block h-full">
+            The mono face is the system one (SF Mono on iOS, Roboto Mono on
+            Android) rather than a webfont: the look does not justify blocking
+            first paint on a font download for two dozen small labels. */}
+        <motion.div variants={stagger.container} initial="initial" animate="animate" className="space-y-3">
+
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[11px] font-semibold tracking-[0.16em] uppercase text-accent">{'// Ops board'}</span>
+            <span className="font-mono text-[11px] tracking-wider text-text-tertiary tabular-nums">
+              Lvl {powerLevel} · {(profile?.xp ?? 0).toLocaleString()} XP
+            </span>
+          </div>
+
+          {/* Three across rather than four: at 390px wide a quarter-width tile
+              leaves ~80px for a label like "Achievements", which is why those
+              read at 9px today. Three gives the label room at a legible size
+              and the icon room to breathe. */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { icon: Dumbbell, label: 'Workout', href: '/training' },
+              { icon: Apple, label: 'Log Food', href: '/nutrition' },
+              { icon: Camera, label: 'Scan & Go', href: '/training/scan-go' },
+              { icon: CheckSquare, label: 'Habits', href: '/habits' },
+              { icon: Sparkles, label: 'Meal Ideas', href: '/nutrition/meal-planner' },
+              { icon: TrendingUp, label: 'Progress', href: '/progress' },
+              { icon: Trophy, label: 'Achievements', href: '/achievements' },
+              { icon: Swords, label: 'Quests', href: '/quests' },
+            ].map((action, idx) => (
+              <motion.div key={action.label} variants={stagger.item}>
+                <Link href={action.href} className="block">
+                  <motion.div
+                    whileTap={{ scale: 0.96 }}
+                    className="relative h-24 flex flex-col items-center justify-center gap-2 bg-surface border border-white/10 hover:border-accent/40 transition-colors"
+                  >
+                    <span className="absolute top-1.5 left-2 font-mono text-[9px] tracking-wider text-text-tertiary tabular-nums">
+                      {String(idx + 1).padStart(2, '0')}
+                    </span>
+                    {/* The bracket marks the first slot only — a corner on
+                        every tile is decoration, on one it is a start point. */}
+                    {idx === 0 && (
+                      <span className="absolute -top-px -right-px w-2.5 h-2.5 border-t-2 border-r-2 border-accent" />
+                    )}
+                    <action.icon className={`w-[22px] h-[22px] ${idx === 0 ? 'text-accent' : 'text-white/90'}`} strokeWidth={1.75} />
+                    <span className="text-[11px] font-semibold text-white text-center leading-tight px-1">{action.label}</span>
+                  </motion.div>
+                </Link>
+              </motion.div>
+            ))}
+
+            {/* PR Wall as the ninth slot — it completes the 3×3 block, and it
+                is a destination like the rest rather than a card of its own. */}
+            <motion.div variants={stagger.item}>
+              <Link href="/community/prs" className="block">
                 <motion.div
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  className={`h-full flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-br ${action.from} ${action.to} border ${action.border} card-float`}
+                  whileTap={{ scale: 0.96 }}
+                  className="relative h-24 flex flex-col items-center justify-center gap-2 bg-accent/[0.08] border border-accent/35 hover:border-accent/60 transition-colors"
                 >
-                  <action.icon className={`w-5 h-5 ${action.color}`} strokeWidth={2.25} />
-                  <span className="text-[9px] font-medium text-text-secondary text-center leading-tight">{action.label}</span>
+                  <span className="absolute top-1.5 left-2 font-mono text-[9px] tracking-wider text-accent tabular-nums">09</span>
+                  <Medal className="w-[22px] h-[22px] text-accent" strokeWidth={1.75} />
+                  <span className="text-[11px] font-semibold text-accent text-center leading-tight px-1">PR Wall</span>
                 </motion.div>
               </Link>
             </motion.div>
-          ))}
+          </div>
 
-          {/* Level — personal progression, not a ranking. This tile used to
-              show "#42" from the leaderboard; ranking members against each
-              other on self-reported workouts rewarded whoever logged the most
-              fiction, so the comparison is gone and the progression stays. */}
-          <motion.div variants={stagger.item} className="col-span-2 row-span-1">
-            <Link href="/achievements" className="block h-full">
-              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors card-float">
-                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Your Level</span>
-                <p className="text-xl font-black text-accent leading-tight mt-0.5">Lvl {powerLevel}</p>
-                <p className="text-[10px] text-text-tertiary mt-0.5">{(profile?.xp ?? 0).toLocaleString()} XP</p>
-              </Card>
+          {/* Level — twenty segments, so progress to the next level reads as a
+              count of how much is left rather than a bar to estimate. */}
+          <motion.div variants={stagger.item}>
+            <Link href="/achievements" className="block">
+              <div className="bg-surface border border-white/10 hover:border-accent/30 transition-colors p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-text-secondary">Level {powerLevel}</span>
+                  <span className="font-mono text-[10px] tracking-wider text-text-tertiary tabular-nums">
+                    {levelProgress.current} / {levelProgress.needed} XP
+                  </span>
+                </div>
+                {/* Tailwind's grid-cols scale stops at 12, so the 20 tracks
+                    are declared directly. */}
+                <div className="grid gap-[3px]" style={{ gridTemplateColumns: 'repeat(20, minmax(0, 1fr))' }}>
+                  {Array.from({ length: 20 }, (_, i) => (
+                    <span key={i} className={`h-2 ${i < levelSegments ? 'bg-accent' : 'bg-white/10'}`} />
+                  ))}
+                </div>
+              </div>
             </Link>
           </motion.div>
 
-          {/* PR Wall teaser */}
-          <motion.div variants={stagger.item} className="col-span-2 row-span-1">
-            <Link href="/community/prs" className="block h-full">
-              <Card className="p-3.5 h-full flex flex-col items-center justify-center text-center hover:border-accent/30 transition-colors card-float">
-                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR Wall</span>
-                <span className="text-lg mt-0.5">🏅</span>
-                <p className="text-[10px] text-text-tertiary mt-0.5">Post a lift, get verified</p>
-              </Card>
-            </Link>
-          </motion.div>
-
-          {/* Breathing / meditation widget */}
-          <motion.div variants={stagger.item} className="col-span-4 row-span-1">
-            <Link href="/breathing" className="block h-full">
-              <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors relative overflow-hidden card-float">
-                <div className="relative w-11 h-11 flex-shrink-0 flex items-center justify-center">
+          {/* Breathing — the one accented row, so the calm thing on a busy
+              screen is also the easiest to find. */}
+          <motion.div variants={stagger.item}>
+            <Link href="/breathing" className="block">
+              <div className="bg-surface border border-white/10 border-l-2 border-l-accent hover:border-accent/30 transition-colors p-3.5 flex items-center gap-3.5">
+                <div className="relative w-10 h-10 flex-shrink-0 flex items-center justify-center">
                   <motion.div
                     animate={{ scale: [0.6, 1, 0.6], opacity: [0.5, 0.9, 0.5] }}
                     transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                    className="absolute w-11 h-11 rounded-full"
+                    className="absolute w-10 h-10 rounded-full"
                     style={{ background: 'radial-gradient(circle, #F5A623 0%, rgba(245,166,35,0) 72%)' }}
                   />
                   <motion.div
                     animate={{ scale: [0.6, 1, 0.6] }}
                     transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                    className="w-5 h-5 rounded-full bg-accent"
+                    className="w-4 h-4 rounded-full bg-accent"
                   />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Breathing</span>
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-text-tertiary">Breathing</span>
                   <p className="text-sm font-bold text-white">Reset in 5 or 10 minutes</p>
-                  <p className="text-[10px] text-text-tertiary mt-0.5">5 guided techniques to relax and refocus</p>
+                  <p className="text-[11px] text-text-secondary">5 guided techniques to relax and refocus</p>
                 </div>
-                <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-              </Card>
+                <span className="font-mono text-[11px] font-semibold text-accent flex-shrink-0">GO →</span>
+              </div>
             </Link>
           </motion.div>
 
           {/* Goals — only shown once the coach has actually set one */}
           {activeGoalCount > 0 && (
-            <motion.div variants={stagger.item} className="col-span-4 row-span-1">
-              <Link href="/goals" className="block h-full">
-                <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors card-float">
-                  <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
-                    <Target className="w-5 h-5 text-accent" />
+            <motion.div variants={stagger.item}>
+              <Link href="/goals" className="block">
+                <div className="bg-surface border border-white/10 hover:border-accent/30 transition-colors p-3.5 flex items-center gap-3.5">
+                  <div className="w-10 h-10 bg-accent-muted flex items-center justify-center flex-shrink-0">
+                    <Target className="w-5 h-5 text-accent" strokeWidth={1.75} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Goals</span>
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-text-tertiary">Goals</span>
                     <p className="text-sm font-bold text-white">{activeGoalCount} active {activeGoalCount === 1 ? 'goal' : 'goals'}</p>
-                    <p className="text-[10px] text-text-tertiary mt-0.5">Tap to check in on your progress</p>
+                    <p className="text-[11px] text-text-secondary">Tap to check in on your progress</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-                </Card>
+                </div>
               </Link>
             </motion.div>
           )}
 
           {/* Progress photos — only shown once the user has actually taken one */}
           {progressPhotos.length > 0 && (
-            <motion.div variants={stagger.item} className="col-span-4 row-span-1">
-              <Link href="/progress" className="block h-full">
-                <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors card-float">
+            <motion.div variants={stagger.item}>
+              <Link href="/progress" className="block">
+                <div className="bg-surface border border-white/10 hover:border-accent/30 transition-colors p-3.5 flex items-center gap-3.5">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={progressPhotos[0].photoUrl} alt="" className="w-11 h-11 rounded-xl object-cover flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Progress Photos</span>
+                  <img src={progressPhotos[0].photoUrl} alt="" className="w-10 h-10 object-cover flex-shrink-0" />
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-text-tertiary">Progress Photos</span>
                     <p className="text-sm font-bold text-white">{progressPhotos.length} photo{progressPhotos.length === 1 ? '' : 's'} tracked</p>
-                    <p className="text-[10px] text-text-tertiary mt-0.5">Tap to view your timeline & compare</p>
+                    <p className="text-[11px] text-text-secondary">Tap to view your timeline &amp; compare</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-                </Card>
+                </div>
               </Link>
             </motion.div>
           )}
