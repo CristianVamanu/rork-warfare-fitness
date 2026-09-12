@@ -171,7 +171,15 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
         </div>
       </div>
 
-      <main className="max-w-3xl mx-auto px-5 pb-24">
+      {/* relative + z-10 is load-bearing, not decoration. TacticalBackdrop is
+          absolutely positioned inside the hero wrapper above, and an
+          absolutely positioned element paints ABOVE the in-flow content of a
+          later sibling — so the backdrop's bottom fade, which is an opaque
+          `from-background` gradient 128px tall, was painting over the top of
+          this main and hiding whatever fell in that band. On a phone that was
+          the first section's heading: a tall blank gap with the tail of its
+          blurb showing below the fade. Positioning main puts it above. */}
+      <main className="relative z-10 max-w-3xl mx-auto px-5 pb-24">
         <Reveal>
           <section className="py-10 border-t border-white/8">
             <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">What this program is</h2>

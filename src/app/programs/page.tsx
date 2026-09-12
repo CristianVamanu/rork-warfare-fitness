@@ -125,7 +125,15 @@ export default async function ProgramsIndexPage() {
         </div>
       </div>
 
-      <main className="max-w-6xl mx-auto px-5 pb-24">
+      {/* relative + z-10 is load-bearing, not decoration. TacticalBackdrop is
+          absolutely positioned inside the hero wrapper above, and an
+          absolutely positioned element paints ABOVE the in-flow content of a
+          later sibling — so the backdrop's bottom fade, which is an opaque
+          `from-background` gradient 128px tall, was painting over the top of
+          this main and hiding whatever fell in that band. On a phone that was
+          the first section's heading: a tall blank gap with the tail of its
+          blurb showing below the fade. Positioning main puts it above. */}
+      <main className="relative z-10 max-w-6xl mx-auto px-5 pb-24">
         {programs.length === 0 ? (
           <p className="text-text-secondary">No programs published yet.</p>
         ) : (
