@@ -107,9 +107,14 @@ export async function GET(req: NextRequest) {
     if (!raw) throw new Error('empty response');
     // Keep the first sentence if the model ran long, rather than caching
     // something that will not fit and cutting it off in the UI.
-    const tip = raw.length <= MAX_TIP_CHARS
-      ? raw
-      : (raw.match(/^[^.!?]*[.!?]/)?.[0]?.trim() ?? raw.slice(0, MAX_TIP_CHARS).trim());
+    // Hard-capped after the first-sentence cut as well. If the first sentence
+    // alone ran past the limit it was cached anyway, and the read path above
+    // then treated it as a miss — so every dashboard load regenerated a new
+    // tip and paid for it until one happened to come in short.
+    const firstSentence = raw.match(/^[^.!?]*[.!?]/)?.[0]?.trim() ?? raw;
+    const tip = firstSentence.length <= MAX_TIP_CHARS
+      ? firstSentence
+      : firstSentence.slice(0, MAX_TIP_CHARS).replace(/\s+\S*$/, '').trim() + '…';
 
     // Cache in Firestore for the rest of the day
     if (app) {
