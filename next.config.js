@@ -191,6 +191,21 @@ const withPWA = require('next-pwa')({
         plugins: [{ handlerDidError: async () => new Response('', { status: 204 }) }],
       },
     },
+    // Firestore's connectivity probe (www.google.com/images/cleardot.gif) and
+    // its WebChannel streams. Both were falling through to next-pwa's
+    // cross-origin NetworkFirst default, which tries to CACHE them — caching
+    // a liveness probe is meaningless, and putting a caching layer in front
+    // of a long-lived streaming RPC is worse than meaningless. The probe's
+    // failures also surfaced as unhandled "no-response" rejections from
+    // Workbox on every page load.
+    {
+      urlPattern: ({ url }) =>
+        url.hostname === 'www.google.com' || url.hostname === 'firestore.googleapis.com',
+      handler: 'NetworkOnly',
+      options: {
+        plugins: [{ handlerDidError: async () => new Response('', { status: 204 }) }],
+      },
+    },
     // next-pwa's bundled defaults match video files with /\.(?:mp4)$/ —
     // requires the URL to literally END in ".mp4". Firebase Storage and R2
     // download URLs always have `?alt=media&token=...` (or similar) appended
