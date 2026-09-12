@@ -22,6 +22,7 @@ import { MOCK_PROGRAMS } from '@/lib/programs';
 import { buildProgramMarketing, type ProgramMarketing } from '@/lib/programMarketing';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Medallion } from '@/components/dashboard/Medallion';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex, MedicalHistoryAnswers } from '@/types';
 
@@ -726,136 +727,184 @@ function OnboardingPageInner() {
   // created. The program-specific blocks below are conditional instead, so
   // the completion screen (nutrition targets, "Let's Go") always renders.
   if (status === 'done') {
+    const stats = revealProgram?.marketing?.stats ?? [];
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 text-center">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="max-w-sm w-full">
-          <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-5">
-            <PartyPopper className="w-8 h-8 text-accent" />
-          </div>
-          {revealProgram ? (
-            <>
-              <p className="text-xs font-bold text-accent uppercase tracking-wide mb-2">Your Personalized Plan</p>
-              <h1 className="text-2xl font-black text-white mb-3">{revealProgram.name}</h1>
-              {/* This screen used to print the ENTIRE coaching description —
-                  six paragraphs of tempo prescriptions and breathing cues —
-                  at the one moment a new member is deciding whether to
-                  continue. It is the highest-leverage screen in the funnel
-                  and it read like a textbook. Now: the same hook, stats and
-                  "who it's for" the public program pages lead with, with the
-                  full brief one tap away for anyone who wants it. */}
-              {revealProgram.marketing ? (
-                <>
-                  <p className="text-white/90 text-base font-medium leading-snug mb-5">{revealProgram.marketing.hook}</p>
-                  <div className="grid grid-cols-4 gap-2 mb-5">
-                    {revealProgram.marketing.stats.map((st) => (
-                      <div key={st.label} className="rounded-xl border border-white/8 bg-surface/70 p-2.5">
-                        <p className="text-base font-black text-white leading-tight">{st.value}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-text-tertiary mt-0.5">{st.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-text-secondary text-sm leading-relaxed mb-3 line-clamp-4">
-                    {revealProgram.marketing.whoFor.split('\n')[0]}
-                  </p>
-                  <details className="mb-6 text-left group">
-                    <summary className="cursor-pointer list-none text-xs font-semibold text-accent text-center hover:underline">
-                      Read the full program brief
-                    </summary>
-                    <p className="text-text-secondary text-sm leading-relaxed whitespace-pre-line mt-3 max-h-64 overflow-y-auto pr-1">
-                      {revealProgram.description}
-                    </p>
-                  </details>
-                </>
-              ) : (
-                <>
-                  {/* No marketing object — an older client payload. Keep it
-                      readable rather than blank: first paragraph only. */}
-                  <p className="text-text-secondary text-sm mb-5 leading-relaxed line-clamp-4">{revealProgram.description.split('\n')[0]}</p>
-                  <div className="flex items-center justify-center gap-6 mb-6">
-                    <div>
-                      <p className="text-2xl font-black text-white">{revealProgram.weeks}</p>
-                      <p className="text-xs text-text-secondary">weeks</p>
-                    </div>
-                    <div className="w-px h-8 bg-white/10" />
-                    <div>
-                      <p className="text-2xl font-black text-white">{revealProgram.daysPerWeek}</p>
-                      <p className="text-xs text-text-secondary">days/week</p>
-                    </div>
-                  </div>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              <p className="text-xs font-bold text-accent uppercase tracking-wide mb-2">You&apos;re All Set</p>
-              <h1 className="text-2xl font-black text-white mb-2">Welcome aboard</h1>
-              <p className="text-text-secondary text-sm mb-6 leading-relaxed">
+      <div className="relative isolate min-h-screen bg-background overflow-hidden">
+        {/* Same wash the app itself opens on, so the first screen after signup
+            already looks like the product rather than a success dialog. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[560px] h-[560px] max-w-[140vw] rounded-full bg-accent/[0.10] blur-3xl" />
+          <div
+            className="absolute inset-0 opacity-[0.035]"
+            style={{
+              backgroundImage:
+                'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
+              backgroundSize: '56px 56px',
+            }}
+          />
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="mx-auto w-full max-w-md lg:max-w-4xl px-4 py-10 lg:py-14"
+        >
+          {/* Header. Centered, because it is one short announcement — the
+              body below is left-aligned, since centred paragraphs give the
+              eye no consistent left edge to return to. */}
+          <div className="text-center">
+            <Medallion className="mx-auto mb-4 w-14 h-14">
+              <PartyPopper className="w-7 h-7" />
+            </Medallion>
+            <p className="text-[11px] font-bold text-accent uppercase tracking-[0.18em]">
+              {revealProgram ? 'Your personalized plan' : "You're all set"}
+            </p>
+            <h1 className="text-[26px] lg:text-4xl font-black text-white tracking-tight mt-2 text-balance">
+              {revealProgram ? revealProgram.name : 'Welcome aboard'}
+            </h1>
+            {revealProgram?.marketing && (
+              <p className="text-white/85 text-[15px] lg:text-base font-medium leading-snug mt-3 max-w-xl mx-auto text-balance">
+                {revealProgram.marketing.hook}
+              </p>
+            )}
+            {!revealProgram && (
+              <p className="text-text-secondary text-sm leading-relaxed mt-3 max-w-md mx-auto">
                 Your profile is ready. Pick the training program you want from the Training tab whenever you&apos;re ready to start.
               </p>
-            </>
-          )}
+            )}
+          </div>
 
-          {/* The core promise of the whole goal-weight question: a concrete,
-              personalized timeline tied to the specific program just
-              assigned — not a generic "results vary" hand-wave. */}
-          {revealProgram && revealTimeline && revealTimeline.weeksToGoal > 0 && (
-            <div className="mb-6 p-4 bg-accent/5 border border-accent/20 rounded-2xl text-left flex items-start gap-3">
-              {revealTimeline.direction === 'lose'
-                ? <TrendingDown className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
-                : <TrendingUp className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />}
-              <p className="text-sm text-text-secondary leading-relaxed">
-                Based on this information, you&apos;ll reach your goal weight in{' '}
-                <span className="text-white font-bold">
-                  ~{revealTimeline.monthsToGoal} month{revealTimeline.monthsToGoal !== 1 ? 's' : ''}
-                </span>{' '}
-                by following <span className="text-white font-bold">{revealProgram.name}</span>
-                {' '}({revealTimeline.direction === 'lose' ? 'losing' : 'gaining'} ~{Math.abs(Math.round(weightUnit === 'lbs' ? kgToLbs(revealTimeline.weightChangeKg) : revealTimeline.weightChangeKg))}{weightUnit} at a safe, sustainable pace).
-              </p>
-            </div>
-          )}
+          {/* Two columns from lg up. On a wide screen a single 384px ribbon
+              of centred text was most of the problem; on a phone this is the
+              same single column it always was. */}
+          <div className="mt-7 grid gap-4 lg:grid-cols-2 lg:items-start">
 
-          {revealNutrition && (
-            <Card className="p-5 mb-6 text-left">
-              <p className="text-xs font-bold text-accent uppercase tracking-wide mb-3 text-center">Your Nutrition Targets</p>
-              <div className="flex items-end justify-center gap-2 mb-1">
-                <p className="text-3xl font-black text-white leading-none">{revealNutrition.calories.toLocaleString()}</p>
-                <p className="text-sm text-text-secondary mb-0.5">cal / day</p>
-              </div>
-              <p className="text-xs text-text-tertiary text-center mb-4">
-                {revealNutrition.calorieAdjustment === 0
-                  ? `Maintenance (${revealNutrition.maintenanceCalories.toLocaleString()} cal)`
-                  : `${revealNutrition.maintenanceCalories.toLocaleString()} cal maintenance ${revealNutrition.calorieAdjustment > 0 ? '+' : '−'} ${Math.abs(revealNutrition.calorieAdjustment)} for ${revealNutrition.goalLabel}`}
-              </p>
+            {revealProgram && (
+              <div className="space-y-4">
+                {revealProgram.marketing ? (
+                  <Card glass className="p-5">
+                    {/* Two across on a phone. Four across inside a 384px
+                        column gave each stat about 80px, so the longer
+                        values wrapped or ran off the edge entirely. */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-2.5">
+                      {stats.map((st) => (
+                        <div key={st.label} className="rounded-xl bg-white/[0.04] border border-white/8 px-3 py-2.5">
+                          <p className="text-[17px] font-black text-white leading-tight tabular-nums">{st.value}</p>
+                          <p className="text-[10px] uppercase tracking-[0.12em] text-text-tertiary mt-1">{st.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-text-secondary text-sm leading-relaxed mt-4">
+                      {revealProgram.marketing.whoFor.split('\n')[0]}
+                    </p>
+                    <details className="group mt-3">
+                      <summary className="cursor-pointer list-none inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline">
+                        Read the full brief
+                        <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90" />
+                      </summary>
+                      <p className="text-text-secondary text-sm leading-relaxed whitespace-pre-line mt-3 max-h-56 overflow-y-auto pr-1">
+                        {revealProgram.description}
+                      </p>
+                    </details>
+                  </Card>
+                ) : (
+                  <Card glass className="p-5">
+                    <p className="text-text-secondary text-sm leading-relaxed">{revealProgram.description.split('\n')[0]}</p>
+                    <div className="grid grid-cols-2 gap-2.5 mt-4">
+                      <div className="rounded-xl bg-white/[0.04] border border-white/8 px-3 py-2.5">
+                        <p className="text-[17px] font-black text-white tabular-nums">{revealProgram.weeks}</p>
+                        <p className="text-[10px] uppercase tracking-[0.12em] text-text-tertiary mt-1">Weeks</p>
+                      </div>
+                      <div className="rounded-xl bg-white/[0.04] border border-white/8 px-3 py-2.5">
+                        <p className="text-[17px] font-black text-white tabular-nums">{revealProgram.daysPerWeek}</p>
+                        <p className="text-[10px] uppercase tracking-[0.12em] text-text-tertiary mt-1">Days / week</p>
+                      </div>
+                    </div>
+                  </Card>
+                )}
 
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                {[
-                  { label: 'Protein', value: revealNutrition.protein, color: 'text-red-400' },
-                  { label: 'Carbs', value: revealNutrition.carbs, color: 'text-blue-400' },
-                  { label: 'Fat', value: revealNutrition.fat, color: 'text-yellow-400' },
-                ].map((m) => (
-                  <div key={m.label} className="bg-surface rounded-xl py-2.5 text-center">
-                    <p className={`text-base font-black ${m.color}`}>{m.value}g</p>
-                    <p className="text-[10px] text-text-tertiary">{m.label}</p>
+                {/* The core promise of the whole goal-weight question: a
+                    concrete, personalized timeline tied to the specific
+                    program just assigned, not a "results vary" hand-wave. */}
+                {revealTimeline && revealTimeline.weeksToGoal > 0 && (
+                  <div className="rounded-2xl border border-accent/25 bg-accent/[0.07] p-4 flex items-start gap-3">
+                    {revealTimeline.direction === 'lose'
+                      ? <TrendingDown className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+                      : <TrendingUp className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />}
+                    <p className="text-sm text-text-secondary leading-relaxed">
+                      You&apos;ll reach your goal weight in{' '}
+                      <span className="text-white font-bold">
+                        ~{revealTimeline.monthsToGoal} month{revealTimeline.monthsToGoal !== 1 ? 's' : ''}
+                      </span>{' '}
+                      on this program, {revealTimeline.direction === 'lose' ? 'losing' : 'gaining'}{' '}
+                      ~{Math.abs(Math.round(weightUnit === 'lbs' ? kgToLbs(revealTimeline.weightChangeKg) : revealTimeline.weightChangeKg))}{weightUnit} at a safe, sustainable pace.
+                    </p>
                   </div>
-                ))}
+                )}
               </div>
+            )}
 
-              {revealNutrition.rationale && (
-                <p className="text-xs text-text-secondary leading-relaxed">{revealNutrition.rationale}</p>
-              )}
-              {!revealNutrition.usedRealBiometrics && (
-                <p className="text-[10px] text-text-tertiary mt-2">
-                  Estimated from your training frequency — add your height/weight in Profile for a more precise target.
+            {revealNutrition && (
+              <Card glass className="p-5">
+                <p className="text-[10px] font-bold text-accent uppercase tracking-[0.16em]">Your nutrition targets</p>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <p className="text-[38px] font-black text-white leading-none tracking-tight tabular-nums">
+                    {revealNutrition.calories.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-text-secondary">cal / day</p>
+                </div>
+                <p className="text-xs text-text-tertiary mt-1.5">
+                  {revealNutrition.calorieAdjustment === 0
+                    ? `Maintenance (${revealNutrition.maintenanceCalories.toLocaleString()} cal)`
+                    : `${revealNutrition.maintenanceCalories.toLocaleString()} cal maintenance ${revealNutrition.calorieAdjustment > 0 ? '+' : '−'} ${Math.abs(revealNutrition.calorieAdjustment)} for ${revealNutrition.goalLabel}`}
                 </p>
-              )}
-            </Card>
-          )}
 
-          <Button fullWidth size="lg" onClick={proceedToApp}>
-            Let&apos;s Go <ChevronRight className="w-4 h-4" />
-          </Button>
+                {/* A bar per macro rather than three number tiles: the split
+                    between them is the thing worth seeing, and three equal
+                    boxes hide it. */}
+                <div className="mt-4 space-y-2.5">
+                  {[
+                    { label: 'Protein', value: revealNutrition.protein, cals: revealNutrition.protein * 4, bar: 'bg-red-400', text: 'text-red-400' },
+                    { label: 'Carbs', value: revealNutrition.carbs, cals: revealNutrition.carbs * 4, bar: 'bg-blue-400', text: 'text-blue-400' },
+                    { label: 'Fat', value: revealNutrition.fat, cals: revealNutrition.fat * 9, bar: 'bg-yellow-400', text: 'text-yellow-400' },
+                  ].map((m) => {
+                    const total = revealNutrition.protein * 4 + revealNutrition.carbs * 4 + revealNutrition.fat * 9;
+                    const pct = total > 0 ? Math.round((m.cals / total) * 100) : 0;
+                    return (
+                      <div key={m.label}>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs text-text-secondary">{m.label}</span>
+                          <span className={`text-sm font-black tabular-nums ${m.text}`}>
+                            {m.value}g <span className="text-[10px] font-bold text-text-tertiary">{pct}%</span>
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-white/[0.07] mt-1.5 overflow-hidden">
+                          <div className={`h-full rounded-full ${m.bar}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {revealNutrition.rationale && (
+                  <p className="text-xs text-text-secondary leading-relaxed mt-4">{revealNutrition.rationale}</p>
+                )}
+                {!revealNutrition.usedRealBiometrics && (
+                  <p className="text-[10px] text-text-tertiary mt-2">
+                    Estimated from your training frequency — add your height and weight in Profile for a more precise target.
+                  </p>
+                )}
+              </Card>
+            )}
+          </div>
+
+          <div className="mt-7 lg:max-w-sm lg:mx-auto">
+            <Button fullWidth size="lg" onClick={proceedToApp}>
+              Let&apos;s Go <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
         </motion.div>
-
       </div>
     );
   }
