@@ -748,13 +748,33 @@ service cloud.firestore {
                 && (uid() in resource.data.get('likes', [])))
             ))
         );
-        allow delete: if isAdmin();
+        // The author may remove their own post, not just an admin. The
+        // overflow menu has always offered Delete to the author (canDelete =
+        // isAdmin || own post), so this was a button that could only fail.
+        allow delete: if isAuthed() && notTfaPending() && (
+          isAdmin() || resource.data.userId == uid()
+        );
 
         match /replies/{replyId} {
           allow read: if isAuthed() && notTfaPending();
           allow create: if isAuthed() && notTfaPending() && request.resource.data.userId == uid()
             && request.resource.data.get('userIsAdmin', false) == isAdmin();
-          allow update, delete: if false;
+          // Replies were write-once: nobody, not even an admin, could edit or
+          // remove one. A typo stood forever and a post someone regretted
+          // could not be taken back, in the one place members talk to each
+          // other. The author may edit their own text — content and the
+          // editedAt marker only, so authorship, timestamps and the admin
+          // badge cannot be rewritten — and the author or an admin may
+          // delete it.
+          allow update: if isAuthed() && notTfaPending()
+            && resource.data.userId == uid()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'editedAt'])
+            && request.resource.data.content is string
+            && request.resource.data.content.size() > 0
+            && request.resource.data.content.size() <= 5000;
+          allow delete: if isAuthed() && notTfaPending() && (
+            isAdmin() || resource.data.userId == uid()
+          );
         }
       }
 

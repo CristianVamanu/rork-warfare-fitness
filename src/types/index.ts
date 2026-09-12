@@ -490,6 +490,9 @@ export interface ChannelPost {
   imageURL?: string;
   /** Absent on every post written before clips existed: treat as an image. */
   mediaType?: 'image' | 'video';
+  /** Set when a reply has been edited by its author — shown as a small
+   *  "edited" marker so a rewritten reply is never passed off as original. */
+  editedAt?: unknown;
   likes: string[];
   replyCount: number;
   replyTo?: string | null;

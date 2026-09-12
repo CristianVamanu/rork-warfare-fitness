@@ -2307,6 +2307,36 @@ export async function createReply(channelId: string, postId: string, data: {
   await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { replyCount: increment(1) }).catch(() => {});
 }
 
+/**
+ * Edits a reply's text. Only the author may, enforced in firestore.rules —
+ * and only `content` plus the `editedAt` marker, so nobody can rewrite
+ * authorship, the timestamp or the admin badge on an existing reply.
+ */
+export async function updateReply(channelId: string, postId: string, replyId: string, content: string) {
+  await updateDoc(doc(db, 'channels', channelId, 'posts', postId, 'replies', replyId), {
+    content,
+    editedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Removes a reply. The author or an admin, per the rules.
+ *
+ * replyCount is decremented best-effort and floored, for the same reason
+ * deleteChannelPost's postCount is: the +1 on create only lands when you own
+ * the parent post or are an admin, so the stored count is already an
+ * undercount in most threads and a blind -1 walks it negative.
+ */
+export async function deleteReply(channelId: string, postId: string, replyId: string) {
+  await deleteDoc(doc(db, 'channels', channelId, 'posts', postId, 'replies', replyId));
+  await runTransaction(db, async (tx) => {
+    const ref = doc(db, 'channels', channelId, 'posts', postId);
+    const snap = await tx.get(ref);
+    const current = (snap.data()?.replyCount as number | undefined) ?? 0;
+    tx.update(ref, { replyCount: Math.max(0, current - 1) });
+  }).catch(() => {});
+}
+
 export async function deleteChannelPost(channelId: string, postId: string) {
   await deleteDoc(doc(db, 'channels', channelId, 'posts', postId));
   // Clamped at zero rather than a blind increment(-1). The +1 on create is

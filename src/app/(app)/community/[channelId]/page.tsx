@@ -11,7 +11,7 @@ import { FeedMedia } from '@/components/community/FeedMedia';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  getChannels, subscribeChannelPosts, createChannelPost, deleteChannelPost,
+  getChannels, subscribeChannelPosts, createChannelPost, deleteChannelPost, deleteReply, updateReply,
   likeChannelPost, getPostReplies, createReply, getUserLastPostInChannel,
   pinChannelPost, unpinChannelPost, getSystemConfig, channelScopeFor,
 } from '@/lib/firestore';
@@ -73,11 +73,28 @@ function fullTimestamp(ts: unknown): string | undefined {
  * quieter (smaller avatar, no card fill) so the eye reads the thread as
  * "answer to the thing above" rather than another top-level comment.
  */
-function ReplyRow({ reply, nested = false, onReply }: {
+function ReplyRow({ reply, nested = false, onReply, canEdit, canDelete, onEdit, onDelete }: {
   reply: ChannelPost;
   nested?: boolean;
   onReply: () => void;
+  /** Author only — an admin can remove a reply but never rewrite one. */
+  canEdit: boolean;
+  canDelete: boolean;
+  onEdit: (text: string) => Promise<void>;
+  onDelete: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(reply.content);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const text = draft.trim();
+    if (!text || text === reply.content) { setEditing(false); setDraft(reply.content); return; }
+    setSaving(true);
+    try { await onEdit(text); setEditing(false); }
+    finally { setSaving(false); }
+  }
+
   return (
     <div className="flex items-start gap-2">
       <Avatar name={reply.userDisplayName} src={reply.userPhotoURL} size="sm" />
@@ -87,15 +104,64 @@ function ReplyRow({ reply, nested = false, onReply }: {
             <p className="text-xs font-bold text-white">{reply.userDisplayName}</p>
             {reply.userIsAdmin && <Badge variant="danger">Admin</Badge>}
             <span className="text-xs text-text-tertiary" title={fullTimestamp(reply.createdAt)}>{timeAgo(reply.createdAt)}</span>
+            {!!reply.editedAt && <span className="text-[10px] text-text-tertiary">edited</span>}
           </div>
-          <p className="text-sm text-white mt-0.5 whitespace-pre-wrap break-words">{reply.content}</p>
+          {editing ? (
+            <div className="mt-1.5">
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                rows={2}
+                autoFocus
+                className="w-full bg-surface border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-accent/50 resize-none"
+              />
+              <div className="flex gap-2 mt-1.5">
+                <button
+                  onClick={save}
+                  disabled={saving}
+                  className="text-[11px] font-bold text-accent disabled:opacity-50"
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={() => { setEditing(false); setDraft(reply.content); }}
+                  disabled={saving}
+                  className="text-[11px] font-medium text-text-tertiary"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-white mt-0.5 whitespace-pre-wrap break-words">{reply.content}</p>
+          )}
         </div>
-        <button
-          onClick={onReply}
-          className="mt-1 ml-1 text-[11px] font-medium text-text-tertiary hover:text-accent transition-colors"
-        >
-          Reply
-        </button>
+        {!editing && (
+          <div className="flex items-center gap-3 mt-1 ml-1">
+            <button
+              onClick={onReply}
+              className="text-[11px] font-medium text-text-tertiary hover:text-accent transition-colors"
+            >
+              Reply
+            </button>
+            {canEdit && (
+              <button
+                onClick={() => setEditing(true)}
+                className="text-[11px] font-medium text-text-tertiary hover:text-accent transition-colors"
+              >
+                Edit
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={onDelete}
+                className="text-[11px] font-medium text-text-tertiary hover:text-danger transition-colors"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -103,7 +169,7 @@ function ReplyRow({ reply, nested = false, onReply }: {
 
 function PostCard({
   post, userId, isAdmin, channelId, pinnedPostId,
-  onLike, onReply, onDelete, onPin,
+  onLike, onReply, onDelete, onDeleteReply, onPin,
   replyRefreshToken,
 }: {
   post: ChannelPost;
@@ -113,9 +179,12 @@ function PostCard({
   pinnedPostId?: string;
   onLike: (post: ChannelPost) => void;
   onReply: (post: ChannelPost, parentReply?: ChannelPost) => void;
-  replyRefreshToken: number;
   onDelete: (post: ChannelPost) => void;
+  onDeleteReply: (post: ChannelPost, reply: ChannelPost) => void;
   onPin: (post: ChannelPost, pin: boolean) => void;
+  /** Bumped by the parent after a reply in this thread is deleted, so the
+   *  open thread reloads rather than showing a reply that is already gone. */
+  replyRefreshToken: number;
 }) {
   const [replies, setReplies] = useState<ChannelPost[]>([]);
   const [showReplies, setShowReplies] = useState(false);
@@ -142,6 +211,17 @@ function PostCard({
     catch { /* leave whatever we had */ }
     finally { setLoadingReplies(false); }
   }, [channelId, post.id]);
+
+  // Writes, then reloads the thread so the edited text and its "edited"
+  // marker come from the server rather than from optimistic local state.
+  const handleEditReply = async (reply: ChannelPost, text: string) => {
+    try {
+      await updateReply(channelId, post.id, reply.id, text);
+      await loadReplies();
+    } catch {
+      toast.error('Could not save your edit');
+    }
+  };
 
   const handleShowReplies = async () => {
     if (showReplies) { setShowReplies(false); return; }
@@ -263,7 +343,14 @@ function PostCard({
                 const kids = childrenOf(r.id);
                 return (
                   <div key={r.id} className="relative">
-                    <ReplyRow reply={r} onReply={() => onReply(post, r)} />
+                    <ReplyRow
+                      reply={r}
+                      onReply={() => onReply(post, r)}
+                      canEdit={r.userId === userId}
+                      canDelete={isAdmin || r.userId === userId}
+                      onEdit={(text) => handleEditReply(r, text)}
+                      onDelete={() => onDeleteReply(post, r)}
+                    />
                     {kids.length > 0 && (
                       /* Facebook-style thread rail: one vertical line down the
                          left of the nested group, with a short elbow into each
@@ -275,7 +362,15 @@ function PostCard({
                           {kids.map((c) => (
                             <div key={c.id} className="relative pl-4">
                               <span aria-hidden="true" className="absolute left-[-7px] top-4 w-[15px] h-px bg-white/12" />
-                              <ReplyRow reply={c} nested onReply={() => onReply(post, r)} />
+                              <ReplyRow
+                                reply={c}
+                                nested
+                                onReply={() => onReply(post, r)}
+                                canEdit={c.userId === userId}
+                                canDelete={isAdmin || c.userId === userId}
+                                onEdit={(text) => handleEditReply(c, text)}
+                                onDelete={() => onDeleteReply(post, c)}
+                              />
                             </div>
                           ))}
                         </div>
@@ -511,7 +606,21 @@ export default function ChannelPage() {
   // — and the trigger is one item in a small overflow menu next to Pin, which
   // is exactly the shape of a mis-tap.
   const [confirmDelete, setConfirmDelete] = useState<ChannelPost | null>(null);
+  const [confirmDeleteReply, setConfirmDeleteReply] = useState<{ post: ChannelPost; reply: ChannelPost } | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Deleting a reply bumps the thread's refresh token so the open thread
+  // reloads from the server — the replies list lives inside PostCard and has
+  // no other way to learn the row is gone.
+  async function handleDeleteReply(post: ChannelPost, reply: ChannelPost) {
+    try {
+      await deleteReply(channelId, post.id, reply.id);
+      setReplyRefreshTokens((prev) => ({ ...prev, [post.id]: (prev[post.id] ?? 0) + 1 }));
+      toast.success('Reply deleted');
+    } catch {
+      toast.error('Could not delete that reply');
+    }
+  }
 
   async function handleDelete(post: ChannelPost) {
     try {
@@ -695,6 +804,7 @@ export default function ChannelPage() {
                 onReply={(p, parent) => setReplyTarget({ post: p, parent })}
                 replyRefreshToken={replyRefreshTokens[post.id] ?? 0}
                 onDelete={setConfirmDelete}
+                onDeleteReply={(p, r) => setConfirmDeleteReply({ post: p, reply: r })}
                 onPin={handlePin}
               />
             </motion.div>
@@ -864,6 +974,37 @@ export default function ChannelPage() {
         )}
       </AnimatePresence>
     </div>
+
+      {/* Reply delete confirmation — same reasoning as the post one below:
+          the row is removed for everyone and cannot be restored. */}
+      <Modal
+        open={!!confirmDeleteReply}
+        onClose={() => { if (!deleting) setConfirmDeleteReply(null); }}
+        title="Delete this reply?"
+        footer={
+          <div className="flex gap-2 justify-end">
+            <Button variant="ghost" onClick={() => setConfirmDeleteReply(null)} disabled={deleting}>Cancel</Button>
+            <Button
+              variant="danger"
+              loading={deleting}
+              onClick={async () => {
+                const target = confirmDeleteReply;
+                if (!target) return;
+                setDeleting(true);
+                await handleDeleteReply(target.post, target.reply);
+                setDeleting(false);
+                setConfirmDeleteReply(null);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          This removes the reply for everyone. It cannot be undone.
+        </p>
+      </Modal>
 
       {/* Delete confirmation — see handleDelete for why this is not a
           straight-through action. */}

@@ -527,3 +527,51 @@ describe('support tickets', () => {
     }));
   });
 });
+
+describe('channel replies — editable and deletable', () => {
+  /**
+   * Replies were write-once (allow update, delete: if false), so a typo stood
+   * forever and nobody — not even an admin — could remove one.
+   */
+  const seedThread = () => seed(async (db) => {
+    await setDoc(doc(db, 'channels', 'c1'), { name: 'Start Here', allowUserPosts: true });
+    await setDoc(doc(db, 'channels', 'c1', 'posts', 'p1'), { userId: BOB, content: 'welcome' });
+    await setDoc(doc(db, 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), { userId: ALICE, content: 'hi', userIsAdmin: false });
+  });
+
+  it('the author can fix their own reply', async () => {
+    await seedThread();
+    await assertSucceeds(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), {
+      content: 'hi, fixed', editedAt: new Date(),
+    }));
+  });
+
+  it('nobody else can rewrite it — not another member, not an admin', async () => {
+    await seedThread();
+    await assertFails(updateDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), { content: 'words I never wrote' }));
+    await assertFails(updateDoc(doc(asAdmin(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), { content: 'words I never wrote' }));
+  });
+
+  it('an edit cannot change who wrote it or forge the admin badge', async () => {
+    await seedThread();
+    await assertFails(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), { content: 'x', userId: BOB }));
+    await assertFails(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), { content: 'x', userIsAdmin: true }));
+  });
+
+  it('the author and an admin can delete a reply, a bystander cannot', async () => {
+    await seedThread();
+    await assertFails(deleteDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1')));
+    await assertSucceeds(deleteDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1')));
+    await seedThread();
+    await assertSucceeds(deleteDoc(doc(asAdmin(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1')));
+  });
+
+  it('the author can delete their own post, which the menu already offered', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'channels', 'c2'), { name: 'Wins', allowUserPosts: true });
+      await setDoc(doc(db, 'channels', 'c2', 'posts', 'p9'), { userId: ALICE, content: 'mine' });
+    });
+    await assertFails(deleteDoc(doc(asBob(), 'channels', 'c2', 'posts', 'p9')));
+    await assertSucceeds(deleteDoc(doc(asAlice(), 'channels', 'c2', 'posts', 'p9')));
+  });
+});
