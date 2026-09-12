@@ -42,8 +42,7 @@ import {
   createGoal, getClientGoals, setGoalStatus, deleteGoal,
   getTrainerLeads, updateTrainerLeadStatus,
   getLandingLeads,
-  getAllPrograms, getDeletedMockIds,
-} from '@/lib/firestore';
+  getAllPrograms, getDeletedMockIds, clearChannelScope } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { useSupportUpload, AttachButton, PendingAttachment, MessageAttachment } from '@/components/support/SupportAttachment';
 import { useAuth } from '@/contexts/AuthContext';
@@ -1633,7 +1632,21 @@ function AdminPageInner() {
     setChannelsLoading(true);
     // Admins manage every channel in the install, not just the ones under
     // whatever trainerId their own account happens to carry.
-    try { setChannels(await getChannels(channelScopeFor(profile?.role, profile?.trainerId, user?.uid))); }
+    try {
+      const loaded = await getChannels(channelScopeFor(profile?.role, profile?.trainerId, user?.uid));
+      // One-shot repair of channels created before the fix above: anything an
+      // admin created carried that admin's uid as its trainerId and was
+      // therefore invisible to members. Clearing it here, on the admin's own
+      // visit, needs no migration script and no action from anyone.
+      if (profile?.role === 'admin' && user) {
+        const stale = loaded.filter((c) => c.trainerId && c.trainerId === user.uid);
+        if (stale.length > 0) {
+          await Promise.all(stale.map((c) => clearChannelScope(c.id).catch(() => {})));
+          for (const c of stale) delete c.trainerId;
+        }
+      }
+      setChannels(loaded);
+    }
     catch { toast.error('Failed to load channels'); }
     finally { setChannelsLoading(false); }
   }
@@ -1655,10 +1668,18 @@ function AdminPageInner() {
         slowModeDays: channelForm.slowModeDays,
         allowUserPosts: channelForm.allowUserPosts,
         createdBy: user.uid,
-        trainerId: profile?.trainerId ?? user.uid,
+        // Only a TRAINER's channel is scoped to a roster. An admin's channel
+        // is the platform's — Start Here, announcements — and must reach
+        // every member. This used to fall back to the admin's own uid,
+        // which scoped every admin-created channel to a trainer who does
+        // not exist, hiding it from everyone but the admin.
+        trainerId: profile?.role === 'trainer' ? user.uid : undefined,
       };
       if (editingChannel) {
         await updateChannel(editingChannel.id, data);
+        // updateChannel strips undefined, so an admin's save cannot remove a
+        // stale trainer scope on its own.
+        if (profile?.role !== 'trainer' && editingChannel.trainerId) await clearChannelScope(editingChannel.id);
         toast.success('Channel updated');
       } else {
         await createChannel(data as Parameters<typeof createChannel>[0]);

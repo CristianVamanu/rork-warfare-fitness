@@ -2287,6 +2287,23 @@ export async function updateChannel(id: string, data: Partial<Channel>) {
   invalidateChannelsCache();
 }
 
+/**
+ * Makes a channel visible to every member by removing its trainer scope.
+ *
+ * Channels created from the admin panel were stamped with the ADMIN's own
+ * uid as their trainerId (`profile?.trainerId ?? user.uid`), as though the
+ * admin were a trainer running a private roster. Members are scoped to the
+ * trainerId on their own profile, so every admin-created channel — Start
+ * Here included — was hidden from every member whose trainerId was not the
+ * admin's uid. The admin never saw it, because an admin's scope is "all".
+ *
+ * updateChannel cannot do this: it strips undefined rather than deleting.
+ */
+export async function clearChannelScope(id: string) {
+  await updateDoc(doc(db, 'channels', id), { trainerId: deleteField() });
+  invalidateChannelsCache();
+}
+
 export async function deleteChannel(id: string) {
   await deleteDoc(doc(db, 'channels', id));
   invalidateChannelsCache();
