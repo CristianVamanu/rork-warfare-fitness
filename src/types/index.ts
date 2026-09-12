@@ -222,6 +222,8 @@ export interface UserProfile {
   lastActive: unknown;
   lastLoginAt?: unknown;
   goals?: UserGoals;
+  /** Program changes spent against PROGRAM_SWITCH_ALLOWANCE. */
+  programSwitchesUsed?: number;
   statsCache?: StatsCache;  // derived — computed by events engine
   // One freeze grants automatically every 7 days and absorbs a single missed
   // day without breaking the streak — spent (available -> false) the moment

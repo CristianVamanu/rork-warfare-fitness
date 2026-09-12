@@ -136,6 +136,87 @@ describe('users/{uid} — creation', () => {
 
 // ── Isolation between users ─────────────────────────────────────────────────
 
+describe('users/{uid} — program switch allowance', () => {
+  const entryPlan = { membership: { status: 'active', planId: 'conquer' } };
+
+  async function seedEntryMember(used?: number) {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'config', 'planEntitlements'), {
+        // conquer does NOT include premium-programs, so switching is only
+        // possible through the allowance.
+        membership: { conquer: ['barcode'] },
+      });
+      // p2 must actually be gated, or the free/non-premium clause in
+      // premiumEnrollAllowed lets anyone switch to it and the allowance is
+      // never consulted — which is the intended behaviour for a free program.
+      await setDoc(doc(db, 'programs', 'p2'), { name: 'Two', isPremium: true });
+      await setDoc(doc(db, 'users', ALICE), {
+        role: 'user', displayName: 'A', ...entryPlan,
+        activeProgram: { programId: 'p1', programName: 'One' },
+        ...(used !== undefined ? { programSwitchesUsed: used } : {}),
+      });
+    });
+  }
+
+  it('lets an entry-plan member switch program by spending one', async () => {
+    await seedEntryMember();
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), {
+      activeProgram: { programId: 'p2', programName: 'Two' },
+      programSwitchesUsed: 1,
+    }));
+  });
+
+  it('refuses a switch that does not spend one', async () => {
+    await seedEntryMember();
+    await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), {
+      activeProgram: { programId: 'p2', programName: 'Two' },
+    }));
+  });
+
+  it('refuses a switch once the allowance is used up', async () => {
+    await seedEntryMember(3);
+    await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), {
+      activeProgram: { programId: 'p2', programName: 'Two' },
+      programSwitchesUsed: 4,
+    }));
+  });
+
+  it('refuses winding the counter back to buy more switches', async () => {
+    await seedEntryMember(3);
+    await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), { programSwitchesUsed: 0 }));
+  });
+
+  it('refuses spending more than one on a single write', async () => {
+    await seedEntryMember();
+    await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), {
+      activeProgram: { programId: 'p2', programName: 'Two' },
+      programSwitchesUsed: 2,
+    }));
+  });
+
+  it('does not charge a switch for a program that was never gated', async () => {
+    await seedEntryMember(3);
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), {
+      activeProgram: { programId: 'free-one', programName: 'Free' },
+    }));
+  });
+
+  it('does not charge a switch for ordinary progress writes', async () => {
+    await seedEntryMember(3);
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), {
+      activeProgram: { programId: 'p1', programName: 'One', completedWorkouts: 4 },
+    }));
+  });
+
+  it('lets an admin reset someone\'s allowance', async () => {
+    await seedEntryMember(3);
+    await seed(async (db) => {
+      await setDoc(doc(db, 'users', ADMIN), { role: 'admin', displayName: 'Admin' });
+    });
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'users', ALICE), { programSwitchesUsed: 0 }));
+  });
+});
+
 describe('user data isolation', () => {
   it('refuses reading another user\'s profile', async () => {
     await assertFails(getDoc(doc(asBob(), 'users', ALICE)));

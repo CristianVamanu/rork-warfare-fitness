@@ -242,6 +242,36 @@ service cloud.firestore {
       return access == null || access.size() == 0 || access.hasAny(['premium-programs']);
     }
 
+    // How many times a paying member may change program without owning the
+    // library entitlement.
+    //
+    // Onboarding picks the first program from a quiz, and a quiz is not
+    // always right — the wrong sex, an injury they did not mention, kit they
+    // no longer have, or simply changing their mind. Without this, correcting
+    // that costs an upgrade: the member pays again to undo our mistake, which
+    // is a refund and a support ticket rather than a sale. The allowance is
+    // small enough that "switch whenever you like" is still the thing the
+    // upgrade sells, and large enough that nobody is trapped by a bad match.
+    function switchAllowance() { return 3; }
+
+    // A write that spends one. The counter must go up by exactly one on the
+    // same write that changes the program, so an allowance cannot be consumed
+    // without moving, or a move made without consuming.
+    function spendsSwitchAllowance() {
+      let used = resource.data.get('programSwitchesUsed', 0);
+      return used < switchAllowance()
+        && request.resource.data.get('programSwitchesUsed', 0) == used + 1;
+    }
+
+    // The counter is client-written, like xp, so it is bounded the same way:
+    // it may only stay put or rise by one. Without this a member could zero
+    // it and switch forever. Admin writes bypass this entirely, which is what
+    // lets support grant someone a reset.
+    function switchCounterSane() {
+      return !('programSwitchesUsed' in request.resource.data.diff(resource.data).affectedKeys())
+        || request.resource.data.programSwitchesUsed == resource.data.get('programSwitchesUsed', 0) + 1;
+    }
+
     // Which program a member may make active.
     //
     // The entry tier sells "the one program onboarding matched you to"; the
@@ -268,6 +298,13 @@ service cloud.firestore {
         // program flagged isPremium AND given a price could be paid for in
         // full and then refuse to enrol, with the money already taken.
         || resource.data.get('purchasedProgramIds', []).hasAny([request.resource.data.activeProgram.programId])
+        // A paying member with switches left may move to any program, whether
+        // or not their plan covers the library. See switchAllowance().
+        || (
+          (resource.data.get('membership', {}).get('status', 'none') == 'active'
+            || resource.data.get('coaching', {}).get('status', 'none') == 'active')
+          && spendsSwitchAllowance()
+        )
         || (
           // trialActive() bypasses ONLY the members-only/locked-program
           // gate here, matching useFeatureAccess.ts exactly — a one-time
@@ -364,6 +401,7 @@ service cloud.firestore {
           ) &&
           activeProgramWriteAllowed() &&
           premiumEnrollAllowed() &&
+          switchCounterSane() &&
           // xp is computed in the browser and written here, so nothing stopped
           // a member setting it to any number they liked and having the
           // leaderboard rank them on it. It may still be written (there is no

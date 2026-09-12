@@ -208,7 +208,7 @@ export default function ProgramDetailPage() {
   // is fixed to match.)
   const alreadyPurchased = !!(program?.id && profile?.purchasedProgramIds?.includes(program.id));
   const gatedProgramId = program && (program.isPremium || isLockedByConfig) && !alreadyPurchased ? program.id : undefined;
-  const { isLocked: programAccessLocked } = useFeatureAccess(undefined, gatedProgramId);
+  const { isLocked: programAccessLocked, switchNeeded, switchesLeft } = useFeatureAccess(undefined, gatedProgramId);
 
   const handleEnroll = async (force = false, restart = false) => {
     if (!user || !program) return;
@@ -227,7 +227,7 @@ export default function ProgramDetailPage() {
         name: program.name,
         weeks: program.weeks,
         daysPerWeek: program.daysPerWeek,
-      }, restart);
+      }, restart, switchNeeded);
       await refreshProfile();
     } catch (err) {
       console.error('[Enroll] failed:', err);
@@ -692,6 +692,14 @@ export default function ProgramDetailPage() {
                 Your <span className="text-white font-medium">{activeProgram?.programName}</span> progress
                 ({activeProgram?.completedWorkouts ?? 0} workouts completed) will be saved.
                 You can resume it anytime from My Programs.
+                {switchNeeded && (
+                  <>
+                    {' '}This program is outside your plan, so it uses one of your{' '}
+                    <span className="text-white font-medium">{switchesLeft} remaining</span>{' '}
+                    program {switchesLeft === 1 ? 'switch' : 'switches'}.
+                    {switchesLeft === 1 && ' After this, moving again needs the full library.'}
+                  </>
+                )}
                 {savedProgress && (
                   <> You also have {savedProgress.completedWorkouts} workout{savedProgress.completedWorkouts === 1 ? '' : 's'} of saved progress on {program.name} — resume it, or start fresh.</>
                 )}

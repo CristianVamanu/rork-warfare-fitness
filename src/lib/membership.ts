@@ -148,3 +148,19 @@ export function hasActiveSubscription(
 ): boolean {
   return subscriptionGrantsAccess(profile?.membership) || subscriptionGrantsAccess(profile?.coaching);
 }
+
+
+/**
+ * How many times a paying member may change program without owning the
+ * library entitlement. Mirrored in firestore.rules as switchAllowance() —
+ * the rules are the enforcement, this is what the UI counts down.
+ *
+ * Onboarding picks the first program from a quiz, and a quiz is not always
+ * right. Without an allowance, correcting a bad match costs an upgrade: the
+ * member pays again to undo our mistake.
+ */
+export const PROGRAM_SWITCH_ALLOWANCE = 3;
+
+export function programSwitchesLeft(used: number | undefined): number {
+  return Math.max(0, PROGRAM_SWITCH_ALLOWANCE - (used ?? 0));
+}

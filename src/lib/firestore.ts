@@ -1019,7 +1019,13 @@ export async function enrollInProgram(
   // Without this, switching away from a program to test another one and
   // back always silently resumed old progress, which is the right default
   // but had no escape hatch for someone who genuinely wanted a clean start.
-  restart = false
+  restart = false,
+  // True when this program is reachable only through the member's switch
+  // allowance (useFeatureAccess.switchNeeded). The counter has to rise by
+  // exactly one on the SAME write that changes the program — firestore.rules
+  // refuses a switch that does not spend one, and a spend that does not
+  // switch — so it cannot be a separate call.
+  spendSwitch = false,
 ) {
   const userRef = doc(db, 'users', userId);
   const snap = await getDoc(userRef);
@@ -1078,6 +1084,11 @@ export async function enrollInProgram(
   // to silently do nothing).
   updates['activeProgram.programId'] = program.id;
   updates['activeProgram.programName'] = program.name;
+  // Only when the program actually changes: re-enrolling in the current
+  // program is a no-op switch and must not cost anything.
+  if (spendSwitch && current?.programId && current.programId !== program.id) {
+    updates['programSwitchesUsed'] = increment(1);
+  }
   updates['activeProgram.enrolledAt'] = saved?.enrolledAt ?? serverTimestamp();
   updates['activeProgram.programStartDate'] = saved?.programStartDate ?? new Date().toISOString();
   updates['activeProgram.completedWorkouts'] = saved?.completedWorkouts ?? 0;

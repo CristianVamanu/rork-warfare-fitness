@@ -23,7 +23,7 @@ export default function TrainingPage() {
   const { user, profile } = useAuth();
   // One read for the whole list — useFeatureAccess can't be called per
   // program inside the map, since hooks cannot run in a loop.
-  const { otherProgramsLocked: programsLockedByPlan } = useFeatureAccess();
+  const { otherProgramsLocked: programsLockedByPlan, switchesLeft } = useFeatureAccess();
   const router = useRouter();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [customPrograms, setCustomPrograms] = useState<Program[]>([]);
@@ -354,7 +354,10 @@ export default function TrainingPage() {
                 const isActive = activeProgram?.programId === prog.id;
                 // Locked programs stay in the list, badged, with their real
                 // description — hiding them hides the reason to upgrade.
-                const isLockedByPlan = programsLockedByPlan && !isActive;
+                // A padlock only once the switch allowance is spent. Until
+                // then every program is reachable, at the cost of a switch,
+                // and a lock icon on something you can open is a lie.
+                const isLockedByPlan = programsLockedByPlan && switchesLeft === 0 && !isActive;
                 return <ProgramRow key={prog.id} prog={prog} index={i} isActive={isActive} saved={savedProgressMap[prog.id]} locked={isLockedByPlan} />;
               })}
               {remaining > 0 && (

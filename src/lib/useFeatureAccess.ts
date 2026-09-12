@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { isInFreeTrial, hasActiveSubscription } from './membership';
 import type { MembershipConfig, MembershipPlan } from '@/types';
 import { resolvePlanLock } from './planAccess';
+import { programSwitchesLeft } from './membership';
 
 export interface FeatureAccess {
   loaded: boolean;
@@ -15,6 +16,18 @@ export interface FeatureAccess {
   inTrial: boolean;
   /** Would a paywall normally show for this feature/program, ignoring taste. */
   isLocked: boolean;
+  /**
+   * Program changes this member still has before a switch needs the library
+   * entitlement. Counts down from PROGRAM_SWITCH_ALLOWANCE; the rules are the
+   * enforcement, this is what the UI shows.
+   */
+  switchesLeft: number;
+  /**
+   * True when this program is reachable ONLY because of a remaining switch.
+   * The enrol call passes it through so the switch is spent on the same write
+   * that changes the program, which is the only shape the rules accept.
+   */
+  switchNeeded: boolean;
   /**
    * True when this member's plan covers their own assigned program but not
    * the rest of the library — the entry-tier state. Answered once for a
@@ -66,8 +79,10 @@ export function useFeatureAccess(feature?: string, programId?: string): FeatureA
   // wall a real non-member would, with no way through it.
   const isStaff = profile?.role === 'admin' || profile?.role === 'trainer';
 
+  const switchesLeft = programSwitchesLeft(profile?.programSwitchesUsed);
   let isLocked = false;
   let otherProgramsLocked = false;
+  let switchNeeded = false;
   if (!isStaff && config && config.enabled && !inTrial) {
     if (hasMembership) {
       const activePlan = profile?.membership?.planId
@@ -76,6 +91,15 @@ export function useFeatureAccess(feature?: string, programId?: string): FeatureA
       const verdict = resolvePlanLock(activePlan, feature, programId, profile?.activeProgram?.programId);
       isLocked = verdict.isLocked;
       otherProgramsLocked = verdict.otherProgramsLocked;
+      // A paying member with switches left can move to any program, so the
+      // program is not locked to them — the cost is one of their switches,
+      // not an upgrade. Only ever applies to a PROGRAM lock: an allowance
+      // buys you a different program, never a tool the plan excludes.
+      if (isLocked && !feature && programId && switchesLeft > 0) {
+        isLocked = false;
+        otherProgramsLocked = false;
+        switchNeeded = true;
+      }
     } else {
       isLocked =
         !!config.fullLock ||
@@ -87,5 +111,5 @@ export function useFeatureAccess(feature?: string, programId?: string): FeatureA
   const tasted = !!(feature && profile?.aiTaste?.[feature]);
   const tasteAvailable = isLocked && !hasMembership && !!feature && !tasted;
 
-  return { loaded, config, plans, hasMembership, inTrial, isLocked, otherProgramsLocked, tasted, tasteAvailable };
+  return { loaded, config, plans, hasMembership, inTrial, isLocked, otherProgramsLocked, tasted, tasteAvailable, switchesLeft, switchNeeded };
 }
