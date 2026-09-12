@@ -11,6 +11,8 @@ import { logWaterAction, logMealAction } from '@/lib/actions';
 import toast from 'react-hot-toast';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
+import { Ring } from '@/components/dashboard/Ring';
+import { Medallion } from '@/components/dashboard/Medallion';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -242,45 +244,58 @@ function NutritionPageInner() {
     return acc;
   }, {} as Record<string, Meal[]>);
 
+  const calPct = goals.calories > 0 ? totals.calories / goals.calories : 0;
+  const overBy = totals.calories - goals.calories;
+
   return (
-    <div>
+    <div className="relative">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[320px]"
+        style={{ background: 'radial-gradient(90% 55% at 50% -8%, rgba(var(--accent-rgb) / 0.26), rgba(var(--accent-rgb) / 0) 70%)' }}
+      />
+      <div className="relative">
       <Header title="Nutrition" rightElement={
-        <button onClick={() => { setEditGoals(goals); setShowGoalsModal(true); }} className="p-2 text-text-secondary hover:text-white">
+        <button onClick={() => { setEditGoals(goals); setShowGoalsModal(true); }} className="p-2 text-text-secondary hover:text-white" aria-label="Daily goals">
           <Settings className="w-5 h-5" />
         </button>
       } />
 
-      {/* Date navigator */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-white/8 bg-surface/50">
-        <button
-          onClick={() => shiftDate(-1)}
-          className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <p className="text-sm font-semibold text-white">{formatDate(selectedDate)}</p>
-        <button
-          onClick={() => shiftDate(1)}
-          disabled={isToday}
-          className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/5 transition-colors disabled:opacity-30"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
+      <div className="px-4 py-4 space-y-4">
+        {/* Date navigator — a pill, not a bar under the header */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => shiftDate(-1)}
+            aria-label="Previous day"
+            className="w-9 h-9 rounded-full bg-surface border border-white/8 text-text-secondary hover:text-white flex items-center justify-center transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">{isToday ? 'Today' : 'Day'}</p>
+            <p className="text-sm font-extrabold text-white">{formatDate(selectedDate)}</p>
+          </div>
+          <button
+            onClick={() => shiftDate(1)}
+            disabled={isToday}
+            aria-label="Next day"
+            className="w-9 h-9 rounded-full bg-surface border border-white/8 text-text-secondary hover:text-white flex items-center justify-center transition-colors disabled:opacity-30"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
 
-      <div className="px-4 py-4 space-y-5">
-        {/* Coach-assigned nutrition plan banner */}
+        {/* Coach-assigned nutrition plan */}
         {profile?.assignedNutritionPlan && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
             <button onClick={() => setShowPlanModal(true)} className="w-full text-left">
-              <Card className="p-4 border-accent/30 bg-accent/5 flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-accent-muted flex-shrink-0">
-                  <Beef className="w-4 h-4 text-accent" />
-                </div>
+              <Card glass className="p-4 flex items-center gap-3.5 card-float border-accent/30">
+                <Medallion><Beef className="w-6 h-6" strokeWidth={2} /></Medallion>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-white">Your Nutrition Plan</p>
-                  <p className="text-xs text-text-secondary">
-                    {profile.assignedNutritionPlan.calories}kcal · {profile.assignedNutritionPlan.protein}p / {profile.assignedNutritionPlan.carbs}c / {profile.assignedNutritionPlan.fat}f
+                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Your plan</span>
+                  <p className="text-[15px] font-extrabold text-white leading-tight">{profile.assignedNutritionPlan.calories} kcal a day</p>
+                  <p className="text-[11px] text-text-tertiary mt-0.5 tabular-nums">
+                    {profile.assignedNutritionPlan.protein}g protein · {profile.assignedNutritionPlan.carbs}g carbs · {profile.assignedNutritionPlan.fat}g fat
                   </p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
@@ -289,108 +304,100 @@ function NutritionPageInner() {
           </motion.div>
         )}
 
-        {/* Macro Summary */}
+        {/* Calories + macros — the hero */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-xs text-text-secondary">CALORIES {isToday ? 'TODAY' : formatDate(selectedDate).toUpperCase()}</p>
-                <p className="text-3xl font-black text-white">
-                  {totals.calories}
-                  <span className="text-sm font-medium text-text-secondary ml-1">/ {goals.calories}</span>
+          <Card glass className="p-5 border-accent/30 shadow-glow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">Calories</p>
+                <p className="text-[34px] font-black text-white leading-none tracking-tight tabular-nums mt-1.5">
+                  {totals.calories.toLocaleString()}
                 </p>
-                {totals.calories > goals.calories && (
-                  <p className="text-xs text-red-400 mt-0.5">⚠ Over by {totals.calories - goals.calories} kcal</p>
-                )}
+                <p className="text-[12px] text-text-secondary mt-1.5 tabular-nums">
+                  {overBy > 0
+                    ? <span className="text-danger">{overBy.toLocaleString()} over your {goals.calories.toLocaleString()} target</span>
+                    : `${Math.max(0, -overBy).toLocaleString()} left of ${goals.calories.toLocaleString()}`}
+                </p>
               </div>
-              <div className="relative w-16 h-16">
-                <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
-                  <circle cx="18" cy="18" r="15.9155" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
-                  <circle
-                    cx="18" cy="18" r="15.9155" fill="none"
-                    stroke={totals.calories > goals.calories ? '#ef4444' : '#F5A623'} strokeWidth="3"
-                    strokeDasharray={`${Math.min((totals.calories / goals.calories) * 100, 100)} 100`}
-                    strokeLinecap="round"
-                    className="transition-all duration-700"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-                  {Math.round((totals.calories / goals.calories) * 100)}%
-                </span>
-              </div>
+              <Ring value={calPct} size={84} stroke={8} color={overBy > 0 ? '#EF4444' : 'var(--accent)'}>
+                <span className="text-[17px] font-black text-white tabular-nums">{Math.round(calPct * 100)}<span className="text-[10px] font-bold text-text-secondary">%</span></span>
+              </Ring>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2.5 mt-5 pt-4 border-t border-white/8">
               {[
-                { icon: Beef, label: 'Protein', value: totals.protein, goal: goals.protein, color: 'text-red-400', bar: 'danger' as const },
-                { icon: Wheat, label: 'Carbs', value: totals.carbs, goal: goals.carbs, color: 'text-yellow-400', bar: 'accent' as const },
-                { icon: Flame, label: 'Fat', value: totals.fat, goal: goals.fat, color: 'text-orange-400', bar: 'accent' as const },
-              ].map(({ icon: Icon, label, value, goal, color, bar }) => (
-                <div key={label} className="p-3 bg-surface-elevated rounded-xl">
-                  <Icon className={`w-3.5 h-3.5 ${color} mb-1`} />
-                  <p className="text-xs text-text-secondary">{label}</p>
-                  <p className="text-sm font-bold text-white">{value}g <span className="text-text-tertiary font-normal text-[10px]">/ {goal}g</span></p>
-                  <ProgressBar value={value} max={goal} color={bar} size="sm" className="mt-1.5" />
+                { label: 'Protein', value: totals.protein, goal: goals.protein, color: '#EF4444' },
+                { label: 'Carbs', value: totals.carbs, goal: goals.carbs, color: 'var(--accent)' },
+                { label: 'Fat', value: totals.fat, goal: goals.fat, color: '#F97316' },
+              ].map(({ label, value, goal, color }) => (
+                <div key={label} className="flex flex-col items-center text-center gap-1.5">
+                  <Ring value={goal > 0 ? value / goal : 0} size={52} stroke={5} color={color}>
+                    <span className="text-[12px] font-black text-white tabular-nums">{value}<span className="text-[9px] font-bold text-text-secondary">g</span></span>
+                  </Ring>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">{label}</p>
+                  <p className="text-[10px] text-text-tertiary -mt-1 tabular-nums">of {goal}g</p>
                 </div>
               ))}
             </div>
           </Card>
         </motion.div>
 
-        {/* Water Tracker — today only */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Droplets className="w-4 h-4 text-blue-400" />
-                <span className="text-sm font-medium text-white">Water</span>
+        {/* Water — today only for logging, history for any day */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+          <Card glass className="p-4">
+            <div className="flex items-center gap-4">
+              <Ring value={goals.water > 0 ? waterMl / goals.water : 0} size={56} stroke={6} color="#3B82F6">
+                <Droplets className="w-5 h-5 text-blue-400" strokeWidth={2} />
+              </Ring>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Water</span>
+                <p className="text-[22px] font-black text-white leading-none tabular-nums mt-0.5">
+                  {(waterMl / 1000).toFixed(2)}<span className="text-sm font-bold text-text-secondary">L</span>
+                  <span className="text-[12px] font-medium text-text-tertiary"> of {goals.water / 1000}L</span>
+                </p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-white">
-                  {(waterMl / 1000).toFixed(2)}L
-                  <span className="text-text-secondary font-normal"> / {goals.water / 1000}L</span>
-                </span>
-                {waterLogs.length > 0 && (
-                  <button onClick={() => setShowWaterHistory(!showWaterHistory)} className="text-xs text-blue-400 hover:underline">
-                    {showWaterHistory ? 'Hide' : 'History'}
-                  </button>
-                )}
-              </div>
-            </div>
-            <ProgressBar value={waterMl} max={goals.water} color="info" size="md" />
-            {isToday && <div className="grid grid-cols-4 gap-2 mt-3">
-              {[250, 500, 750, 1000].map((ml) => (
-                <button
-                  key={ml}
-                  onClick={() => addWater(ml)}
-                  className="py-2 text-xs font-medium text-blue-400 bg-blue-400/10 rounded-xl hover:bg-blue-400/20 transition-colors"
-                >
-                  +{ml >= 1000 ? `${ml / 1000}L` : `${ml}ml`}
+              {waterLogs.length > 0 && (
+                <button onClick={() => setShowWaterHistory(!showWaterHistory)} className="text-xs font-semibold text-blue-400">
+                  {showWaterHistory ? 'Hide' : 'History'}
                 </button>
-              ))}
-            </div>}
-            {/* Custom amount — today only */}
-            {isToday && <div className="flex gap-2 mt-2">
-              <input
-                type="number"
-                placeholder="Custom ml..."
-                value={customWaterMl}
-                onChange={(e) => setCustomWaterMl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCustomWater()}
-                className="flex-1 bg-surface-elevated text-white text-sm px-3 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-blue-400 placeholder:text-text-tertiary"
-              />
-              <button onClick={handleCustomWater} className="px-3 py-2 bg-blue-400/20 text-blue-400 rounded-xl hover:bg-blue-400/30 transition-colors">
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>}
-            {/* Water history */}
+              )}
+            </div>
+            {isToday && (
+              <div className="grid grid-cols-4 gap-2 mt-4">
+                {[250, 500, 750, 1000].map((ml) => (
+                  <button
+                    key={ml}
+                    onClick={() => addWater(ml)}
+                    className="h-10 rounded-xl text-xs font-bold text-blue-300 bg-blue-400/10 border border-blue-400/15 hover:bg-blue-400/20 transition-colors tabular-nums"
+                  >
+                    +{ml >= 1000 ? `${ml / 1000}L` : `${ml}ml`}
+                  </button>
+                ))}
+              </div>
+            )}
+            {isToday && (
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="Custom amount in ml"
+                  value={customWaterMl}
+                  onChange={(e) => setCustomWaterMl(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCustomWater()}
+                  className="flex-1 h-10 bg-surface-elevated text-white text-sm px-3 rounded-xl border border-white/10 focus:outline-none focus:border-blue-400 placeholder:text-text-tertiary tabular-nums"
+                />
+                <button onClick={handleCustomWater} aria-label="Add custom amount" className="w-10 h-10 rounded-xl bg-blue-400/20 text-blue-300 flex items-center justify-center hover:bg-blue-400/30 transition-colors">
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             <AnimatePresence>
               {showWaterHistory && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-3 space-y-1.5 overflow-hidden">
                   {waterLogs.map((w) => (
                     <div key={w.id} className="flex items-center justify-between bg-surface-elevated rounded-xl px-3 py-2">
-                      <span className="text-sm text-white">+{w.amountMl}ml</span>
-                      <button onClick={() => removeWaterLog(w.id, w.amountMl)} className="text-text-tertiary hover:text-red-400 transition-colors">
+                      <span className="text-sm text-white tabular-nums">+{w.amountMl} ml</span>
+                      <button onClick={() => removeWaterLog(w.id, w.amountMl)} aria-label="Remove" className="text-text-tertiary hover:text-danger transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -401,44 +408,27 @@ function NutritionPageInner() {
           </Card>
         </motion.div>
 
-        {/* Quick Add Buttons — today only */}
-        {isToday && <div className="grid grid-cols-3 gap-2.5">
-          <Link href="/nutrition/analyze">
-            <motion.div
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="p-3 bg-surface border border-white/8 rounded-2xl flex flex-col items-center gap-2"
-            >
-              <div className="p-2.5 bg-green-400/10 rounded-xl">
-                <Camera className="w-4.5 h-4.5 text-green-400" />
-              </div>
-              <span className="text-xs font-medium text-white text-center">AI Analyze</span>
-            </motion.div>
-          </Link>
-          <Link href="/nutrition/barcode">
-            <motion.div
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="p-3 bg-surface border border-white/8 rounded-2xl flex flex-col items-center gap-2"
-            >
-              <div className="p-2.5 bg-purple-400/10 rounded-xl">
-                <Barcode className="w-4.5 h-4.5 text-purple-400" />
-              </div>
-              <span className="text-xs font-medium text-white text-center">Scan Barcode</span>
-            </motion.div>
-          </Link>
-          <Link href="/nutrition/meal-planner">
-            <motion.div
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="p-3 bg-surface border border-white/8 rounded-2xl flex flex-col items-center gap-2"
-            >
-              <div className="p-2.5 bg-accent-muted rounded-xl">
-                <Sparkles className="w-4.5 h-4.5 text-accent" />
-              </div>
-              <span className="text-xs font-medium text-white text-center">Meal Ideas</span>
-            </motion.div>
-          </Link>
-        </div>}
+        {/* Log something — today only */}
+        {isToday && (
+          <div className="grid grid-cols-3 gap-2.5">
+            {[
+              { href: '/nutrition/analyze', icon: Camera, label: 'Photo scan', tone: 'bg-green-400/15 text-green-300' },
+              { href: '/nutrition/barcode', icon: Barcode, label: 'Barcode', tone: 'bg-purple-400/15 text-purple-300' },
+              { href: '/nutrition/meal-planner', icon: Sparkles, label: 'Meal ideas', tone: 'bg-accent-muted text-accent' },
+            ].map(({ href, icon: Icon, label, tone }) => (
+              <Link key={href} href={href} className="block">
+                <Card glass className="h-[84px] flex flex-col items-center justify-center gap-2 card-float">
+                  <span className={`w-10 h-10 rounded-2xl flex items-center justify-center ${tone}`}>
+                    <Icon className="w-5 h-5" strokeWidth={1.75} />
+                  </span>
+                  <span className="text-[10px] font-semibold text-text-secondary">{label}</span>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
 
-        {/* Meals by Type */}
+        {/* Meals by type */}
         {loading ? (
           <div className="space-y-2">
             <Skeleton className="h-20 rounded-2xl" />
@@ -448,9 +438,9 @@ function NutritionPageInner() {
           <div className="space-y-4">
             {MEAL_TYPES.map((type) => (
               <motion.div key={type} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-bold text-white capitalize">{type}</h3>
-                  <span className="text-xs text-text-tertiary">
+                <div className="flex items-center justify-between px-0.5 mb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">{type}</p>
+                  <span className="text-[11px] text-text-tertiary tabular-nums">
                     {mealsByType[type].reduce((s, m) => s + (m.calories || 0), 0)} kcal
                   </span>
                 </div>
@@ -458,42 +448,42 @@ function NutritionPageInner() {
                   <div className="grid grid-cols-2 gap-2">
                     {isToday && (
                       <Link href={`/nutrition/analyze?mealType=${type}`}>
-                        <Card className="p-3 border-dashed border-white/8 flex items-center gap-2 text-text-tertiary hover:border-accent/30 transition-colors cursor-pointer">
-                          <Sparkles className="w-4 h-4" />
-                          <span className="text-xs">AI scan</span>
+                        <Card glass className="p-3 flex items-center gap-2 text-text-secondary hover:border-accent/30 transition-colors cursor-pointer">
+                          <Camera className="w-4 h-4" strokeWidth={1.75} />
+                          <span className="text-xs font-semibold">Photo scan</span>
                         </Card>
                       </Link>
                     )}
                     <button onClick={() => openManualAdd(type)} className={isToday ? '' : 'col-span-2'}>
-                      <Card className="p-3 border-dashed border-white/8 flex items-center gap-2 text-text-tertiary hover:border-accent/30 transition-colors cursor-pointer">
-                        <Plus className="w-4 h-4" />
-                        <span className="text-xs">Add manually</span>
+                      <Card glass className="p-3 flex items-center gap-2 text-text-secondary hover:border-accent/30 transition-colors cursor-pointer">
+                        <Plus className="w-4 h-4" strokeWidth={1.75} />
+                        <span className="text-xs font-semibold">Add manually</span>
                       </Card>
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {mealsByType[type].map((meal) => (
-                      <Card key={meal.id} className="p-3 flex items-center justify-between">
+                      <Card glass key={meal.id} className="p-3 flex items-center justify-between gap-3">
                         <button onClick={() => openManualEdit(meal)} className="text-left flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">{meal.name}</p>
-                          <p className="text-xs text-text-secondary">{meal.protein}g P · {meal.carbs}g C · {meal.fat}g F</p>
+                          <p className="text-sm font-semibold text-white truncate">{meal.name}</p>
+                          <p className="text-[11px] text-text-tertiary tabular-nums">{meal.protein}g P · {meal.carbs}g C · {meal.fat}g F</p>
                         </button>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
                           <Badge variant="muted">{meal.calories} kcal</Badge>
-                          <button onClick={() => openManualEdit(meal)} className="text-text-tertiary hover:text-white transition-colors p-1">
+                          <button onClick={() => openManualEdit(meal)} aria-label="Edit" className="text-text-tertiary hover:text-white transition-colors p-1.5">
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => removeMeal(meal)} className="text-text-tertiary hover:text-red-400 transition-colors p-1">
+                          <button onClick={() => removeMeal(meal)} aria-label="Delete" className="text-text-tertiary hover:text-danger transition-colors p-1.5">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </Card>
                     ))}
                     <button onClick={() => openManualAdd(type)} className="w-full">
-                      <Card className="p-2.5 border-dashed border-white/8 flex items-center justify-center gap-1.5 text-text-tertiary hover:border-accent/30 transition-colors cursor-pointer">
+                      <Card glass className="p-2.5 flex items-center justify-center gap-1.5 text-text-tertiary hover:border-accent/30 transition-colors cursor-pointer">
                         <Plus className="w-3.5 h-3.5" />
-                        <span className="text-xs">Add another {type}</span>
+                        <span className="text-xs font-semibold">Add another {type}</span>
                       </Card>
                     </button>
                   </div>
@@ -635,6 +625,7 @@ function NutritionPageInner() {
           </div>
         </Modal>
       )}
+      </div>
     </div>
   );
 }
