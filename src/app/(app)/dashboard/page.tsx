@@ -34,6 +34,11 @@ const stagger = {
 
 const DEFAULT_GOALS = { calories: 2200, water: 3000 };
 
+/** Eyebrow that names a group of tiles — spacing above it does the separating. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary pt-2 px-0.5">{children}</p>;
+}
+
 
 export default function DashboardPage() {
   const { user, profile } = useAuth();
@@ -524,22 +529,24 @@ export default function DashboardPage() {
         {/* The day's tip. Renders nothing when there is none. */}
         <DailyTip />
 
-        {/* Quick actions — uniform glass tiles, the highest-frequency taps. */}
+        {/* Below the fold the screen is three labelled groups, in the order
+            a day actually goes: the tools you use, the things you are
+            building, and how you recover. The icons sit in tinted badges so
+            each tile reads as a button rather than a glyph on glass. */}
+        <SectionLabel>Tools</SectionLabel>
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 gap-2.5">
           {[
-            { icon: Dumbbell, label: 'Workout', href: '/training' },
-            { icon: Apple, label: 'Log food', href: '/nutrition' },
-            { icon: Camera, label: 'Scan & Go', href: '/training/scan-go' },
-            { icon: CheckSquare, label: 'Habits', href: '/habits' },
-            { icon: Sparkles, label: 'Meal ideas', href: '/nutrition/meal-planner' },
-            { icon: TrendingUp, label: 'Progress', href: '/progress' },
-            { icon: Trophy, label: 'Achievements', href: '/achievements' },
-            { icon: Swords, label: 'Quests', href: '/quests' },
+            { icon: Camera, label: 'Scan & Go', href: '/training/scan-go', tone: 'bg-blue-400/15 text-blue-300' },
+            { icon: Apple, label: 'Log food', href: '/nutrition', tone: 'bg-green-400/15 text-green-300' },
+            { icon: Sparkles, label: 'Meal ideas', href: '/nutrition/meal-planner', tone: 'bg-orange-400/15 text-orange-300' },
+            { icon: CheckSquare, label: 'Habits', href: '/habits', tone: 'bg-indigo-400/15 text-indigo-300' },
           ].map((action) => (
             <motion.div key={action.label} variants={stagger.item}>
               <Link href={action.href} className="block">
-                <Card glass className="h-[76px] flex flex-col items-center justify-center gap-1.5 card-float">
-                  <action.icon className="w-5 h-5 text-white/80" strokeWidth={1.75} />
+                <Card glass className="h-[84px] flex flex-col items-center justify-center gap-2 card-float">
+                  <span className={`w-10 h-10 rounded-2xl flex items-center justify-center ${action.tone}`}>
+                    <action.icon className="w-5 h-5" strokeWidth={1.75} />
+                  </span>
                   <span className="text-[10px] font-semibold text-text-secondary text-center leading-tight px-1">{action.label}</span>
                 </Card>
               </Link>
@@ -547,24 +554,50 @@ export default function DashboardPage() {
           ))}
         </motion.div>
 
+        <SectionLabel>Progress</SectionLabel>
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-2 gap-2.5">
-          {/* Level — personal progression, not a ranking. */}
           <motion.div variants={stagger.item}>
             <Link href="/achievements" className="block h-full">
               <Card glass className="p-4 h-full flex flex-col gap-1 card-float">
-                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Level</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Level</span>
+                  <span className="w-8 h-8 rounded-xl bg-accent-muted flex items-center justify-center"><Trophy className="w-4 h-4 text-accent" strokeWidth={1.75} /></span>
+                </div>
                 <p className="text-2xl font-black text-white leading-tight tabular-nums">{powerLevel}</p>
                 <p className="text-[11px] text-text-tertiary">{(profile?.xp ?? 0).toLocaleString()} XP · {tier.title}</p>
               </Card>
             </Link>
           </motion.div>
-          {/* PR Wall teaser */}
+          <motion.div variants={stagger.item}>
+            <Link href="/quests" className="block h-full">
+              <Card glass className="p-4 h-full flex flex-col gap-1 card-float">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Quests</span>
+                  <span className="w-8 h-8 rounded-xl bg-pink-400/15 flex items-center justify-center"><Swords className="w-4 h-4 text-pink-300" strokeWidth={1.75} /></span>
+                </div>
+                <p className="text-[15px] font-extrabold text-white leading-tight">Missions</p>
+                <p className="text-[11px] text-text-tertiary">Earn XP for showing up</p>
+              </Card>
+            </Link>
+          </motion.div>
+          <motion.div variants={stagger.item}>
+            <Link href="/progress" className="block h-full">
+              <Card glass className="p-4 h-full flex flex-col gap-1 card-float">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Progress</span>
+                  <span className="w-8 h-8 rounded-xl bg-teal-400/15 flex items-center justify-center"><TrendingUp className="w-4 h-4 text-teal-300" strokeWidth={1.75} /></span>
+                </div>
+                <p className="text-[15px] font-extrabold text-white leading-tight">{progressPhotos.length > 0 ? `${progressPhotos.length} photo${progressPhotos.length === 1 ? '' : 's'}` : 'Weight & photos'}</p>
+                <p className="text-[11px] text-text-tertiary">{progressPhotos.length > 0 ? 'Compare your timeline' : 'Start your timeline'}</p>
+              </Card>
+            </Link>
+          </motion.div>
           <motion.div variants={stagger.item}>
             <Link href="/community/prs" className="block h-full">
               <Card glass className="p-4 h-full flex flex-col gap-1 card-float">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR wall</span>
-                  <Trophy className="w-4 h-4 text-accent" strokeWidth={1.75} />
+                  <span className="w-8 h-8 rounded-xl bg-yellow-400/15 flex items-center justify-center"><Trophy className="w-4 h-4 text-yellow-300" strokeWidth={1.75} /></span>
                 </div>
                 <p className="text-[15px] font-extrabold text-white leading-tight">Post a lift</p>
                 <p className="text-[11px] text-text-tertiary">Verified by admin</p>
@@ -573,8 +606,8 @@ export default function DashboardPage() {
           </motion.div>
         </motion.div>
 
+        <SectionLabel>Test & recover</SectionLabel>
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="space-y-2.5">
-          {/* PT Test */}
           <motion.div variants={stagger.item}>
             <Link href="/pt-test" className="block">
               <Card glass className={glassRow}>
@@ -583,7 +616,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PT test</span>
-                  <p className="text-sm font-bold text-white">Find out if you would pass today</p>
+                  <p className="text-sm font-bold text-white">Would you pass today?</p>
                   <p className="text-[11px] text-text-tertiary mt-0.5">Real entry standards, scored against the pass mark</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
@@ -591,7 +624,6 @@ export default function DashboardPage() {
             </Link>
           </motion.div>
 
-          {/* Breathing */}
           <motion.div variants={stagger.item}>
             <Link href="/breathing" className="block">
               <Card glass className={`${glassRow} relative overflow-hidden`}>
@@ -614,7 +646,6 @@ export default function DashboardPage() {
             </Link>
           </motion.div>
 
-          {/* Goals — only once the coach has set one */}
           {activeGoalCount > 0 && (
             <motion.div variants={stagger.item}>
               <Link href="/goals" className="block">
@@ -632,29 +663,11 @@ export default function DashboardPage() {
               </Link>
             </motion.div>
           )}
-
-          {/* Progress photos — only once one exists */}
-          {progressPhotos.length > 0 && (
-            <motion.div variants={stagger.item}>
-              <Link href="/progress" className="block">
-                <Card glass className={glassRow}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={progressPhotos[0].photoUrl} alt="" className="w-11 h-11 rounded-2xl object-cover flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Progress photos</span>
-                    <p className="text-sm font-bold text-white">{progressPhotos.length} photo{progressPhotos.length === 1 ? '' : 's'} tracked</p>
-                    <p className="text-[11px] text-text-tertiary mt-0.5">Tap to view your timeline and compare</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-                </Card>
-              </Link>
-            </motion.div>
-          )}
         </motion.div>
 
         {/* Personal trackers — fasting timer and "days without" streaks keep
             their own components; both host multi-step modals. */}
-        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate} className="space-y-2.5">
+        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate} className="space-y-2.5 pt-1">
           <FastingWidget />
           <DaysWithoutWidget />
         </motion.div>
