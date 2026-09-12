@@ -165,6 +165,7 @@ function OnboardingPageInner() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'generating' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [revealProgram, setRevealProgram] = useState<{ name: string; description: string; weeks: number; daysPerWeek: number; marketing?: ProgramMarketing } | null>(null);
   const [revealNutrition, setRevealNutrition] = useState<(NutritionTargets & { goalLabel: string; rationale: string }) | null>(null);
   const [revealTimeline, setRevealTimeline] = useState<WeightGoalTimeline | null>(null);
@@ -436,6 +437,7 @@ function OnboardingPageInner() {
       return;
     }
     setError(null);
+    setErrorCode(null);
     setStatus('generating');
 
     try {
@@ -661,10 +663,11 @@ function OnboardingPageInner() {
       console.error('[Onboarding] failed:', err);
       const code = (err as { code?: string })?.code;
       const FRIENDLY: Record<string, string> = {
-        'auth/email-already-in-use': 'That email already has an account — sign in instead.',
+        'auth/email-already-in-use': 'That email already has an account.',
         'auth/weak-password': 'Password is too weak — use at least 8 characters.',
         'auth/invalid-email': 'That email address looks invalid.',
       };
+      setErrorCode(code ?? null);
       setError(code && FRIENDLY[code] ? FRIENDLY[code] : (err instanceof Error ? err.message : 'Something went wrong. Please try again.'));
       // If account creation itself failed, jump back to the account step so
       // the error is visible right next to the field that needs fixing
@@ -881,7 +884,7 @@ function OnboardingPageInner() {
         <div className="absolute left-1/2 top-[30%] -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] rounded-full bg-accent/[0.06] blur-3xl" />
       </div>
       {/* Header */}
-      <div className="px-4 pt-12 pb-4 max-w-lg mx-auto w-full">
+      <div className="px-4 pt-4 pb-4 max-w-lg mx-auto w-full">
         <div className="flex items-center justify-between mb-6">
           {step === 0 ? (
             <Link
@@ -987,7 +990,19 @@ function OnboardingPageInner() {
       {/* Error */}
       {error && (
         <div className="px-4 max-w-lg mx-auto w-full mt-3">
-          <p className="text-sm text-red-400 text-center bg-red-400/10 border border-red-400/20 rounded-xl p-3">{error}</p>
+          <div className="text-sm text-red-400 text-center bg-red-400/10 border border-red-400/20 rounded-xl p-3">
+            <p>{error}</p>
+            {/* The one error a visitor cannot fix on this page. Give them the
+                two doors out right here, instead of a message that says
+                "sign in" on a screen with no sign-in button. */}
+            {errorCode === 'auth/email-already-in-use' && (
+              <div className="flex items-center justify-center gap-4 mt-2.5">
+                <Link href="/login" className="font-bold text-accent hover:underline">Sign in</Link>
+                <span className="text-red-400/40">·</span>
+                <Link href="/forgot-password" className="font-bold text-accent hover:underline">Reset password</Link>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
