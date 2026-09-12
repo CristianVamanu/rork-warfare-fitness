@@ -27,23 +27,23 @@ const GOAL_ORDER = ['endurance', 'strength', 'hypertrophy', 'weight-loss', 'gene
 const GOAL_META: Record<string, { label: string; blurb: string }> = {
   endurance: {
     label: 'Endurance & Selection',
-    blurb: 'Built backwards from the standards selection actually tests — the run, the ruck, the bar, and the hour where everyone else quietly stops. Arrive able to pass, not hoping to.',
+    blurb: 'Built from the standards selection actually tests. Arrive able to pass, not hoping to.',
   },
   strength: {
     label: 'Strength',
-    blurb: 'Heavier bar, lower reps, and the next jump decided before you walk in. You will know it worked, because the numbers are written down.',
+    blurb: 'Heavier bar, lower reps, and the next jump decided before you walk in.',
   },
   hypertrophy: {
     label: 'Muscle Building',
-    blurb: 'Enough volume to grow, spaced so you can recover and do it again. Size is just the same hard thing repeated on purpose for long enough.',
+    blurb: 'Enough volume to grow, spaced so you can recover and do it again.',
   },
   'weight-loss': {
     label: 'Fat Loss',
-    blurb: 'A deficit plus conditioning that protects the muscle you already paid for. The target is lighter and stronger, not lighter and smaller.',
+    blurb: 'A deficit that protects the muscle you already paid for. Lighter and stronger.',
   },
   general: {
     label: 'General Fitness',
-    blurb: 'Hard to be bad at anything. The base that makes every other program on this page easier when you get to it.',
+    blurb: 'Hard to be bad at anything. The base that makes everything else easier.',
   },
 };
 
@@ -104,21 +104,19 @@ export default async function ProgramsIndexPage() {
                 Pick your fight.
               </h1>
               <p className="text-text-secondary mt-6 text-base sm:text-lg leading-relaxed max-w-2xl">
-                Not a list of exercises. A campaign. Every session is written out before you
-                start — sets, reps, tempo, rest, and the week it gets heavier — so the only
-                decision left is whether you show up. Most people do not quit training because
-                it is hard. They quit because they stopped knowing what to do next.
+                Not a list of exercises. A campaign. Every session is written out before
+                you start, so the only thing left to decide is whether you show up.
               </p>
 
-              <div className="flex flex-wrap gap-x-10 gap-y-4 mt-9">
+              <div className="grid grid-cols-3 gap-4 mt-9 max-w-lg">
                 {[
                   { v: programs.length, l: 'Programs' },
                   { v: totalWeeks, l: 'Weeks of training' },
                   { v: totalSessions.toLocaleString(), l: 'Sessions written' },
                 ].map((s) => (
                   <div key={s.l}>
-                    <p className="text-3xl sm:text-4xl font-black text-white tabular-nums">{s.v}</p>
-                    <p className="text-[11px] uppercase tracking-wider text-text-tertiary mt-1">{s.l}</p>
+                    <p className="text-2xl sm:text-4xl font-black text-white tabular-nums">{s.v}</p>
+                    <p className="text-[10px] sm:text-[11px] uppercase tracking-wider text-text-tertiary mt-1 leading-tight">{s.l}</p>
                   </div>
                 ))}
               </div>
@@ -135,16 +133,16 @@ export default async function ProgramsIndexPage() {
             {grouped.map((group) => (
               <section key={group.goal} className="mb-16">
                 <Reveal>
-                  <div className="flex items-end justify-between gap-4 border-b border-white/8 pb-4 mb-6">
-                    <div>
+                  <div className="border-b border-white/8 pb-4 mb-6">
+                    <div className="flex items-baseline gap-3 flex-wrap">
                       <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                         {group.meta.label}
                       </h2>
-                      <p className="text-sm text-text-secondary mt-1.5 max-w-xl">{group.meta.blurb}</p>
+                      <span className="text-[11px] uppercase tracking-wider text-text-tertiary">
+                        {group.items.length} program{group.items.length !== 1 ? 's' : ''}
+                      </span>
                     </div>
-                    <span className="text-xs text-text-tertiary whitespace-nowrap pb-1">
-                      {group.items.length} program{group.items.length !== 1 ? 's' : ''}
-                    </span>
+                    <p className="text-sm text-text-secondary mt-2 max-w-xl">{group.meta.blurb}</p>
                   </div>
                 </Reveal>
                 <div className={`grid gap-5 ${groupLayout(group.items.length).cols}`}>
