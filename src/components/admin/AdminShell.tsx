@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Menu, X, Home, Search } from 'lucide-react';
+import { Menu, X, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AdminSearch } from './AdminSearch';
+import { useBranding } from './useBranding';
 
 /**
  * The admin frame: a grouped left rail on desktop, the same list in a
@@ -46,6 +48,7 @@ export function AdminShell<Id extends string>({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const brand_ = useBranding();
 
   // Close the drawer whenever the tab changes — picking one is the reason it
   // was opened — and lock page scroll behind it while it is up.
@@ -90,11 +93,25 @@ export function AdminShell<Id extends string>({
     </nav>
   );
 
+  // The letter block was a stand-in that outlived its purpose: an admin who
+  // has uploaded a logo in Settings should see it here, and the name should be
+  // the one they set, not a constant compiled into the frame.
   const brand = (
     <div className="flex items-center gap-2.5 px-2">
-      <div className="w-8 h-8 rounded-[10px] bg-accent flex items-center justify-center text-black font-black text-sm">W</div>
+      {brand_.logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={brand_.logoUrl}
+          alt=""
+          className="w-8 h-8 rounded-[10px] object-contain flex-shrink-0 bg-surface-elevated"
+        />
+      ) : (
+        <div className="w-8 h-8 rounded-[10px] bg-accent flex items-center justify-center text-black font-black text-sm flex-shrink-0">
+          {brand_.appName.trim().charAt(0).toUpperCase() || 'W'}
+        </div>
+      )}
       <div className="min-w-0">
-        <p className="text-[12px] font-extrabold tracking-[0.08em] uppercase text-white leading-tight">Warfare Fitness</p>
+        <p className="text-[12px] font-extrabold tracking-[0.08em] uppercase text-white leading-tight truncate">{brand_.appName}</p>
         <p className="text-[10px] text-text-tertiary leading-tight">Admin{trial ? ' · trial' : ''}</p>
       </div>
     </div>
@@ -125,10 +142,10 @@ export function AdminShell<Id extends string>({
             <h1 className="text-[17px] lg:text-lg font-extrabold text-white leading-tight truncate">{title}</h1>
             {subtitle && <p className="text-xs text-text-secondary leading-tight truncate">{subtitle}</p>}
           </div>
-          <div className="hidden md:flex items-center gap-2 h-9 w-64 px-3 rounded-full bg-surface border border-white/8 text-text-tertiary text-[13px]">
-            <Search className="w-4 h-4" strokeWidth={1.75} />
-            <span className="truncate">Search coming soon</span>
-          </div>
+          <AdminSearch
+            groups={groups}
+            onSelect={onSelect as (id: string) => void}
+          />
           <Link href="/dashboard" className="lg:hidden p-2 -mr-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5" aria-label="Back to app">
             <Home className="w-5 h-5" />
           </Link>

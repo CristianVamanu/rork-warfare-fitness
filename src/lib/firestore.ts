@@ -1499,6 +1499,56 @@ export async function getAllUsers(limitCount = 500, afterId?: string) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+/**
+ * Find accounts by the start of an email or a display name.
+ *
+ * Deliberately a pair of bounded prefix queries rather than a scan. Admin
+ * search that loads every user and filters in the browser is fine at eight
+ * accounts and a liability at five thousand: it costs a read per account per
+ * keystroke. This reads at most `max` documents per field, whatever the size
+ * of the collection, using the single-field indexes Firestore maintains
+ * automatically.
+ *
+ * Prefix, not substring, and case-sensitive — that is what a range query on a
+ * plain string field can do. Emails are stored lowercase so they match how
+ * people type them; a display name has to be typed with its real capital.
+ * Substring or fuzzy matching means either a search service or a tokenised
+ * mirror field on every user, and neither is worth it to find one client.
+ */
+export async function searchUsers(term: string, max = 8) {
+  const t = term.trim();
+  if (t.length < 2) return [] as { id: string; displayName?: string; email?: string; role?: string }[];
+  const end = '\uf8ff';
+
+  const byField = async (field: string, value: string) => {
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'users'),
+        orderBy(field),
+        where(field, '>=', value),
+        where(field, '<=', value + end),
+        limit(max),
+      ));
+      return snap.docs;
+    } catch {
+      return []; // a field absent from every doc has no index to range over
+    }
+  };
+
+  const [byEmail, byName] = await Promise.all([
+    byField('email', t.toLowerCase()),
+    byField('displayName', t),
+  ]);
+
+  const seen = new Map<string, { id: string; displayName?: string; email?: string; role?: string }>();
+  for (const d of [...byEmail, ...byName]) {
+    if (seen.has(d.id)) continue;
+    const data = d.data() as { displayName?: string; email?: string; role?: string };
+    seen.set(d.id, { id: d.id, displayName: data.displayName, email: data.email, role: data.role });
+  }
+  return [...seen.values()].slice(0, max);
+}
+
 /** Total user count without reading a single document. */
 export async function countUsers(): Promise<number> {
   const snap = await getCountFromServer(collection(db, 'users'));

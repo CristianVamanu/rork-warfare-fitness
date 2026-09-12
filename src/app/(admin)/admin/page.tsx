@@ -399,6 +399,10 @@ function AdminPageInner() {
   // with no Auth account behind it sit unnoticed from June, but they should
   // not be sitting in the everyday list where a misclick can reach them.
   const [clientRoleFilter, setClientRoleFilter] = useState<'all' | 'clients' | 'admins'>('clients');
+  // Seeded from ?q=, which the shell's search sets when you pick an account.
+  // Landing on the tab with the person still to be found by eye would make the
+  // search a pointer at a page rather than an answer.
+  const [clientQuery, setClientQuery] = useState(() => searchParams.get('q') ?? '');
   // getAllUsers() is now bounded (see firestore.ts). These track how much of
   // the collection is actually loaded, so the page can say so honestly rather
   // than showing a count that silently means "the first 500".
@@ -2543,9 +2547,19 @@ function AdminPageInner() {
   // `clients` (non-admin) is the default view and also drives the CSV export
   // and the broadcast notification target — a marketing push should never go
   // to staff accounts, whatever this filter is set to.
-  const listedUsers = clientRoleFilter === 'all' ? users
+  const byRole = clientRoleFilter === 'all' ? users
     : clientRoleFilter === 'admins' ? users.filter(u => u.role === 'admin')
     : clients;
+  // Substring, case-insensitive, over what is loaded. Deliberately looser than
+  // the prefix query the shell's search runs against Firestore: that one has to
+  // be a range scan over the whole collection, this one is a filter over a few
+  // hundred records already in memory.
+  const clientQueryTrimmed = clientQuery.trim().toLowerCase();
+  const listedUsers = clientQueryTrimmed
+    ? byRole.filter((u) =>
+        (u.displayName ?? '').toLowerCase().includes(clientQueryTrimmed) ||
+        (u.email ?? '').toLowerCase().includes(clientQueryTrimmed))
+    : byRole;
   const clientsTotalPages = Math.max(1, Math.ceil(listedUsers.length / clientsPerPage));
   // Clamp rather than reset: changing page size or banning the last user on
   // page 9 should land somewhere real, not on an empty page.
@@ -2763,6 +2777,26 @@ function AdminPageInner() {
               rules, so at 400px the count broke across two lines and collided
               with the segmented control. Row only from sm: up, where there is
               actually width for it. */}
+          {/* The tab had every filter except the one an admin reaches for
+              first: a name. Also the landing spot for the shell's search. */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-text-tertiary absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              value={clientQuery}
+              onChange={(e) => { setClientQuery(e.target.value); setClientsPage(1); }}
+              placeholder="Filter loaded clients by name or email"
+              className="w-full h-10 bg-surface border border-white/10 rounded-xl pl-9 pr-9 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+            />
+            {clientQuery && (
+              <button
+                onClick={() => { setClientQuery(''); setClientsPage(1); }}
+                aria-label="Clear filter"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-text-tertiary hover:text-white hover:bg-white/5"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            )}
+          </div>
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
             {/* Says what is LOADED, not what exists — the read is capped, and a
                 count that quietly means "the first 500" is how an admin ends
