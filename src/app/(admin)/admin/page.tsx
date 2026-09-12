@@ -15,7 +15,7 @@ import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/
 import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
 import { AdminShell } from '@/components/admin/AdminShell';
-import { StatTile, Panel, Pill, KV } from '@/components/admin/ui';
+import { StatTile, Panel, Pill, KV, Segmented } from '@/components/admin/ui';
 import { getIdToken } from 'firebase/auth';
 import { DEFAULT_ORG_DAILY_LIMIT } from '@/lib/orgAiLimit';
 import { GATED_FEATURES, pruneFeatureAccess } from '@/lib/gatedFeatures';
@@ -2759,7 +2759,14 @@ function AdminPageInner() {
 
       {/* ── Clients ───────────────────────────────────────────────────────────── */}
       {tab === 'clients' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+            <StatTile label="Total users" value={totalUsers ?? users.length} caption="every account, admins included" />
+            <StatTile label="Clients" value={clients.length} caption="non-staff accounts loaded" />
+            <StatTile label="Admins" value={adminCount} caption="staff with full access" />
+            <StatTile label="Loaded" value={`${users.length}${totalUsers !== null ? ` / ${totalUsers}` : ''}`}
+              caption={totalUsers !== null && users.length < totalUsers ? 'more available below' : 'everything is loaded'} />
+          </div>
           {/* Stacks on a phone. All three of these — the count, a three-way
               filter and Export CSV — used to share one flex row with no wrap
               rules, so at 400px the count broke across two lines and collided
@@ -3539,29 +3546,39 @@ function AdminPageInner() {
                 {membershipPlans.length === 0 && !showMembershipPlanForm ? (
                   <p className="text-text-tertiary text-sm text-center py-3">No membership plans yet. Create one above.</p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 lg:gap-4 items-stretch">
                     {membershipPlans.map((plan) => (
                       editingMembershipPlan?.id === plan.id && showMembershipPlanForm ? (
-                        <div key={plan.id} className="bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
+                        <div key={plan.id} className="md:col-span-2 xl:col-span-3 bg-surface-elevated rounded-2xl p-4 space-y-3 border border-accent/30">
                           {renderMembershipPlanForm()}
                         </div>
                       ) : (
-                      <div key={plan.id} className={`p-4 rounded-2xl border ${plan.active ? 'border-accent/20 bg-accent/5' : 'border-white/8 opacity-60'}`}>
+                      <div key={plan.id} className={`p-4 lg:p-5 rounded-2xl border flex flex-col gap-3 min-w-0 ${plan.mostPopular ? 'border-accent/40 shadow-glow-sm bg-surface' : 'border-white/8 bg-surface'} ${plan.active ? '' : 'opacity-60'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-bold text-white">{plan.name}</p>
-                              {plan.active ? <Badge variant="success">Active</Badge> : <Badge variant="muted">Inactive</Badge>}
-                              {plan.mostPopular && <Badge variant="accent">★ Most Popular</Badge>}
+                              <p className="text-base font-bold text-white">{plan.name}</p>
+                              {plan.active ? <Pill tone="ok">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
+                              {plan.mostPopular && <Pill tone="accent">★ Most popular</Pill>}
                             </div>
-                            <p className="text-sm font-black text-accent mt-0.5">
-                              {[
-                                plan.priceMonthly ? `1mo: ${plan.currency} ${plan.priceMonthly.toFixed(2)}` : null,
-                                plan.price3mo ? `3mo: ${plan.currency} ${plan.price3mo.toFixed(2)}` : null,
-                                plan.price6mo ? `6mo: ${plan.currency} ${plan.price6mo.toFixed(2)}` : null,
-                                plan.price12mo ? `12mo: ${plan.currency} ${plan.price12mo.toFixed(2)}` : null,
-                              ].filter(Boolean).join(' · ') || 'No price set'}
+                            {/* Monthly price as the hero figure; the longer
+                                terms underneath. One number to read, the
+                                rest available. */}
+                            <p className="mt-2 leading-none">
+                              <span className="text-[28px] font-extrabold tracking-tight text-white tabular-nums">
+                                {plan.priceMonthly ? `${plan.currency} ${plan.priceMonthly.toFixed(0)}` : 'No price'}
+                              </span>
+                              {plan.priceMonthly ? <span className="text-sm text-text-secondary"> / month</span> : null}
                             </p>
+                            {(plan.price3mo || plan.price6mo || plan.price12mo) && (
+                              <p className="text-xs text-text-tertiary mt-1.5 tabular-nums">
+                                {[
+                                  plan.price3mo ? `3 mo ${plan.currency} ${plan.price3mo.toFixed(0)}` : null,
+                                  plan.price6mo ? `6 mo ${plan.currency} ${plan.price6mo.toFixed(0)}` : null,
+                                  plan.price12mo ? `12 mo ${plan.currency} ${plan.price12mo.toFixed(0)}` : null,
+                                ].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
                             {plan.description && <p className="text-xs text-text-secondary mt-1">{plan.description}</p>}
                             {plan.features.length > 0 && (
                               <ul className="mt-2 space-y-0.5">
@@ -3577,9 +3594,14 @@ function AdminPageInner() {
                                 restricted to anything real, and saying it is
                                 sent admins hunting for checkboxes that no
                                 longer exist. Saving the plan drops them. */}
-                            {pruneFeatureAccess(plan.featureAccess).length > 0 && (
-                              <p className="text-[10px] text-accent mt-2">🔒 Restricted to: {pruneFeatureAccess(plan.featureAccess).map((id) => GATED_FEATURES.find((f) => f.id === id)?.label ?? id).join(', ')}</p>
-                            )}
+                            <div className="mt-3">
+                              <KV
+                                k="Tool access"
+                                v={pruneFeatureAccess(plan.featureAccess).length > 0
+                                  ? <span className="text-accent">{pruneFeatureAccess(plan.featureAccess).length} of {GATED_FEATURES.length} features · {pruneFeatureAccess(plan.featureAccess).map((id) => GATED_FEATURES.find((f) => f.id === id)?.label ?? id).join(', ')}</span>
+                                  : <span className="text-success">Everything</span>}
+                              />
+                            </div>
                           </div>
                           <div className="flex gap-1 flex-shrink-0">
                             <button
@@ -4507,36 +4529,23 @@ function AdminPageInner() {
 
       {/* ── Analytics — real visitor data from Cloudflare's edge ────────────── */}
       {tab === 'analytics' && (
-        <div className="space-y-5">
-          <Card className="p-4 border border-blue-400/20 bg-blue-400/5">
-            <p className="text-xs text-text-secondary">
-              Pulled directly from Cloudflare, which sits in front of every request to your site — this counts real
-              server-side traffic, not client-side JavaScript that ad-blockers or privacy tools can suppress. Requires
-              a Cloudflare API token + Zone ID set in <span className="text-white font-medium">Integrations</span>.
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <Segmented
+              value={analyticsRange}
+              onChange={(v) => { if (!analyticsLoading) { setAnalyticsRange(v); loadAnalytics(v); } }}
+              options={[
+                { id: 'today', label: 'Today' }, { id: 'yesterday', label: 'Yesterday' }, { id: '7d', label: '7 days' },
+                { id: '14d', label: '14 days' }, { id: '30d', label: '30 days' },
+              ]}
+            />
+            <p className="text-xs text-text-tertiary">
+              Server-side counts from Cloudflare — not affected by ad blockers. Needs a token and Zone ID under Integrations.
             </p>
-          </Card>
-
-          {/* Range picker */}
-          <div className="flex gap-1.5 flex-wrap">
-            {([
-              ['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', '7 Days'],
-              ['14d', '14 Days'], ['30d', '30 Days'],
-            ] as const).map(([value, label]) => (
-              <button
-                key={value}
-                onClick={() => { setAnalyticsRange(value); loadAnalytics(value); }}
-                disabled={analyticsLoading}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors disabled:opacity-50 ${
-                  analyticsRange === value ? 'bg-accent text-black border-accent' : 'bg-surface-elevated text-text-secondary border-white/10 hover:text-white'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
           </div>
 
           {analyticsLoading ? (
-            <div className="grid grid-cols-2 gap-3">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div>
           ) : analyticsError ? (
             <Card className="p-6 text-center">
               <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
@@ -4548,44 +4557,28 @@ function AdminPageInner() {
             </Card>
           ) : analytics ? (
             <>
-              <p className="text-xs text-text-tertiary">
-                {analyticsRange === 'today' ? 'Today' : analyticsRange === 'yesterday' ? 'Yesterday' : `Last ${analytics.rangeDays} days`}
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <Card className="p-4">
-                  <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Unique Visits</p>
-                  <p className="text-2xl font-black text-white mt-1">{analytics.totals.uniques.toLocaleString()}</p>
-                  <p className="text-[10px] text-text-tertiary mt-0.5">summed across days — a returning visitor counts once per day</p>
-                </Card>
-                <Card className="p-4">
-                  <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Page Views</p>
-                  <p className="text-2xl font-black text-white mt-1">{analytics.totals.pageViews.toLocaleString()}</p>
-                </Card>
-                <Card className="p-4">
-                  <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Total Requests</p>
-                  <p className="text-2xl font-black text-white mt-1">{analytics.totals.requests.toLocaleString()}</p>
-                  <p className="text-[10px] text-text-tertiary mt-0.5">includes images, scripts, API calls, etc.</p>
-                </Card>
-                <Card className="p-4">
-                  <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Threats Blocked</p>
-                  <p className="text-2xl font-black text-white mt-1">{analytics.totals.threats.toLocaleString()}</p>
-                </Card>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+                <StatTile label="Page views" value={analytics.totals.pageViews.toLocaleString()}
+                  caption={analyticsRange === 'today' ? 'today' : analyticsRange === 'yesterday' ? 'yesterday' : `last ${analytics.rangeDays} days`} />
+                <StatTile label="Unique visits" value={analytics.totals.uniques.toLocaleString()}
+                  caption="a returning visitor counts once per day" />
+                <StatTile label="Total requests" value={analytics.totals.requests.toLocaleString()}
+                  caption="pages, images, scripts and API calls" />
+                <StatTile label="Threats blocked" value={analytics.totals.threats.toLocaleString()} caption="by Cloudflare, before they reached you" />
               </div>
 
               {analytics.daily.length > 0 && (
-                <Card className="p-4">
-                  <p className="text-xs font-bold text-white mb-3">Daily Page Views</p>
-                  <div className="flex items-end gap-1 h-32">
+                <Panel title="Daily page views" icon={TrendingUp}
+                  action={<span className="text-xs text-text-tertiary">{analytics.daily[0]?.date} → {analytics.daily[analytics.daily.length - 1]?.date}</span>}>
+                  <div className="flex items-end gap-1 h-40">
                     {analytics.daily.map((d) => {
                       const max = Math.max(...analytics.daily.map(x => x.pageViews), 1);
                       const pct = Math.max(2, Math.round((d.pageViews / max) * 100));
                       return (
                         <div key={d.date} className="flex-1 flex flex-col items-center justify-end h-full group relative">
-                          {/* bg-accent/70 (Tailwind's opacity-modifier syntax) silently
-                              renders nothing here — --accent is a raw hex CSS variable,
-                              not the R-G-B triplet format that modifier needs to combine
-                              with an alpha value. Using the `opacity` utility instead
-                              works with any color format. */}
+                          {/* `opacity` utility, not bg-accent/70 — see the note in git
+                              history: the accent variable is a hex, and Tailwind's
+                              alpha modifier renders nothing against it. */}
                           <div className="w-full bg-accent opacity-70 group-hover:opacity-100 rounded-t transition-opacity" style={{ height: `${pct}%` }} />
                           <div className="absolute -top-8 hidden group-hover:block bg-black text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
                             {d.date}: {d.pageViews.toLocaleString()} views
@@ -4594,11 +4587,7 @@ function AdminPageInner() {
                       );
                     })}
                   </div>
-                  <div className="flex justify-between mt-2 text-[10px] text-text-tertiary">
-                    <span>{analytics.daily[0]?.date}</span>
-                    <span>{analytics.daily[analytics.daily.length - 1]?.date}</span>
-                  </div>
-                </Card>
+                </Panel>
               )}
             </>
           ) : (
