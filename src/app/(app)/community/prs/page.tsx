@@ -8,6 +8,7 @@ import { Heart, Upload, X, Video, Image as ImageIcon, MoreHorizontal, Trash2 } f
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
+import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
@@ -158,11 +159,9 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
-      <Card className="p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0 text-xs font-bold text-accent">
-            {post.displayName.charAt(0).toUpperCase()}
-          </div>
+      <Card className="p-4 card-float">
+        <div className="flex items-center gap-2.5 mb-3">
+          <Avatar name={post.displayName} src={post.photoURL} size="md" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <p className="text-sm font-bold text-white truncate">{post.displayName}</p>
@@ -173,9 +172,12 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
             </div>
             <p className="text-xs text-text-tertiary">{post.exerciseName}</p>
           </div>
-          <div className="text-right flex-shrink-0">
-            <p className="text-sm font-black text-accent">{post.weightKg}kg</p>
-            <p className="text-[10px] text-text-tertiary">× {post.reps}</p>
+          <div
+            className="text-right flex-shrink-0 px-2.5 py-1.5 rounded-xl border border-accent/25"
+            style={{ background: 'linear-gradient(135deg, rgba(var(--accent-rgb) / 0.28), rgba(var(--accent-rgb) / 0.06))' }}
+          >
+            <p className="text-[15px] font-black text-white leading-none tabular-nums">{post.weightKg}<span className="text-[10px] font-bold text-text-secondary">kg</span></p>
+            <p className="text-[10px] text-text-tertiary tabular-nums mt-0.5">× {post.reps}</p>
           </div>
           {canDelete && (
             <div className="relative flex-shrink-0">

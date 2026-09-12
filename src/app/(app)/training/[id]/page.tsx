@@ -551,8 +551,8 @@ export default function ProgramDetailPage() {
                           <Card
                             className={`p-4 cursor-pointer transition-colors ${
                               isLocked ? 'opacity-60' :
-                              isCompleted ? 'border-success/30 bg-success/5' :
-                              isToday ? 'border-accent/50 bg-accent/5' : ''
+                              isCompleted ? 'border-success/30' :
+                              isToday ? 'border-accent/50 shadow-glow-sm' : ''
                             }`}
                             onClick={() => setExpandedDay(isExpanded ? null : absoluteDay)}
                           >
@@ -567,11 +567,11 @@ export default function ProgramDetailPage() {
                                 min-w-0 so it wraps inside its own track
                                 instead of shoving its neighbours. */}
                             <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 flex-shrink-0 rounded-xl flex flex-col items-center justify-center text-xs font-bold ${
+                              <div className={`w-11 h-11 flex-shrink-0 rounded-2xl flex flex-col items-center justify-center text-xs font-bold ${
                                 isCompleted ? 'bg-success/20 text-success' :
-                                isToday ? 'bg-accent text-black' :
-                                day.isRest ? 'bg-surface-elevated text-text-tertiary' :
-                                'bg-surface-elevated text-white'
+                                isToday ? 'bg-accent text-black shadow-glow-sm' :
+                                day.isRest ? 'bg-white/6 text-text-tertiary' :
+                                'bg-white/6 text-white'
                               }`}>
                                 {isCompleted
                                   ? <CheckCircle2 className="w-5 h-5" />

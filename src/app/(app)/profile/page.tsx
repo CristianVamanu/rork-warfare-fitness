@@ -610,10 +610,14 @@ export default function ProfilePage() {
           className="grid grid-cols-2 gap-3"
         >
           {stats.map(({ icon: Icon, label, value, color }) => (
-            <Card key={label} className="p-4 text-center">
-              <Icon className={`w-5 h-5 ${color} mx-auto mb-2`} />
-              <p className="text-xl font-black text-white">{value}</p>
-              <p className="text-xs text-text-secondary mt-0.5">{label}</p>
+            <Card key={label} className="p-4 flex items-center gap-3.5 card-float">
+              <span className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 bg-white/6 ${color}`}>
+                <Icon className="w-5 h-5" strokeWidth={1.75} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[22px] font-black text-white leading-none tabular-nums">{value}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary mt-1">{label}</p>
+              </div>
             </Card>
           ))}
         </motion.div>
