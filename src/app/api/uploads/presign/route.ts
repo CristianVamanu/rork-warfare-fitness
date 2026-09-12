@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { verifyAuthed } from '@/lib/verifyAdmin';
+import { rateLimit } from '@/lib/rateLimit';
 import { getR2Client, r2PublicUrl } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
 import { SUPPORT_MAX_BYTES } from '@/lib/supportLimits';
@@ -49,6 +50,19 @@ export async function POST(req: NextRequest) {
     const check = await verifyAuthed(req);
     if ('error' in check) {
       return NextResponse.json({ error: check.error }, { status: check.status });
+    }
+
+    // Nothing bounded how often one account could mint upload URLs, and the
+    // ceiling per URL is 100MB. An account looping this fills the bucket as
+    // fast as its connection allows, and R2 bills for what is stored. Sixty an
+    // hour is far above any real session — a photo, a clip, a progress
+    // picture — and far below what an abusive loop needs to be worth running.
+    const limit = await rateLimit({ scope: 'uploads-presign', key: check.uid, windowMs: 60 * 60_000, max: 60 });
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many uploads in a short time — try again shortly.', retryAfter: limit.retryAfterSeconds },
+        { status: 429 },
+      );
     }
 
     const client = await getR2Client();
