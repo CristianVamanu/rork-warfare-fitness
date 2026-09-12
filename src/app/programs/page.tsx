@@ -132,7 +132,10 @@ export default async function ProgramsIndexPage() {
           <>
             {grouped.map((group) => (
               <section key={group.goal} className="mb-16">
-                <Reveal>
+                {/* Not wrapped in Reveal: a section heading that depends on
+                    an observer firing can render as an empty band, which is
+                    exactly what it did on iOS. The cards below still fade. */}
+                <div>
                   <div className="border-b border-white/8 pb-4 mb-6">
                     <div className="flex items-baseline gap-3 flex-wrap">
                       <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
@@ -144,7 +147,7 @@ export default async function ProgramsIndexPage() {
                     </div>
                     <p className="text-sm text-text-secondary mt-2 max-w-xl">{group.meta.blurb}</p>
                   </div>
-                </Reveal>
+                </div>
                 <div className={`grid gap-5 ${groupLayout(group.items.length).cols}`}>
                   {group.items.map((p, i) => (
                     <Reveal key={p.id} delay={i * 0.05}>

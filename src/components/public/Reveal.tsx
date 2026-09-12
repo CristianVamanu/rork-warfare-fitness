@@ -50,10 +50,25 @@ export function Reveal({ children, delay = 0, className = '' }: {
           io.disconnect(); // once only — re-animating on scroll-back reads as broken
         }
       },
-      { rootMargin: '-60px' },
+      // Was '-60px' on every side, which means an element only counts as
+      // visible once it is 60px INSIDE the viewport on all four edges. A
+      // block taller than the screen never satisfies that on a phone, and
+      // iOS's collapsing toolbar resizes the viewport mid-scroll without
+      // always re-running the observer — either way the block stays at
+      // opacity 0 while still taking up its full height, which is a heading
+      // and a paragraph rendered as a tall blank gap. Only the bottom edge
+      // is inset now, so an element counts the moment it enters the screen.
+      { rootMargin: '0px 0px -10% 0px', threshold: 0 },
     );
     io.observe(el);
-    return () => io.disconnect();
+
+    // Nothing on a marketing page may depend on an animation firing. If the
+    // observer has not reported within a second — a missed callback, a
+    // background tab that never scrolls, a viewport resize race — the
+    // content is shown anyway. Worst case someone misses a fade.
+    const failSafe = window.setTimeout(() => setShown(true), 1000);
+
+    return () => { io.disconnect(); window.clearTimeout(failSafe); };
   }, []);
 
   return (
