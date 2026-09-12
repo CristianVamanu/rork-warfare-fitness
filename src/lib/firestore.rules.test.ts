@@ -6,7 +6,7 @@ import {
   assertFails,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, type Firestore } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, writeBatch, serverTimestamp, type Firestore } from 'firebase/firestore';
 
 /**
  * Firestore rules, exercised against the real rules engine in the emulator.
@@ -469,6 +469,61 @@ describe('program access by plan', () => {
     }));
     await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), {
       'membership.planId': 'vanguard',
+    }));
+  });
+});
+
+describe('support tickets', () => {
+  /**
+   * A new ticket and its first message are written in ONE batch, so that a
+   * failure between them cannot leave a ticket with no message in it. Rules
+   * evaluate each write in a batch against the state BEFORE the batch, so
+   * when the message rule reached for its parent ticket to check
+   * status != 'resolved', the ticket did not exist yet and the whole batch
+   * was denied. Every support request from a member failed with "Could not
+   * send your request", and nothing reached staff.
+   */
+  it('a member can open a ticket and post its first message in one batch', async () => {
+    const db = asAlice();
+    const ticket = doc(collection(db, 'supportTickets'));
+    const batch = writeBatch(db as never);
+    batch.set(ticket, {
+      userId: ALICE, userDisplayName: 'Alice', userEmail: 'a@x.com',
+      subject: 'Test', status: 'pending', lastMessage: 'This is a test',
+      lastMessageAt: serverTimestamp(), createdAt: serverTimestamp(),
+      unreadByUser: false, unreadByAdmin: true,
+    });
+    batch.set(doc(collection(db, 'supportTickets', ticket.id, 'messages')), {
+      senderId: ALICE, senderName: 'Alice', content: 'This is a test',
+      isFromAdmin: false, createdAt: serverTimestamp(),
+    });
+    await assertSucceeds(batch.commit());
+  });
+
+  it('a member cannot post into someone else\'s existing ticket', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'supportTickets', 't1'), { userId: BOB, status: 'pending' });
+    });
+    await assertFails(setDoc(doc(asAlice(), 'supportTickets', 't1', 'messages', 'm1'), {
+      senderId: ALICE, senderName: 'Alice', content: 'let me in', isFromAdmin: false,
+    }));
+  });
+
+  it('nobody can post into a resolved ticket', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'supportTickets', 't2'), { userId: ALICE, status: 'resolved' });
+    });
+    await assertFails(setDoc(doc(asAlice(), 'supportTickets', 't2', 'messages', 'm1'), {
+      senderId: ALICE, senderName: 'Alice', content: 'reopen please', isFromAdmin: false,
+    }));
+  });
+
+  it('a member cannot forge a message as staff', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'supportTickets', 't3'), { userId: ALICE, status: 'pending' });
+    });
+    await assertFails(setDoc(doc(asAlice(), 'supportTickets', 't3', 'messages', 'm1'), {
+      senderId: ALICE, senderName: 'Alice', content: 'official reply', isFromAdmin: true,
     }));
   });
 });

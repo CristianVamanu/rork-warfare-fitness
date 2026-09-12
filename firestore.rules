@@ -628,13 +628,28 @@ service cloud.firestore {
         // the caller's real role for the same reason it does on
         // conversations — otherwise a member could have their own message
         // rendered as an official support reply.
+        // The parent-does-not-exist branch is not a loophole, it is the
+        // first message of a brand new ticket. createSupportTicket writes
+        // the ticket and its first message in ONE batch so a failure between
+        // them cannot leave a ticket with no message in it — and rules
+        // evaluate every write in a batch against the state BEFORE the
+        // batch, so this get() found nothing and denied the whole commit.
+        // Every support request a member sent failed, and none reached
+        // staff. A message written under a ticket id that never gets a
+        // ticket is unreachable: the read rule below needs the parent's
+        // userId to match, and a missing parent matches nobody.
         allow create: if isAuthed() && notTfaPending()
           && request.resource.data.senderId == uid()
           && request.resource.data.isFromAdmin == isAdmin()
-          && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'resolved'
           && (
-            isAdmin() ||
-            get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == uid()
+            !exists(/databases/$(database)/documents/supportTickets/$(ticketId))
+            || (
+              get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.status != 'resolved'
+              && (
+                isAdmin() ||
+                get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == uid()
+              )
+            )
           );
 
         allow update: if false;
