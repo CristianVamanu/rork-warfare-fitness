@@ -3509,7 +3509,7 @@ function AdminPageInner() {
 
               {/* Locked features */}
               {membership.enabled && !membership.fullLock && (
-                <Card className="p-5 space-y-3">
+                <Card className="p-4 lg:p-5 space-y-3">
                   <h2 className="text-sm font-bold text-white flex items-center gap-2">
                     <Shield className="w-4 h-4 text-accent" /> Lockable Features
                   </h2>
@@ -3713,7 +3713,7 @@ function AdminPageInner() {
               </Card>
 
               {/* Client membership management */}
-              <Card className="p-5 space-y-3">
+              <Card className="p-4 lg:p-5 space-y-3">
                 <h2 className="text-sm font-bold text-white flex items-center gap-2">
                   <Users className="w-4 h-4 text-accent" /> Client Access
                 </h2>
@@ -4013,12 +4013,14 @@ function AdminPageInner() {
 
       {tab === 'coaching' && (
         <div className="space-y-4">
-          <div>
-            <h2 className="text-lg font-bold text-white">1:1 Coaching Applications</h2>
-            <p className="text-xs text-text-secondary mt-0.5">
-              Review intake forms, then approve or reject. Approved clients get a notification with a pay button; rejected clients get a notification too.
-            </p>
+          <div className="grid grid-cols-3 gap-3 lg:gap-4">
+            <StatTile label="Pending" value={coachingApplications.filter((a) => a.status === 'pending').length} caption="waiting on you" />
+            <StatTile label="Approved" value={coachingApplications.filter((a) => a.status === 'approved').length} caption="sent a pay link" />
+            <StatTile label="Rejected" value={coachingApplications.filter((a) => a.status === 'rejected').length} caption="notified" />
           </div>
+          <p className="text-xs text-text-secondary">
+            Review intake forms, then approve or reject. Approved clients get a notification with a pay button; rejected clients are notified too.
+          </p>
 
           {loadingApplications ? (
             <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
@@ -4027,22 +4029,18 @@ function AdminPageInner() {
               <p className="text-sm text-text-secondary">No applications yet.</p>
             </Card>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:gap-4 items-start">
               {coachingApplications.map((app) => (
-                <Card key={app.id} className="p-4 space-y-3">
+                <Card key={app.id} className="p-4 lg:p-5 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-bold text-white">{app.userName}</p>
                       <p className="text-xs text-text-secondary">{app.userEmail}</p>
                       <p className="text-xs text-accent mt-0.5">{app.planName}</p>
                     </div>
-                    <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full whitespace-nowrap ${
-                      app.status === 'pending' ? 'bg-yellow-400/10 text-yellow-400'
-                      : app.status === 'approved' ? 'bg-success/10 text-success'
-                      : 'bg-danger/10 text-danger'
-                    }`}>
-                      {app.status}
-                    </span>
+                    <Pill tone={app.status === 'pending' ? 'accent' : app.status === 'approved' ? 'ok' : 'danger'}>
+                      {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                    </Pill>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 text-xs">
@@ -4155,18 +4153,21 @@ function AdminPageInner() {
       {/* ── Exercise Library ──────────────────────────────────────────────────── */}
       {tab === 'library' && (
         <div className="space-y-4">
-          <div>
-            <h2 className="text-lg font-bold text-white">Exercise Library</h2>
-            <p className="text-xs text-text-secondary mt-0.5">
-              Bulk-upload by category — names are parsed from filenames automatically. The AI matches these to generated programs.
-            </p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+            <StatTile label="Clips" value={exerciseLibrary.length} caption="in the library" />
+            <StatTile label="Categories" value={muscleCategories.length} caption="muscle groups" />
+            <StatTile label="Uncategorised" value={uncategorizedCount} caption={uncategorizedCount > 0 ? 'need a muscle group' : 'all sorted'} />
+            <StatTile label="On Firebase" value={firebaseHostedCount} caption={firebaseHostedCount > 0 ? 're-upload to R2' : 'everything on R2'} />
           </div>
+          <p className="text-xs text-text-secondary">
+            Bulk-upload by category — names are parsed from filenames automatically, and programs draw their demo clips from here.
+          </p>
 
           {/* ── Bulk Upload Panel ─────────────────────────────────────────────── */}
-          <Card className="p-4 space-y-4 border border-accent/20">
+          <Card className="p-4 lg:p-5 space-y-4 border-accent/40 shadow-glow-sm">
             <div className="flex items-center gap-2">
               <Upload className="w-4 h-4 text-accent" />
-              <h3 className="text-sm font-bold text-white">Bulk Upload</h3>
+              <h3 className="text-sm font-bold text-white">Bulk upload</h3>
             </div>
 
             {/* Category + Equipment selectors */}
@@ -4620,9 +4621,9 @@ function AdminPageInner() {
       {/* ── Integrations / API Keys ──────────────────────────────────────────── */}
       {tab === 'integrations' && (
         <div className="space-y-5">
-          <Card className="p-4 border border-blue-400/20 bg-blue-400/5">
+          <Card className="p-4 lg:p-5">
             <div className="flex items-start gap-3">
-              <Shield className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+              <div className="w-9 h-9 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0"><Shield className="w-4 h-4 text-accent" /></div>
               <div>
                 <p className="text-sm font-bold text-white">Keys are encrypted before storage</p>
                 <p className="text-xs text-text-secondary mt-0.5">
@@ -4634,8 +4635,8 @@ function AdminPageInner() {
           </Card>
 
           {/* Storage provider toggle */}
-          <Card className="p-5 space-y-3">
-            <h2 className="text-base font-bold text-white">Video Storage Provider</h2>
+          <Card className="p-4 lg:p-5 space-y-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2"><Video className="w-4 h-4 text-accent" /> Video storage provider</h2>
             <p className="text-xs text-text-secondary">
               Choose where exercise video uploads go. Cloudflare R2 has no egress fees — recommended once configured below.
             </p>
@@ -4736,7 +4737,7 @@ function AdminPageInner() {
       {tab === 'leads' && (
         <div className="space-y-5">
           {/* Trainer demo-request leads */}
-          <Card className="p-5 space-y-3">
+          <Card className="p-4 lg:p-5 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
                 <UserCheck className="w-4 h-4 text-accent" /> Trainer Leads
@@ -4763,7 +4764,7 @@ function AdminPageInner() {
             ) : (
               <div className="space-y-2">
                 {trainerLeads.map((lead) => (
-                  <div key={lead.id} className="border border-white/10 rounded-xl p-3 flex items-start justify-between gap-3">
+                  <div key={lead.id} className="bg-surface-elevated rounded-xl p-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-white truncate">{lead.name} {lead.businessName ? `· ${lead.businessName}` : ''}</p>
                       <p className="text-xs text-text-secondary truncate">{lead.email} {lead.phone ? `· ${lead.phone}` : ''} {lead.clientCount ? `· ${lead.clientCount} clients` : ''}</p>
@@ -4789,7 +4790,7 @@ function AdminPageInner() {
           </Card>
 
           {/* Exit-intent email captures from the consumer landing page */}
-          <Card className="p-5 space-y-3">
+          <Card className="p-4 lg:p-5 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
                 <Mail className="w-4 h-4 text-accent" /> Landing Page Leads
@@ -5036,7 +5037,7 @@ function AdminPageInner() {
           </Card>
 
           {/* Backups */}
-          <Card className="p-5 space-y-3">
+          <Card className="p-4 lg:p-5 space-y-3">
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
               <Shield className="w-4 h-4 text-accent" /> Backups
             </h2>
