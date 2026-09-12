@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
-  MessageSquare, Send, ChevronLeft, Ban, UserCheck,
+  MessageSquare, Send, ChevronLeft, ChevronRight, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
   Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail, Star,
   LifeBuoy, RotateCcw,
@@ -2739,21 +2739,37 @@ function AdminPageInner() {
       {/* ── Programs ──────────────────────────────────────────────────────────── */}
       {tab === 'programs' && (
         <div className="space-y-4">
-          <Card className="p-6 text-center border-accent/20 bg-accent/5">
-            <Dumbbell className="w-10 h-10 text-accent mx-auto mb-3" />
-            <h3 className="text-white font-bold mb-1">AI-Powered Program Builder</h3>
-            <p className="text-text-secondary text-sm mb-4">
-              Describe a program in plain text — AI generates a complete weekly schedule with exercises, sets, reps, RPE, and rest times. You review and edit everything before publishing.
-            </p>
-            <div className="flex gap-3 justify-center flex-wrap">
-              <Button onClick={() => router.push('/admin/programs/builder')}>
-                <Sparkles className="w-4 h-4" /> Create with AI
-              </Button>
-              <Button variant="secondary" onClick={() => router.push('/admin/programs')}>
-                View All Programs
-              </Button>
+          <Panel highlight className="justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-accent">Program builder</p>
+              <p className="text-base font-bold text-white mt-1.5">Write a new program from a brief</p>
+              <p className="text-[13px] text-text-secondary mt-1.5 leading-relaxed max-w-2xl">
+                Describe it in plain text and get a complete weekly schedule with exercises, sets, reps, RPE and rest times. You review and edit everything before it is published.
+              </p>
             </div>
-          </Card>
+            <div className="flex gap-2 flex-wrap">
+              <Button onClick={() => router.push('/admin/programs/builder')}><Sparkles className="w-4 h-4" /> Create with the builder</Button>
+              <Button variant="secondary" onClick={() => router.push('/admin/programs')}>View all programs</Button>
+            </div>
+          </Panel>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:gap-4">
+            <Card className="p-4 lg:p-5 flex items-center gap-3.5 hover:border-accent/30 transition-colors cursor-pointer card-float" onClick={() => router.push('/admin/programs')}>
+              <div className="w-11 h-11 rounded-2xl bg-accent-muted flex items-center justify-center flex-shrink-0"><Dumbbell className="w-5 h-5 text-accent" strokeWidth={1.75} /></div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white">Program library</p>
+                <p className="text-xs text-text-secondary mt-0.5">{programCount} published · edit, hide, reorder, assign</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-tertiary" />
+            </Card>
+            <Card className="p-4 lg:p-5 flex items-center gap-3.5 hover:border-accent/30 transition-colors cursor-pointer card-float" onClick={() => setTab('library')}>
+              <div className="w-11 h-11 rounded-2xl bg-accent-muted flex items-center justify-center flex-shrink-0"><Video className="w-5 h-5 text-accent" strokeWidth={1.75} /></div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white">Exercise library</p>
+                <p className="text-xs text-text-secondary mt-0.5">{exerciseLibrary.length} clips · demo videos every program draws from</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-tertiary" />
+            </Card>
+          </div>
         </div>
       )}
 
@@ -2971,7 +2987,7 @@ function AdminPageInner() {
       {tab === 'messages' && (
         <div>
           {activeConv ? (
-            <div className="flex flex-col h-[70vh]">
+            <Card className="p-4 lg:p-5 flex flex-col h-[70vh]">
               <div className="flex items-center gap-3 pb-3 border-b border-white/8 mb-3">
                 <button onClick={() => setActiveConv(null)} className="p-1.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white">
                   <ChevronLeft className="w-4 h-4" />
@@ -3009,7 +3025,7 @@ function AdminPageInner() {
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
-            </div>
+            </Card>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -3078,19 +3094,20 @@ function AdminPageInner() {
       {tab === 'community' && (
         <div className="space-y-4">
           <Card
-            className="p-4 flex items-center gap-3 hover:border-accent/30 transition-colors cursor-pointer"
+            className="p-4 lg:p-5 flex items-center gap-3.5 hover:border-accent/30 transition-colors cursor-pointer card-float"
             onClick={() => router.push('/admin/pr-review')}
           >
-            <div className="w-9 h-9 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
-              <Trophy className="w-4 h-4 text-accent" />
+            <div className="w-11 h-11 rounded-2xl bg-accent-muted flex items-center justify-center flex-shrink-0">
+              <Trophy className="w-5 h-5 text-accent" strokeWidth={1.75} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">PR Wall Review</p>
-              <p className="text-xs text-text-secondary">Verify submitted PRs and assign trust badges</p>
+              <p className="text-sm font-bold text-white">PR wall review</p>
+              <p className="text-xs text-text-secondary mt-0.5">Verify submitted lifts and assign trust badges</p>
             </div>
+            <ChevronRight className="w-4 h-4 text-text-tertiary" />
           </Card>
 
-          <div className="flex items-center justify-between pt-2 border-t border-white/5">
+          <div className="flex items-center justify-between">
             <p className="text-text-secondary text-sm">{channels.length} channel{channels.length !== 1 ? 's' : ''}</p>
             <Button size="sm" onClick={() => { setEditingChannel(null); setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, slowModeDays: 0, allowUserPosts: true }); setShowChannelForm(true); }}>
               <Plus className="w-4 h-4" /> New Channel
@@ -3111,16 +3128,16 @@ function AdminPageInner() {
               <p className="text-text-secondary text-sm mt-1">Create a channel for your community.</p>
             </Card>
           ) : (
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:gap-4">
               {channels.map(ch => (
                 editingChannel?.id === ch.id && showChannelForm ? (
-                  <Card key={ch.id} className="p-5 space-y-3 border-accent/30">
+                  <Card key={ch.id} className="md:col-span-2 p-5 space-y-3 border-accent/30">
                     {renderChannelForm()}
                   </Card>
                 ) : (
-                <Card key={ch.id} className="p-4">
+                <Card key={ch.id} className="p-4 lg:p-5 card-float">
                   <div className="flex items-center gap-3">
-                    <span className="text-xl">{ch.emoji || '#'}</span>
+                    <span className="w-10 h-10 rounded-2xl bg-accent-muted flex items-center justify-center text-lg flex-shrink-0">{ch.emoji || '#'}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-white"># {ch.name}</p>
                       <div className="flex gap-3 text-xs text-text-tertiary mt-0.5">
@@ -3156,8 +3173,8 @@ function AdminPageInner() {
           ) : (
             <>
               {/* Manual push */}
-              <Card className="p-5 space-y-4">
-                <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Card className="p-4 lg:p-5 space-y-4">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
                   <Bell className="w-4 h-4 text-accent" /> Send Notification
                 </h2>
                 <div>
@@ -3202,8 +3219,8 @@ function AdminPageInner() {
               </Card>
 
               {/* Auto-notification rules */}
-              <Card className="p-5 space-y-4">
-                <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Card className="p-4 lg:p-5 space-y-4">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
                   <RefreshCw className="w-4 h-4 text-accent" /> Auto-Notification Rules
                 </h2>
                 <p className="text-xs text-text-secondary">
@@ -3305,8 +3322,8 @@ function AdminPageInner() {
           ) : (
             <>
               {/* Enable / fee */}
-              <Card className="p-5 space-y-4">
-                <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Card className="p-4 lg:p-5 space-y-4">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
                   <CreditCard className="w-4 h-4 text-accent" /> Membership Settings
                 </h2>
                 <div className="flex items-center justify-between">
@@ -3448,8 +3465,8 @@ function AdminPageInner() {
 
               {/* Limited-time discount */}
               {membership.enabled && (
-                <Card className="p-5 space-y-4">
-                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Card className="p-4 lg:p-5 space-y-4">
+                  <h2 className="text-sm font-bold text-white flex items-center gap-2">
                     <Zap className="w-4 h-4 text-accent" /> Limited-Time Discount
                   </h2>
                   <p className="text-xs text-text-secondary">
@@ -3493,7 +3510,7 @@ function AdminPageInner() {
               {/* Locked features */}
               {membership.enabled && !membership.fullLock && (
                 <Card className="p-5 space-y-3">
-                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-white flex items-center gap-2">
                     <Shield className="w-4 h-4 text-accent" /> Lockable Features
                   </h2>
                   <p className="text-xs text-text-secondary">Non-members see a paywall on these features.</p>
@@ -3520,9 +3537,9 @@ function AdminPageInner() {
 
               {/* ── Membership Plans (instant self-serve tiers) ── */}
               {membership.enabled && (
-              <Card className="p-5 space-y-4">
+              <Card className="p-4 lg:p-5 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-white flex items-center gap-2">
                     <CreditCard className="w-4 h-4 text-accent" /> Membership Plans
                   </h2>
                   <Button size="sm" onClick={() => {
@@ -3629,9 +3646,9 @@ function AdminPageInner() {
               )}
 
               {/* ── Coaching Plans ── */}
-              <Card className="p-5 space-y-4">
+              <Card className="p-4 lg:p-5 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-white flex items-center gap-2">
                     <Trophy className="w-4 h-4 text-accent" /> Coaching Plans <span className="text-xs font-normal text-text-tertiary">(1:1 application)</span>
                   </h2>
                   <Button size="sm" onClick={() => {
@@ -3697,7 +3714,7 @@ function AdminPageInner() {
 
               {/* Client membership management */}
               <Card className="p-5 space-y-3">
-                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
                   <Users className="w-4 h-4 text-accent" /> Client Access
                 </h2>
                 <p className="text-xs text-text-secondary">Manually grant membership and assign coaching plans to each client.</p>
@@ -3844,7 +3861,7 @@ function AdminPageInner() {
       {/* ── Support ──────────────────────────────────────────────────────────── */}
       {tab === 'support' && (
         activeTicket ? (
-          <div className="flex flex-col h-[70vh]">
+          <Card className="p-4 lg:p-5 flex flex-col h-[70vh]">
             <div className="flex items-center gap-3 pb-3 border-b border-white/8 mb-3">
               <button
                 onClick={() => setActiveTicketId(null)}
@@ -3927,7 +3944,7 @@ function AdminPageInner() {
                 </div>
               </div>
             )}
-          </div>
+          </Card>
         ) : (
           <div className="space-y-4">
             <div>
@@ -4721,7 +4738,7 @@ function AdminPageInner() {
           {/* Trainer demo-request leads */}
           <Card className="p-5 space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
                 <UserCheck className="w-4 h-4 text-accent" /> Trainer Leads
               </h2>
               {trainerLeads.length > 0 && (
@@ -4774,7 +4791,7 @@ function AdminPageInner() {
           {/* Exit-intent email captures from the consumer landing page */}
           <Card className="p-5 space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
                 <Mail className="w-4 h-4 text-accent" /> Landing Page Leads
               </h2>
               {landingLeads.length > 0 && (
@@ -4815,8 +4832,8 @@ function AdminPageInner() {
       {/* ── Settings ──────────────────────────────────────────────────────────── */}
       {tab === 'settings' && (
         <div className="space-y-5">
-          <Card className="p-5 space-y-4">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
+          <Card className="p-4 lg:p-5 space-y-4">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
               <Settings className="w-4 h-4 text-accent" /> App Configuration
             </h2>
             <div className="space-y-3">
@@ -5020,7 +5037,7 @@ function AdminPageInner() {
 
           {/* Backups */}
           <Card className="p-5 space-y-3">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
               <Shield className="w-4 h-4 text-accent" /> Backups
             </h2>
             <p className="text-xs text-text-secondary">
@@ -5047,9 +5064,9 @@ function AdminPageInner() {
           </Card>
 
           {/* Landing Page */}
-          <Card className="p-5 space-y-4">
+          <Card className="p-4 lg:p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
                 <Rocket className="w-4 h-4 text-accent" /> Landing Page
               </h2>
               <a href="/" target="_blank" rel="noreferrer" className="text-xs text-accent hover:underline">Preview ↗</a>
@@ -5336,8 +5353,8 @@ function AdminPageInner() {
           </Card>
 
           {/* B2B (/trainers) Landing Page */}
-          <Card className="p-5 space-y-4">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
+          <Card className="p-4 lg:p-5 space-y-4">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
               <Rocket className="w-4 h-4 text-accent" /> B2B Landing Page (/trainers)
             </h2>
             <p className="text-xs text-text-secondary">
@@ -5569,7 +5586,7 @@ function AdminPageInner() {
           </Card>
 
           {/* Legal Pages */}
-          <Card className="p-5 space-y-4">
+          <Card className="p-4 lg:p-5 space-y-4">
             <h2 className="text-base font-bold text-white">Legal Pages</h2>
             <p className="text-xs text-text-secondary">
               Edit your Privacy Policy, Terms & Conditions, and B2B Terms (the separate agreement for the white-label trainer offer). Use blank lines between paragraphs and start a line with <code className="bg-black/30 px-1 rounded">## </code> for a section heading.
@@ -5605,8 +5622,8 @@ function AdminPageInner() {
           </Card>
 
           {/* Stripe Configuration */}
-          <Card className="p-5 space-y-4">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
+          <Card className="p-4 lg:p-5 space-y-4">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-green-400" /> Stripe Payment Processor
             </h2>
             <p className="text-xs text-text-secondary">Configure Stripe to accept membership payments from your clients.</p>
@@ -5637,7 +5654,7 @@ function AdminPageInner() {
 
           <Card className="p-5 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
                 <Key className="w-4 h-4 text-yellow-400" /> API Keys & Storage
               </h2>
               <p className="text-xs text-text-secondary mt-1">OpenAI, Stripe, R2, and push notification keys are managed in one place now.</p>
