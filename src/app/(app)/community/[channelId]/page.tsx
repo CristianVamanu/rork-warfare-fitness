@@ -95,9 +95,17 @@ function ReplyRow({ reply, nested = false, onReply, canEdit, canDelete, onEdit, 
     finally { setSaving(false); }
   }
 
+  // Posts and replies carry the author's photo as it was when they were
+  // written — a member cannot read another member's profile, so that copy is
+  // all anyone else ever sees. For your OWN rows the live profile is right
+  // there, so a new picture shows on everything you have posted immediately
+  // rather than only on posts from now on.
+  const { profile: me } = useAuth();
+  const photo = me && reply.userId === me.id ? (me.photoURL ?? reply.userPhotoURL) : reply.userPhotoURL;
+
   return (
     <div className="flex items-start gap-2">
-      <Avatar name={reply.userDisplayName} src={reply.userPhotoURL} size="sm" />
+      <Avatar name={reply.userDisplayName} src={photo} size="sm" />
       <div className="flex-1 min-w-0">
         <div className={nested ? 'rounded-xl px-3 py-2 bg-white/[0.03]' : 'rounded-xl px-3 py-2 bg-surface-elevated'}>
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -186,6 +194,8 @@ function PostCard({
    *  open thread reloads rather than showing a reply that is already gone. */
   replyRefreshToken: number;
 }) {
+  const { profile: me } = useAuth();
+  const myPhoto = me?.photoURL ?? null;
   const [replies, setReplies] = useState<ChannelPost[]>([]);
   const [showReplies, setShowReplies] = useState(false);
   const [loadingReplies, setLoadingReplies] = useState(false);
@@ -255,7 +265,7 @@ function PostCard({
   return (
     <Card className={`p-4 ${isPinned ? 'border border-accent/40 bg-accent/5' : ''}`}>
       <div className="flex items-start gap-3 mb-3">
-        <Avatar name={post.userDisplayName} src={post.userPhotoURL} size="md" />
+        <Avatar name={post.userDisplayName} src={post.userId === userId ? (myPhoto ?? post.userPhotoURL) : post.userPhotoURL} size="md" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-bold text-white">{post.userDisplayName}</p>
