@@ -367,7 +367,7 @@ export default function DashboardPage() {
                 </span>
                 {!isRestToday && sessionCount > 0 && (
                   <span className="inline-flex items-center h-[26px] px-2.5 rounded-full bg-[#141005]/15 text-[11px] font-extrabold">
-                    {sessionCount} movement{sessionCount !== 1 ? 's' : ''}
+                    {sessionCount} exercise{sessionCount !== 1 ? 's' : ''}
                   </span>
                 )}
               </div>
