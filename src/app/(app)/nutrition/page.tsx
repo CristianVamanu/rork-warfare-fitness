@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight, Sparkles, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTodayMeals, getTodayWaterLogs, deleteWaterLog, deleteMeal, getUserGoals, updateUserGoals, getMealsForDate } from '@/lib/firestore';
+import { getTodayMeals, getTodayWaterLogs, deleteWaterLog, deleteMeal, updateUserGoals, getMealsForDate } from '@/lib/firestore';
 import { logWaterAction, logMealAction } from '@/lib/actions';
 import toast from 'react-hot-toast';
 import { Header } from '@/components/layout/Header';
@@ -38,7 +38,12 @@ function NutritionPageInner() {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [meals, setMeals] = useState<Meal[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
-  const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
+  // Seeded from the profile AuthContext already holds — it keeps a live
+  // onSnapshot on users/{uid}, so the goals are in memory before this screen
+  // mounts. Reading the same document again over the network just to learn
+  // what we already know delayed the targets behind a round trip, and did it
+  // again on every date change.
+  const [goals, setGoals] = useState<UserGoals>(profile?.goals ?? DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
   const [showGoalsModal, setShowGoalsModal] = useState(false);
   const [editGoals, setEditGoals] = useState<UserGoals>(DEFAULT_GOALS);
@@ -67,14 +72,12 @@ function NutritionPageInner() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const isCurrentDay = selectedDate.toDateString() === today.toDateString();
     const localDateStr = new Date().toLocaleDateString('sv-SE');
-    const [m, wLogs, g] = await Promise.all([
+    const [m, wLogs] = await Promise.all([
       isCurrentDay ? getTodayMeals(user.uid, localDateStr) : getMealsForDate(user.uid, selectedDate),
       isCurrentDay ? getTodayWaterLogs(user.uid, localDateStr) : Promise.resolve([] as WaterLog[]),
-      getUserGoals(user.uid),
     ]);
     setMeals(m as Meal[]);
     setWaterLogs(wLogs);
-    setGoals(g);
   }, [user, selectedDate]);
 
   useEffect(() => {
@@ -90,6 +93,10 @@ function NutritionPageInner() {
     }
     refresh().finally(() => setLoading(false));
   }, [user, authLoading, refresh]);
+
+  useEffect(() => {
+    if (profile?.goals) setGoals(profile.goals);
+  }, [profile?.goals]);
 
   useEffect(() => {
     const onFocus = () => { if (!loading) refresh().catch(console.error); };
@@ -305,17 +312,32 @@ function NutritionPageInner() {
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">Calories</p>
-                <p className="text-[34px] font-black text-white leading-none tracking-tight tabular-nums mt-1.5">
-                  {totals.calories.toLocaleString()}
-                </p>
-                <p className="text-[12px] text-text-secondary mt-1.5 tabular-nums">
-                  {overBy > 0
-                    ? <span className="text-danger">{overBy.toLocaleString()} over your {goals.calories.toLocaleString()} target</span>
-                    : `${Math.max(0, -overBy).toLocaleString()} left of ${goals.calories.toLocaleString()}`}
-                </p>
+                {/* A zero here is not "no calories yet", it is "we have not
+                    looked". The two are indistinguishable on screen, so the
+                    hero used to state a confident 0 of your target for as long
+                    as the read took. A placeholder says the honest thing. */}
+                {loading ? (
+                  <>
+                    <Skeleton className="h-[34px] w-28 mt-1.5" />
+                    <Skeleton className="h-[12px] w-40 mt-2.5" />
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[34px] font-black text-white leading-none tracking-tight tabular-nums mt-1.5">
+                      {totals.calories.toLocaleString()}
+                    </p>
+                    <p className="text-[12px] text-text-secondary mt-1.5 tabular-nums">
+                      {overBy > 0
+                        ? <span className="text-danger">{overBy.toLocaleString()} over your {goals.calories.toLocaleString()} target</span>
+                        : `${Math.max(0, -overBy).toLocaleString()} left of ${goals.calories.toLocaleString()}`}
+                    </p>
+                  </>
+                )}
               </div>
-              <Ring value={calPct} size={84} stroke={8} color={overBy > 0 ? '#EF4444' : 'var(--accent)'}>
-                <span className="text-[17px] font-black text-white tabular-nums">{Math.round(calPct * 100)}<span className="text-[10px] font-bold text-text-secondary">%</span></span>
+              <Ring value={loading ? 0 : calPct} size={84} stroke={8} color={overBy > 0 ? '#EF4444' : 'var(--accent)'}>
+                {loading
+                  ? <span className="text-[17px] font-black text-text-tertiary tabular-nums">·</span>
+                  : <span className="text-[17px] font-black text-white tabular-nums">{Math.round(calPct * 100)}<span className="text-[10px] font-bold text-text-secondary">%</span></span>}
               </Ring>
             </div>
 

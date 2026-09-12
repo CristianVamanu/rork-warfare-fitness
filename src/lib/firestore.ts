@@ -38,6 +38,7 @@ import {
 import { db } from './firebase';
 import { stripUndefinedDeep } from './utils';
 import { pruneFeatureAccess } from './gatedFeatures';
+import { reportIssue } from './reportIssue';
 import { buildEntitlementIndex } from './planEntitlements';
 import { matchExerciseNames } from './exerciseMatch';
 import type { UserGoals, CoachingPlan, ExerciseVideo, NutritionPlan } from '@/types';
@@ -143,6 +144,11 @@ async function safeGetEvents(
     // the missing index in one click.
     console.error(msg);
     console.error(e);
+    // Also filed as a real report. A console.error is invisible to whoever
+    // runs this app: the fallback never fails, it just gets slower every day
+    // the account is used, so without this the only signal is a member saying
+    // "the app feels slow".
+    reportIssue(`Missing composite index on events — full client-side scan (type=${type})`, e);
     const allSnap = await getDocs(query(collection(db, 'events'), where('userId', '==', userId)));
     const filtered = allSnap.docs.filter((d) => {
       const data = d.data();
