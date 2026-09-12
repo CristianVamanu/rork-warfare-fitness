@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Moon, Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target } from 'lucide-react';
+import { Moon, Flame, Droplets, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, CheckCircle2, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, markFlameIgnited, getProgressPhotos, resolveProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
@@ -14,6 +14,7 @@ import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
 import { Card } from '@/components/ui/Card';
 import { FastingWidget } from '@/components/dashboard/FastingWidget';
+import { DailyTip } from '@/components/dashboard/DailyTip';
 import { DaysWithoutWidget } from '@/components/dashboard/DaysWithoutWidget';
 import { Header } from '@/components/layout/Header';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -348,6 +349,12 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
+        {/* The day's tip. Deliberately OUTSIDE the bento grid: those rows are
+            a fixed 86px and a tip runs two or three lines, so a tile would
+            clip it. Renders nothing when there is no tip (including when the
+            member's plan does not cover it), so no empty space is left. */}
+        <DailyTip />
+
         {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
 
@@ -661,6 +668,24 @@ export default function DashboardPage() {
                 <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR Wall</span>
                 <span className="text-lg mt-0.5">🏅</span>
                 <p className="text-[10px] text-text-tertiary mt-0.5">Post a lift, get verified</p>
+              </Card>
+            </Link>
+          </motion.div>
+
+          {/* PT Test — nothing in the app linked to /pt-test before this, so
+              the entry standards were unreachable unless you guessed the URL. */}
+          <motion.div variants={stagger.item} className="col-span-4 row-span-1">
+            <Link href="/pt-test" className="block h-full">
+              <Card className="p-3.5 h-full flex items-center gap-3.5 hover:border-accent/30 transition-colors card-float">
+                <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
+                  <ClipboardCheck className="w-5 h-5 text-accent" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PT Test</span>
+                  <p className="text-sm font-bold text-white">Find out if you would pass today</p>
+                  <p className="text-[10px] text-text-tertiary mt-0.5">Real entry standards, scored against the pass mark</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
               </Card>
             </Link>
           </motion.div>
