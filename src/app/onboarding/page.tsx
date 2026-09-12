@@ -1148,17 +1148,22 @@ function StepGoal({
 
       <h1 className="text-2xl font-black text-white mb-1">What&apos;s your goal?</h1>
       <p className="text-text-secondary text-sm mb-5">This determines your program structure and intensity.</p>
+      {/* Five options. The first is the one the product is named for, so it
+          takes the full width as a featured row and the other four sit in
+          an even 2x2 below — rather than a 2-column grid leaving one tile
+          orphaned at the bottom. */}
       <div className="grid grid-cols-2 gap-3">
-        {GOALS.map(({ value, label, sub, icon: Icon }) => (
-          <OptionTile
-            key={value}
-            layout="grid"
-            icon={Icon}
-            label={label}
-            sub={sub}
-            selected={selected === value}
-            onClick={() => onSelect(value)}
-          />
+        {GOALS.map(({ value, label, sub, icon: Icon }, i) => (
+          <div key={value} className={i === 0 ? 'col-span-2' : ''}>
+            <OptionTile
+              layout={i === 0 ? 'row' : 'grid'}
+              icon={Icon}
+              label={label}
+              sub={sub}
+              selected={selected === value}
+              onClick={() => onSelect(value)}
+            />
+          </div>
         ))}
       </div>
     </div>

@@ -10,6 +10,7 @@ import { Card } from './Card';
 import { Button } from './Button';
 import toast from 'react-hot-toast';
 import type { MembershipPlan } from '@/types';
+import { pruneFeatureAccess } from '@/lib/gatedFeatures';
 
 /** Does this plan's featureAccess actually cover what's currently locked?
  * Empty featureAccess list = the plan includes everything (no restriction).
@@ -19,9 +20,10 @@ import type { MembershipPlan } from '@/types';
  * never reaches that state (see useFeatureAccess). Adding the exception here
  * would offer a plan that does not actually unlock what they tapped. */
 function planIncludesFeature(plan: MembershipPlan, feature: string | undefined, programId: string | undefined): boolean {
-  return plan.featureAccess.length === 0
-    || ((!feature || plan.featureAccess.includes(feature))
-      && (!programId || plan.featureAccess.includes('premium-programs')));
+  const access = pruneFeatureAccess(plan.featureAccess);
+  return access.length === 0
+    || ((!feature || access.includes(feature))
+      && (!programId || access.includes('premium-programs')));
 }
 
 interface Props {

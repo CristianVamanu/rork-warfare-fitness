@@ -1,4 +1,5 @@
 import { getAdminDb } from '@/lib/firebase-admin';
+import { pruneFeatureAccess } from './gatedFeatures';
 import { getAuth } from 'firebase-admin/auth';
 import { isInFreeTrial, hasActiveSubscription, subscriptionGrantsAccess } from '@/lib/membership';
 import type { App } from 'firebase-admin/app';
@@ -60,8 +61,8 @@ export async function verifyFeatureAccess(
       const plansSnap = await db.collection('config').doc('membershipPlans').get();
       const plans = (plansSnap.data()?.plans ?? []) as { id: string; featureAccess?: string[] }[];
       const activePlan = plans.find((p) => p.id === membershipPlanId);
-      const restricted = !!activePlan?.featureAccess?.length;
-      if (restricted && !activePlan!.featureAccess!.includes(feature)) {
+      const access = pruneFeatureAccess(activePlan?.featureAccess);
+      if (access.length > 0 && !access.includes(feature)) {
         return { allowed: false, error: `This feature isn't included in your current plan.`, status: 403 };
       }
     }

@@ -22,16 +22,22 @@ import type { MembershipPlan } from '@/types';
  *
  * An empty featureAccess list means the plan restricts nothing.
  */
+import { pruneFeatureAccess } from './gatedFeatures';
+
 export function resolvePlanLock(
   plan: MembershipPlan | null,
   feature: string | undefined,
   programId: string | undefined,
   ownProgramId: string | undefined,
 ): { isLocked: boolean; otherProgramsLocked: boolean } {
-  const restricts = !!plan?.featureAccess && plan.featureAccess.length > 0;
+  // Pruned at read as well as at save: a plan last saved before an id was
+  // retired still carries it, and an allowlist holding only dead ids would
+  // lock a paying member out of everything until an admin happened to
+  // re-save that plan.
+  const access = pruneFeatureAccess(plan?.featureAccess);
+  const restricts = access.length > 0;
   if (!restricts) return { isLocked: false, otherProgramsLocked: false };
 
-  const access = plan!.featureAccess;
   const coversLibrary = access.includes('premium-programs');
   const featureAllowed = !feature || access.includes(feature);
   const isOwnProgram = !!programId && !!ownProgramId && programId === ownProgramId;
