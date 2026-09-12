@@ -36,7 +36,10 @@ export function DailyTip() {
     // these accessors throw rather than return empty.
     try {
       const cached = localStorage.getItem(cacheKey);
-      if (cached) { setTip(cached); return; }
+      // A tip stored before the length limit tightened is treated as a miss,
+      // so this browser refetches once instead of showing the old long one
+      // for the rest of the day. The server applies the same rule.
+      if (cached && cached.length <= 160) { setTip(cached); return; }
     } catch { /* no cache available — just fetch */ }
 
     let cancelled = false;
@@ -70,9 +73,11 @@ export function DailyTip() {
       </div>
       <div className="min-w-0">
         <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Today&apos;s brief</span>
-        {/* Clamped as well as capped at the prompt: a tip cached before the
-            length limit tightened must not fill the screen. */}
-        <p className="text-sm text-white mt-0.5 leading-relaxed line-clamp-2">{tip}</p>
+        {/* No line clamp. Length is controlled at the source — the route asks
+            for one sentence and rejects a cached tip longer than that — and
+            clamping here truncated mid-word with an ellipsis, which looks
+            broken rather than brief. */}
+        <p className="text-sm text-white mt-0.5 leading-relaxed">{tip}</p>
       </div>
     </Card>
   );

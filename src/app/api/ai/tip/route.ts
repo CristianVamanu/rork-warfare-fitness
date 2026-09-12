@@ -10,6 +10,10 @@ import { verifyAuthed } from '@/lib/verifyAdmin';
 import { rateLimit } from '@/lib/rateLimit';
 import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
 
+// About 18 words. The card shows the tip in full — no truncation — so this
+// is what keeps it to two lines on a phone.
+const MAX_TIP_CHARS = 130;
+
 function todayKey() {
   return new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
 }
@@ -48,7 +52,12 @@ export async function GET(req: NextRequest) {
       const db = getAdminDb(app);
       const snap = await db.doc(`config/dailyTip`).get();
       const data = snap.data();
-      if (data?.date === dateKey && data?.tip) {
+      // Length is enforced on READ as well as on generation. The cache holds
+      // one tip per day for everyone, so a tip generated under an older,
+      // looser prompt would keep being served all day after the limit
+      // tightened. Treating an over-long cached tip as a miss regenerates it
+      // once and fixes the day immediately.
+      if (data?.date === dateKey && typeof data.tip === 'string' && data.tip.length <= MAX_TIP_CHARS) {
         return NextResponse.json({ tip: data.tip, date: dateKey, cached: true });
       }
     } catch {
@@ -94,8 +103,13 @@ export async function GET(req: NextRequest) {
       ],
     });
 
-    const tip = res.choices[0]?.message?.content?.trim() ?? '';
-    if (!tip) throw new Error('empty response');
+    const raw = res.choices[0]?.message?.content?.trim() ?? '';
+    if (!raw) throw new Error('empty response');
+    // Keep the first sentence if the model ran long, rather than caching
+    // something that will not fit and cutting it off in the UI.
+    const tip = raw.length <= MAX_TIP_CHARS
+      ? raw
+      : (raw.match(/^[^.!?]*[.!?]/)?.[0]?.trim() ?? raw.slice(0, MAX_TIP_CHARS).trim());
 
     // Cache in Firestore for the rest of the day
     if (app) {
