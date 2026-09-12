@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock, Star, Crown, Sparkles, ExternalLink, Check } from 'lucide-react';
+import { Lock, Star, Crown, Sparkles, Check } from 'lucide-react';
 import { startPlanCheckout, confirmAndChangePlan } from '@/lib/checkout';
 import { getPlanBillingPeriods, planHasAnyPrice, getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -302,7 +302,12 @@ function PlanUpgradeScreen({ planName, plans, feature, programId, discountPercen
                 )}
                 <div className="mt-auto pt-4">
                   <Button fullWidth variant={isFeatured ? 'primary' : 'secondary'} onClick={() => handleUpgrade(plan.id, plan.name, displayPeriod.months)} loading={changingPlanId === plan.id}>
-                    <ExternalLink className="w-4 h-4" /> {changingPlanId === plan.id ? 'Updating Plan…' : `Upgrade to ${plan.name}`}
+                    {/* A crown, not an external-link arrow. Nothing here
+                        leaves the app: the tap changes the plan in place
+                        through Stripe with a proration confirm. An icon
+                        that promises a new tab and delivers a dialog makes
+                        the button feel less trustworthy than it is. */}
+                    <Crown className="w-4 h-4" /> {changingPlanId === plan.id ? 'Updating Plan…' : `Upgrade to ${plan.name}`}
                   </Button>
                 </div>
               </Card>
