@@ -197,6 +197,53 @@ function formatMinutes(mins: number): string {
   return `${Math.floor(mins)}:${String(Math.round((mins % 1) * 60)).padStart(2, '0')}`;
 }
 
+/**
+ * One event of the test: icon, name, what it asks for, and the input, on a
+ * single line. Rows sit inside one panel divided by hairlines — the form used
+ * a separate Card per event, which gave four inputs the same visual weight as
+ * the whole rest of the page.
+ */
+function EventRow({ icon: Icon, label, hint, target, children }: {
+  icon: React.ElementType;
+  label: string;
+  hint: string;
+  /** The number to beat, shown once per row instead of as placeholder text
+   *  inside the input — a placeholder disappears the moment you type, which
+   *  is exactly when you want to still see it. */
+  target?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+      <div className="flex items-start gap-2.5 min-w-0">
+        <Icon className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-white leading-tight">{label}</p>
+          <p className="text-[11px] text-text-tertiary mt-0.5">
+            {hint}
+            {target && <span className="text-accent font-semibold"> · {target}</span>}
+          </p>
+        </div>
+      </div>
+      <div className="flex-shrink-0">{children}</div>
+    </div>
+  );
+}
+
+function NumberField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <input
+      type="number"
+      min="0"
+      inputMode="numeric"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="0"
+      className="w-20 bg-surface border border-white/10 rounded-lg px-3 py-2 text-white text-lg font-bold text-right tabular-nums focus:outline-none focus:border-accent/50"
+    />
+  );
+}
+
 export default function PtTestPage() {
   const { user, profile } = useAuth();
   // The standard this member's own program trains toward, if any — used to
@@ -406,130 +453,152 @@ export default function PtTestPage() {
       {/* See the habits page for why noTaste is set here. */}
       <PaywallGate feature="pt-test" noTaste>
       <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-5">
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => { setStandardTouched(true); setStandardId('generic'); }}
-            className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-colors ${standardId === 'generic' ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
-          >
-            Generic PT Test
-          </button>
-          {/* The member's own standard is pulled to the front, so the list
-              starts with the one that applies to them instead of whichever
-              unit happened to be first in the array. */}
-          {[...UNIT_STANDARDS]
-            .sort((a, b) => (a.id === ownStandard ? -1 : b.id === ownStandard ? 1 : 0))
-            .map((s) => (
+        {/* Standard picker — one horizontally scrolling rail rather than a
+            wrapping block. Eleven chips wrapped into four ragged rows and
+            pushed the form itself off the screen, which is what made this
+            page read as scattered. */}
+        <div className="-mx-4 px-4 overflow-x-auto">
+          <div className="flex gap-2 w-max pb-1">
             <button
-              key={s.id}
-              onClick={() => { setStandardTouched(true); setStandardId(s.id); }}
-              className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-colors ${standardId === s.id ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
+              onClick={() => { setStandardTouched(true); setStandardId('generic'); }}
+              className={`whitespace-nowrap py-2 px-3.5 rounded-lg text-xs font-bold border transition-colors ${standardId === 'generic' ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
             >
-              {s.flag} {s.label}
-              {s.id === ownStandard && (
-                <span className={`ml-1.5 text-[10px] font-bold uppercase tracking-wide ${standardId === s.id ? 'text-black/70' : 'text-accent'}`}>
-                  your program
-                </span>
-              )}
+              Generic
             </button>
-          ))}
+            {/* The member's own standard is pulled to the front, so the rail
+                starts with the one that applies to them instead of whichever
+                unit happened to be first in the array. */}
+            {[...UNIT_STANDARDS]
+              .sort((a, b) => (a.id === ownStandard ? -1 : b.id === ownStandard ? 1 : 0))
+              .map((s) => (
+              <button
+                key={s.id}
+                onClick={() => { setStandardTouched(true); setStandardId(s.id); }}
+                className={`whitespace-nowrap py-2 px-3.5 rounded-lg text-xs font-bold border transition-colors ${standardId === s.id ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
+              >
+                {s.flag} {s.label}
+                {s.id === ownStandard && (
+                  <span className={`ml-1.5 text-[9px] font-bold uppercase tracking-wide ${standardId === s.id ? 'text-black/70' : 'text-accent'}`}>
+                    yours
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* What pressing Submit actually does. Without this the button is a
-            question mark: nothing is uploaded, nobody reviews it, and the
-            score is arithmetic against the numbers above. */}
-        <p className="text-xs text-text-secondary">
-          Enter your numbers and the app scores them against this standard straight away, then keeps
-          the result in your history so you can see the gap closing. Private to you.
-        </p>
-
+        {/* Standard briefing: what it is, and what it asks of you, above the
+            form rather than repeated as placeholder text inside every input. */}
         <Card className="p-4">
-          <p className="text-xs text-text-tertiary leading-relaxed">
+          <div className="flex items-center gap-2">
+            <span className="w-1 h-3.5 bg-accent rounded-full" />
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">
+              {active ? 'Standard' : 'Benchmark'}
+            </p>
+          </div>
+          <p className="text-sm font-bold text-white mt-2">{active ? active.resultTitle : 'Generic 3-event PT test'}</p>
+          <p className="text-xs text-text-secondary leading-relaxed mt-1.5">
             {active
               ? active.description
               : 'A classic 3-event military-style fitness test — max push-ups, max sit-ups, and a timed run. Scored on a simplified 0-100-per-event scale for tracking your own progress; not an official Army/Marine score.'}
           </p>
+          <p className="text-xs text-text-tertiary leading-relaxed mt-3 pt-3 border-t border-white/8">
+            Enter your numbers and they are scored against this standard straight away, then kept in
+            your history. Nothing is uploaded and nobody reviews it.
+          </p>
         </Card>
 
-        <div className="space-y-3">
-          {(active ? active.events.pullups !== undefined : false) && (
-            <Card className="p-4">
-              <label className="text-sm font-bold text-white flex items-center gap-2 mb-2">
-                <Dumbbell className="w-4 h-4 text-accent" /> Pull-ups (strict, max reps)
-              </label>
-              <input
-                type="number" min="0" value={pullups} onChange={(e) => setPullups(e.target.value)}
-                placeholder={`Target: ${active?.events.pullups}+`}
-                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:border-accent/50"
-              />
-            </Card>
-          )}
+        {/* Every event in ONE panel, separated by hairlines. Five stacked
+            cards each with its own border, padding and shadow gave equal
+            visual weight to four inputs and a paragraph, with no sense of
+            them belonging to the same test. */}
+        <Card className="p-0 overflow-hidden">
+          <div className="divide-y divide-white/8">
+            {(active ? active.events.pullups !== undefined : false) && (
+              <EventRow
+                icon={Dumbbell}
+                label="Pull-ups"
+                hint="Strict, max reps"
+                target={`${active?.events.pullups}+`}
+              >
+                <NumberField value={pullups} onChange={setPullups} />
+              </EventRow>
+            )}
 
-          {(active ? active.events.pushups !== undefined : true) && (
-            <Card className="p-4">
-              <label className="text-sm font-bold text-white flex items-center gap-2 mb-2">
-                <Dumbbell className="w-4 h-4 text-accent" /> Push-ups (2 min max)
-              </label>
-              <input
-                type="number" min="0" value={pushups} onChange={(e) => setPushups(e.target.value)}
-                placeholder={active ? `Target: ${active.events.pushups}+` : 'e.g. 45'}
-                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:border-accent/50"
-              />
-            </Card>
-          )}
+            {(active ? active.events.pushups !== undefined : true) && (
+              <EventRow
+                icon={Dumbbell}
+                label="Push-ups"
+                hint="2 minute max"
+                target={active ? `${active.events.pushups}+` : undefined}
+              >
+                <NumberField value={pushups} onChange={setPushups} />
+              </EventRow>
+            )}
 
-          {(active ? active.events.situps !== undefined : true) && (
-            <Card className="p-4">
-              <label className="text-sm font-bold text-white flex items-center gap-2 mb-2">
-                <TrendingUp className="w-4 h-4 text-accent" /> Sit-ups (2 min max)
-              </label>
-              <input
-                type="number" min="0" value={situps} onChange={(e) => setSitups(e.target.value)}
-                placeholder={active ? `Target: ${active.events.situps}+` : 'e.g. 55'}
-                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:border-accent/50"
-              />
-            </Card>
-          )}
+            {(active ? active.events.situps !== undefined : true) && (
+              <EventRow
+                icon={TrendingUp}
+                label="Sit-ups"
+                hint="2 minute max"
+                target={active ? `${active.events.situps}+` : undefined}
+              >
+                <NumberField value={situps} onChange={setSitups} />
+              </EventRow>
+            )}
 
-          {(active ? active.events.runMinutes !== undefined : true) && (
-            <Card className="p-4">
-              <label className="text-sm font-bold text-white flex items-center gap-2 mb-2">
-                <Timer className="w-4 h-4 text-accent" /> {active?.runLabel ?? 'Timed Run'}
-              </label>
-              {!active && (
-                <div className="flex gap-2 mb-3">
+            {(active ? active.events.runMinutes !== undefined : true) && (
+              <EventRow
+                icon={Timer}
+                label={active?.runLabel ?? 'Timed run'}
+                hint={active ? 'Time to beat' : 'Pick a distance'}
+                target={active ? `under ${formatMinutes(active.events.runMinutes!)}` : undefined}
+              >
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number" min="0" inputMode="numeric" value={runMin} onChange={(e) => setRunMin(e.target.value)}
+                    placeholder="00"
+                    aria-label="Run minutes"
+                    className="w-14 bg-surface border border-white/10 rounded-lg px-2 py-2 text-white text-lg font-bold text-center tabular-nums focus:outline-none focus:border-accent/50"
+                  />
+                  <span className="text-text-tertiary font-bold">:</span>
+                  <input
+                    type="number" min="0" max="59" inputMode="numeric" value={runSec} onChange={(e) => setRunSec(e.target.value)}
+                    placeholder="00"
+                    aria-label="Run seconds"
+                    className="w-14 bg-surface border border-white/10 rounded-lg px-2 py-2 text-white text-lg font-bold text-center tabular-nums focus:outline-none focus:border-accent/50"
+                  />
+                </div>
+              </EventRow>
+            )}
+
+            {!active && (
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <p className="text-xs text-text-secondary">Run distance</p>
+                <div className="flex gap-2">
                   {([1.5, 2] as const).map((d) => (
                     <button
                       key={d}
                       onClick={() => setDistance(d)}
-                      className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-colors ${distance === d ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
+                      className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition-colors tabular-nums ${distance === d ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
                     >
-                      {d} miles
+                      {d} mi
                     </button>
                   ))}
                 </div>
-              )}
-              <div className="flex items-center gap-2">
-                <input
-                  type="number" min="0" value={runMin} onChange={(e) => setRunMin(e.target.value)}
-                  placeholder={active ? `Target: <${Math.floor(active.events.runMinutes!)}` : 'min'}
-                  className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold text-center focus:outline-none focus:border-accent/50"
-                />
-                <span className="text-text-tertiary font-bold">:</span>
-                <input
-                  type="number" min="0" max="59" value={runSec} onChange={(e) => setRunSec(e.target.value)}
-                  placeholder="sec"
-                  className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold text-center focus:outline-none focus:border-accent/50"
-                />
               </div>
-            </Card>
-          )}
-        </div>
+            )}
+          </div>
+        </Card>
 
         <Button fullWidth loading={saving} onClick={handleSubmit}>Submit Test</Button>
 
         {!loading && history.length > 0 && (
           <div>
-            <h2 className="text-sm font-bold text-white mb-2">Past Results</h2>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-1 h-3 bg-accent rounded-full" />
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">Past results</h2>
+            </div>
             <div className="space-y-2">
               {history.map((r) => {
                 const std = r.standard && r.standard !== 'generic' ? standardFor(r.standard) : undefined;
