@@ -125,16 +125,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // safety net runs either way now: ensureUserDoc returns early when the
       // document is there, and is the only thing that can create it when
       // signUp's own write did not land.
-      const ensureTask = isPendingSignup(uid)
-        ? Promise.resolve()
-        : ensureUserDoc(firebaseUser).catch((err) => {
-            console.error('[Auth] ensureUserDoc failed:', err);
-            // The last thing that can create a missing user document. If it
-            // fails, this account has no profile and never will.
-            reportIssue('ensureUserDoc failed — account has no profile document', err);
-          });
-      // Guarantee user doc exists first, then open a real-time listener
-      ensureTask
+      // Not awaited. This is a safety net for the one case where a user doc
+      // is missing, and it was sitting on the critical path of every single
+      // app open: a Firestore transaction, and then a write, before the
+      // listener that produces the profile was even attached. The profile
+      // gates the whole app, so every launch paid for two extra round trips
+      // to confirm something that is true for every existing account.
+      //
+      // Running it alongside the listener is correct in both cases. When the
+      // document exists the listener serves it immediately, from the
+      // persistent local cache if there is one, and this no-ops. When it does
+      // not, the listener simply sees nothing yet and fires again the moment
+      // this creates it.
+      if (!isPendingSignup(uid)) {
+        void ensureUserDoc(firebaseUser).catch((err) => {
+          console.error('[Auth] ensureUserDoc failed:', err);
+          // The last thing that can create a missing user document. If it
+          // fails, this account has no profile and never will.
+          reportIssue('ensureUserDoc failed — account has no profile document', err);
+        });
+      }
+      Promise.resolve()
         .then(() => {
           // Record login time on every session start — ensureUserDoc only sets
           // this once (at account creation, via its merge-and-return-early
