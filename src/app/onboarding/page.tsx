@@ -18,7 +18,7 @@ import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, ge
 import { trackEvent } from '@/lib/analytics';
 import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
 import { lbsToKg, kgToLbs, cmToFtIn, ftInToCm } from '@/lib/utils';
-import { MOCK_PROGRAMS } from '@/lib/programs';
+import { MOCK_PROGRAMS, pickBestProgram } from '@/lib/programs';
 import { buildProgramMarketing, type ProgramMarketing } from '@/lib/programMarketing';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -388,34 +388,35 @@ function OnboardingPageInner() {
     return parts.join('; ');
   }
 
+  /**
+   * The offline path, when /api/ai/recommend-program cannot be reached.
+   *
+   * Calls pickBestProgram — the SAME function the API route calls — rather
+   * than a local re-implementation of it. There used to be a copy here that
+   * claimed to mirror it and had silently fallen behind: it scored on goal,
+   * level, days and duration only, with no sex, no equipment and no injury
+   * handling. pickBestProgram hard-excludes a program whose targetGender
+   * contradicts the member's, because without that filter every man who
+   * picked Build Muscle as a beginner training 4-5 days was handed Valkyrie,
+   * the women's program, in 8 of 96 onboarding combinations.
+   *
+   * So the copy put people in the wrong program precisely when something else
+   * had already gone wrong — and on the entry tier a wrong program is not a
+   * tap to fix, it is a paywall. One matcher, no drift.
+   */
   function fallbackRecommendProgram(estimatedWeeksToGoal?: number): typeof MOCK_PROGRAMS[0] {
-    // Goal → program goal mapping
-    const goalMap: Record<FitnessGoal, string> = {
-      'military-prep': 'endurance',
-      'lose-fat': 'weight-loss',
-      'build-muscle': 'hypertrophy',
-      'recomposition': 'hypertrophy',
-      'strength': 'strength',
-    };
-    const targetGoal = goalMap[goal!];
-
-    // Score each program by how well it matches — mirrors pickBestProgram's
-    // weighting (lib/programs.ts) so the local fallback never disagrees
-    // wildly with the real matcher when it's used.
-    const scored = MOCK_PROGRAMS.map((p) => {
-      let score = 0;
-      if (p.goal === targetGoal) score += 10;
-      if (p.level === experience) score += 5;
-      // Prefer programs whose daysPerWeek is close to what the user chose
-      score -= Math.abs(p.daysPerWeek - (trainingDays ?? 3));
-      if (estimatedWeeksToGoal && estimatedWeeksToGoal > 0) {
-        score -= Math.min(10, Math.abs(p.weeks - estimatedWeeksToGoal) * 0.3);
-      }
-      return { p, score };
-    });
-
-    scored.sort((a, b) => b.score - a.score);
-    return scored[0].p;
+    // Returns null only for an empty pool, which MOCK_PROGRAMS never is —
+    // the coalesce is for the type, not for a case that can happen.
+    return pickBestProgram(
+      MOCK_PROGRAMS,
+      goal!,
+      experience!,
+      trainingDays ?? 3,
+      sex ?? undefined,
+      !!buildLimitationsSummary(),
+      equipment ?? undefined,
+      estimatedWeeksToGoal,
+    ) ?? MOCK_PROGRAMS[0];
   }
 
   async function handleFinish() {
