@@ -251,13 +251,24 @@ export async function createLandingLead(email: string) {
   await addDoc(collection(db, 'landingLeads'), { email, createdAt: serverTimestamp() });
 }
 
+/**
+ * Newest first, capped.
+ *
+ * These three admin lists were unbounded reads of collections that only ever
+ * grow. Landing leads is the worst of them: it is filled by the exit-intent
+ * capture on the PUBLIC page, so it grows with visitors rather than with
+ * signups, and every visit to the Leads tab downloaded all of it. Newest few
+ * hundred is what the tab is actually for; the rest is an export, not a page.
+ */
+const ADMIN_LIST_LIMIT = 300;
+
 export async function getLandingLeads(): Promise<LandingLead[]> {
-  const snap = await getDocs(query(collection(db, 'landingLeads'), orderBy('createdAt', 'desc')));
+  const snap = await getDocs(query(collection(db, 'landingLeads'), orderBy('createdAt', 'desc'), limit(ADMIN_LIST_LIMIT)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as LandingLead);
 }
 
 export async function getTrainerLeads(): Promise<TrainerLead[]> {
-  const snap = await getDocs(query(collection(db, 'trainerLeads'), orderBy('createdAt', 'desc')));
+  const snap = await getDocs(query(collection(db, 'trainerLeads'), orderBy('createdAt', 'desc'), limit(ADMIN_LIST_LIMIT)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TrainerLead);
 }
 
@@ -2835,7 +2846,7 @@ export async function getUserCoachingApplication(userId: string): Promise<Coachi
 }
 
 export async function getCoachingApplications(): Promise<CoachingApplication[]> {
-  const snap = await getDocs(query(collection(db, 'coachingApplications'), orderBy('createdAt', 'desc')));
+  const snap = await getDocs(query(collection(db, 'coachingApplications'), orderBy('createdAt', 'desc'), limit(ADMIN_LIST_LIMIT)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as CoachingApplication);
 }
 

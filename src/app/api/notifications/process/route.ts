@@ -138,6 +138,13 @@ export async function POST(req: NextRequest) {
 
     let usersConsidered = 0;
     let usersWithActiveProgram = 0;
+    // Per-user failures were counted nowhere and the run reported ok either
+    // way. That matters because the most likely cause is not one bad document
+    // but one missing composite index, which fails identically for every user
+    // — a totally dead notification system (trial-ending mail included)
+    // reporting success every hour.
+    let usersFailed = 0;
+    let firstFailure: string | null = null;
 
     // Same-machine, same-process call to /api/push/send — route it through
     // localhost, not the public domain. Going out through DNS -> Cloudflare
@@ -389,18 +396,33 @@ export async function POST(req: NextRequest) {
         }
       } catch (err) {
         // Non-fatal per-user — one bad doc/user shouldn't abort the whole batch
+        usersFailed++;
+        firstFailure ??= err instanceof Error ? err.message : String(err);
         console.error(`[notifications/process] Failed for user ${u.id}:`, err);
       }
       });
     }
 
+    // A run where most users errored is a broken system, not a quiet hour, and
+    // it should not read as ok in the cron log.
+    const widespreadFailure = usersConsidered > 0 && usersFailed >= Math.max(5, usersConsidered / 2);
+    if (widespreadFailure) {
+      console.error(
+        `[notifications/process] ${usersFailed} of ${usersConsidered} users failed — first error: ${firstFailure}. ` +
+        'A failure this uniform is usually a missing Firestore composite index, not bad data. ' +
+        'Check firestore.indexes.json is deployed.',
+      );
+    }
+
     return NextResponse.json({
-      ok: true,
+      ok: !widespreadFailure,
       sent,
       debug: {
         rulesEnabled: rules,
         aiEnabled,
         usersConsidered,
+        usersFailed,
+        firstFailure,
         usersWithActiveProgram,
       },
     });
