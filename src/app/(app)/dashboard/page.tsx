@@ -1,12 +1,13 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { Moon, Flame, Crosshair, Wind, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, getProgressPhotos, resolveProgram, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
+import { SubscribeSuccess } from '@/components/ui/SubscribeSuccess';
 import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
@@ -39,7 +40,7 @@ const DEFAULT_GOALS = { calories: 2200, water: 3000 };
 
 
 export default function DashboardPage() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const router = useRouter();
   const [waterMl, setWaterMl] = useState<number | null>(null);
   const [calories, setCalories] = useState<number | null>(null);
@@ -316,6 +317,13 @@ export default function DashboardPage() {
   const glassRow = 'p-3.5 h-full flex items-center gap-3.5 card-float';
 
   return (
+    <>
+      {/* Stripe returns here after a successful membership or coaching
+          purchase. Paying should land you on the thing you just bought
+          access to, not on a settings page. */}
+      <Suspense fallback={null}>
+        <SubscribeSuccess onSuccess={() => { void refreshProfile(); }} />
+      </Suspense>
     <div className="relative">
       <div className="relative">
       <Header />
@@ -645,5 +653,6 @@ export default function DashboardPage() {
       </div>
       </div>
     </div>
+    </>
   );
 }

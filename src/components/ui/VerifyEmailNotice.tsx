@@ -17,11 +17,29 @@ import { Card } from './Card';
 //
 // Two shapes, same behaviour: a slim banner mounted once in the app layout,
 // and a full card MembershipGuard renders in place of trial content.
+// Mirrors CODE_TTL_MS in lib/verificationCode.ts. Duplicated rather than
+// imported: that module pulls in firebase-admin and node crypto, neither of
+// which belongs in a client bundle.
+const CODE_TTL_MS = 15 * 60 * 1000;
+// Requests offered in the UI before it stops asking. Under the server's own
+// per-account ceiling on purpose, so the button runs out before the API does.
+const MAX_SENDS = 3;
+// Long enough that "it hasn't arrived" is about delivery, not impatience.
+const RESEND_COOLDOWN_MS = 45 * 1000;
+
 export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' | 'screen' }) {
   const { user } = useAuth();
   const [busy, setBusy] = useState<'send' | 'confirm' | 'email' | null>(null);
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState('');
+  // How many codes this session has asked for, and when the newest one dies.
+  // The server is the real limit (six per fifteen minutes, per account); this
+  // is the honest version of it in front of the person, so a third press does
+  // not silently become a 429 they cannot interpret.
+  const [sends, setSends] = useState(0);
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [lastSentAt, setLastSentAt] = useState<number | null>(null);
   // Mistyping your address at signup used to be unrecoverable: the code went
   // to an inbox you don't own, and nothing in the app could change it.
   const [editingEmail, setEditingEmail] = useState(false);
@@ -52,6 +70,13 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
       clearInterval(poll);
     };
   }, [user]);
+
+  // One second tick, and only while there is something counting down.
+  useEffect(() => {
+    if (!expiresAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [expiresAt]);
 
   // The full-screen gate sends the first code by itself — nobody should have
   // to ask for the email that unblocks the thing they just signed up for. The
@@ -100,6 +125,10 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
       }
       if (!res.ok) { toast.error(data?.error || 'Could not send the code.'); return; }
       setCodeSent(true);
+      setSends((n) => n + 1);
+      setExpiresAt(Date.now() + CODE_TTL_MS);
+      setLastSentAt(Date.now());
+      setCode('');
       toast.success(`Code sent to ${user.email}`);
     } catch {
       toast.error('Could not send the code. Check your connection.');
@@ -166,6 +195,41 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
     }
   };
 
+  // Derived, not stored, so they cannot drift from the clock.
+  const expired = expiresAt !== null && now >= expiresAt;
+  const msLeft = expiresAt ? Math.max(0, expiresAt - now) : 0;
+  const mmss = `${Math.floor(msLeft / 60000)}:${String(Math.floor((msLeft % 60000) / 1000)).padStart(2, '0')}`;
+  const cooldownLeft = lastSentAt ? Math.max(0, RESEND_COOLDOWN_MS - (now - lastSentAt)) : 0;
+  const sendsLeft = MAX_SENDS - sends;
+  const canResend = sendsLeft > 0 && cooldownLeft === 0 && busy === null;
+
+  const resendLabel = sendsLeft <= 0
+    ? 'No more codes'
+    : cooldownLeft > 0
+      ? `Send a new code in ${Math.ceil(cooldownLeft / 1000)}s`
+      : 'Send a new code';
+
+  // Says which of the three states the person is actually in. Without this the
+  // only feedback on a code that quietly aged out was the confirm attempt
+  // failing, which reads as "I typed it wrong" rather than "it expired".
+  const status = !codeSent ? null : expired ? (
+    <p className="text-xs text-amber-400">
+      That code has expired.{' '}
+      {sendsLeft > 0 ? 'Request a new one below.' : 'Use a different address, or try again in a few minutes.'}
+    </p>
+  ) : (
+    <p className="text-xs text-text-tertiary">
+      Expires in <span className="tabular-nums text-text-secondary">{mmss}</span>
+      {sendsLeft > 0 && sendsLeft < MAX_SENDS && <> · {sendsLeft} more {sendsLeft === 1 ? 'request' : 'requests'}</>}
+    </p>
+  );
+
+  const resendButton = (
+    <Button fullWidth variant="ghost" onClick={sendCode} loading={busy === 'send'} disabled={!canResend}>
+      <RefreshCw className="w-4 h-4" aria-hidden="true" /> {resendLabel}
+    </Button>
+  );
+
   const codeInput = (
     <div className="flex gap-2">
       <input
@@ -198,9 +262,13 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
           {codeSent ? (
             <div className="space-y-2">
               {codeInput}
-              <Button fullWidth variant="ghost" onClick={sendCode} loading={busy === 'send'}>
-                <RefreshCw className="w-4 h-4" aria-hidden="true" /> Send a new code
-              </Button>
+              {status}
+              {resendButton}
+              {sendsLeft <= 0 && (
+                <p className="text-[11px] text-text-tertiary">
+                  You have requested the most codes we send in one go. If none arrived, check spam, or correct the address below.
+                </p>
+              )}
             </div>
           ) : (
             <Button fullWidth onClick={sendCode} loading={busy === 'send'}>Send me a code</Button>
@@ -261,7 +329,25 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
           </button>
         )}
       </div>
-      {codeSent && <div className="mt-2">{codeInput}</div>}
+      {/* The banner had no way to ask for another code once the first was
+          sent: the only recovery from a code that never arrived, or that aged
+          out while the person went to find it, was reloading the page. */}
+      {codeSent && (
+        <div className="mt-2 space-y-1.5">
+          {codeInput}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            {status}
+            <button
+              type="button"
+              onClick={sendCode}
+              disabled={!canResend}
+              className="font-semibold text-accent hover:underline disabled:opacity-40 disabled:no-underline whitespace-nowrap"
+            >
+              {busy === 'send' ? 'Sending…' : resendLabel}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Also here, not only on the full-screen gate. Straight after signup a
           member lands on the dashboard — a path MembershipGuard lets through —

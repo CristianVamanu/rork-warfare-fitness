@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
         metadata: { userId, planId, planName: plan.name, kind: 'coaching' },
       },
       metadata: { userId, planId, planName: plan.name, kind: 'coaching' },
-      success_url: `${appUrl}/profile?subscribed=coaching`,
+      success_url: `${appUrl}/dashboard?subscribed=coaching`,
       cancel_url: `${appUrl}/profile`,
     });
 

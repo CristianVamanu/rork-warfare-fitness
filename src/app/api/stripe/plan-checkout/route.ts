@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
         userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership',
         ...(trialPeriodDays ? { trialUsed: 'true' } : {}),
       },
-      success_url: `${appUrl}/profile?subscribed=1`,
+      success_url: `${appUrl}/dashboard?subscribed=1`,
       cancel_url: `${appUrl}/profile`,
     });
 
