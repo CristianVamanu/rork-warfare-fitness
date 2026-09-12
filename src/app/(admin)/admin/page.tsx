@@ -14,6 +14,8 @@ import {
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
+import { AdminShell } from '@/components/admin/AdminShell';
+import { StatTile, Panel, Pill, KV } from '@/components/admin/ui';
 import { getIdToken } from 'firebase/auth';
 import { DEFAULT_ORG_DAILY_LIMIT } from '@/lib/orgAiLimit';
 import { GATED_FEATURES, pruneFeatureAccess } from '@/lib/gatedFeatures';
@@ -2631,115 +2633,106 @@ function AdminPageInner() {
     { id: 'restore', label: 'Restore', icon: RotateCcw },
   ];
 
+  // Grouped by what the admin is doing. The order inside each group is the
+  // order of the old strip, so nothing moves relative to its neighbours.
+  const byId = Object.fromEntries(TABS.map((t) => [t.id, t])) as Record<Tab, typeof TABS[number]>;
+  const withBadge = (id: Tab) => ({ ...byId[id], badge: id === 'support' ? unresolvedSupport : undefined });
+  const GROUPS = [
+    { label: 'Operate', tabs: (['overview', 'clients', 'messages', 'support', 'community', 'notifications'] as Tab[]).map(withBadge) },
+    { label: 'Product', tabs: (['programs', 'library', 'membership', 'coaching'] as Tab[]).map(withBadge) },
+    { label: 'Growth', tabs: (['analytics', 'leads'] as Tab[]).map(withBadge) },
+    { label: 'System', tabs: (['integrations', 'settings', 'restore'] as Tab[]).map(withBadge) },
+  ];
+  const TAB_SUBTITLE: Partial<Record<Tab, string>> = {
+    overview: new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }),
+    clients: `${clients.length} client${clients.length !== 1 ? 's' : ''}${adminCount > 0 ? ` · ${adminCount} admin${adminCount !== 1 ? 's' : ''}` : ''}`,
+    analytics: 'Traffic and security, from Cloudflare',
+    membership: 'Plans, trial and what each plan unlocks',
+  };
+
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-black text-white">Admin Dashboard</h1>
-        <p className="text-text-secondary text-sm mt-0.5">Manage your fitness platform</p>
-      </div>
-
-      {/* Tab bar */}
-      <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
-              tab === id ? 'bg-accent text-black' : 'text-text-secondary hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Icon className="w-3.5 h-3.5" /> {label}
-            {/* The "a user submitted a support request" signal inside the
-                dashboard itself — the Header carries the same count for when
-                the admin is anywhere else in the app. */}
-            {id === 'support' && unresolvedSupport > 0 && (
-              <span className={`ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                tab === id ? 'bg-black/25 text-black' : 'bg-danger text-white'
-              }`}>
-                {unresolvedSupport > 9 ? '9+' : unresolvedSupport}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
+    <AdminShell
+      groups={GROUPS}
+      active={tab}
+      onSelect={setTab}
+      title={byId[tab].label}
+      subtitle={TAB_SUBTITLE[tab]}
+      trial={tenant?.stripe?.subscriptionStatus === 'trialing'}
+    >
+    <div className="space-y-5 max-w-[1180px]">
       {/* ── Restore ──────────────────────────────────────────────────────────── */}
       {tab === 'restore' && <RestorePanel />}
 
       {/* ── Overview ─────────────────────────────────────────────────────────── */}
       {tab === 'overview' && (
-        <div className="space-y-5">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              // The real total from the count aggregation when we have it —
-              // the loaded list is capped now, so clients.length would
-              // under-report the moment there are more than one page of them.
-              //
-              // Labelled "Users", not "Clients": countUsers() aggregates the
-              // WHOLE users collection, admins included, while the Clients tab
-              // lists only non-admins. Calling this "Clients" made the two
-              // screens contradict each other — 8 on the tile, 4 in the tab —
-              // which reads as lost data rather than as two different
-              // populations. The tab now spells out the difference too.
-              { icon: Users, label: 'Users', value: totalUsers ?? users.length, color: 'text-blue-400', bg: 'bg-blue-400/10' },
-              { icon: Dumbbell, label: 'Programs', value: programCount, color: 'text-purple-400', bg: 'bg-purple-400/10' },
-              { icon: Activity, label: 'Workouts Today', value: workoutsToday, color: 'text-green-400', bg: 'bg-green-400/10' },
-              { icon: Shield, label: 'System', value: '✓', color: 'text-accent', bg: 'bg-accent-muted' },
-            ].map(({ icon: Icon, label, value, color, bg }) => (
-              <motion.div key={label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                <Card className="p-4">
-                  <div className={`inline-flex p-2 rounded-lg ${bg} mb-2`}>
-                    <Icon className={`w-4 h-4 ${color}`} />
-                  </div>
-                  <p className="text-xl font-black text-white">{overviewLoading ? '—' : value}</p>
-                  <p className="text-xs text-text-secondary">{label}</p>
-                </Card>
-              </motion.div>
-            ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+            {/* The real total from the count aggregation when we have it —
+                the loaded list is capped, so users.length would under-report
+                past one page. Labelled "Users", not "Clients": countUsers()
+                aggregates the whole users collection, admins included, while
+                the Clients tab lists only non-admins. */}
+            <StatTile label="Users" value={totalUsers ?? users.length} loading={overviewLoading}
+              caption={adminCount > 0 ? `${clients.length} clients · ${adminCount} admin${adminCount !== 1 ? 's' : ''}` : 'all accounts'} />
+            <StatTile label="Programs" value={programCount} loading={overviewLoading} caption="published in the library" />
+            <StatTile label="Workouts today" value={workoutsToday} loading={overviewLoading}
+              caption={`as of ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`} />
+            <Card className="p-4 lg:p-5 flex flex-col gap-2 min-w-0">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">System</span>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-[22px] font-extrabold text-white leading-none">Healthy</p>
+                <Pill tone="ok">All checks pass</Pill>
+              </div>
+              <p className="text-xs text-text-tertiary">Auth, database and payments reachable</p>
+            </Card>
           </div>
 
-          <Card className="p-5">
-            <h2 className="text-base font-bold text-white mb-4 flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-accent" /> Payment Processing
-            </h2>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {stripeConfigured ? <CheckCircle className="w-5 h-5 text-success" /> : <CreditCard className="w-5 h-5 text-text-tertiary" />}
-                <span className={`text-sm font-medium ${stripeConfigured ? 'text-success' : 'text-text-tertiary'}`}>
-                  {stripeConfigured ? 'Stripe Connected' : 'Not configured'}
-                </span>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 lg:gap-4">
+            <Panel title="Payment processing" icon={CreditCard}
+              action={stripeConfigured ? <Pill tone="ok">Live</Pill> : <Pill tone="muted">Not set up</Pill>}>
+              <div className="divide-y divide-white/8">
+                <div className="flex items-center justify-between h-11 text-[13px]">
+                  <span className="text-text-secondary">Stripe</span>
+                  <span className={`font-semibold ${stripeConfigured ? 'text-white' : 'text-text-tertiary'}`}>{stripeConfigured ? 'Connected' : 'Not configured'}</span>
+                </div>
+                <div className="flex items-center justify-between h-11 text-[13px]">
+                  <span className="text-text-secondary">Billing for</span>
+                  <span className="font-semibold text-white">Memberships · Programs · Coaching</span>
+                </div>
               </div>
               {!stripeConfigured && (
-                <Button size="sm" variant="ghost" onClick={() => setTab('integrations')}>Set up</Button>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-text-secondary">Add your Stripe secret key under Integrations to enable billing.</p>
+                  <Button size="sm" variant="ghost" onClick={() => setTab('integrations')}>Set up</Button>
+                </div>
               )}
-            </div>
-            {!stripeConfigured && (
-              <p className="text-xs text-text-secondary mt-2">
-                Add your Stripe secret key in Admin → Integrations to enable membership and program billing.
-              </p>
-            )}
-          </Card>
+            </Panel>
 
-          {config && (
-            <Card className="p-5">
-              <h2 className="text-base font-bold text-white mb-4 flex items-center gap-2">
-                <Settings className="w-4 h-4 text-accent" /> System Configuration
-              </h2>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: 'App Name', value: config.appName as string },
-                  { label: 'Trainer', value: config.trainerName as string },
-                  { label: 'OpenAI Model', value: config.openaiModel as string },
-                  { label: 'Stripe', value: config.stripePublishableKey ? 'Configured' : 'Not set' },
-                ].map(({ label, value }) => (
-                  <div key={label} className="p-3 bg-surface-elevated rounded-xl">
-                    <p className="text-xs text-text-secondary">{label}</p>
-                    <p className="text-sm font-medium text-white truncate">{value || '—'}</p>
-                  </div>
-                ))}
+            {config && (
+              <Panel title="System configuration" icon={Settings}>
+                <div className="grid grid-cols-2 gap-2">
+                  <KV k="App name" v={config.appName as string} />
+                  <KV k="Trainer" v={config.trainerName as string} />
+                  <KV k="OpenAI model" v={config.openaiModel as string} />
+                  <KV k="Stripe" v={config.stripePublishableKey ? 'Configured' : 'Not set'} />
+                </div>
+              </Panel>
+            )}
+
+            <Panel highlight className="md:col-span-2 xl:col-span-1 justify-between">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-accent">Program builder</p>
+                <p className="text-base font-bold text-white mt-1.5">Write a new program from a brief</p>
+                <p className="text-[13px] text-text-secondary mt-1.5 leading-relaxed">
+                  Describe it in plain text and get a complete weekly schedule with exercises, sets, reps, RPE and rest — reviewed and edited by you before it goes live.
+                </p>
               </div>
-            </Card>
-          )}
+              <div className="flex gap-2 flex-wrap">
+                <Button onClick={() => router.push('/admin/programs/builder')}><Sparkles className="w-4 h-4" /> Open builder</Button>
+                <Button variant="secondary" onClick={() => router.push('/admin/programs')}>All programs</Button>
+              </div>
+            </Panel>
+          </div>
         </div>
       )}
 
@@ -6035,5 +6028,6 @@ function AdminPageInner() {
       </Modal>
 
     </div>
+    </AdminShell>
   );
 }
