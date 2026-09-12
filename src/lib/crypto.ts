@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes, createHash, timingSafeEqual } from 'crypto';
 
 /**
  * AES-256-GCM encryption for third-party API keys stored in Firestore.
@@ -46,4 +46,23 @@ export function decryptSecret(payload: EncryptedPayload): string {
 export function maskSecret(plaintext: string): string {
   if (plaintext.length <= 4) return '••••';
   return `••••${plaintext.slice(-4)}`;
+}
+
+/**
+ * Constant-time string comparison for auth secrets (cron tokens, webhook
+ * headers) — a plain `===` short-circuits on the first mismatched byte,
+ * which leaks a (low-practicality but nonzero) timing side-channel over the
+ * network. timingSafeEqual requires equal-length buffers, so the length
+ * check itself must also not branch on content — comparing against a
+ * same-length buffer of the expected value when lengths differ keeps the
+ * whole function's timing independent of how much of `provided` matched.
+ */
+export function timingSafeEqualString(provided: string, expected: string): boolean {
+  const providedBuf = Buffer.from(provided);
+  const expectedBuf = Buffer.from(expected);
+  if (providedBuf.length !== expectedBuf.length) {
+    timingSafeEqual(providedBuf, providedBuf);
+    return false;
+  }
+  return timingSafeEqual(providedBuf, expectedBuf);
 }

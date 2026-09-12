@@ -3,14 +3,16 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight, Sparkles, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTodayMeals, getTodayWaterLogs, deleteWaterLog, deleteMeal, getUserGoals, updateUserGoals, getMealsForDate } from '@/lib/firestore';
-import { logWaterAction } from '@/lib/actions';
+import { getTodayMeals, getTodayWaterLogs, deleteWaterLog, deleteMeal, updateUserGoals, getMealsForDate } from '@/lib/firestore';
+import { logWaterAction, logMealAction } from '@/lib/actions';
 import toast from 'react-hot-toast';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
+import { Ring } from '@/components/dashboard/Ring';
+import { Medallion } from '@/components/dashboard/Medallion';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -36,7 +38,12 @@ function NutritionPageInner() {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [meals, setMeals] = useState<Meal[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
-  const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
+  // Seeded from the profile AuthContext already holds — it keeps a live
+  // onSnapshot on users/{uid}, so the goals are in memory before this screen
+  // mounts. Reading the same document again over the network just to learn
+  // what we already know delayed the targets behind a round trip, and did it
+  // again on every date change.
+  const [goals, setGoals] = useState<UserGoals>(profile?.goals ?? DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
   const [showGoalsModal, setShowGoalsModal] = useState(false);
   const [editGoals, setEditGoals] = useState<UserGoals>(DEFAULT_GOALS);
@@ -46,6 +53,8 @@ function NutritionPageInner() {
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const d = new Date(); d.setHours(0, 0, 0, 0); return d;
   });
+  const [manualEntry, setManualEntry] = useState<{ editingId: string | null; mealType: Meal['mealType']; name: string; calories: string; protein: string; carbs: string; fat: string } | null>(null);
+  const [savingManualEntry, setSavingManualEntry] = useState(false);
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
   const waterMl = waterLogs.reduce((sum, w) => sum + w.amountMl, 0);
@@ -63,14 +72,12 @@ function NutritionPageInner() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const isCurrentDay = selectedDate.toDateString() === today.toDateString();
     const localDateStr = new Date().toLocaleDateString('sv-SE');
-    const [m, wLogs, g] = await Promise.all([
+    const [m, wLogs] = await Promise.all([
       isCurrentDay ? getTodayMeals(user.uid, localDateStr) : getMealsForDate(user.uid, selectedDate),
       isCurrentDay ? getTodayWaterLogs(user.uid, localDateStr) : Promise.resolve([] as WaterLog[]),
-      getUserGoals(user.uid),
     ]);
     setMeals(m as Meal[]);
     setWaterLogs(wLogs);
-    setGoals(g);
   }, [user, selectedDate]);
 
   useEffect(() => {
@@ -88,13 +95,21 @@ function NutritionPageInner() {
   }, [user, authLoading, refresh]);
 
   useEffect(() => {
+    if (profile?.goals) setGoals(profile.goals);
+  }, [profile?.goals]);
+
+  useEffect(() => {
     const onFocus = () => { if (!loading) refresh().catch(console.error); };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [refresh, loading]);
 
 
-  const totals = meals.reduce(
+  // Rounded once here (to 1 decimal for macros, whole kcal for calories)
+  // rather than at each render site — summing many meals' decimal grams
+  // (e.g. AI-estimated 24.4g + 24.4g + ...) accumulates plain binary
+  // floating-point error, showing as "24.400000000000002g" if left raw.
+  const rawTotals = meals.reduce(
     (acc, m) => ({
       calories: acc.calories + (m.calories || 0),
       protein: acc.protein + (m.protein || 0),
@@ -103,6 +118,12 @@ function NutritionPageInner() {
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
+  const totals = {
+    calories: Math.round(rawTotals.calories),
+    protein: Math.round(rawTotals.protein * 10) / 10,
+    carbs: Math.round(rawTotals.carbs * 10) / 10,
+    fat: Math.round(rawTotals.fat * 10) / 10,
+  };
 
   const addWater = async (ml: number) => {
     if (!user) return;
@@ -139,10 +160,70 @@ function NutritionPageInner() {
     }
   };
 
+  const openManualAdd = (mealType: Meal['mealType']) => {
+    setManualEntry({ editingId: null, mealType, name: '', calories: '', protein: '', carbs: '', fat: '' });
+  };
+
+  const openManualEdit = (meal: Meal) => {
+    setManualEntry({
+      editingId: meal.id,
+      mealType: meal.mealType,
+      name: meal.name,
+      calories: String(meal.calories),
+      protein: String(meal.protein),
+      carbs: String(meal.carbs),
+      fat: String(meal.fat),
+    });
+  };
+
+  const saveManualEntry = async () => {
+    if (!user || !manualEntry || !manualEntry.name.trim()) return;
+    setSavingManualEntry(true);
+    try {
+      const mealData = {
+        name: manualEntry.name.trim(),
+        calories: Number(manualEntry.calories) || 0,
+        protein: Number(manualEntry.protein) || 0,
+        carbs: Number(manualEntry.carbs) || 0,
+        fat: Number(manualEntry.fat) || 0,
+        mealType: manualEntry.mealType,
+      };
+      // Editing rewrites the underlying event rather than mutating it in
+      // place — events are an append-only log everywhere else in this app
+      // (see events.ts), so an edit is modeled as relog-then-delete against
+      // the same date instead of carving out a one-off mutable exception.
+      //
+      // Order matters: this used to delete FIRST, so if the re-log then
+      // failed (flaky connection — createEvent gives up after one retry),
+      // the meal was gone entirely with only a toast to show for it, and
+      // the user's totalMealsLogged was left one short. Writing the
+      // replacement first means the worst case is a duplicate the user can
+      // see and delete, not silent data loss.
+      //
+      // isToday's actual "now" gets a live server timestamp (so it sorts
+      // correctly against anything logged moments before/after); a past
+      // date is pinned to noon that day so it can never drift across a
+      // day boundary from timezone rounding.
+      const loggedAt = isToday ? undefined : new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 12);
+      await logMealAction(user.uid, mealData, loggedAt);
+      if (manualEntry.editingId) {
+        await deleteMeal(manualEntry.editingId, user.uid);
+      }
+      toast.success(manualEntry.editingId ? 'Meal updated' : 'Meal logged');
+      setManualEntry(null);
+      await refresh();
+    } catch (err) {
+      toast.error((err as Error)?.message || 'Failed to save meal');
+    } finally {
+      setSavingManualEntry(false);
+    }
+  };
+
   const removeMeal = async (meal: Meal) => {
+    if (!user) return;
     if (!window.confirm(`Remove "${meal.name}"?`)) return;
     try {
-      await deleteMeal(meal.id);
+      await deleteMeal(meal.id, user.uid);
       setMeals((prev) => prev.filter((m) => m.id !== meal.id));
       toast.success('Meal removed');
     } catch (err: unknown) {
@@ -170,45 +251,53 @@ function NutritionPageInner() {
     return acc;
   }, {} as Record<string, Meal[]>);
 
+  const calPct = goals.calories > 0 ? totals.calories / goals.calories : 0;
+  const overBy = totals.calories - goals.calories;
+
   return (
-    <div>
+    <div className="relative">
+      <div className="relative">
       <Header title="Nutrition" rightElement={
-        <button onClick={() => { setEditGoals(goals); setShowGoalsModal(true); }} className="p-2 text-text-secondary hover:text-white">
+        <button onClick={() => { setEditGoals(goals); setShowGoalsModal(true); }} className="p-2 text-text-secondary hover:text-white" aria-label="Daily goals">
           <Settings className="w-5 h-5" />
         </button>
       } />
 
-      {/* Date navigator */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-white/8 bg-surface/50">
-        <button
-          onClick={() => shiftDate(-1)}
-          className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <p className="text-sm font-semibold text-white">{formatDate(selectedDate)}</p>
-        <button
-          onClick={() => shiftDate(1)}
-          disabled={isToday}
-          className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/5 transition-colors disabled:opacity-30"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
+      <div className="px-4 py-4 space-y-4">
+        {/* Date navigator — a pill, not a bar under the header */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => shiftDate(-1)}
+            aria-label="Previous day"
+            className="w-9 h-9 rounded-full bg-surface border border-white/8 text-text-secondary hover:text-white flex items-center justify-center transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">{isToday ? 'Today' : 'Day'}</p>
+            <p className="text-sm font-extrabold text-white">{formatDate(selectedDate)}</p>
+          </div>
+          <button
+            onClick={() => shiftDate(1)}
+            disabled={isToday}
+            aria-label="Next day"
+            className="w-9 h-9 rounded-full bg-surface border border-white/8 text-text-secondary hover:text-white flex items-center justify-center transition-colors disabled:opacity-30"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
 
-      <div className="px-4 py-4 space-y-5">
-        {/* Coach-assigned nutrition plan banner */}
+        {/* Coach-assigned nutrition plan */}
         {profile?.assignedNutritionPlan && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
             <button onClick={() => setShowPlanModal(true)} className="w-full text-left">
-              <Card className="p-4 border-accent/30 bg-accent/5 flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-accent-muted flex-shrink-0">
-                  <Beef className="w-4 h-4 text-accent" />
-                </div>
+              <Card glass className="p-4 flex items-center gap-3.5 card-float border-accent/30">
+                <Medallion><Beef className="w-6 h-6" strokeWidth={2} /></Medallion>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-white">Your Coach&apos;s Nutrition Plan</p>
-                  <p className="text-xs text-text-secondary">
-                    {profile.assignedNutritionPlan.calories}kcal · {profile.assignedNutritionPlan.protein}p / {profile.assignedNutritionPlan.carbs}c / {profile.assignedNutritionPlan.fat}f
+                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Your plan</span>
+                  <p className="text-[15px] font-extrabold text-white leading-tight">{profile.assignedNutritionPlan.calories} kcal a day</p>
+                  <p className="text-[11px] text-text-tertiary mt-0.5 tabular-nums">
+                    {profile.assignedNutritionPlan.protein}g protein · {profile.assignedNutritionPlan.carbs}g carbs · {profile.assignedNutritionPlan.fat}g fat
                   </p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
@@ -217,108 +306,115 @@ function NutritionPageInner() {
           </motion.div>
         )}
 
-        {/* Macro Summary */}
+        {/* Calories + macros — the hero */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-xs text-text-secondary">CALORIES {isToday ? 'TODAY' : formatDate(selectedDate).toUpperCase()}</p>
-                <p className="text-3xl font-black text-white">
-                  {totals.calories}
-                  <span className="text-sm font-medium text-text-secondary ml-1">/ {goals.calories}</span>
-                </p>
-                {totals.calories > goals.calories && (
-                  <p className="text-xs text-red-400 mt-0.5">⚠ Over by {totals.calories - goals.calories} kcal</p>
+          <Card glass className="p-5 border-accent/30 shadow-glow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">Calories</p>
+                {/* A zero here is not "no calories yet", it is "we have not
+                    looked". The two are indistinguishable on screen, so the
+                    hero used to state a confident 0 of your target for as long
+                    as the read took. A placeholder says the honest thing. */}
+                {loading ? (
+                  <>
+                    <Skeleton className="h-[34px] w-28 mt-1.5" />
+                    <Skeleton className="h-[12px] w-40 mt-2.5" />
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[34px] font-black text-white leading-none tracking-tight tabular-nums mt-1.5">
+                      {totals.calories.toLocaleString()}
+                    </p>
+                    <p className="text-[12px] text-text-secondary mt-1.5 tabular-nums">
+                      {overBy > 0
+                        ? <span className="text-danger">{overBy.toLocaleString()} over your {goals.calories.toLocaleString()} target</span>
+                        : `${Math.max(0, -overBy).toLocaleString()} left of ${goals.calories.toLocaleString()}`}
+                    </p>
+                  </>
                 )}
               </div>
-              <div className="relative w-16 h-16">
-                <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
-                  <circle cx="18" cy="18" r="15.9155" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
-                  <circle
-                    cx="18" cy="18" r="15.9155" fill="none"
-                    stroke={totals.calories > goals.calories ? '#ef4444' : '#F5A623'} strokeWidth="3"
-                    strokeDasharray={`${Math.min((totals.calories / goals.calories) * 100, 100)} 100`}
-                    strokeLinecap="round"
-                    className="transition-all duration-700"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-                  {Math.round((totals.calories / goals.calories) * 100)}%
-                </span>
-              </div>
+              <Ring value={loading ? 0 : calPct} size={84} stroke={8} color={overBy > 0 ? '#EF4444' : 'var(--accent)'}>
+                {loading
+                  ? <span className="text-[17px] font-black text-text-tertiary tabular-nums">·</span>
+                  : <span className="text-[17px] font-black text-white tabular-nums">{Math.round(calPct * 100)}<span className="text-[10px] font-bold text-text-secondary">%</span></span>}
+              </Ring>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2.5 mt-5 pt-4 border-t border-white/8">
               {[
-                { icon: Beef, label: 'Protein', value: totals.protein, goal: goals.protein, color: 'text-red-400', bar: 'danger' as const },
-                { icon: Wheat, label: 'Carbs', value: totals.carbs, goal: goals.carbs, color: 'text-yellow-400', bar: 'accent' as const },
-                { icon: Flame, label: 'Fat', value: totals.fat, goal: goals.fat, color: 'text-orange-400', bar: 'accent' as const },
-              ].map(({ icon: Icon, label, value, goal, color, bar }) => (
-                <div key={label} className="p-3 bg-surface-elevated rounded-xl">
-                  <Icon className={`w-3.5 h-3.5 ${color} mb-1`} />
-                  <p className="text-xs text-text-secondary">{label}</p>
-                  <p className="text-sm font-bold text-white">{value}g <span className="text-text-tertiary font-normal text-[10px]">/ {goal}g</span></p>
-                  <ProgressBar value={value} max={goal} color={bar} size="sm" className="mt-1.5" />
+                { label: 'Protein', value: totals.protein, goal: goals.protein, color: '#EF4444' },
+                { label: 'Carbs', value: totals.carbs, goal: goals.carbs, color: 'var(--accent)' },
+                { label: 'Fat', value: totals.fat, goal: goals.fat, color: '#F97316' },
+              ].map(({ label, value, goal, color }) => (
+                <div key={label} className="flex flex-col items-center text-center gap-1.5">
+                  <Ring value={goal > 0 ? value / goal : 0} size={52} stroke={5} color={color}>
+                    <span className="text-[12px] font-black text-white tabular-nums">{value}<span className="text-[9px] font-bold text-text-secondary">g</span></span>
+                  </Ring>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">{label}</p>
+                  <p className="text-[10px] text-text-tertiary -mt-1 tabular-nums">of {goal}g</p>
                 </div>
               ))}
             </div>
           </Card>
         </motion.div>
 
-        {/* Water Tracker — today only */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Droplets className="w-4 h-4 text-blue-400" />
-                <span className="text-sm font-medium text-white">Water</span>
+        {/* Water — today only for logging, history for any day */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+          <Card glass className="p-4">
+            <div className="flex items-center gap-4">
+              <Ring value={goals.water > 0 ? waterMl / goals.water : 0} size={56} stroke={6} color="#3B82F6">
+                <Droplets className="w-5 h-5 text-blue-400" strokeWidth={2} />
+              </Ring>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Water</span>
+                <p className="text-[22px] font-black text-white leading-none tabular-nums mt-0.5">
+                  {(waterMl / 1000).toFixed(2)}<span className="text-sm font-bold text-text-secondary">L</span>
+                  <span className="text-[12px] font-medium text-text-tertiary"> of {goals.water / 1000}L</span>
+                </p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-white">
-                  {(waterMl / 1000).toFixed(1)}L
-                  <span className="text-text-secondary font-normal"> / {goals.water / 1000}L</span>
-                </span>
-                {waterLogs.length > 0 && (
-                  <button onClick={() => setShowWaterHistory(!showWaterHistory)} className="text-xs text-blue-400 hover:underline">
-                    {showWaterHistory ? 'Hide' : 'History'}
-                  </button>
-                )}
-              </div>
-            </div>
-            <ProgressBar value={waterMl} max={goals.water} color="info" size="md" />
-            {isToday && <div className="grid grid-cols-4 gap-2 mt-3">
-              {[250, 500, 750, 1000].map((ml) => (
-                <button
-                  key={ml}
-                  onClick={() => addWater(ml)}
-                  className="py-2 text-xs font-medium text-blue-400 bg-blue-400/10 rounded-xl hover:bg-blue-400/20 transition-colors"
-                >
-                  +{ml >= 1000 ? `${ml / 1000}L` : `${ml}ml`}
+              {waterLogs.length > 0 && (
+                <button onClick={() => setShowWaterHistory(!showWaterHistory)} className="text-xs font-semibold text-blue-400">
+                  {showWaterHistory ? 'Hide' : 'History'}
                 </button>
-              ))}
-            </div>}
-            {/* Custom amount — today only */}
-            {isToday && <div className="flex gap-2 mt-2">
-              <input
-                type="number"
-                placeholder="Custom ml..."
-                value={customWaterMl}
-                onChange={(e) => setCustomWaterMl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCustomWater()}
-                className="flex-1 bg-surface-elevated text-white text-sm px-3 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-blue-400 placeholder:text-text-tertiary"
-              />
-              <button onClick={handleCustomWater} className="px-3 py-2 bg-blue-400/20 text-blue-400 rounded-xl hover:bg-blue-400/30 transition-colors">
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>}
-            {/* Water history */}
+              )}
+            </div>
+            {isToday && (
+              <div className="grid grid-cols-4 gap-2 mt-4">
+                {[250, 500, 750, 1000].map((ml) => (
+                  <button
+                    key={ml}
+                    onClick={() => addWater(ml)}
+                    className="h-10 rounded-xl text-xs font-bold text-blue-300 bg-blue-400/10 border border-blue-400/15 hover:bg-blue-400/20 transition-colors tabular-nums"
+                  >
+                    +{ml >= 1000 ? `${ml / 1000}L` : `${ml}ml`}
+                  </button>
+                ))}
+              </div>
+            )}
+            {isToday && (
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="Custom amount in ml"
+                  value={customWaterMl}
+                  onChange={(e) => setCustomWaterMl(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCustomWater()}
+                  className="flex-1 h-10 bg-surface-elevated text-white text-sm px-3 rounded-xl border border-white/10 focus:outline-none focus:border-blue-400 placeholder:text-text-tertiary tabular-nums"
+                />
+                <button onClick={handleCustomWater} aria-label="Add custom amount" className="w-10 h-10 rounded-xl bg-blue-400/20 text-blue-300 flex items-center justify-center hover:bg-blue-400/30 transition-colors">
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             <AnimatePresence>
               {showWaterHistory && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-3 space-y-1.5 overflow-hidden">
                   {waterLogs.map((w) => (
                     <div key={w.id} className="flex items-center justify-between bg-surface-elevated rounded-xl px-3 py-2">
-                      <span className="text-sm text-white">+{w.amountMl}ml</span>
-                      <button onClick={() => removeWaterLog(w.id, w.amountMl)} className="text-text-tertiary hover:text-red-400 transition-colors">
+                      <span className="text-sm text-white tabular-nums">+{w.amountMl} ml</span>
+                      <button onClick={() => removeWaterLog(w.id, w.amountMl)} aria-label="Remove" className="text-text-tertiary hover:text-danger transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -329,44 +425,27 @@ function NutritionPageInner() {
           </Card>
         </motion.div>
 
-        {/* Quick Add Buttons — today only */}
-        {isToday && <div className="grid grid-cols-3 gap-2.5">
-          <Link href="/nutrition/analyze">
-            <motion.div
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="p-3 bg-surface border border-white/8 rounded-2xl flex flex-col items-center gap-2"
-            >
-              <div className="p-2.5 bg-green-400/10 rounded-xl">
-                <Camera className="w-4.5 h-4.5 text-green-400" />
-              </div>
-              <span className="text-xs font-medium text-white text-center">AI Analyze</span>
-            </motion.div>
-          </Link>
-          <Link href="/nutrition/barcode">
-            <motion.div
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="p-3 bg-surface border border-white/8 rounded-2xl flex flex-col items-center gap-2"
-            >
-              <div className="p-2.5 bg-purple-400/10 rounded-xl">
-                <Barcode className="w-4.5 h-4.5 text-purple-400" />
-              </div>
-              <span className="text-xs font-medium text-white text-center">Scan Barcode</span>
-            </motion.div>
-          </Link>
-          <Link href="/nutrition/meal-planner">
-            <motion.div
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="p-3 bg-surface border border-white/8 rounded-2xl flex flex-col items-center gap-2"
-            >
-              <div className="p-2.5 bg-accent-muted rounded-xl">
-                <Sparkles className="w-4.5 h-4.5 text-accent" />
-              </div>
-              <span className="text-xs font-medium text-white text-center">Meal Ideas</span>
-            </motion.div>
-          </Link>
-        </div>}
+        {/* Log something — today only */}
+        {isToday && (
+          <div className="grid grid-cols-3 gap-2.5">
+            {[
+              { href: '/nutrition/analyze', icon: Camera, label: 'Photo scan', tone: 'bg-green-400/15 text-green-300' },
+              { href: '/nutrition/barcode', icon: Barcode, label: 'Barcode', tone: 'bg-purple-400/15 text-purple-300' },
+              { href: '/nutrition/meal-planner', icon: Sparkles, label: 'Meal ideas', tone: 'bg-accent-muted text-accent' },
+            ].map(({ href, icon: Icon, label, tone }) => (
+              <Link key={href} href={href} className="block">
+                <Card glass className="h-[84px] flex flex-col items-center justify-center gap-2 card-float">
+                  <span className={`w-10 h-10 rounded-2xl flex items-center justify-center ${tone}`}>
+                    <Icon className="w-5 h-5" strokeWidth={1.75} />
+                  </span>
+                  <span className="text-[10px] font-semibold text-text-secondary">{label}</span>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
 
-        {/* Meals by Type */}
+        {/* Meals by type */}
         {loading ? (
           <div className="space-y-2">
             <Skeleton className="h-20 rounded-2xl" />
@@ -376,35 +455,54 @@ function NutritionPageInner() {
           <div className="space-y-4">
             {MEAL_TYPES.map((type) => (
               <motion.div key={type} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-bold text-white capitalize">{type}</h3>
-                  <span className="text-xs text-text-tertiary">
+                <div className="flex items-center justify-between px-0.5 mb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">{type}</p>
+                  <span className="text-[11px] text-text-tertiary tabular-nums">
                     {mealsByType[type].reduce((s, m) => s + (m.calories || 0), 0)} kcal
                   </span>
                 </div>
                 {mealsByType[type].length === 0 ? (
-                  <Link href={`/nutrition/analyze?mealType=${type}`}>
-                    <Card className="p-3 border-dashed border-white/8 flex items-center gap-2 text-text-tertiary hover:border-accent/30 transition-colors cursor-pointer">
-                      <Plus className="w-4 h-4" />
-                      <span className="text-xs">Add {type}</span>
-                    </Card>
-                  </Link>
+                  <div className="grid grid-cols-2 gap-2">
+                    {isToday && (
+                      <Link href={`/nutrition/analyze?mealType=${type}`}>
+                        <Card glass className="p-3 flex items-center gap-2 text-text-secondary hover:border-accent/30 transition-colors cursor-pointer">
+                          <Camera className="w-4 h-4" strokeWidth={1.75} />
+                          <span className="text-xs font-semibold">Photo scan</span>
+                        </Card>
+                      </Link>
+                    )}
+                    <button onClick={() => openManualAdd(type)} className={isToday ? '' : 'col-span-2'}>
+                      <Card glass className="p-3 flex items-center gap-2 text-text-secondary hover:border-accent/30 transition-colors cursor-pointer">
+                        <Plus className="w-4 h-4" strokeWidth={1.75} />
+                        <span className="text-xs font-semibold">Add manually</span>
+                      </Card>
+                    </button>
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     {mealsByType[type].map((meal) => (
-                      <Card key={meal.id} className="p-3 flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-white">{meal.name}</p>
-                          <p className="text-xs text-text-secondary">{meal.protein}g P · {meal.carbs}g C · {meal.fat}g F</p>
-                        </div>
-                        <div className="flex items-center gap-2">
+                      <Card glass key={meal.id} className="p-3 flex items-center justify-between gap-3">
+                        <button onClick={() => openManualEdit(meal)} className="text-left flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">{meal.name}</p>
+                          <p className="text-[11px] text-text-tertiary tabular-nums">{meal.protein}g P · {meal.carbs}g C · {meal.fat}g F</p>
+                        </button>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
                           <Badge variant="muted">{meal.calories} kcal</Badge>
-                          <button onClick={() => removeMeal(meal)} className="text-text-tertiary hover:text-red-400 transition-colors p-1">
+                          <button onClick={() => openManualEdit(meal)} aria-label="Edit" className="text-text-tertiary hover:text-white transition-colors p-1.5">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => removeMeal(meal)} aria-label="Delete" className="text-text-tertiary hover:text-danger transition-colors p-1.5">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </Card>
                     ))}
+                    <button onClick={() => openManualAdd(type)} className="w-full">
+                      <Card glass className="p-2.5 flex items-center justify-center gap-1.5 text-text-tertiary hover:border-accent/30 transition-colors cursor-pointer">
+                        <Plus className="w-3.5 h-3.5" />
+                        <span className="text-xs font-semibold">Add another {type}</span>
+                      </Card>
+                    </button>
                   </div>
                 )}
               </motion.div>
@@ -412,6 +510,56 @@ function NutritionPageInner() {
           </div>
         )}
       </div>
+
+      {/* Manual meal entry / edit — works for the currently selected date,
+          including past days, unlike the AI scanner/barcode/planner tools
+          above which only ever log against "now". */}
+      <Modal open={!!manualEntry} onClose={() => setManualEntry(null)} title={manualEntry?.editingId ? 'Edit Meal' : `Add ${manualEntry?.mealType ?? ''}`}>
+        {manualEntry && (
+          <div className="space-y-4 p-4">
+            <div>
+              <label className="text-xs text-text-secondary block mb-1.5">Meal name</label>
+              <input
+                type="text"
+                value={manualEntry.name}
+                onChange={(e) => setManualEntry((m) => m && { ...m, name: e.target.value })}
+                placeholder="e.g. Grilled chicken & rice"
+                className="w-full bg-surface-elevated text-white px-3 py-2.5 rounded-xl border border-white/10 focus:outline-none focus:border-accent text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { key: 'calories', label: 'Calories (kcal)' },
+                { key: 'protein', label: 'Protein (g)' },
+                { key: 'carbs', label: 'Carbs (g)' },
+                { key: 'fat', label: 'Fat (g)' },
+              ] as const).map(({ key, label }) => (
+                <div key={key}>
+                  <label className="text-xs text-text-secondary block mb-1.5">{label}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={manualEntry[key]}
+                    onChange={(e) => setManualEntry((m) => m && { ...m, [key]: e.target.value })}
+                    className="w-full bg-surface-elevated text-white px-3 py-2.5 rounded-xl border border-white/10 focus:outline-none focus:border-accent text-sm"
+                  />
+                </div>
+              ))}
+            </div>
+            {!isToday && (
+              <p className="text-xs text-text-tertiary">Logging for {formatDate(selectedDate)}</p>
+            )}
+            <div className="flex gap-3 pt-2">
+              <Button variant="secondary" fullWidth onClick={() => setManualEntry(null)}>
+                <X className="w-4 h-4" /> Cancel
+              </Button>
+              <Button fullWidth loading={savingManualEntry} disabled={!manualEntry.name.trim()} onClick={saveManualEntry}>
+                <Check className="w-4 h-4" /> Save
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Goals Modal */}
       <Modal open={showGoalsModal} onClose={() => setShowGoalsModal(false)} title="Daily Goals">
@@ -425,12 +573,19 @@ function NutritionPageInner() {
           ] as Array<{ key: keyof UserGoals; label: string; unit: string; min: number; max: number }>).map(({ key, label, unit, min, max }) => (
             <div key={key}>
               <label className="text-xs text-text-secondary block mb-1.5">{label} ({unit})</label>
+              {/* A cleared field renders empty, not "0". As a controlled
+                  number it snapped back to 0 the moment the box was emptied,
+                  so typing 3000 produced 03000 — the zero could never be
+                  deleted. Zero is treated as "nothing entered" and saveGoals
+                  already clamps to the min. */}
               <input
                 type="number"
+                inputMode="numeric"
                 min={min}
                 max={max}
-                value={editGoals[key]}
-                onChange={(e) => setEditGoals((g) => ({ ...g, [key]: parseInt(e.target.value) || 0 }))}
+                value={editGoals[key] === 0 ? '' : editGoals[key]}
+                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => setEditGoals((g) => ({ ...g, [key]: e.target.value === '' ? 0 : (parseInt(e.target.value, 10) || 0) }))}
                 className="w-full bg-surface-elevated text-white px-3 py-2.5 rounded-xl border border-white/10 focus:outline-none focus:border-accent text-sm"
               />
             </div>
@@ -487,6 +642,7 @@ function NutritionPageInner() {
           </div>
         </Modal>
       )}
+      </div>
     </div>
   );
 }

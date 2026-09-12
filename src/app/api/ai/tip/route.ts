@@ -1,17 +1,48 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
+import { verifyAuthed } from '@/lib/verifyAdmin';
+import { rateLimit } from '@/lib/rateLimit';
+import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
+
+// About 18 words. The card shows the tip in full — no truncation — so this
+// is what keeps it to two lines on a phone.
+const MAX_TIP_CHARS = 130;
 
 function todayKey() {
   return new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
 }
 
-export async function GET() {
+// Was fully unauthenticated with no rate limiting — anyone could hit it
+// directly to burn OpenAI spend once the daily cache missed. Result is
+// shared across all users (cached at config/dailyTip, one doc per day), so
+// this only needs to gate who can trigger generation, not per-user usage.
+const WINDOW_MS = 60 * 1000;
+const MAX_PER_WINDOW = 5;
+
+export async function GET(req: NextRequest) {
+  const check = await verifyAuthed(req);
+  if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
+  const limited = await rateLimit({ scope: 'ai-tip', key: check.uid, windowMs: WINDOW_MS, max: MAX_PER_WINDOW });
+  if (!limited.allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
+  }
+
+  // This route calls OpenAI, so every authenticated account was a metered
+  // spend endpoint regardless of whether they pay for anything — the only
+  // AI route with no membership check. Bounded per user by the limiter
+  // above, unbounded across users.
+  const tipApp = getAdminApp();
+  if (tipApp) {
+    const access = await verifyFeatureAccess(tipApp, check.uid, 'ai-tip');
+    if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
+  }
+
   const dateKey = todayKey();
 
   // Try to serve from Firestore cache first
@@ -21,7 +52,12 @@ export async function GET() {
       const db = getAdminDb(app);
       const snap = await db.doc(`config/dailyTip`).get();
       const data = snap.data();
-      if (data?.date === dateKey && data?.tip) {
+      // Length is enforced on READ as well as on generation. The cache holds
+      // one tip per day for everyone, so a tip generated under an older,
+      // looser prompt would keep being served all day after the limit
+      // tightened. Treating an over-long cached tip as a miss regenerates it
+      // once and fixes the day immediately.
+      if (data?.date === dateKey && typeof data.tip === 'string' && data.tip.length <= MAX_TIP_CHARS) {
         return NextResponse.json({ tip: data.tip, date: dateKey, cached: true });
       }
     } catch {
@@ -32,12 +68,12 @@ export async function GET() {
   const apiKey = await getSecret('OPENAI_API_KEY');
   if (!apiKey) {
     return NextResponse.json({
-      tip: 'Focus on compound movements like squats, deadlifts and bench press — they build more muscle and burn more calories than isolation exercises.',
+      tip: 'Lead with compounds — squats, deadlifts, presses build more than any isolation move.',
       date: dateKey,
     });
   }
 
-  const openai = new OpenAI({ apiKey });
+  const openai = new OpenAI({ apiKey, timeout: 30_000, maxRetries: 1 });
 
   // Use the date as a seed so the tip is deterministic per day across server instances
   const dayNumber = Math.floor(Date.now() / 86400000);
@@ -53,22 +89,35 @@ export async function GET() {
   try {
     const res = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-      max_tokens: 80,
+      max_tokens: 48,
       temperature: 0.7,
       messages: [
         {
           role: 'system',
-          content: 'You are a concise fitness coach. Give one practical, gym/fitness tip in 1-2 short sentences. No fluff, no greetings, no hashtags. Fitness and gym content only.',
+          content: 'You are a concise fitness coach. Give ONE practical gym/fitness tip as a SINGLE sentence of at most 18 words. No fluff, no greetings, no hashtags, no lists. Fitness and gym content only.',
         },
         {
           role: 'user',
-          content: `Give a fitness tip about: ${topic}. Keep it under 35 words.`,
+          content: `Give a fitness tip about: ${topic}. One sentence, 18 words maximum.`,
         },
       ],
     });
 
-    const tip = res.choices[0]?.message?.content?.trim() ?? '';
-    if (!tip) throw new Error('empty response');
+    const raw = res.choices[0]?.message?.content?.trim() ?? '';
+    if (!raw) throw new Error('empty response');
+    // Keep the first sentence if the model ran long, rather than caching
+    // something that will not fit and cutting it off in the UI.
+    // Hard-capped after the first-sentence cut as well. If the first sentence
+    // alone ran past the limit it was cached anyway, and the read path above
+    // then treated it as a miss — so every dashboard load regenerated a new
+    // tip and paid for it until one happened to come in short.
+    const firstSentence = raw.match(/^[^.!?]*[.!?]/)?.[0]?.trim() ?? raw;
+    const tip = firstSentence.length <= MAX_TIP_CHARS
+      ? firstSentence
+      // Sliced one short so the ellipsis never pushes it back over the cap —
+      // at exactly the cap plus one the read path would treat it as a miss
+      // and regenerate on every request.
+      : firstSentence.slice(0, MAX_TIP_CHARS - 1).replace(/\s+\S*$/, '').trim() + '…';
 
     // Cache in Firestore for the rest of the day
     if (app) {
@@ -82,7 +131,7 @@ export async function GET() {
   } catch (err) {
     console.error('[/api/ai/tip] error:', err);
     return NextResponse.json({
-      tip: `Train your ${topic} today. Small consistent improvements compound into dramatic results over weeks.`,
+      tip: `Work on your ${topic} today — small consistent gains compound faster than big rare ones.`,
       date: dateKey,
     });
   }

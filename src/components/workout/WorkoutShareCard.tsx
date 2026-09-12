@@ -212,8 +212,14 @@ export function WorkoutShareCard({
         </motion.div>
       )}
 
-      {/* Actions */}
-      <div className="flex gap-3">
+      {/* Actions — sticky at the bottom of the modal's own scroll area
+          (Modal.tsx wraps children in overflow-y-auto) rather than flowing
+          after however many achievement/quest cards stacked up. 2+
+          achievements previously pushed this off the bottom of the screen
+          on mobile with nothing indicating there was more to scroll to —
+          effectively stranding the user on this screen with no way to
+          continue past it. */}
+      <div className="sticky bottom-0 -mx-5 -mb-5 px-5 pb-5 pt-3 flex gap-3 bg-surface-elevated">
         <Button variant="secondary" fullWidth loading={sharing} onClick={handleShare}>
           <Share2 className="w-4 h-4" /> Share
         </Button>

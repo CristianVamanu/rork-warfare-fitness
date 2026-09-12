@@ -35,7 +35,7 @@ export const ACHIEVEMENT_DEFS: AchievementDef[] = [
   { id: 'power_500',      icon: '🌌', title: 'Mythic',            desc: 'Reach Power Level 500',          category: 'power'    },
   { id: 'power_1000',     icon: '👁️', title: 'Ascended',          desc: 'Reach Power Level 1,000',        category: 'power'    },
   // Time of day
-  { id: 'early_bird',     icon: '🌅', title: 'Early Bird',        desc: 'Complete a workout before 7am',  category: 'time'     },
+  { id: 'early_bird',     icon: '🌅', title: 'Early Bird',        desc: 'Complete a workout between 4am and 7am', category: 'time'     },
   { id: 'night_owl',      icon: '🦉', title: 'Night Owl',         desc: 'Complete a workout after 9pm',   category: 'time'     },
   { id: 'graveyard_shift',icon: '🕛', title: 'Graveyard Shift',   desc: 'Complete a workout between midnight and 4am', category: 'time' },
   { id: 'weekend_warrior',icon: '🌆', title: 'Weekend Warrior',   desc: 'Complete a workout on a Saturday or Sunday', category: 'time' },
@@ -56,38 +56,72 @@ interface CheckParams {
   totalMealsLogged?: number;
 }
 
+// Numeric-target achievements only — the boolean ones (early_bird, night_owl,
+// graveyard_shift, weekend_warrior, log_meal) have no "how close am I"
+// concept, so they're deliberately absent here and stay in the switch below.
+const ACHIEVEMENT_THRESHOLDS: Record<string, { statKey: keyof CheckParams; target: number }> = {
+  first_workout:  { statKey: 'totalWorkouts', target: 1 },
+  workouts_5:     { statKey: 'totalWorkouts', target: 15 },
+  workouts_10:    { statKey: 'totalWorkouts', target: 30 },
+  workouts_25:    { statKey: 'totalWorkouts', target: 75 },
+  workouts_50:    { statKey: 'totalWorkouts', target: 150 },
+  workouts_100:   { statKey: 'totalWorkouts', target: 300 },
+  workouts_500:   { statKey: 'totalWorkouts', target: 500 },
+  workouts_1000:  { statKey: 'totalWorkouts', target: 1000 },
+  streak_3:       { statKey: 'streak', target: 5 },
+  streak_7:       { statKey: 'streak', target: 14 },
+  streak_14:      { statKey: 'streak', target: 30 },
+  streak_30:      { statKey: 'streak', target: 60 },
+  streak_100:     { statKey: 'streak', target: 100 },
+  streak_180:     { statKey: 'streak', target: 180 },
+  power_10:       { statKey: 'powerLevel', target: 25 },
+  power_50:       { statKey: 'powerLevel', target: 100 },
+  power_100:      { statKey: 'powerLevel', target: 200 },
+  power_150:      { statKey: 'powerLevel', target: 300 },
+  power_500:      { statKey: 'powerLevel', target: 500 },
+  power_1000:     { statKey: 'powerLevel', target: 1000 },
+  meals_10:       { statKey: 'totalMealsLogged', target: 30 },
+  meals_100:      { statKey: 'totalMealsLogged', target: 100 },
+  meals_250:      { statKey: 'totalMealsLogged', target: 250 },
+};
+
 function isEarned(id: string, p: CheckParams): boolean {
+  const threshold = ACHIEVEMENT_THRESHOLDS[id];
+  if (threshold) return (p[threshold.statKey] as number | undefined ?? 0) >= threshold.target;
   switch (id) {
-    case 'first_workout':  return p.totalWorkouts >= 1;
-    case 'workouts_5':     return p.totalWorkouts >= 15;
-    case 'workouts_10':    return p.totalWorkouts >= 30;
-    case 'workouts_25':    return p.totalWorkouts >= 75;
-    case 'workouts_50':    return p.totalWorkouts >= 150;
-    case 'workouts_100':   return p.totalWorkouts >= 300;
-    case 'workouts_500':   return p.totalWorkouts >= 500;
-    case 'workouts_1000':  return p.totalWorkouts >= 1000;
-    case 'streak_3':       return p.streak >= 5;
-    case 'streak_7':       return p.streak >= 14;
-    case 'streak_14':      return p.streak >= 30;
-    case 'streak_30':      return p.streak >= 60;
-    case 'streak_100':     return p.streak >= 100;
-    case 'streak_180':     return p.streak >= 180;
-    case 'power_10':       return p.powerLevel >= 25;
-    case 'power_50':       return p.powerLevel >= 100;
-    case 'power_100':      return p.powerLevel >= 200;
-    case 'power_150':      return p.powerLevel >= 300;
-    case 'power_500':      return p.powerLevel >= 500;
-    case 'power_1000':     return p.powerLevel >= 1000;
-    case 'early_bird':     return (p.workoutHour ?? 12) < 7;
+    // The three time-of-day bands are mutually exclusive. early_bird was
+    // `< 7`, which fully contained graveyard_shift's `< 4` — so a 2am
+    // session unlocked BOTH at once and graveyard_shift could never be
+    // earned on its own, making it a redundant duplicate rather than the
+    // rarer badge it's meant to be. Now: 00:00-03:59 graveyard,
+    // 04:00-06:59 early bird, 21:00-23:59 night owl.
+    case 'early_bird':     return (p.workoutHour ?? 12) >= 4 && (p.workoutHour ?? 12) < 7;
     case 'night_owl':      return (p.workoutHour ?? 12) >= 21;
     case 'graveyard_shift':return (p.workoutHour ?? 12) < 4;
     case 'weekend_warrior':return !!p.isWeekend;
     case 'log_meal':       return !!p.hasLoggedMeal;
-    case 'meals_10':       return (p.totalMealsLogged ?? 0) >= 30;
-    case 'meals_100':      return (p.totalMealsLogged ?? 0) >= 100;
-    case 'meals_250':      return (p.totalMealsLogged ?? 0) >= 250;
     default:               return false;
   }
+}
+
+/** Fractional progress (0-1) toward a numeric-target achievement, or null for
+ * boolean ones with no "how close" concept. Powers near-miss copy like
+ * "2 workouts from Century Club" on the achievements page. */
+export function achievementProgress(id: string, p: CheckParams): number | null {
+  const threshold = ACHIEVEMENT_THRESHOLDS[id];
+  if (!threshold) return null;
+  const current = (p[threshold.statKey] as number | undefined) ?? 0;
+  return Math.min(1, current / threshold.target);
+}
+
+/** How many more of the underlying stat are needed to earn this achievement,
+ * or null if already earned / not a numeric-target achievement. */
+export function achievementRemaining(id: string, p: CheckParams): number | null {
+  const threshold = ACHIEVEMENT_THRESHOLDS[id];
+  if (!threshold) return null;
+  const current = (p[threshold.statKey] as number | undefined) ?? 0;
+  const remaining = threshold.target - current;
+  return remaining > 0 ? remaining : null;
 }
 
 /** Check params against all achievements, award newly earned ones, return their IDs. */

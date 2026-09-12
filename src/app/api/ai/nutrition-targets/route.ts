@@ -21,6 +21,7 @@ import { estimateNutritionTargets, type Biometrics } from '@/lib/tdee';
 import type { FitnessGoal, ExperienceLevel } from '@/types';
 
 const GOAL_LABEL: Record<FitnessGoal, string> = {
+  'military-prep': 'Selection Prep',
   'lose-fat': 'Fat Loss',
   'build-muscle': 'Muscle Gain',
   recomposition: 'Body Recomposition',
@@ -34,6 +35,9 @@ function templateRationale(goal: FitnessGoal, adjustment: number, usedRealBiomet
   }
   if (adjustment > 0) {
     return `Based on ${usedRealBiometrics}, you're set at a ${magnitude}-calorie daily surplus above maintenance — enough fuel to build muscle without excess fat gain.`;
+  }
+  if (goal === 'military-prep') {
+    return `Based on ${usedRealBiometrics}, you're set right at maintenance — selection prep is about work capacity, not the scale, so you fuel the running and rucking fully and let the training do the shaping.`;
   }
   return `Based on ${usedRealBiometrics}, you're set right at maintenance — the goal here is recomposition, not a scale change, so calories stay steady while training does the work.`;
 }

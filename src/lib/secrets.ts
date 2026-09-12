@@ -43,17 +43,47 @@ function docRef(db: FirebaseFirestore.Firestore) {
   return db.collection('system').doc('secrets');
 }
 
+/**
+ * Process-local cache of the decrypted secrets document.
+ *
+ * getSecret() used to read system/secrets from Firestore and run AES-GCM on
+ * EVERY call — and every Stripe, OpenAI, Resend and R2 operation calls it,
+ * some several times per request. That is an extra Firestore round-trip on
+ * every money and AI path for a value that changes only when an admin edits
+ * it. The doc is fetched once and reused for a minute; setSecret() clears it
+ * so an admin's own change is visible to this worker immediately (the other
+ * pm2 worker catches up within the TTL). The in-flight promise is cached
+ * too, so a burst of concurrent calls shares one read.
+ */
+const SECRETS_TTL_MS = 60_000;
+let secretsCache: { at: number; promise: Promise<Record<string, EncryptedPayload> | null> } | null = null;
+
+async function loadSecretsDoc(): Promise<Record<string, EncryptedPayload> | null> {
+  const db = getDb();
+  if (!db) return null;
+  if (secretsCache && Date.now() - secretsCache.at < SECRETS_TTL_MS) return secretsCache.promise;
+  const promise = docRef(db).get().then((snap) => (snap.data() ?? {}) as Record<string, EncryptedPayload>);
+  // Never cache a failed read — one blip must not blind every secret lookup
+  // for a full minute.
+  promise.catch(() => { secretsCache = null; });
+  secretsCache = { at: Date.now(), promise };
+  return promise;
+}
+
+export function clearSecretsCache() {
+  secretsCache = null;
+}
+
 /** Resolve a secret's live value: Firestore override first, then env var. Returns '' if neither set. */
 export async function getSecret(key: SecretKey): Promise<string> {
-  const db = getDb();
-  if (db) {
-    try {
-      const snap = await docRef(db).get();
-      const stored = snap.data()?.[key] as EncryptedPayload | undefined;
-      if (stored?.ciphertext) return decryptSecret(stored);
-    } catch (err) {
-      console.error(`[secrets] Failed to decrypt ${key}:`, err);
-    }
+  try {
+    const stored = (await loadSecretsDoc())?.[key];
+    if (stored?.ciphertext) return decryptSecret(stored);
+  } catch (err) {
+    // Decrypt failures are configuration drift (ENCRYPTION_KEY changed or a
+    // corrupted payload) — say so loudly rather than quietly serving a stale
+    // env value as if nothing were wrong.
+    console.error(`[secrets] Failed to read/decrypt ${key} — falling back to process.env. Check ENCRYPTION_KEY:`, err);
   }
   return process.env[key] ?? '';
 }
@@ -63,10 +93,12 @@ export async function setSecret(key: SecretKey, plaintext: string): Promise<void
   if (!db) throw new Error('Firestore admin not configured');
   if (!plaintext) {
     await docRef(db).set({ [key]: FieldValue.delete() }, { merge: true });
+    clearSecretsCache();
     return;
   }
   const payload = encryptSecret(plaintext);
   await docRef(db).set({ [key]: payload }, { merge: true });
+  clearSecretsCache();
 }
 
 export interface SecretStatus {

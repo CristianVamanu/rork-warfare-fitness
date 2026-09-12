@@ -26,6 +26,7 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   coaching_rejected: XCircle,
   pr_approved: BadgeCheck,
   pr_rejected: XCircle,
+  message: MessageSquare,
 };
 
 const TYPE_COLOR: Record<string, string> = {
@@ -38,6 +39,7 @@ const TYPE_COLOR: Record<string, string> = {
   coaching_rejected: 'text-danger bg-danger/10',
   pr_approved: 'text-accent bg-accent-muted',
   pr_rejected: 'text-danger bg-danger/10',
+  message: 'text-blue-400 bg-blue-400/10',
 };
 
 function timeAgo(ts: unknown): string {
@@ -146,7 +148,7 @@ export default function NotificationsPage() {
           <div className="flex flex-col items-center justify-center py-20">
             <BellOff className="w-12 h-12 text-text-tertiary mb-4" />
             <p className="text-white font-bold">No notifications yet</p>
-            <p className="text-text-secondary text-sm mt-1">Your coach's updates will appear here.</p>
+            <p className="text-text-secondary text-sm mt-1">Updates will appear here.</p>
           </div>
         ) : visibleNotifs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">

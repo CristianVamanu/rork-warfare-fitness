@@ -8,12 +8,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
+import { BrandSplash } from '@/components/ui/BrandSplash';
 import {
   CheckCircle, Settings, User, Key, CreditCard, Rocket,
   ChevronRight, ChevronLeft, Wifi, Database, Shield
 } from 'lucide-react';
-import { createAdminUser } from '@/lib/auth';
-import { setSystemConfig, markInstalled, getInstallerStatus } from '@/lib/firestore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -68,13 +67,16 @@ export default function InstallPage() {
   const [stripeData, setStripeData] = useState<StripeData>({});
 
   useEffect(() => {
-    getInstallerStatus().then((status) => {
-      if (status?.installed) {
-        router.replace('/login');
-      } else {
-        setCheckingInstall(false);
-      }
-    }).catch(() => setCheckingInstall(false));
+    // Asks the SERVER, not Firestore directly. The server also treats "an
+    // admin already exists" as installed, so a missing marker doc can no
+    // longer reopen the wizard, and it fails closed if it can't tell.
+    fetch('/api/install')
+      .then((r) => r.json())
+      .then((status: { installed?: boolean }) => {
+        if (status?.installed) router.replace('/login');
+        else setCheckingInstall(false);
+      })
+      .catch(() => router.replace('/login'));
   }, [router]);
 
   const configForm = useForm<ConfigData>({ resolver: zodResolver(configSchema), defaultValues: { appName: 'Warfare Fitness', trainerName: '', themeColor: '#F5A623' } });
@@ -89,23 +91,28 @@ export default function InstallPage() {
       // Sign out any existing user first
       await signOut().catch(() => {});
 
-      // Create admin user + tenant record (trainerId = admin uid)
-      const adminUser = await createAdminUser(adminData.email, adminData.password, adminData.name);
-
-      // Save system config — secrets (OPENAI_API_KEY, STRIPE_SECRET_KEY) are
-      // intentionally NOT stored here; they must be set as env vars.
-      // trainerId is stored so new client sign-ups are linked to this trainer.
-      await setSystemConfig({
-        appName: config.appName,
-        trainerName: config.trainerName,
-        themeColor: config.themeColor,
-        openaiModel: openaiData.openaiModel,
-        stripePublishableKey: stripeData.stripePublishableKey || '',
-        trainerId: adminUser.uid,
+      // Everything privileged now happens server-side in /api/install with
+      // the Admin SDK. The client no longer creates the admin account or
+      // writes system config, so firestore.rules needs no setup-time
+      // exemption — see that route and the deleted installerNotDone().
+      const res = await fetch('/api/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: adminData.email,
+          password: adminData.password,
+          name: adminData.name,
+          config: {
+            appName: config.appName,
+            trainerName: config.trainerName,
+            themeColor: config.themeColor,
+            openaiModel: openaiData.openaiModel,
+            stripePublishableKey: stripeData.stripePublishableKey || '',
+          },
+        }),
       });
-
-      // Mark as installed
-      await markInstalled();
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.error || 'Installation failed');
 
       toast.success('Warfare Fitness installed successfully!');
       setTimeout(() => router.replace('/login'), 1500);
@@ -126,18 +133,11 @@ export default function InstallPage() {
     }
   };
 
-  if (checkingInstall) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-2xl bg-accent mx-auto mb-4 flex items-center justify-center">
-            <span className="text-2xl font-black text-black">W</span>
-          </div>
-          <p className="text-text-secondary text-sm">Checking installation...</p>
-        </div>
-      </div>
-    );
-  }
+  // Almost always a sub-second redirect to /login on an installed site, so
+  // this is a brand hold rather than a status readout — "Checking
+  // installation…" told the visitor about our plumbing for a moment and then
+  // vanished.
+  if (checkingInstall) return <BrandSplash label="Loading" />;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">

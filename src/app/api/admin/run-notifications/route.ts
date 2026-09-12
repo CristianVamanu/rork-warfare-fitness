@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
     const res = await fetch(`${baseUrl}/api/notifications/process?force=1`, {
       method: 'POST',
       headers,
+      // A full forced run walks every user; give it room, but not forever.
+      signal: AbortSignal.timeout(10 * 60_000),
     });
 
     const text = await res.text();

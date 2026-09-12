@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail, trainerLeadEmailHtml } from '@/lib/email';
+import { rateLimit, clientIp } from '@/lib/rateLimit';
 
 // Notifies the business owner of a new /trainers demo request. Deliberately
 // unauthenticated — the visitor submitting this form hasn't signed up or
@@ -19,31 +20,40 @@ import { sendEmail, trainerLeadEmailHtml } from '@/lib/email';
 // shape/size validation as a second layer.
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_PER_WINDOW = 3;
-const requestLog = new Map<string, number[]>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const timestamps = (requestLog.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
-  timestamps.push(now);
-  requestLog.set(ip, timestamps);
-  // Prevent unbounded growth of the map across many distinct IPs over time.
-  if (requestLog.size > 5000) requestLog.clear();
-  return timestamps.length > MAX_PER_WINDOW;
-}
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
-    if (isRateLimited(ip)) {
-      return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429 });
+    const ip = clientIp(req);
+    const limited = await rateLimit({ scope: 'trainer-lead', key: ip, windowMs: WINDOW_MS, max: MAX_PER_WINDOW });
+    if (!limited.allowed) {
+      return NextResponse.json({ ok: false, reason: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
     }
+
 
     const body = await req.json() as {
       name?: string; email?: string; businessName?: string; phone?: string; clientCount?: string; message?: string;
+      turnstileToken?: string;
     };
     if (!body.name || !body.email || !/^\S+@\S+\.\S+$/.test(body.email)) {
       return NextResponse.json({ ok: false, reason: 'Invalid lead payload' }, { status: 400 });
     }
+
+    // Turnstile verification REMOVED — deliberately, do not re-add without
+    // building the widget first.
+    //
+    // The server expected a `turnstileToken` in this body and no client ever
+    // sent one, because the widget was never built. So the check passed only
+    // because TURNSTILE_SECRET_KEY is unset: setting that key — the one
+    // action that looks like 'turning on bot protection' — would have made
+    // this 403 every genuine submission on the form, with no obvious cause.
+    // A security control that provides nothing until configured and breaks
+    // the page the moment it is configured is worse than none.
+    //
+    // Re-enabling it is a real piece of work, not a config flag: a client
+    // widget, the Cloudflare script under a CSP that uses strict-dynamic (so
+    // it must be nonced, not host-allowlisted), and frame-src for the
+    // challenge iframe. The IP rate limit above is the actual protection
+    // this form has today.
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
     const sent = await sendEmail({

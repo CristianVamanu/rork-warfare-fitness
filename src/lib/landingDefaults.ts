@@ -1,16 +1,19 @@
 import type { LandingPageConfig, B2BLandingConfig } from '@/types';
 
-// Fallback bullet list for the standard membership pricing card (landing
-// page + profile), used only until an admin sets MembershipConfig.features.
-export const DEFAULT_MEMBERSHIP_FEATURES = [
-  'Full access to all training programs',
-  'AI food analyzer & barcode scanner',
-  'Community & leaderboard access',
-  'Direct messaging with your coach',
-];
+// DEFAULT_MEMBERSHIP_FEATURES was removed rather than reworded. It was a
+// hardcoded bullet list for the membership pricing card, and every line in
+// it had stopped being true: "Full access to all training programs" and
+// "AI food analyzer & barcode scanner" describe the top tier, not the entry
+// one, and "Direct messaging with your coach" describes 1:1 coaching, which
+// is a separate application-gated tier. Nothing imported it, so it rendered
+// nowhere — but it sat in the one file a future pricing card would reach
+// for, ready to promise all of that to an entry-plan buyer. The pricing
+// cards read each plan's own `features` from Firestore (set per plan in
+// Admin → Membership), which is the only list that can stay in step with
+// what a plan actually unlocks.
 
 export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
-  badgeText: 'AI-matched. Built to adapt. Actually consistent.',
+  badgeText: 'Matched to you. Built to adapt. Actually consistent.',
   headlineLine1: 'Stop training like everyone else.',
   headlineLine2: 'Train like the elite do.',
   // Rewritten to stop implying every plan includes a human coach — 1:1
@@ -25,21 +28,29 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   ctaSecondaryLabel: 'Sign In',
   features: [
     { title: 'A Program That Actually Adapts', desc: 'Matched to your goal, experience, and equipment from day one — then it adjusts your next set based on what you actually lifted last time, not a generic script.' },
-    { title: 'AI Food Analyzer', desc: 'Snap a photo of your meal and get instant calories, macros, and feedback — no manual logging, no guesswork.' },
-    { title: 'Scan-a-Barcode Health Scores', desc: 'Point your camera at any product for an instant Nutri-Score, processing level, and additive breakdown — Yuka-style, built in.' },
+    { title: 'Instant Food Analyzer', desc: 'Snap a photo of your meal and get instant calories, macros, and feedback — no manual logging, no guesswork.' },
+    // tierNote: barcode scanning is not included in the entry plan, so the
+    // card says so where it is sold rather than after someone has paid.
+    { title: 'Scan-a-Barcode Health Scores', desc: 'Point your camera at any product for an instant Nutri-Score, processing level, and additive breakdown — Yuka-style, built in.', tierNote: 'Vanguard' },
     { title: 'Train Like An Elite Unit', desc: 'Ten programs built around real elite-unit training styles — SAS, Rangers, SEALs, and more — matched to your own goals and experience.' },
     { title: 'Fasting Timer', desc: 'Track intermittent fasts with a live stage-by-stage breakdown, from fed state to fat burning to autophagy.' },
     { title: 'Break Bad Habits', desc: 'Track any habit you\'re quitting with a running streak counter and daily motivation to keep you accountable.' },
-    { title: 'Streaks, XP & Leaderboard', desc: 'Every workout earns XP and power level. Climb the leaderboard and keep your streak alive.' },
+    { title: 'Streaks, XP & Levels', desc: 'Every workout earns XP and power level. Keep your streak alive and watch your level climb.' },
+    { title: 'Scan & Go', desc: 'Photograph any gym — a hotel, a friend\'s garage, wherever — and get a workout built around exactly the equipment you can see. No commitment beyond today.' },
     { title: 'A Real Community', desc: 'Train alongside people on the same journey — share wins, ask questions, stay motivated together.' },
   ],
   socialProof: ['Matched to you, not a template.', 'Adapts as you get stronger.', 'Built to keep you consistent.'],
   quoteText: 'Motivation gets you started. A program that adapts to you keeps you going.',
   quoteAuthor: 'The Warfare Fitness difference',
   finalCtaHeadline: 'Ready to stop guessing and start training?',
-  finalCtaSubtext: 'Take the 2-minute quiz, get matched instantly, and try it free for 7 days.',
-  showPublicLeaderboard: true,
+  // {trialDays} is substituted from the live membership config at render
+  // time (see fillPlaceholders in LandingClient) — this used to hardcode
+  // "free for 7 days", which silently lied the moment an admin changed the
+  // trial length or switched to a paid trial.
+  finalCtaSubtext: 'Take the 2-minute quiz and get matched instantly — then try it for {trialDays} days.',
+  programsToShow: 0,
   testimonials: [],
+  transformationPhotos: [],
 };
 
 // Recommended starting price points for the white-label/B2B offer — a
@@ -66,7 +77,7 @@ export const DEFAULT_B2B_LANDING_CONFIG: B2BLandingConfig = {
     { title: 'Launch Under Your Own Name', desc: 'Your logo, your colors, your app name, your domain. Clients never see anything but your brand — because it is your brand.' },
     { title: 'An AI Coach Built In', desc: 'New clients get quizzed and instantly matched to a program and nutrition targets — like having a coach on staff 24/7, without you lifting a finger.' },
     { title: 'A Community That Keeps Clients Paying', desc: 'Channels, a PR wall, direct messaging — clients stick around for each other, not just for you. That\'s the difference between a 2-month client and a 2-year client.' },
-    { title: 'Retention Baked In, Not Bolted On', desc: 'Streaks, XP, levels, achievements, a leaderboard — the exact mechanics that make people open an app every single day, already built and tuned.' },
+    { title: 'Retention Baked In, Not Bolted On', desc: 'Streaks, XP, levels, achievements — the exact mechanics that make people open an app every single day, already built and tuned.' },
     { title: 'Your Own Command Center', desc: 'One dashboard to manage every client, review PR submissions and PT tests, message clients directly, and edit every program — no spreadsheets, no juggling five different tools.' },
     { title: 'We Do The Heavy Lifting', desc: 'Domain setup, branding, your first programs — all configured and handed to you ready to sell. You focus on clients, not deployment.' },
   ],
