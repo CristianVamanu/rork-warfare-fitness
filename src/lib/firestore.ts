@@ -2691,6 +2691,11 @@ export async function createPtTestResult(data: Omit<PtTestResult, 'id' | 'create
   return ref.id;
 }
 
+/** Removes one of the member's own PT results. Owner or admin, per the rules. */
+export async function deletePtTestResult(resultId: string): Promise<void> {
+  await deleteDoc(doc(db, 'ptTestResults', resultId));
+}
+
 export async function getPtTestResults(userId: string): Promise<PtTestResult[]> {
   const snap = await getDocs(query(collection(db, 'ptTestResults'), where('userId', '==', userId), limit(50)));
   const results = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as PtTestResult);

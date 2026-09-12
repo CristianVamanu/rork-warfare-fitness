@@ -566,12 +566,19 @@ function NutritionPageInner() {
           ] as Array<{ key: keyof UserGoals; label: string; unit: string; min: number; max: number }>).map(({ key, label, unit, min, max }) => (
             <div key={key}>
               <label className="text-xs text-text-secondary block mb-1.5">{label} ({unit})</label>
+              {/* A cleared field renders empty, not "0". As a controlled
+                  number it snapped back to 0 the moment the box was emptied,
+                  so typing 3000 produced 03000 — the zero could never be
+                  deleted. Zero is treated as "nothing entered" and saveGoals
+                  already clamps to the min. */}
               <input
                 type="number"
+                inputMode="numeric"
                 min={min}
                 max={max}
-                value={editGoals[key]}
-                onChange={(e) => setEditGoals((g) => ({ ...g, [key]: parseInt(e.target.value) || 0 }))}
+                value={editGoals[key] === 0 ? '' : editGoals[key]}
+                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => setEditGoals((g) => ({ ...g, [key]: e.target.value === '' ? 0 : (parseInt(e.target.value, 10) || 0) }))}
                 className="w-full bg-surface-elevated text-white px-3 py-2.5 rounded-xl border border-white/10 focus:outline-none focus:border-accent text-sm"
               />
             </div>

@@ -3,15 +3,17 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Home, Dumbbell, Apple, Users, User } from 'lucide-react';
+import { LayoutGrid, Activity, Leaf, MessagesSquare, CircleUserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// One icon family, thin strokes, no literal objects (a house, a dumbbell,
+// an apple read as clip-art). Active state fills the glyph.
 const navItems = [
-  { href: '/dashboard', icon: Home, label: 'Home' },
-  { href: '/training', icon: Dumbbell, label: 'Training' },
-  { href: '/nutrition', icon: Apple, label: 'Nutrition' },
-  { href: '/community', icon: Users, label: 'Community' },
-  { href: '/profile', icon: User, label: 'Profile' },
+  { href: '/dashboard', icon: LayoutGrid, label: 'Home' },
+  { href: '/training', icon: Activity, label: 'Training' },
+  { href: '/nutrition', icon: Leaf, label: 'Nutrition' },
+  { href: '/community', icon: MessagesSquare, label: 'Community' },
+  { href: '/profile', icon: CircleUserRound, label: 'Profile' },
 ];
 
 export function BottomNav() {
@@ -44,16 +46,19 @@ export function BottomNav() {
                 className="relative"
               >
                 <Icon
+                  strokeWidth={active ? 2.25 : 1.75}
                   className={cn(
-                    'w-5 h-5 transition-colors',
-                    active ? 'text-accent' : 'text-foreground'
+                    'w-[22px] h-[22px] transition-colors',
+                    active ? 'text-accent' : 'text-foreground/80'
                   )}
+                  style={active ? { fill: 'rgba(var(--accent-rgb) / 0.18)' } : undefined}
                 />
+                {active && <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent" aria-hidden />}
               </motion.div>
               <span
                 className={cn(
-                  'text-[10px] font-medium transition-colors',
-                  active ? 'text-accent' : 'text-foreground'
+                  'text-[10px] font-semibold transition-colors',
+                  active ? 'text-accent' : 'text-foreground/80'
                 )}
               >
                 {label}
