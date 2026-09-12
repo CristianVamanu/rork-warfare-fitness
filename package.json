@@ -10,7 +10,7 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:rules": "npx --yes firebase-tools@13 emulators:exec --only firestore --project demo-warfare 'vitest run --config vitest.rules.config.ts'",
+    "test:rules": "npx --yes firebase-tools@13 emulators:exec --only auth,firestore --project demo-warfare 'vitest run --config vitest.rules.config.ts'",
     "test:all": "npm run test && npm run test:rules"
   },
   "dependencies": {
