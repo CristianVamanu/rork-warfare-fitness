@@ -31,10 +31,11 @@ export function FeedMedia({
   kind = 'image',
   alt = '',
   compact = false,
-  className = '',
-}: {
+  className = '', poster,}: {
   url: string;
   kind?: 'image' | 'video';
+  /** Still frame shown before playback starts. */
+  poster?: string;
   alt?: string;
   /** Pinned posts and previews, where the media is context rather than content. */
   compact?: boolean;
@@ -62,6 +63,7 @@ export function FeedMedia({
       <div className={frame} style={frameStyle}>
         <video
           src={url}
+          poster={poster}
           controls
           playsInline
           onLoadedMetadata={(e) => {

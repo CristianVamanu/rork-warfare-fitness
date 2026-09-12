@@ -490,6 +490,9 @@ export interface ChannelPost {
   imageURL?: string;
   /** Absent on every post written before clips existed: treat as an image. */
   mediaType?: 'image' | 'video';
+  /** Still frame for a clip, captured in the browser at upload time so the
+   *  feed shows the video instead of a black rectangle before playback. */
+  posterURL?: string;
   /** Set when a reply has been edited by its author — shown as a small
    *  "edited" marker so a rewritten reply is never passed off as original. */
   editedAt?: unknown;

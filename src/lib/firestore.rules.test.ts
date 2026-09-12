@@ -553,6 +553,21 @@ describe('channel replies — editable and deletable', () => {
     await setDoc(doc(db, 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), { userId: ALICE, content: 'hi', userIsAdmin: false });
   });
 
+  it('refuses a channel post whose poster frame is not an https URL', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'channels', 'c1'), { name: 'General', allowUserPosts: true });
+    });
+    const db = asAlice();
+    await assertFails(setDoc(doc(db, 'channels', 'c1', 'posts', 'bad'), {
+      userId: ALICE, content: 'clip', imageURL: 'https://cdn.example.com/a.mp4',
+      mediaType: 'video', posterURL: 'javascript:alert(1)',
+    }));
+    await assertSucceeds(setDoc(doc(db, 'channels', 'c1', 'posts', 'good'), {
+      userId: ALICE, content: 'clip', imageURL: 'https://cdn.example.com/a.mp4',
+      mediaType: 'video', posterURL: 'https://cdn.example.com/a.jpg',
+    }));
+  });
+
   it('the author can fix their own reply', async () => {
     await seedThread();
     await assertSucceeds(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), {

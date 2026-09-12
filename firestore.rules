@@ -66,7 +66,11 @@ service cloud.firestore {
     // Community text is bounded; media, if present, must be a real URL.
     function postBodySane(d) {
       return d.content is string && d.content.size() <= 5000
-        && (!('imageURL' in d) || httpsUrl(d.imageURL));
+        && (!('imageURL' in d) || httpsUrl(d.imageURL))
+        // The poster frame for a clip is rendered straight into an <img>, so
+        // it carries exactly the risk imageURL does: an arbitrary third-party
+        // URL logs the IP of everyone who scrolls past it.
+        && (!('posterURL' in d) || httpsUrl(d.posterURL));
     }
     // PR posts: same, for mediaUrl/mediaType.
     function mediaSane(d) {
