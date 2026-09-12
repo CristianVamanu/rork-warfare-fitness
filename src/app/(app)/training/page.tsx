@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { Moon, Dumbbell, Play, Clock, Target, ChevronRight, Crown, CheckCircle2, RotateCcw, Lock } from 'lucide-react';
+import { Moon, Dumbbell, Play, ChevronRight, Crown, CheckCircle2, RotateCcw, Lock, Flame, Mountain, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, resolveProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
@@ -16,22 +16,8 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { ProgressBar } from '@/components/ui/ProgressBar';
+import { Ring } from '@/components/dashboard/Ring';
 import type { Program } from '@/types';
-
-const goalColors: Record<string, string> = {
-  strength: 'accent',
-  hypertrophy: 'info',
-  endurance: 'success',
-  'weight-loss': 'danger',
-  general: 'muted',
-};
-
-const levelColors: Record<string, string> = {
-  beginner: 'success',
-  intermediate: 'accent',
-  advanced: 'danger',
-};
 
 export default function TrainingPage() {
   const { user, profile } = useAuth();
@@ -195,53 +181,100 @@ export default function TrainingPage() {
   // much shorter list, and the button vanishes for no visible reason.
   useEffect(() => { setVisibleCount(PROGRAMS_PAGE); }, [filter]);
 
+  const GOAL_ICON: Record<string, React.ElementType> = {
+    strength: Dumbbell, hypertrophy: Flame, endurance: Mountain, 'weight-loss': Flame, general: Activity,
+  };
+  const GOAL_LABEL: Record<string, string> = {
+    strength: 'Strength', hypertrophy: 'Muscle', endurance: 'Selection', 'weight-loss': 'Fat loss', general: 'General',
+  };
+  const levelTone: Record<string, 'ok' | 'accent' | 'danger'> = { beginner: 'ok', intermediate: 'accent', advanced: 'danger' };
+
+  // One card for every program in either list — same anatomy for built-in,
+  // admin-published and self-built programs, so the list reads as one set.
+  const ProgramRow = ({ prog, isActive, saved, locked, index }: {
+    prog: Program; isActive: boolean; saved?: { completedWorkouts: number }; locked?: boolean; index: number;
+  }) => {
+    const GoalIcon = GOAL_ICON[prog.goal] ?? Dumbbell;
+    const gender = (prog as { targetGender?: string }).targetGender;
+    const premium = (prog as { isPremium?: boolean }).isPremium;
+    return (
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index, 6) * 0.04 }}>
+        <Link href={`/training/${prog.id}`} className="block">
+          <Card glass className={`p-4 flex gap-3.5 card-float ${isActive ? 'border-accent/40 shadow-glow-sm' : ''}`}>
+            <span
+              className="w-12 h-12 rounded-2xl flex items-center justify-center text-accent flex-shrink-0 border border-accent/25"
+              style={{ background: 'linear-gradient(135deg, rgba(var(--accent-rgb) / 0.32), rgba(var(--accent-rgb) / 0.06))' }}
+            >
+              <GoalIcon className="w-6 h-6" strokeWidth={2} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">
+                    {GOAL_LABEL[prog.goal] ?? prog.goal}{gender && gender !== 'anyone' ? ` · ${gender}` : ''}
+                  </p>
+                  <h3 className="text-[15px] font-extrabold text-white leading-tight mt-0.5 truncate">{prog.name}</h3>
+                </div>
+                <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0 mt-1" />
+              </div>
+              <p className="text-xs text-text-secondary mt-1.5 line-clamp-2 leading-relaxed">{prog.description}</p>
+              <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">{prog.weeks} wk</span>
+                <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">{prog.daysPerWeek} d/wk</span>
+                <Badge variant={levelTone[prog.level] === 'ok' ? 'success' : levelTone[prog.level] === 'danger' ? 'danger' : 'accent'}>{prog.level}</Badge>
+                {isActive && <Badge variant="success">Active</Badge>}
+                {!isActive && saved && <Badge variant="muted">Continue · {saved.completedWorkouts} done</Badge>}
+                {locked
+                  ? <Badge variant="accent"><Lock className="w-3 h-3 inline mr-0.5" />Upgrade to unlock</Badge>
+                  : premium && !isActive && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
+              </div>
+            </div>
+          </Card>
+        </Link>
+      </motion.div>
+    );
+  };
+
   return (
-    <div>
+    <div className="relative">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[320px]"
+        style={{ background: 'radial-gradient(90% 55% at 50% -8%, rgba(var(--accent-rgb) / 0.26), rgba(var(--accent-rgb) / 0) 70%)' }}
+      />
+      <div className="relative">
       <Header title="Training" />
-      <div className="px-4 py-4 space-y-5">
-        {/* Active Program Hero */}
+      <div className="px-4 py-4 space-y-4">
+        {/* Active program */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-          <h2 className="text-sm font-medium text-text-secondary mb-2">ACTIVE PROGRAM</h2>
           {activeProgram && activeResolved && !resolvedActive ? (
-            <Card className="p-5">
-              <p className="text-text-secondary text-sm mb-2">Program no longer available</p>
-              <h3 className="text-lg font-bold text-white">This program has been removed</h3>
-              <p className="text-text-secondary text-sm mt-1 mb-3">
-                Your progress is safe. Pick another program below to carry on.
-              </p>
+            <Card glass className="p-5">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">Active program</p>
+              <h3 className="text-lg font-extrabold text-white mt-1">This program has been removed</h3>
+              <p className="text-text-secondary text-sm mt-1">Your progress is safe. Pick another program below to carry on.</p>
             </Card>
           ) : activeProgram ? (
-            <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-surface to-surface-elevated">
-              <div className="absolute right-0 bottom-0 opacity-5 pointer-events-none">
-                <Dumbbell className="w-32 h-32 text-accent" />
-              </div>
-              <Badge variant="accent" className="mb-3">
-                {programFinished ? '🎉 Program complete' : `${activeProgram.completedWorkouts}/${activeProgram.totalWorkouts} sessions`}
-              </Badge>
-              <h3 className="text-xl font-black text-white">{activeProgram.programName}</h3>
-              {todayDay && (
-                <p className="text-text-secondary text-sm mt-1">
-                  {isRestToday ? 'Rest day — recover, or skip it below' : `Next: ${stripWeekdayPrefix(todayDay.label)}`}
-                </p>
-              )}
-              <div className="mt-4 space-y-2">
-                <div className="flex justify-between text-xs text-text-secondary">
-                  <span>Progress</span>
-                  <span>{pct}%</span>
+            <Card glass className="p-5 border-accent/30 shadow-glow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-accent">Active program</p>
+                  <h3 className="text-[22px] font-black text-white leading-tight mt-1 truncate">{activeProgram.programName}</h3>
+                  {todayDay && (
+                    <p className="text-text-secondary text-sm mt-1">
+                      {isRestToday ? 'Rest day — recover, or skip it below' : `Next: ${stripWeekdayPrefix(todayDay.label)}`}
+                    </p>
+                  )}
                 </div>
-                <ProgressBar value={activeProgram.completedWorkouts} max={activeProgram.totalWorkouts} color="accent" size="sm" />
+                <Ring value={activeProgram.totalWorkouts > 0 ? activeProgram.completedWorkouts / activeProgram.totalWorkouts : 0} size={64} stroke={6}>
+                  <span className="text-[15px] font-black text-white tabular-nums">{pct}<span className="text-[10px] font-bold text-text-secondary">%</span></span>
+                </Ring>
               </div>
-              {/* Non-blocking acknowledgment — training more than once a day
-                  is allowed, so the "Start next workout" CTA below always
-                  shows alongside this, not instead of it. */}
-              {workedOutToday && (
-                <div className="mt-4 p-3 bg-success/10 border border-success/30 rounded-xl flex items-center gap-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-white">Day {Math.max(1, completedWorkouts)} complete</p>
-                  </div>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+                <Badge variant="accent">{programFinished ? '🎉 Program complete' : `${activeProgram.completedWorkouts} of ${activeProgram.totalWorkouts} sessions`}</Badge>
+                {workedOutToday && (
+                  <Badge variant="success"><CheckCircle2 className="w-3 h-3 inline mr-0.5" />Day {Math.max(1, completedWorkouts)} done today</Badge>
+                )}
+              </div>
               <div className="mt-4 space-y-2">
                 {todayDay && (isRestToday ? (
                   <Button fullWidth variant="secondary" loading={skippingRest} onClick={handleSkipRest}>
@@ -249,7 +282,7 @@ export default function TrainingPage() {
                   </Button>
                 ) : (
                   <Button fullWidth onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                    <Play className="w-4 h-4" /> Start Next Workout
+                    <Play className="w-4 h-4" /> {workedOutToday ? 'Start another session' : 'Start session'}
                   </Button>
                 ))}
                 <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -259,179 +292,77 @@ export default function TrainingPage() {
                     </Button>
                   )}
                   <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
-                    View Program
+                    View program
                   </Button>
                 </div>
               </div>
             </Card>
           ) : (
-            <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-surface to-surface-elevated">
-              <div className="absolute right-0 bottom-0 opacity-5 pointer-events-none">
-                <Dumbbell className="w-32 h-32 text-accent" />
-              </div>
-              <p className="text-text-secondary text-sm mb-2">No active program</p>
-              <h3 className="text-lg font-bold text-white">Choose a program below</h3>
-              <p className="text-text-secondary text-sm mt-1">Select a program to track your progress</p>
+            <Card glass className="p-5">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">No active program</p>
+              <h3 className="text-lg font-extrabold text-white mt-1">Pick your fight.</h3>
+              <p className="text-text-secondary text-sm mt-1">Choose a program below and your first session is written before you get to the gym.</p>
             </Card>
           )}
         </motion.div>
 
-        {/* My Built Programs — personal programs, kept visible even after
-            switching to a different one, so nothing built here is ever
-            actually lost, just not currently active. */}
+        {/* My Built Programs */}
         {customPrograms.length > 0 && (
           <div>
-            <h2 className="text-base font-bold text-white mb-3">My Built Programs</h2>
-            <div className="space-y-3">
-              {customPrograms.map((prog, i) => {
-                const isActive = activeProgram?.programId === prog.id;
-                return (
-                  <motion.div
-                    key={prog.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    // Capped, and per-card rather than per-list. Uncapped, the
-                    // 19th program animated in 0.9s after the first: the data
-                    // had long arrived and the screen still visibly filled in
-                    // for a second, which reads as a slow load rather than as
-                    // an effect. Six cards of stagger keeps the entrance and
-                    // loses the wait.
-                    transition={{ delay: Math.min(i, 6) * 0.04 }}
-                  >
-                    <Link href={`/training/${prog.id}`}>
-                      <Card className={`p-4 hover:border-accent/30 transition-colors ${isActive ? 'border-accent/40' : ''}`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex gap-2 mb-2 flex-wrap">
-                              <Badge variant={(goalColors[prog.goal] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
-                                {prog.goal}
-                              </Badge>
-                              <Badge variant={(levelColors[prog.level] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
-                                {prog.level}
-                              </Badge>
-                              {isActive && <Badge variant="success">Active</Badge>}
-                              {!isActive && savedProgressMap[prog.id] && (
-                                <Badge variant="muted">Continue — {savedProgressMap[prog.id].completedWorkouts} done</Badge>
-                              )}
-                            </div>
-                            <h3 className="font-bold text-white">{prog.name}</h3>
-                            <p className="text-xs text-text-secondary mt-1 line-clamp-2">{prog.description}</p>
-                            <div className="flex items-center gap-4 mt-2">
-                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                                <Clock className="w-3 h-3" />{prog.weeks}w
-                              </span>
-                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                                <Target className="w-3 h-3" />{prog.daysPerWeek}d/week
-                              </span>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-text-tertiary mt-1 flex-shrink-0" />
-                        </div>
-                      </Card>
-                    </Link>
-                  </motion.div>
-                );
-              })}
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary px-0.5 mb-2">My built programs</p>
+            <div className="space-y-2.5">
+              {customPrograms.map((prog, i) => (
+                <ProgramRow key={prog.id} prog={prog} index={i} isActive={activeProgram?.programId === prog.id} saved={savedProgressMap[prog.id]} />
+              ))}
             </div>
           </div>
         )}
 
         {/* Filters */}
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
-          {['all', 'strength', 'hypertrophy', 'weight-loss', 'beginner', 'intermediate', 'advanced'].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                filter === f
-                  ? 'bg-accent text-black'
-                  : 'bg-surface-elevated border border-white/10 text-text-secondary'
-              }`}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1).replace('-', ' ')}
-            </button>
-          ))}
+        <div className="-mx-4 px-4 overflow-x-auto">
+          <div className="inline-flex gap-0.5 p-[3px] rounded-full bg-surface border border-white/8 w-max">
+            {['all', 'strength', 'hypertrophy', 'weight-loss', 'beginner', 'intermediate', 'advanced'].map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                  filter === f ? 'bg-white text-black' : 'text-text-secondary hover:text-white'
+                }`}
+              >
+                {f === 'all' ? 'All' : f === 'weight-loss' ? 'Fat loss' : f === 'hypertrophy' ? 'Muscle' : f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Programs Grid */}
+        {/* Programs */}
         <div>
-          <h2 className="text-base font-bold text-white mb-3">Browse Programs</h2>
+          <div className="flex items-center justify-between px-0.5 mb-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">Programs</p>
+            {!loading && <p className="text-[11px] text-text-tertiary tabular-nums">{filtered.length} available</p>}
+          </div>
           {loading ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {visible.map((prog, i) => {
                 const isActive = activeProgram?.programId === prog.id;
                 // Locked programs stay in the list, badged, with their real
                 // description — hiding them hides the reason to upgrade.
-                // Wanting something you can see is what converts; an empty
-                // list just looks like a small catalogue.
                 const isLockedByPlan = programsLockedByPlan && !isActive;
-                return (
-                  <motion.div
-                    key={prog.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                    <Link href={`/training/${prog.id}`}>
-                      <Card className={`p-4 hover:border-accent/30 transition-colors ${isActive ? 'border-accent/40' : ''}`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex gap-2 mb-2 flex-wrap">
-                              <Badge variant={(goalColors[prog.goal] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
-                                {prog.goal}
-                              </Badge>
-                              <Badge variant={(levelColors[prog.level] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
-                                {prog.level}
-                              </Badge>
-                              {isActive && <Badge variant="success">Active</Badge>}
-                              {!isActive && savedProgressMap[prog.id] && (
-                                <Badge variant="muted">Continue — {savedProgressMap[prog.id].completedWorkouts} done</Badge>
-                              )}
-                              {/* One badge, not two: to a member on the entry
-                                  plan "Premium" is just a label, while
-                                  "Upgrade to unlock" says what to do about
-                                  it. Everyone else keeps the old badge. */}
-                              {isLockedByPlan
-                                ? <Badge variant="accent"><Lock className="w-3 h-3 inline mr-0.5" />Upgrade to unlock</Badge>
-                                : (prog as { isPremium?: boolean }).isPremium && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
-                              {(prog as { targetGender?: string }).targetGender && (prog as { targetGender?: string }).targetGender !== 'anyone' && (
-                                <Badge variant="muted">{(prog as { targetGender?: string }).targetGender}</Badge>
-                              )}
-                            </div>
-                            <h3 className="font-bold text-white">{prog.name}</h3>
-                            <p className="text-xs text-text-secondary mt-1 line-clamp-2">{prog.description}</p>
-                            <div className="flex items-center gap-4 mt-2">
-                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                                <Clock className="w-3 h-3" />{prog.weeks}w
-                              </span>
-                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                                <Target className="w-3 h-3" />{prog.daysPerWeek}d/week
-                              </span>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-text-tertiary mt-1 flex-shrink-0" />
-                        </div>
-                      </Card>
-                    </Link>
-                  </motion.div>
-                );
+                return <ProgramRow key={prog.id} prog={prog} index={i} isActive={isActive} saved={savedProgressMap[prog.id]} locked={isLockedByPlan} />;
               })}
               {remaining > 0 && (
-                <Button
-                  fullWidth
-                  variant="secondary"
-                  onClick={() => setVisibleCount((n) => n + PROGRAMS_PAGE)}
-                >
+                <Button fullWidth variant="secondary" onClick={() => setVisibleCount((n) => n + PROGRAMS_PAGE)}>
                   Load more ({remaining})
                 </Button>
               )}
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

@@ -3,10 +3,10 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Dumbbell, Timer, TrendingUp, Target, CheckCircle2, XCircle } from 'lucide-react';
+import { Trophy, Dumbbell, Timer, TrendingUp, Target, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { createPtTestResult, getPtTestResults } from '@/lib/firestore';
+import { createPtTestResult, getPtTestResults, deletePtTestResult } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -250,6 +250,20 @@ export default function PtTestPage() {
   // preselect it and to mark it in the list.
   const ownStandard = standardForProgram(profile?.activeProgram?.programName);
   const [history, setHistory] = useState<PtTestResult[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  async function handleDeleteResult(id: string) {
+    if (!confirm('Delete this result? It cannot be restored.')) return;
+    setDeletingId(id);
+    try {
+      await deletePtTestResult(id);
+      setHistory((prev) => prev.filter((r) => r.id !== id));
+      toast.success('Result deleted');
+    } catch {
+      toast.error('Could not delete that result');
+    } finally {
+      setDeletingId(null);
+    }
+  }
   const [loading, setLoading] = useState(true);
   const [standardId, setStandardId] = useState<string>('generic');
   // Opens on the member's own standard rather than the generic test. Runs
@@ -603,7 +617,7 @@ export default function PtTestPage() {
               {history.map((r) => {
                 const std = r.standard && r.standard !== 'generic' ? standardFor(r.standard) : undefined;
                 return (
-                  <Card key={r.id} className="p-3 flex items-center justify-between">
+                  <Card key={r.id} className="p-3 flex items-center justify-between gap-3">
                     {std ? (
                       <div>
                         <p className={`text-sm font-bold ${r.standardPassed ? 'text-green-400' : 'text-white'}`}>
@@ -624,6 +638,14 @@ export default function PtTestPage() {
                         <p className="text-xs text-text-tertiary">{r.pushups} push-ups · {r.situps} sit-ups · {r.runDistanceMiles}mi run</p>
                       </div>
                     )}
+                    <button
+                      onClick={() => handleDeleteResult(r.id)}
+                      disabled={deletingId === r.id}
+                      aria-label="Delete this result"
+                      className="p-2 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors disabled:opacity-50 flex-shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </Card>
                 );
               })}
