@@ -1,9 +1,9 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy } from 'lucide-react';
+import { Edit2, Camera, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -14,6 +14,9 @@ import {
 } from '@/lib/firestore';
 import { startCoachingCheckout, startPlanCheckout, openBillingPortal, confirmAndChangePlan } from '@/lib/checkout';
 import { trackEvent } from '@/lib/analytics';
+import { compressImage } from '@/lib/imageCompress';
+import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
+import { getSystemConfig } from '@/lib/firestore';
 import { isInFreeTrial, freeTrialEndsAt } from '@/lib/membership';
 import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -49,6 +52,35 @@ function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
 
 export default function ProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
+  // Profile photo: resized client-side to 512px, uploaded under the
+  // member's own avatars/ path, then the URL is written to the user doc
+  // that AuthContext streams — so the header and every Avatar update on
+  // their own. The profile page still had no way to set a picture at
+  // all; the only avatars in the app were the ones Google sign-in
+  // happened to provide.
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  async function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (!file.type.startsWith('image/')) { toast.error('Pick a photo'); return; }
+    if (file.size > 20 * 1024 * 1024) { toast.error('Photo must be under 20 MB'); return; }
+    setUploadingPhoto(true);
+    try {
+      const small = await compressImage(file, { maxDimension: 512, quality: 0.85 });
+      const cfg = await getSystemConfig().catch(() => null);
+      const provider = resolveStorageProvider(cfg?.storageProvider);
+      const url = await uploadUserContent(provider, user, small, 'avatars');
+      await updateUserDoc(user.uid, { photoURL: url });
+      toast.success('Profile photo updated');
+    } catch {
+      toast.error('Could not update your photo. Try again.');
+    } finally {
+      setUploadingPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  }
+
   const { theme, toggleTheme } = useTheme();
   const [editModal, setEditModal] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.displayName || '');
@@ -279,9 +311,30 @@ export default function ProfilePage() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <Card glass className="p-6 text-center">
             <div className="relative inline-block mb-4">
-              <Avatar name={profile?.displayName} src={profile?.photoURL} size="xl" />
+              {/* Tap the picture to change it. The pencil on the other side
+                  still edits the name — two controls, two jobs, no menu. */}
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                disabled={uploadingPhoto}
+                aria-label="Change profile photo"
+                className="block rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
+              >
+                <Avatar name={profile?.displayName} src={profile?.photoURL} size="xl" />
+              </button>
+              <span className="absolute bottom-0 left-0 w-7 h-7 bg-surface-elevated border border-white/10 rounded-full flex items-center justify-center pointer-events-none">
+                <Camera className="w-3.5 h-3.5 text-white" />
+              </span>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoPick}
+              />
               <button
                 onClick={() => { setDisplayName(profile?.displayName ?? ''); setEditModal(true); }}
+                aria-label="Edit name"
                 className="absolute bottom-0 right-0 w-7 h-7 bg-accent rounded-full flex items-center justify-center"
               >
                 <Edit2 className="w-3.5 h-3.5 text-black" />

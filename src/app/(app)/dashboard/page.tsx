@@ -350,7 +350,7 @@ export default function DashboardPage() {
         )}
 
         {/* Greeting */}
-        <motion.div {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate} className="flex items-start justify-between gap-3 pt-1">
+        <motion.div {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate} className="pt-1">
           <div className="min-w-0">
             <p className="text-text-secondary text-sm">{greeting}</p>
             <h1 className="text-[26px] font-black text-white tracking-tight leading-tight truncate">{firstName}</h1>
@@ -359,9 +359,6 @@ export default function DashboardPage() {
               <Badge variant="muted"><span className={tier.color}>⚡</span> Lvl {powerLevel} · {tier.title}</Badge>
             </div>
           </div>
-          <Link href="/profile" aria-label="Profile" className="w-10 h-10 rounded-full bg-accent-muted text-accent font-extrabold flex items-center justify-center flex-shrink-0 mt-1">
-            {firstName.charAt(0).toUpperCase()}
-          </Link>
         </motion.div>
 
         {/* Today's session — the hero. Amber gradient, dark ink, one action. */}

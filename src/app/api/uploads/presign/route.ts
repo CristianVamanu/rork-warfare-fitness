@@ -18,7 +18,7 @@ import { getR2Client, r2PublicUrl } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
 import { SUPPORT_MAX_BYTES } from '@/lib/supportLimits';
 
-const ALLOWED_ROOTS = ['prPosts', 'progressPhotos', 'community', 'support'];
+const ALLOWED_ROOTS = ['prPosts', 'progressPhotos', 'community', 'support', 'avatars'];
 
 // Per-root size ceilings. A support attachment is a screenshot or, more often
 // than the old 20MB ceiling allowed for, a screen recording of a bug being
@@ -27,6 +27,10 @@ const ALLOWED_ROOTS = ['prPosts', 'progressPhotos', 'community', 'support'];
 // support form never becomes the cheapest way to push 200MB into the bucket.
 const ROOT_MAX_SIZE_BYTES: Record<string, number> = {
   support: SUPPORT_MAX_BYTES,
+  // A profile picture is resized to 512px client-side before upload, so a
+  // real one is well under 1MB; the cap leaves room for a phone that skipped
+  // the resize without opening the bucket to video under this root.
+  avatars: 5 * 1024 * 1024,
 };
 // PR posts legitimately need video (lift proof), everything else here is
 // images — but nothing previously restricted contentType at all, so any
