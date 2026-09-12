@@ -133,6 +133,34 @@ function standardFor(id?: string): UnitStandard | undefined {
   return UNIT_STANDARDS.find((s) => s.id === id);
 }
 
+/**
+ * The standard a member's own program trains toward.
+ *
+ * The two lists were unconnected: someone running Commando Prep opened this
+ * page, saw ten unit names in no particular order with the generic test
+ * preselected, and had to know which one their own program was for. Matching
+ * on the program NAME rather than its id on purpose — the built-in ids (p5,
+ * p8, …) stop applying the moment an admin edits a program into Firestore or
+ * writes a new one, and the name is what survives.
+ */
+const PROGRAM_STANDARD: { test: RegExp; standard: string }[] = [
+  { test: /commando\s*endurance/i, standard: 'commando-endurance' },
+  { test: /commando/i, standard: 'commando' },
+  { test: /spetsnaz/i, standard: 'spetsnaz' },
+  { test: /\bsas\b|special air service/i, standard: 'sas' },
+  { test: /\bksk\b/i, standard: 'ksk' },
+  { test: /ranger|rasp/i, standard: 'ranger' },
+  { test: /\bseal\b|bud\/?s/i, standard: 'seal' },
+  { test: /recon/i, standard: 'recon' },
+  { test: /legion/i, standard: 'legion' },
+  { test: /\bpj\b|pararescue|indoc/i, standard: 'pj' },
+];
+
+function standardForProgram(programName?: string): string | undefined {
+  if (!programName) return undefined;
+  return PROGRAM_STANDARD.find((m) => m.test.test(programName))?.standard;
+}
+
 // Simplified 0-100 benchmark scale per event, loosely modeled on published
 // (unclassified) military PT test ranges for a young-adult male baseline —
 // NOT an official/exact Army ACFT or Marine PFT score, which are banded by
@@ -170,10 +198,19 @@ function formatMinutes(mins: number): string {
 }
 
 export default function PtTestPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  // The standard this member's own program trains toward, if any — used to
+  // preselect it and to mark it in the list.
+  const ownStandard = standardForProgram(profile?.activeProgram?.programName);
   const [history, setHistory] = useState<PtTestResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [standardId, setStandardId] = useState<string>('generic');
+  // Opens on the member's own standard rather than the generic test. Runs
+  // once the profile has loaded, and never fights a choice already made.
+  const [standardTouched, setStandardTouched] = useState(false);
+  useEffect(() => {
+    if (!standardTouched && ownStandard) setStandardId(ownStandard);
+  }, [ownStandard, standardTouched]);
   const [pushups, setPushups] = useState('');
   const [situps, setSitups] = useState('');
   const [pullups, setPullups] = useState('');
@@ -371,21 +408,39 @@ export default function PtTestPage() {
       <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-5">
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => setStandardId('generic')}
+            onClick={() => { setStandardTouched(true); setStandardId('generic'); }}
             className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-colors ${standardId === 'generic' ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
           >
             Generic PT Test
           </button>
-          {UNIT_STANDARDS.map((s) => (
+          {/* The member's own standard is pulled to the front, so the list
+              starts with the one that applies to them instead of whichever
+              unit happened to be first in the array. */}
+          {[...UNIT_STANDARDS]
+            .sort((a, b) => (a.id === ownStandard ? -1 : b.id === ownStandard ? 1 : 0))
+            .map((s) => (
             <button
               key={s.id}
-              onClick={() => setStandardId(s.id)}
+              onClick={() => { setStandardTouched(true); setStandardId(s.id); }}
               className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-colors ${standardId === s.id ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
             >
               {s.flag} {s.label}
+              {s.id === ownStandard && (
+                <span className={`ml-1.5 text-[10px] font-bold uppercase tracking-wide ${standardId === s.id ? 'text-black/70' : 'text-accent'}`}>
+                  your program
+                </span>
+              )}
             </button>
           ))}
         </div>
+
+        {/* What pressing Submit actually does. Without this the button is a
+            question mark: nothing is uploaded, nobody reviews it, and the
+            score is arithmetic against the numbers above. */}
+        <p className="text-xs text-text-secondary">
+          Enter your numbers and the app scores them against this standard straight away, then keeps
+          the result in your history so you can see the gap closing. Private to you.
+        </p>
 
         <Card className="p-4">
           <p className="text-xs text-text-tertiary leading-relaxed">
