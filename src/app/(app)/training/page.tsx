@@ -136,8 +136,7 @@ export default function TrainingPage() {
       getSystemConfig().catch(() => null),
     ])
       .then(([firestoreProgs, deletedIds, cfg]) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const fp = firestoreProgs as any as Program[];
+        const fp = firestoreProgs as unknown as Program[];
         const fpIds = new Set(fp.map((p) => p.id));
         // Once the built-ins have been imported into the database, the
         // bundled copies are not a source of programs any more — the admin
