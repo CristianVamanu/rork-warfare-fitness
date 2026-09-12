@@ -42,3 +42,20 @@ describe('calcWorkoutXP', () => {
     expect(calcWorkoutXP(45, 20, 3000)).toBe(475);
   });
 });
+
+describe('calcWorkoutXP caps', () => {
+  it('caps a runaway timer at ninety minutes', () => {
+    // A phone left in a locker for six hours used to be worth 1,800 XP from
+    // time alone — eighteen levels for one forgotten session.
+    expect(calcWorkoutXP(360, 0, 0)).toBe(90 * 5);
+    expect(calcWorkoutXP(90, 0, 0)).toBe(calcWorkoutXP(91, 0, 0));
+  });
+
+  it('caps sets at sixty', () => {
+    expect(calcWorkoutXP(0, 500, 0)).toBe(600);
+  });
+
+  it('never goes negative on bad input', () => {
+    expect(calcWorkoutXP(-10, -3, -500)).toBe(0);
+  });
+});

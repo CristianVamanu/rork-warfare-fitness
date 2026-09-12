@@ -28,10 +28,20 @@ export function calcWorkoutXP(
   completedSets: number,
   totalWeightKg: number
 ): number {
+  // Minutes are capped. Duration is the session timer, and a timer left
+  // running — a phone in a locker, a tab left open — paid 5 XP a minute
+  // with no ceiling, so one forgotten session could be worth more than a
+  // month of real ones. Ninety minutes is longer than any programmed
+  // session here; past that the extra time is not training.
+  // Sets are capped too, at sixty: no programmed day has more, and ticking
+  // through a session without entering weights still earns the set XP,
+  // which is why a high level can sit beside a tiny lifted total.
+  const minutes = Math.min(Math.max(0, durationMinutes), 90);
+  const sets = Math.min(Math.max(0, completedSets), 60);
   return Math.round(
-    durationMinutes * 5 +           // 5 XP per minute
-    completedSets * 10 +            // 10 XP per set
-    Math.min(totalWeightKg / 50, 50) // up to 50 XP from volume
+    minutes * 5 +                    // 5 XP per minute, up to 90 minutes
+    sets * 10 +                      // 10 XP per set, up to 60 sets
+    Math.min(Math.max(0, totalWeightKg) / 50, 50) // up to 50 XP from volume
   );
 }
 
