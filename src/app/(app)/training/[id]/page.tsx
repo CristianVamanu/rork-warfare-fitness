@@ -14,6 +14,7 @@ import { resolveProgram, enrollInProgram, getMembershipConfig, getAllProgramProg
 import { getMockProgram, stripWeekdayPrefix, getScheduleForWeek, getNextSession } from '@/lib/programs';
 import { getProgramDayLimit, hasActiveSubscription } from '@/lib/membership';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -414,18 +415,10 @@ export default function ProgramDetailPage() {
               </Button>
             </div>
           ) : isMembershipLocked ? (
-            <div className="p-4 bg-surface border border-accent/30 rounded-2xl text-center">
-              <Lock className="w-6 h-6 text-accent mx-auto mb-1.5" />
-              <p className="text-sm font-bold text-white">Members Only</p>
-              <p className="text-xs text-text-secondary mt-0.5 mb-3">
-                {hasMembership
-                  ? `All ${totalWeeks} weeks are locked — this program isn't in your current plan. Upgrade and the full schedule opens straight away.`
-                  : `All ${totalWeeks} weeks are locked — this program comes with an active membership. Subscribe and the full schedule opens straight away.`}
-              </p>
-              <Button size="sm" fullWidth onClick={() => router.push('/profile')}>
-                <Crown className="w-4 h-4" /> View Plans
-              </Button>
-            </div>
+            // Nothing in the action slot. The upgrade screen renders below in
+            // place of the schedule and is itself the call to action; a
+            // summary of the same lock above it was the duplicate card.
+            null
           ) : needsPurchase ? (
             <div className="space-y-2">
               <Button fullWidth size="lg" loading={purchasing} onClick={handleBuyProgram}>
@@ -492,13 +485,21 @@ export default function ProgramDetailPage() {
             user manually paged forward past their free days first. */}
         {/* A program the member's plan does not cover shows the offer, not the
             product. Locking each day individually still listed every week and
-            every session title, which is the shape of the thing being sold —
-            "Members Only" above a full schedule reads as a label rather than a
-            lock.
-            The schedule is simply absent here, rather than replaced by a
-            second locked panel: the Members Only card above already carries
-            the message and the upgrade button, and two cards saying the same
-            thing one under the other reads as a mistake. */}
+            every session title, which is the shape of the thing being sold.
+            The offer is the SAME gate every other paid feature uses. This page
+            used to hand-roll a "Members Only" card whose button bounced to
+            /profile — so the one screen where someone has just decided they
+            want a program sent them to a settings page to work out for
+            themselves which plan covers it, while the barcode scanner and the
+            meal planner put real, purchasable plans directly in front of
+            them. Programs had no reason to be the exception and it was the
+            worst place to be one. */}
+        {allWeeks.length > 0 && isMembershipLocked && (
+          <PaywallGate programId={program.id} noTaste>
+            <></>
+          </PaywallGate>
+        )}
+
         {allWeeks.length > 0 && !isMembershipLocked && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <div className="flex items-center justify-between mb-3">
