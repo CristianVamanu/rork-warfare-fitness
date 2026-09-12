@@ -18,6 +18,7 @@ import {
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { PaywallGate } from '@/components/ui/PaywallGate';
@@ -416,12 +417,15 @@ export default function ChannelPage() {
     }
   }, [replyTarget]);
 
-  // 50MB for a clip against 5MB for a photo: a 30-second phone video is
-  // 30-60MB and there is no client-side transcode here, so a photo-sized cap
-  // would reject nearly every real clip. Photos are still resized and
-  // re-encoded before upload; video is uploaded as-is.
-  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-  const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+  // 100MB for a clip against 20MB for a photo. Video is uploaded as-is with
+  // no client-side transcode, and a minute of 4K phone footage clears 50MB
+  // easily, so a lower cap rejects ordinary clips. The photo cap is generous
+  // on purpose: it is a limit on what the picker accepts, not on what is
+  // stored — compressImage resizes to 1600px and re-encodes first, so a 20MB
+  // original still lands in R2 at a few hundred KB. Both stay under the
+  // presign route's own 200MB ceiling.
+  const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+  const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
   async function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -433,7 +437,7 @@ export default function ChannelPage() {
     }
     const cap = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
     if (file.size > cap) {
-      toast.error(isVideo ? 'Clip must be under 50 MB — try a shorter one' : 'Image must be under 5 MB');
+      toast.error(isVideo ? 'Clip must be under 100 MB — try a shorter one' : 'Image must be under 20 MB');
       return;
     }
     setUploadingImage(true);
@@ -502,6 +506,12 @@ export default function ChannelPage() {
     ));
     await likeChannelPost(channelId, post.id, user.uid, !liked).catch(() => {});
   }
+
+  // Asks first. Deleting is irreversible — the document is gone, not flagged
+  // — and the trigger is one item in a small overflow menu next to Pin, which
+  // is exactly the shape of a mis-tap.
+  const [confirmDelete, setConfirmDelete] = useState<ChannelPost | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function handleDelete(post: ChannelPost) {
     try {
@@ -675,7 +685,7 @@ export default function ChannelPage() {
                 onLike={handleLike}
                 onReply={(p, parent) => setReplyTarget({ post: p, parent })}
                 replyRefreshToken={replyRefreshTokens[post.id] ?? 0}
-                onDelete={handleDelete}
+                onDelete={setConfirmDelete}
                 onPin={handlePin}
               />
             </motion.div>
@@ -845,6 +855,38 @@ export default function ChannelPage() {
         )}
       </AnimatePresence>
     </div>
+
+      {/* Delete confirmation — see handleDelete for why this is not a
+          straight-through action. */}
+      <Modal
+        open={!!confirmDelete}
+        onClose={() => { if (!deleting) setConfirmDelete(null); }}
+        title="Delete this post?"
+        footer={
+          <div className="flex gap-2 justify-end">
+            <Button variant="ghost" onClick={() => setConfirmDelete(null)} disabled={deleting}>Cancel</Button>
+            <Button
+              variant="danger"
+              loading={deleting}
+              onClick={async () => {
+                const target = confirmDelete;
+                if (!target) return;
+                setDeleting(true);
+                await handleDelete(target);
+                setDeleting(false);
+                setConfirmDelete(null);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          This removes the post and its replies for everyone. It cannot be undone.
+        </p>
+      </Modal>
+
     </PaywallGate>
   );
 }
