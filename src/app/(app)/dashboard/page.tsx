@@ -365,10 +365,12 @@ export default function DashboardPage() {
               style={{ background: 'linear-gradient(135deg, #F5A623 0%, #E8941A 55%, #B86F0E 100%)' }}
             >
               <div className="flex items-center justify-between gap-2 flex-wrap">
+                {/* Always the NEXT session. A finished day is noted in the
+                    subline; the chip, headline and list never point backwards. */}
                 <span className="inline-flex items-center h-[26px] px-2.5 rounded-full bg-[#141005]/15 text-[11px] font-extrabold">
-                  {workedOutToday && completedWorkouts > 0
-                    ? `Day ${Math.max(1, completedWorkouts)} complete`
-                    : `Day ${completedWorkouts + 1} of ${activeProgram.totalWorkouts}`}
+                  {remaining === 0
+                    ? 'Program complete'
+                    : `${workedOutToday ? 'Next · ' : ''}Day ${Math.min(completedWorkouts + 1, activeProgram.totalWorkouts)} of ${activeProgram.totalWorkouts}`}
                 </span>
                 {!isRestToday && sessionCount > 0 && (
                   <span className="inline-flex items-center h-[26px] px-2.5 rounded-full bg-[#141005]/15 text-[11px] font-extrabold">
@@ -378,19 +380,21 @@ export default function DashboardPage() {
               </div>
 
               <h2 className="text-[27px] font-black leading-[1.05] tracking-tight mt-3">
-                {isRestToday
+                {remaining === 0
+                  ? 'You finished it.'
+                  : isRestToday
                   ? 'Rest day.'
-                  : workedOutToday && completedWorkouts > 0
-                  ? 'Session done.'
                   : dayLabel
                   ? `${dayLabel}.`
                   : activeProgram.programName}
               </h2>
               <p className="text-[13px] font-semibold mt-1.5 opacity-85">
-                {isRestToday
+                {remaining === 0
+                  ? `${activeProgram.programName} · every session done. Pick your next fight.`
+                  : isRestToday
                   ? `${activeProgram.programName} · recover, or skip it below`
                   : workedOutToday && completedWorkouts > 0
-                  ? `${activeProgram.programName} · ${remaining} session${remaining !== 1 ? 's' : ''} remaining${todayDay ? ` · next: ${dayLabel}` : ''}`
+                  ? `${activeProgram.programName} · today's session is done · ${remaining} left`
                   : `${activeProgram.programName}${personalBest ? ` · your best on ${firstExerciseName}: ${personalBest.weight}${profile?.weightUnit ?? 'kg'} × ${personalBest.reps}` : ''}`}
               </p>
 
@@ -429,7 +433,7 @@ export default function DashboardPage() {
                     onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}
                     className="w-full h-[52px] rounded-2xl bg-[#141005] text-accent font-extrabold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
                   >
-                    <Play className="w-4 h-4 fill-current" /> {workedOutToday ? 'Start next session' : 'Start session'}
+                    <Play className="w-4 h-4 fill-current" /> {workedOutToday ? 'Start another session' : 'Start session'}
                   </button>
                 )}
                 <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-3' : 'grid-cols-2'}`}>
