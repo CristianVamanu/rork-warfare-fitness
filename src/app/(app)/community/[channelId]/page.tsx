@@ -630,9 +630,6 @@ export default function ChannelPage() {
             <span className="text-xl flex-shrink-0">{channel.emoji || '#'}</span>
             <div className="min-w-0">
               <p className="text-sm font-bold text-white truncate">{channel.name}</p>
-              {channel.description && (
-                <p className="text-xs text-text-secondary line-clamp-2">{channel.description}</p>
-              )}
               {channel.slowModeDays > 0 && (
                 <p className="text-xs text-text-tertiary flex items-center gap-1">
                   <Clock className="w-3 h-3" /> {channel.slowModeDays}-day slow mode
@@ -650,6 +647,18 @@ export default function ChannelPage() {
         style={{ paddingBottom: `calc(${COMPOSE_HEIGHT + 64 + 26}px + env(safe-area-inset-bottom, 0px))` }}
       >
         <div className="px-4 py-4 space-y-3 max-w-2xl mx-auto w-full">
+          {/* What the channel is for, in full. It lived in the sticky header
+              first, where it had to be clamped to two lines to keep the bar a
+              sane height — which cut it off mid-sentence, the one place the
+              text actually has a job to do. Here it can run as long as it
+              needs and scrolls away once you are reading posts. */}
+          {channel.description && (
+            <div className="rounded-2xl border border-white/8 bg-surface px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">About this channel</p>
+              <p className="text-sm text-text-secondary mt-1 leading-relaxed whitespace-pre-wrap">{channel.description}</p>
+            </div>
+          )}
+
           {/* Pinned post banner */}
           {pinnedPost && (
             <div className="flex items-start gap-2 bg-accent/10 border border-accent/30 rounded-2xl px-3 py-3">
