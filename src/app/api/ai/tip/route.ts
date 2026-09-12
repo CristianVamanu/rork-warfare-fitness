@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
   const apiKey = await getSecret('OPENAI_API_KEY');
   if (!apiKey) {
     return NextResponse.json({
-      tip: 'Focus on compound movements like squats, deadlifts and bench press — they build more muscle and burn more calories than isolation exercises.',
+      tip: 'Lead with compounds — squats, deadlifts, presses build more than any isolation move.',
       date: dateKey,
     });
   }
@@ -80,16 +80,16 @@ export async function GET(req: NextRequest) {
   try {
     const res = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-      max_tokens: 80,
+      max_tokens: 48,
       temperature: 0.7,
       messages: [
         {
           role: 'system',
-          content: 'You are a concise fitness coach. Give one practical, gym/fitness tip in 1-2 short sentences. No fluff, no greetings, no hashtags. Fitness and gym content only.',
+          content: 'You are a concise fitness coach. Give ONE practical gym/fitness tip as a SINGLE sentence of at most 18 words. No fluff, no greetings, no hashtags, no lists. Fitness and gym content only.',
         },
         {
           role: 'user',
-          content: `Give a fitness tip about: ${topic}. Keep it under 35 words.`,
+          content: `Give a fitness tip about: ${topic}. One sentence, 18 words maximum.`,
         },
       ],
     });
@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error('[/api/ai/tip] error:', err);
     return NextResponse.json({
-      tip: `Train your ${topic} today. Small consistent improvements compound into dramatic results over weeks.`,
+      tip: `Work on your ${topic} today — small consistent gains compound faster than big rare ones.`,
       date: dateKey,
     });
   }

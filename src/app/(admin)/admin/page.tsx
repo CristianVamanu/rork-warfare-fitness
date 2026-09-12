@@ -541,7 +541,7 @@ function AdminPageInner() {
   // ── Community channels state ───────────────────────────────────────────────
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
-  const [channelForm, setChannelForm] = useState({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0 as 0|7|21|30, allowUserPosts: true });
+  const [channelForm, setChannelForm] = useState({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, slowModeDays: 0 as 0|7|21|30, allowUserPosts: true });
   const [savingChannel, setSavingChannel] = useState(false);
   const [showChannelForm, setShowChannelForm] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
@@ -1636,6 +1636,7 @@ function AdminPageInner() {
         description: channelForm.description.trim() || undefined,
         emoji: channelForm.emoji.trim() || undefined,
         photoUploadEnabled: channelForm.photoUploadEnabled,
+        videoUploadEnabled: channelForm.videoUploadEnabled,
         slowModeDays: channelForm.slowModeDays,
         allowUserPosts: channelForm.allowUserPosts,
         createdBy: user.uid,
@@ -1650,7 +1651,7 @@ function AdminPageInner() {
       }
       setShowChannelForm(false);
       setEditingChannel(null);
-      setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0, allowUserPosts: true });
+      setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, slowModeDays: 0, allowUserPosts: true });
       await loadChannels();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to save channel';
@@ -1679,6 +1680,7 @@ function AdminPageInner() {
       description: ch.description ?? '',
       emoji: ch.emoji ?? '',
       photoUploadEnabled: ch.photoUploadEnabled,
+      videoUploadEnabled: ch.videoUploadEnabled ?? false,
       slowModeDays: ch.slowModeDays,
       allowUserPosts: ch.allowUserPosts ?? true,
     });
@@ -1734,6 +1736,28 @@ function AdminPageInner() {
             className={`w-11 h-6 rounded-full transition-colors relative ${channelForm.photoUploadEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
           >
             <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.photoUploadEnabled ? 'left-6' : 'left-1'}`} />
+          </button>
+        </div>
+        {/* Off by default, and only offered once photos are on — the same
+            picker handles both, so clips with photo upload disabled would be
+            unreachable. A photo takes seconds to check; a clip has to be
+            watched, so this is a moderation decision per channel, not a
+            global one. */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-white">Video Upload</p>
+            <p className="text-xs text-text-secondary">
+              {channelForm.photoUploadEnabled
+                ? 'Allow users to attach clips, up to 50 MB each'
+                : 'Turn photo upload on first — both use the same attach button'}
+            </p>
+          </div>
+          <button
+            disabled={!channelForm.photoUploadEnabled}
+            onClick={() => setChannelForm(f => ({ ...f, videoUploadEnabled: !f.videoUploadEnabled }))}
+            className={`w-11 h-6 rounded-full transition-colors relative disabled:opacity-40 ${channelForm.videoUploadEnabled && channelForm.photoUploadEnabled ? 'bg-accent' : 'bg-surface-elevated'}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.videoUploadEnabled && channelForm.photoUploadEnabled ? 'left-6' : 'left-1'}`} />
           </button>
         </div>
         <div className="flex items-center justify-between">
@@ -3064,7 +3088,7 @@ function AdminPageInner() {
 
           <div className="flex items-center justify-between pt-2 border-t border-white/5">
             <p className="text-text-secondary text-sm">{channels.length} channel{channels.length !== 1 ? 's' : ''}</p>
-            <Button size="sm" onClick={() => { setEditingChannel(null); setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, slowModeDays: 0, allowUserPosts: true }); setShowChannelForm(true); }}>
+            <Button size="sm" onClick={() => { setEditingChannel(null); setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, slowModeDays: 0, allowUserPosts: true }); setShowChannelForm(true); }}>
               <Plus className="w-4 h-4" /> New Channel
             </Button>
           </div>
@@ -3099,6 +3123,7 @@ function AdminPageInner() {
                         <span>{ch.postCount} posts</span>
                         {ch.slowModeDays > 0 && <span>Slow: {ch.slowModeDays}d</span>}
                         {ch.photoUploadEnabled && <span>📷 photos on</span>}
+                        {ch.videoUploadEnabled && <span>🎬 clips on</span>}
                         {ch.allowUserPosts === false && <span className="text-yellow-400">📢 announcement-only</span>}
                       </div>
                     </div>

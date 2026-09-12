@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 /**
  * A photo or clip in a feed, shown whole.
  *
@@ -42,34 +44,53 @@ export function FeedMedia({
   // the screen on a phone and on a desktop, instead of dominating one and
   // looking like a thumbnail on the other.
   const box = compact ? 'max-h-40' : 'max-h-[70vh]';
-  const frame = `mt-3 w-full ${box} rounded-xl overflow-hidden bg-black/40 border border-white/5 ${className}`;
+  const frame = `mt-3 w-full ${box} rounded-xl overflow-hidden bg-black/40 border border-white/5 flex items-center justify-center ${className}`;
+
+  // The frame took the full post width at a fixed max height, and the media
+  // was contained inside it — correct in that nothing was cropped, wrong in
+  // that a portrait clip sat in a wide black box with heavy bars down both
+  // sides, which is the "played weird" look. Instagram sizes the container to
+  // the media instead. Once the real dimensions are known (loadedmetadata for
+  // video, load for an image) the frame takes that exact ratio, so there are
+  // no bars at all; the max height still bounds a very tall portrait so one
+  // post cannot push everything else off the screen.
+  const [ratio, setRatio] = useState<number | null>(null);
+  const frameStyle = ratio && !compact ? { aspectRatio: String(ratio) } : undefined;
 
   if (kind === 'video') {
     return (
-      <div className={frame}>
+      <div className={frame} style={frameStyle}>
         <video
           src={url}
           controls
           playsInline
+          onLoadedMetadata={(e) => {
+            const v = e.currentTarget;
+            if (v.videoWidth && v.videoHeight) setRatio(v.videoWidth / v.videoHeight);
+          }}
           // Fetches dimensions and a first frame without pulling the whole
           // clip — a feed of autoloading videos is somebody's data allowance.
           preload="metadata"
           crossOrigin="anonymous"
-          className={`w-full h-auto ${box} object-contain`}
+          className={`w-full h-full ${box} object-contain`}
         />
       </div>
     );
   }
 
   return (
-    <div className={frame}>
+    <div className={frame} style={frameStyle}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={url}
         alt={alt}
         loading="lazy"
         decoding="async"
-        className={`w-full h-auto ${box} object-contain`}
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          if (img.naturalWidth && img.naturalHeight) setRatio(img.naturalWidth / img.naturalHeight);
+        }}
+        className={`w-full h-full ${box} object-contain`}
       />
     </div>
   );

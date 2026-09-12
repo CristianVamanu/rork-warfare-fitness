@@ -23,6 +23,19 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import type { Channel, ChannelPost } from '@/types';
 
+/**
+ * Whether a post's attachment is a clip.
+ *
+ * mediaType is authoritative, but every post written before clips existed
+ * has no such field — sniffing the extension keeps those rendering as
+ * images instead of guessing video and showing an empty player.
+ */
+function mediaKindOf(post: { imageURL?: string; mediaType?: 'image' | 'video' }): 'image' | 'video' {
+  if (post.mediaType) return post.mediaType;
+  return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(post.imageURL ?? '') ? 'video' : 'image';
+}
+
+
 function toDate(ts: unknown): Date | null {
   if (!ts) return null;
   const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as string);
@@ -209,7 +222,11 @@ function PostCard({
       </div>
       <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{post.content}</p>
       {post.imageURL && (
-        <FeedMedia url={post.imageURL} alt="Photo attached to this post" />
+        <FeedMedia
+          url={post.imageURL}
+          kind={mediaKindOf(post)}
+          alt={mediaKindOf(post) === 'video' ? 'Clip attached to this post' : 'Photo attached to this post'}
+        />
       )}
       <div className="flex items-center gap-4 mt-4">
         <button
@@ -290,6 +307,7 @@ export default function ChannelPage() {
   const [posting, setPosting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [pendingImageURL, setPendingImageURL] = useState<string | null>(null);
+  const [pendingMediaType, setPendingMediaType] = useState<'image' | 'video'>('image');
   const [slowModeBlocked, setSlowModeBlocked] = useState<Date | null>(null);
   // The post the reply belongs to, plus (optionally) the reply being answered.
   // Threading is capped at two levels: answering a nested reply targets its
@@ -398,20 +416,37 @@ export default function ChannelPage() {
     }
   }, [replyTarget]);
 
+  // 50MB for a clip against 5MB for a photo: a 30-second phone video is
+  // 30-60MB and there is no client-side transcode here, so a photo-sized cap
+  // would reject nearly every real clip. Photos are still resized and
+  // re-encoded before upload; video is uploaded as-is.
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+  const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+
   async function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5 MB'); return; }
+    const isVideo = file.type.startsWith('video/');
+    if (isVideo && !channel?.videoUploadEnabled) {
+      toast.error('Clips are not allowed in this channel');
+      return;
+    }
+    const cap = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+    if (file.size > cap) {
+      toast.error(isVideo ? 'Clip must be under 50 MB — try a shorter one' : 'Image must be under 5 MB');
+      return;
+    }
     setUploadingImage(true);
     try {
-      const compressed = await compressImage(file);
+      const toUpload = isVideo ? file : await compressImage(file);
       const cfg = await getSystemConfig().catch(() => null);
       const provider = resolveStorageProvider(cfg?.storageProvider);
-      const url = await uploadUserContent(provider, user, compressed, 'community');
+      const url = await uploadUserContent(provider, user, toUpload, 'community');
       setPendingImageURL(url);
-      toast.success('Image ready — tap send to post');
+      setPendingMediaType(isVideo ? 'video' : 'image');
+      toast.success(isVideo ? 'Clip ready — tap send to post' : 'Image ready — tap send to post');
     } catch {
-      toast.error('Failed to upload image');
+      toast.error(isVideo ? 'Failed to upload clip' : 'Failed to upload image');
     } finally {
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -436,7 +471,7 @@ export default function ChannelPage() {
         // userIsAdmin:true here would just get the whole write rejected.
         ...(profile.role === 'admin' ? { userIsAdmin: true } : {}),
         content: text.trim(),
-        ...(pendingImageURL ? { imageURL: pendingImageURL } : {}),
+        ...(pendingImageURL ? { imageURL: pendingImageURL, mediaType: pendingMediaType } : {}),
       });
       setText('');
       setPendingImageURL(null);
@@ -585,6 +620,9 @@ export default function ChannelPage() {
             <span className="text-xl flex-shrink-0">{channel.emoji || '#'}</span>
             <div className="min-w-0">
               <p className="text-sm font-bold text-white truncate">{channel.name}</p>
+              {channel.description && (
+                <p className="text-xs text-text-secondary line-clamp-2">{channel.description}</p>
+              )}
               {channel.slowModeDays > 0 && (
                 <p className="text-xs text-text-tertiary flex items-center gap-1">
                   <Clock className="w-3 h-3" /> {channel.slowModeDays}-day slow mode
@@ -614,7 +652,7 @@ export default function ChannelPage() {
                 </div>
                 <p className="text-sm text-text-secondary mt-0.5 whitespace-pre-wrap">{pinnedPost.content}</p>
                 {pinnedPost.imageURL && (
-                  <FeedMedia url={pinnedPost.imageURL} alt="Photo attached to the pinned post" compact className="mt-2" />
+                  <FeedMedia url={pinnedPost.imageURL} kind={mediaKindOf(pinnedPost)} alt="Media attached to the pinned post" compact className="mt-2" />
                 )}
               </div>
             </div>
@@ -680,12 +718,18 @@ export default function ChannelPage() {
               Slow mode: next post available {slowModeBlocked!.toLocaleDateString()}
             </div>
           )}
-          {/* Image preview */}
+          {/* Attachment preview — a clip gets a real player rather than an
+              <img> pointed at an .mp4, which renders as a broken thumbnail. */}
           {pendingImageURL && (
             <div className="relative inline-block">
-              <img src={pendingImageURL} alt="preview" className="h-16 rounded-lg object-cover" />
+              {pendingMediaType === 'video' ? (
+                <video src={pendingImageURL} muted playsInline preload="metadata" className="h-16 rounded-lg" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={pendingImageURL} alt="preview" className="h-16 rounded-lg object-cover" />
+              )}
               <button
-                onClick={() => setPendingImageURL(null)}
+                onClick={() => { setPendingImageURL(null); setPendingMediaType('image'); }}
                 className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-danger rounded-full flex items-center justify-center"
               >
                 <X className="w-3 h-3 text-white" />
@@ -697,7 +741,7 @@ export default function ChannelPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept={channel.videoUploadEnabled ? 'image/*,video/*' : 'image/*'}
               className="hidden"
               onChange={handleImagePick}
             />

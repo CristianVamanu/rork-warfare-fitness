@@ -2238,7 +2238,7 @@ export function subscribeChannelPosts(
 
 export async function createChannelPost(channelId: string, data: {
   userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean;
-  content: string; imageURL?: string;
+  content: string; imageURL?: string; mediaType?: 'image' | 'video';
 }): Promise<string> {
   const ref = await addDoc(collection(db, 'channels', channelId, 'posts'), {
     ...data,
@@ -2304,7 +2304,18 @@ export async function createReply(channelId: string, postId: string, data: {
 
 export async function deleteChannelPost(channelId: string, postId: string) {
   await deleteDoc(doc(db, 'channels', channelId, 'posts', postId));
-  await updateDoc(doc(db, 'channels', channelId), { postCount: increment(-1) }).catch(() => {});
+  // Clamped at zero rather than a blind increment(-1). The +1 on create is
+  // best-effort and throws permission-denied for every non-admin member
+  // (firestore.rules only lets an admin write a channel doc), while this
+  // decrement runs as an admin and always lands — so deleting posts that
+  // never counted drove the total below zero, and the channel list showed
+  // "-1 posts". A transaction reads the current value and floors it.
+  await runTransaction(db, async (tx) => {
+    const ref = doc(db, 'channels', channelId);
+    const snap = await tx.get(ref);
+    const current = (snap.data()?.postCount as number | undefined) ?? 0;
+    tx.update(ref, { postCount: Math.max(0, current - 1) });
+  }).catch(() => {});
   invalidateChannelsCache();
 }
 

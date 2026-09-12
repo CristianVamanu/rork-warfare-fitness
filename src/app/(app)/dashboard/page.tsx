@@ -349,12 +349,6 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* The day's tip. Deliberately OUTSIDE the bento grid: those rows are
-            a fixed 86px and a tip runs two or three lines, so a tile would
-            clip it. Renders nothing when there is no tip (including when the
-            member's plan does not cover it), so no empty space is left. */}
-        <DailyTip />
-
         {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
 
@@ -481,6 +475,13 @@ export default function DashboardPage() {
             </Card>
           </motion.div>
         </motion.div>
+
+        {/* The day's tip, between the glanceable tiles and today's session.
+            Not inside the bento grid above: those rows are a fixed 86px and
+            this is a sentence of prose, which a tile would clip. Renders
+            nothing when there is no tip (including a plan that excludes it),
+            so the space collapses rather than sitting empty. */}
+        <DailyTip />
 
         {/* Today's Workout — hero. Pulled out of the bento grid entirely:
             that grid's rows are a fixed 86px each (auto-rows-[86px]), so any

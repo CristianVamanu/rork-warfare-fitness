@@ -70,7 +70,9 @@ export function DailyTip() {
       </div>
       <div className="min-w-0">
         <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Today&apos;s brief</span>
-        <p className="text-sm text-white mt-0.5 leading-relaxed">{tip}</p>
+        {/* Clamped as well as capped at the prompt: a tip cached before the
+            length limit tightened must not fill the screen. */}
+        <p className="text-sm text-white mt-0.5 leading-relaxed line-clamp-2">{tip}</p>
       </div>
     </Card>
   );

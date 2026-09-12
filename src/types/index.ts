@@ -461,6 +461,12 @@ export interface Channel {
   pinnedPostId?: string;
   trainerId?: string;
   photoUploadEnabled: boolean;
+  // Clips are opt-in per channel and default OFF. A photo costs a moderator
+  // two seconds to check; a 30-second clip costs thirty and cannot be
+  // skimmed, so a busy channel with video on is a moderation load nobody
+  // signed up for. Channels that want evidence (a PT test, a form check)
+  // turn it on deliberately.
+  videoUploadEnabled?: boolean;
   slowModeDays: 0 | 7 | 21 | 30;
   allowUserPosts: boolean; // false = announcement-only channel, admin/trainer posts only
   postCount: number;
@@ -479,7 +485,11 @@ export interface ChannelPost {
   // render for anyone but the admin's own client.
   userIsAdmin?: boolean;
   content: string;
+  /** URL of the attached photo OR clip — named imageURL for the posts that
+   *  already exist with that field. mediaType says which it is. */
   imageURL?: string;
+  /** Absent on every post written before clips existed: treat as an image. */
+  mediaType?: 'image' | 'video';
   likes: string[];
   replyCount: number;
   replyTo?: string | null;
