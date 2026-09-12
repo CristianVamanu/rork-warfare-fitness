@@ -225,12 +225,48 @@ pm2 reload ecosystem.config.js --env production --update-env
 # anywhere saying so; a green push was assumed to mean a deployed push.
 printf '{"ok":true,"sha":"%s","at":"%s"}\n' "$(git rev-parse --short HEAD)" "$(date -u +%FT%TZ)" > .deploy-status.json
 
+# Where the deploy reads its own optional settings from.
+# Hoisted above the Firestore step on purpose: this script never sources
+# the env file into its own shell, so a FIREBASE_TOKEN written into
+# .env.production (the one place every other secret already lives) was
+# invisible here, and rules/indexes silently stayed unpublished while the
+# token looked correctly set.
+ENV_FILE=""
+if [ -f .env.production ]; then ENV_FILE=".env.production"
+elif [ -f .env ]; then ENV_FILE=".env"
+fi
+
+# Reads one variable out of the env file, or prints nothing.
+#
+# This exists because of `set -euo pipefail` at the top of this script. A bare
+#     VALUE="$(grep -E '^FOO=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
+# EXITS THE WHOLE SCRIPT when FOO is simply absent: grep returns 1, pipefail
+# propagates it out of the pipeline, the assignment inherits it, and set -e
+# kills the deploy. For a genuinely optional variable that is catastrophic —
+# and it is silent, because grep prints nothing to stderr when it finds
+# nothing. The `|| true` is the entire point of this function; do not remove
+# it, and do not go back to inlining the pipeline at the call sites.
+env_value() {
+  grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d '=' -f2- || true
+}
+
 echo "==> Firestore rules & indexes"
 # This script deploys CODE only. firestore.rules, firestore.indexes.json and
 # storage.rules have to be published separately, and drift between the repo
 # and the console has already caused a full-collection scan fallback in
 # production. If a Firebase CI token is present, publish them here; if not,
 # say so loudly instead of silently leaving them stale.
+# Environment first (a systemd/pm2 Environment= entry), then the env file.
+FIREBASE_TOKEN="${FIREBASE_TOKEN:-$(env_value FIREBASE_TOKEN)}"
+FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID:-$(env_value FIREBASE_PROJECT_ID)}"
+# Strip surrounding quotes. env_value returns the raw text after the '=', so
+# FIREBASE_TOKEN="abc" yields a value WITH the quote characters in it, which
+# the CLI rejects as a bad credential — indistinguishable from an expired
+# token, and only visible as rules quietly never publishing.
+FIREBASE_TOKEN="${FIREBASE_TOKEN%\"}"; FIREBASE_TOKEN="${FIREBASE_TOKEN#\"}"
+FIREBASE_TOKEN="${FIREBASE_TOKEN%\'}"; FIREBASE_TOKEN="${FIREBASE_TOKEN#\'}"
+FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID%\"}"; FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID#\"}"
+export FIREBASE_TOKEN
 if [ -n "${FIREBASE_TOKEN:-}" ] || [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
   if npx --yes firebase-tools@13 deploy --only firestore:rules,firestore:indexes,storage --non-interactive ${FIREBASE_PROJECT_ID:+--project "$FIREBASE_PROJECT_ID"}; then
     echo "    rules + indexes published"
@@ -238,7 +274,7 @@ if [ -n "${FIREBASE_TOKEN:-}" ] || [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ];
     echo "    *** WARNING: firebase deploy failed — rules/indexes in the console may be STALE ***"
   fi
 else
-  echo "    skipped — set FIREBASE_TOKEN (firebase login:ci) in the deploy environment to publish automatically."
+  echo "    skipped — add FIREBASE_TOKEN=... to .env.production (get it with: npx firebase-tools login:ci) to publish automatically."
   echo "    Until then: paste firestore.rules + storage.rules in the console, and deploy indexes with:"
   echo "      npx firebase-tools deploy --only firestore:indexes"
 fi
@@ -264,25 +300,6 @@ echo "==> Ensuring the notifications cron is installed"
 # https://nextjs.org/docs/app/building-your-application/configuring/environment-variables)
 # rather than hardcoding either value.
 CRON_MARKER="# warfare-fitness-notifications-cron"
-ENV_FILE=""
-if [ -f .env.production ]; then ENV_FILE=".env.production"
-elif [ -f .env ]; then ENV_FILE=".env"
-fi
-
-# Reads one variable out of the env file, or prints nothing.
-#
-# This exists because of `set -euo pipefail` at the top of this script. A bare
-#     VALUE="$(grep -E '^FOO=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
-# EXITS THE WHOLE SCRIPT when FOO is simply absent: grep returns 1, pipefail
-# propagates it out of the pipeline, the assignment inherits it, and set -e
-# kills the deploy. For a genuinely optional variable that is catastrophic —
-# and it is silent, because grep prints nothing to stderr when it finds
-# nothing. The `|| true` is the entire point of this function; do not remove
-# it, and do not go back to inlining the pipeline at the call sites.
-env_value() {
-  grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d '=' -f2- || true
-}
-
 if [ -n "$ENV_FILE" ]; then
   APP_CRON_SECRET="$(env_value CRON_SECRET)"
   APP_URL="$(env_value NEXT_PUBLIC_APP_URL)"
