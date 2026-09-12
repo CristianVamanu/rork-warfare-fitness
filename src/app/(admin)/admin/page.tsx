@@ -233,6 +233,11 @@ function formatLastLogin(ts: unknown): string {
     ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
+/** 30 -> "30", 29.99 -> "29.99". Never rounds a price away. */
+function formatMoney(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
 export default function AdminPage() {
   return (
     <Suspense fallback={null}>
@@ -3587,24 +3592,41 @@ function AdminPageInner() {
                               {plan.active ? <Pill tone="ok">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
                               {plan.mostPopular && <Pill tone="accent">★ Most popular</Pill>}
                             </div>
-                            {/* Monthly price as the hero figure; the longer
-                                terms underneath. One number to read, the
-                                rest available. */}
-                            <p className="mt-2 leading-none">
-                              <span className="text-[28px] font-extrabold tracking-tight text-white tabular-nums">
-                                {plan.priceMonthly ? `${plan.currency} ${plan.priceMonthly.toFixed(0)}` : 'No price'}
-                              </span>
-                              {plan.priceMonthly ? <span className="text-sm text-text-secondary"> / month</span> : null}
-                            </p>
-                            {(plan.price3mo || plan.price6mo || plan.price12mo) && (
-                              <p className="text-xs text-text-tertiary mt-1.5 tabular-nums">
-                                {[
-                                  plan.price3mo ? `3 mo ${plan.currency} ${plan.price3mo.toFixed(0)}` : null,
-                                  plan.price6mo ? `6 mo ${plan.currency} ${plan.price6mo.toFixed(0)}` : null,
-                                  plan.price12mo ? `12 mo ${plan.currency} ${plan.price12mo.toFixed(0)}` : null,
-                                ].filter(Boolean).join(' · ')}
-                              </p>
-                            )}
+                            {/* The shortest term the plan actually sells is
+                                the headline; any longer terms sit underneath.
+                                Built from getPlanBillingPeriods, the same
+                                helper the landing page and the paywall use,
+                                for two reasons the old version got wrong:
+                                it read priceMonthly alone, so an annual-only
+                                plan showed "No price" while the landing
+                                correctly showed 12 months; and it printed
+                                every figure with toFixed(0), which turned
+                                29.99 into 30. The admin card is where you
+                                check a price is right — it cannot be the one
+                                place that rounds it. */}
+                            {(() => {
+                              const periods = getPlanBillingPeriods(plan);
+                              const [head, ...rest] = periods;
+                              return (
+                                <>
+                                  <p className="mt-2 leading-none">
+                                    <span className="text-[28px] font-extrabold tracking-tight text-white tabular-nums">
+                                      {head ? `${plan.currency} ${formatMoney(head.price)}` : 'No price'}
+                                    </span>
+                                    {head && (
+                                      <span className="text-sm text-text-secondary">
+                                        {' '}/ {head.months === 1 ? 'month' : `${head.months} months`}
+                                      </span>
+                                    )}
+                                  </p>
+                                  {rest.length > 0 && (
+                                    <p className="text-xs text-text-tertiary mt-1.5 tabular-nums">
+                                      {rest.map((t) => `${t.months} mo ${plan.currency} ${formatMoney(t.price)}`).join(' · ')}
+                                    </p>
+                                  )}
+                                </>
+                              );
+                            })()}
                             {plan.description && <p className="text-xs text-text-secondary mt-1">{plan.description}</p>}
                             {plan.features.length > 0 && (
                               <ul className="mt-2 space-y-0.5">
