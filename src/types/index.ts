@@ -701,6 +701,10 @@ export interface PtTestResult {
   // other than 'generic' is a unit id matched against UNIT_STANDARDS in
   // the PT Test page (not a fixed union — new units don't need a type change).
   standard?: 'generic' | string;
+  /** Plank hold in seconds, for standards that test it (USMC PFT). */
+  plankSeconds?: number;
+  /** 20m multi-stage shuttle level, for standards that test it. */
+  beepLevel?: number;
   pullups?: number;
   standardPassed?: boolean;
 }

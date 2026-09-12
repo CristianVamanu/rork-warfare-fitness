@@ -30,102 +30,186 @@ interface UnitStandard {
   resultTitle: string;  // shown on the result screen
   description: string;
   runLabel?: string;
+  /** The bar. Meeting every one of these is what "passed" means here. */
   events: {
     pullups?: number;
-    pushups?: number;   // 2-minute max unless stated in description
-    situps?: number;    // 2-minute max
-    runMinutes?: number; // max allowed time for runLabel's distance/task
+    pushups?: number;      // 2-minute max unless the description says otherwise
+    situps?: number;       // 2-minute max
+    plankSeconds?: number; // held, not reps
+    beepLevel?: number;    // 20m multi-stage shuttle (Luc Leger / bleep)
+    runMinutes?: number;   // max allowed time for runLabel's distance
   };
+  /**
+   * What actually gets people selected, where it differs from the bar.
+   *
+   * Published minimums are an entry filter, not the standard the people who
+   * ship are hitting — every source for every unit here says some version of
+   * "candidates who only meet the minimum are gone in the first week". Showing
+   * one number implied the minimum WAS the goal, which is the part that did
+   * not reflect reality.
+   */
+  competitive?: {
+    pullups?: number;
+    pushups?: number;
+    situps?: number;
+    plankSeconds?: number;
+    beepLevel?: number;
+    runMinutes?: number;
+  };
+  /** Where the numbers come from, shown under the briefing. */
+  source: string;
+  /** Real selection events this app deliberately does not track. */
+  notTracked?: string;
 }
 
+/**
+ * Gym-testable selection standards, from published sources.
+ *
+ * Two rules for what belongs here. It has to be doable in a gym or on a
+ * treadmill — no open water, no obstacle course, no loaded march over a
+ * mountain — and it has to have a real published number behind it. Where a
+ * unit's real test includes events that fail the first rule, they are named
+ * in notTracked rather than quietly dropped, so nobody reads a pass here as
+ * "I would pass selection".
+ */
 const UNIT_STANDARDS: UnitStandard[] = [
   {
-    id: 'spetsnaz',
-    flag: '🇷🇺',
-    label: 'Spetsnaz Selection',
-    resultTitle: 'Spetsnaz Selection Standard',
-    description: 'The published (unclassified) Spetsnaz selection PT standard: 20 strict pull-ups, 90 push-ups in 2 minutes, and a 3km run under 10:30.',
-    runLabel: '3km Run',
-    events: { pullups: 20, pushups: 90, runMinutes: 10.5 },
+    id: 'recon',
+    flag: '🇺🇸',
+    label: 'Marine Recon',
+    resultTitle: 'USMC Recon Selection (RSAT)',
+    description:
+      'The Recon Selection Aptitude Test target scores: 15 pull-ups, 60 push-ups and 85 crunches in two minutes each, and a 3-mile run inside 19:30. Marines who get picked up are usually well past that — 20 pull-ups, 80 push-ups, 100 crunches and a sub-18:00 three-mile.',
+    runLabel: '3-Mile Run',
+    events: { pullups: 15, pushups: 60, situps: 85, runMinutes: 19.5 },
+    competitive: { pullups: 20, pushups: 80, situps: 100, runMinutes: 18 },
+    source: 'RSAT target scores as published for Recon screening.',
+    notTracked: '500m fin swim in cammies, 25m underwater, rifle retrieval and tow, 30-minute tread.',
   },
   {
-    id: 'ranger',
+    id: 'usmc-pft',
     flag: '🇺🇸',
-    label: 'Ranger Assessment',
-    resultTitle: 'Ranger (RASP) Standard',
-    description: 'The published pre-RASP entry standard: 53 push-ups, 63 sit-ups, 4 pull-ups, and a 2-mile run under 14:30. RASP itself adds a 6-mile ruck march this app doesn’t track.',
-    runLabel: '2-Mile Run',
-    events: { pushups: 53, situps: 63, pullups: 4, runMinutes: 14.5 },
+    label: 'USMC PFT',
+    resultTitle: 'Marine Corps PFT (300 score)',
+    description:
+      'The three events of the Marine PFT at full marks for a male aged 17 to 20: 23 pull-ups, a 3:45 plank, and a 3-mile run in 18:00. This is the base test every Marine takes, and the floor a Recon candidate builds on.',
+    runLabel: '3-Mile Run',
+    events: { pullups: 23, plankSeconds: 225, runMinutes: 18 },
+    source: 'USMC PFT scoring tables, 100-point marks, male 17-20.',
+    notTracked: 'The CFT — ammo can lifts, movement to contact, maneuver under fire.',
   },
   {
     id: 'seal',
     flag: '🇺🇸',
     label: 'SEAL Selection',
-    resultTitle: 'Navy SEAL PST Standard',
-    description: 'The published Navy SEAL Physical Screening Test minimums: 42 push-ups, 50 sit-ups, 10 pull-ups, and a 1.5-mile run under 10:30. The PST also includes a 500-yard swim this app doesn’t track.',
+    resultTitle: 'Navy SEAL PST',
+    description:
+      'The Physical Screening Test minimums: 50 push-ups, 50 curl-ups, 10 pull-ups and a 1.5-mile run inside 10:30, each event in two minutes. The competitive column is what a contract actually goes to. Candidates who finish BUD/S tend to arrive nearer 100 push-ups, 100 sit-ups, 20 pull-ups and a nine-minute run.',
     runLabel: '1.5-Mile Run',
-    events: { pushups: 42, situps: 50, pullups: 10, runMinutes: 10.5 },
+    events: { pushups: 50, situps: 50, pullups: 10, runMinutes: 10.5 },
+    competitive: { pushups: 79, situps: 79, pullups: 11, runMinutes: 10 + 20 / 60 },
+    source: 'Navy PST minimum and competitive score tables.',
+    notTracked: '500-yard swim, sidestroke or breaststroke.',
+  },
+  {
+    id: 'ranger',
+    flag: '🇺🇸',
+    label: 'Ranger (RASP)',
+    resultTitle: 'Ranger Assessment (RASP)',
+    description:
+      'The RASP entry test: 53 push-ups, 63 sit-ups, 4 pull-ups and a 2-mile run inside 14:30. Inside the course the graded run is 5 miles in 40 minutes, and chin-ups are strict from a dead hang with no kip.',
+    runLabel: '2-Mile Run',
+    events: { pushups: 53, situps: 63, pullups: 4, runMinutes: 14.5 },
+    competitive: { pushups: 80, situps: 90, pullups: 12, runMinutes: 13 },
+    source: 'Pre-RASP entry standard, plus in-course graded events.',
+    notTracked: '6-mile ruck with 35lb and weapon inside 1:30, building to 12 miles.',
+  },
+  {
+    id: 'pj',
+    flag: '🇺🇸',
+    label: 'PJ / Special Warfare',
+    resultTitle: 'Air Force PJ Initial Fitness Test',
+    description:
+      'The calisthenics and run half of the Initial Fitness Test, formerly the PAST: 8 pull-ups, 40 push-ups, 50 sit-ups and a 1.5-mile run inside 10:20. Every event has to be cleared in one session — failing one fails the test.',
+    runLabel: '1.5-Mile Run',
+    events: { pullups: 8, pushups: 40, situps: 50, runMinutes: 10 + 20 / 60 },
+    competitive: { pullups: 15, pushups: 65, situps: 75, runMinutes: 9.5 },
+    source: 'Air Force Special Warfare IFT minimums.',
+    notTracked: 'Two 25m underwater swims and a 500m surface swim, both gating.',
+  },
+  {
+    id: 'commando',
+    flag: '🇬🇧',
+    label: 'Royal Marines',
+    resultTitle: 'Potential Royal Marines Course',
+    description:
+      'The PRMC gym and track events. Three pull-ups keeps you on the course and eight is what candidates are told to arrive with; full marks are 16 pull-ups, 60 press-ups and 85 sit-ups in two minutes each. The three-miler is 1.5 miles as a squad, then 1.5 miles best effort — that second half is the number here. The bleep test floor is level 11.',
+    runLabel: '1.5-Mile Best Effort',
+    events: { pullups: 8, pushups: 60, situps: 85, beepLevel: 11, runMinutes: 10.5 },
+    competitive: { pullups: 16, beepLevel: 13 },
+    source: 'PRMC scoring: minimum to remain, and the maximum-points marks.',
+    notTracked: 'Endurance course, Tarzan assault course, bottom field pass-out.',
   },
   {
     id: 'sas',
     flag: '🇬🇧',
-    label: 'SAS Selection',
-    resultTitle: 'SAS Combat Fitness Standard',
-    description: 'The published SAS Combat Fitness Test run standard: 2 miles under 18:00. Full selection also includes the Fan Dance (a 26km, 40lb march over Pen y Fan) this app doesn’t track.',
-    runLabel: '2-Mile Run',
-    events: { runMinutes: 18 },
+    label: 'UKSF Briefing',
+    resultTitle: 'UKSF Briefing Course Fitness Test',
+    description:
+      'The fitness test on the five-day briefing course that precedes SAS selection proper: 45 press-ups and 55 sit-ups in two minutes each, and 1.5 miles inside 9:30. The run standard is the hard one — it is a minute faster than most military entry tests.',
+    runLabel: '1.5-Mile Run',
+    events: { pushups: 45, situps: 55, runMinutes: 9.5 },
+    competitive: { pushups: 70, situps: 80, runMinutes: 9 },
+    source: 'UKSF briefing course Combat Fitness Test.',
+    notTracked: 'Hills phase, the Fan Dance, Endurance, and the swim and navigation tests.',
+  },
+  {
+    id: 'legion',
+    flag: '🇫🇷',
+    label: 'Foreign Legion',
+    resultTitle: 'French Foreign Legion Selection',
+    description:
+      'The Aubagne selection tests that convert to a gym: 4 pull-ups to pass, with 8 or more strongly recommended, and the Luc Léger shuttle test at level 7 minimum. The shuttle is the same 20m bleep test, starting at 8.5 km/h and rising half a km/h a level.',
+    events: { pullups: 4, beepLevel: 7 },
+    competitive: { pullups: 8, beepLevel: 10 },
+    source: 'Legion recruiting centre published tests.',
+    notTracked: 'Rope climb, psychotechnical and medical boards, the Gestapo interview.',
+  },
+  {
+    id: 'spetsnaz',
+    flag: '🇷🇺',
+    label: 'Spetsnaz',
+    resultTitle: 'Spetsnaz Selection Standard',
+    description:
+      'The commonly cited Spetsnaz selection numbers: 20 strict pull-ups, 90 push-ups in two minutes, and 3km inside 10:30. Treat these as indicative rather than official — unlike the Western units here, no verifiable published standard exists.',
+    runLabel: '3km Run',
+    events: { pullups: 20, pushups: 90, runMinutes: 10.5 },
+    source: 'Widely repeated figures; no official public standard available.',
+    notTracked: 'Hand-to-hand assessment and the final endurance march.',
   },
   {
     id: 'ksk',
     flag: '🇩🇪',
     label: 'KSK Selection',
     resultTitle: 'KSK Endurance Standard',
-    description: 'The published German KSK field endurance standard: a 7km ruck march with a 20kg pack under 52:00. Selection also includes 1-minute max push-up/sit-up tests and a 500m swim this app doesn’t track.',
+    description:
+      'The German KSK field endurance benchmark: a 7km march carrying 20kg inside 52 minutes. Runnable on a treadmill with a weighted pack if you have nowhere to march.',
     runLabel: '7km Ruck (20kg)',
     events: { runMinutes: 52 },
-  },
-  {
-    id: 'commando',
-    flag: '🇬🇧',
-    label: 'Commando PT Test',
-    resultTitle: 'Royal Marines Commando Standard',
-    description: 'The published Royal Marines Candidate Preparation standard: 30 push-ups, 40 sit-ups, 4 pull-ups minimum, and a 1.5-mile run under 11:15.',
-    runLabel: '1.5-Mile Run',
-    events: { pushups: 30, situps: 40, pullups: 4, runMinutes: 11.25 },
+    source: 'KSK published field endurance standard.',
+    notTracked: 'One-minute max calisthenics screens, 500m swim, three-month field phase.',
   },
   {
     id: 'commando-endurance',
     flag: '🇬🇧',
     label: 'Commando Endurance',
-    resultTitle: 'Royal Marines Endurance Course Standard',
-    description: 'The published Royal Marines Endurance Course standard: 6 miles carrying 21lb fighting order under 73:00, immediately followed by a marksmanship test in real selection.',
+    resultTitle: 'Royal Marines Endurance Course',
+    description:
+      'The Royal Marines endurance standard: 6 miles carrying 21lb fighting order inside 73 minutes. In selection it is run straight into a marksmanship test, which is the actual point of it.',
     runLabel: '6-Mile Load Carry (21lb)',
     events: { runMinutes: 73 },
-  },
-  {
-    id: 'recon',
-    flag: '🇺🇸',
-    label: 'Force Recon Prep',
-    resultTitle: 'USMC Force Recon Standard',
-    description: 'A Force Recon-competitive standard: 20 pull-ups and a 3-mile run under 18:00 — well above the standard Marine PFT minimum. Recon screening also includes underwater confidence and rucking events this app doesn’t track.',
-    runLabel: '3-Mile Run',
-    events: { pullups: 20, runMinutes: 18 },
-  },
-  {
-    id: 'legion',
-    flag: '🇫🇷',
-    label: 'Legion Selection',
-    resultTitle: 'French Foreign Legion Standard',
-    description: 'The published French Foreign Legion recruiting-station standard: 7 strict pull-ups from a dead hang. Selection also requires at least level 7 on the Luc Léger beep test, which doesn’t convert cleanly to a loggable time here.',
-    events: { pullups: 7 },
-  },
-  {
-    id: 'pj',
-    flag: '🇺🇸',
-    label: 'PJ Indoc Prep',
-    resultTitle: 'Air Force Pararescue Standard',
-    description: 'The published Pararescue (PJ) PAST standard: 10 pull-ups. The full PAST also gates on a 25m underwater swim and timed run this app doesn’t track.',
-    events: { pullups: 10 },
+    source: 'Royal Marines commando test standards.',
+    notTracked: 'The tunnels and water obstacles, and the shoot that follows immediately after.',
   },
 ];
 
@@ -154,6 +238,9 @@ const PROGRAM_STANDARD: { test: RegExp; standard: string }[] = [
   { test: /recon/i, standard: 'recon' },
   { test: /legion/i, standard: 'legion' },
   { test: /\bpj\b|pararescue|indoc/i, standard: 'pj' },
+  // Last, so "Force Recon" still resolves to the Recon screener above rather
+  // than to the base Marine test that every Marine takes.
+  { test: /marine|usmc/i, standard: 'usmc-pft' },
 ];
 
 function standardForProgram(programName?: string): string | undefined {
@@ -192,6 +279,13 @@ const TIER_LABEL: Record<PtTestResult['tier'], { label: string; color: string }>
   solid: { label: 'Solid', color: 'text-blue-400' },
   'needs-work': { label: 'Needs Work', color: 'text-yellow-400' },
 };
+
+/** 225 -> "3:45". Plank targets are published in minutes and seconds. */
+function formatSeconds(total: number): string {
+  const m = Math.floor(total / 60);
+  const sec = Math.round(total % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
 
 function formatMinutes(mins: number): string {
   return `${Math.floor(mins)}:${String(Math.round((mins % 1) * 60)).padStart(2, '0')}`;
@@ -277,6 +371,9 @@ export default function PtTestPage() {
   const [pullups, setPullups] = useState('');
   const [runMin, setRunMin] = useState('');
   const [runSec, setRunSec] = useState('');
+  const [plankMin, setPlankMin] = useState('');
+  const [plankSec, setPlankSec] = useState('');
+  const [beep, setBeep] = useState('');
   const [distance, setDistance] = useState<1.5 | 2>(1.5);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<PtTestResult | null>(null);
@@ -301,7 +398,9 @@ export default function PtTestPage() {
       const missing = (events.pushups !== undefined && isNaN(pu as number))
         || (events.situps !== undefined && isNaN(su as number))
         || (events.pullups !== undefined && isNaN(pull as number))
-        || (events.runMinutes !== undefined && (!mins || mins <= 0));
+        || (events.runMinutes !== undefined && (!mins || mins <= 0))
+        || (events.plankSeconds !== undefined && !(Number(plankMin || 0) * 60 + Number(plankSec || 0)))
+        || (events.beepLevel !== undefined && !Number(beep));
       if (missing) {
         toast.error('Fill in every event for this standard');
         return;
@@ -309,9 +408,13 @@ export default function PtTestPage() {
 
       setSaving(true);
       try {
+        const plankTotal = Number(plankMin || 0) * 60 + Number(plankSec || 0);
+        const beepLevelValue = Number(beep || 0);
         const standardPassed = (events.pullups === undefined || (pull ?? 0) >= events.pullups)
           && (events.pushups === undefined || (pu ?? 0) >= events.pushups)
           && (events.situps === undefined || (su ?? 0) >= events.situps)
+          && (events.plankSeconds === undefined || plankTotal >= events.plankSeconds)
+          && (events.beepLevel === undefined || beepLevelValue >= events.beepLevel)
           && (events.runMinutes === undefined || (mins ?? Infinity) <= events.runMinutes);
 
         // Unused core fields are kept populated at 0 since PtTestResult's
@@ -329,6 +432,8 @@ export default function PtTestPage() {
           tier: 'solid' as PtTestResult['tier'],
           standard: active.id as PtTestResult['standard'],
           standardPassed,
+          ...(events.plankSeconds !== undefined ? { plankSeconds: plankTotal } : {}),
+          ...(events.beepLevel !== undefined ? { beepLevel: beepLevelValue } : {}),
         };
         const id = await createPtTestResult(data);
         const saved = { id, createdAt: new Date(), ...data };
@@ -380,17 +485,21 @@ export default function PtTestPage() {
   function reset() {
     setResult(null);
     setPushups(''); setSitups(''); setPullups(''); setRunMin(''); setRunSec('');
+    setPlankMin(''); setPlankSec(''); setBeep('');
   }
 
   if (result && result.standard && result.standard !== 'generic') {
     const std = standardFor(result.standard);
     if (std) {
+      const comp = std.competitive;
       const events = [
-        std.events.pullups !== undefined && { label: 'Pull-ups', value: `${result.pullups}`, target: `${std.events.pullups}+`, passed: (result.pullups ?? 0) >= std.events.pullups },
-        std.events.pushups !== undefined && { label: 'Push-ups (2min)', value: `${result.pushups}`, target: `${std.events.pushups}+`, passed: result.pushups >= std.events.pushups },
-        std.events.situps !== undefined && { label: 'Sit-ups (2min)', value: `${result.situps}`, target: `${std.events.situps}+`, passed: result.situps >= std.events.situps },
-        std.events.runMinutes !== undefined && { label: std.runLabel ?? 'Run', value: formatMinutes(result.runMinutes), target: formatMinutes(std.events.runMinutes), passed: result.runMinutes <= std.events.runMinutes },
-      ].filter(Boolean) as { label: string; value: string; target: string; passed: boolean }[];
+        std.events.pullups !== undefined && { label: 'Pull-ups', value: `${result.pullups}`, target: `${std.events.pullups}+`, passed: (result.pullups ?? 0) >= std.events.pullups, comp: comp?.pullups ? `${comp.pullups}+` : undefined },
+        std.events.pushups !== undefined && { label: 'Push-ups (2min)', value: `${result.pushups}`, target: `${std.events.pushups}+`, passed: result.pushups >= std.events.pushups, comp: comp?.pushups ? `${comp.pushups}+` : undefined },
+        std.events.situps !== undefined && { label: 'Sit-ups (2min)', value: `${result.situps}`, target: `${std.events.situps}+`, passed: result.situps >= std.events.situps, comp: comp?.situps ? `${comp.situps}+` : undefined },
+        std.events.plankSeconds !== undefined && { label: 'Plank', value: formatSeconds(result.plankSeconds ?? 0), target: formatSeconds(std.events.plankSeconds), passed: (result.plankSeconds ?? 0) >= std.events.plankSeconds },
+        std.events.beepLevel !== undefined && { label: 'Bleep test', value: `level ${result.beepLevel ?? 0}`, target: `level ${std.events.beepLevel}+`, passed: (result.beepLevel ?? 0) >= std.events.beepLevel },
+        std.events.runMinutes !== undefined && { label: std.runLabel ?? 'Run', value: formatMinutes(result.runMinutes), target: formatMinutes(std.events.runMinutes), passed: result.runMinutes <= std.events.runMinutes, comp: comp?.runMinutes ? formatMinutes(comp.runMinutes) : undefined },
+      ].filter(Boolean) as { label: string; value: string; target: string; passed: boolean; comp?: string }[];
 
       return (
         <div>
@@ -410,7 +519,10 @@ export default function PtTestPage() {
                       {e.passed ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
                       <p className="text-sm font-bold text-white">{e.label}</p>
                     </div>
-                    <p className="text-sm text-text-secondary">{e.value} <span className="text-text-tertiary">/ {e.target}</span></p>
+                    <div className="text-right">
+                      <p className="text-sm text-text-secondary">{e.value} <span className="text-text-tertiary">/ {e.target}</span></p>
+                      {e.comp && <p className="text-[10px] text-text-tertiary mt-0.5">competitive {e.comp}</p>}
+                    </div>
                   </Card>
                 ))}
               </div>
@@ -516,6 +628,19 @@ export default function PtTestPage() {
               ? active.description
               : 'A classic 3-event military-style fitness test — max push-ups, max sit-ups, and a timed run. Scored on a simplified 0-100-per-event scale for tracking your own progress; not an official Army/Marine score.'}
           </p>
+          {active && (
+            <div className="mt-3 pt-3 border-t border-white/8 space-y-1.5">
+              <p className="text-[11px] text-text-tertiary leading-relaxed">
+                <span className="text-text-secondary font-semibold">Source:</span> {active.source}
+              </p>
+              {active.notTracked && (
+                <p className="text-[11px] text-text-tertiary leading-relaxed">
+                  <span className="text-text-secondary font-semibold">Not tested here:</span> {active.notTracked}{' '}
+                  Passing this is not passing selection.
+                </p>
+              )}
+            </div>
+          )}
           <p className="text-xs text-text-tertiary leading-relaxed mt-3 pt-3 border-t border-white/8">
             Enter your numbers and they are scored against this standard straight away, then kept in
             your history. Nothing is uploaded and nobody reviews it.
@@ -558,6 +683,42 @@ export default function PtTestPage() {
                 target={active ? `${active.events.situps}+` : undefined}
               >
                 <NumberField value={situps} onChange={setSitups} />
+              </EventRow>
+            )}
+
+            {active?.events.plankSeconds !== undefined && (
+              <EventRow
+                icon={Timer}
+                label="Plank"
+                hint="Held, forearms"
+                target={formatSeconds(active.events.plankSeconds)}
+              >
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number" min="0" inputMode="numeric" value={plankMin} onChange={(e) => setPlankMin(e.target.value)}
+                    placeholder="00"
+                    aria-label="Plank minutes"
+                    className="w-14 bg-surface border border-white/10 rounded-lg px-2 py-2 text-white text-lg font-bold text-center tabular-nums focus:outline-none focus:border-accent/50"
+                  />
+                  <span className="text-text-tertiary font-bold">:</span>
+                  <input
+                    type="number" min="0" max="59" inputMode="numeric" value={plankSec} onChange={(e) => setPlankSec(e.target.value)}
+                    placeholder="00"
+                    aria-label="Plank seconds"
+                    className="w-14 bg-surface border border-white/10 rounded-lg px-2 py-2 text-white text-lg font-bold text-center tabular-nums focus:outline-none focus:border-accent/50"
+                  />
+                </div>
+              </EventRow>
+            )}
+
+            {active?.events.beepLevel !== undefined && (
+              <EventRow
+                icon={TrendingUp}
+                label="Bleep test"
+                hint="20m shuttle, level reached"
+                target={`level ${active.events.beepLevel}+`}
+              >
+                <NumberField value={beep} onChange={setBeep} />
               </EventRow>
             )}
 
