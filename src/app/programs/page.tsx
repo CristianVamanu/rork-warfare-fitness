@@ -25,12 +25,46 @@ export async function generateMetadata(): Promise<Metadata> {
  *  what the brand is known for and what people arrive searching for. */
 const GOAL_ORDER = ['endurance', 'strength', 'hypertrophy', 'weight-loss', 'general'] as const;
 const GOAL_META: Record<string, { label: string; blurb: string }> = {
-  endurance: { label: 'Endurance & Selection', blurb: 'Long efforts, rucks, work capacity. The blocks built on selection-style training.' },
-  strength: { label: 'Strength', blurb: 'Heavier loads, lower reps, real progression on the main lifts.' },
-  hypertrophy: { label: 'Muscle Building', blurb: 'Volume and tension, organised into blocks that keep growing.' },
-  'weight-loss': { label: 'Fat Loss', blurb: 'Conditioning and deficit work that keeps the strength you already have.' },
-  general: { label: 'General Fitness', blurb: 'Broad, hard, and hard to be bad at. Good all-round base building.' },
+  endurance: {
+    label: 'Endurance & Selection',
+    blurb: 'Built backwards from the standards selection actually tests — the run, the ruck, the bar, and the hour where everyone else quietly stops. Arrive able to pass, not hoping to.',
+  },
+  strength: {
+    label: 'Strength',
+    blurb: 'Heavier bar, lower reps, and the next jump decided before you walk in. You will know it worked, because the numbers are written down.',
+  },
+  hypertrophy: {
+    label: 'Muscle Building',
+    blurb: 'Enough volume to grow, spaced so you can recover and do it again. Size is just the same hard thing repeated on purpose for long enough.',
+  },
+  'weight-loss': {
+    label: 'Fat Loss',
+    blurb: 'A deficit plus conditioning that protects the muscle you already paid for. The target is lighter and stronger, not lighter and smaller.',
+  },
+  general: {
+    label: 'General Fitness',
+    blurb: 'Hard to be bad at anything. The base that makes every other program on this page easier when you get to it.',
+  },
 };
+
+/**
+ * Column count per goal group, chosen so the items FILL the rows they are
+ * given. A single grid for every section is what made this page look broken
+ * on desktop: groups hold one, two or three programs, and a fixed
+ * three-column grid left a one-program section as a narrow card with two
+ * thirds of the row empty, and a four-program one as a row of three plus an
+ * orphan.
+ *
+ * One or two programs render as wide horizontal cards across the full
+ * measure; four render 2×2 rather than 3+1; three or more otherwise take the
+ * three-column grid, which they fill.
+ */
+function groupLayout(count: number): { cols: string; wide: boolean } {
+  if (count === 1) return { cols: 'grid-cols-1', wide: true };
+  if (count === 2) return { cols: 'grid-cols-1 lg:grid-cols-2', wide: true };
+  if (count === 4) return { cols: 'grid-cols-1 sm:grid-cols-2', wide: false };
+  return { cols: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3', wide: false };
+}
 
 export default async function ProgramsIndexPage() {
   const [programs, brand, terms] = await Promise.all([
@@ -58,7 +92,7 @@ export default async function ProgramsIndexPage() {
         <div className="relative z-10">
           <PublicNav programs={navPrograms} logoUrl={brand.logoUrl} appName={brand.appName} />
 
-          <header className="max-w-5xl mx-auto px-5 pt-12 pb-16 sm:pt-20 sm:pb-24">
+          <header className="max-w-6xl mx-auto px-5 pt-12 pb-16 sm:pt-20 sm:pb-24">
             <Reveal>
               <div className="flex items-center gap-2.5">
                 <span className="w-8 h-px bg-accent" />
@@ -70,9 +104,10 @@ export default async function ProgramsIndexPage() {
                 Pick your fight.
               </h1>
               <p className="text-text-secondary mt-6 text-base sm:text-lg leading-relaxed max-w-2xl">
-                Every program here is a complete campaign — not a list of exercises. Sets, reps,
-                tempo and rest are prescribed for every session, progression is built into the
-                weeks, and the app remembers exactly where you are.
+                Not a list of exercises. A campaign. Every session is written out before you
+                start — sets, reps, tempo, rest, and the week it gets heavier — so the only
+                decision left is whether you show up. Most people do not quit training because
+                it is hard. They quit because they stopped knowing what to do next.
               </p>
 
               <div className="flex flex-wrap gap-x-10 gap-y-4 mt-9">
@@ -92,7 +127,7 @@ export default async function ProgramsIndexPage() {
         </div>
       </div>
 
-      <main className="max-w-5xl mx-auto px-5 pb-24">
+      <main className="max-w-6xl mx-auto px-5 pb-24">
         {programs.length === 0 ? (
           <p className="text-text-secondary">No programs published yet.</p>
         ) : (
@@ -112,10 +147,10 @@ export default async function ProgramsIndexPage() {
                     </span>
                   </div>
                 </Reveal>
-                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className={`grid gap-5 ${groupLayout(group.items.length).cols}`}>
                   {group.items.map((p, i) => (
                     <Reveal key={p.id} delay={i * 0.05}>
-                      <ProgramCard p={p} />
+                      <ProgramCard p={p} wide={groupLayout(group.items.length).wide} />
                     </Reveal>
                   ))}
                 </div>
@@ -127,10 +162,10 @@ export default async function ProgramsIndexPage() {
                 <h2 className="text-2xl font-black text-white border-b border-white/8 pb-4 mb-6">
                   More Programs
                 </h2>
-                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className={`grid gap-5 ${groupLayout(other.length).cols}`}>
                   {other.map((p, i) => (
                     <Reveal key={p.id} delay={i * 0.05}>
-                      <ProgramCard p={p} />
+                      <ProgramCard p={p} wide={groupLayout(other.length).wide} />
                     </Reveal>
                   ))}
                 </div>
@@ -148,12 +183,12 @@ export default async function ProgramsIndexPage() {
             </h2>
             <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2 mt-7">
               {[
-                ['Day-by-day prescription', 'Every session written out — no guessing what to do or how hard.'],
-                ['Automatic progression', 'Volume and intensity move week to week. You just follow it.'],
-                ['Tracking that remembers', 'Where you are, what you lifted last time, what comes next.'],
-                ['Nutrition targets', 'Calories and macros calculated for your body and this goal.'],
-                ['Exercise substitutions', 'Short on equipment? Swap a movement without breaking the plan.'],
-                ['The community', 'Channels and a PR wall full of people running the same programs.'],
+                ['Every session written out', 'Sets, reps, tempo and rest. Nothing to decide at six in the morning.'],
+                ['The next jump already decided', 'The weeks get harder on a schedule, so you stop negotiating with yourself.'],
+                ['It remembers so you do not have to', 'Where you are, what you lifted last time, what is next. Close it mid-set and nothing is lost.'],
+                ['Numbers for your body', 'Calories and protein worked out from your height, weight, age and this goal.'],
+                ['Swap any movement', 'No rack, no bench, hotel gym. Substitute the lift and the plan still holds.'],
+                ['People on the same program', 'Channels and a PR wall. It is much harder to quietly stop in front of witnesses.'],
               ].map(([title, body]) => (
                 <div key={title} className="flex gap-3.5">
                   <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
@@ -172,7 +207,7 @@ export default async function ProgramsIndexPage() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(245,166,35,0.16),transparent_60%)]" />
             <div className="relative">
               <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-                Pick one. Start this week.
+                Pick one. Start today.
               </h2>
               <p className="text-text-secondary mt-4 max-w-lg mx-auto">
                 {terms.disclosure}
