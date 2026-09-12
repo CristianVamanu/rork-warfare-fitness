@@ -1636,7 +1636,11 @@ function AdminPageInner() {
         description: channelForm.description.trim() || undefined,
         emoji: channelForm.emoji.trim() || undefined,
         photoUploadEnabled: channelForm.photoUploadEnabled,
-        videoUploadEnabled: channelForm.videoUploadEnabled,
+        // Clips ride on the photo picker, so they cannot be on while photos
+        // are off. The toggle is merely disabled in that state, which left
+        // an earlier "on" in the form and saved a channel the list showed
+        // as photos-off that still accepted video.
+        videoUploadEnabled: channelForm.photoUploadEnabled && channelForm.videoUploadEnabled,
         slowModeDays: channelForm.slowModeDays,
         allowUserPosts: channelForm.allowUserPosts,
         createdBy: user.uid,

@@ -431,7 +431,7 @@ export default function ChannelPage() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     const isVideo = file.type.startsWith('video/');
-    if (isVideo && !channel?.videoUploadEnabled) {
+    if (isVideo && !(channel?.photoUploadEnabled && channel?.videoUploadEnabled)) {
       toast.error('Clips are not allowed in this channel');
       return;
     }
@@ -751,7 +751,7 @@ export default function ChannelPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept={channel.videoUploadEnabled ? 'image/*,video/*' : 'image/*'}
+              accept={channel.photoUploadEnabled && channel.videoUploadEnabled ? 'image/*,video/*' : 'image/*'}
               className="hidden"
               onChange={handleImagePick}
             />

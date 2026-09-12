@@ -114,7 +114,10 @@ export async function GET(req: NextRequest) {
     const firstSentence = raw.match(/^[^.!?]*[.!?]/)?.[0]?.trim() ?? raw;
     const tip = firstSentence.length <= MAX_TIP_CHARS
       ? firstSentence
-      : firstSentence.slice(0, MAX_TIP_CHARS).replace(/\s+\S*$/, '').trim() + '…';
+      // Sliced one short so the ellipsis never pushes it back over the cap —
+      // at exactly the cap plus one the read path would treat it as a miss
+      // and regenerate on every request.
+      : firstSentence.slice(0, MAX_TIP_CHARS - 1).replace(/\s+\S*$/, '').trim() + '…';
 
     // Cache in Firestore for the rest of the day
     if (app) {
