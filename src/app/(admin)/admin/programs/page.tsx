@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Edit2, Trash2, EyeOff, Users, Sparkles, ChevronLeft, Dumbbell, Crown, Stethoscope, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Trash2, EyeOff, Users, Sparkles, Dumbbell, Crown, Stethoscope, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { AdminShell } from '@/components/admin/AdminShell';
+import { adminGroups } from '@/components/admin/nav';
 import type { Program } from '@/types';
 
 interface UserRow { id: string; displayName?: string; email?: string; activeProgram?: { programId?: string; programName?: string } }
@@ -231,19 +233,19 @@ export default function ProgramsPage() {
   };
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      {/* On phones the two action buttons crowded the title into a cramped
-          squeeze — stack them on their own full-width row below the title
-          instead; side by side with the title only from sm: up. */}
-      <div className="flex flex-wrap items-center gap-3">
-        <button onClick={() => router.back()} className="p-2 rounded-xl hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-black text-white">Programs</h1>
-          <p className="text-xs text-text-secondary">{programs.length} total</p>
-        </div>
+    <AdminShell
+      groups={adminGroups()}
+      active={'programs' as const}
+      onSelect={(id) => router.push(`/admin?tab=${id}`)}
+      title="Programs"
+      subtitle={`${programs.length} total`}
+    >
+    {/* Capped, like every other admin panel. Unconstrained, a program row
+        stretched its description across the whole of a wide monitor and threw
+        the row's own controls to the far edge, an arm's length from the name
+        they belong to. */}
+    <div className="space-y-5 max-w-[1180px]">
+      <div className="flex flex-wrap items-center gap-3 justify-end">
         <div className="flex gap-2 w-full sm:w-auto">
           <Button size="sm" variant="secondary" className="flex-1 sm:flex-none" onClick={runHealthCheck} disabled={healthChecking}>
             <Stethoscope className="w-4 h-4" /> {healthChecking ? 'Checking...' : 'Health Check'}
@@ -323,8 +325,11 @@ export default function ProgramsPage() {
                     )}
                     <span className="text-xs text-text-tertiary">{p.weeks}w · {p.daysPerWeek}d/wk</span>
                   </div>
-                  {p.description && <p className="text-xs text-text-secondary mt-1.5 line-clamp-1">{p.description}</p>}
-                  <div className="flex items-center gap-1.5 mt-2">
+                  {/* Capped at a readable measure and allowed two lines. On a
+                      wide monitor a single clamped line ran the width of the
+                      screen, which is neither readable nor a useful preview. */}
+                  {p.description && <p className="text-xs text-text-secondary mt-1.5 line-clamp-2 max-w-[70ch]">{p.description}</p>}
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                     <span className="text-xs text-text-tertiary">One-time price:</span>
                     <div className="relative">
                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary text-xs">$</span>
@@ -341,7 +346,7 @@ export default function ProgramsPage() {
                         className="w-20 bg-surface border border-white/10 rounded-lg pl-4 pr-1.5 py-1 text-xs text-white focus:outline-none focus:border-accent/50"
                       />
                     </div>
-                    <span className="text-xs text-text-tertiary">(optional — lets clients buy this program without full membership)</span>
+                    <span className="text-xs text-text-tertiary">optional — sells this program on its own</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -468,5 +473,6 @@ export default function ProgramsPage() {
         </div>
       </Modal>
     </div>
+    </AdminShell>
   );
 }

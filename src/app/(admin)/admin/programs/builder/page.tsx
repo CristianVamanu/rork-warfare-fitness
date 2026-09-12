@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Sparkles, ChevronLeft, Plus, Trash2, ChevronUp, ChevronDown, Save,
+  Sparkles, Plus, Trash2, ChevronUp, ChevronDown, Save,
   Users, CheckCircle, Loader2, Moon, Dumbbell, AlertCircle, Video, Search, X, Play, Upload, FileText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -23,6 +23,8 @@ import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { AdminShell } from '@/components/admin/AdminShell';
+import { adminGroups } from '@/components/admin/nav';
 import type { Program, ExerciseVideo } from '@/types';
 import { stripUndefinedDeep } from '@/lib/utils';
 
@@ -805,16 +807,17 @@ function BuilderInner() {
   const day = activeSchedule[activeDay];
 
   return (
-    <div className="space-y-5 pb-10">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="p-2 rounded-xl hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-black text-white">{programId ? 'Edit Program' : 'Program Builder'}</h1>
-          <p className="text-xs text-text-secondary">{savedId ? (prog.visibility === 'coaching' ? 'Coaching program (private)' : 'Public program') : 'Unsaved draft'}</p>
-        </div>
+    <AdminShell
+      groups={adminGroups()}
+      active={'programs' as const}
+      onSelect={(id) => router.push(`/admin?tab=${id}`)}
+      title={programId ? 'Edit Program' : 'Program Builder'}
+      subtitle={savedId ? (prog.visibility === 'coaching' ? 'Coaching program (private)' : 'Public program') : 'Unsaved draft'}
+    >
+    {/* Capped to the same measure as the rest of the admin. A form field
+        stretched across a wide monitor is harder to fill in, not easier. */}
+    <div className="space-y-5 pb-10 max-w-[1180px]">
+      <div className="flex items-center gap-3 justify-end">
         <div className="flex gap-2">
           <Button size="sm" variant="secondary" onClick={() => handleSave(false)} loading={saving}>
             <Save className="w-3.5 h-3.5" /> Save
@@ -1693,6 +1696,7 @@ function BuilderInner() {
         </div>
       </Modal>
     </div>
+    </AdminShell>
   );
 }
 

@@ -9,12 +9,12 @@ import {
   MessageSquare, Send, ChevronLeft, ChevronRight, Ban, UserCheck,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
   Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail, Star,
-  LifeBuoy, RotateCcw,
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
 import { AdminShell } from '@/components/admin/AdminShell';
+import { ADMIN_TAB_BY_ID, adminGroups } from '@/components/admin/nav';
 import { StatTile, Panel, Pill, KV, Segmented } from '@/components/admin/ui';
 import { getIdToken } from 'firebase/auth';
 import { DEFAULT_ORG_DAILY_LIMIT } from '@/lib/orgAiLimit';
@@ -2613,36 +2613,11 @@ function AdminPageInner() {
   }
   const uncategorizedCount = exerciseLibrary.filter(ex => ex.muscleGroups.length === 0).length;
 
-  const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: 'overview', label: 'Overview', icon: Activity },
-    { id: 'programs', label: 'Programs', icon: Dumbbell },
-    { id: 'clients', label: 'Clients', icon: Users },
-    { id: 'messages', label: 'Messages', icon: MessageSquare },
-    { id: 'support', label: 'Support', icon: LifeBuoy },
-    { id: 'community', label: 'Community', icon: Users },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'membership', label: 'Membership', icon: CreditCard },
-    { id: 'coaching', label: 'Coaching Apps', icon: UserCheck },
-    { id: 'library', label: 'Library', icon: Video },
-    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
-    { id: 'integrations', label: 'Integrations', icon: Key },
-    { id: 'leads', label: 'Leads', icon: Mail },
-    { id: 'settings', label: 'Settings', icon: Settings },
-    // Last in the bar, but a tab of its own: disaster recovery buried at the
-    // bottom of a settings page is not findable by someone who needs it now.
-    { id: 'restore', label: 'Restore', icon: RotateCcw },
-  ];
+  // The tab list and grouping moved to components/admin/nav.ts so the
+  // Programs routes, which are their own pages, can render the same rail.
+  const byId = ADMIN_TAB_BY_ID;
+  const GROUPS = adminGroups({ support: unresolvedSupport });
 
-  // Grouped by what the admin is doing. The order inside each group is the
-  // order of the old strip, so nothing moves relative to its neighbours.
-  const byId = Object.fromEntries(TABS.map((t) => [t.id, t])) as Record<Tab, typeof TABS[number]>;
-  const withBadge = (id: Tab) => ({ ...byId[id], badge: id === 'support' ? unresolvedSupport : undefined });
-  const GROUPS = [
-    { label: 'Operate', tabs: (['overview', 'clients', 'messages', 'support', 'community', 'notifications'] as Tab[]).map(withBadge) },
-    { label: 'Product', tabs: (['programs', 'library', 'membership', 'coaching'] as Tab[]).map(withBadge) },
-    { label: 'Growth', tabs: (['analytics', 'leads'] as Tab[]).map(withBadge) },
-    { label: 'System', tabs: (['integrations', 'settings', 'restore'] as Tab[]).map(withBadge) },
-  ];
   const TAB_SUBTITLE: Partial<Record<Tab, string>> = {
     overview: new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }),
     clients: `${clients.length} client${clients.length !== 1 ? 's' : ''}${adminCount > 0 ? ` · ${adminCount} admin${adminCount !== 1 ? 's' : ''}` : ''}`,
