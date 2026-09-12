@@ -419,8 +419,8 @@ export default function ProgramDetailPage() {
               <p className="text-sm font-bold text-white">Members Only</p>
               <p className="text-xs text-text-secondary mt-0.5 mb-3">
                 {hasMembership
-                  ? "Your current plan doesn't include this program. Upgrade to unlock it."
-                  : 'This program is included with an active membership. Subscribe to unlock it.'}
+                  ? `All ${totalWeeks} weeks are locked — this program isn't in your current plan. Upgrade and the full schedule opens straight away.`
+                  : `All ${totalWeeks} weeks are locked — this program comes with an active membership. Subscribe and the full schedule opens straight away.`}
               </p>
               <Button size="sm" fullWidth onClick={() => router.push('/profile')}>
                 <Crown className="w-4 h-4" /> View Plans
@@ -494,27 +494,12 @@ export default function ProgramDetailPage() {
             product. Locking each day individually still listed every week and
             every session title, which is the shape of the thing being sold —
             "Members Only" above a full schedule reads as a label rather than a
-            lock. */}
-        {allWeeks.length > 0 && isMembershipLocked ? (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Card className="p-6 text-center">
-              <div className="mx-auto w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-3">
-                <Lock className="w-6 h-6 text-accent" />
-              </div>
-              <h2 className="text-base font-bold text-white">
-                {totalWeeks} weeks, locked
-              </h2>
-              <p className="text-sm text-text-secondary mt-1.5 max-w-sm mx-auto">
-                {hasMembership
-                  ? `${program.name} is not part of your current plan. Upgrade and the full schedule opens straight away.`
-                  : `${program.name} comes with an active membership. Subscribe and the full schedule opens straight away.`}
-              </p>
-              <Button className="mt-4" onClick={() => router.push('/profile')}>
-                <Crown className="w-4 h-4" /> {hasMembership ? 'Upgrade to unlock' : 'View plans'}
-              </Button>
-            </Card>
-          </motion.div>
-        ) : allWeeks.length > 0 && (
+            lock.
+            The schedule is simply absent here, rather than replaced by a
+            second locked panel: the Members Only card above already carries
+            the message and the upgrade button, and two cards saying the same
+            thing one under the other reads as a mistake. */}
+        {allWeeks.length > 0 && !isMembershipLocked && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold text-white">
