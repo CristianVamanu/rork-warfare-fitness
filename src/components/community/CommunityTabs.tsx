@@ -23,7 +23,7 @@ export function CommunityTabs({ active }: { active: 'channels' | 'prs' }) {
   ] as const;
 
   return (
-    <div className="grid grid-cols-2 gap-0.5 p-[3px] rounded-full bg-surface border border-white/8" role="tablist">
+    <div className="flex gap-2" role="tablist">
       {tabs.map((t) => (
         <Link
           key={t.key}
@@ -31,9 +31,10 @@ export function CommunityTabs({ active }: { active: 'channels' | 'prs' }) {
           role="tab"
           aria-selected={active === t.key}
           aria-current={active === t.key ? 'page' : undefined}
-          className={`py-2 text-center text-xs sm:text-sm font-semibold rounded-full transition-all ${
-            active === t.key ? 'bg-white text-black' : 'text-text-secondary hover:text-white'
+          className={`h-9 px-4 rounded-full text-xs sm:text-sm font-semibold transition-all flex items-center ${
+            active === t.key ? 'bg-accent text-black shadow-glow-sm' : 'text-text-secondary hover:text-white backdrop-blur-xl'
           }`}
+          style={active === t.key ? undefined : { backgroundColor: 'var(--card-glass-bg)', border: '1px solid var(--card-glass-border)' }}
         >
           {t.label}
         </Link>

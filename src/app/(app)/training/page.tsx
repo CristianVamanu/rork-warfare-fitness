@@ -313,19 +313,28 @@ export default function TrainingPage() {
         )}
 
         {/* Filters */}
+        {/* Free-standing chips, no track around them: the lit one is the
+            filter, the rest sit quietly on glass. */}
         <div className="-mx-4 px-4 overflow-x-auto">
-          <div className="inline-flex gap-0.5 p-[3px] rounded-full bg-surface border border-white/8 w-max">
-            {['all', 'strength', 'hypertrophy', 'weight-loss', 'beginner', 'intermediate', 'advanced'].map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
-                  filter === f ? 'bg-white text-black' : 'text-text-secondary hover:text-white'
-                }`}
-              >
-                {f === 'all' ? 'All' : f === 'weight-loss' ? 'Fat loss' : f === 'hypertrophy' ? 'Muscle' : f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
+          <div className="flex gap-2 w-max pb-0.5">
+            {['all', 'strength', 'hypertrophy', 'weight-loss', 'beginner', 'intermediate', 'advanced'].map((f) => {
+              const on = filter === f;
+              return (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  aria-pressed={on}
+                  className={`h-9 px-4 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                    on
+                      ? 'bg-accent text-black shadow-glow-sm'
+                      : 'text-text-secondary hover:text-white backdrop-blur-xl'
+                  }`}
+                  style={on ? undefined : { backgroundColor: 'var(--card-glass-bg)', border: '1px solid var(--card-glass-border)' }}
+                >
+                  {f === 'all' ? 'All' : f === 'weight-loss' ? 'Fat loss' : f === 'hypertrophy' ? 'Muscle' : f.charAt(0).toUpperCase() + f.slice(1)}
+                </button>
+              );
+            })}
           </div>
         </div>
 
