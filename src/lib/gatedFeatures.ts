@@ -34,8 +34,18 @@ export const GATED_FEATURES: readonly GatedFeature[] = [
   { id: 'nutrition-ai', label: 'Food Analyzer', desc: 'Photo-based nutrition analysis' },
   { id: 'meal-planner', label: 'Meal Planner', desc: 'Generates a full daily meal plan' },
   { id: 'scan-and-go', label: 'Scan & Go', desc: 'Photo-based workout builder from gym equipment' },
-  { id: 'ai-chat', label: 'Coach Chat', desc: 'The in-app training and nutrition chat' },
-  { id: 'ai-tip', label: 'Daily Tip', desc: 'The generated tip on the dashboard' },
+  // These two gate API routes that NO SCREEN IN THE APP CALLS. Both were
+  // built, left unwired, and found unauthenticated during the billing audit
+  // — an open OpenAI tap for anyone with the URL — so they were locked down
+  // rather than deleted. Nothing a member can tap reaches either one today,
+  // so ticking or unticking them changes nothing a member would notice.
+  // Neither has anything to do with 1:1 messaging between a real coach and
+  // a client: that is the Messages screen and the separate coaching tier.
+  // They stay listed because the routes still enforce these exact keys, and
+  // a gate that is enforced but unlistable is the bug this registry exists
+  // to prevent. Delete the routes and these two entries go with them.
+  { id: 'ai-chat', label: 'Chat Assistant (no screen yet)', desc: 'Automated training/nutrition chat — endpoint only, unreachable in the app' },
+  { id: 'ai-tip', label: 'Daily Tip (no screen yet)', desc: 'One generated tip per day, shared by all members — endpoint only, shown nowhere' },
   { id: 'premium-programs', label: 'Premium Training Plans', desc: 'Switching to any program other than their own assigned one' },
   { id: 'community', label: 'Community', desc: 'Channels — browsing and posting' },
   { id: 'pr-wall', label: 'PR Wall', desc: 'Personal-record posts feed' },
