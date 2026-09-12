@@ -16,7 +16,7 @@ import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
 import { getIdToken } from 'firebase/auth';
 import { DEFAULT_ORG_DAILY_LIMIT } from '@/lib/orgAiLimit';
-import { GATED_FEATURES } from '@/lib/gatedFeatures';
+import { GATED_FEATURES, pruneFeatureAccess } from '@/lib/gatedFeatures';
 import { uploadVideo, deleteVideo, resolveStorageProvider, DEFAULT_STORAGE_PROVIDER, type StorageProvider } from '@/lib/uploadVideo';
 import { storageHostOf, storageHostLabel } from '@/lib/storageHost';
 import { extractVideoThumbnail, extractVideoThumbnailFromUrl } from '@/lib/videoThumbnail';
@@ -1109,7 +1109,7 @@ function AdminPageInner() {
       currency: plan.currency,
       features: plan.features.join('\n'),
       active: plan.active,
-      featureAccess: plan.featureAccess ?? [],
+      featureAccess: pruneFeatureAccess(plan.featureAccess),
     });
     setShowPlanForm(true);
   }
@@ -1306,7 +1306,7 @@ function AdminPageInner() {
       currency: plan.currency,
       features: plan.features.join('\n'),
       active: plan.active,
-      featureAccess: plan.featureAccess ?? [],
+      featureAccess: pruneFeatureAccess(plan.featureAccess),
     });
     setShowMembershipPlanForm(true);
   }
@@ -3575,8 +3575,13 @@ function AdminPageInner() {
                                 ))}
                               </ul>
                             )}
-                            {(plan.featureAccess?.length ?? 0) > 0 && (
-                              <p className="text-[10px] text-accent mt-2">🔒 Restricted to: {plan.featureAccess.join(', ')}</p>
+                            {/* Reads the pruned list: a plan holding only
+                                retired ids ('leaderboard', 'ai-chat') is not
+                                restricted to anything real, and saying it is
+                                sent admins hunting for checkboxes that no
+                                longer exist. Saving the plan drops them. */}
+                            {pruneFeatureAccess(plan.featureAccess).length > 0 && (
+                              <p className="text-[10px] text-accent mt-2">🔒 Restricted to: {pruneFeatureAccess(plan.featureAccess).map((id) => GATED_FEATURES.find((f) => f.id === id)?.label ?? id).join(', ')}</p>
                             )}
                           </div>
                           <div className="flex gap-1 flex-shrink-0">

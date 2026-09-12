@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { GATED_FEATURE_IDS } from './gatedFeatures';
+import { GATED_FEATURE_IDS, pruneFeatureAccess } from './gatedFeatures';
 
 /**
  * The admin panel can only grant what it has a checkbox for, and
@@ -69,5 +69,28 @@ describe('gated feature registry', () => {
     // member can switch programs at all), so losing it from the registry
     // would quietly make the library ungrantable.
     expect(GATED_FEATURE_IDS).toContain('premium-programs');
+  });
+});
+
+describe('pruneFeatureAccess', () => {
+  it('drops ids that no longer exist and keeps the real ones', () => {
+    // 'leaderboard' was never a real key and 'ai-chat' went away with its
+    // route. Both survived in saved plans, and because featureAccess is an
+    // allowlist they kept the plan restricted with nothing to untick.
+    expect(pruneFeatureAccess(['barcode', 'leaderboard', 'ai-chat', 'premium-programs']))
+      .toEqual(['barcode', 'premium-programs']);
+  });
+
+  it('turns an all-stale list into an empty one, which means unrestricted', () => {
+    expect(pruneFeatureAccess(['leaderboard', 'ai-chat'])).toEqual([]);
+  });
+
+  it('handles a plan that never had the field', () => {
+    expect(pruneFeatureAccess(undefined)).toEqual([]);
+  });
+
+  it('leaves a clean list untouched', () => {
+    const clean = ['nutrition-ai', 'community', 'fasting'];
+    expect(pruneFeatureAccess(clean)).toEqual(clean);
   });
 });

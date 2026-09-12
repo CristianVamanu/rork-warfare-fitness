@@ -50,3 +50,21 @@ export const GATED_FEATURES: readonly GatedFeature[] = [
 ] as const;
 
 export const GATED_FEATURE_IDS: readonly string[] = GATED_FEATURES.map((f) => f.id);
+
+/**
+ * Drops feature ids that no longer exist.
+ *
+ * featureAccess is an allowlist, so a stale id is not inert: it keeps the
+ * list non-empty, which keeps the plan RESTRICTED, while having no checkbox
+ * anywhere that could clear it. Unticking every visible box then left the
+ * plan restricted to nothing but dead keys, locking the whole app for
+ * everyone on it — which is exactly what happened to plans holding
+ * 'leaderboard' (never a real key) and 'ai-chat' (deleted with its route).
+ *
+ * Applied when a plan is loaded into the editor and again on save, so a plan
+ * cleans itself the first time it is touched.
+ */
+export function pruneFeatureAccess(ids: readonly string[] | undefined): string[] {
+  if (!ids) return [];
+  return ids.filter((id) => GATED_FEATURE_IDS.includes(id));
+}

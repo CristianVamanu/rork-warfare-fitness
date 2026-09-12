@@ -37,6 +37,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { stripUndefinedDeep } from './utils';
+import { pruneFeatureAccess } from './gatedFeatures';
 import { buildEntitlementIndex } from './planEntitlements';
 import { matchExerciseNames } from './exerciseMatch';
 import type { UserGoals, CoachingPlan, ExerciseVideo, NutritionPlan } from '@/types';
@@ -1672,7 +1673,11 @@ export async function getMembershipPlans(): Promise<MembershipPlan[]> {
   return promise;
 }
 
-export async function saveMembershipPlans(plans: MembershipPlan[]): Promise<void> {
+export async function saveMembershipPlans(input: MembershipPlan[]): Promise<void> {
+  // Stale entitlement ids are stripped on every save. They are not harmless:
+  // featureAccess is an allowlist, so a dead id keeps the plan restricted
+  // with no checkbox able to clear it — see pruneFeatureAccess.
+  const plans = input.map((p) => ({ ...p, featureAccess: pruneFeatureAccess(p.featureAccess) }));
   await setDoc(doc(db, 'config', 'membershipPlans'), { plans });
   // Republish the id -> entitlements map the security rules read. Done here,
   // in the same call that saves the plans, so the rules can never enforce a
@@ -2569,7 +2574,8 @@ export async function getCoachingPlans(): Promise<CoachingPlan[]> {
   return (snap.data()?.plans as CoachingPlan[]) ?? [];
 }
 
-export async function saveCoachingPlans(plans: CoachingPlan[]): Promise<void> {
+export async function saveCoachingPlans(input: CoachingPlan[]): Promise<void> {
+  const plans = input.map((p) => ({ ...p, featureAccess: pruneFeatureAccess(p.featureAccess) }));
   await setDoc(doc(db, 'config', 'coachingPlans'), { plans });
   await setDoc(doc(db, 'config', 'planEntitlements'), { coaching: buildEntitlementIndex(plans) }, { merge: true });
 }
