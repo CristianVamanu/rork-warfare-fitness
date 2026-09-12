@@ -6,6 +6,7 @@ import { doc, setDoc, serverTimestamp, onSnapshot, runTransaction } from 'fireba
 import { auth, db } from '@/lib/firebase';
 import { getUserDoc, resolveTrainerId } from '@/lib/firestore';
 import { isPendingSignup, awaitSignupInFlight } from '@/lib/auth';
+import { reportIssue } from '@/lib/reportIssue';
 import { getTenant } from '@/lib/tenants';
 import { checkAndRunMigration } from '@/lib/migration';
 import type { UserProfile, Tenant } from '@/types';
@@ -126,7 +127,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // signUp's own write did not land.
       const ensureTask = isPendingSignup(uid)
         ? Promise.resolve()
-        : ensureUserDoc(firebaseUser).catch((err) => console.error('[Auth] ensureUserDoc failed:', err));
+        : ensureUserDoc(firebaseUser).catch((err) => {
+            console.error('[Auth] ensureUserDoc failed:', err);
+            // The last thing that can create a missing user document. If it
+            // fails, this account has no profile and never will.
+            reportIssue('ensureUserDoc failed — account has no profile document', err);
+          });
       // Guarantee user doc exists first, then open a real-time listener
       ensureTask
         .then(() => {
@@ -158,7 +164,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (authErrorRetries < 5 && err.code === 'permission-denied') {
                 const delay = 1500 * (authErrorRetries + 1);
                 setTimeout(() => subscribeToProfile(firebaseUser, authErrorRetries + 1), delay);
+                return;
               }
+              // Out of retries. The member is signed in with no profile, which
+              // means a blank or stuck app for them. This is the report that
+              // was missing when new signups were failing silently.
+              // Message kept constant so the Errors tab groups every
+              // occurrence together; the varying detail goes in the payload,
+              // which is not part of the fingerprint.
+              reportIssue(
+                'Profile listener gave up — member signed in with no profile',
+                `code=${err.code} retries=${authErrorRetries}\n${err.stack ?? err.message}`,
+              );
             },
           );
           profileUnsubRef.current = unsub;
