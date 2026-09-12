@@ -106,13 +106,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profileUnsubRef.current?.();
 
     // Right after onAuthStateChanged fires with a new user (especially when
-    // switching accounts in the same session), the Firestore SDK's
-    // underlying connection needs a brief moment to actually attach the new
-    // ID token — Firestore requests issued in that window can transiently
-    // fail with permission-denied even though the user IS properly signed
-    // in. Forcing a fresh token here (rather than relying on whatever's
-    // cached) closes most of that gap before the first Firestore call.
-    firebaseUser.getIdToken(true).catch(() => {}).then(() => awaitSignupInFlight()).then(() => {
+    // switching accounts in the same session), the Firestore SDK's underlying
+    // connection needs a brief moment to actually attach the new ID token —
+    // requests issued in that window can fail with permission-denied even
+    // though the user IS properly signed in. Forcing a fresh token closes most
+    // of that gap.
+    //
+    // Started here, but deliberately NOT awaited before subscribing. Awaiting
+    // it put a network round trip to Google in front of the profile listener,
+    // and the app layout renders a full-page spinner until the profile
+    // arrives — so every launch, for every member, held the entire app behind
+    // a token refresh that is unnecessary in the common case, because a
+    // returning session already has a valid token attached from last time.
+    //
+    // The race it guards against is still covered: the listener's error
+    // handler retries on permission-denied, and by the time the first retry
+    // fires this refresh has long since landed.
+    void firebaseUser.getIdToken(true).catch(() => {});
+    awaitSignupInFlight().then(() => {
       // signUp() just wrote (or is actively writing) this exact doc itself
       // — running the transactional check-and-create here too is not just
       // redundant, it's the actual race that was surfacing as a permission
@@ -173,7 +184,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // onboarding. Back off up to five times (about 20s in total),
               // which outlasts any token attach seen so far.
               if (authErrorRetries < 5 && err.code === 'permission-denied') {
-                const delay = 1500 * (authErrorRetries + 1);
+                // First retry is quick — it exists to cover the token attach,
+                // which resolves in a few hundred milliseconds — then backs
+                // off for the genuinely slow cases.
+                const delay = authErrorRetries === 0 ? 400 : 1500 * authErrorRetries;
                 setTimeout(() => subscribeToProfile(firebaseUser, authErrorRetries + 1), delay);
                 return;
               }
