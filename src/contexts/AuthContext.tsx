@@ -5,7 +5,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, onSnapshot, runTransaction } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { getUserDoc, resolveTrainerId } from '@/lib/firestore';
-import { isPendingSignup } from '@/lib/auth';
+import { isPendingSignup, awaitSignupInFlight } from '@/lib/auth';
 import { getTenant } from '@/lib/tenants';
 import { checkAndRunMigration } from '@/lib/migration';
 import type { UserProfile, Tenant } from '@/types';
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const profileUnsubRef = useRef<(() => void) | null>(null);
 
-  const subscribeToProfile = (firebaseUser: User, retriedAfterAuthError = false) => {
+  const subscribeToProfile = (firebaseUser: User, authErrorRetries = 0) => {
     const uid = firebaseUser.uid;
 
     // Cancel any previous listener
@@ -111,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // fail with permission-denied even though the user IS properly signed
     // in. Forcing a fresh token here (rather than relying on whatever's
     // cached) closes most of that gap before the first Firestore call.
-    firebaseUser.getIdToken(true).catch(() => {}).then(() => {
+    firebaseUser.getIdToken(true).catch(() => {}).then(() => awaitSignupInFlight()).then(() => {
       // signUp() just wrote (or is actively writing) this exact doc itself
       // — running the transactional check-and-create here too is not just
       // redundant, it's the actual race that was surfacing as a permission
@@ -119,7 +119,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // signUp()'s own write to the same doc). Skipping it here closes
       // that window entirely instead of relying on the transaction to lose
       // the race gracefully.
-      const ensureTask = isPendingSignup(uid) ? Promise.resolve() : ensureUserDoc(firebaseUser).catch((err) => console.error('[Auth] ensureUserDoc failed:', err));
+      // awaitSignupInFlight() above means signUp() has already written this
+      // document (or failed trying), so there is no write left to race. The
+      // safety net runs either way now: ensureUserDoc returns early when the
+      // document is there, and is the only thing that can create it when
+      // signUp's own write did not land.
+      const ensureTask = isPendingSignup(uid)
+        ? Promise.resolve()
+        : ensureUserDoc(firebaseUser).catch((err) => console.error('[Auth] ensureUserDoc failed:', err));
       // Guarantee user doc exists first, then open a real-time listener
       ensureTask
         .then(() => {
@@ -141,10 +148,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               console.error('[Auth] profile listener error:', err);
               // Self-heal from the token-propagation race above instead of
               // leaving the user stuck on placeholder data until they
-              // manually refresh — one retry, ~1.5s later, is enough once
-              // the token has actually attached.
-              if (!retriedAfterAuthError && err.code === 'permission-denied') {
-                setTimeout(() => subscribeToProfile(firebaseUser, true), 1500);
+              // manually refresh. One retry at 1.5s was not enough: on a
+              // brand-new signup the live log showed both the first attempt
+              // and the single retry denied, and the doc write itself only
+              // acknowledged after that — so the listener was dead by the
+              // time the profile existed, and the member never got past
+              // onboarding. Back off up to five times (about 20s in total),
+              // which outlasts any token attach seen so far.
+              if (authErrorRetries < 5 && err.code === 'permission-denied') {
+                const delay = 1500 * (authErrorRetries + 1);
+                setTimeout(() => subscribeToProfile(firebaseUser, authErrorRetries + 1), delay);
               }
             },
           );

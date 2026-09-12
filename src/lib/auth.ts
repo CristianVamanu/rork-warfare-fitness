@@ -24,6 +24,26 @@ export function isPendingSignup(uid: string): boolean {
   return pendingSignups.has(uid);
 }
 
+// The uid-keyed Set above cannot be set until createUserWithEmailAndPassword
+// RESOLVES, because that call is what produces the uid — and onAuthStateChanged
+// has already fired by then. So AuthContext, asking "is this uid mid-signup?",
+// could legitimately be told no while signUp() was still several awaits away
+// from writing the user document, and would attach its profile listener to a
+// document that did not exist yet, against a token Firestore had not finished
+// attaching. Both reads came back permission-denied and the single retry was
+// spent before the write landed, which is exactly the signup failure seen in
+// production: the account existed in Auth, the document existed in Firestore,
+// and the app never saw a profile.
+//
+// This flag is set BEFORE the account is created, so there is no window. It is
+// not keyed by uid on purpose — one tab runs one signup.
+let signupInFlight: Promise<void> | null = null;
+
+/** Resolves once any in-flight signUp() has finished writing its user doc. */
+export function awaitSignupInFlight(): Promise<void> {
+  return signupInFlight ?? Promise.resolve();
+}
+
 export async function signUp(
   email: string,
   password: string,
@@ -32,8 +52,22 @@ export async function signUp(
 ) {
   console.log('[Auth] signUp() called');
 
+  let releaseSignup!: () => void;
+  signupInFlight = new Promise<void>((resolve) => { releaseSignup = resolve; });
+
   console.log('[Auth] Calling createUserWithEmailAndPassword...');
-  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  let credential;
+  try {
+    credential = await createUserWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    // Release the gate on the common failures (email already in use, weak
+    // password). Leaving it pending would strand the NEXT authentication in
+    // this tab — a plain sign-in would sit forever waiting on a signup that
+    // never happened.
+    signupInFlight = null;
+    releaseSignup();
+    throw err;
+  }
   console.log('[Auth] createUserWithEmailAndPassword succeeded — uid:', credential.user.uid);
   pendingSignups.add(credential.user.uid);
 
@@ -86,6 +120,8 @@ export async function signUp(
     // to running normally for this uid — on failure, it's actually the
     // only remaining path that can create the doc at all.
     pendingSignups.delete(credential.user.uid);
+    signupInFlight = null;
+    releaseSignup();
   }
 
   credential.user.getIdToken().then((token) => {

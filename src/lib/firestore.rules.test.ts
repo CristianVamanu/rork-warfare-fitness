@@ -100,6 +100,20 @@ describe('users/{uid} — creation', () => {
     await assertSucceeds(setDoc(doc(db, 'users', 'newbie'), { role: 'user', displayName: 'New', trainerId: null }));
   });
 
+  // The exact sequence signUp() and AuthContext run for a brand-new account:
+  // the profile listener reads the doc before it exists, then signUp writes
+  // the full payload with a server timestamp and null photo.
+  it('allows the real signup sequence: read own missing doc, then write the full payload', async () => {
+    const db = env.authenticatedContext('fresh').firestore();
+    await assertSucceeds(getDoc(doc(db, 'users', 'fresh')));
+    await assertSucceeds(setDoc(doc(db, 'users', 'fresh'), {
+      displayName: 'Fresh', email: 'fresh@example.com', photoURL: null, weightUnit: 'kg',
+      role: 'user', trainerId: null, createdAt: serverTimestamp(), lastActive: serverTimestamp(),
+      onboardingComplete: false, stats: { streak: 0, powerLevel: 1, totalWorkouts: 0, totalWeightLifted: 0 },
+      timezone: 'Europe/London',
+    }));
+  });
+
   it('REFUSES self-signup as admin even with no installer marker present', async () => {
     // The regression that mattered: this was permitted for as long as
     // system/installer.installed wasn't exactly true, and that flag was only
