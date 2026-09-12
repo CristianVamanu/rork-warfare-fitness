@@ -109,7 +109,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <HeaderDataProvider>
         {!hideNav && <VerifyEmailNotice variant="banner" />}
         <main className="pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
-          <MembershipGuard pathname={pathname}>{children}</MembershipGuard>
+          {/* The warm wash behind every screen's header. Painted once here
+              rather than per page, so a page cannot forget it or double it. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-[340px]"
+            style={{ background: 'radial-gradient(90% 55% at 50% -8%, rgba(var(--accent-rgb) / 0.26), rgba(var(--accent-rgb) / 0) 70%)' }}
+          />
+          <div className="relative">
+            <MembershipGuard pathname={pathname}>{children}</MembershipGuard>
+          </div>
         </main>
       </HeaderDataProvider>
       {/* Outside MembershipGuard on purpose: it only ever opens for someone

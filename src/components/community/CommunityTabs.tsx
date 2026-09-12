@@ -18,12 +18,12 @@ import Link from 'next/link';
  */
 export function CommunityTabs({ active }: { active: 'channels' | 'prs' }) {
   const tabs = [
-    { key: 'channels', href: '/community', label: '# Channels' },
-    { key: 'prs', href: '/community/prs', label: '🏅 PR Wall' },
+    { key: 'channels', href: '/community', label: 'Channels' },
+    { key: 'prs', href: '/community/prs', label: 'PR wall' },
   ] as const;
 
   return (
-    <div className="grid grid-cols-2 gap-1 bg-surface rounded-xl p-1" role="tablist">
+    <div className="grid grid-cols-2 gap-0.5 p-[3px] rounded-full bg-surface border border-white/8" role="tablist">
       {tabs.map((t) => (
         <Link
           key={t.key}
@@ -31,8 +31,8 @@ export function CommunityTabs({ active }: { active: 'channels' | 'prs' }) {
           role="tab"
           aria-selected={active === t.key}
           aria-current={active === t.key ? 'page' : undefined}
-          className={`py-2 text-center text-xs sm:text-sm font-medium rounded-lg transition-all ${
-            active === t.key ? 'bg-surface-elevated text-white' : 'text-text-secondary hover:text-white'
+          className={`py-2 text-center text-xs sm:text-sm font-semibold rounded-full transition-all ${
+            active === t.key ? 'bg-white text-black' : 'text-text-secondary hover:text-white'
           }`}
         >
           {t.label}

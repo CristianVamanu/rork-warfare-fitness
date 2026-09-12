@@ -54,22 +54,28 @@ export default function CommunityPage() {
                 {channels.map((ch, i) => (
                   <motion.div key={ch.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
                     <Link href={`/community/${ch.id}`}>
-                      <Card className="p-4 hover:border-accent/30 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center text-xl flex-shrink-0">
-                            {ch.emoji || '#'}
-                          </div>
+                      <Card className="p-4 hover:border-accent/30 transition-colors card-float">
+                        <div className="flex items-center gap-3.5">
+                          <span
+                            className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 border border-accent/25"
+                            style={{ background: 'linear-gradient(135deg, rgba(var(--accent-rgb) / 0.32), rgba(var(--accent-rgb) / 0.06))' }}
+                          >
+                            {ch.emoji || <Hash className="w-5 h-5 text-accent" strokeWidth={2} />}
+                          </span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-white"># {ch.name}</p>
-                            {ch.description && <p className="text-xs text-text-secondary truncate mt-0.5">{ch.description}</p>}
-                            <div className="flex items-center gap-3 mt-1">
-                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                                <Users className="w-3 h-3" /> {ch.postCount} posts
+                            <p className="text-[15px] font-extrabold text-white leading-tight">{ch.name}</p>
+                            {ch.description && <p className="text-xs text-text-secondary line-clamp-2 mt-0.5 leading-relaxed">{ch.description}</p>}
+                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                              <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">
+                                <Users className="w-3 h-3 mr-1" /> {Math.max(0, ch.postCount)} posts
                               </span>
                               {ch.slowModeDays > 0 && (
-                                <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                                  <Clock className="w-3 h-3" /> Slow mode: {ch.slowModeDays}d
+                                <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary">
+                                  <Clock className="w-3 h-3 mr-1" /> 1 post / {ch.slowModeDays}d
                                 </span>
+                              )}
+                              {ch.allowUserPosts === false && (
+                                <span className="inline-flex items-center h-6 px-2 rounded-full bg-accent-muted text-[11px] font-semibold text-accent">Announcements</span>
                               )}
                             </div>
                           </div>

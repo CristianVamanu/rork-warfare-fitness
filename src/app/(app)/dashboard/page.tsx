@@ -317,13 +317,6 @@ export default function DashboardPage() {
 
   return (
     <div className="relative">
-      {/* Aurora: a soft amber wash behind the greeting and the hero, fading
-          into the page ground. Decorative, behind everything. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[380px] -z-0"
-        style={{ background: 'radial-gradient(90% 55% at 50% -8%, rgba(var(--accent-rgb) / 0.32), rgba(var(--accent-rgb) / 0) 70%)' }}
-      />
       <div className="relative">
       <Header />
       <div className="px-4 py-4 space-y-3.5">

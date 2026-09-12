@@ -309,8 +309,8 @@ export default function ProfilePage() {
       <div className="px-4 py-4 space-y-5">
         {/* Profile Card */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-          <Card glass className="p-6 text-center">
-            <div className="relative inline-block mb-4">
+          <Card glass className="p-6 text-center border-accent/30 shadow-glow-sm">
+            <div className="relative inline-block mb-4 p-[3px] rounded-full" style={{ background: 'conic-gradient(from 180deg, rgba(var(--accent-rgb) / 0.9), rgba(var(--accent-rgb) / 0.15), rgba(var(--accent-rgb) / 0.9))' }}>
               {/* Tap the picture to change it. The pencil on the other side
                   still edits the name — two controls, two jobs, no menu. */}
               <button
@@ -320,7 +320,7 @@ export default function ProfilePage() {
                 aria-label="Change profile photo"
                 className="block rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
               >
-                <Avatar name={profile?.displayName} src={profile?.photoURL} size="xl" />
+                <Avatar name={profile?.displayName} src={profile?.photoURL} size="xl" className="ring-4 ring-background" />
               </button>
               <span className="absolute bottom-0 left-0 w-7 h-7 bg-surface-elevated border border-white/10 rounded-full flex items-center justify-center pointer-events-none">
                 <Camera className="w-3.5 h-3.5 text-white" />
@@ -341,7 +341,7 @@ export default function ProfilePage() {
               </button>
             </div>
             <div className="flex items-center justify-center gap-1.5">
-              <h2 className="text-xl font-black text-white">{profile?.displayName || 'Athlete'}</h2>
+              <h2 className="text-[22px] font-black text-white tracking-tight">{profile?.displayName || 'Athlete'}</h2>
               <QuestBadgeRow questIds={profile?.questsCompleted ?? []} />
             </div>
             <p className="text-text-secondary text-sm mt-0.5">{user?.email}</p>

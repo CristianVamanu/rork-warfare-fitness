@@ -236,11 +236,6 @@ export default function TrainingPage() {
 
   return (
     <div className="relative">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[320px]"
-        style={{ background: 'radial-gradient(90% 55% at 50% -8%, rgba(var(--accent-rgb) / 0.26), rgba(var(--accent-rgb) / 0) 70%)' }}
-      />
       <div className="relative">
       <Header title="Training" />
       <div className="px-4 py-4 space-y-4">
