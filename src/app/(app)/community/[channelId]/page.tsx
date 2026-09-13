@@ -8,6 +8,7 @@ import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, 
 import { compressImage } from '@/lib/imageCompress';
 import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
+import { getIdToken } from 'firebase/auth';
 import { FeedMedia } from '@/components/community/FeedMedia';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -576,22 +577,45 @@ export default function ChannelPage() {
       //
       // preload="metadata" alone leaves a black rectangle until the viewer
       // presses play — iOS Safari paints nothing before then — so a feed of
-      // clips reads as a column of broken boxes. A still frame fixes that with
-      // no server-side transcoder: pulled onto a canvas here, once, by the
-      // person uploading. Best-effort by design: a codec the browser cannot
-      // decode, a grab that times out, or a send that happens first all
-      // simply mean a posterless post, which is what there was before.
+      // clips reads as a column of broken boxes.
+      //
+      // The server takes the frame now, with ffmpeg. The browser used to be
+      // the only thing that could, and it fails silently on exactly the clips
+      // nobody checks: a codec this device cannot decode, a tab backgrounded
+      // mid-grab, a slow phone that hit the timeout. The uploader never
+      // notices, because they know what is in their own clip; everyone else
+      // gets the black rectangle.
+      //
+      // The browser attempt stays as the fallback for when the server cannot:
+      // no ffmpeg on the host, both grab slots busy, the request failing. Two
+      // ways to get a frame, neither of which can hold up the upload.
       if (isVideo) {
         void (async () => {
           try {
-            const frame = await extractVideoThumbnail(file);
-            if (!frame) return;
-            const posterFile = new File([frame], 'poster.jpg', { type: 'image/jpeg' });
-            const posterUrl = await uploadUserContent(provider, user, posterFile, 'community');
+            let posterUrl: string | null = null;
+
+            try {
+              const token = await getIdToken(user);
+              const res = await fetch('/api/media/poster', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+                body: JSON.stringify({ videoUrl: url }),
+              });
+              if (res.ok) posterUrl = ((await res.json()) as { posterUrl?: string | null }).posterUrl ?? null;
+            } catch { /* fall through to the browser's own attempt */ }
+
+            if (!posterUrl) {
+              const frame = await extractVideoThumbnail(file);
+              if (frame) {
+                const posterFile = new File([frame], 'poster.jpg', { type: 'image/jpeg' });
+                posterUrl = await uploadUserContent(provider, user, posterFile, 'community');
+              }
+            }
+
             // Only if this clip is still the pending one. If it was cleared
             // or replaced while the frame was being grabbed, a poster for it
             // must not attach to whatever is pending now.
-            if (pendingClipRef.current === url) setPendingPosterURL(posterUrl);
+            if (posterUrl && pendingClipRef.current === url) setPendingPosterURL(posterUrl);
           } catch { /* posterless is a worse thumbnail, not a failed upload */ }
         })();
       }
