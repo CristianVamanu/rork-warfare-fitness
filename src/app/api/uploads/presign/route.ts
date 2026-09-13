@@ -20,6 +20,7 @@ import { getSecret } from '@/lib/secrets';
 import { SUPPORT_MAX_BYTES } from '@/lib/supportLimits';
 
 const ALLOWED_ROOTS = ['prPosts', 'progressPhotos', 'community', 'support', 'avatars'];
+const COMMUNITY_UPLOADS_PER_DAY = 20;
 
 // Per-root size ceilings. A support attachment is a screenshot or, more often
 // than the old 20MB ceiling allowed for, a screen recording of a bug being
@@ -80,6 +81,21 @@ export async function POST(req: NextRequest) {
     }
     // Resolved before the size check, because the ceiling is per-root.
     const safeRoot = typeof root === 'string' && ALLOWED_ROOTS.includes(root) ? root : ALLOWED_ROOTS[0];
+
+    // Community media has its own daily ceiling on top of the hourly one
+    // above. The hourly limit stops a loop; this stops a person. Twenty
+    // photos and clips a day is more than any genuine member posts and far
+    // fewer than a feed can be flooded with. Counts against the account, so
+    // it applies to admins too — the number is set with that in mind.
+    if (safeRoot === 'community') {
+      const daily = await rateLimit({ scope: 'uploads-community-day', key: check.uid, windowMs: 24 * 60 * 60_000, max: COMMUNITY_UPLOADS_PER_DAY });
+      if (!daily.allowed) {
+        return NextResponse.json(
+          { error: `That's the most photos and clips one account can post in a day (${COMMUNITY_UPLOADS_PER_DAY}). Try again tomorrow.`, retryAfter: daily.retryAfterSeconds },
+          { status: 429 },
+        );
+      }
+    }
     const maxBytes = ROOT_MAX_SIZE_BYTES[safeRoot] ?? MAX_SIZE_BYTES;
     if (typeof sizeBytes !== 'number' || sizeBytes <= 0 || sizeBytes > maxBytes) {
       return NextResponse.json({ error: `File must be under ${maxBytes / (1024 * 1024)}MB` }, { status: 400 });

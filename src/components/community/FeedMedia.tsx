@@ -1,8 +1,12 @@
 'use client';
 
-import { Play } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 
 import { useEffect, useRef, useState } from 'react';
+
+// Sound preference for the session: flips true the first time someone unmutes
+// a clip, and every clip that autoplays after that comes in with sound.
+let feedUnmuted = false;
 
 /**
  * A photo or clip in a feed, shown whole.
@@ -74,13 +78,29 @@ export function FeedMedia({
   // (compact) stay still. The play() promise is allowed to reject: a browser
   // that refuses autoplay simply leaves the poster and the play glyph.
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const [progress, setProgress] = useState(0);
   useEffect(() => {
     const el = videoRef.current;
     if (!el || kind !== 'video' || compact) return;
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.6) el.play().catch(() => {});
-        else el.pause();
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+          // Once someone has unmuted one clip, the next ones come in with
+          // sound too, the way Instagram remembers it. If the browser
+          // refuses unmuted autoplay it falls back to muted rather than
+          // to nothing.
+          el.muted = !feedUnmuted;
+          setMuted(el.muted);
+          el.play().catch(() => {
+            el.muted = true;
+            setMuted(true);
+            el.play().catch(() => {});
+          });
+        } else {
+          el.pause();
+        }
       },
       { threshold: [0, 0.6] },
     );
@@ -122,8 +142,39 @@ export function FeedMedia({
     //    moments before either frame arrives read as "a clip is here" rather
     //    than "something is broken".
     const src = poster ? url : `${url}#t=0.1`;
+
+    const togglePlay = () => {
+      const el = videoRef.current;
+      if (!el) return;
+      if (el.paused) el.play().catch(() => {});
+      else el.pause();
+    };
+    const toggleMute = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const el = videoRef.current;
+      if (!el) return;
+      el.muted = !el.muted;
+      feedUnmuted = !el.muted;
+      setMuted(el.muted);
+    };
+    const seek = (e: React.MouseEvent<HTMLDivElement>) => {
+      e.stopPropagation();
+      const el = videoRef.current;
+      if (!el || !el.duration) return;
+      const r = e.currentTarget.getBoundingClientRect();
+      el.currentTime = ((e.clientX - r.left) / r.width) * el.duration;
+    };
+
     return (
-      <div className={frame} style={frameStyle}>
+      <div
+        className={`${frame} cursor-pointer select-none`}
+        style={frameStyle}
+        onClick={togglePlay}
+        role="button"
+        tabIndex={0}
+        aria-label={playing ? 'Pause clip' : 'Play clip'}
+        onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); togglePlay(); } }}
+      >
         <div
           aria-hidden="true"
           className="absolute inset-0 flex items-center justify-center"
@@ -137,13 +188,19 @@ export function FeedMedia({
           ref={videoRef}
           src={src}
           poster={poster}
-          controls
           playsInline
-          // Muted is what makes autoplay legal in every browser; the native
-          // controls give the viewer the unmute. Loop because a feed clip
-          // that stops dead reads as broken.
+          // Muted is what makes autoplay legal in every browser. Loop because
+          // a feed clip that stops dead reads as broken. The browser's own
+          // control bar is gone: it is a different design on every platform
+          // and none of them match the app. The controls below are ours.
           muted
           loop
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onTimeUpdate={(e) => {
+            const v = e.currentTarget;
+            if (v.duration) setProgress(v.currentTime / v.duration);
+          }}
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
             if (v.videoWidth && v.videoHeight) setRatio(v.videoWidth / v.videoHeight);
@@ -154,6 +211,43 @@ export function FeedMedia({
           crossOrigin="anonymous"
           className={`relative w-full h-full ${box} object-cover`}
         />
+
+        {/* Paused: one glyph, centred, over the frame. Playing: nothing in
+            the middle, so the clip is the clip. */}
+        {!playing && (
+          <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="w-14 h-14 rounded-full bg-black/40 border border-white/20 backdrop-blur-md flex items-center justify-center shadow-lg">
+              <Play className="w-6 h-6 text-white translate-x-0.5" fill="currentColor" />
+            </span>
+          </span>
+        )}
+
+        {/* Sound, bottom-right. The one control a muted autoplaying feed
+            actually needs to hand you. */}
+        <button
+          type="button"
+          onClick={toggleMute}
+          aria-label={muted ? 'Unmute' : 'Mute'}
+          className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-black/45 border border-white/15 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors"
+        >
+          {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+        </button>
+
+        {/* Progress, a hairline along the bottom edge that takes a tap to
+            seek. Wider hit area than it looks. */}
+        <div
+          onClick={seek}
+          role="slider"
+          aria-label="Seek"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress * 100)}
+          className="absolute left-0 right-0 bottom-0 h-4 flex items-end"
+        >
+          <div className="w-full h-[3px] bg-white/20">
+            <div className="h-full bg-accent transition-[width] duration-150" style={{ width: `${progress * 100}%` }} />
+          </div>
+        </div>
       </div>
     );
   }
