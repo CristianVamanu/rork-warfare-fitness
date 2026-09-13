@@ -205,39 +205,43 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * Removes a code that nobody ever used.
+ * Removes a code from this panel.
  *
  * Stripe has no delete for a promotion code, deliberately: a redeemed code is
  * part of somebody's billing history and cannot be made never to have existed.
- * What CAN be deleted is the coupon behind it, and doing that leaves the code
- * inert and — because the list above hides codes with no coupon — gone from
- * this panel.
+ * What CAN be deleted is the coupon behind it, at any time, and doing that
+ * leaves the code inert and — because the list above hides codes with no
+ * coupon — gone from here.
  *
- * Only offered for a code with no redemptions, which is what makes it safe.
- * Deleting the coupon behind a code people are actually on would strip the
- * record of what they were given while Stripe kept charging them the
- * discounted amount, leaving nothing to explain the numbers later. Those get
- * switched off instead, which stops new redemptions and leaves existing ones
- * exactly as they are.
+ * Deleting a coupon does NOT take the discount away from anyone already on it.
+ * Stripe keeps applying it to those subscriptions; what stops is any new
+ * redemption. So the only thing actually lost is the ability to look the coupon
+ * up in Stripe later, which matters for reconciling old invoices and not much
+ * else.
+ *
+ * That is a judgement call rather than a safety rule, so it belongs to the
+ * admin: a code nobody used deletes with no ceremony, and a code people are on
+ * needs `force` from a caller who has been told what they are giving up.
  */
 export async function DELETE(req: NextRequest) {
   const check = await verifyAdmin(req);
   if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
 
   try {
-    const { id } = await req.json();
+    const { id, force } = await req.json();
     if (!id || typeof id !== 'string') return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
     const stripe = await getStripe();
     const promo = await stripe.promotionCodes.retrieve(id);
 
-    // Checked server-side, not just hidden in the UI. The button is the
-    // reminder; this is the rule.
-    if (promo.times_redeemed > 0) {
-      return NextResponse.json(
-        { error: `${promo.code} has been used ${promo.times_redeemed} time${promo.times_redeemed === 1 ? '' : 's'}, so it cannot be deleted. Turn it off instead — that stops anyone new using it and leaves existing discounts alone.` },
-        { status: 409 },
-      );
+    // Checked here and not only in the UI, so a stale page cannot delete a
+    // live discount's record without the admin having seen the warning.
+    if (promo.times_redeemed > 0 && force !== true) {
+      return NextResponse.json({
+        error: `${promo.code} has been used ${promo.times_redeemed} time${promo.times_redeemed === 1 ? '' : 's'}. Confirm again to remove it.`,
+        needsForce: true,
+        timesRedeemed: promo.times_redeemed,
+      }, { status: 409 });
     }
 
     // Off first. If the coupon delete then fails, the code is already unusable

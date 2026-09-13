@@ -130,12 +130,20 @@ export function PromoCodesPanel() {
   }
 
   async function handleDelete(c: PromoCode) {
-    if (!confirm(`Delete ${c.code} for good? Nobody has used it, so nothing is affected. This cannot be undone.`)) return;
+    // Two different decisions, so two different questions. An unused code is
+    // housekeeping; a used one trades away your ability to look the discount
+    // up later, and the people on it must not be left wondering.
+    const question = c.timesRedeemed === 0
+      ? `Delete ${c.code} for good? Nobody has used it, so nothing is affected.`
+      : `${c.code} has been used ${c.timesRedeemed} time${c.timesRedeemed === 1 ? '' : 's'}.\n\n`
+        + `Anyone already on this discount keeps it — Stripe carries on applying it. What you lose is being able to look the code up in Stripe later.\n\nRemove it?`;
+    if (!confirm(question)) return;
+
     setTogglingId(c.id);
     try {
-      await call('DELETE', { id: c.id });
+      await call('DELETE', { id: c.id, ...(c.timesRedeemed > 0 ? { force: true } : {}) });
       setCodes((prev) => prev?.filter((x) => x.id !== c.id) ?? null);
-      toast.success(`${c.code} deleted`);
+      toast.success(`${c.code} removed`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not delete the code');
     } finally {
@@ -369,20 +377,15 @@ export function PromoCodesPanel() {
                 >
                   {togglingId === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
                 </button>
-                {/* Only for a code nobody has used. Once it has been redeemed
-                    it is part of someone's billing history, and the server
-                    refuses to delete it whatever this button does. */}
-                {c.timesRedeemed === 0 && (
-                  <button
-                    onClick={() => handleDelete(c)}
-                    disabled={togglingId === c.id}
-                    aria-label={`Delete ${c.code}`}
-                    title="Delete — nobody has used this one"
-                    className="p-2 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors flex-shrink-0"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                <button
+                  onClick={() => handleDelete(c)}
+                  disabled={togglingId === c.id}
+                  aria-label={`Delete ${c.code}`}
+                  title={c.timesRedeemed === 0 ? 'Delete — nobody has used this one' : 'Remove from this list'}
+                  className="p-2 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors flex-shrink-0"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </li>
             ))}
           </ul>
@@ -391,9 +394,9 @@ export function PromoCodesPanel() {
 
       <p className="text-[11px] text-text-tertiary mt-4 leading-relaxed">
         A code cannot be used while a site-wide sale is running, because Stripe will not apply two
-        discounts to one payment. A code nobody has used can be deleted outright; once it has been
-        redeemed it can only be switched off, because it is part of that member&apos;s billing history.
-        Switching one off stops anyone new using it and leaves existing discounts running.
+        discounts to one payment. Switching a code off stops anyone new using it. Deleting one also
+        removes it from this list, and either way anyone already on the discount keeps it — Stripe
+        carries on applying it to their subscription.
       </p>
     </Card>
   );
