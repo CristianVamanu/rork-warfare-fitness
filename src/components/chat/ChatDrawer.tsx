@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, Send, MessageCircle, ArrowUpRight } from 'lucide-react';
+import { X, ChevronLeft, Send, MessageCircle, ArrowUpRight, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHeaderData } from '@/contexts/HeaderDataContext';
 import {
   subscribeAdminConversations, subscribeUserConversations, subscribeMessages,
-  sendMessage, markConversationRead,
+  sendMessage, markConversationRead, deleteConversation,
 } from '@/lib/firestore';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -40,6 +40,11 @@ export function ChatDrawer() {
   const [msgLoading, setMsgLoading] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  // Which conversation is being asked about; deletion is confirmed inside
+  // the panel rather than with a browser dialog, which on a phone sits on
+  // top of the panel looking like a system error.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -69,7 +74,7 @@ export function ChatDrawer() {
   }, [isAdmin, activeId, conversations]);
 
   useEffect(() => {
-    if (!chatOpen) setActiveId(null);
+    if (!chatOpen) { setActiveId(null); setConfirmId(null); }
   }, [chatOpen]);
 
   useEffect(() => {
@@ -106,6 +111,26 @@ export function ChatDrawer() {
       setSending(false);
     }
   }
+
+  async function handleDelete() {
+    if (!confirmId) return;
+    setDeleting(true);
+    try {
+      await deleteConversation(confirmId);
+      setConversations((prev) => prev.filter((c) => c.id !== confirmId));
+      if (activeId === confirmId) setActiveId(null);
+      setConfirmId(null);
+      toast.success('Conversation deleted');
+      // A member has nothing left to look at once their one thread is gone.
+      if (!isAdmin) closeChat();
+    } catch {
+      toast.error('Failed to delete conversation');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const confirmTarget = conversations.find((c) => c.id === confirmId) ?? null;
 
   const inboxHref = isAdmin ? '/admin?tab=messages' : '/messages';
   const headerTitle = active ? (isAdmin ? active.userDisplayName || 'Member' : 'Your coach') : 'Messages';
@@ -146,6 +171,16 @@ export function ChatDrawer() {
                   <p className="text-[11px] text-text-tertiary truncate">{active.userEmail}</p>
                 )}
               </div>
+              {active && (
+                <button
+                  onClick={() => setConfirmId(active.id)}
+                  className="p-1.5 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors"
+                  aria-label="Delete conversation"
+                  title="Delete conversation"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
               <Link
                 href={inboxHref}
                 onClick={closeChat}
@@ -219,10 +254,10 @@ export function ChatDrawer() {
                     {conversations.map((c) => {
                       const unread = isAdmin ? c.unreadByAdmin : c.unreadByUser;
                       return (
-                        <li key={c.id}>
+                        <li key={c.id} className="group flex items-center hover:bg-white/[0.06] transition-colors">
                           <button
                             onClick={() => setActiveId(c.id)}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.06] transition-colors"
+                            className="flex-1 min-w-0 flex items-center gap-3 pl-4 pr-2 py-3 text-left"
                           >
                             <Avatar name={isAdmin ? c.userDisplayName : 'Coach'} size="sm" />
                             <div className="flex-1 min-w-0">
@@ -237,6 +272,14 @@ export function ChatDrawer() {
                               </p>
                             </div>
                           </button>
+                          <button
+                            onClick={() => setConfirmId(c.id)}
+                            className="p-2 mr-2 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors flex-shrink-0"
+                            aria-label="Delete conversation"
+                            title="Delete conversation"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </li>
                       );
                     })}
@@ -244,6 +287,43 @@ export function ChatDrawer() {
                 )}
               </div>
             )}
+
+            <AnimatePresence>
+              {confirmTarget && (
+                <motion.div
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-10 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                  onClick={() => !deleting && setConfirmId(null)}
+                >
+                  <motion.div
+                    role="alertdialog"
+                    aria-label="Delete conversation"
+                    initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}
+                    transition={{ duration: 0.18 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full max-w-sm rounded-2xl border border-border bg-surface-elevated p-5 shadow-2xl"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-danger/15 text-danger flex items-center justify-center mb-3">
+                      <Trash2 className="w-5 h-5" />
+                    </div>
+                    <p className="text-[15px] font-bold text-foreground">Delete this conversation?</p>
+                    <p className="text-sm text-text-secondary mt-1">
+                      {isAdmin
+                        ? `Every message with ${confirmTarget.userDisplayName || 'this member'} is removed for both of you. This cannot be undone.`
+                        : 'Every message with your coach is removed for both of you. This cannot be undone.'}
+                    </p>
+                    <div className="flex gap-2 mt-4">
+                      <Button variant="secondary" fullWidth onClick={() => setConfirmId(null)} disabled={deleting}>
+                        Keep
+                      </Button>
+                      <Button variant="danger" fullWidth onClick={handleDelete} loading={deleting}>
+                        Delete
+                      </Button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.aside>
         </>
       )}
