@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getIdToken } from 'firebase/auth';
 import toast from 'react-hot-toast';
-import { Ticket, Plus, Power, Loader2, Info } from 'lucide-react';
+import { Ticket, Plus, Power, Loader2, Info, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -76,7 +76,7 @@ export function PromoCodesPanel() {
   const [maxRedemptions, setMaxRedemptions] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
 
-  const call = useCallback(async (method: 'GET' | 'POST' | 'PATCH', body?: unknown) => {
+  const call = useCallback(async (method: 'GET' | 'POST' | 'PATCH' | 'DELETE', body?: unknown) => {
     if (!user) throw new Error('Not signed in');
     const token = await getIdToken(user);
     const res = await fetch('/api/admin/promo-codes', {
@@ -126,6 +126,20 @@ export function PromoCodesPanel() {
       toast.error(e instanceof Error ? e.message : 'Could not create the code');
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleDelete(c: PromoCode) {
+    if (!confirm(`Delete ${c.code} for good? Nobody has used it, so nothing is affected. This cannot be undone.`)) return;
+    setTogglingId(c.id);
+    try {
+      await call('DELETE', { id: c.id });
+      setCodes((prev) => prev?.filter((x) => x.id !== c.id) ?? null);
+      toast.success(`${c.code} deleted`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not delete the code');
+    } finally {
+      setTogglingId(null);
     }
   }
 
@@ -355,6 +369,20 @@ export function PromoCodesPanel() {
                 >
                   {togglingId === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
                 </button>
+                {/* Only for a code nobody has used. Once it has been redeemed
+                    it is part of someone's billing history, and the server
+                    refuses to delete it whatever this button does. */}
+                {c.timesRedeemed === 0 && (
+                  <button
+                    onClick={() => handleDelete(c)}
+                    disabled={togglingId === c.id}
+                    aria-label={`Delete ${c.code}`}
+                    title="Delete — nobody has used this one"
+                    className="p-2 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors flex-shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -363,8 +391,9 @@ export function PromoCodesPanel() {
 
       <p className="text-[11px] text-text-tertiary mt-4 leading-relaxed">
         A code cannot be used while a site-wide sale is running, because Stripe will not apply two
-        discounts to one payment. Codes are never deleted, only switched off, so anyone already on a
-        discount keeps it.
+        discounts to one payment. A code nobody has used can be deleted outright; once it has been
+        redeemed it can only be switched off, because it is part of that member&apos;s billing history.
+        Switching one off stops anyone new using it and leaves existing discounts running.
       </p>
     </Card>
   );
