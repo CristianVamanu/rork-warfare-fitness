@@ -42,8 +42,8 @@ interface Sellable { key: string; name: string; kind: 'membership' | 'coaching' 
 // reach it, because a month from checkout still covers a charge seven days in,
 // so that is the option to point at rather than a warning nobody reads.
 const DURATIONS = [
-  { id: 'forever', label: 'Every payment', hint: 'A thank-you that lasts as long as they stay subscribed.' },
-  { id: 'repeating', label: 'A set number of months', hint: 'Set 1 month for "their first real payment". Full price resumes after that.' },
+  { id: 'forever', label: 'Every payment, forever', hint: 'They keep this discount for as long as they stay subscribed. It never expires on its own.' },
+  { id: 'repeating', label: 'A set number of months', hint: 'Stripe removes the discount itself when the months are up, and they move to full price with no action from you.' },
   { id: 'once', label: 'The very first charge only', hint: 'While the paid trial is on, that charge is the trial fee, so this discounts the trial and not the plan. Use "a set number of months" instead.' },
 ] as const;
 
@@ -68,8 +68,11 @@ export function PromoCodesPanel() {
 
   const [code, setCode] = useState('');
   const [percentOff, setPercentOff] = useState('25');
-  const [duration, setDuration] = useState<'forever' | 'once' | 'repeating'>('forever');
-  const [months, setMonths] = useState('3');
+  // Defaults to time-limited, not forever. Forever is a real choice and stays
+  // available, but it is the one that quietly costs money for years, so it
+  // should be picked on purpose rather than by leaving a field alone.
+  const [duration, setDuration] = useState<'forever' | 'once' | 'repeating'>('repeating');
+  const [months, setMonths] = useState('1');
   const [maxRedemptions, setMaxRedemptions] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
 
@@ -138,6 +141,22 @@ export function PromoCodesPanel() {
       setTogglingId(null);
     }
   }
+
+  const pct = Number(percentOff) || 0;
+  const shownCode = code.trim().toUpperCase() || 'Your code';
+  const scope = planKeys.length === 0
+    ? 'any plan'
+    : sellables.filter((sl) => planKeys.includes(sl.key)).map((sl) => sl.name).join(' or ') || 'the chosen plans';
+  const lasts = duration === 'forever'
+    ? 'every payment they ever make, for as long as they stay subscribed'
+    : duration === 'once'
+      ? 'their first charge only'
+      : `${months} month${months === '1' ? '' : 's'}, then they pay full price automatically`;
+  const whoCanUse = maxRedemptions
+    ? ` The first ${maxRedemptions} ${Number(maxRedemptions) === 1 ? 'person' : 'people'} to use it.`
+    : ' Anyone with the code, any number of times.';
+  const until = expiresAt ? ` It stops working after ${new Date(expiresAt).toLocaleDateString()}.` : '';
+  const summary = `${shownCode} takes ${pct}% off ${scope} for ${lasts}.${whoCanUse}${until}`;
 
   const field = 'w-full bg-surface border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50';
   const label = 'text-[11px] font-semibold uppercase tracking-wide text-text-tertiary mb-1.5 block';
@@ -281,6 +300,14 @@ export function PromoCodesPanel() {
               <p className="text-[11px] text-text-tertiary mt-1.5">The last day someone can redeem it.</p>
             </div>
           </div>
+
+          {/* Says the outcome in a sentence, because the outcome is assembled
+              from four separate controls and the expensive mistake — a
+              discount that never ends — looks identical to the safe one until
+              it is read back as prose. */}
+          <p className="text-[13px] text-foreground bg-accent-muted border border-accent/25 rounded-xl px-3.5 py-2.5 leading-relaxed">
+            {summary}
+          </p>
 
           <Button fullWidth loading={creating} onClick={handleCreate}>Create code</Button>
         </div>
