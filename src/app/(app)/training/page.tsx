@@ -271,8 +271,27 @@ export default function TrainingPage() {
               </div>
               <div className="mt-4 space-y-2">
                 {todayDay && (isRestToday ? (
-                  <Button fullWidth variant="secondary" loading={skippingRest} onClick={handleSkipRest}>
-                    <Moon className="w-4 h-4" /> Skip rest day{nextSession?.nextTraining ? ` · ${stripWeekdayPrefix(nextSession.nextTraining.day.label)}` : ''}
+                  <Button
+                    fullWidth
+                    variant="secondary"
+                    loading={skippingRest}
+                    onClick={handleSkipRest}
+                    /* Same two-line treatment as the dashboard's card, and for
+                       the same reason: the session name is long enough to wrap,
+                       and a wrapped label strands the icon at the far edge.
+                       h-auto lets the second line grow the button. */
+                    className="h-auto"
+                  >
+                    <span className="flex flex-col items-center gap-0.5 leading-tight">
+                      <span className="flex items-center gap-2">
+                        <Moon className="w-4 h-4 flex-shrink-0" /> Skip rest day
+                      </span>
+                      {nextSession?.nextTraining && (
+                        <span className="text-[12px] font-semibold opacity-70 text-center">
+                          {stripWeekdayPrefix(nextSession.nextTraining.day.label)}
+                        </span>
+                      )}
+                    </span>
                   </Button>
                 ) : (
                   <Button fullWidth onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>

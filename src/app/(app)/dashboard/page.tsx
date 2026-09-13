@@ -424,16 +424,32 @@ export default function DashboardPage() {
                   <button
                     onClick={handleSkipRest}
                     disabled={skippingRest}
-                    className="w-full h-[52px] rounded-2xl bg-[#141005] text-accent font-extrabold text-[15px] flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.98] transition-transform"
+                    /* Two lines, not one long one. The session name can run to
+                       "Push — Chest, Triceps, Abs", which wrapped; a wrapped
+                       text node fills the width, and centring the icon beside
+                       it then pushed the moon hard against the left edge. The
+                       moon now sits with "Skip rest day", which never wraps, so
+                       it cannot strand however long the session name gets.
+                       min-h rather than h, so the second line has somewhere to
+                       go instead of overflowing a fixed 52px. */
+                    className="w-full min-h-[52px] px-4 py-2.5 rounded-2xl bg-[#141005] text-accent font-extrabold text-[15px] flex flex-col items-center justify-center gap-0.5 leading-tight disabled:opacity-60 active:scale-[0.98] transition-transform"
                   >
-                    <Moon className="w-4 h-4" /> {skippingRest ? 'Skipping…' : `Skip rest day${nextSession?.nextTraining ? ` · ${stripWeekdayPrefix(nextSession.nextTraining.day.label)}` : ''}`}
+                    <span className="flex items-center gap-2">
+                      <Moon className="w-4 h-4 flex-shrink-0" />
+                      {skippingRest ? 'Skipping…' : 'Skip rest day'}
+                    </span>
+                    {!skippingRest && nextSession?.nextTraining && (
+                      <span className="text-[12px] font-bold opacity-70 text-center">
+                        {stripWeekdayPrefix(nextSession.nextTraining.day.label)}
+                      </span>
+                    )}
                   </button>
                 ) : (
                   <button
                     onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}
-                    className="w-full h-[52px] rounded-2xl bg-[#141005] text-accent font-extrabold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                    className="w-full h-[52px] px-4 rounded-2xl bg-[#141005] text-accent font-extrabold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
                   >
-                    <Play className="w-4 h-4 fill-current" /> {workedOutToday ? 'Start another session' : 'Start session'}
+                    <Play className="w-4 h-4 fill-current flex-shrink-0" /> {workedOutToday ? 'Start another session' : 'Start session'}
                   </button>
                 )}
                 <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-3' : 'grid-cols-2'}`}>
