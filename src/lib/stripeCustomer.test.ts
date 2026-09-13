@@ -113,16 +113,56 @@ describe('getOrCreateStripeCustomer', () => {
     expect(created).toHaveLength(1);
   });
 
-  it('refuses to repoint a customer already owned by another account', async () => {
+  it('will not repoint a customer another account owns, and still completes', async () => {
+    // This used to throw, which dead-ended checkout in production: the email
+    // lookup matched the same unavailable customer on every retry, so the
+    // member could never pay again. Refusing to adopt it is the protection;
+    // failing the sale was never part of it.
     db.docs.set(`${CUSTOMER_INDEX}/cus_taken`, { uid: 'someone-else' });
     stripe = stripeStub({
       customers: {
         ...(stripe.customers as object),
         list: async () => ({ data: [{ id: 'cus_taken', deleted: false }] }),
-        create: async () => { throw new Error('should not reach create'); },
       },
     });
-    await expect(run()).rejects.toThrow(/already mapped to a different account/);
+    const id = await run();
+
+    expect(id).not.toBe('cus_taken');
+    expect(created).toHaveLength(1);
+    // The other account keeps its customer, untouched.
+    expect(db.docs.get(`${CUSTOMER_INDEX}/cus_taken`)!.uid).toBe('someone-else');
+    expect(db.docs.get(USER)!.stripeCustomerId).toBe(id);
+  });
+
+  it('recovers when the subscription it would adopt belongs to another account', async () => {
+    // Same rule one step earlier in the resolution order.
+    db.docs.set(`${CUSTOMER_INDEX}/cus_fromsub`, { uid: 'someone-else' });
+    db.docs.set(USER, { email: 'a@b.c', membership: { stripeSubscriptionId: 'sub_1' } });
+    stripe = stripeStub({
+      subscriptions: { retrieve: async () => ({ id: 'sub_1', customer: 'cus_fromsub' }) },
+    });
+    const id = await run();
+
+    expect(id).not.toBe('cus_fromsub');
+    expect(created).toHaveLength(1);
+  });
+
+  it('does not fall back onto a stale id left on the user document', async () => {
+    // The compare-and-set exists to let a concurrent checkout win. It must not
+    // hand back a customer this same call has already refused, or the refusal
+    // achieves nothing and the member is pointed at the wrong billing again.
+    db.docs.set(`${CUSTOMER_INDEX}/cus_taken`, { uid: 'someone-else' });
+    db.docs.set(USER, { email: 'a@b.c', stripeCustomerId: 'cus_taken' });
+    stripe = stripeStub({
+      customers: {
+        ...(stripe.customers as object),
+        list: async () => ({ data: [{ id: 'cus_taken', deleted: false }] }),
+      },
+    });
+    const id = await run();
+
+    expect(id).not.toBe('cus_taken');
+    expect(db.docs.get(USER)!.stripeCustomerId).toBe(id);
   });
 
   // ── Adopting what the old customer_email path left behind ─────────────────

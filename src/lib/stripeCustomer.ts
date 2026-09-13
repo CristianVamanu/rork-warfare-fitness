@@ -26,6 +26,19 @@ import { resolveAccountEmail } from './accountEmail';
 export const CUSTOMER_INDEX = 'stripeCustomers';
 
 /**
+ * Another account already owns this Stripe customer.
+ *
+ * Its own type rather than a message to match on, because the difference
+ * between this and a real failure decides whether a member can pay.
+ */
+class CustomerOwnedByAnotherAccount extends Error {
+  constructor(readonly customerId: string) {
+    super(`Stripe customer ${customerId} is already mapped to a different account`);
+    this.name = 'CustomerOwnedByAnotherAccount';
+  }
+}
+
+/**
  * Returns the Stripe Customer ID for this user, creating one only if no
  * existing customer can be found.
  *
@@ -78,12 +91,15 @@ export async function getOrCreateStripeCustomer(opts: {
   // The reverse index is the authority on who owns a customer; the user
   // document is only a cache of it.
   const mapped = data.stripeCustomerId as string | undefined;
-  let rejected: string | undefined;
+  // Every customer this call has decided it must NOT settle on. More than one
+  // can accumulate: the mapped id can be stolen or deleted, and an adoption
+  // below can then hit a different unavailable customer.
+  const rejected = new Set<string>();
   if (mapped) {
     const owner = (await db.collection(CUSTOMER_INDEX).doc(mapped).get()).data()?.uid as string | undefined;
     if (owner && owner !== uid) {
       console.error(`[stripeCustomer] ${uid} claims customer ${mapped} owned by ${owner} — ignoring`);
-      rejected = mapped;
+      rejected.add(mapped);
     } else {
       const existing = await stripe.customers.retrieve(mapped).catch(() => null);
       // An unindexed but real customer is an account that predates the index;
@@ -92,17 +108,42 @@ export async function getOrCreateStripeCustomer(opts: {
       if (existing && !(existing as Stripe.DeletedCustomer).deleted) {
         return owner ? mapped : claim(db, userRef, uid, mapped);
       }
-      rejected = mapped;
+      rejected.add(mapped);
       console.warn(`[stripeCustomer] mapped customer ${mapped} for ${uid} is gone — re-resolving`);
     }
   }
+
+  // Steps 2 and 3 ADOPT a customer that already exists. Adoption is a
+  // convenience, so a customer that turns out to belong to someone else means
+  // "do not adopt this one" — not "this person may never pay again", which is
+  // what throwing here did. Seen in production: a checkout dead-ended on
+  // "already mapped to a different account" with no way out, because step 3
+  // kept matching the same unavailable customer by email on every retry.
+  // Creating a fresh customer instead keeps the protection exactly as strong
+  // (nobody reaches another account's invoices, card or cancel button) while
+  // letting the sale complete.
+  const tryAdopt = async (customerId: string): Promise<string | null> => {
+    try {
+      return await claim(db, userRef, uid, customerId, rejected);
+    } catch (err) {
+      if (err instanceof CustomerOwnedByAnotherAccount) {
+        console.error(`[stripeCustomer] ${uid} cannot adopt ${customerId} — another account owns it; creating a new customer instead`);
+        rejected.add(customerId);
+        return null;
+      }
+      throw err;
+    }
+  };
 
   // 2 — adopt the customer behind a subscription this user already has.
   const subId = (data.membership?.stripeSubscriptionId ?? data.coaching?.stripeSubscriptionId) as string | undefined;
   if (subId) {
     const sub = await stripe.subscriptions.retrieve(subId).catch(() => null);
     const fromSub = sub && (typeof sub.customer === 'string' ? sub.customer : sub.customer?.id);
-    if (fromSub) return claim(db, userRef, uid, fromSub, rejected);
+    if (fromSub) {
+      const adopted = await tryAdopt(fromSub);
+      if (adopted) return adopted;
+    }
   }
 
   // 3 — adopt a customer created by the old customer_email path. Matching on
@@ -111,7 +152,10 @@ export async function getOrCreateStripeCustomer(opts: {
   if (accountEmail) {
     const found = await stripe.customers.list({ email: accountEmail, limit: 1 }).catch(() => null);
     const candidate = found?.data?.[0];
-    if (candidate && !candidate.deleted) return claim(db, userRef, uid, candidate.id, rejected);
+    if (candidate && !candidate.deleted) {
+      const adopted = await tryAdopt(candidate.id);
+      if (adopted) return adopted;
+    }
   }
 
   // 4 — create. The uid goes in metadata so a customer can be traced back to
@@ -140,10 +184,10 @@ async function claim(
   userRef: FirebaseFirestore.DocumentReference,
   uid: string,
   customerId: string,
-  /** A mapping this call already rejected — stolen, or deleted in Stripe.
-   *  Without it the compare-and-set below would hand that same bad value
-   *  straight back, undoing the rejection. */
-  rejected?: string,
+  /** Mappings this call already rejected — stolen, or deleted in Stripe.
+   *  Without them the compare-and-set below would hand a bad value straight
+   *  back, undoing the rejection. */
+  rejected: ReadonlySet<string> = new Set(),
 ): Promise<string> {
   const indexRef = db.collection(CUSTOMER_INDEX).doc(customerId);
   const winner = await db.runTransaction(async (tx) => {
@@ -151,7 +195,7 @@ async function claim(
 
     const owner = indexSnap.data()?.uid as string | undefined;
     if (owner && owner !== uid) {
-      throw new Error(`Stripe customer ${customerId} is already mapped to a different account`);
+      throw new CustomerOwnedByAnotherAccount(customerId);
     }
 
     // Compare-and-set. Two checkouts racing — a double-click, or a retry on a
@@ -160,7 +204,7 @@ async function claim(
     // account at the second customer, stranding whatever the first one had
     // already been attached to. First writer wins; the loser adopts it.
     const already = userSnap.data()?.stripeCustomerId as string | undefined;
-    if (already && already !== customerId && already !== rejected) return already;
+    if (already && already !== customerId && !rejected.has(already)) return already;
 
     if (!owner) tx.set(indexRef, { uid, createdAt: new Date() });
     tx.set(userRef, { stripeCustomerId: customerId }, { merge: true });
