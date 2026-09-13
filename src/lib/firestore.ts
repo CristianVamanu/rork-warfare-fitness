@@ -35,7 +35,7 @@ import {
   getCountFromServer,
   writeBatch,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { stripUndefinedDeep } from './utils';
 import { pruneFeatureAccess } from './gatedFeatures';
 import { reportIssue } from './reportIssue';
@@ -2089,6 +2089,28 @@ export async function markSupportTicketRead(ticketId: string, isAdmin: boolean) 
 // ---------------------------------------------------------------------------
 import type { AppNotification, NotificationConfig } from '@/types';
 
+/**
+ * Best-effort phone push for a notification an admin just wrote.
+ *
+ * Authenticated with the caller's own ID token; the route refuses anyone
+ * who is not an admin, so when a MEMBER's action writes a notification (a
+ * coaching application notifying staff) this is a quiet 403 and nothing
+ * else. Never awaited by callers and never throws: the in-app notification
+ * is the record, the push is the nudge.
+ */
+function pushIfAdmin(payload: { userId?: string; userIds?: string[]; title: string; body: string; url?: string }) {
+  const current = auth.currentUser;
+  if (!current || typeof window === 'undefined') return;
+  void current.getIdToken()
+    .then((token) => fetch('/api/admin/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }))
+    .catch(() => {});
+}
+
 export async function sendNotification(data: {
   userId: string;
   trainerId?: string;
@@ -2103,6 +2125,7 @@ export async function sendNotification(data: {
     read: false,
     createdAt: serverTimestamp(),
   });
+  pushIfAdmin({ userId: data.userId, title: data.title, body: data.body, url: data.actionUrl });
 }
 
 export async function sendNotificationToAll(userIds: string[], data: {
@@ -2112,6 +2135,7 @@ export async function sendNotificationToAll(userIds: string[], data: {
   type: AppNotification['type'];
 }) {
   await Promise.all(userIds.map((uid) => sendNotification({ ...data, userId: uid })));
+  pushIfAdmin({ userIds, title: data.title, body: data.body });
 }
 
 // NOTE: sorted client-side rather than via Firestore orderBy() to avoid
