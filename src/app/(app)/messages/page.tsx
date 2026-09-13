@@ -70,9 +70,18 @@ export default function MessagesPage() {
     return unsub;
   }, [activeConv?.id]);
 
+  // Mark read from the live list, not from the tap. The one-conversation
+  // auto-open above never went through a tap, so the badge stayed lit after
+  // the member had read everything; and a reply landing while the thread is
+  // already open flips the flag back on with nothing else to clear it.
+  useEffect(() => {
+    if (!activeConv) return;
+    const live = conversations.find((c) => c.id === activeConv.id);
+    if (live?.unreadByUser) markConversationRead(live.id, false).catch(() => {});
+  }, [activeConv?.id, conversations]);
+
   function openConversation(conv: Conversation) {
     setActiveConv(conv);
-    if (conv.unreadByUser) markConversationRead(conv.id, false).catch(() => {});
   }
 
   async function handleDelete(conv: Conversation) {

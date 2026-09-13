@@ -91,9 +91,16 @@ export default function SupportPage() {
     return unsub;
   }, [activeId]);
 
+  // Same reasoning as the messages page: a staff reply that lands while the
+  // ticket is open must not leave the badge lit.
+  useEffect(() => {
+    if (!activeId) return;
+    const live = tickets.find((t) => t.id === activeId);
+    if (live?.unreadByUser) markSupportTicketRead(live.id, false).catch(() => {});
+  }, [activeId, tickets]);
+
   function openTicket(t: SupportTicket) {
     setActiveId(t.id);
-    if (t.unreadByUser) markSupportTicketRead(t.id, false).catch(() => {});
   }
 
   async function handleCreate() {
