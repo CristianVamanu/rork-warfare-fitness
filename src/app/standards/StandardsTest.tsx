@@ -159,23 +159,36 @@ export function StandardsTest({ initialStandardId }: { initialStandardId?: strin
 
   return (
     <div className="space-y-8">
-      {/* Unit picker */}
+      {/* Unit picker.
+          A uniform grid rather than wrapped pills. Pills sized themselves to
+          their label, so eleven names of different lengths wrapped into ragged
+          rows with the flags at eleven different left edges. Equal tiles in
+          fixed columns line the flags up and give every unit the same weight,
+          which is also more honest — none of these is the headline. */}
       <div>
         <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-text-tertiary mb-3">Pick a standard</p>
-        <div className="flex flex-wrap gap-2">
-          {UNIT_STANDARDS.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => { setSelectedId(s.id); setSubmitted(false); }}
-              className={`px-3.5 py-2 rounded-xl text-[13px] font-semibold border transition-all ${
-                s.id === selectedId
-                  ? 'bg-accent text-black border-accent shadow-[0_0_24px_-6px_rgb(var(--accent-rgb)/0.7)]'
-                  : 'bg-white/[0.03] text-text-secondary border-white/10 hover:border-white/25 hover:text-white'
-              }`}
-            >
-              <span className="mr-1.5">{s.flag}</span>{s.label}
-            </button>
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {UNIT_STANDARDS.map((s) => {
+            const on = s.id === selectedId;
+            return (
+              <button
+                key={s.id}
+                onClick={() => { setSelectedId(s.id); setSubmitted(false); }}
+                aria-pressed={on}
+                className={`flex items-center gap-2.5 min-h-[54px] px-3 py-2.5 rounded-xl border text-left transition-all ${
+                  on
+                    ? 'bg-accent text-black border-accent shadow-[0_0_26px_-8px_rgb(var(--accent-rgb)/0.8)]'
+                    : 'bg-white/[0.03] text-text-secondary border-white/10 hover:border-white/25 hover:text-white'
+                }`}
+              >
+                {/* Fixed-width slot: flag glyphs render at different widths
+                    per platform, and without this the labels start at a
+                    different x on every row. */}
+                <span className="w-5 text-center text-base leading-none flex-shrink-0">{s.flag}</span>
+                <span className="text-[13px] font-semibold leading-[1.2] min-w-0">{s.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -186,9 +199,9 @@ export function StandardsTest({ initialStandardId }: { initialStandardId?: strin
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-5">
           {verdicts.map((v) => (
-            <div key={v.key} className="rounded-xl border border-white/10 bg-black/30 px-3.5 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">{v.label}</p>
-              <p className="text-2xl font-black text-accent tabular-nums mt-0.5">{v.target}</p>
+            <div key={v.key} className="flex flex-col justify-between min-h-[76px] rounded-xl border border-white/10 bg-black/30 px-3.5 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary leading-tight">{v.label}</p>
+              <p className="text-2xl font-black text-accent tabular-nums leading-none mt-1.5">{v.target}</p>
             </div>
           ))}
         </div>
@@ -246,6 +259,12 @@ export function StandardsTest({ initialStandardId }: { initialStandardId?: strin
             </h3>
 
             <div className="mt-4 divide-y divide-white/8 rounded-xl border border-white/10 overflow-hidden">
+              <div className="flex items-center gap-3 px-3.5 py-2 bg-black/40">
+                <span className="w-6 flex-shrink-0" />
+                <span className="flex-1 min-w-0 text-[10px] font-bold uppercase tracking-wide text-text-tertiary">Event</span>
+                <span className="w-14 text-right text-[10px] font-bold uppercase tracking-wide text-text-tertiary">You</span>
+                <span className="w-14 text-right text-[10px] font-bold uppercase tracking-wide text-text-tertiary">Needs</span>
+              </div>
               {verdicts.map((v) => (
                 <div key={v.key} className="flex items-center gap-3 px-3.5 py-3 bg-black/20">
                   <span className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -253,11 +272,13 @@ export function StandardsTest({ initialStandardId }: { initialStandardId?: strin
                   }`}>
                     {v.yours === '—' ? '·' : v.passed ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
                   </span>
-                  <span className="text-sm text-white flex-1 min-w-0">{v.label}</span>
-                  <span className="text-sm tabular-nums text-text-secondary flex-shrink-0">
-                    <span className={v.passed ? 'text-green-400' : v.yours === '—' ? '' : 'text-danger'}>{v.yours}</span>
-                    <span className="text-text-tertiary"> / {v.target}</span>
-                  </span>
+                  <span className="text-sm text-white flex-1 min-w-0 leading-tight">{v.label}</span>
+                  {/* Fixed columns so every row's numbers sit under the last
+                      one instead of drifting with the length of the label. */}
+                  <span className={`text-sm font-bold tabular-nums text-right w-14 flex-shrink-0 ${
+                    v.passed ? 'text-green-400' : v.yours === '—' ? 'text-text-tertiary' : 'text-danger'
+                  }`}>{v.yours}</span>
+                  <span className="text-sm tabular-nums text-text-tertiary text-right w-14 flex-shrink-0">{v.target}</span>
                 </div>
               ))}
             </div>
