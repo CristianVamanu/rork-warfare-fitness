@@ -90,7 +90,16 @@ const server = http.createServer((req, res) => {
   req.on('end', () => {
     const signature = req.headers['x-hub-signature-256'];
     if (!verifySignature(body, signature)) {
-      console.warn('Rejected webhook: bad signature');
+      // Who and when, not just that it happened. This port is open to the
+      // internet, so a rejection is either GitHub with a stale secret (a real
+      // problem: pushes stop deploying) or a scanner poking at an open port
+      // (noise). The old message could not tell those apart, which left a
+      // security-relevant line in the log that nobody could act on.
+      const who = req.socket.remoteAddress ?? 'unknown';
+      console.warn(
+        `[${new Date().toISOString()}] Rejected webhook: bad signature from ${who}`
+        + `${signature ? '' : ' (no signature header — not GitHub)'}`,
+      );
       res.writeHead(401).end('bad signature');
       return;
     }
