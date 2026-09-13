@@ -638,7 +638,7 @@ export interface Post {
 
 export type NotificationType =
   | 'manual' | 'auto_missed_workout' | 'auto_streak' | 'auto_milestone' | 'ai_motivation'
-  | 'coaching_approved' | 'coaching_rejected' | 'pr_approved' | 'pr_rejected' | 'goal_assigned' | 'message';
+  | 'coaching_approved' | 'coaching_rejected' | 'pr_approved' | 'pr_rejected' | 'goal_assigned' | 'nutrition_plan' | 'message';
 
 export interface AppNotification {
   id: string;

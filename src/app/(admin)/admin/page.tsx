@@ -1047,6 +1047,14 @@ function AdminPageInner() {
     setAssigningNutrition(true);
     try {
       await assignNutritionPlan(nutritionModalUser.id, { ...nutritionDraft, assignedBy: user.uid });
+      // Same courtesy a new goal gets: a message in their coach thread, so
+      // it is a conversation they can reply to and not only a one-way alert.
+      // Best-effort — the plan and its notification are already saved.
+      try {
+        const convId = await getOrCreateConversation(user.uid, nutritionModalUser.id, nutritionModalUser.displayName || 'User', nutritionModalUser.email || '');
+        const summary = `🥗 Your nutrition plan is set: ${nutritionDraft.calories} kcal a day, ${nutritionDraft.protein}g protein, ${nutritionDraft.carbs}g carbs, ${nutritionDraft.fat}g fat.${nutritionDraft.coachNotes?.trim() ? `\n\n${nutritionDraft.coachNotes.trim()}` : ''}\n\nIt's on your Nutrition tab, with the meals.`;
+        await sendMessage(convId, user.uid, profile?.displayName ?? 'Coach', summary, true);
+      } catch { /* the plan is assigned either way */ }
       toast.success(`Nutrition plan assigned to ${nutritionModalUser.displayName || 'client'}`);
       setNutritionModalUser(null);
       setNutritionDraft(null);

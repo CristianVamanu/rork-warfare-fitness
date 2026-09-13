@@ -2730,6 +2730,26 @@ export async function assignNutritionPlan(
 ): Promise<void> {
   await updateDoc(doc(db, 'users', userId), {
     assignedNutritionPlan: { ...plan, assignedAt: serverTimestamp() },
+    // The plan's numbers become the member's daily targets, so the calorie
+    // and macro rings on the home and nutrition screens track the plan the
+    // coach set rather than whatever the member had typed in before. Water
+    // is left alone — the plan does not set it. Dotted paths so nothing else
+    // under goals is touched.
+    'goals.calories': plan.calories,
+    'goals.protein': plan.protein,
+    'goals.carbs': plan.carbs,
+    'goals.fat': plan.fat,
+  });
+  // Tell them. Assigning used to write the document and nothing else: the
+  // plan appeared as a card on the Nutrition tab for anyone who happened to
+  // open it, and nobody was told it was there.
+  await sendNotification({
+    userId,
+    title: 'Your nutrition plan is ready',
+    body: `${plan.calories} kcal a day · ${plan.protein}g protein · ${plan.carbs}g carbs · ${plan.fat}g fat. Tap to see the meals.`,
+    type: 'nutrition_plan',
+    actionUrl: '/nutrition',
+    actionLabel: 'Open nutrition',
   });
 }
 
