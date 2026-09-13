@@ -1,27 +1,26 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/**
+ * The dashboard's daily brief, for members.
+ *
+ * Generation is automatic and happens here: whoever opens the dashboard first
+ * on a new day finds no stored tip and creates the one everybody sees. The
+ * admin panel's regenerate button runs the same code from src/lib/dailyTip.ts,
+ * so the two cannot drift apart.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
-import OpenAI from 'openai';
-import { getSecret } from '@/lib/secrets';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { rateLimit } from '@/lib/rateLimit';
 import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
-
-// About 18 words. The card shows the tip in full — no truncation — so this
-// is what keeps it to two lines on a phone.
-const MAX_TIP_CHARS = 130;
-
-function todayKey() {
-  return new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
-}
+import { resolveDateKey, readStoredTip, generateAndStoreTip } from '@/lib/dailyTip';
 
 // Was fully unauthenticated with no rate limiting — anyone could hit it
-// directly to burn OpenAI spend once the daily cache missed. Result is
-// shared across all users (cached at dailyTips/{date}, one doc per calendar day), so
-// this only needs to gate who can trigger generation, not per-user usage.
+// directly to burn OpenAI spend once the daily cache missed. The result is
+// shared across all users (one document per calendar day), so this only needs
+// to gate who can trigger generation, not per-user usage.
 const WINDOW_MS = 60 * 1000;
 const MAX_PER_WINDOW = 5;
 
@@ -34,137 +33,22 @@ export async function GET(req: NextRequest) {
   }
 
   // This route calls OpenAI, so every authenticated account was a metered
-  // spend endpoint regardless of whether they pay for anything — the only
-  // AI route with no membership check. Bounded per user by the limiter
-  // above, unbounded across users.
-  const tipApp = getAdminApp();
-  if (tipApp) {
-    const access = await verifyFeatureAccess(tipApp, check.uid, 'ai-tip');
+  // spend endpoint regardless of whether they pay for anything — the only AI
+  // route with no membership check.
+  const app = getAdminApp();
+  if (app) {
+    const access = await verifyFeatureAccess(app, check.uid, 'ai-tip');
     if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
-  // The MEMBER'S date, not the server's. The key used to be the server's
-  // local date, and the cache was one document, so a member ahead of UTC who
-  // opened the app just after their midnight was handed yesterday's tip and
-  // their browser cached it under today's key for the rest of the day —
-  // "the brief is the same as yesterday at 10am". The client now says which
-  // day it is where they are; anything malformed or more than a day off the
-  // server's clock falls back to the server's date, so the parameter cannot
-  // be used to farm generations.
-  const requested = req.nextUrl.searchParams.get('date') ?? '';
-  const serverKey = todayKey();
-  const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(requested)
-    && Math.abs(new Date(requested + 'T00:00:00Z').getTime() - new Date(serverKey + 'T00:00:00Z').getTime()) <= 86_400_000
-    ? requested
-    : serverKey;
+  const dateKey = resolveDateKey(req.nextUrl.searchParams.get('date'));
+  const db = app ? getAdminDb(app) : null;
 
-  // Try to serve from Firestore cache first
-  const app = getAdminApp();
-  if (app) {
-    try {
-      const db = getAdminDb(app);
-      const snap = await db.doc(`dailyTips/${dateKey}`).get();
-      const data = snap.data();
-      // Length is enforced on READ as well as on generation. The cache holds
-      // one tip per day for everyone, so a tip generated under an older,
-      // looser prompt would keep being served all day after the limit
-      // tightened. Treating an over-long cached tip as a miss regenerates it
-      // once and fixes the day immediately.
-      if (data?.date === dateKey && typeof data.tip === 'string' && data.tip.length <= MAX_TIP_CHARS) {
-        return NextResponse.json({ tip: data.tip, date: dateKey, cached: true });
-      }
-    } catch {
-      // Cache miss — generate fresh
-    }
+  if (db) {
+    const stored = await readStoredTip(db, dateKey);
+    if (stored) return NextResponse.json({ tip: stored, date: dateKey, cached: true });
   }
 
-  const apiKey = await getSecret('OPENAI_API_KEY');
-  if (!apiKey) {
-    return NextResponse.json({
-      tip: 'Lead with compounds — squats, deadlifts, presses build more than any isolation move.',
-      date: dateKey,
-    });
-  }
-
-  const openai = new OpenAI({ apiKey, timeout: 30_000, maxRetries: 1 });
-
-  // Use the date as a seed so the tip is deterministic per day across server instances
-  const dayNumber = Math.floor(Date.now() / 86400000);
-  const topics = [
-    'progressive overload', 'sleep and recovery', 'protein intake', 'hydration',
-    'compound movements', 'rest days', 'warm-up routine', 'mind-muscle connection',
-    'nutrition timing', 'consistency over intensity', 'grip strength', 'mobility work',
-    'breathing technique', 'tempo training', 'caloric deficit', 'meal prep',
-    'deload weeks', 'cardio timing', 'stretching', 'form over weight',
-  ];
-  const topic = topics[dayNumber % topics.length];
-
-  // The previous days' tips, so the model is told what not to say again.
-  // Adjacent topics overlap (protein intake, nutrition timing, meal prep)
-  // and at a low temperature the model returned the same sentence two days
-  // running, which read as the brief not updating at all.
-  const recent: string[] = [];
-  if (app) {
-    try {
-      const db = getAdminDb(app);
-      const base = new Date(dateKey + 'T00:00:00Z').getTime();
-      const keys = [1, 2, 3].map((n) => new Date(base - n * 86_400_000).toISOString().slice(0, 10));
-      const snaps = await db.getAll(...keys.map((k) => db.doc(`dailyTips/${k}`)));
-      for (const sn of snaps) {
-        const t = sn.data()?.tip;
-        if (typeof t === 'string' && t) recent.push(t);
-      }
-    } catch { /* best effort */ }
-  }
-
-  try {
-    const res = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-      max_tokens: 48,
-      temperature: 0.95,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a concise fitness coach. Give ONE practical gym/fitness tip as a SINGLE sentence of at most 18 words. No fluff, no greetings, no hashtags, no lists. Fitness and gym content only.',
-        },
-        {
-          role: 'user',
-          content: `Date: ${dateKey}. Give a fitness tip about: ${topic}. One sentence, 18 words maximum.`
-            + (recent.length ? `\nDo not repeat or rephrase any of these recent tips:\n- ${recent.join('\n- ')}` : ''),
-        },
-      ],
-    });
-
-    const raw = res.choices[0]?.message?.content?.trim() ?? '';
-    if (!raw) throw new Error('empty response');
-    // Keep the first sentence if the model ran long, rather than caching
-    // something that will not fit and cutting it off in the UI.
-    // Hard-capped after the first-sentence cut as well. If the first sentence
-    // alone ran past the limit it was cached anyway, and the read path above
-    // then treated it as a miss — so every dashboard load regenerated a new
-    // tip and paid for it until one happened to come in short.
-    const firstSentence = raw.match(/^[^.!?]*[.!?]/)?.[0]?.trim() ?? raw;
-    const tip = firstSentence.length <= MAX_TIP_CHARS
-      ? firstSentence
-      // Sliced one short so the ellipsis never pushes it back over the cap —
-      // at exactly the cap plus one the read path would treat it as a miss
-      // and regenerate on every request.
-      : firstSentence.slice(0, MAX_TIP_CHARS - 1).replace(/\s+\S*$/, '').trim() + '…';
-
-    // Cache in Firestore for the rest of the day
-    if (app) {
-      try {
-        const db = getAdminDb(app);
-        await db.doc(`dailyTips/${dateKey}`).set({ tip, date: dateKey, updatedAt: Timestamp.now() });
-      } catch { /* non-fatal */ }
-    }
-
-    return NextResponse.json({ tip, date: dateKey });
-  } catch (err) {
-    console.error('[/api/ai/tip] error:', err);
-    return NextResponse.json({
-      tip: `Work on your ${topic} today — small consistent gains compound faster than big rare ones.`,
-      date: dateKey,
-    });
-  }
+  const { tip } = await generateAndStoreTip(db, dateKey);
+  return NextResponse.json({ tip, date: dateKey });
 }

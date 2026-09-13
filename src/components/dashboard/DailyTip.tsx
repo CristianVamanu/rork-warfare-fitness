@@ -13,11 +13,12 @@ import { Card } from '@/components/ui/Card';
  * feature was built, left unwired, and then listed on a plan as something a
  * member gets. This is the screen that makes it true.
  *
- * Cost is one generation per DAY for the entire platform, not per member:
- * the route caches the day's tip at config/dailyTip and serves every later
+ * Cost is one generation per DAY for the entire platform, not per member: the
+ * route stores the day's tip at dailyTips/{date} and serves every later
  * request from it. The localStorage copy here is a second layer on top of
- * that, so reopening the dashboard ten times in a day is zero requests
- * rather than ten cache hits.
+ * that, so reopening the dashboard is usually zero requests rather than a
+ * cache hit — though it re-checks after half an hour, so an admin who
+ * regenerates a bad brief reaches people who already loaded the page.
  *
  * Renders nothing at all when there is no tip, including when the member's
  * plan does not cover it (the route answers 403) — an empty "no tip today"
@@ -49,13 +50,37 @@ export function DailyTip() {
 
     // try/catch around storage: a private window or blocked site data makes
     // these accessors throw rather than return empty.
+    let cachedTip: string | null = null;
+    let cachedAt = 0;
     try {
-      const cached = localStorage.getItem(cacheKey);
-      // A tip stored before the length limit tightened is treated as a miss,
-      // so this browser refetches once instead of showing the old long one
-      // for the rest of the day. The server applies the same rule.
-      if (cached && cached.length <= 160) { setTip(cached); return; }
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        // Older builds stored the bare sentence. Read both shapes so an
+        // upgrade does not blank the card for a day.
+        if (raw.startsWith('{')) {
+          const parsed = JSON.parse(raw) as { t?: string; at?: number };
+          if (typeof parsed.t === 'string') { cachedTip = parsed.t; cachedAt = parsed.at ?? 0; }
+        } else {
+          cachedTip = raw;
+        }
+      }
     } catch { /* no cache available — just fetch */ }
+
+    // A tip stored before the length limit tightened is treated as a miss, so
+    // this browser refetches once instead of showing the old long one all day.
+    if (cachedTip && cachedTip.length > 160) { cachedTip = null; cachedAt = 0; }
+
+    // Shown at once so the card never flashes empty on a repeat visit.
+    if (cachedTip) setTip(cachedTip);
+
+    // Then re-checked, but only if the copy has been sitting here a while.
+    // Without this the browser copy outlives the day's tip: an admin who
+    // regenerates a bad brief would reach nobody who had already loaded the
+    // dashboard, because their browser never asked again before midnight.
+    // Half an hour keeps repeat visits free while making a correction land in
+    // a useful amount of time.
+    const RECHECK_AFTER_MS = 30 * 60_000;
+    if (cachedTip && Date.now() - cachedAt < RECHECK_AFTER_MS) return;
 
     let cancelled = false;
     (async () => {
@@ -72,7 +97,7 @@ export function DailyTip() {
           for (const k of Object.keys(localStorage)) {
             if (k.startsWith('dailyTip:') && k !== cacheKey) localStorage.removeItem(k);
           }
-          localStorage.setItem(cacheKey, data.tip);
+          localStorage.setItem(cacheKey, JSON.stringify({ t: data.tip, at: Date.now() }));
         } catch { /* non-fatal */ }
       } catch { /* offline or token refresh failed — show nothing */ }
     })();

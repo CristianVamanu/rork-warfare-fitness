@@ -14,6 +14,7 @@ import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/
 import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
 import { PromoCodesPanel } from '@/components/admin/PromoCodesPanel';
+import { DailyBriefPanel } from '@/components/admin/DailyBriefPanel';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { ADMIN_TAB_BY_ID, adminGroups } from '@/components/admin/nav';
 import { StatTile, Panel, Pill, KV, Segmented } from '@/components/admin/ui';
@@ -3263,6 +3264,10 @@ function AdminPageInner() {
             <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
           ) : (
             <>
+              {/* Loads its own data — the brief lives in Stripe-free territory
+                  and has nothing to do with the notification config above. */}
+              <DailyBriefPanel />
+
               {/* Manual push */}
               <Card className="p-4 lg:p-5 space-y-4">
                 <h2 className="text-sm font-bold text-white flex items-center gap-2">
