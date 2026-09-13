@@ -183,25 +183,38 @@ export const UNIT_STANDARDS: UnitStandard[] = [
     id: 'ksk',
     flag: '🇩🇪',
     label: 'KSK Selection',
-    resultTitle: 'KSK Endurance Standard',
+    resultTitle: 'KSK Selection Fitness Test',
     description:
-      'The German KSK field endurance benchmark: a 7km march carrying 20kg inside 52 minutes. Runnable on a treadmill with a weighted pack if you have nowhere to march.',
-    runLabel: '7km Ruck (20kg)',
-    events: { runMinutes: 52 },
-    source: 'KSK published field endurance standard.',
-    notTracked: 'One-minute max calisthenics screens, 500m swim, three-month field phase.',
+      'The KSK entry screen, where failing one event ends it. Seven strict overhand pull-ups from a dead hang, and then two short windows rather than the usual two minutes: 22 hand-release push-ups and 20 crunches, both inside 30 seconds. The run is five 1,000m intervals with three minutes between them, getting faster each round — 4:30, 4:20, 4:10, 4:00, and a last one under 3:50. That final rep is the number scored here, because it is the one that fails people.',
+    runLabel: '1,000m (final interval)',
+    events: { pullups: 7, pushups: 22, situps: 20, runMinutes: 3 + 50 / 60 },
+    source: 'KSK selection minimums: fail one event and you are out.',
+    notTracked: '200m combat swim in uniform, the 20km speed march with 20kg, the obstacle course and close-combat rounds.',
   },
   {
-    id: 'commando-endurance',
+    id: 'commando-pjfa',
     flag: '🇬🇧',
-    label: 'Commando Endurance',
-    resultTitle: 'Royal Marines Endurance Course',
+    label: 'RM Entry Test',
+    resultTitle: 'Royal Marines Pre-Joining Fitness Assessment',
     description:
-      'The Royal Marines endurance standard: 6 miles carrying 21lb fighting order inside 73 minutes. In selection it is run straight into a marksmanship test, which is the actual point of it.',
-    runLabel: '6-Mile Load Carry (21lb)',
-    events: { runMinutes: 73 },
-    source: 'Royal Marines commando test standards.',
-    notTracked: 'The tunnels and water obstacles, and the shoot that follows immediately after.',
+      'The first Royal Marines gate, before the PRMC. A bleep test to level 10.8, then press-ups, sit-ups and pull-ups performed to the bleep rather than against a clock. The published pass marks are 30 press-ups, 40 sit-ups and 4 pull-ups. They look modest next to the PRMC numbers because they are meant to: this is the test that says you are fit enough to be assessed, not fit enough to pass.',
+    events: { pullups: 4, pushups: 30, situps: 40, beepLevel: 10.8 },
+    competitive: { pullups: 8, pushups: 60, situps: 85, beepLevel: 11 },
+    source: 'Royal Navy published PJFA / Candidate Preparation Course standards.',
+    notTracked: 'Nothing — this one is entirely gym-testable, which is the point of it.',
+  },
+  {
+    id: 'romania',
+    flag: '🇷🇴',
+    label: 'Romanian SOF',
+    resultTitle: 'Romanian Special Operations Selection',
+    description:
+      'The assessment module for Romanian Forțele pentru Operații Speciale, the standard candidates are held to before certifying as paratroopers, divers or combat climbers. Eight to ten strict dead-hang pull-ups, 45 to 50 push-ups and 50 to 60 crunches in two minutes each, and 3,000m slick inside 12:30. The lower end of each range is the bar below; the upper end is what actually gets people through.',
+    runLabel: '3,000m Run',
+    events: { pullups: 8, pushups: 45, situps: 50, runMinutes: 12.5 },
+    competitive: { pullups: 10, pushups: 50, situps: 60 },
+    source: 'Romanian SOF assessment module maximum-effort standards.',
+    notTracked: 'The water survival and combat swimming test, 15–20km loaded marches with 20kg+, and the multi-day attrition phase.',
   },
 ];
 
@@ -220,8 +233,9 @@ export function standardFor(id?: string): UnitStandard | undefined {
  * writes a new one, and the name is what survives.
  */
 export const PROGRAM_STANDARD: { test: RegExp; standard: string }[] = [
-  { test: /commando\s*endurance/i, standard: 'commando-endurance' },
   { test: /commando/i, standard: 'commando' },
+  { test: /\bpjfa\b/i, standard: 'commando-pjfa' },
+  { test: /romanian?|\bfos\b/i, standard: 'romania' },
   { test: /spetsnaz/i, standard: 'spetsnaz' },
   { test: /\bsas\b|special air service/i, standard: 'sas' },
   { test: /\bksk\b/i, standard: 'ksk' },
@@ -305,7 +319,8 @@ export const STANDARD_SLUGS: Record<string, string> = {
   'legion': 'french-foreign-legion',
   'spetsnaz': 'spetsnaz',
   'ksk': 'german-ksk',
-  'commando-endurance': 'royal-marines-endurance',
+  'commando-pjfa': 'royal-marines-entry-test',
+  'romania': 'romanian-special-forces',
 };
 
 export function slugFor(id: string): string {
