@@ -143,6 +143,14 @@ html.light .chat-bg {
     linear-gradient(90deg, rgb(var(--accent-rgb) / 0.10) 1px, transparent 1px);
 }
 
+/* The panel's composer. The page does not opt into viewport-fit=cover, so
+   env(safe-area-inset-bottom) is 0 in the installed app and the home
+   indicator sat over the input. Standalone mode gets fixed clearance. */
+.chat-composer { padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px)); }
+@media (display-mode: standalone) {
+  .chat-composer { padding-bottom: calc(0.75rem + 22px); }
+}
+
 .app-bg-grid {
   background-image:
     linear-gradient(rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px),

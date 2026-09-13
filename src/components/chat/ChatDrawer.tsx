@@ -28,6 +28,20 @@ import type { Conversation, Message } from '@/types';
  * Subscriptions run only while the panel is open. The header keeps its own
  * unread-only listeners; nothing here is needed for the badge.
  */
+function whenLabel(v: unknown): string {
+  const ms = (v as { toMillis?: () => number } | null)?.toMillis?.();
+  if (!ms) return '';
+  const diff = Date.now() - ms;
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return 'now';
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d`;
+  return new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
 export function ChatDrawer() {
   const { user, profile } = useAuth();
   const { chatOpen, closeChat } = useHeaderData();
@@ -152,8 +166,8 @@ export function ChatDrawer() {
             aria-label="Messages"
             initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'spring', stiffness: 380, damping: 38 }}
-            style={{ boxShadow: 'var(--shadow-modal)', height: '100dvh' }}
-            className="chat-bg fixed top-0 right-0 z-50 h-screen w-full sm:w-[420px] border-l border-border flex flex-col"
+            style={{ boxShadow: 'var(--shadow-modal)' }}
+            className="chat-bg fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] border-l border-border flex flex-col"
           >
             <div className="flex items-center gap-2 px-3 h-14 border-b border-border flex-shrink-0 bg-black/30 backdrop-blur-md">
               {active && isAdmin && (
@@ -221,10 +235,7 @@ export function ChatDrawer() {
                   )}
                   <div ref={endRef} />
                 </div>
-                <div
-                  className="flex gap-2 px-3 pt-3 border-t border-border flex-shrink-0 bg-black/30 backdrop-blur-md"
-                  style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
-                >
+                <div className="chat-composer flex gap-2 px-3 pt-3 border-t border-border flex-shrink-0 bg-black/30 backdrop-blur-md">
                   <input
                     ref={inputRef}
                     value={text}
@@ -250,31 +261,43 @@ export function ChatDrawer() {
                     </p>
                   </div>
                 ) : (
-                  <ul className="divide-y divide-border">
+                  <ul className="p-3 space-y-2">
                     {conversations.map((c) => {
                       const unread = isAdmin ? c.unreadByAdmin : c.unreadByUser;
                       return (
-                        <li key={c.id} className="group flex items-center hover:bg-white/[0.06] transition-colors">
+                        <li
+                          key={c.id}
+                          className={`flex items-center rounded-2xl border backdrop-blur-sm transition-colors ${
+                            unread
+                              ? 'bg-accent/[0.08] border-accent/30'
+                              : 'bg-surface-elevated/70 border-border hover:border-white/15'
+                          }`}
+                        >
                           <button
                             onClick={() => setActiveId(c.id)}
-                            className="flex-1 min-w-0 flex items-center gap-3 pl-4 pr-2 py-3 text-left"
+                            className="flex-1 min-w-0 flex items-center gap-3 pl-3 pr-2 py-3 text-left"
                           >
                             <Avatar name={isAdmin ? c.userDisplayName : 'Coach'} size="sm" />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className={`text-sm truncate ${unread ? 'font-bold text-foreground' : 'font-medium text-foreground'}`}>
+                                <p className={`text-sm truncate flex-1 ${unread ? 'font-bold text-foreground' : 'font-semibold text-foreground'}`}>
                                   {isAdmin ? c.userDisplayName || 'Member' : 'Your coach'}
+                                </p>
+                                <span className={`text-[11px] flex-shrink-0 ${unread ? 'text-accent font-semibold' : 'text-text-tertiary'}`}>
+                                  {whenLabel(c.lastMessageAt)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <p className={`text-xs truncate flex-1 ${unread ? 'text-foreground/85' : 'text-text-tertiary'}`}>
+                                  {c.lastMessage || 'No messages yet'}
                                 </p>
                                 {unread && <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
                               </div>
-                              <p className={`text-xs truncate ${unread ? 'text-text-secondary' : 'text-text-tertiary'}`}>
-                                {c.lastMessage || 'No messages yet'}
-                              </p>
                             </div>
                           </button>
                           <button
                             onClick={() => setConfirmId(c.id)}
-                            className="p-2 mr-2 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors flex-shrink-0"
+                            className="p-2 mr-1.5 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors flex-shrink-0"
                             aria-label="Delete conversation"
                             title="Delete conversation"
                           >

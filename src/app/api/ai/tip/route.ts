@@ -99,11 +99,29 @@ export async function GET(req: NextRequest) {
   ];
   const topic = topics[dayNumber % topics.length];
 
+  // The previous days' tips, so the model is told what not to say again.
+  // Adjacent topics overlap (protein intake, nutrition timing, meal prep)
+  // and at a low temperature the model returned the same sentence two days
+  // running, which read as the brief not updating at all.
+  const recent: string[] = [];
+  if (app) {
+    try {
+      const db = getAdminDb(app);
+      const base = new Date(dateKey + 'T00:00:00Z').getTime();
+      const keys = [1, 2, 3].map((n) => new Date(base - n * 86_400_000).toISOString().slice(0, 10));
+      const snaps = await db.getAll(...keys.map((k) => db.doc(`dailyTips/${k}`)));
+      for (const sn of snaps) {
+        const t = sn.data()?.tip;
+        if (typeof t === 'string' && t) recent.push(t);
+      }
+    } catch { /* best effort */ }
+  }
+
   try {
     const res = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
       max_tokens: 48,
-      temperature: 0.7,
+      temperature: 0.95,
       messages: [
         {
           role: 'system',
@@ -111,7 +129,8 @@ export async function GET(req: NextRequest) {
         },
         {
           role: 'user',
-          content: `Give a fitness tip about: ${topic}. One sentence, 18 words maximum.`,
+          content: `Date: ${dateKey}. Give a fitness tip about: ${topic}. One sentence, 18 words maximum.`
+            + (recent.length ? `\nDo not repeat or rephrase any of these recent tips:\n- ${recent.join('\n- ')}` : ''),
         },
       ],
     });
