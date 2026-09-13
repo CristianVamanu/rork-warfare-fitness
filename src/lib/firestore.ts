@@ -2643,6 +2643,16 @@ export async function unbanUserFromPRWall(userId: string) {
   await updateDoc(doc(db, 'users', userId), { prBan: deleteField() });
 }
 
+/** Admin-only (firestore.rules blocks self-writes). `days` null = until cleared. */
+export async function setChannelMute(userId: string, days: number | null) {
+  const until = days === null ? null : Timestamp.fromDate(new Date(Date.now() + days * 86_400_000));
+  await updateDoc(doc(db, 'users', userId), { channelMute: { until, mutedAt: serverTimestamp() } });
+}
+
+export async function clearChannelMute(userId: string) {
+  await updateDoc(doc(db, 'users', userId), { channelMute: deleteField() });
+}
+
 // ── Body progress photos — private to the owner + admin/trainer, never public ──
 import type { ProgressPhoto } from '@/types';
 

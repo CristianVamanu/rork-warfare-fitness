@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
-  MessageSquare, Send, ChevronLeft, ChevronRight, Ban, UserCheck,
+  MessageSquare, Send, ChevronLeft, ChevronRight, Ban, UserCheck, MicOff, Mic,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
   Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail, Star,
 } from 'lucide-react';
@@ -42,7 +42,7 @@ import {
   createGoal, getClientGoals, setGoalStatus, deleteGoal,
   getTrainerLeads, updateTrainerLeadStatus,
   getLandingLeads,
-  getAllPrograms, getDeletedMockIds, clearChannelScope } from '@/lib/firestore';
+  getAllPrograms, getDeletedMockIds, clearChannelScope, setChannelMute, clearChannelMute } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { useSupportUpload, AttachButton, PendingAttachment, MessageAttachment } from '@/components/support/SupportAttachment';
 import { useAuth } from '@/contexts/AuthContext';
@@ -189,6 +189,7 @@ interface UserData {
   role?: string;
   trainerId?: string | null;
   banned?: boolean;
+  channelMute?: { until?: { toMillis?: () => number } | null } | null;
   statsCache?: { totalWorkouts?: number; streak?: number };
   stats?: { totalWorkouts?: number };
   xp?: number;
@@ -265,6 +266,7 @@ function AdminPageInner() {
   // ── Clients state ──────────────────────────────────────────────────────────
   const [clientsLoading, setClientsLoading] = useState(false);
   const [banningUser, setBanningUser] = useState<string | null>(null);
+  const [mutingUser, setMutingUser] = useState<string | null>(null);
 
   // ── Messages state ─────────────────────────────────────────────────────────
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -886,6 +888,39 @@ function AdminPageInner() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update user');
     } finally { setBanningUser(null); }
+  }
+
+  function muteActive(u: UserData): boolean {
+    const m = u.channelMute;
+    if (!m) return false;
+    const until = m.until?.toMillis?.();
+    return until === undefined || until === null || until > Date.now();
+  }
+
+  // Mute, not ban. A muted member keeps their account and their access,
+  // still reads the channels, still likes — they just cannot post or reply
+  // until it lifts. Enforced in firestore.rules, not only hidden in the UI.
+  async function handleMuteToggle(u: UserData) {
+    setMutingUser(u.id);
+    try {
+      if (muteActive(u)) {
+        await clearChannelMute(u.id);
+        toast.success(`${u.displayName} can post again`);
+      } else {
+        const answer = window.prompt(
+          `Mute ${u.displayName} in the community channels for how many days?\nLeave blank to mute until you unmute them.`,
+          '7',
+        );
+        if (answer === null) return;
+        const days = answer.trim() === '' ? null : Math.max(1, Math.floor(Number(answer)));
+        if (days !== null && !Number.isFinite(days)) { toast.error('Enter a number of days, or leave it blank'); return; }
+        await setChannelMute(u.id, days);
+        toast.success(days === null ? `${u.displayName} muted until you unmute them` : `${u.displayName} muted for ${days} day${days === 1 ? '' : 's'}`);
+      }
+      await loadUsers();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update mute');
+    } finally { setMutingUser(null); }
   }
 
   async function handleDeleteUser(u: UserData) {
@@ -2954,6 +2989,16 @@ function AdminPageInner() {
                           rather than as an error after it — this list shows
                           your own admin row now, so the misclick is newly
                           reachable. */}
+                      {u.id !== user?.uid && (
+                      <button
+                        onClick={() => handleMuteToggle(u)}
+                        disabled={mutingUser === u.id}
+                        title={muteActive(u) ? 'Unmute in channels' : 'Mute in channels'}
+                        className={`p-2 rounded-lg transition-colors ${muteActive(u) ? 'hover:bg-green-400/10 text-yellow-400' : 'hover:bg-white/5 text-text-secondary hover:text-white'}`}
+                      >
+                        {muteActive(u) ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                      </button>
+                      )}
                       {u.id !== user?.uid && (
                       <button
                         onClick={() => handleBanToggle(u)}

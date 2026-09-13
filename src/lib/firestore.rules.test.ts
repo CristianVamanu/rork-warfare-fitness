@@ -217,6 +217,42 @@ describe('users/{uid} — program switch allowance', () => {
   });
 });
 
+describe('channel mute', () => {
+  async function seedChannelAnd(muteUntil: 'none' | 'forever' | 'past') {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'channels', 'c1'), { name: 'General', allowUserPosts: true });
+      await setDoc(doc(db, 'channels', 'c1', 'posts', 'p1'), { userId: BOB, content: 'hi' });
+      await setDoc(doc(db, 'users', ALICE), {
+        role: 'user', displayName: 'A',
+        ...(muteUntil === 'forever' ? { channelMute: { until: null } } : {}),
+        ...(muteUntil === 'past' ? { channelMute: { until: new Date(Date.now() - 60_000) } } : {}),
+      });
+    });
+  }
+  const post = () => setDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'new'), { userId: ALICE, content: 'x' });
+  const reply = () => setDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), { userId: ALICE, content: 'x' });
+
+  it('a muted member can neither post nor reply', async () => {
+    await seedChannelAnd('forever');
+    await assertFails(post());
+    await assertFails(reply());
+  });
+  it('an expired mute no longer blocks', async () => {
+    await seedChannelAnd('past');
+    await assertSucceeds(post());
+  });
+  it('a member cannot lift their own mute', async () => {
+    await seedChannelAnd('forever');
+    await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), { channelMute: null }));
+  });
+  it('an admin can mute and unmute', async () => {
+    await seedChannelAnd('none');
+    await seed(async (db) => { await setDoc(doc(db, 'users', ADMIN), { role: 'admin', displayName: 'Admin' }); });
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'users', ALICE), { channelMute: { until: null } }));
+    await assertFails(post());
+  });
+});
+
 describe('user data isolation', () => {
   it('refuses reading another user\'s profile', async () => {
     await assertFails(getDoc(doc(asBob(), 'users', ALICE)));

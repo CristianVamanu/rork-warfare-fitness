@@ -259,6 +259,8 @@ export interface UserProfile {
   achievements?: string[];
   questsCompleted?: string[];
   prBan?: { until: unknown /* Timestamp | null; null = indefinite */; bannedAt: unknown };
+  /** Admin-set. Muted members can read and like in channels but not post or reply. */
+  channelMute?: { until: unknown /* Timestamp | null; null = until cleared */; mutedAt: unknown };
   // Set once, server-side only (Stripe webhook), the first time this
   // account actually uses a trial (free or paid) via Stripe checkout — see
   // api/stripe/plan-checkout's alreadyUsedTrial check. Never client-writable

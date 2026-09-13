@@ -767,7 +767,12 @@ export default function ChannelPage() {
     );
   }
 
-  const isBlocked = !!slowModeBlocked && slowModeBlocked > new Date();
+  // An admin mute closes the composer the same way slow mode does, with its
+  // own message. The rules refuse the write regardless; this is so the person
+  // is told, rather than watching a send button fail.
+  const muteUntilMs = (profile?.channelMute?.until as { toMillis?: () => number } | null | undefined)?.toMillis?.();
+  const isMuted = !!profile?.channelMute && (muteUntilMs === undefined || muteUntilMs === null || muteUntilMs > Date.now());
+  const isBlocked = isMuted || (!!slowModeBlocked && slowModeBlocked > new Date());
   const canSend = (text.trim().length > 0 || !!pendingImageURL) && !isBlocked;
   const pinnedPost = channel.pinnedPostId ? posts.find(p => p.id === channel.pinnedPostId) : null;
 
@@ -916,7 +921,9 @@ export default function ChannelPage() {
           {isBlocked && (
             <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-400/10 rounded-lg px-3 py-2">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-              Slow mode: next post available {slowModeBlocked!.toLocaleDateString()}
+              {isMuted
+                ? (muteUntilMs ? `You're muted in the channels until ${new Date(muteUntilMs).toLocaleDateString()}.` : "You're muted in the channels. You can still read and like.")
+                : <>Slow mode: next post available {slowModeBlocked!.toLocaleDateString()}</>}
             </div>
           )}
           {/* Attachment preview — a clip gets a real player rather than an
@@ -971,7 +978,7 @@ export default function ChannelPage() {
               ref={textareaRef}
               value={text}
               onChange={e => setText(e.target.value)}
-              placeholder={isBlocked ? 'Slow mode active…' : 'Share something…'}
+              placeholder={isMuted ? 'Muted' : isBlocked ? 'Slow mode active…' : 'Share something…'}
               disabled={isBlocked}
               rows={1}
               className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent/50 disabled:opacity-40"

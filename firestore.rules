@@ -397,7 +397,7 @@ service cloud.firestore {
             // (stripeCustomers/{id}) as the authority rather than this field,
             // so the attack already fails; this closes it at the write instead
             // of relying on every future reader to re-check ownership.
-            ['role', 'membership', 'coaching', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan', 'trialUsedAt', 'twoFactorEnabled', 'twoFactorEmail', 'stripeCustomerId']
+            ['role', 'membership', 'coaching', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan', 'channelMute', 'trialUsedAt', 'twoFactorEnabled', 'twoFactorEmail', 'stripeCustomerId']
           ) &&
           activeProgramWriteAllowed() &&
           premiumEnrollAllowed() &&
@@ -772,6 +772,7 @@ service cloud.firestore {
           && request.resource.data.userId == uid()
           && request.resource.data.get('userIsAdmin', false) == isAdmin()
           && postBodySane(request.resource.data)
+          && !channelMuteActive()
           && (
             isAdmin() ||
             get(/databases/$(database)/documents/channels/$(channelId)).data.get('allowUserPosts', true) == true
@@ -800,7 +801,8 @@ service cloud.firestore {
         match /replies/{replyId} {
           allow read: if isAuthed() && notTfaPending();
           allow create: if isAuthed() && notTfaPending() && request.resource.data.userId == uid()
-            && request.resource.data.get('userIsAdmin', false) == isAdmin();
+            && request.resource.data.get('userIsAdmin', false) == isAdmin()
+            && !channelMuteActive();
           // Replies were write-once: nobody, not even an admin, could edit or
           // remove one. A typo stood forever and a post someone regretted
           // could not be taken back, in the one place members talk to each
@@ -930,6 +932,16 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/users/$(uid())).data.get('prBan', null)
         : null;
       return ban != null && (ban.until == null || ban.until > request.time);
+    }
+
+    // Muted in the channels: may read and like, may not post or reply.
+    // Set only by an admin (the field is on the client-write blocklist above)
+    // and, like a PR ban, either until a time or until an admin clears it.
+    function channelMuteActive() {
+      let m = exists(/databases/$(database)/documents/users/$(uid()))
+        ? get(/databases/$(database)/documents/users/$(uid())).data.get('channelMute', null)
+        : null;
+      return m != null && (m.until == null || m.until > request.time);
     }
 
     match /prPosts/{postId} {
