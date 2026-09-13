@@ -322,6 +322,15 @@ export async function getTrainerLeads(): Promise<TrainerLead[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TrainerLead);
 }
 
+/** Admin-only, per firestore.rules. A lead that has been dealt with, or is spam. */
+export async function deleteTrainerLead(id: string) {
+  await deleteDoc(doc(db, 'trainerLeads', id));
+}
+
+export async function deleteLandingLead(id: string) {
+  await deleteDoc(doc(db, 'landingLeads', id));
+}
+
 export async function updateTrainerLeadStatus(id: string, status: TrainerLead['status']) {
   await updateDoc(doc(db, 'trainerLeads', id), { status });
 }

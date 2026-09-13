@@ -15,6 +15,8 @@ import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
 import { PromoCodesPanel } from '@/components/admin/PromoCodesPanel';
 import { DailyBriefPanel } from '@/components/admin/DailyBriefPanel';
+import { LeadsPanel } from '@/components/admin/LeadsPanel';
+import { downloadCsv } from '@/lib/csv';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { ADMIN_TAB_BY_ID, adminGroups } from '@/components/admin/nav';
 import { StatTile, Panel, Pill, KV, Segmented } from '@/components/admin/ui';
@@ -42,8 +44,6 @@ import {
   setSupportTicketStatus, deleteSupportTicket, markSupportTicketRead,
   getProgressPhotos, getUserWorkouts,
   createGoal, getClientGoals, setGoalStatus, deleteGoal,
-  getTrainerLeads, updateTrainerLeadStatus,
-  getLandingLeads,
   getAllPrograms, getDeletedMockIds, clearChannelScope, setChannelMute, clearChannelMute } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { useSupportUpload, AttachButton, PendingAttachment, MessageAttachment } from '@/components/support/SupportAttachment';
@@ -55,7 +55,7 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, TrainerLead, LandingLead, SupportTicket, SupportTicketStatus } from '@/types';
+import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, SupportTicket, SupportTicketStatus } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
 import { getPlanBillingPeriods, getYouTubeEmbedUrl } from '@/lib/utils';
 
@@ -569,10 +569,6 @@ function AdminPageInner() {
   const [savingB2b, setSavingB2b] = useState(false);
   const [uploadingB2bHero, setUploadingB2bHero] = useState(false);
   const [uploadingB2bVideo, setUploadingB2bVideo] = useState(false);
-  const [trainerLeads, setTrainerLeads] = useState<TrainerLead[]>([]);
-  const [loadingLeads, setLoadingLeads] = useState(false);
-  const [landingLeads, setLandingLeads] = useState<LandingLead[]>([]);
-  const [loadingLandingLeads, setLoadingLandingLeads] = useState(false);
 
   // ── Initial load ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -651,13 +647,6 @@ function AdminPageInner() {
       }
     }).catch(console.error).finally(() => setOverviewLoading(false));
   }, [profile?.trainerId]);
-
-  useEffect(() => {
-    setLoadingLeads(true);
-    getTrainerLeads().then(setTrainerLeads).catch(() => {}).finally(() => setLoadingLeads(false));
-    setLoadingLandingLeads(true);
-    getLandingLeads().then(setLandingLeads).catch(() => {}).finally(() => setLoadingLandingLeads(false));
-  }, []);
 
   // Load real Stripe/OpenAI/etc config status once on mount for the Overview card
   useEffect(() => {
@@ -2359,30 +2348,6 @@ function AdminPageInner() {
   // importer. Triggers a real browser download via a throwaway <a> — safe
   // here since this is the actual production admin page, not a sandboxed
   // preview that blocks script-driven downloads.
-  function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
-    // Guard against CSV/formula injection: a field starting with =, +, -, @
-    // (or tab/CR) is executed as a formula by Excel/Sheets even when
-    // quoted, so prefix such values with a leading apostrophe to force
-    // text interpretation — this is what Google/OWASP recommend.
-    const escape = (v: string | number) => {
-      let s = String(v);
-      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-      return `"${s.replace(/"/g, '""')}"`;
-    };
-    const csv = [headers, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function leadDate(lead: { createdAt: unknown }): string {
-    const ts = lead.createdAt as { toDate?: () => Date } | null;
-    return ts?.toDate?.().toISOString().slice(0, 10) ?? '';
-  }
 
   async function handleTransformationPhotosUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -4851,101 +4816,7 @@ function AdminPageInner() {
       )}
 
       {/* ── Leads ─────────────────────────────────────────────────────────────── */}
-      {tab === 'leads' && (
-        <div className="space-y-5">
-          {/* Trainer demo-request leads */}
-          <Card className="p-4 lg:p-5 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-accent" /> Trainer Leads
-              </h2>
-              {trainerLeads.length > 0 && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => downloadCsv(
-                    'trainer-leads.csv',
-                    ['Name', 'Email', 'Phone', 'Business', 'Client Count', 'Message', 'Status', 'Date'],
-                    trainerLeads.map((l) => [l.name, l.email, l.phone ?? '', l.businessName ?? '', l.clientCount ?? '', l.message ?? '', l.status, leadDate(l)]),
-                  )}
-                >
-                  <Download className="w-3.5 h-3.5" /> Export CSV
-                </Button>
-              )}
-            </div>
-            <p className="text-xs text-text-secondary">Demo requests submitted from the /trainers page, newest first.</p>
-            {loadingLeads ? (
-              <p className="text-xs text-text-tertiary">Loading…</p>
-            ) : trainerLeads.length === 0 ? (
-              <p className="text-xs text-text-tertiary">No demo requests yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {trainerLeads.map((lead) => (
-                  <div key={lead.id} className="bg-surface-elevated rounded-xl p-3 flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-white truncate">{lead.name} {lead.businessName ? `· ${lead.businessName}` : ''}</p>
-                      <p className="text-xs text-text-secondary truncate">{lead.email} {lead.phone ? `· ${lead.phone}` : ''} {lead.clientCount ? `· ${lead.clientCount} clients` : ''}</p>
-                      {lead.message && <p className="text-xs text-text-tertiary mt-1">{lead.message}</p>}
-                    </div>
-                    <select
-                      className="bg-surface-elevated border border-border rounded-lg px-2 py-1 text-xs text-white flex-shrink-0"
-                      value={lead.status}
-                      onChange={(e) => {
-                        const status = e.target.value as TrainerLead['status'];
-                        setTrainerLeads(ls => ls.map(l => l.id === lead.id ? { ...l, status } : l));
-                        updateTrainerLeadStatus(lead.id, status).catch(() => toast.error('Failed to update status'));
-                      }}
-                    >
-                      <option value="new">New</option>
-                      <option value="contacted">Contacted</option>
-                      <option value="closed">Closed</option>
-                    </select>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Exit-intent email captures from the consumer landing page */}
-          <Card className="p-4 lg:p-5 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <Mail className="w-4 h-4 text-accent" /> Landing Page Leads
-              </h2>
-              {landingLeads.length > 0 && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => downloadCsv(
-                    'landing-page-leads.csv',
-                    ['Email', 'Date'],
-                    landingLeads.map((l) => [l.email, leadDate(l)]),
-                  )}
-                >
-                  <Download className="w-3.5 h-3.5" /> Export CSV
-                </Button>
-              )}
-            </div>
-            <p className="text-xs text-text-secondary">
-              Emails captured by the exit-intent popup on the main landing page before someone left without converting, newest first. Export as CSV to import into Brevo (or any other list).
-            </p>
-            {loadingLandingLeads ? (
-              <p className="text-xs text-text-tertiary">Loading…</p>
-            ) : landingLeads.length === 0 ? (
-              <p className="text-xs text-text-tertiary">No captures yet.</p>
-            ) : (
-              <div className="rounded-xl border border-white/10 divide-y divide-white/5 overflow-hidden">
-                {landingLeads.map((lead) => (
-                  <div key={lead.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                    <span className="text-sm font-medium text-white truncate">{lead.email}</span>
-                    <span className="text-xs text-text-tertiary flex-shrink-0">{leadDate(lead)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
-      )}
+      {tab === 'leads' && <LeadsPanel />}
 
       {/* ── Settings ──────────────────────────────────────────────────────────── */}
       {tab === 'settings' && (
