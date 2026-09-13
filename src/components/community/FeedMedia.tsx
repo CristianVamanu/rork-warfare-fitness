@@ -47,7 +47,7 @@ export function FeedMedia({
   // the screen on a phone and on a desktop, instead of dominating one and
   // looking like a thumbnail on the other.
   const box = compact ? 'max-h-40' : 'max-h-[70vh]';
-  const frame = `relative mt-3 w-full ${box} rounded-xl overflow-hidden bg-black/40 border border-white/5 flex items-center justify-center ${className}`;
+  const frame = `relative mt-3 mx-auto w-full ${box} rounded-xl overflow-hidden bg-black/40 border border-white/5 flex items-center justify-center ${className}`;
 
   // The frame took the full post width at a fixed max height, and the media
   // was contained inside it — correct in that nothing was cropped, wrong in
@@ -59,21 +59,26 @@ export function FeedMedia({
   // post cannot push everything else off the screen.
   const [ratio, setRatio] = useState<number | null>(null);
 
-  // Instagram's rule, and the reason Instagram never shows black bars: the
-  // frame's ratio is clamped between 4:5 portrait and 1.91:1 landscape, and
-  // the media FILLS it. A phone clip at 9:16 lands in a 4:5 frame, losing a
-  // sliver of headroom and floor; a wide clip loses a sliver at each side.
-  // Containing the media instead (the old behaviour) put a tall clip in a
-  // frame it could not fill, and the frame's own background showed through as
-  // bars down both sides — which read as broken, not as respectful of the
-  // original. Before metadata arrives a video is assumed portrait, so the
-  // frame does not jump when the real ratio lands.
-  const PORTRAIT_MAX = 4 / 5;
-  const LANDSCAPE_MAX = 1.91;
-  const clamped = ratio
-    ? Math.min(Math.max(ratio, PORTRAIT_MAX), LANDSCAPE_MAX)
-    : kind === 'video' ? PORTRAIT_MAX : null;
-  const frameStyle = clamped && !compact ? { aspectRatio: String(clamped) } : undefined;
+  // The frame is the media's exact shape. No crop, no bars — the only way to
+  // have neither is for the box to match the picture, so it does.
+  //
+  // The earlier bars were not this approach failing. The frame was forced to
+  // full width while its height was capped, so a tall clip's box came out
+  // full-width-but-short, could not match the clip, and showed its own
+  // background down both sides. The fix is to cap the WIDTH so the height
+  // lands under the ceiling by itself: width = min(100%, 70vh × ratio), and
+  // with aspect-ratio set the height follows at exactly width ÷ ratio. A tall
+  // clip is then narrower than the post and centred, which is how iMessage
+  // and WhatsApp show it; a wide clip is full width and short. Nothing is
+  // trimmed and nothing is padded.
+  //
+  // Before metadata arrives a video is assumed 9:16, since nearly every clip
+  // here is shot on a phone, so the frame barely moves when the real ratio
+  // lands.
+  const shape = ratio ?? (kind === 'video' ? 9 / 16 : null);
+  const frameStyle = shape && !compact
+    ? { aspectRatio: String(shape), width: `min(100%, calc(70vh * ${shape}))` }
+    : undefined;
 
   if (kind === 'video') {
     // Three layers so a clip is never a black rectangle before it plays.
