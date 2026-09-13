@@ -29,7 +29,11 @@ interface PromoCode {
   percentOff: number | null;
   duration: 'forever' | 'once' | 'repeating' | null;
   durationInMonths: number | null;
+  /** Plan names the code is limited to. Empty means it applies to everything. */
+  appliesTo: string[];
 }
+
+interface Sellable { key: string; name: string; kind: 'membership' | 'coaching' }
 
 // "Once" means the first INVOICE, and while the paid trial is on that invoice
 // is the trial fee — so a 25% "once" code takes 25 cents off a dollar and
@@ -54,6 +58,10 @@ function describe(c: PromoCode): string {
 export function PromoCodesPanel() {
   const { user } = useAuth();
   const [codes, setCodes] = useState<PromoCode[] | null>(null);
+  const [sellables, setSellables] = useState<Sellable[]>([]);
+  // Empty means "every plan", which is both the default and what Stripe does
+  // with a coupon that names no products.
+  const [planKeys, setPlanKeys] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -80,7 +88,7 @@ export function PromoCodesPanel() {
 
   const load = useCallback(() => {
     call('GET')
-      .then((d) => setCodes(d.codes ?? []))
+      .then((d) => { setCodes(d.codes ?? []); setSellables(d.sellables ?? []); })
       .catch((e) => { setCodes([]); toast.error(e.message); });
   }, [call]);
 
@@ -106,9 +114,10 @@ export function PromoCodesPanel() {
         ...(duration === 'repeating' ? { durationInMonths: Number(months) } : {}),
         ...(maxRedemptions ? { maxRedemptions: Number(maxRedemptions) } : {}),
         ...(expiresAt ? { expiresAt: new Date(expiresAt).toISOString() } : {}),
+        ...(planKeys.length > 0 ? { planKeys } : {}),
       });
       toast.success(`${clean} is live`);
-      setCode(''); setMaxRedemptions(''); setExpiresAt(''); setShowForm(false);
+      setCode(''); setMaxRedemptions(''); setExpiresAt(''); setPlanKeys([]); setShowForm(false);
       load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not create the code');
@@ -198,6 +207,49 @@ export function PromoCodesPanel() {
             </div>
           )}
 
+          {sellables.length > 0 && (
+            <div>
+              <span className={label}>Applies to</span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPlanKeys([])}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                    planKeys.length === 0
+                      ? 'bg-accent-muted border-accent/40 text-accent'
+                      : 'bg-surface-elevated border-white/10 text-text-secondary hover:text-white'
+                  }`}
+                >
+                  Everything
+                </button>
+                {sellables.map((sl) => {
+                  const on = planKeys.includes(sl.key);
+                  return (
+                    <button
+                      key={sl.key}
+                      type="button"
+                      onClick={() => setPlanKeys((prev) => (on ? prev.filter((k) => k !== sl.key) : [...prev, sl.key]))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                        on
+                          ? 'bg-accent-muted border-accent/40 text-accent'
+                          : 'bg-surface-elevated border-white/10 text-text-secondary hover:text-white'
+                      }`}
+                    >
+                      {sl.name}
+                      {sl.kind === 'coaching' && <span className="ml-1 opacity-60">coaching</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-text-tertiary mt-1.5 flex items-start gap-1.5">
+                <Info className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
+                {planKeys.length === 0
+                  ? 'Any plan, and the trial fee too.'
+                  : 'Only the plans above. The trial access fee is never discounted by a restricted code, so this comes off the real subscription price.'}
+              </p>
+            </div>
+          )}
+
           {/* min-w-0 on the cells: a grid item defaults to min-width:auto, so
               a date input — which carries a chunky intrinsic width of its own
               on iOS — pushed the column wider than the card and the row hung
@@ -260,6 +312,9 @@ export function PromoCodesPanel() {
                     {' · '}
                     {c.timesRedeemed} used{c.maxRedemptions ? ` of ${c.maxRedemptions}` : ''}
                     {c.expiresAt ? ` · until ${new Date(c.expiresAt).toLocaleDateString()}` : ''}
+                  </p>
+                  <p className="text-[11px] text-text-tertiary mt-0.5">
+                    {c.appliesTo.length === 0 ? 'Any plan' : `Only ${c.appliesTo.join(', ')}`}
                   </p>
                 </div>
                 <button

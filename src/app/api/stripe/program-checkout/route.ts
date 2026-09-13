@@ -8,6 +8,7 @@ import { getStripe } from '@/lib/stripe';
 import { getOrCreateStripeCustomer } from '@/lib/stripeCustomer';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { verifyAuthed } from '@/lib/verifyAdmin';
+import { getOrCreateProgramProduct } from '@/lib/stripeProducts';
 import type { Program } from '@/types';
 
 export async function POST(req: NextRequest) {
@@ -50,6 +51,17 @@ export async function POST(req: NextRequest) {
     });
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
 
+    // Permanent product, same reasoning and same inline fallback as the
+    // subscription checkouts. Without this the catalogue kept one throwaway
+    // product per program sale, and a code could never be limited to a
+    // single program.
+    let programProduct: string | null = null;
+    try {
+      programProduct = await getOrCreateProgramProduct(stripe, programId, program.name);
+    } catch (err) {
+      console.warn('[program-checkout] could not resolve a permanent product, using an inline one:', err instanceof Error ? err.message : err);
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
@@ -60,7 +72,9 @@ export async function POST(req: NextRequest) {
           price_data: {
             currency: 'usd',
             unit_amount: Math.round(program.price * 100),
-            product_data: { name: program.name },
+            ...(programProduct
+              ? { product: programProduct }
+              : { product_data: { name: program.name } }),
           },
         },
       ],

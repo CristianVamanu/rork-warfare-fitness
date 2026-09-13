@@ -19,11 +19,11 @@ export const dynamic = 'force-dynamic';
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { verifyAuthed } from '@/lib/verifyAdmin';
+import { getOrCreatePlanProduct } from '@/lib/stripeProducts';
 import type { MembershipPlan } from '@/types';
 
 function getAdminDb() {
@@ -33,53 +33,10 @@ function getAdminDb() {
 }
 
 // A subscription item's price_data needs an existing Product id, unlike a
-// Checkout Session line item which accepts inline product_data.
-//
-// Uses a DETERMINISTIC Product id derived from the plan's own Firestore id
-// (Stripe lets you set `id` explicitly on create) rather than letting Stripe
-// generate a random one and caching it back to Firestore — a create-then-
-// cache approach has a check-then-act race: two requests for the same plan
-// switching concurrently (two different users, or a preview racing a
-// commit) could both read "no cached id yet" before either write lands,
-// each creating its own throwaway Product. A deterministic id sidesteps
-// that entirely: creating with the same id twice just fails with a
-// "resource already exists" error, which is treated as success (fetch and
-// reuse) rather than retried into a duplicate.
-function planProductId(planId: string): string {
-  // Stripe product ids must be ASCII; plan ids are app-generated strings
-  // (mplan_<timestamp>) that already satisfy this, but sanitize defensively.
-  return `warfarefitness_plan_${planId}`.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 255);
-}
-
-async function getOrCreatePlanProduct(stripe: Stripe, plan: MembershipPlan): Promise<string> {
-  const id = planProductId(plan.id);
-  const existing = await stripe.products.retrieve(id).catch(() => null);
-
-  if (existing) {
-    // The id is deterministic, so a plan renamed (or archived) in the admin
-    // panel after its Product was first created would otherwise keep the
-    // stale name on every future invoice and in the billing portal forever,
-    // and price_data can't reference an archived product at all. Reactivate
-    // and re-sync the name rather than trying to create a duplicate id
-    // (which Stripe rejects outright).
-    if (!existing.active || existing.name !== plan.name) {
-      await stripe.products.update(id, { active: true, name: plan.name });
-    }
-    return id;
-  }
-
-  try {
-    const product = await stripe.products.create({ id, name: plan.name });
-    return product.id;
-  } catch (err) {
-    // Lost a create race against a concurrent request for the same plan —
-    // the other request's Product now exists under this same id; reuse it
-    // rather than erroring the whole switch out.
-    const raced = await stripe.products.retrieve(id).catch(() => null);
-    if (raced) return raced.id;
-    throw err;
-  }
-}
+// Checkout Session line item which also accepts an inline one. This route
+// needed permanent products first and grew the logic; it now lives in
+// src/lib/stripeProducts.ts so that buying a plan and switching to it
+// resolve to the same product rather than two that merely share a name.
 
 export async function POST(req: NextRequest) {
   const authCheck = await verifyAuthed(req);

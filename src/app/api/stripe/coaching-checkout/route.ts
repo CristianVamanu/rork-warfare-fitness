@@ -6,6 +6,7 @@ import { getStripe } from '@/lib/stripe';
 import { getOrCreateStripeCustomer } from '@/lib/stripeCustomer';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { verifyAuthed } from '@/lib/verifyAdmin';
+import { getOrCreateCoachingProduct } from '@/lib/stripeProducts';
 import type { CoachingPlan } from '@/types';
 
 function getAdminDb() {
@@ -68,6 +69,17 @@ export async function POST(req: NextRequest) {
     });
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
 
+    // Permanent product, same reasoning as plan-checkout: one coaching plan is
+    // one thing in Stripe, so a coupon can name it and the catalogue stops
+    // growing per sale. Falls back to an inline product so a coaching sale is
+    // never blocked by this.
+    let coachingProduct: string | null = null;
+    try {
+      coachingProduct = await getOrCreateCoachingProduct(stripe, plan);
+    } catch (err) {
+      console.warn('[coaching-checkout] could not resolve a permanent product, using an inline one:', err instanceof Error ? err.message : err);
+    }
+
     // Reuse the same site-wide time-limited discount as platform membership, if active
     let discounts: { coupon: string }[] | undefined;
     const membershipCfgSnap = await db.collection('config').doc('membership').get();
@@ -90,7 +102,9 @@ export async function POST(req: NextRequest) {
             currency: (plan.currency ?? 'USD').toLowerCase(),
             unit_amount: Math.round(plan.priceMonthly * 100),
             recurring: { interval: 'month' },
-            product_data: { name: plan.name },
+            ...(coachingProduct
+              ? { product: coachingProduct }
+              : { product_data: { name: plan.name } }),
           },
         },
       ],

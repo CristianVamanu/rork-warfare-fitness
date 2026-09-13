@@ -16,6 +16,7 @@ import { getStripe } from '@/lib/stripe';
 import { getOrCreateStripeCustomer } from '@/lib/stripeCustomer';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { verifyAuthed } from '@/lib/verifyAdmin';
+import { getOrCreatePlanProduct, getOrCreateTrialFeeProduct } from '@/lib/stripeProducts';
 import type { MembershipPlan } from '@/types';
 
 function getAdminDb() {
@@ -78,6 +79,21 @@ export async function POST(req: NextRequest) {
       db, stripe, uid: userId, email: userEmail,
     });
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000';
+
+    // A permanent product for this plan, so every purchase of it points at the
+    // same thing in Stripe instead of minting a fresh one per session. That is
+    // what lets a coupon be limited to one plan, and what stops the product
+    // catalogue growing by one row per checkout.
+    //
+    // Falls back to an inline product rather than failing. A member trying to
+    // pay must never be stopped by a tidiness feature, and the inline path is
+    // exactly what this route did before.
+    let planProduct: string | null = null;
+    try {
+      planProduct = await getOrCreatePlanProduct(stripe, plan);
+    } catch (err) {
+      console.warn('[plan-checkout] could not resolve a permanent product, using an inline one:', err instanceof Error ? err.message : err);
+    }
 
     // Reuse the same site-wide time-limited discount as the rest of checkout
     let discounts: { coupon: string }[] | undefined;
@@ -143,7 +159,15 @@ export async function POST(req: NextRequest) {
     // checkout regardless of the recurring item's own trial_period_days.
     // This is the actual MadMuscles mechanic: pay the small trial fee now,
     // the real plan price only starts billing after trialDays.
-    let trialFeeLineItem: { quantity: number; price_data: { currency: string; unit_amount: number; product_data: { name: string } } } | undefined;
+    let trialFeeLineItem: {
+      quantity: number;
+      price_data: {
+        currency: string;
+        unit_amount: number;
+        product?: string;
+        product_data?: { name: string };
+      };
+    } | undefined;
 
     if (paidTrialEnabled && trialDays > 0 && !alreadyUsedTrial) {
       trialPeriodDays = trialDays;
@@ -151,6 +175,18 @@ export async function POST(req: NextRequest) {
       const trialPriceCents = trialFeeDiscountMultiplier !== undefined
         ? Math.round(baseTrialPriceCents * trialFeeDiscountMultiplier)
         : baseTrialPriceCents;
+      // Its own product, separate from the plan's. That separation is the
+      // whole point: a coupon scoped to the plan product then discounts the
+      // real subscription price and leaves the one-off access fee alone,
+      // rather than landing on the trial fee and taking a quarter off a
+      // dollar. Same inline fallback as the plan line above.
+      let trialFeeProduct: string | null = null;
+      try {
+        trialFeeProduct = await getOrCreateTrialFeeProduct(stripe, plan);
+      } catch (err) {
+        console.warn('[plan-checkout] could not resolve a trial fee product, using an inline one:', err instanceof Error ? err.message : err);
+      }
+
       trialFeeLineItem = {
         quantity: 1,
         price_data: {
@@ -167,7 +203,9 @@ export async function POST(req: NextRequest) {
           // even though both statements are true (a one-time access fee is
           // due today; the plan itself is free for N days). Calling this
           // one what it actually is removes the collision.
-          product_data: { name: `${plan.name} — Trial Access Fee (one-time)` },
+          ...(trialFeeProduct
+            ? { product: trialFeeProduct }
+            : { product_data: { name: `${plan.name} — Trial Access Fee (one-time)` } }),
         },
       };
     } else if (cardUpFrontTrial && trialDays > 0 && !alreadyUsedTrial) {
@@ -218,7 +256,15 @@ export async function POST(req: NextRequest) {
             currency: (plan.currency ?? 'USD').toLowerCase(),
             unit_amount: Math.round(totalPrice * 100),
             recurring: { interval, interval_count: intervalCount },
-            product_data: { name: months === 1 ? plan.name : `${plan.name} (${months}-month term)` },
+            // One product per plan across every term. The term used to be
+            // appended to the name here, which would have meant a separate
+            // product per term and a coupon that had to name all four to
+            // cover one plan. Stripe prints the cadence beside the line
+            // anyway ("every 3 months"), and plan switching has always shown
+            // the plain name, so this also makes the two agree.
+            ...(planProduct
+              ? { product: planProduct }
+              : { product_data: { name: months === 1 ? plan.name : `${plan.name} (${months}-month term)` } }),
           },
         },
         ...(trialFeeLineItem ? [trialFeeLineItem] : []),
