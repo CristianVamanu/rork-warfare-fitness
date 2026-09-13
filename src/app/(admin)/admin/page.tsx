@@ -582,7 +582,9 @@ function AdminPageInner() {
     countUsers().then(setTotalUsers).catch(() => setTotalUsers(null));
     Promise.all([
       getAllUsers(USERS_PAGE).catch(() => [] as UserData[]),
-      getSystemConfig(),
+      // A slow config read must not take the users, program count and
+      // today's workouts down with it — Promise.all rejects as a unit.
+      getSystemConfig().catch(() => null),
       // Mirrors /admin/programs' own counting logic: published Firestore
       // programs plus whichever built-in seed programs haven't been
       // hidden/deleted/promoted into a Firestore doc already (promoted ones

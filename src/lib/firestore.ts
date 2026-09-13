@@ -181,10 +181,17 @@ async function safeGetEvents(
 // blank/black page in any browser, since the failure never reaches the
 // client. The race guarantees callers' existing `.catch(() => null)`
 // fallback fires within a bounded time instead of hanging indefinitely.
+//
+// The bound is tighter on the server, where it gates page render, than in the
+// browser, where the first Firestore read of a session on a phone network is
+// routinely 3–5s (channel setup + auth token) and giving up that early only
+// swaps the real value for a fallback the member then sees flicker.
+const SYSTEM_CONFIG_TIMEOUT_MS = typeof window === 'undefined' ? 3000 : 8000;
+
 export async function getSystemConfig() {
   const snap = await Promise.race([
     getDoc(doc(db, 'system', 'config')),
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('getSystemConfig timed out')), 3000)),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('getSystemConfig timed out')), SYSTEM_CONFIG_TIMEOUT_MS)),
   ]);
   return snap.exists() ? snap.data() : null;
 }
