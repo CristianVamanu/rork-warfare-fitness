@@ -81,6 +81,8 @@ export function FeedMedia({
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [scrubbing, setScrubbing] = useState(false);
+  const resumeAfterScrubRef = useRef(false);
   useEffect(() => {
     const el = videoRef.current;
     if (!el || kind !== 'video' || compact) return;
@@ -157,12 +159,40 @@ export function FeedMedia({
       feedUnmuted = !el.muted;
       setMuted(el.muted);
     };
-    const seek = (e: React.MouseEvent<HTMLDivElement>) => {
-      e.stopPropagation();
+    // Scrubbing: press, drag along the bar, release. The old handler took a
+    // single click, so holding a finger on the line and pulling back did
+    // nothing. Pointer capture keeps the drag alive when the finger wanders
+    // off the hairline, and the clip is paused for the drag so it does not
+    // fight the seek, then resumed if it was playing.
+    const seekTo = (clientX: number, bar: HTMLElement) => {
       const el = videoRef.current;
       if (!el || !el.duration) return;
-      const r = e.currentTarget.getBoundingClientRect();
-      el.currentTime = ((e.clientX - r.left) / r.width) * el.duration;
+      const r = bar.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+      el.currentTime = ratio * el.duration;
+      setProgress(ratio);
+    };
+    const onScrubStart = (e: React.PointerEvent<HTMLDivElement>) => {
+      e.stopPropagation();
+      const el = videoRef.current;
+      if (!el) return;
+      resumeAfterScrubRef.current = !el.paused;
+      el.pause();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setScrubbing(true);
+      seekTo(e.clientX, e.currentTarget);
+    };
+    const onScrubMove = (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!scrubbing) return;
+      e.stopPropagation();
+      seekTo(e.clientX, e.currentTarget);
+    };
+    const onScrubEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!scrubbing) return;
+      e.stopPropagation();
+      setScrubbing(false);
+      const el = videoRef.current;
+      if (el && resumeAfterScrubRef.current) el.play().catch(() => {});
     };
 
     return (
@@ -199,7 +229,7 @@ export function FeedMedia({
           onPause={() => setPlaying(false)}
           onTimeUpdate={(e) => {
             const v = e.currentTarget;
-            if (v.duration) setProgress(v.currentTime / v.duration);
+            if (v.duration && !scrubbing) setProgress(v.currentTime / v.duration);
           }}
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
@@ -233,19 +263,36 @@ export function FeedMedia({
           {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
         </button>
 
-        {/* Progress, a hairline along the bottom edge that takes a tap to
-            seek. Wider hit area than it looks. */}
+        {/* Progress, a hairline along the bottom edge. Tap to jump, or hold
+            and drag to scrub; it thickens under the finger. Wider hit area
+            than it looks, and touch-action none so a horizontal drag is a
+            scrub rather than a page scroll. */}
         <div
-          onClick={seek}
+          onPointerDown={onScrubStart}
+          onPointerMove={onScrubMove}
+          onPointerUp={onScrubEnd}
+          onPointerCancel={onScrubEnd}
+          onClick={(e) => e.stopPropagation()}
           role="slider"
           aria-label="Seek"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(progress * 100)}
-          className="absolute left-0 right-0 bottom-0 h-4 flex items-end"
+          style={{ touchAction: 'none' }}
+          className="absolute left-0 right-0 bottom-0 h-6 flex items-end"
         >
-          <div className="w-full h-[3px] bg-white/20">
-            <div className="h-full bg-accent transition-[width] duration-150" style={{ width: `${progress * 100}%` }} />
+          <div className={`relative w-full bg-white/20 transition-[height] duration-150 ${scrubbing ? 'h-[6px]' : 'h-[3px]'}`}>
+            <div
+              className={`h-full bg-accent ${scrubbing ? '' : 'transition-[width] duration-150'}`}
+              style={{ width: `${progress * 100}%` }}
+            />
+            {scrubbing && (
+              <span
+                aria-hidden="true"
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-accent shadow-md"
+                style={{ left: `${progress * 100}%` }}
+              />
+            )}
           </div>
         </div>
       </div>
