@@ -31,10 +31,16 @@ interface PromoCode {
   durationInMonths: number | null;
 }
 
+// "Once" means the first INVOICE, and while the paid trial is on that invoice
+// is the trial fee — so a 25% "once" code takes 25 cents off a dollar and
+// nothing off the plan. Stripe has no coupon shape that skips the trial fee
+// and lands on the first real charge instead. One month of "repeating" does
+// reach it, because a month from checkout still covers a charge seven days in,
+// so that is the option to point at rather than a warning nobody reads.
 const DURATIONS = [
-  { id: 'forever', label: 'Every payment', hint: 'The discount lasts as long as they stay subscribed.' },
-  { id: 'once', label: 'First payment only', hint: 'Careful: with the paid trial on, the first payment is the trial fee.' },
-  { id: 'repeating', label: 'A set number of months', hint: 'Full price resumes after that.' },
+  { id: 'forever', label: 'Every payment', hint: 'A thank-you that lasts as long as they stay subscribed.' },
+  { id: 'repeating', label: 'A set number of months', hint: 'Set 1 month for "their first real payment". Full price resumes after that.' },
+  { id: 'once', label: 'The very first charge only', hint: 'While the paid trial is on, that charge is the trial fee, so this discounts the trial and not the plan. Use "a set number of months" instead.' },
 ] as const;
 
 function describe(c: PromoCode): string {
@@ -192,8 +198,12 @@ export function PromoCodesPanel() {
             </div>
           )}
 
+          {/* min-w-0 on the cells: a grid item defaults to min-width:auto, so
+              a date input — which carries a chunky intrinsic width of its own
+              on iOS — pushed the column wider than the card and the row hung
+              off the right edge. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
+            <div className="min-w-0">
               <label className={label} htmlFor="promo-uses">Total uses (optional)</label>
               <input
                 id="promo-uses"
@@ -203,11 +213,20 @@ export function PromoCodesPanel() {
                 placeholder="Unlimited"
                 className={field}
               />
-              <p className="text-[11px] text-text-tertiary mt-1.5">Set this to 1 to issue a personal code to one person.</p>
+              <p className="text-[11px] text-text-tertiary mt-1.5">
+                Counted across everyone, not per person. Set it to 1 to issue a personal code to one member.
+              </p>
             </div>
-            <div>
+            <div className="min-w-0">
               <label className={label} htmlFor="promo-expires">Expires (optional)</label>
-              <input id="promo-expires" type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} className={field} />
+              <input
+                id="promo-expires"
+                type="date"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                className={`${field} min-w-0 appearance-none`}
+              />
+              <p className="text-[11px] text-text-tertiary mt-1.5">The last day someone can redeem it.</p>
             </div>
           </div>
 
