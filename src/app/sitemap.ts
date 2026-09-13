@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { getPublicPrograms } from '@/lib/publicPrograms';
+import { UNIT_STANDARDS, slugFor } from '@/lib/ptStandards';
 
 // This is a single-tenant, mostly-authenticated app — the only truly public,
 // worth-indexing pages are the marketing/auth surface. Everything past login
@@ -21,6 +22,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${appUrl}/terms`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${appUrl}/privacy`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${appUrl}/b2b-terms`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
+    // The standards pages are the most searchable thing on this domain.
+    // People look up "marine recon pft requirements" every day of the year,
+    // and unlike a video these keep earning once they rank.
+    { url: `${appUrl}/standards`, lastModified: now, changeFrequency: 'monthly', priority: 0.9 },
+    ...UNIT_STANDARDS.map((s) => ({
+      url: `${appUrl}/standards/${slugFor(s.id)}`,
+      lastModified: now,
+      changeFrequency: 'monthly' as const,
+      priority: 0.8,
+    })),
   ];
 
   // One entry per public program. These are the only pages on this app with

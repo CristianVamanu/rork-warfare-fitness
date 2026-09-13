@@ -486,3 +486,106 @@ export function paymentFailedEmailHtml(name: string, brand: EmailBrand, appUrl: 
     ${button('Update Billing', `${appUrl}/profile`)}
   `);
 }
+
+/**
+ * The result of a public standards test, emailed to whoever asked for it.
+ *
+ * Written to be worth opening on its own. The subject line is the verdict
+ * rather than an announcement, the table comes before any pitch because the
+ * table is what they asked for, and the advice under it is real — giving away
+ * how to close the gap is what makes the offer at the bottom credible rather
+ * than the usual withheld-answer routine.
+ *
+ * No greeting paragraph, no exclamation marks, no encouragement. The brand is
+ * "civilian life, military standard", and this reads accordingly.
+ */
+export function standardsResultEmailHtml(opts: {
+  standardTitle: string;
+  results: { label: string; yours: string; target: string; passed: boolean }[];
+  /** The single event that let them down, if there is one obvious one. */
+  weakest?: { label: string; yours: string; target: string } | null;
+  passedAll: boolean;
+  brand: EmailBrand;
+  appUrl: string;
+  /** Present only when they ticked the optional marketing box. */
+  unsubscribeUrl?: string;
+}): string {
+  const { standardTitle, results, weakest, passedAll, brand, appUrl, unsubscribeUrl } = opts;
+
+  const rows = results.map((r) => `
+    <tr>
+      <td style="padding:10px 0;border-bottom:1px solid #EEEEEE;font-size:14px;color:#111111;">${escapeHtml(r.label)}</td>
+      <td align="right" style="padding:10px 0;border-bottom:1px solid #EEEEEE;font-size:14px;font-weight:700;color:${r.passed ? '#1B7F3B' : '#B4322E'};">
+        ${escapeHtml(r.yours)}
+      </td>
+      <td align="right" style="padding:10px 0 10px 14px;border-bottom:1px solid #EEEEEE;font-size:14px;color:#888888;">
+        needs ${escapeHtml(r.target)}
+      </td>
+    </tr>`).join('');
+
+  // Specific, and specific to the event that actually failed. Generic advice
+  // here would undo the credibility the numbers above just bought.
+  const ADVICE: Record<string, string> = {
+    'Pull-ups': 'Greasing the groove beats training to failure. Several sub-maximal sets spread through the day, most days, adds reps faster than three hard sets twice a week. Weighted negatives fill in the top end.',
+    'Push-ups': 'This is a two-minute event, so it is as much a pacing problem as a strength one. Practise it as sets on a clock rather than one long grind, and the total climbs.',
+    'Sit-ups': 'Almost always a pacing and hip-flexor endurance issue rather than an abdominal strength one. Time your sets and stop one rep short of ragged.',
+    'Plank': 'Add time in small, boring increments. Fifteen seconds a week on a held position is a lot over two months.',
+    'Bleep test level': 'Aerobic base, and nothing else. Slow, conversational running, more of it than feels useful, with one hard interval session a week.',
+  };
+  const runAdvice = 'Most people who lift are limited here, not in the gym. Build an easy aerobic base first, then add one interval session a week. Trying to fix a run time with hard efforts alone stalls in about three weeks.';
+  const advice = weakest ? (ADVICE[weakest.label] ?? runAdvice) : '';
+
+  const headline = passedAll
+    ? `You meet the ${escapeHtml(standardTitle)} standard.`
+    : weakest
+      ? `${escapeHtml(weakest.yours)} against ${escapeHtml(weakest.target)} on ${escapeHtml(weakest.label.toLowerCase())}.`
+      : 'Here is where you stand.';
+
+  const preheader = passedAll
+    ? `You cleared every event of the ${standardTitle}.`
+    : weakest
+      ? `${weakest.label}: ${weakest.yours} against a standard of ${weakest.target}.`
+      : 'Your result against the published standard.';
+
+  return shell(brand, `
+    <h1 style="margin:0 0 6px;font-size:22px;font-weight:900;color:#111111;line-height:1.25;">${headline}</h1>
+    <p style="margin:0 0 18px;font-size:13px;color:#888888;">Measured against ${escapeHtml(standardTitle)}.</p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+      ${rows}
+    </table>
+
+    ${advice ? `
+      <p style="margin:22px 0 6px;font-size:13px;font-weight:800;color:#111111;text-transform:uppercase;letter-spacing:0.06em;">
+        What closes it
+      </p>
+      <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">${escapeHtml(advice)}</p>
+    ` : `
+      <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#444444;">
+        Clearing every event puts you past the fitness filter. Holding it while everything else is
+        going wrong is the actual test, and that is a training problem rather than a fitness one.
+      </p>
+    `}
+
+    <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#444444;">
+      Our 90-day programs are built around these standards, session by session, and adjust from what
+      you actually lifted last time. Seven days for a dollar if you want to see one.
+    </p>
+
+    ${button(passedAll ? 'See the programs' : 'Close the gap', `${appUrl}/onboarding`)}
+
+    <p style="margin:26px 0 0;font-size:11px;line-height:1.5;color:#999999;">
+      This test covers what can be measured in a gym. Real selection also involves swimming in boots,
+      obstacle and endurance courses, loaded marches and navigation. Passing here means you would not
+      be sent home on the fitness test. It does not mean you would pass the course.
+    </p>
+    <p style="margin:10px 0 0;font-size:11px;line-height:1.5;color:#999999;">
+      Not affiliated with any armed force. Standards reproduced from published sources.
+    </p>
+    ${unsubscribeUrl ? `
+      <p style="margin:14px 0 0;font-size:11px;color:#999999;">
+        <a href="${escapeHtml(unsubscribeUrl)}" style="color:#999999;">Stop these emails</a>
+      </p>
+    ` : ''}
+  `, preheader);
+}

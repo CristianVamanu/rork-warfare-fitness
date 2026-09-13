@@ -85,6 +85,9 @@ const NAV_LINKS = [
   // The anchor scrolled to a teaser; /programs is eleven pages of actual
   // content a search engine can read and a visitor can dig into.
   { href: '/programs', label: 'Programs' },
+  // One entry, not eleven. The individual unit pages hang off /standards and
+  // are reached from that page or from search, never from the menu.
+  { href: '/standards', label: 'Standards' },
   { href: '/download', label: 'Download App' },
   { href: '/trainers', label: 'For Trainers' },
   { href: '/terms', label: 'Terms' },
@@ -636,6 +639,51 @@ export default function LandingPage({
           a fixed index that only matched one specific save order. A plain
           uniform grid always looks right regardless of count or order. */}
       <TacticalStripe />
+
+      {/* The free thing, placed high and asking for nothing.
+          It is the only block on this page a stranger can act on without
+          handing over an email or a card, which is exactly why it sits above
+          everything that does ask. */}
+      <section className="relative max-w-5xl mx-auto px-5 pt-14">
+        <Link
+          href="/standards"
+          className="group relative block overflow-hidden rounded-3xl border border-accent/25 bg-gradient-to-br from-accent/[0.12] via-accent/[0.04] to-transparent p-6 sm:p-8 transition-colors hover:border-accent/50"
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-40"
+            style={{
+              backgroundImage:
+                'linear-gradient(rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px)',
+              backgroundSize: '38px 38px',
+              maskImage: 'radial-gradient(ellipse 70% 80% at 85% 50%, black, transparent 70%)',
+              WebkitMaskImage: 'radial-gradient(ellipse 70% 80% at 85% 50%, black, transparent 70%)',
+            }}
+          />
+          <div className="relative flex items-start justify-between gap-5">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-accent">Free · no account</p>
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-2 leading-tight">
+                Could you pass selection?
+              </h2>
+              <p className="text-sm text-text-secondary mt-2 max-w-md leading-relaxed">
+                The real published standards for Marine Recon, the SEALs, the Royal Marines, UKSF and more.
+                Put your numbers in and find out which ones you would clear today.
+              </p>
+              <span className="inline-flex items-center gap-1.5 text-sm font-bold text-accent mt-4">
+                Test yourself <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </span>
+            </div>
+            <div className="hidden sm:flex flex-col items-end gap-1.5 flex-shrink-0 pt-1">
+              {['15 pull-ups', '60 push-ups', '3 miles · 19:30'].map((t) => (
+                <span key={t} className="text-[11px] font-semibold tabular-nums text-text-tertiary border border-white/10 rounded-lg px-2.5 py-1 bg-black/30">
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+        </Link>
+      </section>
 
       <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pt-16 pb-16">
         <GlowOrb className="w-80 h-80 bg-accent/[0.08] -top-20 -left-20 -z-10" />
