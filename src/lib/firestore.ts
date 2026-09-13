@@ -1826,8 +1826,36 @@ export async function getAdminConversations(adminId: string): Promise<Conversati
 // immediately instead of only after leaving/re-entering the Messages tab
 // (loadConversations() was a one-time fetch, only ever called once per tab
 // visit since it's gated on conversations.length === 0).
+// Unread-only listeners for the header badge. The admin header used to
+// subscribe to the full conversation list — every conversation in the
+// system, no cap — and to 200 support tickets, and did not draw its icons
+// until both had arrived. Two equality filters need no composite index
+// (Firestore merges the single-field ones), so these cost the unread
+// documents and nothing else.
+export function subscribeAdminUnreadConversationCount(adminId: string, cb: (count: number) => void): () => void {
+  const q = query(collection(db, 'conversations'), where('adminId', '==', adminId), where('unreadByAdmin', '==', true), limit(UNREAD_BADGE_CAP + 1));
+  return onSnapshot(q, (snap) => cb(snap.size), (err) => {
+    console.error('[Firestore] admin unread conversations listener failed:', err);
+    cb(0);
+  });
+}
+
+export function subscribeAdminUnreadSupportCount(cb: (count: number) => void): () => void {
+  const q = query(collection(db, 'supportTickets'), where('unreadByAdmin', '==', true), limit(UNREAD_BADGE_CAP + 1));
+  return onSnapshot(q, (snap) => {
+    cb(snap.docs.filter((d) => d.data().status !== 'resolved').length);
+  }, (err) => {
+    console.error('[Firestore] admin unread support listener failed:', err);
+    cb(0);
+  });
+}
+
+// Bounded, like every other admin list. Sorting happens client-side because
+// adminId + lastMessageAt would need a composite index that is not deployed.
+const ADMIN_CONVERSATIONS_LIMIT = 300;
+
 export function subscribeAdminConversations(adminId: string, onUpdate: (convs: Conversation[]) => void): () => void {
-  const q = query(collection(db, 'conversations'), where('adminId', '==', adminId));
+  const q = query(collection(db, 'conversations'), where('adminId', '==', adminId), limit(ADMIN_CONVERSATIONS_LIMIT));
   return onSnapshot(q, (snap) => {
     const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Conversation));
     docs.sort((a, b) => {

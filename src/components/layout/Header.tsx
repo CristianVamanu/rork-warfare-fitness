@@ -24,7 +24,7 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
   // fetched here — Header itself is rendered per-page across ~19 screens,
   // so subscribing here used to tear down and re-open those listeners
   // (and re-fetch branding config) on every single tab navigation.
-  const { hasConversation, unreadMessages, unreadNotifs, hasSupportTicket, unreadSupport, logoUrl, appName } = useHeaderData();
+  const { hasConversation, unreadMessages, unreadNotifs, hasSupportTicket, unreadSupport, logoUrl, appName, openChat } = useHeaderData();
 
   const isAdmin = profile?.role === 'admin';
 
@@ -83,9 +83,14 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
                   </span>
                 )}
               </Link>
+              {/* Opens the chat panel over the current screen — no navigation,
+                  for staff or members. The full pages still exist for deep
+                  links and for the drawer's own "Full inbox" link. */}
               {hasConversation && (
-                <Link
-                  href={isAdmin ? '/admin?tab=messages' : '/messages'}
+                <button
+                  type="button"
+                  onClick={openChat}
+                  aria-label={unreadMessages > 0 ? `Messages, ${unreadMessages} unread` : 'Messages'}
                   className="relative p-2 rounded-xl text-text-secondary transition-colors"
                 >
                   <MessageCircle className="w-5 h-5" />
@@ -94,7 +99,7 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
                       {unreadMessages > 9 ? '9+' : unreadMessages}
                     </span>
                   )}
-                </Link>
+                </button>
               )}
               {/* Appears for a member the moment they open their first
                   support request, and permanently for staff (who always have

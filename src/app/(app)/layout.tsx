@@ -13,6 +13,7 @@ import { MembershipGuard } from '@/components/ui/MembershipGuard';
 import { WelcomeVideo } from '@/components/ui/WelcomeVideo';
 import { VerifyEmailNotice } from '@/components/ui/VerifyEmailNotice';
 import { AppBackground } from '@/components/ui/AppBackground';
+import { ChatDrawer } from '@/components/chat/ChatDrawer';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
@@ -108,6 +109,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <AppBackground />
       <HeaderDataProvider>
         {!hideNav && <VerifyEmailNotice variant="banner" />}
+        {!hideNav && <ChatDrawer />}
         <main className="pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
           {/* The warm wash behind every screen's header. Painted once here
               rather than per page, so a page cannot forget it or double it. */}

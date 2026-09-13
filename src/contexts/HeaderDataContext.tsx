@@ -1,12 +1,12 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   subscribeUserConversations,
-  subscribeAdminConversations,
+  subscribeAdminUnreadConversationCount,
   subscribeUserSupportTickets,
-  subscribeAllSupportTickets,
+  subscribeAdminUnreadSupportCount,
   subscribeUnreadNotificationCount,
   getSystemConfig,
 } from '@/lib/firestore';
@@ -17,13 +17,18 @@ interface HeaderData {
   unreadNotifs: number;
   // Support is surfaced as its own header entry rather than being folded into
   // unreadMessages, because the two go to different places: a coach DM opens
-  // /messages, a support thread opens /support (and, for staff, the admin
+  // the chat panel, a support thread opens /support (and, for staff, the admin
   // Support tab). Merging the counts would have made one badge that couldn't
   // say where to click.
   hasSupportTicket: boolean;
   unreadSupport: number;
   logoUrl: string | null;
   appName: string;
+  // The chat panel slides over whatever screen is open — tapping the bubble
+  // must not navigate anyone away from what they were doing.
+  chatOpen: boolean;
+  openChat: () => void;
+  closeChat: () => void;
 }
 
 const defaultData: HeaderData = {
@@ -34,6 +39,9 @@ const defaultData: HeaderData = {
   unreadSupport: 0,
   logoUrl: null,
   appName: 'Warfare Fitness',
+  chatOpen: false,
+  openChat: () => {},
+  closeChat: () => {},
 };
 
 const HeaderDataCtx = createContext<HeaderData>(defaultData);
@@ -54,6 +62,23 @@ function readCachedBranding(): { logoUrl: string | null; appName: string } {
   return { logoUrl: null, appName: 'Warfare Fitness' };
 }
 
+// Whether the chat and support icons exist at all is decided by a Firestore
+// listener, and until it answered the header rendered without them — so on
+// every load the bar visibly filled in late. Remember the answer per account
+// so the icons paint on first render; the listener still corrects it.
+function readCachedFlags(uid: string): { conv: boolean; support: boolean } {
+  if (typeof window === 'undefined') return { conv: false, support: false };
+  try {
+    const raw = window.localStorage.getItem(`headerFlags:${uid}`);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return { conv: false, support: false };
+}
+
+function writeCachedFlags(uid: string, flags: { conv: boolean; support: boolean }) {
+  try { window.localStorage.setItem(`headerFlags:${uid}`, JSON.stringify(flags)); } catch { /* ignore */ }
+}
+
 // Header used to run these subscriptions itself, which meant every tab
 // navigation (Header is rendered directly in ~19 page files, not once in
 // a shared layout) tore down and re-opened the conversations/notifications
@@ -65,6 +90,9 @@ function readCachedBranding(): { logoUrl: string | null; appName: string } {
 // own local concerns, only the shared data moved).
 export function HeaderDataProvider({ children }: { children: React.ReactNode }) {
   const { user, profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+  const uid = user?.uid ?? null;
+
   const [hasConversation, setHasConversation] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
@@ -73,8 +101,10 @@ export function HeaderDataProvider({ children }: { children: React.ReactNode }) 
   const [{ logoUrl: cachedLogoUrl, appName: cachedAppName }] = useState(readCachedBranding);
   const [logoUrl, setLogoUrl] = useState<string | null>(cachedLogoUrl);
   const [appName, setAppName] = useState<string>(cachedAppName);
+  const [chatOpen, setChatOpen] = useState(false);
+  const openChat = useCallback(() => setChatOpen(true), []);
+  const closeChat = useCallback(() => setChatOpen(false), []);
 
-  const isAdmin = profile?.role === 'admin';
   // /verify-2fa and /banned both render inside this same (app) layout, and
   // neither one used to mount Header (so these subscriptions never fired
   // there before Header's data-fetching moved into this shared provider).
@@ -85,6 +115,21 @@ export function HeaderDataProvider({ children }: { children: React.ReactNode }) 
   // revoked/refreshed. Gate on both explicitly rather than relying on
   // which page happens to mount this provider.
   const blockedFromReads = !!profile?.twoFactorPendingSince || !!profile?.banned;
+
+  // Paint the icons from cache before any listener answers. Staff always have
+  // an inbox, so for them there is nothing to wait for at all.
+  useEffect(() => {
+    if (!uid) return;
+    if (isAdmin) { setHasConversation(true); setHasSupportTicket(true); return; }
+    const cached = readCachedFlags(uid);
+    setHasConversation(cached.conv);
+    setHasSupportTicket(cached.support);
+  }, [uid, isAdmin]);
+
+  useEffect(() => {
+    if (!uid || isAdmin) return;
+    writeCachedFlags(uid, { conv: hasConversation, support: hasSupportTicket });
+  }, [uid, isAdmin, hasConversation, hasSupportTicket]);
 
   useEffect(() => {
     getSystemConfig().then(cfg => {
@@ -101,30 +146,24 @@ export function HeaderDataProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (!user || blockedFromReads) { setHasConversation(false); setUnreadMessages(0); return; }
     if (isAdmin) {
-      const unsub = subscribeAdminConversations(user.uid, (convs) => {
-        setHasConversation(true);
-        setUnreadMessages(convs.filter(c => c.unreadByAdmin).length);
-      });
-      return unsub;
+      setHasConversation(true);
+      return subscribeAdminUnreadConversationCount(user.uid, setUnreadMessages);
     }
-    const unsub = subscribeUserConversations(user.uid, (convs) => {
+    return subscribeUserConversations(user.uid, (convs) => {
       setHasConversation(convs.length > 0);
       setUnreadMessages(convs.filter(c => c.unreadByUser).length);
     });
-    return unsub;
   }, [user, isAdmin, blockedFromReads]);
 
-  // Support tickets. An admin watches every ticket in the system (that's the
-  // "a user submitted a support request" signal in the header); a member
-  // watches only their own, which is what makes the icon appear the moment
-  // they submit their first one.
+  // Support tickets. An admin watches the unread ones (that's the "a user
+  // submitted a support request" signal in the header); a member watches
+  // only their own, which is what makes the icon appear the moment they
+  // submit their first one.
   useEffect(() => {
     if (!user || blockedFromReads) { setHasSupportTicket(false); setUnreadSupport(0); return; }
     if (isAdmin) {
-      return subscribeAllSupportTickets((tickets) => {
-        setHasSupportTicket(true);
-        setUnreadSupport(tickets.filter(t => t.unreadByAdmin && t.status !== 'resolved').length);
-      });
+      setHasSupportTicket(true);
+      return subscribeAdminUnreadSupportCount(setUnreadSupport);
     }
     return subscribeUserSupportTickets(user.uid, (tickets) => {
       setHasSupportTicket(tickets.length > 0);
@@ -142,7 +181,10 @@ export function HeaderDataProvider({ children }: { children: React.ReactNode }) 
   }, [user, blockedFromReads]);
 
   return (
-    <HeaderDataCtx.Provider value={{ hasConversation, unreadMessages, unreadNotifs, hasSupportTicket, unreadSupport, logoUrl, appName }}>
+    <HeaderDataCtx.Provider value={{
+      hasConversation, unreadMessages, unreadNotifs, hasSupportTicket, unreadSupport, logoUrl, appName,
+      chatOpen, openChat, closeChat,
+    }}>
       {children}
     </HeaderDataCtx.Provider>
   );
