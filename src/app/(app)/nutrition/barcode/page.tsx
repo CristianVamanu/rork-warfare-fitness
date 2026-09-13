@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Scan, Flame, Beef, Wheat, AlertCircle,
-  Smartphone, RefreshCw, ZapOff,
+  Smartphone, RefreshCw, ZapOff, Info,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
@@ -64,6 +64,13 @@ export default function BarcodePage() {
   const [nutrientLevels, setNutrientLevels] = useState<NutrientLevels | null>(null);
   const [labels, setLabels] = useState<string[]>([]);
   const [showScoreDetail, setShowScoreDetail] = useState(false);
+  // Everything the details panel is capable of showing. Kept beside the state
+  // it reads so a new section added to that panel is visibly missing here.
+  const hasProductDetail = !!(
+    nutriScoreGrade || novaGroup || ecoScoreGrade
+    || additives.length > 0 || labels.length > 0
+    || (nutrientLevels && Object.keys(nutrientLevels).length > 0)
+  );
   // Was hardcoded to 'snack' — a scanned ready meal at 7pm is dinner.
   const [mealType, setMealType] = useState<MealType>('snack');
   useEffect(() => { setMealType(defaultMealTypeForNow()); }, []);
@@ -442,11 +449,31 @@ export default function BarcodePage() {
                     <p className="text-2xl font-black text-accent mt-1">{scaledCalories} kcal</p>
                     <p className="text-xs text-text-secondary mt-0.5">for {servingGrams}g ({result.calories} kcal per 100g)</p>
                   </div>
-                  {(nutriScoreGrade || novaGroup) && (
-                    <button onClick={() => setShowScoreDetail(true)} className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                  {/* The panel behind this button holds six things: Nutri-Score,
+                      NOVA, Eco-Score, nutrient levels, additives and labels.
+                      The button used to appear only for the first two, so a
+                      product carrying additives but no score — common, since
+                      OpenFoodFacts is crowd-filled and scores are computed only
+                      when enough is known — had no way in at all. Anything the
+                      panel can show now opens it. */}
+                  {hasProductDetail && (
+                    <button
+                      onClick={() => setShowScoreDetail(true)}
+                      aria-label="Product details, including additives"
+                      className="flex flex-col items-end gap-1.5 flex-shrink-0"
+                    >
                       {nutriScoreGrade && <NutriScoreBadge grade={nutriScoreGrade} />}
                       {novaGroup && <NovaBadge group={novaGroup} />}
-                      <span className="text-[9px] text-accent underline">Tap for details</span>
+                      {nutriScoreGrade || novaGroup ? (
+                        <span className="text-[9px] text-accent underline">Tap for details</span>
+                      ) : (
+                        // With no badge above it, a lone line of small text does
+                        // not read as something you can press.
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent bg-accent/10 border border-accent/25 rounded-lg px-2.5 py-1.5">
+                          <Info className="w-3.5 h-3.5" />
+                          {additives.length > 0 ? `${additives.length} additive${additives.length === 1 ? '' : 's'}` : 'Details'}
+                        </span>
+                      )}
                     </button>
                   )}
                 </div>
@@ -511,7 +538,9 @@ export default function BarcodePage() {
           <AlertCircle className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
           <p className="text-xs text-text-secondary">
             Powered by OpenFoodFacts (3M+ products). Scans EAN-13, EAN-8, UPC-A, UPC-E, Code128 product barcodes. Values are per 100g.
-            Nutri-Score and NOVA processing grade shown when available in the OpenFoodFacts database.
+            Additives, Nutri-Score, NOVA processing grade, Eco-Score and nutrient levels each appear when
+            OpenFoodFacts holds them for that product. It is filled in by volunteers, so a less common item
+            may carry none of them.
           </p>
         </Card>
       </div>
