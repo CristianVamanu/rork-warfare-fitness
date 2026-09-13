@@ -51,6 +51,8 @@ export interface PlanChangePreview {
   currency: string;
   nextInvoiceDate?: number; // ms epoch
   prorationDate: number; // seconds epoch — must be replayed into changePlan()
+  /** True when the member had cancelled and this switch will keep them subscribed. */
+  resumesSubscription: boolean;
 }
 
 /** Computes what switching to this plan/term would credit or charge on the
@@ -64,9 +66,15 @@ export async function previewPlanChange(user: User, planId: string, periodMonths
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ planId, periodMonths, preview: true }),
     });
-    const data = await res.json() as { ok?: boolean; error?: string; prorationAmount?: number; currency?: string; nextInvoiceDate?: number; prorationDate?: number };
+    const data = await res.json() as { ok?: boolean; error?: string; prorationAmount?: number; currency?: string; nextInvoiceDate?: number; prorationDate?: number; resumesSubscription?: boolean };
     if (data.ok && data.prorationAmount !== undefined && data.currency && data.prorationDate !== undefined) {
-      return { prorationAmount: data.prorationAmount, currency: data.currency, nextInvoiceDate: data.nextInvoiceDate, prorationDate: data.prorationDate };
+      return {
+        prorationAmount: data.prorationAmount,
+        currency: data.currency,
+        nextInvoiceDate: data.nextInvoiceDate,
+        prorationDate: data.prorationDate,
+        resumesSubscription: data.resumesSubscription === true,
+      };
     }
     return { error: data.error ?? 'Failed to preview plan change' };
   } catch {
@@ -92,7 +100,15 @@ export async function confirmAndChangePlan(user: User, planId: string, planName:
     ? `Switch to ${planName}? You'll receive a prorated ${amount} credit toward your invoice on ${dateStr}.`
     : `Switch to ${planName}? No proration charge or credit applies.`;
 
-  if (!window.confirm(message)) return { changed: false, error: null };
+  // Switching plans on a cancelled membership keeps it running — you cannot be
+  // on a plan you have also asked to end. That is almost certainly what someone
+  // picking a new plan wants, but it is a billing change they did not ask for
+  // in words, so it is said out loud before they agree to it.
+  const fullMessage = preview.resumesSubscription
+    ? `${message}\n\nThis also cancels your pending cancellation, so your membership will keep renewing.`
+    : message;
+
+  if (!window.confirm(fullMessage)) return { changed: false, error: null };
 
   // Replays the SAME proration_date the preview above used — Stripe's own
   // docs warn that omitting this lets the real charge diverge from what was

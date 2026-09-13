@@ -81,6 +81,17 @@ export async function POST(req: NextRequest) {
     const item = subscription.items.data[0];
     if (!item) return NextResponse.json({ error: 'Subscription has no billed item to change' }, { status: 400 });
 
+    // Cancelling leaves the subscription ACTIVE until the period ends, so the
+    // status guard above passes — but Stripe has no future invoice for it, and
+    // the preview below then failed with "No upcoming invoices for customer",
+    // which reached the member as a flat "could not change your plan". Someone
+    // who cancelled, changed their mind, and picked a different plan was told
+    // no, with no reason and no way forward. Choosing a plan is not something
+    // anyone means to do on a subscription they still want to end, so the
+    // switch lifts the cancellation — priced as such in the preview, disclosed
+    // in the confirm, and applied in the same update as the plan change.
+    const cancelAtPeriodEnd = subscription.cancel_at_period_end === true;
+
     // "Already on this plan" is judged against the plan the member is
     // actually on — Firestore's membership.planId, which is what every
     // screen shows them — not against the Stripe subscription's metadata.
@@ -116,6 +127,9 @@ export async function POST(req: NextRequest) {
           items: [{ id: item.id, price_data: priceData }],
           proration_behavior: 'create_prorations',
           proration_date: previewProrationDate,
+          // Only sent when it needs to change, so the ordinary path is byte
+          // for byte the call it has always been.
+          ...(cancelAtPeriodEnd ? { cancel_at_period_end: false } : {}),
         },
       });
       // Only the proration adjustment lines, not the plan's full next-cycle
@@ -131,6 +145,7 @@ export async function POST(req: NextRequest) {
         currency: upcoming.currency,
         nextInvoiceDate: upcoming.period_end ? upcoming.period_end * 1000 : undefined,
         prorationDate: previewProrationDate,
+        resumesSubscription: cancelAtPeriodEnd,
       });
     }
 
@@ -144,6 +159,7 @@ export async function POST(req: NextRequest) {
       // after the user reads the confirm dialog) — see the preview branch's
       // comment above.
       ...(prorationDate ? { proration_date: prorationDate } : {}),
+      ...(cancelAtPeriodEnd ? { cancel_at_period_end: false } : {}),
       metadata: { userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership' },
     });
 
@@ -168,6 +184,10 @@ export async function POST(req: NextRequest) {
       'membership.planId': planId,
       'membership.planName': plan.name,
       'membership.grantedBy': FieldValue.delete(),
+      // Same reasoning as planId above: the webhook will also write this, but
+      // the app re-reads the profile the instant this returns, and a member
+      // who just resumed should not still be told their membership is ending.
+      ...(cancelAtPeriodEnd ? { 'membership.cancelAtPeriodEnd': false } : {}),
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
