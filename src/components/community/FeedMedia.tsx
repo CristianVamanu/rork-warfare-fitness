@@ -1,5 +1,7 @@
 'use client';
 
+import { Play } from 'lucide-react';
+
 import { useState } from 'react';
 
 /**
@@ -45,7 +47,7 @@ export function FeedMedia({
   // the screen on a phone and on a desktop, instead of dominating one and
   // looking like a thumbnail on the other.
   const box = compact ? 'max-h-40' : 'max-h-[70vh]';
-  const frame = `mt-3 w-full ${box} rounded-xl overflow-hidden bg-black/40 border border-white/5 flex items-center justify-center ${className}`;
+  const frame = `relative mt-3 w-full ${box} rounded-xl overflow-hidden bg-black/40 border border-white/5 flex items-center justify-center ${className}`;
 
   // The frame took the full post width at a fixed max height, and the media
   // was contained inside it — correct in that nothing was cropped, wrong in
@@ -59,10 +61,31 @@ export function FeedMedia({
   const frameStyle = ratio && !compact ? { aspectRatio: String(ratio) } : undefined;
 
   if (kind === 'video') {
+    // Three layers so a clip is never a black rectangle before it plays.
+    //
+    // 1. A stored poster, when the uploader's browser managed to grab one.
+    // 2. Failing that, `#t=0.1` on the source. A media fragment makes Safari —
+    //    which otherwise paints nothing at all before play, whatever preload
+    //    says — decode and show the frame at that timestamp. On every other
+    //    browser it is a no-op. Playback starts a tenth of a second in, which
+    //    nobody can see.
+    // 3. Under both, a branded placeholder with a play glyph, so even the
+    //    moments before either frame arrives read as "a clip is here" rather
+    //    than "something is broken".
+    const src = poster ? url : `${url}#t=0.1`;
     return (
       <div className={frame} style={frameStyle}>
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 40%, rgba(var(--accent-rgb) / 0.22), rgba(0,0,0,0.55) 100%)' }}
+        >
+          <span className="w-12 h-12 rounded-full bg-black/45 border border-white/15 flex items-center justify-center backdrop-blur-sm">
+            <Play className="w-5 h-5 text-white translate-x-px" fill="currentColor" />
+          </span>
+        </div>
         <video
-          src={url}
+          src={src}
           poster={poster}
           controls
           playsInline
@@ -74,7 +97,7 @@ export function FeedMedia({
           // clip — a feed of autoloading videos is somebody's data allowance.
           preload="metadata"
           crossOrigin="anonymous"
-          className={`w-full h-full ${box} object-contain`}
+          className={`relative w-full h-full ${box} object-contain`}
         />
       </div>
     );
