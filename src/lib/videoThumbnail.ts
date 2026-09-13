@@ -56,8 +56,31 @@ function extractFromVideoEl(src: string, isObjectUrl: boolean, seekSeconds: numb
     video.crossOrigin = 'anonymous';
     video.src = src;
 
-    const cleanup = () => { if (isObjectUrl) URL.revokeObjectURL(src); };
-    const fail = () => { cleanup(); resolve(null); };
+    // A hard ceiling, because a <video> is allowed to fire NOTHING. iOS
+    // Safari in particular will load a fresh file's metadata and then never
+    // reach `seeked` and never raise `error` — it just sits there. Without
+    // this the promise never settled, no catch could reach it, and whatever
+    // awaited it (the community clip upload) spun forever after the clip
+    // itself had already uploaded fine. Eight seconds is far longer than a
+    // real frame grab takes and short enough that a person is still waiting.
+    let settled = false;
+    const timer = setTimeout(() => fail(), 8000);
+    const cleanup = () => {
+      clearTimeout(timer);
+      video.onloadedmetadata = null;
+      video.onseeked = null;
+      video.onerror = null;
+      video.removeAttribute('src');
+      video.load();
+      if (isObjectUrl) URL.revokeObjectURL(src);
+    };
+    const finish = (value: Blob | null) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+    const fail = () => finish(null);
 
     // Retry at a later timestamp if the first grab comes back black — covers
     // videos whose first keyframe/decode buffer isn't ready yet at the
@@ -78,7 +101,7 @@ function extractFromVideoEl(src: string, isObjectUrl: boolean, seekSeconds: numb
     video.onseeked = async () => {
       try {
         const blob = await grabFrame(video);
-        if (blob) { cleanup(); resolve(blob); return; }
+        if (blob) { finish(blob); return; }
         attemptIndex++;
         if (attemptIndex < attempts.length) { trySeek(); return; }
         fail();

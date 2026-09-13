@@ -417,6 +417,7 @@ export default function ChannelPage() {
   const [pendingImageURL, setPendingImageURL] = useState<string | null>(null);
   const [pendingMediaType, setPendingMediaType] = useState<'image' | 'video'>('image');
   const [pendingPosterURL, setPendingPosterURL] = useState<string | null>(null);
+  const pendingClipRef = useRef<string | null>(null);
   const [slowModeBlocked, setSlowModeBlocked] = useState<Date | null>(null);
   // The post the reply belongs to, plus (optionally) the reply being answered.
   // Threading is capped at two levels: answering a nested reply targets its
@@ -557,32 +558,39 @@ export default function ChannelPage() {
       const provider = resolveStorageProvider(cfg?.storageProvider);
       const url = await uploadUserContent(provider, user, toUpload, 'community');
 
-      // A still frame, grabbed in the browser at upload time.
-      //
-      // preload="metadata" alone leaves a black rectangle until the viewer
-      // presses play — iOS Safari in particular paints nothing before then —
-      // so a feed of clips reads as a column of broken boxes. A poster fixes
-      // that without a server-side transcoder: the frame is pulled onto a
-      // canvas here, once, by the person doing the upload.
-      //
-      // Best-effort by design. A codec the browser cannot decode returns null
-      // and the post goes up without a poster, which is exactly the behaviour
-      // there was before.
-      let posterUrl: string | null = null;
-      if (isVideo) {
-        try {
-          const frame = await extractVideoThumbnail(file);
-          if (frame) {
-            const posterFile = new File([frame], 'poster.jpg', { type: 'image/jpeg' });
-            posterUrl = await uploadUserContent(provider, user, posterFile, 'community');
-          }
-        } catch { /* posterless is a worse thumbnail, not a failed upload */ }
-      }
-
+      // The clip is ready the moment IT has uploaded. Nothing below may hold
+      // the spinner: the upload used to await the poster grab, and on iPhone
+      // that grab can hang indefinitely, so a clip that had uploaded perfectly
+      // showed as "still uploading" until the person gave up.
+      pendingClipRef.current = url;
       setPendingImageURL(url);
-      setPendingPosterURL(posterUrl);
+      setPendingPosterURL(null);
       setPendingMediaType(isVideo ? 'video' : 'image');
       toast.success(isVideo ? 'Clip ready — tap send to post' : 'Image ready — tap send to post');
+
+      // The poster, in the background, attached only if it lands in time.
+      //
+      // preload="metadata" alone leaves a black rectangle until the viewer
+      // presses play — iOS Safari paints nothing before then — so a feed of
+      // clips reads as a column of broken boxes. A still frame fixes that with
+      // no server-side transcoder: pulled onto a canvas here, once, by the
+      // person uploading. Best-effort by design: a codec the browser cannot
+      // decode, a grab that times out, or a send that happens first all
+      // simply mean a posterless post, which is what there was before.
+      if (isVideo) {
+        void (async () => {
+          try {
+            const frame = await extractVideoThumbnail(file);
+            if (!frame) return;
+            const posterFile = new File([frame], 'poster.jpg', { type: 'image/jpeg' });
+            const posterUrl = await uploadUserContent(provider, user, posterFile, 'community');
+            // Only if this clip is still the pending one. If it was cleared
+            // or replaced while the frame was being grabbed, a poster for it
+            // must not attach to whatever is pending now.
+            if (pendingClipRef.current === url) setPendingPosterURL(posterUrl);
+          } catch { /* posterless is a worse thumbnail, not a failed upload */ }
+        })();
+      }
     } catch {
       toast.error(isVideo ? 'Failed to upload clip' : 'Failed to upload image');
     } finally {
@@ -615,6 +623,7 @@ export default function ChannelPage() {
       setText('');
       setPendingImageURL(null);
       setPendingPosterURL(null);
+      pendingClipRef.current = null;
       if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
       // No follow-up getChannelPosts()/setPosts() here — the live
       // subscribeChannelPosts listener already picks up this post as soon
@@ -916,7 +925,7 @@ export default function ChannelPage() {
                 <img src={pendingImageURL} alt="preview" className="h-16 rounded-lg object-cover" />
               )}
               <button
-                onClick={() => { setPendingImageURL(null); setPendingPosterURL(null); setPendingMediaType('image'); }}
+                onClick={() => { setPendingImageURL(null); setPendingPosterURL(null); pendingClipRef.current = null; setPendingMediaType('image'); }}
                 className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-danger rounded-full flex items-center justify-center"
               >
                 <X className="w-3 h-3 text-white" />
