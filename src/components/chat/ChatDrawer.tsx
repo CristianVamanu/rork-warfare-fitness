@@ -128,9 +128,9 @@ export function ChatDrawer() {
             initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'spring', stiffness: 380, damping: 38 }}
             style={{ boxShadow: 'var(--shadow-modal)', height: '100dvh' }}
-            className="fixed top-0 right-0 z-50 h-screen w-full sm:w-[420px] bg-surface-elevated border-l border-border flex flex-col"
+            className="chat-bg fixed top-0 right-0 z-50 h-screen w-full sm:w-[420px] border-l border-border flex flex-col"
           >
-            <div className="flex items-center gap-2 px-3 h-14 border-b border-border flex-shrink-0">
+            <div className="flex items-center gap-2 px-3 h-14 border-b border-border flex-shrink-0 bg-black/30 backdrop-blur-md">
               {active && isAdmin && (
                 <button
                   onClick={() => setActiveId(null)}
@@ -176,7 +176,7 @@ export function ChatDrawer() {
                       return (
                         <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                           <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words ${
-                            mine ? 'bg-accent text-black' : 'bg-surface text-foreground'
+                            mine ? 'bg-accent text-black' : 'bg-surface-elevated/90 backdrop-blur-sm border border-border text-foreground'
                           }`}>
                             {m.content}
                           </div>
@@ -187,7 +187,7 @@ export function ChatDrawer() {
                   <div ref={endRef} />
                 </div>
                 <div
-                  className="flex gap-2 px-3 pt-3 border-t border-border flex-shrink-0"
+                  className="flex gap-2 px-3 pt-3 border-t border-border flex-shrink-0 bg-black/30 backdrop-blur-md"
                   style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
                 >
                   <input
@@ -222,7 +222,7 @@ export function ChatDrawer() {
                         <li key={c.id}>
                           <button
                             onClick={() => setActiveId(c.id)}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.06] transition-colors"
                           >
                             <Avatar name={isAdmin ? c.userDisplayName : 'Coach'} size="sm" />
                             <div className="flex-1 min-w-0">

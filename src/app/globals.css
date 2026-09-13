@@ -123,6 +123,26 @@ body {
    desktop viewports; on mobile the content column covers the full width
    so this is never seen. Kept very low-opacity so it reads as texture,
    not decoration competing with real content. */
+/* The chat panel's ground: the signature grid on a darker note than the
+   page, so the panel reads as its own room rather than a flat slab. The
+   grid is unmasked here — the panel is narrow and mostly text, so it wants
+   the full texture, faded only toward the bottom under the composer. */
+.chat-bg {
+  background-color: #070707;
+  background-image:
+    radial-gradient(120% 60% at 100% 0%, rgb(var(--accent-rgb) / 0.10), transparent 60%),
+    linear-gradient(rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px);
+  background-size: 100% 100%, 44px 44px, 44px 44px;
+}
+html.light .chat-bg {
+  background-color: #E4E4EA;
+  background-image:
+    radial-gradient(120% 60% at 100% 0%, rgb(var(--accent-rgb) / 0.12), transparent 60%),
+    linear-gradient(rgb(var(--accent-rgb) / 0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--accent-rgb) / 0.10) 1px, transparent 1px);
+}
+
 .app-bg-grid {
   background-image:
     linear-gradient(rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px),
