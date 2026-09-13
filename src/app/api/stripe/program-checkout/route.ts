@@ -70,6 +70,14 @@ export async function POST(req: NextRequest) {
       // not the original session, so without this a refund can't be traced
       // back to which user/program to revoke access for.
       payment_intent_data: { metadata: { userId, programId, kind: 'program_purchase' } },
+      // The membership and coaching checkouts already offer this; a one-off
+      // program purchase silently ignored every code, so a member handed a
+      // forces discount could spend it on a plan but not on a single program
+      // and had no way of knowing why. Nothing here applies an automatic
+      // discount, so unlike the plan checkout there is no case where this has
+      // to be withheld: Stripe will not show a code box beside one it applied
+      // itself.
+      allow_promotion_codes: true,
       success_url: `${appUrl}/training/${programId}?purchased=1`,
       cancel_url: `${appUrl}/training/${programId}`,
     });

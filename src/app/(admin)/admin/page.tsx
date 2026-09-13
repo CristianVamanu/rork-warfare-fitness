@@ -13,6 +13,7 @@ import {
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
+import { PromoCodesPanel } from '@/components/admin/PromoCodesPanel';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { ADMIN_TAB_BY_ID, adminGroups } from '@/components/admin/nav';
 import { StatTile, Panel, Pill, KV, Segmented } from '@/components/admin/ui';
@@ -3411,6 +3412,10 @@ function AdminPageInner() {
             <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
           ) : (
             <>
+              {/* Stripe holds these, so the panel loads them itself rather
+                  than joining the membership config load above. */}
+              <PromoCodesPanel />
+
               {/* Enable / fee */}
               <Card className="p-4 lg:p-5 space-y-4">
                 <h2 className="text-sm font-bold text-white flex items-center gap-2">
