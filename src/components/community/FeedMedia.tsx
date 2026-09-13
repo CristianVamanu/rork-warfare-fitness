@@ -46,7 +46,14 @@ export function FeedMedia({
   // vh rather than a pixel height so a tall photo takes a predictable share of
   // the screen on a phone and on a desktop, instead of dominating one and
   // looking like a thumbnail on the other.
-  const box = compact ? 'max-h-40' : 'max-h-[70vh]';
+  // 85vh, not 70. A phone clip is 9:16, and at full post width on a phone
+  // that is about 82vh tall. Capped at 70vh the frame had to shrink the clip
+  // to keep its shape, so a vertical clip sat narrower than the post. At 85vh
+  // it is full width, whole, and tall — the way Instagram shows a Reel in the
+  // feed and the way TikTok and Threads show anything vertical. A tall clip
+  // taking most of the screen as you scroll past is the deliberate trade for
+  // never cropping it and never padding it.
+  const box = compact ? 'max-h-40' : 'max-h-[85vh]';
   const frame = `relative mt-3 mx-auto w-full ${box} rounded-xl overflow-hidden bg-black/40 border border-white/5 flex items-center justify-center ${className}`;
 
   // The frame took the full post width at a fixed max height, and the media
@@ -66,7 +73,7 @@ export function FeedMedia({
   // full width while its height was capped, so a tall clip's box came out
   // full-width-but-short, could not match the clip, and showed its own
   // background down both sides. The fix is to cap the WIDTH so the height
-  // lands under the ceiling by itself: width = min(100%, 70vh × ratio), and
+  // lands under the ceiling by itself: width = min(100%, 85vh × ratio), and
   // with aspect-ratio set the height follows at exactly width ÷ ratio. A tall
   // clip is then narrower than the post and centred, which is how iMessage
   // and WhatsApp show it; a wide clip is full width and short. Nothing is
@@ -77,7 +84,7 @@ export function FeedMedia({
   // lands.
   const shape = ratio ?? (kind === 'video' ? 9 / 16 : null);
   const frameStyle = shape && !compact
-    ? { aspectRatio: String(shape), width: `min(100%, calc(70vh * ${shape}))` }
+    ? { aspectRatio: String(shape), width: `min(100%, calc(85vh * ${shape}))` }
     : undefined;
 
   if (kind === 'video') {
