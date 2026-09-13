@@ -198,7 +198,9 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
   // Derived, not stored, so they cannot drift from the clock.
   const expired = expiresAt !== null && now >= expiresAt;
   const msLeft = expiresAt ? Math.max(0, expiresAt - now) : 0;
-  const mmss = `${Math.floor(msLeft / 60000)}:${String(Math.floor((msLeft % 60000) / 1000)).padStart(2, '0')}`;
+  // Both halves padded. Unpadded minutes drop a character at 9:59, which
+  // changes the line's width and shifts everything after it.
+  const mmss = `${String(Math.floor(msLeft / 60000)).padStart(2, '0')}:${String(Math.floor((msLeft % 60000) / 1000)).padStart(2, '0')}`;
   const cooldownLeft = lastSentAt ? Math.max(0, RESEND_COOLDOWN_MS - (now - lastSentAt)) : 0;
   const sendsLeft = MAX_SENDS - sends;
   const canResend = sendsLeft > 0 && cooldownLeft === 0 && busy === null;
@@ -206,7 +208,9 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
   const resendLabel = sendsLeft <= 0
     ? 'No more codes'
     : cooldownLeft > 0
-      ? `Send a new code in ${Math.ceil(cooldownLeft / 1000)}s`
+      // Padded for the same reason as mmss: 10s → 9s is a character narrower,
+      // and this label sits next to a countdown that is already moving.
+      ? `Send a new code in ${String(Math.ceil(cooldownLeft / 1000)).padStart(2, '0')}s`
       : 'Send a new code';
 
   // Says which of the three states the person is actually in. Without this the
@@ -335,13 +339,20 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
       {codeSent && (
         <div className="mt-2 space-y-1.5">
           {codeInput}
-          <div className="flex items-center justify-between gap-3 flex-wrap">
+          {/* Stacked on a phone, one row from the small breakpoint up.
+              Deliberately NOT flex-wrap: with wrapping, whether these two sit
+              on one line or two was decided by their rendered width, and both
+              of them carry a countdown whose digits change width every second.
+              On a phone that width lands right on the wrap boundary, so the
+              banner flipped between one line and two every few seconds. A
+              breakpoint decides it once instead. */}
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             {status}
             <button
               type="button"
               onClick={sendCode}
               disabled={!canResend}
-              className="font-semibold text-accent hover:underline disabled:opacity-40 disabled:no-underline whitespace-nowrap"
+              className="self-start sm:self-auto tabular-nums font-semibold text-accent hover:underline disabled:opacity-40 disabled:no-underline whitespace-nowrap"
             >
               {busy === 'send' ? 'Sending…' : resendLabel}
             </button>
