@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, onSnapshot, runTransaction } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, onSnapshot, runTransaction, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { getUserDoc, resolveTrainerId } from '@/lib/firestore';
 import { isPendingSignup, awaitSignupInFlight } from '@/lib/auth';
@@ -42,6 +42,18 @@ const AuthContext = createContext<AuthContextValue>({
 // document, not a separate client-side read that can go stale.
 async function ensureUserDoc(firebaseUser: User): Promise<void> {
   const ref = doc(db, 'users', firebaseUser.uid);
+
+  // Plain read first, and in the overwhelmingly common case that is the whole
+  // function. A transaction that reads a document and returns without writing
+  // still commits a `verify` write pinned to the updateTime it read — so
+  // during signup, where onboarding is writing to this very document at the
+  // same time, the pin was stale by the time it committed and Firestore
+  // rejected it with failed-precondition, twice, on every single signup. The
+  // SDK retried and the outcome was always correct, but it was two failed
+  // commits and two console errors for a question a single read answers.
+  try {
+    if ((await getDoc(ref)).exists()) return;
+  } catch { /* fall through — the transaction below is the real guarantee */ }
 
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);

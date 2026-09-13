@@ -779,12 +779,15 @@ function OnboardingPageInner() {
           {/* Two columns from lg up. On a wide screen a single 384px ribbon
               of centred text was most of the problem; on a phone this is the
               same single column it always was. */}
-          <div className="mt-7 grid gap-4 lg:grid-cols-2 lg:items-start">
+          {/* Two columns of equal height. The timeline used to live inside
+              the left one, which made it taller than the right and left the
+              pair looking lopsided; it is full width underneath now. */}
+          <div className="mt-7 grid gap-4 lg:grid-cols-2">
 
             {revealProgram && (
-              <div className="space-y-4">
+              <div className="flex">
                 {revealProgram.marketing ? (
-                  <Card glass className="p-5">
+                  <Card glass className="p-5 w-full">
                     {/* Two across on a phone. Four across inside a 384px
                         column gave each stat about 80px, so the longer
                         values wrapped or ran off the edge entirely. */}
@@ -810,7 +813,7 @@ function OnboardingPageInner() {
                     </details>
                   </Card>
                 ) : (
-                  <Card glass className="p-5">
+                  <Card glass className="p-5 w-full">
                     <p className="text-text-secondary text-sm leading-relaxed">{revealProgram.description.split('\n')[0]}</p>
                     <div className="grid grid-cols-2 gap-2.5 mt-4">
                       <div className="rounded-xl bg-white/[0.04] border border-white/8 px-3 py-2.5">
@@ -825,29 +828,11 @@ function OnboardingPageInner() {
                   </Card>
                 )}
 
-                {/* The core promise of the whole goal-weight question: a
-                    concrete, personalized timeline tied to the specific
-                    program just assigned, not a "results vary" hand-wave. */}
-                {revealTimeline && revealTimeline.weeksToGoal > 0 && (
-                  <div className="rounded-2xl border border-accent/25 bg-accent/[0.07] p-4 flex items-start gap-3">
-                    {revealTimeline.direction === 'lose'
-                      ? <TrendingDown className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
-                      : <TrendingUp className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />}
-                    <p className="text-sm text-text-secondary leading-relaxed">
-                      You&apos;ll reach your goal weight in{' '}
-                      <span className="text-white font-bold">
-                        ~{revealTimeline.monthsToGoal} month{revealTimeline.monthsToGoal !== 1 ? 's' : ''}
-                      </span>{' '}
-                      on this program, {revealTimeline.direction === 'lose' ? 'losing' : 'gaining'}{' '}
-                      ~{Math.abs(Math.round(weightUnit === 'lbs' ? kgToLbs(revealTimeline.weightChangeKg) : revealTimeline.weightChangeKg))}{weightUnit} at a safe, sustainable pace.
-                    </p>
-                  </div>
-                )}
               </div>
             )}
 
             {revealNutrition && (
-              <Card glass className="p-5">
+              <Card glass className="p-5 w-full">
                 <p className="text-[10px] font-bold text-accent uppercase tracking-[0.16em]">Your nutrition targets</p>
                 <div className="flex items-baseline gap-2 mt-2">
                   <p className="text-[38px] font-black text-white leading-none tracking-tight tabular-nums">
@@ -899,6 +884,26 @@ function OnboardingPageInner() {
               </Card>
             )}
           </div>
+
+          {/* The core promise of the whole goal-weight question: a concrete,
+              personalized timeline tied to the specific program just
+              assigned, not a "results vary" hand-wave. Full width under both
+              columns, so neither is stretched by it. */}
+          {revealProgram && revealTimeline && revealTimeline.weeksToGoal > 0 && (
+            <div className="mt-4 rounded-2xl border border-accent/25 bg-accent/[0.07] p-4 flex items-start gap-3">
+              {revealTimeline.direction === 'lose'
+                ? <TrendingDown className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+                : <TrendingUp className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />}
+              <p className="text-sm text-text-secondary leading-relaxed">
+                You&apos;ll reach your goal weight in{' '}
+                <span className="text-white font-bold">
+                  ~{revealTimeline.monthsToGoal} month{revealTimeline.monthsToGoal !== 1 ? 's' : ''}
+                </span>{' '}
+                on this program, {revealTimeline.direction === 'lose' ? 'losing' : 'gaining'}{' '}
+                ~{Math.abs(Math.round(weightUnit === 'lbs' ? kgToLbs(revealTimeline.weightChangeKg) : revealTimeline.weightChangeKg))}{weightUnit} at a safe, sustainable pace.
+              </p>
+            </div>
+          )}
 
           <div className="mt-7 lg:max-w-sm lg:mx-auto">
             <Button fullWidth size="lg" onClick={proceedToApp}>
