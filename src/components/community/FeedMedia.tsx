@@ -2,7 +2,7 @@
 
 import { Play } from 'lucide-react';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * A photo or clip in a feed, shown whole.
@@ -66,6 +66,28 @@ export function FeedMedia({
   // post cannot push everything else off the screen.
   const [ratio, setRatio] = useState<number | null>(null);
 
+  // Plays while it is the thing on screen, pauses when it is not — the feed
+  // behaviour of Instagram and TikTok. An IntersectionObserver at 60% means
+  // a clip starts once most of it is in view and stops as soon as it is
+  // mostly gone, so scrolling past a row of clips never leaves two playing
+  // and never downloads a clip nobody is looking at. Pinned previews
+  // (compact) stay still. The play() promise is allowed to reject: a browser
+  // that refuses autoplay simply leaves the poster and the play glyph.
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || kind !== 'video' || compact) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.6) el.play().catch(() => {});
+        else el.pause();
+      },
+      { threshold: [0, 0.6] },
+    );
+    io.observe(el);
+    return () => { io.disconnect(); el.pause(); };
+  }, [kind, compact]);
+
   // The frame is the media's exact shape. No crop, no bars — the only way to
   // have neither is for the box to match the picture, so it does.
   //
@@ -112,10 +134,16 @@ export function FeedMedia({
           </span>
         </div>
         <video
+          ref={videoRef}
           src={src}
           poster={poster}
           controls
           playsInline
+          // Muted is what makes autoplay legal in every browser; the native
+          // controls give the viewer the unmute. Loop because a feed clip
+          // that stops dead reads as broken.
+          muted
+          loop
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
             if (v.videoWidth && v.videoHeight) setRatio(v.videoWidth / v.videoHeight);
