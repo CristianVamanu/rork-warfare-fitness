@@ -414,6 +414,9 @@ export default function ChannelPage() {
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  // 0–100 while a file is in flight. A spinner says "busy"; a number says
+  // "not stuck", which after a 100MB clip is the thing people need to know.
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
   const [pendingImageURL, setPendingImageURL] = useState<string | null>(null);
   const [pendingMediaType, setPendingMediaType] = useState<'image' | 'video'>('image');
   const [pendingPosterURL, setPendingPosterURL] = useState<string | null>(null);
@@ -556,7 +559,8 @@ export default function ChannelPage() {
       const toUpload = isVideo ? file : await compressImage(file);
       const cfg = await getSystemConfig().catch(() => null);
       const provider = resolveStorageProvider(cfg?.storageProvider);
-      const url = await uploadUserContent(provider, user, toUpload, 'community');
+      setUploadPct(0);
+      const url = await uploadUserContent(provider, user, toUpload, 'community', (pct) => setUploadPct(Math.round(pct)));
 
       // The clip is ready the moment IT has uploaded. Nothing below may hold
       // the spinner: the upload used to await the poster grab, and on iPhone
@@ -595,6 +599,7 @@ export default function ChannelPage() {
       toast.error(isVideo ? 'Failed to upload clip' : 'Failed to upload image');
     } finally {
       setUploadingImage(false);
+      setUploadPct(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
@@ -945,12 +950,21 @@ export default function ChannelPage() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingImage}
-                className="p-2 rounded-xl bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors flex-shrink-0 disabled:opacity-50"
+                aria-label={uploadingImage && uploadPct !== null ? `Uploading, ${uploadPct} percent` : 'Attach a photo or clip'}
+                className="relative p-2 rounded-xl bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors flex-shrink-0 disabled:opacity-100 overflow-hidden"
+                style={uploadingImage && uploadPct !== null
+                  // The button itself becomes the progress ring: an accent arc
+                  // that sweeps round the border as bytes land.
+                  ? { background: `conic-gradient(rgb(var(--accent-rgb)) ${uploadPct * 3.6}deg, rgba(255,255,255,0.06) 0deg)` }
+                  : undefined}
               >
-                {uploadingImage
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <ImageIcon className="w-4 h-4" />
-                }
+                {uploadingImage ? (
+                  <span className="relative flex items-center justify-center w-4 h-4 rounded-md bg-surface text-[9px] font-bold text-white tabular-nums leading-none">
+                    {uploadPct !== null ? uploadPct : <Loader2 className="w-3 h-3 animate-spin" />}
+                  </span>
+                ) : (
+                  <ImageIcon className="w-4 h-4" />
+                )}
               </button>
             )}
             <textarea

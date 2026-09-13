@@ -58,7 +58,22 @@ export function FeedMedia({
   // no bars at all; the max height still bounds a very tall portrait so one
   // post cannot push everything else off the screen.
   const [ratio, setRatio] = useState<number | null>(null);
-  const frameStyle = ratio && !compact ? { aspectRatio: String(ratio) } : undefined;
+
+  // Instagram's rule, and the reason Instagram never shows black bars: the
+  // frame's ratio is clamped between 4:5 portrait and 1.91:1 landscape, and
+  // the media FILLS it. A phone clip at 9:16 lands in a 4:5 frame, losing a
+  // sliver of headroom and floor; a wide clip loses a sliver at each side.
+  // Containing the media instead (the old behaviour) put a tall clip in a
+  // frame it could not fill, and the frame's own background showed through as
+  // bars down both sides — which read as broken, not as respectful of the
+  // original. Before metadata arrives a video is assumed portrait, so the
+  // frame does not jump when the real ratio lands.
+  const PORTRAIT_MAX = 4 / 5;
+  const LANDSCAPE_MAX = 1.91;
+  const clamped = ratio
+    ? Math.min(Math.max(ratio, PORTRAIT_MAX), LANDSCAPE_MAX)
+    : kind === 'video' ? PORTRAIT_MAX : null;
+  const frameStyle = clamped && !compact ? { aspectRatio: String(clamped) } : undefined;
 
   if (kind === 'video') {
     // Three layers so a clip is never a black rectangle before it plays.
@@ -97,7 +112,7 @@ export function FeedMedia({
           // clip — a feed of autoloading videos is somebody's data allowance.
           preload="metadata"
           crossOrigin="anonymous"
-          className={`relative w-full h-full ${box} object-contain`}
+          className={`relative w-full h-full ${box} object-cover`}
         />
       </div>
     );
@@ -115,7 +130,7 @@ export function FeedMedia({
           const img = e.currentTarget;
           if (img.naturalWidth && img.naturalHeight) setRatio(img.naturalWidth / img.naturalHeight);
         }}
-        className={`w-full h-full ${box} object-contain`}
+        className={`w-full h-full ${box} object-cover`}
       />
     </div>
   );
