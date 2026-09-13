@@ -20,7 +20,7 @@ function todayKey() {
 
 // Was fully unauthenticated with no rate limiting — anyone could hit it
 // directly to burn OpenAI spend once the daily cache missed. Result is
-// shared across all users (cached at config/dailyTip, one doc per day), so
+// shared across all users (cached at dailyTips/{date}, one doc per calendar day), so
 // this only needs to gate who can trigger generation, not per-user usage.
 const WINDOW_MS = 60 * 1000;
 const MAX_PER_WINDOW = 5;
@@ -43,14 +43,27 @@ export async function GET(req: NextRequest) {
     if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
-  const dateKey = todayKey();
+  // The MEMBER'S date, not the server's. The key used to be the server's
+  // local date, and the cache was one document, so a member ahead of UTC who
+  // opened the app just after their midnight was handed yesterday's tip and
+  // their browser cached it under today's key for the rest of the day —
+  // "the brief is the same as yesterday at 10am". The client now says which
+  // day it is where they are; anything malformed or more than a day off the
+  // server's clock falls back to the server's date, so the parameter cannot
+  // be used to farm generations.
+  const requested = req.nextUrl.searchParams.get('date') ?? '';
+  const serverKey = todayKey();
+  const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(requested)
+    && Math.abs(new Date(requested + 'T00:00:00Z').getTime() - new Date(serverKey + 'T00:00:00Z').getTime()) <= 86_400_000
+    ? requested
+    : serverKey;
 
   // Try to serve from Firestore cache first
   const app = getAdminApp();
   if (app) {
     try {
       const db = getAdminDb(app);
-      const snap = await db.doc(`config/dailyTip`).get();
+      const snap = await db.doc(`dailyTips/${dateKey}`).get();
       const data = snap.data();
       // Length is enforced on READ as well as on generation. The cache holds
       // one tip per day for everyone, so a tip generated under an older,
@@ -123,7 +136,7 @@ export async function GET(req: NextRequest) {
     if (app) {
       try {
         const db = getAdminDb(app);
-        await db.doc('config/dailyTip').set({ tip, date: dateKey, updatedAt: Timestamp.now() });
+        await db.doc(`dailyTips/${dateKey}`).set({ tip, date: dateKey, updatedAt: Timestamp.now() });
       } catch { /* non-fatal */ }
     }
 

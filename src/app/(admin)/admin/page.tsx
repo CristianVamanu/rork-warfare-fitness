@@ -714,7 +714,7 @@ function AdminPageInner() {
       const text = await res.text();
       let data: { secrets?: SecretStatusUI[]; error?: string };
       try { data = JSON.parse(text); }
-      catch { throw new Error(`Server returned a non-JSON response (status ${res.status}). Check Vercel function logs.`); }
+      catch { throw new Error(`Server returned a non-JSON response (status ${res.status}). Check the server logs: pm2 logs warfare-fitness.`); }
       if (res.ok) setSecretStatuses(data.secrets ?? []);
       else throw new Error(data.error || `Request failed (status ${res.status})`);
     } catch (err) {
@@ -1032,7 +1032,7 @@ function AdminPageInner() {
       const text = await res.text();
       let data: { plan?: typeof nutritionDraft; error?: string };
       try { data = JSON.parse(text); }
-      catch { throw new Error(`Server returned a non-JSON response (status ${res.status}). Check Vercel function logs.`); }
+      catch { throw new Error(`Server returned a non-JSON response (status ${res.status}). Check the server logs: pm2 logs warfare-fitness.`); }
       if (!res.ok) throw new Error(data.error || `Generation failed (status ${res.status})`);
       setNutritionDraft(data.plan ?? null);
     } catch (err) {
@@ -1912,7 +1912,7 @@ function AdminPageInner() {
       const text = await res.text();
       let data: { sent?: unknown[]; error?: string; debug?: { rulesEnabled?: Record<string, boolean>; aiEnabled?: boolean; usersConsidered?: number; usersWithActiveProgram?: number } };
       try { data = JSON.parse(text); }
-      catch { throw new Error(`Server returned a non-JSON response (status ${res.status}). Check Vercel function logs.`); }
+      catch { throw new Error(`Server returned a non-JSON response (status ${res.status}). Check the server logs: pm2 logs warfare-fitness.`); }
       if (res.ok) {
         const sentCount = data.sent?.length ?? 0;
         if (sentCount === 0 && data.debug) {
@@ -3304,8 +3304,8 @@ function AdminPageInner() {
                   <RefreshCw className="w-4 h-4 text-accent" /> Auto-Notification Rules
                 </h2>
                 <p className="text-xs text-text-secondary">
-                  These run automatically every day at 8 AM UTC via Vercel cron.
-                  Requires Firebase Admin SDK env vars (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY).
+                  These run automatically on the server every hour, and each member receives theirs at 8 AM in their own time zone.
+                  One message a day at most: the motivational message only goes to members no other rule spoke to that day.
                 </p>
 
                 {[

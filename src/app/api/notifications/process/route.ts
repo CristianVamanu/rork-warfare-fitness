@@ -1,6 +1,6 @@
 /**
- * Auto-notification processor — called daily by Vercel cron (see vercel.json).
- * Secured by CRON_SECRET header; only Vercel's cron runner can call this.
+ * Auto-notification processor — called hourly by the server's own crontab
+ * (installed by deploy.sh). Secured by CRON_SECRET; only that job can call this.
  *
  * Rules processed:
  *   missed_workout  — user hasn't logged a workout in > 1 day and has an active program
@@ -49,7 +49,7 @@ async function generateMotivation(userName: string, streak: number): Promise<{ t
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify the cron secret so only Vercel's scheduler can trigger this —
+    // Verify the cron secret so only the server's cron job can trigger this —
     // fails closed if it isn't configured at all, rather than skipping the
     // check entirely, which let anyone unauthenticated trigger a full
     // notification/email sweep over every user, repeatedly.
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
       }
     };
 
-    // The cron fires HOURLY (see vercel.json) and each run only processes
+    // The cron fires HOURLY (crontab, via deploy.sh) and each run only processes
     // users whose local clock currently reads the target hour — so everyone
     // gets their daily notifications at ~8am THEIR time instead of 8am UTC
     // (which was the middle of the night for US users). Users without a
@@ -362,7 +362,16 @@ export async function POST(req: NextRequest) {
         }
 
         // Rule: ai_motivation
-        if (aiEnabled && u.lastAutoAiMotivationDate !== today) {
+        // Only when nothing else spoke to this member today. It used to fire
+        // for everyone, every day, on top of the streak and missed-workout
+        // rules — so an active member got "🔥 5-day streak, don't stop now"
+        // and "Keep pushing!" back to back at 8am, and a lapsed one got
+        // "Don't break the chain" and "Keep going" together. Two motivational
+        // pushes a day is nagging; this makes it the filler for quiet days.
+        // It also stops one OpenAI call per member per day for the majority
+        // who already got a rule-based message.
+        const alreadyNudged = sent.some((entry) => entry.endsWith(`:${u.id}`));
+        if (aiEnabled && !alreadyNudged && u.lastAutoAiMotivationDate !== today) {
           const streak = u.statsCache?.streak ?? u.stats?.streak ?? 0;
           const msg = await generateMotivation(u.displayName ?? 'champ', streak);
           await db.collection('notifications').add({

@@ -27,9 +27,24 @@ export function DailyTip() {
   const { user } = useAuth();
   const [tip, setTip] = useState<string | null>(null);
 
+  // Re-runs when the local calendar day changes while the app stays open —
+  // a PWA left resident overnight otherwise kept showing yesterday's tip
+  // until something else happened to remount this.
+  const [day, setDay] = useState(() => new Date().toLocaleDateString('sv-SE'));
+  useEffect(() => {
+    const check = () => {
+      const now = new Date().toLocaleDateString('sv-SE');
+      setDay((d) => (d === now ? d : now));
+    };
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    const t = setInterval(check, 60_000);
+    return () => { document.removeEventListener('visibilitychange', check); window.removeEventListener('focus', check); clearInterval(t); };
+  }, []);
+
   useEffect(() => {
     if (!user) { setTip(null); return; }
-    const today = new Date().toLocaleDateString('sv-SE');
+    const today = day;
     const cacheKey = `dailyTip:${today}`;
 
     // try/catch around storage: a private window or blocked site data makes
@@ -46,7 +61,7 @@ export function DailyTip() {
     (async () => {
       try {
         const token = await getIdToken(user);
-        const res = await fetch('/api/ai/tip', { headers: { authorization: `Bearer ${token}` } });
+        const res = await fetch(`/api/ai/tip?date=${today}`, { headers: { authorization: `Bearer ${token}` } });
         if (!res.ok) return; // 403 (plan does not include it), 429, offline
         const data = await res.json() as { tip?: string };
         if (cancelled || !data.tip) return;
@@ -62,7 +77,7 @@ export function DailyTip() {
       } catch { /* offline or token refresh failed — show nothing */ }
     })();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user, day]);
 
   if (!tip) return null;
 
