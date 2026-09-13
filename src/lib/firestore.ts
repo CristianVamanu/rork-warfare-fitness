@@ -188,12 +188,52 @@ async function safeGetEvents(
 // swaps the real value for a fallback the member then sees flicker.
 const SYSTEM_CONFIG_TIMEOUT_MS = typeof window === 'undefined' ? 3000 : 8000;
 
-export async function getSystemConfig() {
-  const snap = await Promise.race([
-    getDoc(doc(db, 'system', 'config')),
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('getSystemConfig timed out')), SYSTEM_CONFIG_TIMEOUT_MS)),
-  ]);
-  return snap.exists() ? snap.data() : null;
+// Read on nearly every screen and written about once a month, so it was being
+// fetched from Firestore far more often than it could possibly have changed.
+// Two places that cost real time:
+//
+//  - Every upload resolves the storage provider from it BEFORE the first byte
+//    of the file moves. On a phone the first Firestore read of a session runs
+//    to several seconds, so a member picked a video and then watched nothing
+//    happen while a config document they never see was fetched.
+//  - generateMetadata() in the root layout reads it per page request.
+//
+// A minute of staleness is invisible for branding and provider choice, and
+// setSystemConfig clears this the moment an admin actually changes something.
+// The in-flight share matters as much as the TTL: a cold page mounts several
+// callers at once, and they used to make the same request several times over.
+const SYSTEM_CONFIG_TTL_MS = 60_000;
+type SystemConfigValue = Record<string, unknown> | null;
+let configCache: { at: number; value: SystemConfigValue } | null = null;
+let configInFlight: Promise<SystemConfigValue> | null = null;
+
+/** Drops the cached copy so the next read goes back to Firestore. */
+export function clearSystemConfigCache() {
+  configCache = null;
+  configInFlight = null;
+}
+
+export async function getSystemConfig(): Promise<SystemConfigValue> {
+  if (configCache && Date.now() - configCache.at < SYSTEM_CONFIG_TTL_MS) return configCache.value;
+  if (configInFlight) return configInFlight;
+
+  configInFlight = (async () => {
+    const snap = await Promise.race([
+      getDoc(doc(db, 'system', 'config')),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('getSystemConfig timed out')), SYSTEM_CONFIG_TIMEOUT_MS)),
+    ]);
+    // Only a resolved read is cached. A timeout must leave the next caller to
+    // try again rather than serving the failure for a minute.
+    const value = (snap.exists() ? snap.data() : null) as SystemConfigValue;
+    configCache = { at: Date.now(), value };
+    return value;
+  })();
+
+  try {
+    return await configInFlight;
+  } finally {
+    configInFlight = null;
+  }
 }
 
 // Shared by src/lib/auth.ts's signUp() and AuthContext's ensureUserDoc() —
@@ -216,6 +256,9 @@ export async function resolveTrainerId(): Promise<string | null> {
 
 export async function setSystemConfig(config: Record<string, unknown>) {
   await setDoc(doc(db, 'system', 'config'), config, { merge: true });
+  // Otherwise an admin saves a setting, reloads, and is shown the old value
+  // back from the cache for up to a minute — which reads as the save failing.
+  clearSystemConfigCache();
 }
 
 // ---------------------------------------------------------------------------
