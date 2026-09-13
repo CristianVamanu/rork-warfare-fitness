@@ -293,14 +293,24 @@ function NutritionPageInner() {
             <button onClick={() => setShowPlanModal(true)} className="w-full text-left">
               <Card glass className="p-4 flex items-center gap-3.5 card-float border-accent/30">
                 <Medallion><Beef className="w-6 h-6" strokeWidth={2} /></Medallion>
+                {/* Says what is inside. The card read "Your plan · 2,361 kcal"
+                    with a chevron, and members reasonably took that as the
+                    whole thing — the meals and the coach's notes sat one tap
+                    away with nothing to suggest they existed. */}
                 <div className="flex-1 min-w-0">
-                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Your plan</span>
+                  <span className="text-[10px] font-bold text-accent uppercase tracking-wide">Plan from your coach</span>
                   <p className="text-[15px] font-extrabold text-white leading-tight">{profile.assignedNutritionPlan.calories} kcal a day</p>
                   <p className="text-[11px] text-text-tertiary mt-0.5 tabular-nums">
                     {profile.assignedNutritionPlan.protein}g protein · {profile.assignedNutritionPlan.carbs}g carbs · {profile.assignedNutritionPlan.fat}g fat
                   </p>
+                  <p className="text-[11px] font-semibold text-accent mt-1.5">
+                    {profile.assignedNutritionPlan.meals?.length
+                      ? `See your ${profile.assignedNutritionPlan.meals.length} meal${profile.assignedNutritionPlan.meals.length === 1 ? '' : 's'} and what to eat`
+                      : 'See the plan'}
+                    {profile.assignedNutritionPlan.coachNotes ? ' · coach notes' : ''}
+                  </p>
                 </div>
-                <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+                <ChevronRight className="w-4 h-4 text-accent flex-shrink-0" />
               </Card>
             </button>
           </motion.div>
