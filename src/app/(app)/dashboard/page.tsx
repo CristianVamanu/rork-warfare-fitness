@@ -362,8 +362,7 @@ export default function DashboardPage() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
           {activeProgram ? (
             <div
-              className="relative overflow-hidden rounded-[28px] p-5 text-[#141005] shadow-[0_30px_70px_-30px_rgba(245,166,35,0.6)]"
-              style={{ background: 'linear-gradient(135deg, #F5A623 0%, #E8941A 55%, #B86F0E 100%)' }}
+              className="hero-card relative overflow-hidden rounded-[28px] p-5 text-[#141005] shadow-[0_30px_70px_-30px_rgba(245,166,35,0.6)]"
             >
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 {/* Always the NEXT session. A finished day is noted in the
@@ -455,8 +454,7 @@ export default function DashboardPage() {
           ) : (
             <Link href="/training" className="block">
               <div
-                className="rounded-[28px] p-5 text-[#141005] shadow-[0_30px_70px_-30px_rgba(245,166,35,0.6)]"
-                style={{ background: 'linear-gradient(135deg, #F5A623 0%, #E8941A 55%, #B86F0E 100%)' }}
+                className="hero-card rounded-[28px] p-5 text-[#141005] shadow-[0_30px_70px_-30px_rgba(245,166,35,0.6)]"
               >
                 <span className="inline-flex items-center h-[26px] px-2.5 rounded-full bg-[#141005]/15 text-[11px] font-extrabold">No active program</span>
                 <h2 className="text-[27px] font-black leading-[1.05] tracking-tight mt-3">Pick your fight.</h2>

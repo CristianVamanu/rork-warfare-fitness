@@ -245,6 +245,31 @@ button, a { touch-action: manipulation; }
   cursor: pointer;
 }
 
+/* ── Home hero card ──
+   The dark theme's hero is a saturated amber slab with near-black ink and a
+   near-black button: on a dark page it is the one warm thing on screen. On a
+   light page the same slab is a heavy orange block fighting white cards, so
+   light mode gets its own treatment rather than a dimmed copy — a pale amber
+   surface, the accent reserved for the button and the progress fill, and dark
+   ink. The gradient lives here, not inline, so the light rule can win. */
+.hero-card {
+  background: linear-gradient(135deg, #F5A623 0%, #E8941A 55%, #B86F0E 100%);
+}
+html.light .hero-card {
+  background: linear-gradient(135deg, #FFF4DE 0%, #FFE7B8 60%, #FFD98F 100%);
+  border: 1px solid rgba(212, 130, 10, 0.30);
+  color: #2A1B04;
+  box-shadow: 0 24px 50px -32px rgba(212, 130, 10, 0.55) !important;
+}
+/* Everything inside that used the near-black ink as a tint now uses accent. */
+html.light .hero-card .bg-\[\#141005\]\/10,
+html.light .hero-card .bg-\[\#141005\]\/12,
+html.light .hero-card .bg-\[\#141005\]\/15 { background-color: rgba(212, 130, 10, 0.12) !important; }
+html.light .hero-card .border-\[\#141005\]\/10 { border-color: rgba(212, 130, 10, 0.18) !important; }
+/* The primary button and the progress fill: solid accent, white text. */
+html.light .hero-card .bg-\[\#141005\] { background-color: var(--accent) !important; }
+html.light .hero-card .bg-\[\#141005\].text-accent { color: #FFFFFF !important; }
+
 /* ── Light-mode overrides for Tailwind utilities that can't use CSS vars ── */
 /* These cover page-level usages of raw Tailwind color classes */
 
