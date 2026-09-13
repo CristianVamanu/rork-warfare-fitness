@@ -475,19 +475,21 @@ export default function ChannelPage() {
   // localStorage. If there's nothing saved (first visit) or the saved post
   // has since been deleted, falls back to the old behavior (bottom/newest).
   const lastReadKey = `community_lastread_${channelId}`;
+  // A channel opens at the TOP: the description and the pinned post, which
+  // is where a channel like Start Here actually starts. It used to jump
+  // straight to the newest post, chat-style, so the one message an admin
+  // had pinned to be read first was the one thing nobody landed on. The
+  // last-read position is still tracked, but only to say how many posts are
+  // new in the "Jump to latest" link below, not to move the viewport.
   useEffect(() => {
     if (loading || posts.length === 0 || resumedRef.current) return;
     resumedRef.current = true;
     const savedId = localStorage.getItem(lastReadKey);
     const idx = savedId ? posts.findIndex((p) => p.id === savedId) : -1;
-    setTimeout(() => {
-      if (idx !== -1 && idx < posts.length - 1) {
-        document.getElementById(`post-${savedId}`)?.scrollIntoView({ behavior: 'instant', block: 'start' });
-        setUnreadCount(posts.length - 1 - idx);
-      } else {
-        postsEndRef.current?.scrollIntoView({ behavior: 'instant' });
-      }
-    }, 50);
+    if (idx !== -1 && idx < posts.length - 1) setUnreadCount(posts.length - 1 - idx);
+    // The browser can restore a previous scroll offset on a client-side
+    // return to this route; pin it to the top explicitly.
+    setTimeout(() => { if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0; }, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, posts.length]);
 
@@ -800,6 +802,23 @@ export default function ChannelPage() {
               sane height — which cut it off mid-sentence, the one place the
               text actually has a job to do. Here it can run as long as it
               needs and scrolls away once you are reading posts. */}
+          {/* Small print, not a button: the way down for anyone who came for
+              the conversation rather than the pinned post. Deliberately quiet
+              so it does not compete with the thing the channel opens on. */}
+          {posts.length > 0 && (
+            <div className="flex items-center justify-between px-1">
+              <p className="text-[11px] text-text-tertiary">From the start</p>
+              <button
+                type="button"
+                onClick={() => { postsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); setUnreadCount(0); }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent hover:underline"
+              >
+                Jump to latest{unreadCount > 0 ? ` · ${unreadCount} new` : ''}
+                <ChevronsDown className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
           {channel.description && (
             <div className="rounded-2xl border border-white/8 bg-surface px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">About this channel</p>
