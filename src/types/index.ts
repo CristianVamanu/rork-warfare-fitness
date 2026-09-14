@@ -427,6 +427,26 @@ export interface LandingFeature {
   tierNote?: string;
 }
 
+export interface StackComparisonRow {
+  /** The app a member would otherwise pay for, e.g. "MyFitnessPal Premium". */
+  name: string;
+  /** What that app is being paid for — the thing we also do. */
+  replaces: string;
+  /** That vendor's listed price per month, in `currency`. */
+  pricePerMonth: number;
+  /** ISO code, e.g. 'USD'. Rows may differ; the section handles that. */
+  currency: string;
+}
+
+export interface StackComparison {
+  enabled?: boolean;        // default true when rows exist
+  heading?: string;
+  subheading?: string;
+  rows: StackComparisonRow[];
+  /** "Vendor list prices as of September 2026" — shown under the table. */
+  asOf?: string;
+}
+
 export interface LandingPageConfig {
   badgeText: string;
   headlineLine1: string;
@@ -454,6 +474,19 @@ export interface LandingPageConfig {
   // never-fabricate rule as testimonials above, just for member transformation
   // photos instead of quotes.
   transformationPhotos?: { imageUrl: string; caption?: string }[];
+  /**
+   * "What it replaces" — the separate paid apps a member would otherwise
+   * stack, each with the price that vendor actually lists, totalled next
+   * to our lowest monthly price.
+   *
+   * Every row carries its own currency. The total is only shown when all
+   * rows share one, and the "you save" line only when that currency is the
+   * one our plans are priced in — adding £ to $ and calling it a saving is
+   * exactly the kind of number that gets a comparison page reported.
+   * Prices here are claims about other companies, so they are admin-edited
+   * with a visible "as of" date rather than baked into a build.
+   */
+  stackComparison?: StackComparison;
 }
 
 export interface Channel {

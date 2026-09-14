@@ -39,6 +39,35 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     { title: 'Scan & Go', desc: 'Photograph any gym — a hotel, a friend\'s garage, wherever — and get a workout built around exactly the equipment you can see. No commitment beyond today.' },
     { title: 'A Real Community', desc: 'Train alongside people on the same journey — share wins, ask questions, stay motivated together.' },
   ],
+  // The separate apps a member would otherwise pay for, at the monthly price
+  // each vendor lists. These are claims about other companies' prices, so
+  // every figure below was checked against a published source on the date
+  // in `asOf`, and the admin panel exists so they can be corrected the day
+  // a vendor changes one. Only apps with a PAID tier for the matching
+  // feature are listed — Yuka scans barcodes for free, so it is not here,
+  // and putting it here would be a lie the first reader with Yuka installed
+  // would catch.
+  //
+  //   MyFitnessPal Premium  $19.99/mo  (recurdash.com/subscription-pricing/myfitnesspal)
+  //   Fitbod                $15.99/mo  (fitbod.me/faqs)
+  //   Cal AI                 $9.99/mo  (trackcalai.com/pricing — most-advertised tier)
+  //   Zero Plus              $9.99/mo  (zerofasting.zendesk.com pricing article)
+  //
+  // Coaching is deliberately NOT a row: it is a separate paid add-on here,
+  // so counting a human PT's fee as "replaced" by the base plan would be
+  // claiming something the base plan does not include.
+  stackComparison: {
+    enabled: true,
+    heading: 'Four subscriptions. Or one.',
+    subheading: 'The apps people stack to get what is already in here — at the prices they list today.',
+    rows: [
+      { name: 'MyFitnessPal Premium', replaces: 'Calorie & macro tracking', pricePerMonth: 19.99, currency: 'USD' },
+      { name: 'Fitbod', replaces: 'Adaptive workout programs', pricePerMonth: 15.99, currency: 'USD' },
+      { name: 'Cal AI', replaces: 'Photo food analyser', pricePerMonth: 9.99, currency: 'USD' },
+      { name: 'Zero Plus', replaces: 'Fasting timer & stages', pricePerMonth: 9.99, currency: 'USD' },
+    ],
+    asOf: 'Vendor list prices as of September 2026. They change; check before you rely on them.',
+  },
   socialProof: ['Matched to you, not a template.', 'Adapts as you get stronger.', 'Built to keep you consistent.'],
   quoteText: 'Motivation gets you started. A program that adapts to you keeps you going.',
   quoteAuthor: 'The Warfare Fitness difference',

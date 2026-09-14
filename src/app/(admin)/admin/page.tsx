@@ -2310,6 +2310,24 @@ function AdminPageInner() {
     setLandingForm(f => ({ ...f, features: f.features.filter((_, idx) => idx !== i) }));
   }
 
+  // "What it replaces" rows. Kept as one nested object so a save writes the
+  // whole comparison at once — a half-edited table with a stale total is
+  // worse than the old one.
+  function stackRows() { return landingForm.stackComparison?.rows ?? []; }
+  function setStack(patch: Partial<NonNullable<LandingPageConfig['stackComparison']>>) {
+    setLandingForm(f => ({ ...f, stackComparison: { rows: [], ...(f.stackComparison ?? {}), ...patch } }));
+  }
+  function updateStackRow(i: number, patch: Partial<{ name: string; replaces: string; pricePerMonth: number; currency: string }>) {
+    setStack({ rows: stackRows().map((r, idx) => idx === i ? { ...r, ...patch } : r) });
+  }
+  function addStackRow() {
+    const currency = stackRows()[0]?.currency ?? 'USD';
+    setStack({ rows: [...stackRows(), { name: '', replaces: '', pricePerMonth: 0, currency }] });
+  }
+  function removeStackRow(i: number) {
+    setStack({ rows: stackRows().filter((_, idx) => idx !== i) });
+  }
+
   function updateSocialProof(i: number, value: string) {
     setLandingForm(f => ({
       ...f,
@@ -5251,6 +5269,85 @@ function AdminPageInner() {
                   + Add Feature
                 </Button>
               </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">&ldquo;What It Replaces&rdquo; Comparison</label>
+              <p className="text-[11px] text-text-tertiary mb-2 leading-relaxed">
+                The separate apps a member would otherwise pay for, at each vendor&apos;s listed monthly price.
+                These are claims about other companies — enter the price they actually publish, keep every
+                row in the same currency as your plans so the total and saving can be shown, and update the
+                &ldquo;as of&rdquo; line whenever you change a number.
+              </p>
+              <label className="flex items-center gap-2 text-xs text-white mb-3">
+                <input
+                  type="checkbox"
+                  checked={landingForm.stackComparison?.enabled !== false}
+                  onChange={e => setStack({ enabled: e.target.checked })}
+                />
+                Show this section on the landing page
+              </label>
+              <div className="space-y-2 mb-3">
+                <Input
+                  value={landingForm.stackComparison?.heading ?? ''}
+                  onChange={e => setStack({ heading: e.target.value })}
+                  placeholder="Heading — e.g. Four subscriptions. Or one."
+                />
+                <Input
+                  value={landingForm.stackComparison?.subheading ?? ''}
+                  onChange={e => setStack({ subheading: e.target.value })}
+                  placeholder="One line under the heading"
+                  className="text-xs"
+                />
+              </div>
+              <div className="space-y-2">
+                {stackRows().map((r, i) => (
+                  <div key={i} className="bg-surface-elevated border border-white/8 rounded-xl p-3 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Input
+                        value={r.name}
+                        onChange={e => updateStackRow(i, { name: e.target.value })}
+                        placeholder="App — e.g. MyFitnessPal Premium"
+                      />
+                      <Input
+                        value={r.replaces}
+                        onChange={e => updateStackRow(i, { replaces: e.target.value })}
+                        placeholder="What it's for — e.g. Calorie tracking"
+                        className="text-xs"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={Number.isFinite(r.pricePerMonth) ? String(r.pricePerMonth) : ''}
+                        onChange={e => updateStackRow(i, { pricePerMonth: parseFloat(e.target.value) || 0 })}
+                        placeholder="Price per month"
+                        className="w-32 min-w-0"
+                      />
+                      <Input
+                        value={r.currency}
+                        onChange={e => updateStackRow(i, { currency: e.target.value.toUpperCase().slice(0, 3) })}
+                        placeholder="USD"
+                        className="w-20 min-w-0 uppercase"
+                      />
+                      <Button variant="ghost" size="sm" onClick={() => removeStackRow(i)} className="ml-auto">
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <Button variant="ghost" size="sm" onClick={addStackRow}>
+                  + Add App
+                </Button>
+              </div>
+              <Input
+                value={landingForm.stackComparison?.asOf ?? ''}
+                onChange={e => setStack({ asOf: e.target.value })}
+                placeholder="Small print — e.g. Vendor list prices as of September 2026."
+                className="text-xs mt-3"
+              />
             </div>
 
             <div>

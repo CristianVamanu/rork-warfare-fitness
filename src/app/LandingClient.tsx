@@ -724,6 +724,89 @@ export default function LandingPage({
         </div>
       </section>
 
+      {/* What it replaces — the stack a member would otherwise pay for,
+          totalled against our lowest monthly price. The value argument for
+          a price that is high next to any ONE of these apps and low next to
+          all of them; the reader does the sum, the page just lines it up.
+          Shown only when every row is in one currency, and the saving line
+          only when that currency matches our plans — see StackComparison. */}
+      {(() => {
+        const sc = landing.stackComparison;
+        if (!sc || sc.enabled === false || !sc.rows?.length) return null;
+        const rows = sc.rows.filter((r) => r.name?.trim() && Number.isFinite(r.pricePerMonth) && r.pricePerMonth > 0);
+        if (rows.length === 0) return null;
+        const currencies = new Set(rows.map((r) => (r.currency || 'USD').toUpperCase()));
+        const oneCurrency = currencies.size === 1 ? [...currencies][0] : null;
+        const total = oneCurrency ? rows.reduce((s, r) => s + r.pricePerMonth, 0) : null;
+        // Our cheapest per-month figure: a monthly price if any plan has
+        // one, otherwise the longest term annualised. Discounts are not
+        // applied — a promo code is not the price.
+        const ours = membershipPlans
+          .map((p) => p.priceMonthly ?? (p.price12mo !== undefined ? p.price12mo / 12 : p.price6mo !== undefined ? p.price6mo / 6 : p.price3mo !== undefined ? p.price3mo / 3 : undefined))
+          .filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0);
+        const ourPrice = ours.length ? Math.min(...ours) : null;
+        const ourCurrency = (membershipPlans[0]?.currency || 'USD').toUpperCase();
+        const comparable = total !== null && ourPrice !== null && oneCurrency === ourCurrency && total > ourPrice;
+        const sym = (c: string) => ({ USD: '$', GBP: '£', EUR: '€', AUD: 'A$', CAD: 'C$' } as Record<string, string>)[c] ?? `${c} `;
+        const money = (n: number, c: string) => `${sym(c)}${n.toFixed(2)}`;
+        return (
+          <section className="relative overflow-hidden max-w-4xl mx-auto px-5 pb-16">
+            <GlowOrb className="w-80 h-80 bg-accent/[0.07] -bottom-24 -right-24 -z-10" />
+            <div className="text-center mb-8">
+              <h2 className="text-2xl sm:text-3xl font-black text-white">{sc.heading?.trim() || 'Four subscriptions. Or one.'}</h2>
+              {sc.subheading?.trim() && <p className="text-text-secondary text-sm mt-2 max-w-xl mx-auto">{sc.subheading}</p>}
+            </div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.35 }}
+              className="rounded-2xl border border-white/10 bg-surface overflow-hidden"
+            >
+              <div className="grid grid-cols-[1fr_auto] text-[11px] font-bold uppercase tracking-[0.15em] text-text-tertiary px-5 py-3 border-b border-white/8">
+                <span>What you&apos;d pay for separately</span>
+                <span className="text-right">Per month</span>
+              </div>
+              {rows.map((r, i) => (
+                <div key={`${r.name}-${i}`} className="grid grid-cols-[1fr_auto] gap-4 items-center px-5 py-3.5 border-b border-white/5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white">{r.name}</p>
+                    {r.replaces?.trim() && <p className="text-xs text-text-tertiary mt-0.5">{r.replaces}</p>}
+                  </div>
+                  <span className="text-sm font-semibold text-text-secondary tabular-nums whitespace-nowrap">{money(r.pricePerMonth, (r.currency || 'USD').toUpperCase())}</span>
+                </div>
+              ))}
+              {total !== null && oneCurrency && (
+                <div className="grid grid-cols-[1fr_auto] gap-4 items-center px-5 py-3.5 bg-white/[0.02]">
+                  <p className="text-sm font-bold text-white">Stacked together</p>
+                  <span className="text-base font-black text-white tabular-nums whitespace-nowrap line-through decoration-danger/70 decoration-2">{money(total, oneCurrency)}</span>
+                </div>
+              )}
+              {ourPrice !== null && (
+                <div className="grid grid-cols-[1fr_auto] gap-4 items-center px-5 py-4 bg-accent/[0.08] border-t border-accent/30">
+                  <div>
+                    <p className="text-sm font-black text-white">All of it, in one app</p>
+                    {comparable && (
+                      <p className="text-xs text-accent font-semibold mt-0.5">
+                        You keep {money(total - ourPrice, ourCurrency)} a month — {Math.round(((total - ourPrice) / total) * 100)}% less than the stack.
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-xl font-black text-accent tabular-nums whitespace-nowrap">
+                    <span className="text-xs font-semibold text-text-secondary mr-1">from</span>{money(ourPrice, ourCurrency)}
+                  </span>
+                </div>
+              )}
+            </motion.div>
+
+            {sc.asOf?.trim() && (
+              <p className="text-[11px] text-text-tertiary text-center mt-3 max-w-lg mx-auto">{sc.asOf}</p>
+            )}
+          </section>
+        );
+      })()}
+
       <TacticalTicker />
 
       {/* Programs — pulled from /api/public/programs (published Firestore
