@@ -776,47 +776,57 @@ export default function LandingPage({
               transition={{ duration: 0.35 }}
               className="rounded-2xl border border-white/10 bg-surface overflow-hidden"
             >
-              {/* Header. The feature column header is desktop-only; on a
-                  phone the feature name is its own full-width row, so a
-                  header for it would label nothing. */}
+              {/* Two equal columns on a phone, three on desktop. The first
+                  cut gave the feature name its own full-width row above the
+                  two cells, which broke the column rhythm: the tinted brand
+                  column stopped and restarted on every row and "Included"
+                  sat under a dark gap. Now on a phone the feature name is
+                  the bold first line INSIDE the left cell, so both columns
+                  run continuously top to bottom and every row is exactly
+                  two equal cells. Desktop pulls the feature name back out
+                  into its own column. */}
               <div className={`${cols} text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.15em] text-text-tertiary border-b border-white/8`}>
                 <span className="hidden sm:block px-5 py-3">Feature</span>
                 <span className="px-4 sm:px-5 py-3">Separate app</span>
                 <span className="px-4 sm:px-5 py-3 text-accent bg-accent/[0.06] border-l border-accent/20">{appName}</span>
               </div>
 
-              {rows.map((r, i) => (
-                <div key={`${r.name}-${i}`} className={`${cols} border-b border-white/5`}>
-                  <p className="col-span-2 sm:col-span-1 px-4 sm:px-5 pt-3.5 sm:py-3.5 text-sm font-semibold text-white sm:self-center">
-                    {r.replaces?.trim() || r.name}
-                  </p>
-                  <div className="px-4 sm:px-5 pb-3.5 pt-1.5 sm:py-3.5 min-w-0 sm:self-center">
-                    <p className="text-xs text-text-tertiary truncate">{r.name}</p>
-                    <p className="text-sm font-semibold text-text-secondary tabular-nums">{money(r.pricePerMonth, (r.currency || 'USD').toUpperCase())}<span className="text-[11px] font-normal text-text-tertiary">/mo</span></p>
+              {rows.map((r, i) => {
+                const feature = r.replaces?.trim() || r.name;
+                const cur = (r.currency || 'USD').toUpperCase();
+                return (
+                  <div key={`${r.name}-${i}`} className={`${cols} border-b border-white/5 items-stretch`}>
+                    <p className="hidden sm:flex items-center px-5 py-3.5 text-sm font-semibold text-white">{feature}</p>
+                    <div className="px-4 sm:px-5 py-3.5 min-w-0 flex flex-col justify-center">
+                      <p className="sm:hidden text-sm font-semibold text-white leading-snug">{feature}</p>
+                      <p className="text-xs text-text-tertiary mt-1 sm:mt-0 truncate">{r.name}</p>
+                      <p className="text-sm font-semibold text-text-secondary tabular-nums">{money(r.pricePerMonth, cur)}<span className="text-[11px] font-normal text-text-tertiary">/mo</span></p>
+                    </div>
+                    <div className="px-4 sm:px-5 py-3.5 bg-accent/[0.06] border-l border-accent/20 flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-accent flex-shrink-0" />
+                      <span className="text-sm font-bold text-white">Included</span>
+                    </div>
                   </div>
-                  <div className="px-4 sm:px-5 pb-3.5 pt-1.5 sm:py-3.5 bg-accent/[0.06] border-l border-accent/20 flex items-center gap-1.5 sm:self-stretch">
-                    <Check className="w-4 h-4 text-accent flex-shrink-0" />
-                    <span className="text-sm font-bold text-white">Included</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
 
-              {/* Totals. Struck-through stack on the left, our price on the
-                  right in the same accent column so the eye lands on the
-                  cheaper number last. */}
-              <div className={`${cols} bg-white/[0.02]`}>
-                <p className="col-span-2 sm:col-span-1 px-4 sm:px-5 pt-4 sm:py-4 text-sm font-black text-white sm:self-center">Per month</p>
-                <div className="px-4 sm:px-5 pb-4 pt-1 sm:py-4 sm:self-center">
+              {/* Totals. Same two/three-cell shape as every row above, so
+                  the columns line up to the bottom edge: struck-through
+                  stack on the left, our price in the accent column. */}
+              <div className={`${cols} bg-white/[0.02] items-stretch`}>
+                <p className="hidden sm:flex items-center px-5 py-4 text-sm font-black text-white">Per month</p>
+                <div className="px-4 sm:px-5 py-4 flex flex-col justify-center">
+                  <p className="sm:hidden text-sm font-black text-white">Per month</p>
                   {total !== null && oneCurrency ? (
                     <>
-                      <p className="text-[11px] text-text-tertiary">Stacked</p>
+                      <p className="text-[11px] text-text-tertiary mt-1 sm:mt-0">Stacked</p>
                       <p className="text-base font-black text-text-secondary tabular-nums line-through decoration-danger/70 decoration-2">{money(total, oneCurrency)}</p>
                     </>
                   ) : (
-                    <p className="text-[11px] text-text-tertiary">Mixed currencies</p>
+                    <p className="text-[11px] text-text-tertiary mt-1 sm:mt-0">Mixed currencies</p>
                   )}
                 </div>
-                <div className="px-4 sm:px-5 pb-4 pt-1 sm:py-4 bg-accent/[0.10] border-l border-accent/30 sm:self-stretch flex flex-col justify-center">
+                <div className="px-4 sm:px-5 py-4 bg-accent/[0.10] border-l border-accent/30 flex flex-col justify-center">
                   {ourPrice !== null ? (
                     <>
                       <p className="text-[11px] text-text-tertiary">All of it</p>
