@@ -797,8 +797,12 @@ export default function LandingPage({
                 return (
                   <div key={`${r.name}-${i}`} className={`${cols} border-b border-white/5 items-stretch`}>
                     <p className="hidden sm:flex items-center px-5 py-3.5 text-sm font-semibold text-white">{feature}</p>
-                    <div className="px-4 sm:px-5 py-3.5 min-w-0 flex flex-col justify-center">
-                      <p className="sm:hidden text-sm font-semibold text-white leading-snug">{feature}</p>
+                    {/* min-w-0 + overflow-hidden + break-words: a grid cell
+                        defaults to min-width:auto and will widen to fit an
+                        unbreakable word, pushing the divider; this pins the
+                        cell to its column and wraps the text inside it. */}
+                    <div className="px-4 sm:px-5 py-3.5 min-w-0 overflow-hidden flex flex-col justify-center">
+                      <p className="sm:hidden text-sm font-semibold text-white leading-snug break-words">{feature}</p>
                       <p className="text-xs text-text-tertiary mt-1 sm:mt-0 truncate">{r.name}</p>
                       <p className="text-sm font-semibold text-text-secondary tabular-nums">{money(r.pricePerMonth, cur)}<span className="text-[11px] font-normal text-text-tertiary">/mo</span></p>
                     </div>
