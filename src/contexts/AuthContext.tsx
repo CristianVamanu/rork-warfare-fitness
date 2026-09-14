@@ -43,6 +43,19 @@ const AuthContext = createContext<AuthContextValue>({
 async function ensureUserDoc(firebaseUser: User): Promise<void> {
   const ref = doc(db, 'users', firebaseUser.uid);
 
+  // Make sure a usable ID token exists before touching Firestore at all.
+  //
+  // onAuthStateChanged fires as soon as a session is RESTORED, which is not
+  // the same as the token being valid — on a restore from cold, or after a
+  // long background, the cached token can be expired with the refresh still
+  // in flight. Firestore then sends the request with no usable credential
+  // and the rules see request.auth == null, which comes back as "Missing or
+  // insufficient permissions" even though nothing is wrong with the rules or
+  // the account. Awaiting the token makes the SDK finish the refresh first.
+  try {
+    await firebaseUser.getIdToken();
+  } catch { /* offline, most likely — the operations below will say so */ }
+
   // Plain read first, and in the overwhelmingly common case that is the whole
   // function. A transaction that reads a document and returns without writing
   // still commits a `verify` write pinned to the updateTime it read — so
@@ -104,6 +117,35 @@ async function ensureUserDoc(firebaseUser: User): Promise<void> {
   });
 }
 
+/**
+ * ensureUserDoc, plus one retry on a permission error with a forced token
+ * refresh in between.
+ *
+ * A token can still be rejected after the await above — it can expire in the
+ * milliseconds between being fetched and the request landing, and Safari on
+ * iOS suspends background tabs hard enough that a restored session comes
+ * back with a token the server has already stopped accepting. Both surface
+ * identically, as permission-denied.
+ *
+ * getIdToken(true) forces a round trip to Firebase Auth for a genuinely
+ * new token rather than returning the cached one, so the retry is attempted
+ * with a different credential than the one that just failed — otherwise it
+ * would fail the same way and only make noise twice.
+ *
+ * One retry, not a loop: if a fresh token is also refused, the cause is not
+ * the token and repeating cannot fix it.
+ */
+async function ensureUserDocWithRetry(firebaseUser: User): Promise<void> {
+  try {
+    await ensureUserDoc(firebaseUser);
+  } catch (err) {
+    if ((err as { code?: string })?.code !== 'permission-denied') throw err;
+    console.warn('[Auth] ensureUserDoc denied — refreshing the token and retrying once.');
+    await firebaseUser.getIdToken(true);
+    await ensureUserDoc(firebaseUser);
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -161,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // not, the listener simply sees nothing yet and fires again the moment
       // this creates it.
       if (!isPendingSignup(uid)) {
-        void ensureUserDoc(firebaseUser).catch(async (err) => {
+        void ensureUserDocWithRetry(firebaseUser).catch(async (err) => {
           console.error('[Auth] ensureUserDoc failed:', err);
           // Failing is not the same as the account being broken. Closing the
           // tab mid-flight, a dropped connection, an expired token, or
