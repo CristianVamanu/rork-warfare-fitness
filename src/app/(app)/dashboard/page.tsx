@@ -243,8 +243,9 @@ export default function DashboardPage() {
   // copy renders immediately and gets replaced if the admin has saved edits.
   const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
   const programSource = resolvedProgram ?? activeMock;
-  // getNextSession is the single shared answer to "what's next" — always the
-  // next TRAINING slot after the last completed one; rest slots are skipped.
+  // getNextSession is the single shared answer to "what's next" — the next
+  // slot after the last completed one, with rest days shown on the day they
+  // fall and expiring at the user's own midnight.
   // Always points at the next not-yet-completed session, regardless of
   // workedOutToday — training more than once in a day used to be blocked
   // entirely (this card only offered "Repeat Today" once workedOutToday

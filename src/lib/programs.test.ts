@@ -24,13 +24,46 @@ describe('getNextSession — rest days are shown, then explicitly skipped', () =
     expect(s!.nextTraining).toMatchObject({ index: 0 });
   });
 
-  it('shows the rest day when it is next, regardless of when the user last trained', () => {
-    for (const when of [todayStr(), yesterdayStr(), daysAgoStr(5), undefined]) {
+  it('shows the rest day on the day it is due, and the day after the workout', () => {
+    // Trained today → the rest day is still ahead. Trained yesterday → today
+    // IS the rest day. Never trained → nothing has expired.
+    for (const when of [todayStr(), yesterdayStr(), undefined]) {
       const s = getNextSession(standard, 1, when);
       expect(s, `lastWorkoutDate=${when}`).toMatchObject({ index: 2, isRestToday: true });
       expect(s!.day.isRest).toBe(true);
       expect(s!.nextTraining).toMatchObject({ index: 3 });
     }
+  });
+
+  it('a rest day expires at local midnight — the reported bug', () => {
+    // Trained two days ago with one rest slot next: yesterday was the rest
+    // day, so today the workout is waiting. This is the case that used to
+    // show "Rest day" forever until Skip was pressed.
+    const s = getNextSession(standard, 1, daysAgoStr(2));
+    expect(s).toMatchObject({ index: 3, isRestToday: false });
+  });
+
+  it('a long absence still lands on the next workout, never past it', () => {
+    // Away a fortnight. The single rest slot is spent; slot 3 is training
+    // and stays put however much budget is left over.
+    const s = getNextSession(standard, 1, daysAgoStr(14));
+    expect(s).toMatchObject({ index: 3, isRestToday: false });
+    expect(s!.day.isRest).toBe(false);
+  });
+
+  it('consecutive rest slots expire one per day, not all at once', () => {
+    const p = prog([train('A'), rest(), rest(), train('B'), rest(), rest(), rest()]);
+    expect(getNextSession(p, 0, todayStr())).toMatchObject({ index: 1, isRestToday: true });
+    expect(getNextSession(p, 0, yesterdayStr())).toMatchObject({ index: 1, isRestToday: true });
+    expect(getNextSession(p, 0, daysAgoStr(2))).toMatchObject({ index: 2, isRestToday: true });
+    expect(getNextSession(p, 0, daysAgoStr(3))).toMatchObject({ index: 3, isRestToday: false });
+  });
+
+  it('an all-rest schedule cannot run away however long the absence', () => {
+    const allRest = prog([rest(), rest(), rest(), rest(), rest(), rest(), rest()]);
+    const s = getNextSession(allRest, 0, daysAgoStr(400));
+    expect(s!.isRestToday).toBe(true);
+    expect(s!.nextTraining).toBeNull();
   });
 
   it('after skipping the rest day (pointer on the rest slot) the next workout is offered', () => {

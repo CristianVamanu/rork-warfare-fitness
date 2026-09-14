@@ -1656,6 +1656,27 @@ export function countTrainingSlotsThrough(program: Program, lastSlotIndex: numbe
   return count;
 }
 
+/**
+ * Whole days from a 'YYYY-MM-DD' local date string to today, or 0 if the
+ * string is missing or unparseable.
+ *
+ * Both dates are pinned to midday UTC before subtracting. Parsing them at
+ * midnight instead makes the difference 23 or 25 hours across a DST change,
+ * which floors to the wrong day twice a year — and it would do it on the
+ * Sunday morning the clocks go forward, when someone is most likely to be
+ * looking at the app wondering why it is behaving oddly.
+ */
+function daysSince(dateStr?: string): number {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return 0;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const then = Date.UTC(y, m - 1, d, 12);
+  if (Number.isNaN(then)) return 0;
+  // Today in the viewer's own timezone, read back as a plain calendar date.
+  const [ty, tm, td] = new Date().toLocaleDateString('sv-SE').split('-').map(Number);
+  const now = Date.UTC(ty, tm - 1, td, 12);
+  return Math.max(0, Math.round((now - then) / 86_400_000));
+}
+
 export interface NextSession {
   /** Absolute slot index of what the card shows — a rest slot when one is next, else the next training slot. */
   index: number;
@@ -1671,28 +1692,53 @@ export interface NextSession {
  * the dashboard card, the training list, and the program detail page so
  * they can never disagree.
  *
- * Deterministic and date-free:
- *
  *   - Next slot is a training day → that's the next workout.
- *   - Next slot is a rest day → show the rest day. The user moves past it
- *     with an explicit "Skip rest day" action (skipRestDay in firestore.ts),
- *     which advances the pointer onto the rest slot. Only then does the next
- *     workout appear. Rest days are neither silently skipped nor enforced.
+ *   - Next slot is a rest day → show the rest day, until the calendar says
+ *     it has been served. The user can also move past it early with an
+ *     explicit "Skip rest day" action (skipRestDay in firestore.ts), which
+ *     advances the pointer onto the rest slot.
  *
- * Two earlier designs were both wrong: (1) "honor the rest day if you
- * trained today/yesterday, else skip it" tied recovery to the calendar date,
- * which cannot measure it, and in alternating train/rest programs put a
- * "Rest day" card on screen immediately after finishing a workout; (2)
- * "always skip rest slots" hid the program's structure entirely. What the
- * user asked for is the honest middle: show it, let them skip it, remember
- * that they did.
+ * A rest day expires at local midnight, which is the whole point of a rest
+ * DAY. Previously this function was deliberately date-free, and the result
+ * was a card that read "Rest day" from the moment a workout was finished
+ * until the user thought to press Skip — two days, three days, indefinitely.
+ * Nobody reads a stale rest card as "you have not pressed the button"; they
+ * read it as the app being broken, which is exactly how this was reported.
+ *
+ * So one rest slot is served per whole local day elapsed since the last
+ * completed workout. Finish on Monday with Tuesday scheduled as rest and
+ * Tuesday shows rest; on Wednesday the next workout is waiting. Two rest
+ * slots in a row take two days. The budget only ever consumes REST slots —
+ * a training day is never skipped, however long somebody is away, so being
+ * off for a fortnight still resumes exactly where they stopped.
+ *
+ * `lastWorkoutDate` is 'YYYY-MM-DD' in the user's own locale (written by
+ * statsCache), so "midnight" means their midnight. Without it — nobody has
+ * trained yet — nothing expires and the rest day waits for the Skip button
+ * as before.
  */
 export function getNextSession(
   program: Program,
   lastCompletedDayIndex: number,
-  _lastWorkoutDate?: string,
+  lastWorkoutDate?: string,
 ): NextSession | null {
-  const start = lastCompletedDayIndex + 1;
+  let start = lastCompletedDayIndex + 1;
+
+  // Whole days since the last workout, minus the rest day that belongs to
+  // the day the workout itself was finished on. Trained today → 0 served,
+  // the rest card stands. Trained yesterday → the first rest slot is today's
+  // and still stands. The day after that, it is spent.
+  let restBudget = Math.max(0, daysSince(lastWorkoutDate) - 1);
+  // Bounded by a week so an all-rest schedule cannot spin, and so a user
+  // returning after months lands on the next training slot rather than
+  // somewhere arbitrary.
+  for (let guard = 0; guard < 7 && restBudget > 0; guard++) {
+    const slot = getProgramDayForDow(program, start);
+    if (!slot || !slot.isRest) break;
+    start++;
+    restBudget--;
+  }
+
   const first = getProgramDayForDow(program, start);
   if (!first) return null;
 
