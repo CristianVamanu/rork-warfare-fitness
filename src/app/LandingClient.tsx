@@ -58,6 +58,10 @@ const FAQ_ITEMS = [
     a: 'Your program is matched to your specific goal, experience, equipment, and schedule instead of a one-size-fits-all plan — and it adjusts weight/rep suggestions based on your own logged performance as you go.',
   },
   {
+    q: "What if I don't like the program I'm matched with?",
+    a: "Switch it. The quiz picks a starting point, not a sentence — every program in the library is open to you, and you can change from your training screen whenever you like. Your progress on the old one is saved, so you can come back to it.",
+  },
+  {
     q: 'Can I cancel anytime?',
     a: 'Yes, no lock-in contracts — manage or cancel your membership at any time from your account settings.',
   },
@@ -578,6 +582,12 @@ export default function LandingPage({
           <div className="flex items-center justify-center gap-4 mt-5 flex-wrap">
             <p className="text-xs text-text-tertiary">{paidTrialEnabled || cardUpFrontTrial ? `Cancel anytime` : 'No credit card required'}</p>
             <span className="text-text-tertiary">·</span>
+            {/* The matched program is the first thing a new member sees and
+                the first thing they can dislike; saying up front that it is
+                changeable removes the "what if it picks wrong" hesitation
+                before the quiz, which is where it actually costs signups. */}
+            <p className="text-xs text-text-tertiary">Switch programs any time</p>
+            <span className="text-text-tertiary">·</span>
             <Link href="/login" className="text-xs text-accent font-medium hover:underline">
               {landing.ctaSecondaryLabel}
             </Link>
@@ -724,12 +734,13 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* What it replaces — the stack a member would otherwise pay for,
-          totalled against our lowest monthly price. The value argument for
-          a price that is high next to any ONE of these apps and low next to
-          all of them; the reader does the sum, the page just lines it up.
-          Shown only when every row is in one currency, and the saving line
-          only when that currency matches our plans — see StackComparison. */}
+      {/* What it replaces — three columns: the feature, the separate app
+          people pay for it, and us. The earlier version listed only the
+          other apps and their prices, which read as if THOSE were the
+          subscriptions on offer here; a comparison needs the thing being
+          compared in it. On phones the feature name takes a full row and
+          the two price cells sit under it, so nothing truncates. Total and
+          "you keep" follow the same currency rules as before. */}
       {(() => {
         const sc = landing.stackComparison;
         if (!sc || sc.enabled === false || !sc.rows?.length) return null;
@@ -749,6 +760,7 @@ export default function LandingPage({
         const comparable = total !== null && ourPrice !== null && oneCurrency === ourCurrency && total > ourPrice;
         const sym = (c: string) => ({ USD: '$', GBP: '£', EUR: '€', AUD: 'A$', CAD: 'C$' } as Record<string, string>)[c] ?? `${c} `;
         const money = (n: number, c: string) => `${sym(c)}${n.toFixed(2)}`;
+        const cols = 'grid grid-cols-2 sm:grid-cols-[1.3fr_1fr_1fr]';
         return (
           <section className="relative overflow-hidden max-w-4xl mx-auto px-5 pb-16">
             <GlowOrb className="w-80 h-80 bg-accent/[0.07] -bottom-24 -right-24 -z-10" />
@@ -764,44 +776,69 @@ export default function LandingPage({
               transition={{ duration: 0.35 }}
               className="rounded-2xl border border-white/10 bg-surface overflow-hidden"
             >
-              <div className="grid grid-cols-[1fr_auto] text-[11px] font-bold uppercase tracking-[0.15em] text-text-tertiary px-5 py-3 border-b border-white/8">
-                <span>What you&apos;d pay for separately</span>
-                <span className="text-right">Per month</span>
+              {/* Header. The feature column header is desktop-only; on a
+                  phone the feature name is its own full-width row, so a
+                  header for it would label nothing. */}
+              <div className={`${cols} text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.15em] text-text-tertiary border-b border-white/8`}>
+                <span className="hidden sm:block px-5 py-3">Feature</span>
+                <span className="px-4 sm:px-5 py-3">Separate app</span>
+                <span className="px-4 sm:px-5 py-3 text-accent bg-accent/[0.06] border-l border-accent/20">{appName}</span>
               </div>
+
               {rows.map((r, i) => (
-                <div key={`${r.name}-${i}`} className="grid grid-cols-[1fr_auto] gap-4 items-center px-5 py-3.5 border-b border-white/5">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white">{r.name}</p>
-                    {r.replaces?.trim() && <p className="text-xs text-text-tertiary mt-0.5">{r.replaces}</p>}
+                <div key={`${r.name}-${i}`} className={`${cols} border-b border-white/5`}>
+                  <p className="col-span-2 sm:col-span-1 px-4 sm:px-5 pt-3.5 sm:py-3.5 text-sm font-semibold text-white sm:self-center">
+                    {r.replaces?.trim() || r.name}
+                  </p>
+                  <div className="px-4 sm:px-5 pb-3.5 pt-1.5 sm:py-3.5 min-w-0 sm:self-center">
+                    <p className="text-xs text-text-tertiary truncate">{r.name}</p>
+                    <p className="text-sm font-semibold text-text-secondary tabular-nums">{money(r.pricePerMonth, (r.currency || 'USD').toUpperCase())}<span className="text-[11px] font-normal text-text-tertiary">/mo</span></p>
                   </div>
-                  <span className="text-sm font-semibold text-text-secondary tabular-nums whitespace-nowrap">{money(r.pricePerMonth, (r.currency || 'USD').toUpperCase())}</span>
+                  <div className="px-4 sm:px-5 pb-3.5 pt-1.5 sm:py-3.5 bg-accent/[0.06] border-l border-accent/20 flex items-center gap-1.5 sm:self-stretch">
+                    <Check className="w-4 h-4 text-accent flex-shrink-0" />
+                    <span className="text-sm font-bold text-white">Included</span>
+                  </div>
                 </div>
               ))}
-              {total !== null && oneCurrency && (
-                <div className="grid grid-cols-[1fr_auto] gap-4 items-center px-5 py-3.5 bg-white/[0.02]">
-                  <p className="text-sm font-bold text-white">Stacked together</p>
-                  <span className="text-base font-black text-white tabular-nums whitespace-nowrap line-through decoration-danger/70 decoration-2">{money(total, oneCurrency)}</span>
+
+              {/* Totals. Struck-through stack on the left, our price on the
+                  right in the same accent column so the eye lands on the
+                  cheaper number last. */}
+              <div className={`${cols} bg-white/[0.02]`}>
+                <p className="col-span-2 sm:col-span-1 px-4 sm:px-5 pt-4 sm:py-4 text-sm font-black text-white sm:self-center">Per month</p>
+                <div className="px-4 sm:px-5 pb-4 pt-1 sm:py-4 sm:self-center">
+                  {total !== null && oneCurrency ? (
+                    <>
+                      <p className="text-[11px] text-text-tertiary">Stacked</p>
+                      <p className="text-base font-black text-text-secondary tabular-nums line-through decoration-danger/70 decoration-2">{money(total, oneCurrency)}</p>
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-text-tertiary">Mixed currencies</p>
+                  )}
                 </div>
-              )}
-              {ourPrice !== null && (
-                <div className="grid grid-cols-[1fr_auto] gap-4 items-center px-5 py-4 bg-accent/[0.08] border-t border-accent/30">
-                  <div>
-                    <p className="text-sm font-black text-white">All of it, in one app</p>
-                    {comparable && (
-                      <p className="text-xs text-accent font-semibold mt-0.5">
-                        You keep {money(total - ourPrice, ourCurrency)} a month — {Math.round(((total - ourPrice) / total) * 100)}% less than the stack.
+                <div className="px-4 sm:px-5 pb-4 pt-1 sm:py-4 bg-accent/[0.10] border-l border-accent/30 sm:self-stretch flex flex-col justify-center">
+                  {ourPrice !== null ? (
+                    <>
+                      <p className="text-[11px] text-text-tertiary">All of it</p>
+                      <p className="text-xl font-black text-accent tabular-nums leading-tight">
+                        <span className="text-xs font-semibold text-text-secondary mr-1">from</span>{money(ourPrice, ourCurrency)}
                       </p>
-                    )}
-                  </div>
-                  <span className="text-xl font-black text-accent tabular-nums whitespace-nowrap">
-                    <span className="text-xs font-semibold text-text-secondary mr-1">from</span>{money(ourPrice, ourCurrency)}
-                  </span>
+                    </>
+                  ) : (
+                    <p className="text-sm font-bold text-white">One plan</p>
+                  )}
                 </div>
-              )}
+              </div>
             </motion.div>
 
+            {comparable && (
+              <p className="text-sm text-center mt-4 text-white">
+                <span className="font-bold text-accent">You keep {money(total - ourPrice, ourCurrency)} a month</span>
+                <span className="text-text-secondary"> — {Math.round(((total - ourPrice) / total) * 100)}% less than paying for them separately.</span>
+              </p>
+            )}
             {sc.asOf?.trim() && (
-              <p className="text-[11px] text-text-tertiary text-center mt-3 max-w-lg mx-auto">{sc.asOf}</p>
+              <p className="text-[11px] text-text-tertiary text-center mt-2 max-w-lg mx-auto">{sc.asOf}</p>
             )}
           </section>
         );
@@ -819,7 +856,7 @@ export default function LandingPage({
           <GlowOrb className="w-80 h-80 bg-accent/[0.07] bottom-0 -right-20 -z-10" />
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-black text-white">Train Like an Elite Soldier</h2>
-            <p className="text-text-secondary text-sm mt-2">Every program is matched to you during onboarding — or pick one yourself below.</p>
+            <p className="text-text-secondary text-sm mt-2">The quiz matches you to one. It&apos;s a starting point, not a lock-in — switch to any program here, any time, and your progress is kept.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {programs.map((p, i) => {
