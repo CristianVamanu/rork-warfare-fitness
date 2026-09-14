@@ -22,12 +22,18 @@ export function SubscribeSuccess({ onSuccess }: { onSuccess: () => void }) {
   const searchParams = useSearchParams();
   useEffect(() => {
     const subscribed = searchParams.get('subscribed');
+    // "Payment received", not "activated": Stripe redirects the member here
+    // BEFORE its webhook has necessarily reached us, and the webhook is what
+    // flips membership.status. For a few seconds — occasionally longer —
+    // the plan can still show as locked. The profile listener lifts it live
+    // the moment the webhook lands, so nothing needs polling; the wording
+    // just has to not promise something the screen is not yet showing.
     if (subscribed === '1') {
-      toast.success('Membership activated! Welcome aboard 🎉');
+      toast.success('Payment received — unlocking your membership now 🎉', { duration: 6000 });
       trackEvent('Purchase');
       onSuccess();
     } else if (subscribed === 'coaching') {
-      toast.success('Coaching plan activated! Your trainer has been notified 🎉');
+      toast.success('Payment received — your trainer has been notified 🎉', { duration: 6000 });
       trackEvent('Purchase');
       onSuccess();
     }

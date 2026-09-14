@@ -46,17 +46,14 @@ export default function RegisterPage() {
   const sex = watch('sex');
 
   const onSubmit = async (data: FormData) => {
-    console.log('[Register] Sign-up requested — email:', data.email, 'name:', data.name, 'unit:', data.weightUnit);
     setLoading(true);
     try {
-      console.log('[Register] Calling signUp...');
       await signUp(data.email, data.password, data.name, data.weightUnit);
       // Straight into the same onboarding quiz the landing page funnels
       // into (goal/experience/program/etc) instead of dumping the user on
       // an empty dashboard with no program, no goals, nothing — sex/age
       // ride along as query params exactly like the landing page's
       // quick-start box, so onboarding doesn't ask for them a second time.
-      console.log('[Register] signUp succeeded — continuing to onboarding');
       router.replace(`/onboarding?sex=${data.sex}&age=${data.age}`);
     } catch (err: unknown) {
       const e = err as Error & { code?: string };

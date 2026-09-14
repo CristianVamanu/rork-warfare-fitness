@@ -80,10 +80,8 @@ export default function LoginClient({
   });
 
   const onSubmit = async (data: FormData) => {
-    console.log('[Login] Sign-in requested');
     setLoading(true);
     try {
-      console.log('[Login] Calling signIn...');
       let user: User;
       try {
         user = await signIn(data.email, data.password);
@@ -137,7 +135,6 @@ export default function LoginClient({
   // and the dashboard redirect — unchanged, just callable from both paths.
   const afterSignIn = async (user: User) => {
     try {
-      console.log('[Login] signIn succeeded — checking 2FA status');
       // Ask the server whether this account needs a code — either it
       // doesn't have 2FA on at all, or this exact browser was already
       // remembered from a previous verification. Either way skips straight
@@ -192,7 +189,6 @@ export default function LoginClient({
           return;
         }
       }
-      console.log('[Login] navigating to /dashboard');
       router.replace('/dashboard');
     } catch (err: unknown) {
       const e = err as Error & { code?: string };

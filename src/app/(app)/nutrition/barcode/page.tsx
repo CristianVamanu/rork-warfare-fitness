@@ -149,7 +149,6 @@ export default function BarcodePage() {
       let deviceId: string | undefined;
       try {
         const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-        console.log('[Barcode] Available cameras:', devices.map((d) => d.label));
         const back = devices.find((d) =>
           /back|rear|environment|0/i.test(d.label)
         );
@@ -168,7 +167,6 @@ export default function BarcodePage() {
           if (scanResult && !scannedRef.current) {
             scannedRef.current = true;
             const code = scanResult.getText();
-            console.log('[Barcode] Detected:', code);
             stopScanner();
             lookupBarcode(code);
           }
