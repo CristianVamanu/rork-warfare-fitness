@@ -1,6 +1,6 @@
 import {
   Activity, Dumbbell, Users, MessageSquare, LifeBuoy, Bell, CreditCard,
-  UserCheck, Video, TrendingUp, Key, Mail, Settings, RotateCcw,
+  UserCheck, Video, TrendingUp, Key, Mail, Settings, RotateCcw, AlertTriangle,
 } from 'lucide-react';
 import type { AdminTabGroup } from './AdminShell';
 
@@ -19,7 +19,7 @@ import type { AdminTabGroup } from './AdminShell';
 export type AdminTabId =
   | 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community'
   | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics'
-  | 'integrations' | 'leads' | 'settings' | 'restore';
+  | 'integrations' | 'leads' | 'errors' | 'settings' | 'restore';
 
 export const ADMIN_TABS: { id: AdminTabId; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: Activity },
@@ -35,6 +35,7 @@ export const ADMIN_TABS: { id: AdminTabId; label: string; icon: React.ElementTyp
   { id: 'analytics', label: 'Analytics', icon: TrendingUp },
   { id: 'integrations', label: 'Integrations', icon: Key },
   { id: 'leads', label: 'Leads', icon: Mail },
+  { id: 'errors', label: 'Errors', icon: AlertTriangle },
   { id: 'settings', label: 'Settings', icon: Settings },
   // Last in the list, but a tab of its own: disaster recovery buried at the
   // bottom of a settings page is not findable by someone who needs it now.
@@ -50,7 +51,7 @@ export const ADMIN_GROUP_IDS: { label: string; ids: AdminTabId[] }[] = [
   { label: 'Operate', ids: ['overview', 'clients', 'messages', 'support', 'community', 'notifications'] },
   { label: 'Product', ids: ['programs', 'library', 'membership', 'coaching'] },
   { label: 'Growth', ids: ['analytics', 'leads'] },
-  { label: 'System', ids: ['integrations', 'settings', 'restore'] },
+  { label: 'System', ids: ['integrations', 'errors', 'settings', 'restore'] },
 ];
 
 /** `badges` decorates individual tabs, e.g. the unresolved support count. */

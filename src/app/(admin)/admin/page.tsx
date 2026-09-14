@@ -16,6 +16,7 @@ import { RestorePanel } from '@/components/admin/RestorePanel';
 import { PromoCodesPanel } from '@/components/admin/PromoCodesPanel';
 import { DailyBriefPanel } from '@/components/admin/DailyBriefPanel';
 import { LeadsPanel } from '@/components/admin/LeadsPanel';
+import { ErrorsPanel } from '@/components/admin/ErrorsPanel';
 import { downloadCsv } from '@/lib/csv';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { ADMIN_TAB_BY_ID, adminGroups } from '@/components/admin/nav';
@@ -73,7 +74,7 @@ function SupportStatusPill({ status }: { status: SupportTicketStatus }) {
   );
 }
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'settings' | 'restore';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'errors' | 'settings' | 'restore';
 
 // Shared by both plan editors (CoachingPlan's Tool Access and
 // MembershipPlan's Tool Access) — feature ids here must match what
@@ -254,7 +255,7 @@ function AdminPageInner() {
   const { user, profile, tenant } = useAuth();
   const [tab, setTab] = useState<Tab>(() => {
     const t = searchParams.get('tab');
-    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'support', 'community', 'notifications', 'membership', 'coaching', 'library', 'analytics', 'integrations', 'leads', 'settings', 'restore'];
+    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'support', 'community', 'notifications', 'membership', 'coaching', 'library', 'analytics', 'integrations', 'leads', 'errors', 'settings', 'restore'];
     return (valid as string[]).includes(t ?? '') ? (t as Tab) : 'overview';
   });
 
@@ -4817,6 +4818,9 @@ function AdminPageInner() {
 
       {/* ── Leads ─────────────────────────────────────────────────────────────── */}
       {tab === 'leads' && <LeadsPanel />}
+
+      {/* ── Errors ─────────────────────────────────────────── */}
+      {tab === 'errors' && <ErrorsPanel />}
 
       {/* ── Settings ──────────────────────────────────────────────────────────── */}
       {tab === 'settings' && (
