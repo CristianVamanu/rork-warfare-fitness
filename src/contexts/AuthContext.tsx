@@ -161,11 +161,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // not, the listener simply sees nothing yet and fires again the moment
       // this creates it.
       if (!isPendingSignup(uid)) {
-        void ensureUserDoc(firebaseUser).catch((err) => {
+        void ensureUserDoc(firebaseUser).catch(async (err) => {
           console.error('[Auth] ensureUserDoc failed:', err);
-          // The last thing that can create a missing user document. If it
-          // fails, this account has no profile and never will.
-          reportIssue('ensureUserDoc failed — account has no profile document', err);
+          // Failing is not the same as the account being broken. Closing the
+          // tab mid-flight, a dropped connection, an expired token, or
+          // signUp()'s own write landing first all reject this transaction
+          // while leaving a perfectly good profile behind — and the alert
+          // said "this account has no profile and never will" for every one
+          // of them. Look before shouting: if the document is there, the
+          // safety net did not need to do anything and there is nothing to
+          // report.
+          const code = (err as { code?: string })?.code ?? 'unknown';
+          try {
+            if ((await getDoc(doc(db, 'users', firebaseUser.uid))).exists()) {
+              console.info('[Auth] ensureUserDoc failed but the profile exists — transient, not reported.');
+              return;
+            }
+          } catch {
+            // Can't even read it, so we genuinely don't know. Falls through
+            // and reports, which is the right way round for an unknown.
+          }
+          // Carry the Firebase error code in the message itself. The daily
+          // digest lists messages only, so without it every one of these
+          // arrives looking identical and says nothing about the cause.
+          reportIssue(`ensureUserDoc failed (${code}) — account has no profile document`, err);
         });
       }
       Promise.resolve()
