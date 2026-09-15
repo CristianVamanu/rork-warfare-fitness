@@ -2,6 +2,7 @@ import 'server-only';
 import { cache } from 'react';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { MOCK_PROGRAMS } from '@/lib/programs';
+import { slugify } from '@/lib/slug';
 import type { Program } from '@/types';
 
 /**
@@ -15,14 +16,13 @@ import type { Program } from '@/types';
  * Server-only: it reads with the Admin SDK, which bypasses security rules.
  */
 
-/** URL-safe slug from a program name. Stable, readable, and good for search. */
-export function programSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-}
+/**
+ * URL-safe slug from a program name. Re-exported from the neutral
+ * slug.ts (no server-only import) so a client component — the share
+ * button — can build the identical slug without pulling firebase-admin
+ * into the client bundle.
+ */
+export const programSlug = slugify;
 
 export interface PublicProgram extends Program {
   slug: string;

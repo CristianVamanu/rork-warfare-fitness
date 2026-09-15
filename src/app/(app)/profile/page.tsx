@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
+import { ReferralCard } from '@/components/profile/ReferralCard';
 import { Modal } from '@/components/ui/Modal';
 import { HealthScreeningFields, LifestyleHabitsFields } from '@/components/ui/HealthScreening';
 import type { MembershipConfig, MembershipPlan, CoachingPlan, CoachingApplication, PlanBillingPeriodMonths, MedicalHistoryAnswers } from '@/types';
@@ -641,6 +642,14 @@ export default function ProfilePage() {
               Complete workouts to increase your power level
             </p>
           </Card>
+        </motion.div>
+
+        {/* Referral — self-hides while nobody has joined yet, so a new
+            account never sees "0 people joined". Above Progress Hub: a
+            real social-proof number is the more interesting card of the
+            two and earns the higher slot. */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.155 }}>
+          <ReferralCard />
         </motion.div>
 
         {/* Progress Hub */}

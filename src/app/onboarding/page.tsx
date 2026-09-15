@@ -227,6 +227,12 @@ function OnboardingPageInner() {
   // doesn't get to pick a *different* program than the one this visitor
   // deliberately chose.
   const preselectedProgramId = searchParams.get('programId');
+  // From a shared program link (?ref=CODE) — see ShareProgramButton and
+  // /api/referral/join. Read once here alongside the other preselected
+  // params for the same reason preselectedProgramId is: captured from the
+  // URL at mount, not re-read live, so it survives however many steps and
+  // re-renders happen between landing here and finishing the quiz.
+  const referralCode = searchParams.get('ref');
   // Carries the pricing-card the visitor actually clicked on the landing
   // page through signup + the quiz, so "Let's Go" lands them in the
   // checkout they picked instead of forgetting it and dropping them on the
@@ -644,7 +650,20 @@ function OnboardingPageInner() {
       });
 
       setStatus('saving');
-      const [, , onboardingSaved] = await Promise.all([programTask, nutritionTask, saveTask, weightTask]);
+      // Credits whoever shared this link, if this visitor arrived via one.
+      // Independent of every other task here on purpose — a failed credit
+      // must never hold up or fail the rest of account creation, so it is
+      // wrapped down to `undefined` rather than left to throw into
+      // Promise.all. See /api/referral/join for why this is safe to call
+      // more than once (idempotent by the joining member's own uid) and why
+      // it always resolves 200 even when nothing gets credited.
+      const referralTask = !referralCode ? Promise.resolve() : fetch('/api/referral/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ code: referralCode, programId: preselectedProgramId ?? undefined }),
+      }).catch(() => {});
+
+      const [, , onboardingSaved] = await Promise.all([programTask, nutritionTask, saveTask, weightTask, referralTask]);
 
       // ONLY clear the draft once onboardingComplete actually landed. Both
       // the primary write and its fallback swallow their errors so one

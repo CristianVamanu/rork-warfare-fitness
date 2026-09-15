@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Ring } from '@/components/dashboard/Ring';
+import { ShareProgramButton } from '@/components/training/ShareProgramButton';
 import type { Program } from '@/types';
 
 export default function TrainingPage() {
@@ -298,7 +299,11 @@ export default function TrainingPage() {
                     <Play className="w-4 h-4" /> {workedOutToday ? 'Start another session' : 'Start session'}
                   </Button>
                 ))}
-                <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {/* Three possible buttons (Repeat is conditional), so the grid
+                    column count matches how many are actually present —
+                    fixing it at 2 left Share alone on its own row whenever
+                    Repeat was hidden. */}
+                <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-3' : 'grid-cols-2'}`}>
                   {workedOutToday && repeatIdx !== null && (
                     <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${repeatIdx}`)}>
                       <RotateCcw className="w-4 h-4" /> Repeat
@@ -307,6 +312,7 @@ export default function TrainingPage() {
                   <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
                     View program
                   </Button>
+                  <ShareProgramButton programId={activeProgram.programId} programName={activeProgram.programName} />
                 </div>
               </div>
             </Card>

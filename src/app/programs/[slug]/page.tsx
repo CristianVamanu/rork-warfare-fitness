@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Dumbbell, Check, Lock } from 'lucide-react';
+import { Dumbbell, Check, Lock, Users } from 'lucide-react';
 import { getPublicPrograms, getPublicProgramBySlug } from '@/lib/publicPrograms';
 import { buildProgramMarketing } from '@/lib/programMarketing';
 import { getPublicBranding, getPublicTrialTerms } from '@/lib/publicBranding';
@@ -50,10 +50,33 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-export default async function ProgramPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function ProgramPage({
+  params, searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ ref?: string }>;
+}) {
   const { slug } = await params;
+  const { ref } = await searchParams;
   const program = await getPublicProgramBySlug(slug);
   if (!program) notFound();
+
+  // Who shared this link, if anyone — see ShareProgramButton and
+  // /api/public/referrer. Resolved via the app's own deployed URL rather
+  // than imported and called directly: this stays a plain fetch to a
+  // public, cacheable endpoint instead of a second code path into
+  // firebase-admin from inside a page render. A missing/invalid/unknown
+  // code is silently absent, never an error — most visitors to this page
+  // have no ?ref= at all, and that is the ordinary case, not a failure.
+  const referrerName = ref
+    ? await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? ''}/api/public/referrer?code=${encodeURIComponent(ref)}`, { next: { revalidate: 300 } })
+        .then((r) => r.json()).then((d) => d.referrerName as string | null).catch(() => null)
+    : null;
+
+  // Both CTAs on this page carry the code through to signup — dropping it
+  // here is how a click on a shared link would silently stop crediting the
+  // sharer, with nothing about the page looking any different to notice it.
+  const onboardingHref = `/onboarding?programId=${program.id}${ref ? `&ref=${encodeURIComponent(ref)}` : ''}`;
 
   const [all, brand, terms] = await Promise.all([
     getPublicPrograms(),
@@ -112,6 +135,14 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
 
               <div className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-10 lg:gap-14 items-start mt-6">
                 <div>
+                  {/* Only rendered when the link resolved to a real member —
+                      an invalid/expired/missing code renders nothing here
+                      rather than a broken or empty-looking banner. */}
+                  {referrerName && (
+                    <p className="inline-flex items-center gap-2 text-sm font-semibold text-accent bg-accent-muted border border-accent/20 rounded-full px-3.5 py-1.5 mb-5">
+                      <Users className="w-3.5 h-3.5" /> {referrerName} is training on this — join them
+                    </p>
+                  )}
                   <div className="flex items-center gap-2.5">
                     <span className="w-8 h-px bg-accent" />
                     {/* Built from the level and goal directly, not by indexing
@@ -143,7 +174,7 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
 
                   <div className="flex flex-wrap items-center gap-4 mt-8">
                     <Link
-                      href={`/onboarding?programId=${program.id}`}
+                      href={onboardingHref}
                       className="bg-accent text-black font-bold rounded-xl px-8 py-3.5 hover:opacity-90 transition-opacity"
                     >
                       Start this program
@@ -326,7 +357,7 @@ export default async function ProgramPage({ params }: { params: Promise<{ slug: 
                 {terms.disclosure}
               </p>
               <Link
-                href={`/onboarding?programId=${program.id}`}
+                href={onboardingHref}
                 className="inline-block mt-8 bg-accent text-black font-bold rounded-xl px-9 py-4 hover:opacity-90 transition-opacity"
               >
                 Start {m.headline}
