@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSystemConfig, getMembershipConfig, getCoachingPlans, getMembershipPlans, createLandingLead } from '@/lib/firestore';
 import { trackEvent } from '@/lib/analytics';
-import { FullPageSpinner } from '@/components/ui/Spinner';
+import { BrandSplash } from '@/components/ui/BrandSplash';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
@@ -233,7 +233,17 @@ export default function LandingPage({
   const [exitSubmitted, setExitSubmitted] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace('/dashboard');
+    if (loading) return;
+    // Keep the pre-paint decision honest once auth has actually answered.
+    // A signed-in user: make sure the splash is up (covers a device with no
+    // flag yet) and go to the dashboard. No user: drop the attribute so a
+    // stale flag — signed out on another tab, storage cleared — cannot
+    // leave a stranger staring at the logo forever.
+    try {
+      if (user) document.documentElement.setAttribute('data-wf-session', '1');
+      else document.documentElement.removeAttribute('data-wf-session');
+    } catch { /* not in a browser */ }
+    if (user) router.replace('/dashboard');
   }, [user, loading, router]);
 
   useEffect(() => {
@@ -349,7 +359,12 @@ export default function LandingPage({
   // "then $49.00/mo" under the $1 button and misquoted everyone who chose the
   // cheaper plan. buildTrialTerms quotes the entry price instead.
 
-  if (loading || user) return <FullPageSpinner />;
+  // No early return any more. The landing renders on the server for
+  // everyone — strangers, crawlers, paid traffic — and a device that has a
+  // session hides it behind the brand splash via CSS from before first paint
+  // (layout.tsx sets the attribute; globals.css does the hiding) until the
+  // redirect above lands. Returning a spinner here used to mean the server
+  // sent an empty page to every visitor to spare members a flash.
 
   // Admin-editable landing copy can reference the live trial settings with
   // {appName} / {trialDays} / {trialPrice} placeholders, so changing Trial
@@ -398,7 +413,11 @@ export default function LandingPage({
   const paidTrialDisclosure = trialTerms.disclosure;
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden relative">
+    <>
+      {/* Both are always in the HTML. Which one is visible is decided by CSS
+          from the html[data-wf-session] attribute — see BrandSplash. */}
+      <BrandSplash gated />
+    <div data-landing-body className="min-h-screen bg-background overflow-x-hidden relative">
       {/* Ambient glow + grid texture, contained to the hero viewport so it
           doesn't bleed color into the feature/social-proof sections below. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[640px] overflow-hidden">
@@ -1327,5 +1346,6 @@ export default function LandingPage({
         </div>
       </footer>
     </div>
+    </>
   );
 }

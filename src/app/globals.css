@@ -447,3 +447,14 @@ html.light .bg-gradient-to-r.text-transparent { -webkit-text-fill-color: transpa
   .card-float { transition: none; }
   .card-float:hover, .card-float:active { transform: none; }
 }
+
+/* Landing page: returning member vs stranger, decided before first paint.
+   layout.tsx sets data-wf-session on <html> from a localStorage flag before
+   anything renders. With it, the landing body is hidden and the brand splash
+   shown until the redirect to the dashboard; without it, the server-rendered
+   landing is visible from the first byte. Pure CSS so hydration has nothing
+   to disagree about. LandingClient removes the attribute if auth resolves to
+   "no user" (stale flag), which reveals the landing. */
+[data-brand-splash] { display: none; }
+html[data-wf-session="1"] [data-brand-splash] { display: flex; }
+html[data-wf-session="1"] [data-landing-body] { visibility: hidden; }

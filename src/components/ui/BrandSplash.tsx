@@ -12,10 +12,21 @@
  *
  * Deliberately no spinner: the clip is short and looping, which reads as
  * "working" on its own. `label` is still rendered for screen readers.
+ *
+ * `gated`: render hidden, and let CSS reveal it. The landing page keeps this
+ * in the HTML permanently and shows it only when <html> carries
+ * data-wf-session — set by a pre-paint script for devices with a session —
+ * so a returning member sees the logo instead of a flash of the marketing
+ * page, while strangers and crawlers get the fully server-rendered landing
+ * from the first byte. Visibility decided by CSS, not state, means the
+ * server HTML and first client render are identical. See globals.css.
  */
-export function BrandSplash({ label = 'Loading' }: { label?: string }) {
+export function BrandSplash({ label = 'Loading', gated = false }: { label?: string; gated?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background overflow-hidden">
+    <div
+      {...(gated ? { 'data-brand-splash': '' } : {})}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background overflow-hidden"
+    >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div
           className="absolute inset-0 opacity-[0.06]"

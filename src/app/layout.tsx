@@ -113,6 +113,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" className="dark">
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
+        {/* Runs before first paint. If this device has a signed-in session
+            (a flag AuthContext keeps in localStorage — Firebase's own session
+            lives in IndexedDB, which nothing synchronous can read), mark
+            <html> so CSS shows the brand splash instead of the landing page
+            until the redirect to the dashboard lands. Strangers have no
+            flag and see the fully server-rendered landing immediately,
+            which is what search engines and paid traffic get too. The
+            landing used to render a spinner for EVERYONE on the server to
+            avoid a flash for the few; this gives both. Nonce'd for the CSP. */}
+        <script
+          nonce={nonce}
+          dangerouslySetInnerHTML={{
+            __html: "try{if(localStorage.getItem('wf:session')==='1')document.documentElement.setAttribute('data-wf-session','1')}catch(e){}",
+          }}
+        />
         {/* Open the connection to Firebase Storage (exercise demo videos,
             uploaded images) as early as possible, so the TLS/DNS handshake
             is already done by the time a video element needs to fetch —

@@ -89,11 +89,13 @@ else
 fi
 
 echo "== public pages =="
-# ctaPrimaryLabel / stackComparison are KEY names in the landing config the
-# server serialises into the page — present whatever an admin sets the values
-# to, and absent if the server component failed to load its config at all.
-page /                                        'ctaPrimaryLabel'
-page /                                        'stackComparison'
+# The landing server-renders its real content — it used to send a spinner
+# to everyone. These pin that: a hard-coded heading (not admin copy), and the
+# two hooks the returning-member splash depends on. If either goes missing
+# the page has regressed to client-only rendering or the splash gate broke.
+page /                                        'Everything you need. Nothing you don'
+page /                                        'data-brand-splash'
+page /                                        'data-landing-body'
 # These genuinely server-render their content, so the markers are the content.
 page /standards                               'Could you pass'
 page /standards/royal-marines-entry-test      'Royal Marines'

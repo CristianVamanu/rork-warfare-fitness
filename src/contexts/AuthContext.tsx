@@ -298,6 +298,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      // A synchronous, pre-paint-readable record that this device has a
+      // session. Firebase keeps the real session in IndexedDB, which the
+      // inline script in layout.tsx cannot read before first paint; this
+      // flag is what lets the landing show the brand splash to a returning
+      // member instead of flashing the marketing page at them. Cleared on
+      // sign-out so a shared device does not keep hiding the landing.
+      try {
+        if (firebaseUser) localStorage.setItem('wf:session', '1');
+        else localStorage.removeItem('wf:session');
+      } catch { /* private mode — the landing just renders normally */ }
       if (firebaseUser) {
         subscribeToProfile(firebaseUser);
       } else {
