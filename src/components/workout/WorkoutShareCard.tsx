@@ -163,42 +163,53 @@ export function WorkoutShareCard({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="relative rounded-xl border border-accent/25 bg-white/[0.03] px-3.5 pt-3.5 pb-1 mb-4 overflow-hidden"
+            className="relative rounded-xl border border-accent/[0.18] mb-4 overflow-hidden text-center px-3.5 pt-3.5 pb-2.5"
+            /* The fire-lit well: light thrown up from the bottom edge, same
+               amber the burning logo is lit with, so the glyph sits INSIDE
+               the brand's world rather than on top of it. Inline rather than
+               a Tailwind arbitrary value because html-to-image rasterizes
+               computed styles — a multi-layer background belongs somewhere
+               it can't be purged or reordered. */
+            style={{
+              background:
+                'radial-gradient(ellipse 70% 90% at 50% 105%, rgba(245,166,35,0.42), transparent 62%),' +
+                'radial-gradient(ellipse 120% 80% at 50% 120%, rgba(200,60,0,0.30), transparent 70%),' +
+                '#0b0b0b',
+            }}
           >
-            <p className="text-[11px] font-black uppercase tracking-wide text-white/90 leading-none">I lifted the weight of</p>
-            {/* The accent bar, black text on brand amber — the one element
-                that has to survive being seen at thumbnail size. */}
-            <div className="-mx-3.5 my-2 bg-accent px-3.5 py-1.5">
-              <p className="text-xl font-black uppercase tracking-tight text-black leading-none">
-                {comparison.count} {comparison.count === 1 ? comparison.object.label : pluralLabel(comparison.object.label)}
-              </p>
-            </div>
-            <p className="text-[11px] font-black uppercase tracking-wide text-white/90 leading-none">During my workout</p>
+            <p className="text-[9.5px] uppercase tracking-[0.2em] text-white/50">I lifted the weight of</p>
 
-            {/* Real artwork when it exists, emoji until then. onError covers
-                both "file not added yet" and a broken/renamed file, so a
-                missing PNG degrades to the emoji rather than to a broken
-                image icon in the middle of a card someone is about to post. */}
-            <div className="flex items-center justify-center h-28 mt-1">
-              {useImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={comparisonImageUrl(comparison.object.id)}
-                  alt={comparison.object.label}
-                  loading="eager"
-                  onError={() => setImageFailed(true)}
-                  className="max-h-28 w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.6)]"
-                />
-              ) : (
-                <motion.span
-                  className="text-6xl leading-none"
-                  animate={{ scale: [1, 1.1, 1], rotate: [0, -3, 3, 0] }}
-                  transition={{ duration: 1.8, repeat: Infinity, repeatDelay: 1.2, ease: 'easeInOut' }}
-                >
-                  {comparison.object.emoji}
-                </motion.span>
-              )}
-            </div>
+            {/* Real artwork when it exists, the lit glyph until then. onError
+                covers both "file not added yet" and a broken/renamed file, so
+                a missing PNG degrades to the emoji rather than to a broken
+                image icon in the middle of something about to be posted. */}
+            {useImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={comparisonImageUrl(comparison.object.id)}
+                alt={comparison.object.label}
+                loading="eager"
+                onError={() => setImageFailed(true)}
+                className="mx-auto mt-1 max-h-[72px] w-auto object-contain"
+                style={{ filter: 'drop-shadow(0 0 18px rgba(245,166,35,0.55)) drop-shadow(0 3px 4px rgba(0,0,0,0.8))' }}
+              />
+            ) : (
+              <motion.p
+                className="text-[58px] leading-[1.05] mt-0.5 mb-0"
+                style={{ filter: 'drop-shadow(0 0 18px rgba(245,166,35,0.75)) drop-shadow(0 2px 3px rgba(0,0,0,0.8))' }}
+                animate={{ scale: [1, 1.06, 1] }}
+                transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 1.2, ease: 'easeInOut' }}
+              >
+                {comparison.object.emoji}
+              </motion.p>
+            )}
+
+            <p className="text-[27px] font-black uppercase leading-none mt-0.5 text-white">
+              {comparison.count} {comparison.count === 1 ? comparison.object.label : pluralLabel(comparison.object.label)}
+            </p>
+            <p className="text-[11px] text-accent tabular-nums mt-1.5">
+              {Math.round(totalWeightLifted ?? 0).toLocaleString()} KG MOVED
+            </p>
           </motion.div>
         )}
 
