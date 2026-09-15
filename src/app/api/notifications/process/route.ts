@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
@@ -342,8 +342,16 @@ export async function POST(req: NextRequest) {
             // starts gently again — without this, someone who came back for
             // a fortnight and slipped once would be greeted with reminder
             // number five. Only written when there is something to clear.
-            if ((u.missedWorkoutNudges ?? 0) > 0) {
-              await db.collection('users').doc(u.id).update({ missedWorkoutNudges: 0 });
+            //
+            // The date of the last reminder goes too. Left in place, the next
+            // lapse would read as "a date but no count" — the legacy-account
+            // case below — and start at reminder two with a two-day gap,
+            // skipping the gentle first one. A genuine return is a clean slate.
+            if ((u.missedWorkoutNudges ?? 0) > 0 || u.lastAutoMissedWorkoutDate) {
+              await db.collection('users').doc(u.id).update({
+                missedWorkoutNudges: 0,
+                lastAutoMissedWorkoutDate: FieldValue.delete(),
+              });
             }
           } else if (missed) {
             // Reminders back off — see nudgeSchedule.ts. This used to send
