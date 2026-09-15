@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown, Megaphone } from 'lucide-react';
+import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown, Megaphone, Pencil } from 'lucide-react';
 import { compressImage } from '@/lib/imageCompress';
 import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
@@ -13,7 +13,7 @@ import { FeedMedia } from '@/components/community/FeedMedia';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  getChannels, subscribeChannelPosts, createChannelPost, deleteChannelPost, deleteReply, updateReply,
+  getChannels, subscribeChannelPosts, createChannelPost, deleteChannelPost, deleteReply, updateReply, updateChannelPost,
   likeChannelPost, getPostReplies, createReply, getUserLastPostInChannel,
   pinChannelPost, unpinChannelPost, getSystemConfig, channelScopeFor,
 } from '@/lib/firestore';
@@ -204,7 +204,29 @@ function PostCard({
   const [showMenu, setShowMenu] = useState(false);
   const liked = post.likes.includes(userId);
   const canDelete = isAdmin || post.userId === userId;
+  // Editing is the author's alone — an admin can remove a post they object
+  // to, but rewriting someone else's words under their name is a different
+  // power entirely, and firestore.rules enforces the same split.
+  const canEdit = post.userId === userId;
   const isPinned = pinnedPostId === post.id;
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(post.content);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  async function saveEdit() {
+    const text = draft.trim();
+    if (!text || text === post.content) { setEditing(false); setDraft(post.content); return; }
+    setSavingEdit(true);
+    try {
+      await updateChannelPost(channelId, post.id, text);
+      setEditing(false);
+    } catch {
+      toast.error('Could not save your edit');
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   // Fetch on every open, never cached across opens.
   //
@@ -277,7 +299,7 @@ function PostCard({
         </div>
         <div className="flex items-center gap-1">
           {isPinned && <Pin className="w-3.5 h-3.5 text-accent flex-shrink-0" />}
-          {(canDelete || isAdmin) && (
+          {(canDelete || canEdit || isAdmin) && (
             <div className="relative">
               <button
                 onClick={() => setShowMenu((v) => !v)}
@@ -298,10 +320,18 @@ function PostCard({
                         {isPinned ? 'Unpin' : 'Pin to top'}
                       </button>
                     )}
+                    {canEdit && (
+                      <button
+                        onClick={() => { setShowMenu(false); setDraft(post.content); setEditing(true); }}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/8 transition-colors ${isAdmin ? '' : 'rounded-t-xl'}`}
+                      >
+                        <Pencil className="w-3.5 h-3.5" /> Edit
+                      </button>
+                    )}
                     {canDelete && (
                       <button
                         onClick={() => { setShowMenu(false); onDelete(post); }}
-                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors ${isAdmin ? 'rounded-b-xl' : 'rounded-xl'}`}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors rounded-b-xl ${isAdmin || canEdit ? '' : 'rounded-t-xl'}`}
                       >
                         <Trash2 className="w-3.5 h-3.5" /> Delete
                       </button>
@@ -313,7 +343,41 @@ function PostCard({
           )}
         </div>
       </div>
-      <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{post.content}</p>
+      {editing ? (
+        <div>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={4}
+            autoFocus
+            maxLength={5000}
+            className="w-full bg-surface border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50 resize-none"
+          />
+          <div className="flex gap-3 mt-2">
+            <button
+              onClick={saveEdit}
+              disabled={savingEdit}
+              className="text-xs font-bold text-accent disabled:opacity-50"
+            >
+              {savingEdit ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={() => { setEditing(false); setDraft(post.content); }}
+              disabled={savingEdit}
+              className="text-xs font-medium text-text-tertiary"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">
+          {post.content}
+          {/* Shown for the same reason the replies show it: a post whose text
+              changed after people replied to it should say so. */}
+          {!!post.editedAt && <span className="ml-1.5 text-[10px] text-text-tertiary align-middle">edited</span>}
+        </p>
+      )}
       {post.imageURL && (
         <FeedMedia
           url={post.imageURL}

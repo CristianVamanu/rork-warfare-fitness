@@ -777,19 +777,47 @@ service cloud.firestore {
             isAdmin() ||
             get(/databases/$(database)/documents/channels/$(channelId)).data.get('allowUserPosts', true) == true
           );
-        // Author can edit their own post; anyone signed in can like/unlike,
-        // adding/removing exactly their own uid from `likes` — same
-        // exact-delta pattern as prPosts, so a client can't like on
-        // another user's behalf or forge the whole array.
+        // Author can edit their own post's TEXT — content and the editedAt
+        // marker only, matching the replies rule below. This used to allow
+        // the author to change any field at all: userIsAdmin (granting
+        // themselves the Admin badge on their own post), createdAt, likes,
+        // imageURL, even userId. No UI ever offered that, but the rule is
+        // the only thing standing between a direct SDK call and a forged
+        // post, and "no button for it" is not a control.
+        //
+        // Anyone signed in can like/unlike, adding/removing exactly their
+        // own uid from `likes` — same exact-delta pattern as prPosts, so a
+        // client can't like on another user's behalf or forge the array.
         allow update: if isAuthed() && notTfaPending() && (
-          resource.data.userId == uid() ||
+          // The author, editing their own words.
+          (resource.data.userId == uid()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'editedAt'])
+            && request.resource.data.content is string
+            && request.resource.data.content.size() > 0
+            && request.resource.data.content.size() <= 5000) ||
+          // Anyone, liking or unliking — exactly their own uid, added or
+          // removed, never the whole array.
           (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']) &&
             (
               (request.resource.data.likes == resource.data.get('likes', []).concat([uid()])
                 && !(uid() in resource.data.get('likes', []))) ||
               (request.resource.data.likes == resource.data.get('likes', []).removeAll([uid()])
                 && (uid() in resource.data.get('likes', [])))
-            ))
+            )) ||
+          // Anyone replying, bumping the counter by exactly one. Previously
+          // this was only permitted because the author could write anything
+          // to their own post — so replying to SOMEONE ELSE's post left the
+          // counter behind (firestore.ts documents that symptom at the
+          // addReply call site). Allowed explicitly now, and bounded to +1
+          // so the count can't be set to an arbitrary number.
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replyCount'])
+            && request.resource.data.replyCount == resource.data.get('replyCount', 0) + 1) ||
+          // An admin pinning or unpinning. Same story: this worked on the
+          // admin's own posts and silently failed on everyone else's, which
+          // is the only kind anyone pins.
+          (isAdmin()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinned'])
+            && request.resource.data.pinned is bool)
         );
         // The author may remove their own post, not just an admin. The
         // overflow menu has always offered Delete to the author (canDelete =

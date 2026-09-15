@@ -2514,6 +2514,24 @@ export async function createReply(channelId: string, postId: string, data: {
 }
 
 /**
+ * Edits a post's text. Only the author may, enforced in firestore.rules —
+ * and only `content` plus the `editedAt` marker, so nobody can rewrite
+ * authorship, the timestamp or the admin badge on an existing post.
+ *
+ * Replies have been editable since they were built; top-level posts never
+ * were, so a typo in the thing at the top of a thread stood permanently
+ * while a typo in a reply under it could be fixed. Attached media is
+ * deliberately not editable here — swapping the image under a post people
+ * have already read and liked is a different thing from fixing your words.
+ */
+export async function updateChannelPost(channelId: string, postId: string, content: string) {
+  await updateDoc(doc(db, 'channels', channelId, 'posts', postId), {
+    content,
+    editedAt: serverTimestamp(),
+  });
+}
+
+/**
  * Edits a reply's text. Only the author may, enforced in firestore.rules —
  * and only `content` plus the `editedAt` marker, so nobody can rewrite
  * authorship, the timestamp or the admin badge on an existing reply.

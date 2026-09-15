@@ -450,6 +450,62 @@ describe('channels', () => {
     }));
   });
 
+  it('lets the author edit their own post text, and nobody else', async () => {
+    await assertSucceeds(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1'), {
+      content: 'hi (fixed)', editedAt: new Date(),
+    }));
+    // Bob did not write it. An admin may DELETE it but never rewrite it.
+    await assertFails(updateDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1'), {
+      content: 'words Alice never wrote', editedAt: new Date(),
+    }));
+    await assertFails(updateDoc(doc(asAdmin(), 'channels', 'c1', 'posts', 'p1'), {
+      content: 'words Alice never wrote', editedAt: new Date(),
+    }));
+  });
+
+  it('refuses an edit that rewrites anything but the text', async () => {
+    // The whole point of scoping the edit rule: the author may fix their
+    // words, not grant themselves the admin badge, move the timestamp,
+    // reassign authorship, swap the attached media or invent likes.
+    await assertFails(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1'), {
+      content: 'edited', userIsAdmin: true,
+    }));
+    await assertFails(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1'), {
+      content: 'edited', createdAt: new Date(0),
+    }));
+    await assertFails(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1'), {
+      content: 'edited', userId: BOB,
+    }));
+    await assertFails(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1'), {
+      content: 'edited', imageURL: 'https://pub-123.r2.dev/community/alice/swapped.jpg',
+    }));
+    await assertFails(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1'), {
+      content: 'edited', likes: [ALICE, BOB],
+    }));
+    // Empty and oversized text are refused, same bounds as creating one.
+    await assertFails(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1'), { content: '' }));
+    await assertFails(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1'), { content: 'a'.repeat(50_000) }));
+  });
+
+  it('lets anyone bump the reply counter by one, on anyone\'s post', async () => {
+    // Bob replying to Alice's post. This used to fail silently and leave
+    // the counter behind on every post but your own.
+    await assertSucceeds(updateDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1'), { replyCount: 1 }));
+    // But not to an arbitrary number.
+    await assertFails(updateDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1'), { replyCount: 9999 }));
+  });
+
+  it('lets an admin pin any post, and a member none', async () => {
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'channels', 'c1', 'posts', 'p1'), { pinned: true }));
+    await assertFails(updateDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1'), { pinned: true }));
+  });
+
+  it('still lets anyone like and unlike exactly themselves', async () => {
+    await assertSucceeds(updateDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1'), { likes: [BOB] }));
+    // Never on someone else's behalf.
+    await assertFails(updateDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1'), { likes: [ALICE] }));
+  });
+
   it('allows a genuine reply, including a threaded one', async () => {
     await assertSucceeds(setDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), {
       userId: BOB, userDisplayName: 'Bob', content: 'nice', likes: [], replyCount: 0, replyTo: 'p1', createdAt: new Date(),
