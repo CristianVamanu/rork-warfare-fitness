@@ -23,7 +23,7 @@ import { buildProgramMarketing, type ProgramMarketing } from '@/lib/programMarke
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Medallion } from '@/components/dashboard/Medallion';
-import { FullPageSpinner } from '@/components/ui/Spinner';
+import { BrandSplash } from '@/components/ui/BrandSplash';
 import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex, MedicalHistoryAnswers } from '@/types';
 
 // ─── Step data ────────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ const slideVariants = {
 
 export default function OnboardingPage() {
   return (
-    <Suspense fallback={<FullPageSpinner />}>
+    <Suspense fallback={<BrandSplash />}>
       <OnboardingPageInner />
     </Suspense>
   );
@@ -915,7 +915,7 @@ function OnboardingPageInner() {
     );
   }
 
-  if (authLoading || needsAccount === null) return <FullPageSpinner />;
+  if (authLoading || needsAccount === null) return <BrandSplash />;
 
   return (
     <div className="relative isolate min-h-screen bg-background flex flex-col overflow-hidden">

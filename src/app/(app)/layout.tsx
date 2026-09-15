@@ -7,7 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { HeaderDataProvider } from '@/contexts/HeaderDataContext';
 import { BottomNav } from '@/components/layout/BottomNav';
-import { FullPageSpinner } from '@/components/ui/Spinner';
+import { BrandSplash } from '@/components/ui/BrandSplash';
 import { PwaInstallBanner } from '@/components/ui/PwaInstallBanner';
 import { MembershipGuard } from '@/components/ui/MembershipGuard';
 import { WelcomeVideo } from '@/components/ui/WelcomeVideo';
@@ -66,11 +66,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, profile, loading, router, pathname]);
 
-  if (loading) return <FullPageSpinner />;
+  // Every hold in this layout is the brand splash, not a bare spinner. A
+  // member refreshing the dashboard sat on an orange ring while auth
+  // restored; the landing already shows them the burning logo with a live
+  // progress line for the same wait, and the two should not look like
+  // different apps.
+  if (loading) return <BrandSplash />;
   if (!user) return null;
 
   if (profile === null) {
-    if (!profileStalled) return <FullPageSpinner />;
+    if (!profileStalled) return <BrandSplash />;
     return (
       <div className="min-h-screen flex items-center justify-center px-6 text-center">
         <div className="max-w-sm space-y-3">
@@ -95,8 +100,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // "Missing or insufficient permissions" errors right before landing on
   // /verify-2fa or /banned. Blocking the render here instead means the
   // gated page's own effects never mount in the first place.
-  if (profile.banned && pathname !== '/banned') return <FullPageSpinner />;
-  if (profile.twoFactorPendingSince && pathname !== '/verify-2fa') return <FullPageSpinner />;
+  if (profile.banned && pathname !== '/banned') return <BrandSplash />;
+  if (profile.twoFactorPendingSince && pathname !== '/verify-2fa') return <BrandSplash />;
 
   const hideNav = pathname === '/banned' || pathname === '/verify-2fa';
 
