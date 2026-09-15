@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { getLevelTitle } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
 import { QUEST_DEFS } from '@/lib/quests';
-import { pickWeightComparison, comparisonPhrase } from '@/lib/weightComparison';
+import { pickWeightComparison, comparisonPhrase, comparisonImageUrl } from '@/lib/weightComparison';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -40,6 +40,7 @@ export function WorkoutShareCard({
 }: Props) {
   const levelTitle = getLevelTitle(newPowerLevel);
   const [sharing, setSharing] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Seeded on the weight itself (see weightComparison.ts) rather than
@@ -47,6 +48,13 @@ export function WorkoutShareCard({
   // image must agree, and a fresh random pick on each paint could make them
   // diverge if the component re-renders between "shown" and "shared".
   const comparison = totalWeightLifted ? pickWeightComparison(totalWeightLifted) : null;
+  const useImage = !!comparison && !imageFailed;
+
+  /** "Sports Car" -> "Sports Cars", "School Bus" -> "School Buses". Same rule
+   * as comparisonPhrase's, applied to the display-cased label. */
+  function pluralLabel(label: string): string {
+    return /[sxz]$|[cs]h$/i.test(label) ? `${label}es` : `${label}s`;
+  }
 
   // NEXT_PUBLIC_ env vars are inlined at build time, so this is safe to read
   // client-side too — matches the same fallback used in the root layout.
@@ -155,20 +163,41 @@ export function WorkoutShareCard({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="relative rounded-xl border border-accent/25 bg-white/[0.03] p-3.5 mb-4 overflow-hidden"
+            className="relative rounded-xl border border-accent/25 bg-white/[0.03] px-3.5 pt-3.5 pb-1 mb-4 overflow-hidden"
           >
-            <p className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">I lifted</p>
-            <div className="flex items-center gap-3 mt-1.5">
-              <motion.span
-                className="text-4xl leading-none flex-shrink-0"
-                animate={{ scale: [1, 1.12, 1], rotate: [0, -4, 4, 0] }}
-                transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 1.4, ease: 'easeInOut' }}
-              >
-                {comparison.object.emoji}
-              </motion.span>
-              <p className="text-lg font-black text-white leading-tight">
-                {comparisonPhrase(comparison).replace(/^the weight of /, '')}
+            <p className="text-[11px] font-black uppercase tracking-wide text-white/90 leading-none">I lifted the weight of</p>
+            {/* The accent bar, black text on brand amber — the one element
+                that has to survive being seen at thumbnail size. */}
+            <div className="-mx-3.5 my-2 bg-accent px-3.5 py-1.5">
+              <p className="text-xl font-black uppercase tracking-tight text-black leading-none">
+                {comparison.count} {comparison.count === 1 ? comparison.object.label : pluralLabel(comparison.object.label)}
               </p>
+            </div>
+            <p className="text-[11px] font-black uppercase tracking-wide text-white/90 leading-none">During my workout</p>
+
+            {/* Real artwork when it exists, emoji until then. onError covers
+                both "file not added yet" and a broken/renamed file, so a
+                missing PNG degrades to the emoji rather than to a broken
+                image icon in the middle of a card someone is about to post. */}
+            <div className="flex items-center justify-center h-28 mt-1">
+              {useImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={comparisonImageUrl(comparison.object.id)}
+                  alt={comparison.object.label}
+                  loading="eager"
+                  onError={() => setImageFailed(true)}
+                  className="max-h-28 w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.6)]"
+                />
+              ) : (
+                <motion.span
+                  className="text-6xl leading-none"
+                  animate={{ scale: [1, 1.1, 1], rotate: [0, -3, 3, 0] }}
+                  transition={{ duration: 1.8, repeat: Infinity, repeatDelay: 1.2, ease: 'easeInOut' }}
+                >
+                  {comparison.object.emoji}
+                </motion.span>
+              )}
             </div>
           </motion.div>
         )}

@@ -26,6 +26,21 @@ export interface ComparisonObject {
   weightKg: number;
 }
 
+/**
+ * Where a real cut-out image for an object lives, if one has been added.
+ *
+ * Convention over configuration: drop `<id>.png` into
+ * public/images/comparisons/ and the card uses it automatically — no code
+ * change, no list to keep in sync. The card falls back to the emoji when
+ * the file isn't there (or fails to load), so a partial set is fine and
+ * objects can be upgraded from emoji to artwork one at a time.
+ *
+ * PNG with a transparent background, roughly 800x600, under ~150KB.
+ */
+export function comparisonImageUrl(id: string): string {
+  return `/images/comparisons/${id}.png`;
+}
+
 // Ascending by weight. Emoji rather than illustration/photo assets — see
 // this feature's design conversation: no licensing question, zero image
 // weight added to the app (a glyph, not a file), renders correctly when
@@ -40,6 +55,7 @@ export const COMPARISON_OBJECTS: ComparisonObject[] = [
   { id: 'grand-piano', emoji: '🎼', label: 'Grand Piano', labelLower: 'grand piano', weightKg: 480 },
   { id: 'giraffe', emoji: '🦒', label: 'Giraffe', labelLower: 'giraffe', weightKg: 800 },
   { id: 'small-car', emoji: '🚗', label: 'Small Car', labelLower: 'small car', weightKg: 1200 },
+  { id: 'sports-car', emoji: '🏎️', label: 'Sports Car', labelLower: 'sports car', weightKg: 1500 },
   { id: 'rhino', emoji: '🦏', label: 'Rhino', labelLower: 'rhino', weightKg: 2300 },
   { id: 'monster-truck', emoji: '🛻', label: 'Monster Truck', labelLower: 'monster truck', weightKg: 4500 },
   { id: 'elephant', emoji: '🐘', label: 'Elephant', labelLower: 'elephant', weightKg: 6000 },
