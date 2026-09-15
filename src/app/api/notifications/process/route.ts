@@ -15,7 +15,9 @@ import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { sendEmail, trialEndingEmailHtml } from '@/lib/email';
 import { timingSafeEqualString } from '@/lib/crypto';
-import { isNudgeDue, daysBetween, nudgeCopy } from '@/lib/nudgeSchedule';
+import { isNudgeDue, daysBetween, nudgeCopy, isMissedToday, aiMotivationDue } from '@/lib/nudgeSchedule';
+import { getMockProgram, getNextSession } from '@/lib/programs';
+import type { Program } from '@/types';
 
 async function generateMotivation(userName: string, streak: number): Promise<{ title: string; body: string }> {
   const apiKey = await getSecret('OPENAI_API_KEY');
@@ -74,6 +76,39 @@ export async function POST(req: NextRequest) {
     const config = configSnap.data() ?? {};
     const rules: Record<string, boolean> = config.rules ?? {};
     const aiEnabled: boolean = config.aiMotivationEnabled ?? false;
+    // Stored by the admin panel's Daily/Weekly toggle and, until now, never
+    // read here — so "weekly" sent every day.
+    const aiSchedule: 'daily' | 'weekly' | undefined = config.aiMotivationSchedule;
+
+    // The member's program as the app sees it: the seed copy with any admin
+    // edits from programs/{id} layered on top — the same merge the client's
+    // resolveProgram does, against the admin SDK. One read per program per
+    // run, not per member: four hundred members on ten programs is ten
+    // reads, cached for the life of this request.
+    const programCache = new Map<string, Promise<Program | null>>();
+    const resolveProgramForRun = (programId: string): Promise<Program | null> => {
+      let p = programCache.get(programId);
+      if (!p) {
+        p = (async () => {
+          const mock = getMockProgram(programId);
+          let fsDoc: Partial<Program> | null = null;
+          try {
+            const snap = await db.collection('programs').doc(programId).get();
+            fsDoc = snap.exists ? ({ id: snap.id, ...snap.data() } as Partial<Program>) : null;
+          } catch { /* the seed copy alone is still a valid answer */ }
+          if (!fsDoc && !mock) return null;
+          return {
+            ...(mock ?? {}),
+            ...(fsDoc ?? {}),
+            schedule: fsDoc?.schedule?.length ? fsDoc.schedule : mock?.schedule,
+            phases: fsDoc?.phases?.length ? fsDoc.phases : mock?.phases,
+            exercises: fsDoc?.exercises?.length ? fsDoc.exercises : (mock?.exercises ?? []),
+          } as Program;
+        })();
+        programCache.set(programId, p);
+      }
+      return p;
+    };
 
     // Load membership config (trial length) + system config (app name) for the trial-ending email
     const membershipCfgSnap = await db.doc('config/membership').get();
@@ -273,10 +308,35 @@ export async function POST(req: NextRequest) {
             .orderBy('createdAt', 'desc')
             .limit(1)
             .get();
-          const hasRecentWorkout = eventsSnap.docs.some((d) => {
+          const hasWorkoutEventInWindow = eventsSnap.docs.some((d) => {
             const createdAt = d.data().createdAt as FirebaseFirestore.Timestamp | undefined;
             return createdAt && createdAt.toMillis() >= oneDayAgo.toMillis();
           });
+          const lastWorkoutDate = u.statsCache?.lastWorkoutDate as string | undefined;
+
+          // Is the slot due today a rest day? Decided by the same function
+          // the dashboard card uses, on the same program and pointer, so a
+          // member is never told they skipped on a morning the app itself
+          // is showing them "Rest day". Resolution failing (deleted program,
+          // bad data) falls through to "not rest" — the old behaviour —
+          // rather than silencing the rule.
+          let nextSlotIsRest = false;
+          try {
+            const program = await resolveProgramForRun(u.activeProgram.programId);
+            if (program) {
+              const lastCompleted: number = typeof u.activeProgram.lastCompletedDayIndex === 'number'
+                ? u.activeProgram.lastCompletedDayIndex
+                : ((u.activeProgram.completedWorkouts ?? 0) > 0 ? u.activeProgram.completedWorkouts - 1 : -1);
+              nextSlotIsRest = getNextSession(program, lastCompleted, lastWorkoutDate)?.isRestToday === true;
+            }
+          } catch { /* treated as a training day */ }
+
+          const missed = isMissedToday({ today, yesterday, lastWorkoutDate, hasWorkoutEventInWindow, nextSlotIsRest });
+          const hasRecentWorkout = hasWorkoutEventInWindow || lastWorkoutDate === today || lastWorkoutDate === yesterday;
+          // Three outcomes. Trained recently: clear the count. Missed a
+          // training day: maybe remind, per the schedule. Rest day with no
+          // recent training: neither — not a miss, not a return, the count
+          // stays where it is.
           if (hasRecentWorkout) {
             // Back training. Clear the reminder count so the next lapse
             // starts gently again — without this, someone who came back for
@@ -285,7 +345,7 @@ export async function POST(req: NextRequest) {
             if ((u.missedWorkoutNudges ?? 0) > 0) {
               await db.collection('users').doc(u.id).update({ missedWorkoutNudges: 0 });
             }
-          } else {
+          } else if (missed) {
             // Reminders back off — see nudgeSchedule.ts. This used to send
             // every single morning, which is the "same notification every
             // day" that was reported. The count of reminders since the last
@@ -301,7 +361,6 @@ export async function POST(req: NextRequest) {
             // sequence from the top the morning this deploys.
             const effectiveSent = nudgesSent === 0 && daysSinceLastNudge !== null ? 1 : nudgesSent;
             if (isNudgeDue(effectiveSent, daysSinceLastNudge)) {
-              const lastWorkoutDate = u.statsCache?.lastWorkoutDate as string | undefined;
               const daysSinceWorkout = lastWorkoutDate && /^\d{4}-\d{2}-\d{2}$/.test(lastWorkoutDate) ? daysBetween(lastWorkoutDate, today) : null;
               const { title, body } = nudgeCopy({
                 nudgesSent: effectiveSent,
@@ -394,7 +453,8 @@ export async function POST(req: NextRequest) {
         // It also stops one OpenAI call per member per day for the majority
         // who already got a rule-based message.
         const alreadyNudged = sent.some((entry) => entry.endsWith(`:${u.id}`));
-        if (aiEnabled && !alreadyNudged && u.lastAutoAiMotivationDate !== today) {
+        if (aiEnabled && !alreadyNudged && u.lastAutoAiMotivationDate !== today
+          && aiMotivationDue(aiSchedule, localDayFor(u.timezone), force)) {
           const streak = u.statsCache?.streak ?? u.stats?.streak ?? 0;
           const msg = await generateMotivation(u.displayName ?? 'champ', streak);
           await db.collection('notifications').add({

@@ -3359,7 +3359,7 @@ function AdminPageInner() {
                             onClick={() => setNotifConfig(c => ({ ...c, aiMotivationSchedule: s }))}
                             className={`px-4 py-2 rounded-xl text-xs font-medium transition-colors ${notifConfig.aiMotivationSchedule === s ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}
                           >
-                            {s.charAt(0).toUpperCase() + s.slice(1)}
+                            {s === 'weekly' ? 'Weekly (Wednesdays)' : 'Daily'}
                           </button>
                         ))}
                       </div>

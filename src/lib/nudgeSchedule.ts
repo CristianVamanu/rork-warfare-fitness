@@ -57,6 +57,55 @@ export function daysBetween(a: string, b: string): number {
   return Math.round((toUtc(b) - toUtc(a)) / 86_400_000);
 }
 
+/**
+ * Whether today counts as "missed" at all.
+ *
+ * Three ways the old check was wrong, in order of how often they bit:
+ *
+ * 1. It ran at 8am with a rolling 24-hour window, so someone who trained
+ *    yesterday MORNING had "no workout in 24h" by this morning and got
+ *    told they had stopped. A day is a calendar day: trained today or
+ *    yesterday means not missed.
+ * 2. It did not know about rest days. A member whose program schedules
+ *    Tuesday as rest was told on Tuesday that they had skipped. The
+ *    caller resolves the program and passes whether the slot due today is
+ *    a rest slot — the same getNextSession the dashboard card uses, so
+ *    the reminder can never contradict the screen.
+ * 3. `statsCache.lastWorkoutDate` can be missing on old accounts, so the
+ *    events query stays as a second opinion rather than being replaced.
+ */
+export function isMissedToday(input: {
+  today: string;
+  yesterday: string;
+  lastWorkoutDate: string | undefined;
+  hasWorkoutEventInWindow: boolean;
+  nextSlotIsRest: boolean;
+}): boolean {
+  const { today, yesterday, lastWorkoutDate, hasWorkoutEventInWindow, nextSlotIsRest } = input;
+  if (hasWorkoutEventInWindow) return false;
+  if (lastWorkoutDate === today || lastWorkoutDate === yesterday) return false;
+  if (nextSlotIsRest) return false;
+  return true;
+}
+
+/**
+ * The day a weekly AI motivation goes out. Wednesday, deliberately not the
+ * Sunday the weekly recap uses, so a member on both never gets two pushes
+ * in one morning.
+ */
+export const AI_MOTIVATION_WEEKDAY = 3;
+
+/**
+ * Whether the AI motivation may send today under the admin's schedule.
+ * The setting existed in the admin panel and was stored, and the route
+ * never read it — "weekly" sent daily.
+ */
+export function aiMotivationDue(schedule: 'daily' | 'weekly' | undefined, localWeekday: number, force = false): boolean {
+  if (force) return true;
+  if (schedule === 'weekly') return localWeekday === AI_MOTIVATION_WEEKDAY;
+  return true;
+}
+
 export interface NudgeCopyInput {
   /** How many reminders have already gone out since the last workout. */
   nudgesSent: number;

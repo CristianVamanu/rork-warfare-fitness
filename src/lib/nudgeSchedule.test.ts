@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { isNudgeDue, nudgeGapDays, daysBetween, nudgeCopy, MAX_NUDGES, NUDGE_GAPS_DAYS } from './nudgeSchedule';
+import {
+  isNudgeDue, nudgeGapDays, daysBetween, nudgeCopy, MAX_NUDGES, NUDGE_GAPS_DAYS,
+  isMissedToday, aiMotivationDue, AI_MOTIVATION_WEEKDAY,
+} from './nudgeSchedule';
 
 describe('nudge schedule — reminders back off instead of repeating daily', () => {
   it('the first reminder is always due when none has been sent', () => {
@@ -43,6 +46,47 @@ describe('nudge schedule — reminders back off instead of repeating daily', () 
     expect(daysBetween('2026-09-01', '2026-09-15')).toBe(14);
     // Across the October clock change — still whole days.
     expect(daysBetween('2026-10-24', '2026-10-26')).toBe(2);
+  });
+});
+
+describe('isMissedToday — calendar days and rest days, not a 24-hour stopwatch', () => {
+  const base = { today: '2026-09-15', yesterday: '2026-09-14', hasWorkoutEventInWindow: false, nextSlotIsRest: false };
+
+  it('trained yesterday morning → not missed at 8am today (the 25-hour false positive)', () => {
+    expect(isMissedToday({ ...base, lastWorkoutDate: '2026-09-14' })).toBe(false);
+  });
+
+  it('trained two days ago, training day due → missed', () => {
+    expect(isMissedToday({ ...base, lastWorkoutDate: '2026-09-13' })).toBe(true);
+  });
+
+  it('rest day due today → never missed, however long since the last workout', () => {
+    expect(isMissedToday({ ...base, lastWorkoutDate: '2026-09-01', nextSlotIsRest: true })).toBe(false);
+  });
+
+  it('an event inside the window wins even with no lastWorkoutDate on the account', () => {
+    expect(isMissedToday({ ...base, lastWorkoutDate: undefined, hasWorkoutEventInWindow: true })).toBe(false);
+  });
+
+  it('no date, no event, training due → missed', () => {
+    expect(isMissedToday({ ...base, lastWorkoutDate: undefined })).toBe(true);
+  });
+});
+
+describe('aiMotivationDue — the admin schedule is actually honoured', () => {
+  it('daily sends any day', () => {
+    for (let d = 0; d < 7; d++) expect(aiMotivationDue('daily', d)).toBe(true);
+  });
+
+  it('weekly sends on Wednesday only, and not on the Sunday recap day', () => {
+    expect(aiMotivationDue('weekly', AI_MOTIVATION_WEEKDAY)).toBe(true);
+    expect(aiMotivationDue('weekly', 0)).toBe(false);
+    expect(aiMotivationDue('weekly', 1)).toBe(false);
+  });
+
+  it('unset behaves as daily (pre-existing configs), and force overrides weekly', () => {
+    expect(aiMotivationDue(undefined, 5)).toBe(true);
+    expect(aiMotivationDue('weekly', 5, true)).toBe(true);
   });
 });
 
