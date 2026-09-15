@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { getLevelTitle } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
 import { QUEST_DEFS } from '@/lib/quests';
-import { pickWeightComparison, comparisonPhrase, comparisonImageUrl } from '@/lib/weightComparison';
+import { pickCardHeadline } from '@/lib/cardHeadline';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -20,9 +20,6 @@ interface Props {
   streak: number;
   newAchievements: string[];
   newQuests?: string[];
-  /** Always kilograms — see actions.ts. Undefined only for a call site that
-   * predates this prop; the comparison line simply doesn't render then. */
-  totalWeightLifted?: number;
   onContinue: () => void;
 }
 
@@ -35,26 +32,25 @@ export function WorkoutShareCard({
   streak,
   newAchievements,
   newQuests = [],
-  totalWeightLifted,
   onContinue,
 }: Props) {
   const levelTitle = getLevelTitle(newPowerLevel);
   const [sharing, setSharing] = useState(false);
-  const [imageFailed, setImageFailed] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Seeded on the weight itself (see weightComparison.ts) rather than
-  // re-rolled on every render — the on-screen card and the rasterized share
-  // image must agree, and a fresh random pick on each paint could make them
-  // diverge if the component re-renders between "shown" and "shared".
-  const comparison = totalWeightLifted ? pickWeightComparison(totalWeightLifted) : null;
-  const useImage = !!comparison && !imageFailed;
-
-  /** "Sports Car" -> "Sports Cars", "School Bus" -> "School Buses". Same rule
-   * as comparisonPhrase's, applied to the display-cased label. */
-  function pluralLabel(label: string): string {
-    return /[sxz]$|[cs]h$/i.test(label) ? `${label}es` : `${label}s`;
-  }
+  // The one fact this card leads with. Resolved from the achievement
+  // definitions rather than raw ids so the headline reads as a title
+  // ("Century Club") rather than a slug.
+  const headline = pickCardHeadline({
+    newAchievementTitles: newAchievements
+      .map((id) => ACHIEVEMENT_DEFS.find((d) => d.id === id)?.title)
+      .filter((t): t is string => !!t),
+    streak,
+    powerLevel: newPowerLevel,
+    levelTitle,
+    completedSets,
+    durationMinutes: duration,
+  });
 
   // NEXT_PUBLIC_ env vars are inlined at build time, so this is safe to read
   // client-side too — matches the same fallback used in the root layout.
@@ -65,7 +61,6 @@ export function WorkoutShareCard({
   const shareText =
     `💪 Just finished a ${duration}-min workout!\n` +
     `${exerciseCount} exercises · ${completedSets} sets · ${xpEarned} XP earned\n` +
-    `${comparison ? `That's ${comparisonPhrase(comparison)} 💥\n` : ''}` +
     `${streak > 0 ? `🔥 ${streak}-day streak\n` : ''}` +
     `Fitness Level ${newPowerLevel} · ${levelTitle}\n\n` +
     `Join me on Warfare Fitness → ${appUrl}`;
@@ -154,64 +149,42 @@ export function WorkoutShareCard({
         <p className="text-2xl font-black text-white mb-1">Workout Done. ✓</p>
         <p className="text-text-secondary text-sm mb-4">{duration} minute session complete</p>
 
-        {/* "I lifted the weight of a grizzly bear" — the whole point of this
-            card existing as a distinct feature. Absent entirely below the
-            comparable floor (a bodyweight-only session) rather than showing
-            a broken or silly-small comparison; see weightComparison.ts. */}
-        {comparison && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="relative rounded-xl border border-accent/[0.18] mb-4 overflow-hidden text-center px-3.5 pt-3.5 pb-2.5"
-            /* The fire-lit well: light thrown up from the bottom edge, same
-               amber the burning logo is lit with, so the glyph sits INSIDE
-               the brand's world rather than on top of it. Inline rather than
-               a Tailwind arbitrary value because html-to-image rasterizes
-               computed styles — a multi-layer background belongs somewhere
-               it can't be purged or reordered. */
-            style={{
-              background:
-                'radial-gradient(ellipse 70% 90% at 50% 105%, rgba(245,166,35,0.42), transparent 62%),' +
-                'radial-gradient(ellipse 120% 80% at 50% 120%, rgba(200,60,0,0.30), transparent 70%),' +
-                '#0b0b0b',
-            }}
+        {/* The card's one headline fact — an achievement if this session
+            unlocked one, else the streak, else the session stated plainly.
+            Everything here is countable by the person reading it; see
+            cardHeadline.ts for why the weight comparison that used to live
+            in this slot was removed. */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="relative rounded-xl border border-accent/[0.18] mb-4 overflow-hidden text-center px-3.5 pt-3.5 pb-3"
+          /* The fire-lit well: light thrown up from the bottom edge, the same
+             amber the burning logo is lit with, so the glyph sits INSIDE the
+             brand's world rather than on top of it. Inline rather than a
+             Tailwind arbitrary value because html-to-image rasterizes
+             computed styles — a multi-layer background belongs somewhere it
+             cannot be purged or reordered. */
+          style={{
+            background:
+              'radial-gradient(ellipse 70% 90% at 50% 105%, rgba(245,166,35,0.42), transparent 62%),' +
+              'radial-gradient(ellipse 120% 80% at 50% 120%, rgba(200,60,0,0.30), transparent 70%),' +
+              '#0b0b0b',
+          }}
+        >
+          <motion.p
+            className="text-[52px] leading-[1.05] mb-0"
+            style={{ filter: 'drop-shadow(0 0 18px rgba(245,166,35,0.75)) drop-shadow(0 2px 3px rgba(0,0,0,0.8))' }}
+            animate={{ scale: [1, 1.06, 1] }}
+            transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 1.2, ease: 'easeInOut' }}
           >
-            <p className="text-[9.5px] uppercase tracking-[0.2em] text-white/50">I lifted the weight of</p>
-
-            {/* Real artwork when it exists, the lit glyph until then. onError
-                covers both "file not added yet" and a broken/renamed file, so
-                a missing PNG degrades to the emoji rather than to a broken
-                image icon in the middle of something about to be posted. */}
-            {useImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={comparisonImageUrl(comparison.object.id)}
-                alt={comparison.object.label}
-                loading="eager"
-                onError={() => setImageFailed(true)}
-                className="mx-auto mt-1 max-h-[72px] w-auto object-contain"
-                style={{ filter: 'drop-shadow(0 0 18px rgba(245,166,35,0.55)) drop-shadow(0 3px 4px rgba(0,0,0,0.8))' }}
-              />
-            ) : (
-              <motion.p
-                className="text-[58px] leading-[1.05] mt-0.5 mb-0"
-                style={{ filter: 'drop-shadow(0 0 18px rgba(245,166,35,0.75)) drop-shadow(0 2px 3px rgba(0,0,0,0.8))' }}
-                animate={{ scale: [1, 1.06, 1] }}
-                transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 1.2, ease: 'easeInOut' }}
-              >
-                {comparison.object.emoji}
-              </motion.p>
-            )}
-
-            <p className="text-[27px] font-black uppercase leading-none mt-0.5 text-white">
-              {comparison.count} {comparison.count === 1 ? comparison.object.label : pluralLabel(comparison.object.label)}
-            </p>
-            <p className="text-[11px] text-accent tabular-nums mt-1.5">
-              {Math.round(totalWeightLifted ?? 0).toLocaleString()} KG MOVED
-            </p>
-          </motion.div>
-        )}
+            {headline.glyph}
+          </motion.p>
+          <p className="text-[24px] font-black uppercase leading-[1.05] mt-1 text-white text-balance">
+            {headline.headline}
+          </p>
+          <p className="text-[11px] text-accent mt-1.5">{headline.sub}</p>
+        </motion.div>
 
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-2 mb-4">
