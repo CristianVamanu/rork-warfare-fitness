@@ -132,6 +132,9 @@ export interface WorkoutResult {
   newAchievements: string[];
   newPowerLevel: number;
   newQuests: string[];
+  /** Always kilograms — see the unit-conversion note above. Used by the
+   * post-workout share card's "you lifted the weight of…" comparison. */
+  totalWeightLifted: number;
 }
 
 export async function completeWorkout(
@@ -321,7 +324,7 @@ export async function completeWorkout(
     console.error('[Actions] XP/Achievement update failed:', err);
   }
 
-  return { xpEarned, newAchievements, newPowerLevel, newQuests };
+  return { xpEarned, newAchievements, newPowerLevel, newQuests, totalWeightLifted };
 }
 
 // ---------------------------------------------------------------------------

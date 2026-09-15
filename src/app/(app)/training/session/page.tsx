@@ -1372,7 +1372,7 @@ function WorkoutSessionPageInner() {
     return Date.now();
   });
   const [workoutResult, setWorkoutResult] = useState<{
-    duration: number; xpEarned: number; newPowerLevel: number; newAchievements: string[]; newQuests: string[];
+    duration: number; xpEarned: number; newPowerLevel: number; newAchievements: string[]; newQuests: string[]; totalWeightLifted: number;
   } | null>(null);
 
   // ── Load program ────────────────────────────────────────────────────────
@@ -2181,6 +2181,7 @@ function WorkoutSessionPageInner() {
             streak={profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0}
             newAchievements={workoutResult.newAchievements}
             newQuests={workoutResult.newQuests}
+            totalWeightLifted={workoutResult.totalWeightLifted}
             onContinue={() => { refreshProfile().catch(() => {}); router.replace('/dashboard'); }}
           />
         ) : (

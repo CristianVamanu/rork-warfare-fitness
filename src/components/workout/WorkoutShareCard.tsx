@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { getLevelTitle } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
 import { QUEST_DEFS } from '@/lib/quests';
+import { pickWeightComparison, comparisonPhrase } from '@/lib/weightComparison';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -19,6 +20,9 @@ interface Props {
   streak: number;
   newAchievements: string[];
   newQuests?: string[];
+  /** Always kilograms — see actions.ts. Undefined only for a call site that
+   * predates this prop; the comparison line simply doesn't render then. */
+  totalWeightLifted?: number;
   onContinue: () => void;
 }
 
@@ -31,11 +35,18 @@ export function WorkoutShareCard({
   streak,
   newAchievements,
   newQuests = [],
+  totalWeightLifted,
   onContinue,
 }: Props) {
   const levelTitle = getLevelTitle(newPowerLevel);
   const [sharing, setSharing] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // Seeded on the weight itself (see weightComparison.ts) rather than
+  // re-rolled on every render — the on-screen card and the rasterized share
+  // image must agree, and a fresh random pick on each paint could make them
+  // diverge if the component re-renders between "shown" and "shared".
+  const comparison = totalWeightLifted ? pickWeightComparison(totalWeightLifted) : null;
 
   // NEXT_PUBLIC_ env vars are inlined at build time, so this is safe to read
   // client-side too — matches the same fallback used in the root layout.
@@ -46,6 +57,7 @@ export function WorkoutShareCard({
   const shareText =
     `💪 Just finished a ${duration}-min workout!\n` +
     `${exerciseCount} exercises · ${completedSets} sets · ${xpEarned} XP earned\n` +
+    `${comparison ? `That's ${comparisonPhrase(comparison)} 💥\n` : ''}` +
     `${streak > 0 ? `🔥 ${streak}-day streak\n` : ''}` +
     `Fitness Level ${newPowerLevel} · ${levelTitle}\n\n` +
     `Join me on Warfare Fitness → ${appUrl}`;
@@ -117,15 +129,49 @@ export function WorkoutShareCard({
         {/* Background glow */}
         <div className="absolute -right-8 -top-8 w-32 h-32 bg-accent/10 rounded-full blur-2xl" />
 
-        {/* Branding */}
+        {/* Branding — the burning-logo still frame, the same mark used on
+            the landing page and every loading screen. A plain <img>, not
+            next/image: this element gets rasterized by html-to-image on
+            share, and the optimizer's proxied URL plus its lazy-load timing
+            is exactly the kind of thing that captures as blank when the
+            export fires before the image has actually painted. A small
+            static file loaded eagerly has no such race. */}
         <div className="flex items-center justify-between mb-4">
           <span className="text-xs font-bold text-accent tracking-widest uppercase">Warfare Fitness</span>
-          <span className="text-xs text-text-tertiary">💪</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/videos/hero-logo-poster.jpg" alt="" loading="eager" className="w-6 h-6 rounded-md object-cover flex-shrink-0" />
         </div>
 
         {/* Headline */}
         <p className="text-2xl font-black text-white mb-1">Workout Done. ✓</p>
         <p className="text-text-secondary text-sm mb-4">{duration} minute session complete</p>
+
+        {/* "I lifted the weight of a grizzly bear" — the whole point of this
+            card existing as a distinct feature. Absent entirely below the
+            comparable floor (a bodyweight-only session) rather than showing
+            a broken or silly-small comparison; see weightComparison.ts. */}
+        {comparison && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="relative rounded-xl border border-accent/25 bg-white/[0.03] p-3.5 mb-4 overflow-hidden"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">I lifted</p>
+            <div className="flex items-center gap-3 mt-1.5">
+              <motion.span
+                className="text-4xl leading-none flex-shrink-0"
+                animate={{ scale: [1, 1.12, 1], rotate: [0, -4, 4, 0] }}
+                transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 1.4, ease: 'easeInOut' }}
+              >
+                {comparison.object.emoji}
+              </motion.span>
+              <p className="text-lg font-black text-white leading-tight">
+                {comparisonPhrase(comparison).replace(/^the weight of /, '')}
+              </p>
+            </div>
+          </motion.div>
+        )}
 
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-2 mb-4">
