@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { getLevelTitle } from '@/lib/xp';
 import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
 import { QUEST_DEFS } from '@/lib/quests';
+import { pickCardHeadline } from '@/lib/cardHeadline';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -36,6 +37,20 @@ export function WorkoutShareCard({
   const levelTitle = getLevelTitle(newPowerLevel);
   const [sharing, setSharing] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // The one fact this card leads with. Resolved from the achievement
+  // definitions rather than raw ids so the headline reads as a title
+  // ("Century Club") rather than a slug.
+  const headline = pickCardHeadline({
+    newAchievementTitles: newAchievements
+      .map((id) => ACHIEVEMENT_DEFS.find((d) => d.id === id)?.title)
+      .filter((t): t is string => !!t),
+    streak,
+    powerLevel: newPowerLevel,
+    levelTitle,
+    completedSets,
+    durationMinutes: duration,
+  });
 
   // NEXT_PUBLIC_ env vars are inlined at build time, so this is safe to read
   // client-side too — matches the same fallback used in the root layout.
@@ -117,15 +132,59 @@ export function WorkoutShareCard({
         {/* Background glow */}
         <div className="absolute -right-8 -top-8 w-32 h-32 bg-accent/10 rounded-full blur-2xl" />
 
-        {/* Branding */}
+        {/* Branding — the burning-logo still frame, the same mark used on
+            the landing page and every loading screen. A plain <img>, not
+            next/image: this element gets rasterized by html-to-image on
+            share, and the optimizer's proxied URL plus its lazy-load timing
+            is exactly the kind of thing that captures as blank when the
+            export fires before the image has actually painted. A small
+            static file loaded eagerly has no such race. */}
         <div className="flex items-center justify-between mb-4">
           <span className="text-xs font-bold text-accent tracking-widest uppercase">Warfare Fitness</span>
-          <span className="text-xs text-text-tertiary">💪</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/videos/hero-logo-poster.jpg" alt="" loading="eager" className="w-6 h-6 rounded-md object-cover flex-shrink-0" />
         </div>
 
         {/* Headline */}
         <p className="text-2xl font-black text-white mb-1">Workout Done. ✓</p>
         <p className="text-text-secondary text-sm mb-4">{duration} minute session complete</p>
+
+        {/* The card's one headline fact — an achievement if this session
+            unlocked one, else the streak, else the session stated plainly.
+            Everything here is countable by the person reading it; see
+            cardHeadline.ts for why the weight comparison that used to live
+            in this slot was removed. */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="relative rounded-xl border border-accent/[0.18] mb-4 overflow-hidden text-center px-3.5 pt-3.5 pb-3"
+          /* The fire-lit well: light thrown up from the bottom edge, the same
+             amber the burning logo is lit with, so the glyph sits INSIDE the
+             brand's world rather than on top of it. Inline rather than a
+             Tailwind arbitrary value because html-to-image rasterizes
+             computed styles — a multi-layer background belongs somewhere it
+             cannot be purged or reordered. */
+          style={{
+            background:
+              'radial-gradient(ellipse 70% 90% at 50% 105%, rgba(245,166,35,0.42), transparent 62%),' +
+              'radial-gradient(ellipse 120% 80% at 50% 120%, rgba(200,60,0,0.30), transparent 70%),' +
+              '#0b0b0b',
+          }}
+        >
+          <motion.p
+            className="text-[52px] leading-[1.05] mb-0"
+            style={{ filter: 'drop-shadow(0 0 18px rgba(245,166,35,0.75)) drop-shadow(0 2px 3px rgba(0,0,0,0.8))' }}
+            animate={{ scale: [1, 1.06, 1] }}
+            transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 1.2, ease: 'easeInOut' }}
+          >
+            {headline.glyph}
+          </motion.p>
+          <p className="text-[24px] font-black uppercase leading-[1.05] mt-1 text-white text-balance">
+            {headline.headline}
+          </p>
+          <p className="text-[11px] text-accent mt-1.5">{headline.sub}</p>
+        </motion.div>
 
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-2 mb-4">
@@ -212,8 +271,14 @@ export function WorkoutShareCard({
         </motion.div>
       )}
 
-      {/* Actions */}
-      <div className="flex gap-3">
+      {/* Actions — sticky at the bottom of the modal's own scroll area
+          (Modal.tsx wraps children in overflow-y-auto) rather than flowing
+          after however many achievement/quest cards stacked up. 2+
+          achievements previously pushed this off the bottom of the screen
+          on mobile with nothing indicating there was more to scroll to —
+          effectively stranding the user on this screen with no way to
+          continue past it. */}
+      <div className="sticky bottom-0 -mx-5 -mb-5 px-5 pb-5 pt-3 flex gap-3 bg-surface-elevated">
         <Button variant="secondary" fullWidth loading={sharing} onClick={handleShare}>
           <Share2 className="w-4 h-4" /> Share
         </Button>

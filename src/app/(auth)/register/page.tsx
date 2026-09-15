@@ -14,11 +14,12 @@ import { signUp } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
+import { AuthBrandMark } from '@/components/auth/AuthBrandMark';
 
 const schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
   sex: z.enum(['male', 'female'], { errorMap: () => ({ message: 'Select male or female' }) }),
   age: z.coerce.number({ invalid_type_error: 'Enter your age' }).int().min(13, 'Must be 13 or older').max(100, 'Enter a valid age'),
@@ -45,17 +46,14 @@ export default function RegisterPage() {
   const sex = watch('sex');
 
   const onSubmit = async (data: FormData) => {
-    console.log('[Register] Sign-up requested — email:', data.email, 'name:', data.name, 'unit:', data.weightUnit);
     setLoading(true);
     try {
-      console.log('[Register] Calling signUp...');
       await signUp(data.email, data.password, data.name, data.weightUnit);
       // Straight into the same onboarding quiz the landing page funnels
       // into (goal/experience/program/etc) instead of dumping the user on
       // an empty dashboard with no program, no goals, nothing — sex/age
       // ride along as query params exactly like the landing page's
       // quick-start box, so onboarding doesn't ask for them a second time.
-      console.log('[Register] signUp succeeded — continuing to onboarding');
       router.replace(`/onboarding?sex=${data.sex}&age=${data.age}`);
     } catch (err: unknown) {
       const e = err as Error & { code?: string };
@@ -80,13 +78,10 @@ export default function RegisterPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="flex flex-col items-center mb-8">
-        <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mb-4 shadow-glow-accent">
-          <span className="text-2xl font-black text-black">W</span>
-        </div>
-        <h1 className="text-2xl font-black text-white tracking-tight">Create Your Account</h1>
-        <p className="text-text-secondary text-sm mt-1">Start your fitness journey</p>
-      </div>
+      {/* Was a 16×16 gold square with a hardcoded "W" in it — the only place
+          in the app that assumed the brand's initial, and visibly smaller and
+          plainer than the mark on every other auth screen. */}
+      <AuthBrandMark title="Create Your Account" subtitle="Start your fitness journey" />
 
       <Card glass className="p-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

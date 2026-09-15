@@ -13,6 +13,15 @@ import { verifyAdmin } from '@/lib/verifyAdmin';
 import { getR2Client, r2PublicUrl } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
 
+// Same protections as the member-facing /api/uploads/presign — this route
+// had none at all (any content-type, no size cap), even though it writes
+// into the exerciseLibrary/branding paths of the same public-facing bucket
+// that route deliberately locks down for exactly this reason (an SVG with
+// an embedded <script> served back as active content from a public bucket).
+const ALLOWED_CONTENT_TYPE = /^(image|video)\//;
+const DISALLOWED_CONTENT_TYPE = /^image\/svg\+xml$/i;
+const MAX_SIZE_BYTES = 200 * 1024 * 1024; // 200MB — covers a real exercise-demo video
+
 export async function POST(req: NextRequest) {
   try {
     const check = await verifyAdmin(req);
@@ -26,9 +35,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'R2 not configured' }, { status: 500 });
     }
 
-    const { filename, contentType, folder } = await req.json();
+    const { filename, contentType, folder, sizeBytes } = await req.json();
     if (!filename || typeof filename !== 'string') {
       return NextResponse.json({ error: 'filename is required' }, { status: 400 });
+    }
+    if (!contentType || typeof contentType !== 'string' || !ALLOWED_CONTENT_TYPE.test(contentType) || DISALLOWED_CONTENT_TYPE.test(contentType)) {
+      return NextResponse.json({ error: 'Only image or video uploads are allowed' }, { status: 400 });
+    }
+    if (typeof sizeBytes !== 'number' || sizeBytes <= 0 || sizeBytes > MAX_SIZE_BYTES) {
+      return NextResponse.json({ error: `File must be under ${MAX_SIZE_BYTES / (1024 * 1024)}MB` }, { status: 400 });
     }
 
     const safeFolder = typeof folder === 'string' && folder ? folder.replace(/[^a-zA-Z0-9_-]/g, '') : 'exerciseLibrary';
@@ -38,7 +53,10 @@ export async function POST(req: NextRequest) {
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
-      ContentType: contentType || 'application/octet-stream',
+      ContentType: contentType,
+      // R2/S3 rejects the actual PUT if its real body size doesn't match —
+      // this is what makes the sizeBytes check above load-bearing.
+      ContentLength: sizeBytes,
     });
 
     const uploadUrl = await getSignedUrl(client, command, { expiresIn: 300 });

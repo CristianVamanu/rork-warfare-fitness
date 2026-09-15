@@ -6,32 +6,43 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
-  Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy,
+  Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
   ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
   Menu, X as XIcon, Clock, BarChart3, Anchor, Compass, Shield, Swords, Footprints, Waves, LifeBuoy, Mountain, PlayCircle,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSystemConfig, getMembershipConfig, getCoachingPlans, getMembershipPlans } from '@/lib/firestore';
-import { FullPageSpinner } from '@/components/ui/Spinner';
+import { getSystemConfig, getMembershipConfig, getCoachingPlans, getMembershipPlans, createLandingLead } from '@/lib/firestore';
+import { trackEvent } from '@/lib/analytics';
+import { BrandSplash } from '@/components/ui/BrandSplash';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
-import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
+import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods, buildTrialTerms } from '@/lib/utils';
 import type { LandingPageConfig, MembershipConfig, CoachingPlan, MembershipPlan } from '@/types';
 
-// Icon + color stay fixed by position — only title/desc are admin-editable.
-// If a client adds more feature entries than this list has, extras fall
-// back to the last icon/color rather than crashing.
-const FEATURE_STYLES = [
-  { icon: Dumbbell, color: 'text-purple-400', bg: 'bg-purple-400/10' },
-  { icon: Apple, color: 'text-green-400', bg: 'bg-green-400/10' },
-  { icon: ScanLine, color: 'text-blue-400', bg: 'bg-blue-400/10' },
-  { icon: MessageCircle, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-  { icon: Timer, color: 'text-sky-400', bg: 'bg-sky-400/10' },
-  { icon: Ban, color: 'text-red-400', bg: 'bg-red-400/10' },
-  { icon: Trophy, color: 'text-accent', bg: 'bg-accent-muted' },
-  { icon: Users, color: 'text-orange-400', bg: 'bg-orange-400/10' },
+// Icon/color is matched by keyword in the feature's title rather than by
+// array position — an admin adding/reordering/removing feature entries in
+// the landing-page editor used to desync every icon and the hero/
+// full-width special-casing below it (both were keyed to a fixed index,
+// assuming a specific save order that a real edit broke immediately).
+// Keyword matching survives any order or count; anything unrecognized
+// (a brand-new custom feature) falls back to the generic Sparkles icon.
+const FEATURE_STYLE_RULES: { match: RegExp; icon: typeof Dumbbell; color: string; bg: string }[] = [
+  { match: /program|adapt/i, icon: Dumbbell, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+  { match: /food|meal|nutrition/i, icon: Apple, color: 'text-green-400', bg: 'bg-green-400/10' },
+  { match: /barcode|scan-a/i, icon: ScanLine, color: 'text-blue-400', bg: 'bg-blue-400/10' },
+  { match: /scan\s*&?\s*go/i, icon: Camera, color: 'text-cyan-400', bg: 'bg-cyan-400/10' },
+  { match: /elite|unit|train like/i, icon: MessageCircle, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+  { match: /fast/i, icon: Timer, color: 'text-sky-400', bg: 'bg-sky-400/10' },
+  { match: /habit/i, icon: Ban, color: 'text-red-400', bg: 'bg-red-400/10' },
+  { match: /streak|xp|level/i, icon: Trophy, color: 'text-accent', bg: 'bg-accent-muted' },
+  { match: /communit/i, icon: Users, color: 'text-orange-400', bg: 'bg-orange-400/10' },
 ];
+const DEFAULT_FEATURE_STYLE = { icon: Sparkles, color: 'text-teal-400', bg: 'bg-teal-400/10' };
+function getFeatureStyle(title: string) {
+  return FEATURE_STYLE_RULES.find((r) => r.match.test(title)) ?? DEFAULT_FEATURE_STYLE;
+}
 
 const FAQ_ITEMS = [
   {
@@ -45,6 +56,10 @@ const FAQ_ITEMS = [
   {
     q: 'How is this different from a generic workout app?',
     a: 'Your program is matched to your specific goal, experience, equipment, and schedule instead of a one-size-fits-all plan — and it adjusts weight/rep suggestions based on your own logged performance as you go.',
+  },
+  {
+    q: "What if I don't like the program I'm matched with?",
+    a: "Switch it. The quiz picks a starting point, not a sentence — every program in the library is open to you, and you can change from your training screen whenever you like. Your progress on the old one is saved, so you can come back to it.",
   },
   {
     q: 'Can I cancel anytime?',
@@ -70,7 +85,13 @@ interface PublicProgram {
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
-  { href: '#programs', label: 'Programs' },
+  // Points at the real, indexable pages rather than an anchor on this one.
+  // The anchor scrolled to a teaser; /programs is eleven pages of actual
+  // content a search engine can read and a visitor can dig into.
+  { href: '/programs', label: 'Programs' },
+  // One entry, not eleven. The individual unit pages hang off /standards and
+  // are reached from that page or from search, never from the menu.
+  { href: '/standards', label: 'Standards' },
   { href: '/download', label: 'Download App' },
   { href: '/trainers', label: 'For Trainers' },
   { href: '/terms', label: 'Terms' },
@@ -100,7 +121,7 @@ const PROGRAM_BADGE: Record<string, { icon: React.ElementType; color: string }> 
 };
 
 const TICKER_ITEMS = [
-  'Train Like The Elite', 'AI-Matched From Day One', 'Adapts To Every Rep',
+  'Train Like The Elite', 'Matched To You From Day One', 'Adapts To Every Rep',
   'No Generic Plans', 'Built To Adapt', 'Consistency Over Motivation',
 ];
 
@@ -172,24 +193,33 @@ export default function LandingPage({
   initialAppName,
   initialLogoUrl,
   initialLanding,
+  initialMembership,
+  initialMembershipPlans,
 }: {
   initialAppName: string;
   initialLogoUrl: string | null;
   initialLanding: LandingPageConfig;
+  initialMembership: MembershipConfig | null;
+  initialMembershipPlans: MembershipPlan[];
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   // Seeded from a server-side fetch of the same admin-configured Firestore
   // doc this effect below re-fetches — so the very first paint already
   // shows the real headline instead of DEFAULT_LANDING_CONFIG's copy
-  // flashing for a second before the client fetch resolves.
+  // flashing for a second before the client fetch resolves. Same reasoning
+  // for membership: without seeding it, primaryCtaLabel below always
+  // computed off trialDays=0 first (membership starts null) and visibly
+  // swapped labels ("Get Matched Free" -> "Start N-Day Free Trial") the
+  // moment the client-side getMembershipConfig() call resolved.
   const [appName, setAppName] = useState(initialAppName);
   const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl);
   const [landing, setLanding] = useState<LandingPageConfig>(initialLanding);
-  const [membership, setMembership] = useState<MembershipConfig | null>(null);
+  const [membership, setMembership] = useState<MembershipConfig | null>(initialMembership);
   const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
-  const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
-  const [leaderboard, setLeaderboard] = useState<{ displayName: string; powerLevel: number; streak: number; totalWorkouts: number }[]>([]);
+  const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>(
+    () => initialMembershipPlans.filter((p) => p.active && getPlanBillingPeriods(p).length > 0)
+  );
   const [stats, setStats] = useState<{ totalUsers: number; totalWorkouts: number } | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [quickSex, setQuickSex] = useState<'male' | 'female' | null>(null);
@@ -197,9 +227,23 @@ export default function LandingPage({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<PublicProgram | null>(null);
   const [demoOpen, setDemoOpen] = useState(false);
+  const [exitIntentOpen, setExitIntentOpen] = useState(false);
+  const [exitEmail, setExitEmail] = useState('');
+  const [exitSubmitting, setExitSubmitting] = useState(false);
+  const [exitSubmitted, setExitSubmitted] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace('/dashboard');
+    if (loading) return;
+    // Keep the pre-paint decision honest once auth has actually answered.
+    // A signed-in user: make sure the splash is up (covers a device with no
+    // flag yet) and go to the dashboard. No user: drop the attribute so a
+    // stale flag — signed out on another tab, storage cleared — cannot
+    // leave a stranger staring at the logo forever.
+    try {
+      if (user) document.documentElement.setAttribute('data-wf-session', '1');
+      else document.documentElement.removeAttribute('data-wf-session');
+    } catch { /* not in a browser */ }
+    if (user) router.replace('/dashboard');
   }, [user, loading, router]);
 
   useEffect(() => {
@@ -211,24 +255,169 @@ export default function LandingPage({
     getMembershipConfig().then(setMembership).catch(() => {});
     getCoachingPlans().then((plans) => setCoachingPlans(plans.filter((p) => p.active))).catch(() => {});
     getMembershipPlans().then((plans) => setMembershipPlans(plans.filter((p) => p.active && getPlanBillingPeriods(p).length > 0))).catch(() => {});
-    fetch('/api/public/leaderboard').then((r) => r.json()).then((d) => setLeaderboard(d.entries ?? [])).catch(() => {});
     fetch('/api/public/stats').then((r) => r.json()).then(setStats).catch(() => {});
     fetch('/api/public/programs').then((r) => r.json()).then((d) => setPrograms(d.programs ?? [])).catch(() => {});
   }, []);
 
+  // Exit-intent lead capture — catches a visitor about to leave without
+  // converting, instead of losing them with nothing to retarget/nurture.
+  // Desktop: fires the instant the cursor exits through the TOP of the
+  // viewport (the classic "moving toward the tab bar/back button" motion) —
+  // that's not available on touch devices, so mobile instead gets a
+  // fallback: shown once the visitor has genuinely engaged (scrolled past
+  // the hero) and then been idle-on-page for a while, rather than never
+  // showing at all. Shown at most once per session either way.
+  const SHOWN_KEY = 'wf_exit_intent_shown';
+  useEffect(() => {
+    if (loading || user) return;
+    try {
+      if (sessionStorage.getItem(SHOWN_KEY)) return;
+    } catch { /* private browsing — just skip the session cap */ }
+
+    // The sessionStorage check above only runs once, when this effect first
+    // attaches its listeners — it does NOT stop the listeners themselves
+    // from firing again afterward. Without this in-memory guard checked
+    // INSIDE trigger() itself, the very first exit-intent correctly opened
+    // the modal and wrote the session flag, but the mouseleave listener
+    // stayed attached and re-opened the modal on every single subsequent
+    // cursor-exit-through-the-top for the rest of the visit — reported live
+    // as the popup reappearing on every cursor move near the top of the
+    // page. Removing the listeners immediately after the first trigger
+    // (not just on unmount) closes both the "keeps reappearing" bug and
+    // the "reappears after dismissing" case, since dismissing the modal
+    // (onClose) doesn't re-run this effect at all.
+    let shown = false;
+    const trigger = () => {
+      if (shown) return;
+      shown = true;
+      setExitIntentOpen(true);
+      try { sessionStorage.setItem(SHOWN_KEY, '1'); } catch { /* ignore */ }
+      cleanup();
+    };
+
+    const onMouseLeave = (e: MouseEvent) => {
+      if (e.clientY <= 0) trigger();
+    };
+    document.addEventListener('mouseleave', onMouseLeave);
+
+    let mobileTimer: ReturnType<typeof setTimeout> | null = null;
+    const onScroll = () => {
+      if (mobileTimer || window.scrollY <= window.innerHeight * 0.5) return;
+      mobileTimer = setTimeout(trigger, 20000);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    function cleanup() {
+      document.removeEventListener('mouseleave', onMouseLeave);
+      window.removeEventListener('scroll', onScroll);
+      if (mobileTimer) clearTimeout(mobileTimer);
+    }
+    return cleanup;
+  }, [loading, user]);
+
+  async function handleExitEmailSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!/^\S+@\S+\.\S+$/.test(exitEmail)) {
+      toast.error('Enter a valid email address.');
+      return;
+    }
+    setExitSubmitting(true);
+    try {
+      const email = exitEmail.trim();
+      await createLandingLead(email);
+      trackEvent('Lead');
+      setExitSubmitted(true);
+      // Best-effort — the popup already promises "we'll send you a link",
+      // so this actually has to fire, not just the Firestore write. Never
+      // blocks the success state on it: a failed send here shouldn't make
+      // an already-captured lead look like the whole thing failed.
+      fetch('/api/email/landing-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      }).catch(() => {});
+    } catch {
+      toast.error('Something went wrong — try again.');
+    } finally {
+      setExitSubmitting(false);
+    }
+  }
+
+  const anyPlanMarkedPopular = membershipPlans.some((p) => p.mostPopular);
   const trialDays = membership?.enabled ? (membership.trialDays ?? 0) : 0;
+  const paidTrialEnabled = !!membership?.paidTrialEnabled;
+  // Card-up-front trial: still free for trialDays, but a card IS taken at
+  // checkout, so every 'no credit card required' claim on this page has to
+  // stop making it.
+  const cardUpFrontTrial = !paidTrialEnabled && !!membership?.cardUpFrontTrial;
+  const trialPrice = ((membership?.trialPriceCents ?? 100) / 100).toFixed(2);
   const discountPercent = getActiveDiscountPercent(membership);
+  // The hero used to spell out the post-trial price using the FEATURED plan,
+  // on the reasoning that the hero CTA isn't tied to any plan the visitor has
+  // picked. But "featured" is the plan the admin wants to sell, not the one
+  // the visitor will necessarily buy — with a $19 tier on the page it printed
+  // "then $49.00/mo" under the $1 button and misquoted everyone who chose the
+  // cheaper plan. buildTrialTerms quotes the entry price instead.
 
-  if (loading || user) return <FullPageSpinner />;
+  // No early return any more. The landing renders on the server for
+  // everyone — strangers, crawlers, paid traffic — and a device that has a
+  // session hides it behind the brand splash via CSS from before first paint
+  // (layout.tsx sets the attribute; globals.css does the hiding) until the
+  // redirect above lands. Returning a spinner here used to mean the server
+  // sent an empty page to every visitor to spare members a flash.
 
-  const subheadline = landing.subheadline.replace('{appName}', appName);
-  // Free trial needs no payment upfront — MembershipGuard grants access
+  // Admin-editable landing copy can reference the live trial settings with
+  // {appName} / {trialDays} / {trialPrice} placeholders, so changing Trial
+  // Days from 7 to 14 (or switching on Paid Trial) updates the marketing
+  // copy too instead of leaving it claiming "free for 7 days" forever.
+  const fillPlaceholders = (text: string) => text
+    .replace(/\{appName\}/g, appName)
+    .replace(/\{trialDays\}/g, String(trialDays))
+    .replace(/\{trialPrice\}/g, `$${trialPrice}`);
+  const subheadline = fillPlaceholders(landing.subheadline);
+  // A free trial needs no payment upfront — MembershipGuard grants access
   // automatically for trialDays from account creation, so the CTA can lead
-  // straight to registration rather than a paid checkout.
-  const primaryCtaLabel = trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : landing.ctaPrimaryLabel;
+  // straight to registration rather than a paid checkout. A paid trial
+  // (MembershipConfig.paidTrialEnabled) is the opposite: it only exists to
+  // get a card on file immediately, so both the label and every "no card
+  // required" claim on this page have to say so honestly instead of
+  // copy-pasting the free-trial promise onto a flow that now requires one.
+  //
+  // Both the label and the terms under it now come from buildTrialTerms, so
+  // the hero cannot quote a price the pricing section below it contradicts.
+  const trialTerms = buildTrialTerms({
+    trialDays,
+    paidTrialEnabled,
+    cardUpFrontTrial,
+    trialPriceCents: membership?.trialPriceCents,
+    plans: membershipPlans,
+    noTrialCtaLabel: landing.ctaPrimaryLabel,
+  });
+  const primaryCtaLabel = trialTerms.ctaLabel;
+
+  // "Start for $1.00" states a price without stating that it renews, which is
+  // the single most complaint-generating shape a paid-trial CTA can take — so
+  // wherever that button appears, this line appears under it.
+  //
+  // It used to render in the hero only, and only when featuredPlanPrice was
+  // non-null. Both halves were wrong. The final CTA at the bottom of the page
+  // carried the same "$1" button with no renewal terms at all, and page.tsx
+  // fetches plans with `.catch(() => [])` — so any Firestore hiccup emptied
+  // membershipPlans, made featuredPlanPrice null, and silently dropped the
+  // disclosure from the hero too while leaving the price on the button.
+  // Disclosure now degrades to naming the term without the amount rather than
+  // disappearing, and is never conditional on a fetch succeeding.
+  // Shown for EVERY trial mode now, not just the paid one. A free trial that
+  // takes a card still converts into a real charge, and saying so is what
+  // stops the charge being a surprise.
+  const paidTrialDisclosure = trialTerms.disclosure;
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden relative">
+    <>
+      {/* Both are always in the HTML. Which one is visible is decided by CSS
+          from the html[data-wf-session] attribute — see BrandSplash. */}
+      <BrandSplash gated />
+    <div data-landing-body className="min-h-screen bg-background overflow-x-hidden relative">
       {/* Ambient glow + grid texture, contained to the hero viewport so it
           doesn't bleed color into the feature/social-proof sections below. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[640px] overflow-hidden">
@@ -263,11 +452,11 @@ export default function LandingPage({
       <nav className="relative max-w-5xl mx-auto px-5 py-5">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center overflow-hidden flex-shrink-0">
+            <div className={`w-[4.5rem] h-[4.5rem] rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0 ${logoUrl ? '' : 'bg-accent'}`}>
               {logoUrl ? (
-                <Image src={logoUrl} alt={appName} width={36} height={36} className="w-full h-full object-cover" />
+                <Image src={logoUrl} alt={appName} width={72} height={72} className="w-full h-full object-cover" onError={() => setLogoUrl(null)} />
               ) : (
-                <span className="text-base font-black text-black">{appName[0]}</span>
+                <span className="text-xl font-black text-black">{appName[0]}</span>
               )}
             </div>
             <span className="text-base font-black text-white tracking-tight">{appName}</span>
@@ -394,12 +583,29 @@ export default function LandingPage({
               </Button>
             </Link>
             {!quickSex && (
-              <p className="text-[11px] text-text-tertiary text-center mt-2">Select your sex to continue.</p>
+              <p className="text-[11px] text-text-tertiary text-center mt-2">Select your gender to continue.</p>
+            )}
+            {/* Spells out exactly what "$X" turns into after the trial —
+                the button alone ("Start for $1.00") doesn't say how long
+                that lasts or what it becomes, which is exactly the kind of
+                ambiguity that gets a checkout screenshotted and complained
+                about. Priced off the featured (first) membership plan,
+                same one the pricing section itself marks "Most Popular". */}
+            {paidTrialDisclosure && (
+              <p className="text-[11px] text-text-tertiary text-center mt-2">
+                {paidTrialDisclosure}
+              </p>
             )}
           </div>
 
           <div className="flex items-center justify-center gap-4 mt-5 flex-wrap">
-            <p className="text-xs text-text-tertiary">No credit card required</p>
+            <p className="text-xs text-text-tertiary">{paidTrialEnabled || cardUpFrontTrial ? `Cancel anytime` : 'No credit card required'}</p>
+            <span className="text-text-tertiary">·</span>
+            {/* The matched program is the first thing a new member sees and
+                the first thing they can dislike; saying up front that it is
+                changeable removes the "what if it picks wrong" hesitation
+                before the quiz, which is where it actually costs signups. */}
+            <p className="text-xs text-text-tertiary">Switch programs any time</p>
             <span className="text-text-tertiary">·</span>
             <Link href="/login" className="text-xs text-accent font-medium hover:underline">
               {landing.ctaSecondaryLabel}
@@ -415,6 +621,25 @@ export default function LandingPage({
                 </button>
               </>
             )}
+          </div>
+
+          {/* Verifiable trust signals about the product itself — shown
+              unconditionally, unlike the real-usage stats/testimonials below
+              which are correctly gated behind having real data. A brand-new
+              install with zero users yet would otherwise show NO trust
+              signal at all above the fold, right when a cold visitor needs
+              one most. These claims are true regardless of user count, so
+              there's nothing fabricated about showing them from day one. */}
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mt-6">
+            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+              <ShieldCheck className="w-3.5 h-3.5 text-accent" /> Secure checkout
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+              <XCircle className="w-3.5 h-3.5 text-accent" /> Cancel anytime
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+              <CheckCircle2 className="w-3.5 h-3.5 text-accent" /> Matched to you in 2 minutes
+            </div>
           </div>
 
           {/* Real usage numbers only — hidden below a threshold so a brand
@@ -435,55 +660,222 @@ export default function LandingPage({
         </motion.div>
       </section>
 
-      {/* Feature grid — bento layout. Width varies by position (wide hero,
-          narrower supporting cards, full-width closer) but height is never
-          forced — each row's cards stretch to match whichever card in that
-          row has the most text, so nothing overflows past its border and
-          nothing is left with an oddly empty middle. If an admin adds/
-          removes features, extras fall back to a plain 1-column width. */}
-      <section className="max-w-5xl mx-auto px-5 pb-16">
+      {/* Feature grid — uniform equal-size cards. Deliberately NOT a
+          position-dependent bento layout (a wide "hero" first tile, a
+          full-width last tile) — that broke the moment an admin added,
+          removed, or reordered a feature in the landing-page editor, since
+          the hero/full-width slots and icon assignment were both keyed to
+          a fixed index that only matched one specific save order. A plain
+          uniform grid always looks right regardless of count or order. */}
+      <TacticalStripe />
+
+      {/* The free thing, placed high and asking for nothing.
+          It is the only block on this page a stranger can act on without
+          handing over an email or a card, which is exactly why it sits above
+          everything that does ask. */}
+      <section className="relative max-w-5xl mx-auto px-5 pt-14">
+        <Link
+          href="/standards"
+          className="group relative block overflow-hidden rounded-3xl border border-accent/25 bg-gradient-to-br from-accent/[0.12] via-accent/[0.04] to-transparent p-6 sm:p-8 transition-colors hover:border-accent/50"
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-40"
+            style={{
+              backgroundImage:
+                'linear-gradient(rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px)',
+              backgroundSize: '38px 38px',
+              maskImage: 'radial-gradient(ellipse 70% 80% at 85% 50%, black, transparent 70%)',
+              WebkitMaskImage: 'radial-gradient(ellipse 70% 80% at 85% 50%, black, transparent 70%)',
+            }}
+          />
+          <div className="relative flex items-start justify-between gap-5">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-accent">Free · no account</p>
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-2 leading-tight">
+                Could you pass selection?
+              </h2>
+              <p className="text-sm text-text-secondary mt-2 max-w-md leading-relaxed">
+                The real published standards for Marine Recon, the SEALs, the Royal Marines, UKSF and more.
+                Put your numbers in and find out which ones you would clear today.
+              </p>
+              <span className="inline-flex items-center gap-1.5 text-sm font-bold text-accent mt-4">
+                Test yourself <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </span>
+            </div>
+            <div className="hidden sm:flex flex-col items-end gap-1.5 flex-shrink-0 pt-1">
+              {['15 pull-ups', '60 push-ups', '3 miles · 19:30'].map((t) => (
+                <span key={t} className="text-[11px] font-semibold tabular-nums text-text-tertiary border border-white/10 rounded-lg px-2.5 py-1 bg-black/30">
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+        </Link>
+      </section>
+
+      <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pt-16 pb-16">
+        <GlowOrb className="w-80 h-80 bg-accent/[0.08] -top-20 -left-20 -z-10" />
+        <GlowOrb className="w-72 h-72 bg-accent/[0.06] bottom-0 -right-16 -z-10" />
         <div className="text-center mb-8">
           <h2 className="text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
           <p className="text-text-secondary text-sm mt-2">One app for training, nutrition, accountability, and progress.</p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 items-stretch">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
           {landing.features.map((f, i) => {
-            const style = FEATURE_STYLES[i] ?? FEATURE_STYLES[FEATURE_STYLES.length - 1];
-            const colSpan = [
-              'col-span-2 sm:col-span-2',
-              'col-span-2 sm:col-span-1',
-              'col-span-2 sm:col-span-1',
-              'col-span-1',
-              'col-span-1',
-              'col-span-1',
-              'col-span-1',
-              'col-span-2 sm:col-span-4',
-            ][i] ?? 'col-span-2 sm:col-span-1';
-            const isHero = i === 0;
+            const style = getFeatureStyle(f.title);
             return (
               <motion.div
                 key={`${f.title}-${i}`}
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.35, delay: (i % 4) * 0.05 }}
-                className={`${colSpan} p-5 rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors flex flex-col items-start relative overflow-hidden`}
+                transition={{ duration: 0.35, delay: (i % 3) * 0.05 }}
+                className="p-5 rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors flex flex-col items-start"
               >
-                {/* Large faint watermark icon — fills a wide hero tile's
-                    extra space without inventing fake content per feature. */}
-                {isHero && (
-                  <style.icon className="absolute -right-4 -bottom-4 w-28 h-28 text-white/[0.03] pointer-events-none" />
-                )}
-                <div className={`relative ${isHero ? 'w-12 h-12' : 'w-10 h-10'} rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
-                  <style.icon className={`${isHero ? 'w-6 h-6' : 'w-5 h-5'} ${style.color}`} />
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
+                  <style.icon className={`w-5 h-5 ${style.color}`} />
                 </div>
-                <h3 className={`relative font-bold text-white ${isHero ? 'text-base' : 'text-sm'}`}>{f.title}</h3>
-                <p className="relative text-xs text-text-secondary mt-1.5 leading-relaxed">{f.desc}</p>
+                <div className="flex items-start gap-2 flex-wrap">
+                  <h3 className="font-bold text-white text-sm">{f.title}</h3>
+                  {/* Only rendered when an admin has tagged the feature as
+                      higher-tier — see LandingFeature.tierNote. */}
+                  {f.tierNote?.trim() && (
+                    <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-accent-muted text-accent border border-accent/20 flex-shrink-0">
+                      {f.tierNote.trim()}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">{f.desc}</p>
               </motion.div>
             );
           })}
         </div>
       </section>
+
+      {/* What it replaces — three columns: the feature, the separate app
+          people pay for it, and us. The earlier version listed only the
+          other apps and their prices, which read as if THOSE were the
+          subscriptions on offer here; a comparison needs the thing being
+          compared in it. On phones the feature name takes a full row and
+          the two price cells sit under it, so nothing truncates. Total and
+          "you keep" follow the same currency rules as before. */}
+      {(() => {
+        const sc = landing.stackComparison;
+        if (!sc || sc.enabled === false || !sc.rows?.length) return null;
+        const rows = sc.rows.filter((r) => r.name?.trim() && Number.isFinite(r.pricePerMonth) && r.pricePerMonth > 0);
+        if (rows.length === 0) return null;
+        const currencies = new Set(rows.map((r) => (r.currency || 'USD').toUpperCase()));
+        const oneCurrency = currencies.size === 1 ? [...currencies][0] : null;
+        const total = oneCurrency ? rows.reduce((s, r) => s + r.pricePerMonth, 0) : null;
+        // Our cheapest per-month figure: a monthly price if any plan has
+        // one, otherwise the longest term annualised. Discounts are not
+        // applied — a promo code is not the price.
+        const ours = membershipPlans
+          .map((p) => p.priceMonthly ?? (p.price12mo !== undefined ? p.price12mo / 12 : p.price6mo !== undefined ? p.price6mo / 6 : p.price3mo !== undefined ? p.price3mo / 3 : undefined))
+          .filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0);
+        const ourPrice = ours.length ? Math.min(...ours) : null;
+        const ourCurrency = (membershipPlans[0]?.currency || 'USD').toUpperCase();
+        const comparable = total !== null && ourPrice !== null && oneCurrency === ourCurrency && total > ourPrice;
+        const sym = (c: string) => ({ USD: '$', GBP: '£', EUR: '€', AUD: 'A$', CAD: 'C$' } as Record<string, string>)[c] ?? `${c} `;
+        const money = (n: number, c: string) => `${sym(c)}${n.toFixed(2)}`;
+        const cols = 'grid grid-cols-2 sm:grid-cols-[1.3fr_1fr_1fr]';
+        return (
+          <section className="relative overflow-hidden max-w-4xl mx-auto px-5 pb-16">
+            <GlowOrb className="w-80 h-80 bg-accent/[0.07] -bottom-24 -right-24 -z-10" />
+            <div className="text-center mb-8">
+              <h2 className="text-2xl sm:text-3xl font-black text-white">{sc.heading?.trim() || 'Four subscriptions. Or one.'}</h2>
+              {sc.subheading?.trim() && <p className="text-text-secondary text-sm mt-2 max-w-xl mx-auto">{sc.subheading}</p>}
+            </div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.35 }}
+              className="rounded-2xl border border-white/10 bg-surface overflow-hidden"
+            >
+              {/* Two equal columns on a phone, three on desktop. The first
+                  cut gave the feature name its own full-width row above the
+                  two cells, which broke the column rhythm: the tinted brand
+                  column stopped and restarted on every row and "Included"
+                  sat under a dark gap. Now on a phone the feature name is
+                  the bold first line INSIDE the left cell, so both columns
+                  run continuously top to bottom and every row is exactly
+                  two equal cells. Desktop pulls the feature name back out
+                  into its own column. */}
+              <div className={`${cols} text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.15em] text-text-tertiary border-b border-white/8`}>
+                <span className="hidden sm:block px-5 py-3">Feature</span>
+                <span className="px-4 sm:px-5 py-3">Separate app</span>
+                <span className="px-4 sm:px-5 py-3 text-accent bg-accent/[0.06] border-l border-accent/20">{appName}</span>
+              </div>
+
+              {rows.map((r, i) => {
+                const feature = r.replaces?.trim() || r.name;
+                const cur = (r.currency || 'USD').toUpperCase();
+                return (
+                  <div key={`${r.name}-${i}`} className={`${cols} border-b border-white/5 items-stretch`}>
+                    <p className="hidden sm:flex items-center px-5 py-3.5 text-sm font-semibold text-white">{feature}</p>
+                    {/* min-w-0 + overflow-hidden + break-words: a grid cell
+                        defaults to min-width:auto and will widen to fit an
+                        unbreakable word, pushing the divider; this pins the
+                        cell to its column and wraps the text inside it. */}
+                    <div className="px-4 sm:px-5 py-3.5 min-w-0 overflow-hidden flex flex-col justify-center">
+                      <p className="sm:hidden text-sm font-semibold text-white leading-snug break-words">{feature}</p>
+                      <p className="text-xs text-text-tertiary mt-1 sm:mt-0 truncate">{r.name}</p>
+                      <p className="text-sm font-semibold text-text-secondary tabular-nums">{money(r.pricePerMonth, cur)}<span className="text-[11px] font-normal text-text-tertiary">/mo</span></p>
+                    </div>
+                    <div className="px-4 sm:px-5 py-3.5 bg-accent/[0.06] border-l border-accent/20 flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-accent flex-shrink-0" />
+                      <span className="text-sm font-bold text-white">Included</span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Totals. Same two/three-cell shape as every row above, so
+                  the columns line up to the bottom edge: struck-through
+                  stack on the left, our price in the accent column. */}
+              <div className={`${cols} bg-white/[0.02] items-stretch`}>
+                <p className="hidden sm:flex items-center px-5 py-4 text-sm font-black text-white">Per month</p>
+                <div className="px-4 sm:px-5 py-4 flex flex-col justify-center">
+                  <p className="sm:hidden text-sm font-black text-white">Per month</p>
+                  {total !== null && oneCurrency ? (
+                    <>
+                      <p className="text-[11px] text-text-tertiary mt-1 sm:mt-0">Stacked</p>
+                      <p className="text-base font-black text-text-secondary tabular-nums line-through decoration-danger/70 decoration-2">{money(total, oneCurrency)}</p>
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-text-tertiary mt-1 sm:mt-0">Mixed currencies</p>
+                  )}
+                </div>
+                <div className="px-4 sm:px-5 py-4 bg-accent/[0.10] border-l border-accent/30 flex flex-col justify-center">
+                  {ourPrice !== null ? (
+                    <>
+                      <p className="text-[11px] text-text-tertiary">All of it</p>
+                      <p className="text-xl font-black text-accent tabular-nums leading-tight">
+                        <span className="text-xs font-semibold text-text-secondary mr-1">from</span>{money(ourPrice, ourCurrency)}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm font-bold text-white">One plan</p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+
+            {comparable && (
+              <p className="text-sm text-center mt-4 text-white">
+                <span className="font-bold text-accent">You keep {money(total - ourPrice, ourCurrency)} a month</span>
+                <span className="text-text-secondary"> — {Math.round(((total - ourPrice) / total) * 100)}% less than paying for them separately.</span>
+              </p>
+            )}
+            {sc.asOf?.trim() && (
+              <p className="text-[11px] text-text-tertiary text-center mt-2 max-w-lg mx-auto">{sc.asOf}</p>
+            )}
+          </section>
+        );
+      })()}
 
       <TacticalTicker />
 
@@ -497,7 +889,7 @@ export default function LandingPage({
           <GlowOrb className="w-80 h-80 bg-accent/[0.07] bottom-0 -right-20 -z-10" />
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-black text-white">Train Like an Elite Soldier</h2>
-            <p className="text-text-secondary text-sm mt-2">Every program is matched to you during onboarding — or pick one yourself below.</p>
+            <p className="text-text-secondary text-sm mt-2">The quiz matches you to one. It&apos;s a starting point, not a lock-in — switch to any program here, any time, and your progress is kept.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {programs.map((p, i) => {
@@ -576,7 +968,35 @@ export default function LandingPage({
             controls
             autoPlay
             playsInline
+            crossOrigin="anonymous"
           />
+        )}
+      </Modal>
+
+      {/* Exit-intent email capture — see the effect above for trigger logic. */}
+      <Modal open={exitIntentOpen} onClose={() => setExitIntentOpen(false)} title="Not ready yet?">
+        {exitSubmitted ? (
+          <div className="text-center py-2">
+            <CheckCircle2 className="w-10 h-10 text-accent mx-auto mb-3" />
+            <p className="text-sm text-text-secondary">You&apos;re all set — we&apos;ll send you a link to jump back in anytime.</p>
+          </div>
+        ) : (
+          <form onSubmit={handleExitEmailSubmit} className="space-y-4">
+            <p className="text-sm text-text-secondary leading-relaxed">
+              Leave your email and we&apos;ll send you a link to pick up your program right where you left off. No spam, ever.
+            </p>
+            <input
+              type="email"
+              value={exitEmail}
+              onChange={(e) => setExitEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoFocus
+              className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+            />
+            <Button type="submit" fullWidth loading={exitSubmitting}>
+              Send Me The Link
+            </Button>
+          </form>
         )}
       </Modal>
 
@@ -636,6 +1056,38 @@ export default function LandingPage({
         </section>
       )}
 
+      {/* Real member transformation photos — admin-editable only, never
+          fabricated (see LandingPageConfig.transformationPhotos), hidden
+          entirely until real ones are added in Admin -> Landing Page.
+          Visual, not text, proof — the single highest-converting element in
+          this niche and the one thing pure copy can't substitute for. */}
+      {landing.transformationPhotos && landing.transformationPhotos.length > 0 && (
+        <section className="max-w-5xl mx-auto px-5 pb-16">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl sm:text-3xl font-black text-white">Real Results</h2>
+            <p className="text-text-secondary text-sm mt-2">Real members, real progress — no stock photos.</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {landing.transformationPhotos.map((p, i) => (
+              <motion.div
+                key={p.imageUrl + i}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ duration: 0.35, delay: (i % 4) * 0.05 }}
+                className="rounded-2xl overflow-hidden border border-white/8 bg-surface"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.imageUrl} alt={p.caption ?? 'Member transformation'} className="w-full aspect-[3/4] object-cover" />
+                {p.caption && (
+                  <p className="text-xs text-text-secondary p-3 leading-relaxed">{p.caption}</p>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Testimonials — admin-editable only, never fabricated. Hidden
           entirely until real ones are added in Admin -> Landing Page. */}
       {landing.testimonials && landing.testimonials.length > 0 && (
@@ -669,7 +1121,9 @@ export default function LandingPage({
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
             <p className="text-text-secondary text-sm mt-2">
-              {trialDays > 0 ? `Start free — ${trialDays} days on us, no card required.` : 'Simple pricing. Cancel anytime.'}
+              {trialDays <= 0 ? 'Simple pricing. Cancel anytime.'
+                : paidTrialEnabled ? `Try it for $${trialPrice} — ${trialDays} days, then your plan's price.`
+                : `Start free — ${trialDays} days on us, no card required.`}
             </p>
           </div>
           <div className={`grid gap-4 items-stretch ${
@@ -679,6 +1133,12 @@ export default function LandingPage({
           }`}>
             {membershipPlans.map((plan, i) => {
               const displayPeriod = getPlanBillingPeriods(plan)[0];
+              // mostPopular is admin-set (Admin -> Membership -> the star
+              // button on a plan); falls back to "just badge the first
+              // plan" only when no admin has ever explicitly chosen one, so
+              // existing installs that never touched this keep behaving
+              // exactly as before.
+              const isFeatured = anyPlanMarkedPopular ? !!plan.mostPopular : i === 0;
               return (
               <motion.div
                 key={plan.id}
@@ -686,11 +1146,11 @@ export default function LandingPage({
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: i * 0.05 }}
-                className={`relative rounded-2xl p-5 h-full flex flex-col bg-surface ${i === 0 ? 'border-2 border-accent' : 'border border-white/10'}`}
+                className={`relative rounded-2xl p-5 h-full flex flex-col bg-surface ${isFeatured ? 'border-2 border-accent' : 'border border-white/10'}`}
               >
                 {/* Text label, not just the border color — a color-only cue
                     is easy to miss when someone's quickly scanning prices. */}
-                {i === 0 && (
+                {isFeatured && (
                   <div className="absolute -top-3 left-4 px-2.5 py-0.5 bg-accent rounded-full">
                     <span className="text-[10px] font-bold text-black uppercase tracking-wide">Most Popular</span>
                   </div>
@@ -715,8 +1175,24 @@ export default function LandingPage({
                   )}
                   <span className="text-xs text-text-secondary">{displayPeriod.months === 1 ? '/month' : ` / ${displayPeriod.months}mo`}</span>
                 </div>
+                {/* Discount coupon is duration:'once' (see
+                    plan-checkout/route.ts) — this is the first payment, not
+                    the ongoing rate. Advertising it as the recurring price
+                    on the public landing page is exactly how a customer
+                    ends up disputing their second charge. */}
+                {discountPercent > 0 && (
+                  <p className="text-[11px] text-text-tertiary mt-1">
+                    First payment only — renews at ${displayPeriod.price.toFixed(2)}{displayPeriod.months === 1 ? '/month' : ` / ${displayPeriod.months}mo`}
+                  </p>
+                )}
                 {trialDays > 0 && (
-                  <p className="text-[11px] text-accent mt-1 font-medium">{trialDays}-day free trial, no payment required</p>
+                  <p className="text-[11px] text-accent mt-1 font-medium">
+                    {paidTrialEnabled
+                      ? `$${trialPrice} for ${trialDays} days, then this price applies`
+                      : cardUpFrontTrial
+                        ? `Free for ${trialDays} days — card required, cancel anytime`
+                        : `${trialDays}-day free trial, no payment required`}
+                  </p>
                 )}
                 {plan.description && (
                   <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>
@@ -729,8 +1205,8 @@ export default function LandingPage({
                   ))}
                 </ul>
                 <Link href={`/onboarding?planId=${plan.id}`} className="block pt-5 mt-auto">
-                  <Button fullWidth size="md" variant={i === 0 ? 'primary' : 'secondary'}>
-                    {trialDays > 0 ? `Start ${trialDays}-Day Free Trial` : 'Join Now'} <ArrowRight className="w-4 h-4" />
+                  <Button fullWidth size="md" variant={isFeatured ? 'primary' : 'secondary'}>
+                    {trialDays <= 0 ? 'Join Now' : paidTrialEnabled ? `Start for $${trialPrice}` : `Start ${trialDays}-Day Free Trial`} <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
               </motion.div>
@@ -747,7 +1223,7 @@ export default function LandingPage({
               >
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
-                    <span className="text-[10px] font-bold text-white">{discountPercent}% OFF</span>
+                    <span className="text-[10px] font-bold text-white">{discountPercent}% OFF 1ST</span>
                   </div>
                 )}
                 <p className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-1">{plan.name}</p>
@@ -762,6 +1238,12 @@ export default function LandingPage({
                   )}
                   <span className="text-xs text-text-secondary">/month</span>
                 </div>
+                {/* First-payment-only discount — same as above. */}
+                {discountPercent > 0 && (
+                  <p className="text-[11px] text-text-tertiary mt-1">
+                    First payment only — renews at ${plan.priceMonthly?.toFixed(2)}/month
+                  </p>
+                )}
                 <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>
                 <ul className="mt-4 space-y-2">
                   {plan.features.map((f) => (
@@ -795,47 +1277,21 @@ export default function LandingPage({
         </section>
       )}
 
-      {/* Public leaderboard — social proof; only names + level/streak, never email or PII */}
-      {landing.showPublicLeaderboard !== false && leaderboard.length > 0 && (
-        <section className="max-w-2xl mx-auto px-5 pb-16">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl sm:text-3xl font-black text-white">Top Athletes This Season</h2>
-            <p className="text-text-secondary text-sm mt-2">Real members. Real progress.</p>
-          </div>
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-40px' }}
-            transition={{ duration: 0.4 }}
-            className="rounded-2xl border border-white/8 bg-surface divide-y divide-white/5 overflow-hidden"
-          >
-            {leaderboard.map((entry, i) => (
-              <div key={entry.displayName + i} className="flex items-center gap-3 px-4 py-3">
-                <span className={`w-6 text-sm font-black flex-shrink-0 ${i === 0 ? 'text-accent' : 'text-text-tertiary'}`}>
-                  {i + 1}
-                </span>
-                <span className="flex-1 text-sm font-medium text-white truncate">{entry.displayName}</span>
-                <span className="flex items-center gap-1 text-xs text-purple-400 flex-shrink-0">
-                  <Zap className="w-3.5 h-3.5" /> Lvl {entry.powerLevel}
-                </span>
-                {entry.streak > 0 && (
-                  <span className="flex items-center gap-1 text-xs text-orange-400 flex-shrink-0">
-                    <Flame className="w-3.5 h-3.5" /> {entry.streak}d
-                  </span>
-                )}
-              </div>
-            ))}
-          </motion.div>
-        </section>
-      )}
-
       {/* FAQ — kills objections right before the final ask */}
       <section className="max-w-2xl mx-auto px-5 pb-16">
         <div className="text-center mb-6">
           <h2 className="text-2xl sm:text-3xl font-black text-white">Questions? Answered.</h2>
         </div>
         <div className="rounded-2xl border border-white/8 bg-surface px-5">
-          {FAQ_ITEMS.map((item, i) => (
+          {FAQ_ITEMS.map((item, i) => ({
+            ...item,
+            // The static FAQ copy promises a no-card free trial, which is
+            // the opposite of what a paid trial actually is — overridden
+            // here rather than duplicating the whole FAQ list per mode.
+            a: paidTrialEnabled && i === FAQ_ITEMS.length - 1
+              ? `Try it for $${trialPrice} — that gets you ${trialDays} full days before your plan's real price kicks in. Cancel anytime from your account before then and you won't be charged again.`
+              : item.a,
+          })).map((item, i) => (
             <FaqItem
               key={item.q}
               q={item.q}
@@ -853,12 +1309,20 @@ export default function LandingPage({
       <section className="relative overflow-hidden max-w-2xl mx-auto px-5 pt-16 pb-20 text-center">
         <GlowOrb className="w-[420px] h-[420px] bg-accent/[0.1] top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 -z-10" />
         <h2 className="text-2xl sm:text-3xl font-black text-white">{landing.finalCtaHeadline}</h2>
-        <p className="text-text-secondary text-sm mt-2 mb-6">{landing.finalCtaSubtext}</p>
+        <p className="text-text-secondary text-sm mt-2 mb-6">{fillPlaceholders(landing.finalCtaSubtext)}</p>
         <Link href="/onboarding">
           <Button size="lg" className="px-10">
             {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
           </Button>
         </Link>
+        {/* Same renewal terms as the hero. This button is identical to the
+            one above — including the "$1.00" — so it needs the same
+            disclosure; it previously had none. */}
+        {paidTrialDisclosure && (
+          <p className="text-[11px] text-text-tertiary text-center mt-3">
+            {paidTrialDisclosure}
+          </p>
+        )}
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mt-5">
           <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
             <ShieldCheck className="w-3.5 h-3.5 text-accent" /> Secure checkout
@@ -866,7 +1330,7 @@ export default function LandingPage({
           <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
             <XCircle className="w-3.5 h-3.5 text-accent" /> Cancel anytime
           </div>
-          {trialDays > 0 && (
+          {trialDays > 0 && !paidTrialEnabled && (
             <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
               <CheckCircle2 className="w-3.5 h-3.5 text-accent" /> No card required for trial
             </div>
@@ -882,5 +1346,6 @@ export default function LandingPage({
         </div>
       </footer>
     </div>
+    </>
   );
 }

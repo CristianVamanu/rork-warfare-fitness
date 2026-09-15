@@ -61,7 +61,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no extra text):
 
 Include 4-5 meals/snacks covering the full day. Quantities must be realistic and specific (e.g. "150g chicken breast", not "some chicken").`;
 
-    const openai = new OpenAI({ apiKey });
+    const openai = new OpenAI({ apiKey, timeout: 120_000, maxRetries: 1 });
     const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
     const response = await openai.chat.completions.create({
       model,

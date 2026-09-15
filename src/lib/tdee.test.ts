@@ -53,7 +53,7 @@ describe('estimateNutritionTargets', () => {
   it('falls back to a flat per-experience estimate when biometrics are skipped', () => {
     const result = estimateNutritionTargets('recomposition', 'beginner', 3, undefined);
     expect(result.usedRealBiometrics).toBe(false);
-    expect(result.bmr).toBe(2000); // BASE_CALORIES.beginner
+    expect(result.bmr).toBe(1600); // BASE_BMR.beginner
   });
 
   it('macro grams always sum back to roughly the target calories', () => {
