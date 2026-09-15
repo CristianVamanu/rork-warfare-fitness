@@ -15,6 +15,7 @@ import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { sendEmail, trialEndingEmailHtml } from '@/lib/email';
 import { timingSafeEqualString } from '@/lib/crypto';
+import { isNudgeDue, daysBetween, nudgeCopy } from '@/lib/nudgeSchedule';
 
 async function generateMotivation(userName: string, streak: number): Promise<{ title: string; body: string }> {
   const apiKey = await getSecret('OPENAI_API_KEY');
@@ -276,28 +277,50 @@ export async function POST(req: NextRequest) {
             const createdAt = d.data().createdAt as FirebaseFirestore.Timestamp | undefined;
             return createdAt && createdAt.toMillis() >= oneDayAgo.toMillis();
           });
-          if (!hasRecentWorkout) {
-            // Personalize with how long it's actually been and what they've
-            // already put in, instead of the same generic line regardless —
-            // specific reactivation copy out-performs boilerplate.
-            const lastWorkoutDate = u.statsCache?.lastWorkoutDate as string | undefined;
-            const daysSince = lastWorkoutDate
-              ? Math.round((new Date(today + 'T00:00:00Z').getTime() - new Date(lastWorkoutDate + 'T00:00:00Z').getTime()) / 86_400_000)
-              : null;
-            const totalWorkouts = u.statsCache?.totalWorkouts ?? 0;
-            const gapPhrase = daysSince && daysSince > 1
-              ? `It's been ${daysSince} days since your last session`
-              : "You haven't logged a workout today";
-            const historyPhrase = totalWorkouts >= 5 ? ` — don't let ${totalWorkouts} sessions of progress stall out` : '';
-            const title = "Don't break the chain!";
-            const body = `${identityFor(u.fitnessGoal)}: ${gapPhrase}${historyPhrase}. Get back on track with ${u.activeProgram.programName}.`;
-            await db.collection('notifications').add({
-              userId: u.id, trainerId: u.trainerId ?? null,
-              title, body, type: 'auto_missed_workout', read: false, createdAt: Timestamp.now(),
-            });
-            await db.collection('users').doc(u.id).update({ lastAutoMissedWorkoutDate: today });
-            await sendPush(u.id, title, body);
-            sent.push(`missed_workout:${u.id}`);
+          if (hasRecentWorkout) {
+            // Back training. Clear the reminder count so the next lapse
+            // starts gently again — without this, someone who came back for
+            // a fortnight and slipped once would be greeted with reminder
+            // number five. Only written when there is something to clear.
+            if ((u.missedWorkoutNudges ?? 0) > 0) {
+              await db.collection('users').doc(u.id).update({ missedWorkoutNudges: 0 });
+            }
+          } else {
+            // Reminders back off — see nudgeSchedule.ts. This used to send
+            // every single morning, which is the "same notification every
+            // day" that was reported. The count of reminders since the last
+            // workout and the date of the previous one decide whether today
+            // is a sending day; the copy is chosen by the count so no two
+            // in a row read the same.
+            const nudgesSent: number = u.missedWorkoutNudges ?? 0;
+            const lastNudge = u.lastAutoMissedWorkoutDate as string | undefined;
+            const daysSinceLastNudge = lastNudge && /^\d{4}-\d{2}-\d{2}$/.test(lastNudge) ? daysBetween(lastNudge, today) : null;
+            // Pre-existing accounts have a lastAutoMissedWorkoutDate from the
+            // old daily rule but no count. Treating them as "one sent" puts
+            // them straight onto the two-day gap instead of restarting the
+            // sequence from the top the morning this deploys.
+            const effectiveSent = nudgesSent === 0 && daysSinceLastNudge !== null ? 1 : nudgesSent;
+            if (isNudgeDue(effectiveSent, daysSinceLastNudge)) {
+              const lastWorkoutDate = u.statsCache?.lastWorkoutDate as string | undefined;
+              const daysSinceWorkout = lastWorkoutDate && /^\d{4}-\d{2}-\d{2}$/.test(lastWorkoutDate) ? daysBetween(lastWorkoutDate, today) : null;
+              const { title, body } = nudgeCopy({
+                nudgesSent: effectiveSent,
+                daysSinceWorkout,
+                totalWorkouts: u.statsCache?.totalWorkouts ?? 0,
+                identity: identityFor(u.fitnessGoal),
+                programName: u.activeProgram.programName,
+              });
+              await db.collection('notifications').add({
+                userId: u.id, trainerId: u.trainerId ?? null,
+                title, body, type: 'auto_missed_workout', read: false, createdAt: Timestamp.now(),
+              });
+              await db.collection('users').doc(u.id).update({
+                lastAutoMissedWorkoutDate: today,
+                missedWorkoutNudges: effectiveSent + 1,
+              });
+              await sendPush(u.id, title, body);
+              sent.push(`missed_workout:${u.id}`);
+            }
           }
         }
 

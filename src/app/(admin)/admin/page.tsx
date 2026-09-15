@@ -3309,7 +3309,7 @@ function AdminPageInner() {
                 </p>
 
                 {[
-                  { id: 'missed_workout', label: 'Missed Workout', desc: 'Notify users who haven\'t logged a workout in 24h while on an active program', icon: Dumbbell, color: 'text-yellow-400' },
+                  { id: 'missed_workout', label: 'Missed Workout', desc: 'Remind members on a program who have stopped training. Backs off rather than nagging: day 1, then 2, 4 and 7 days apart, different words each time, and stops after 8. Resets when they train.', icon: Dumbbell, color: 'text-yellow-400' },
                   { id: 'streak_reminder', label: 'Streak Celebration', desc: 'Remind users with an active streak to keep going', icon: Flame, color: 'text-orange-400' },
                   { id: 'weekly_recap', label: 'Weekly Recap', desc: 'Sunday digest of the week\'s workouts, volume, and streak — sent only to users who trained that week', icon: TrendingUp, color: 'text-blue-400' },
                 ].map(({ id, label, desc, icon: Icon, color }) => (
