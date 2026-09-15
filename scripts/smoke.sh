@@ -164,8 +164,14 @@ fetch POST /api/stripe/webhook '{}'
 case "$CODE" in 4*) ok "stripe webhook without a signature → $CODE" ;; *) fail "stripe webhook without a signature → HTTP $CODE (expected 4xx)" ;; esac
 fetch POST /api/ai/build-my-program '{}'
 [ "$CODE" = "410" ] && ok "build-my-program is retired (410)" || warn "build-my-program → HTTP $CODE (expected 410)"
-fetch POST /api/client-error '{"kind":"error","message":"smoke-test","stack":"smoke","url":"/smoke"}'
-case "$CODE" in 2*) ok "client-error accepts a report ($CODE)" ;; 429) ok "client-error rate-limited (429) — the limiter works" ;; *) fail "client-error → HTTP $CODE" ;; esac
+# An EMPTY report on purpose. The route answers 200 and writes nothing when
+# there is no message, which is exactly the path to exercise: this proves the
+# endpoint is up, parses JSON and rate-limits, without creating an error
+# group. The first version posted a real "smoke-test" report and every deploy
+# added one to the admin Errors tab and the nightly digest — a test that
+# dirties the thing it is testing.
+fetch POST /api/client-error '{}'
+case "$CODE" in 2*) ok "client-error answers without storing anything ($CODE)" ;; 429) ok "client-error rate-limited (429) — the limiter works" ;; *) fail "client-error → HTTP $CODE" ;; esac
 
 echo "== summary =="
 if [ "$FAILS" -gt 0 ]; then
