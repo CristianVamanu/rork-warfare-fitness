@@ -420,4 +420,22 @@ if [ -z "$APP_OK" ]; then
 fi
 echo "    serving"
 
+# Serving is not the same as working. The health route answering says the
+# process is up; it says nothing about whether the landing page renders,
+# the 404 is ours, the admin routes still refuse strangers, or the build
+# that answered is the one just pushed. scripts/smoke.sh asks all of that
+# of the running build. A failure here marks the deploy failed — the code
+# IS live, so the marker is how anyone finds out it is live and wrong —
+# and exits non-zero so the webhook log carries the reason.
+echo "==> Smoke-testing the live build"
+if bash scripts/smoke.sh; then
+  echo "    smoke tests passed"
+else
+  echo "*** WARNING: smoke tests FAILED on the build that is now serving ***"
+  echo "    Read the FAIL lines above. Re-run any time:  bash scripts/smoke.sh"
+  printf '{"ok":false,"sha":"%s","at":"%s","error":"smoke tests failed on the live build — run scripts/smoke.sh"}\n' \
+    "$(git rev-parse --short HEAD)" "$(date -u +%FT%TZ)" > .deploy-status.json
+  exit 1
+fi
+
 echo "==> Deploy complete"
