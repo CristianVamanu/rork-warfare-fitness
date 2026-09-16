@@ -445,38 +445,63 @@ export default function ProgramDetailPage() {
         {isEnrolled && todayDay && !nextIsLocked && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
             <h2 className="text-base font-bold text-white mb-3">Next Workout</h2>
-            <Card className={`p-4 ${isRestToday ? 'border-white/10' : 'border-accent/30'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  {isRestToday ? <Moon className="w-4 h-4 text-text-tertiary" /> : <Dumbbell className="w-4 h-4 text-accent" />}
-                  <span className="text-sm font-bold text-white">{stripWeekdayPrefix(todayDay.label)}</span>
+            <Card className={`relative overflow-hidden p-4 ${isRestToday ? 'border-white/10' : 'border-accent/45 shadow-[0_0_40px_-8px_rgba(245,166,35,0.5)]'}`}>
+              {/* Ember wash + hairline grid — the same "tech" surface the
+                  home hero uses, so the session that is up next reads as the
+                  live thing on the page rather than another list row. */}
+              {!isRestToday && (
+                <div
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    background: [
+                      'radial-gradient(120% 120% at 100% 0%, rgb(var(--accent-rgb) / 0.22) 0%, transparent 55%)',
+                      'linear-gradient(rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px)',
+                      'linear-gradient(90deg, rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px)',
+                    ].join(','),
+                    backgroundSize: '100% 100%, 22px 22px, 22px 22px',
+                  }}
+                />
+              )}
+              <div className="relative">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center ${isRestToday ? 'border border-dashed border-white/15 text-text-tertiary' : 'bg-gradient-accent text-black shadow-glow-sm'}`}>
+                      {isRestToday ? <Moon className="w-4 h-4" /> : <Dumbbell className="w-4 h-4" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent/90">
+                        {isRestToday ? 'Recovery' : `Up next · Day ${nextAbsIdx + 1}`}
+                      </p>
+                      <p className="text-sm font-bold text-white leading-snug truncate">{stripWeekdayPrefix(todayDay.label)}</p>
+                    </div>
+                  </div>
+                  {isRestToday ? (
+                    <Button size="sm" variant="secondary" loading={skippingRest} onClick={handleSkipRest}>
+                      Skip rest day
+                    </Button>
+                  ) : (
+                    <Button size="sm" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
+                      <Play className="w-4 h-4" /> Start
+                    </Button>
+                  )}
                 </div>
-                {isRestToday ? (
-                  <Button size="sm" variant="secondary" loading={skippingRest} onClick={handleSkipRest}>
-                    Skip rest day
-                  </Button>
-                ) : (
-                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
-                    <Play className="w-4 h-4" /> Start
-                  </Button>
+                {isRestToday && (
+                  <p className="text-xs text-text-secondary">
+                    Recovery day. Skip it to move on to {nextSession?.nextTraining ? stripWeekdayPrefix(nextSession.nextTraining.day.label) : 'the next session'}.
+                  </p>
+                )}
+                {!isRestToday && todayDay.exercises.length > 0 && (
+                  <div className="mt-1 rounded-xl border border-white/8 bg-black/20 divide-y divide-white/6">
+                    {todayDay.exercises.map((ex, i) => (
+                      <div key={ex.id ?? i} className="flex items-center gap-2.5 px-3 py-2 text-sm">
+                        <span className="w-5 text-[10px] font-black text-accent/80 tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+                        <span className="flex-1 min-w-0 truncate text-text-secondary">{ex.name}</span>
+                        <span className="text-text-tertiary text-[11px] font-semibold tabular-nums">{ex.sets}×{ex.reps}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-              {isRestToday && (
-                <p className="text-xs text-text-secondary">
-                  Recovery day. Skip it to move on to {nextSession?.nextTraining ? stripWeekdayPrefix(nextSession.nextTraining.day.label) : 'the next session'}.
-                </p>
-              )}
-              {!isRestToday && todayDay.exercises.length > 0 && (
-                <div className="space-y-2 mt-2">
-                  {todayDay.exercises.map((ex, i) => (
-                    <div key={ex.id ?? i} className="flex items-center justify-between text-sm">
-                      <CheckCircle className="w-3 h-3 flex-shrink-0 text-text-tertiary" />
-                      <span className="flex-1 ml-2 text-text-secondary">{ex.name}</span>
-                      <span className="text-text-tertiary text-xs">{ex.sets}×{ex.reps}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </Card>
           </motion.div>
         )}
@@ -518,12 +543,36 @@ export default function ProgramDetailPage() {
               )}
             </div>
 
-            <div className="space-y-4">
-              {allWeeks.map(({ week, days }) => (
+            <div className="space-y-6">
+              {allWeeks.map(({ week, days }) => {
+                const isCurrentWeek = isEnrolled && week === currentWeek + 1;
+                const weekIdx0 = week - 1;
+                const weekTraining = days.filter((d) => !d.isRest).length;
+                const weekDone = isEnrolled
+                  ? days.filter((d, i) => !d.isRest && weekIdx0 * scheduleLen + i < nextAbsIdx).length
+                  : 0;
+                return (
                 <div key={week}>
-                  <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-2 px-1">
-                    Week {week}{week === currentWeek + 1 && isEnrolled ? ' · Current' : ''}
-                  </p>
+                  {/* Week header — a rail with the week label, the current
+                      week lit in accent, and a per-week session tally so a
+                      long program reads as a series of chapters, not a wall
+                      of identical rows. */}
+                  <div className="flex items-center gap-3 mb-3 px-1">
+                    <span className={`text-[11px] font-black uppercase tracking-[0.18em] ${isCurrentWeek ? 'text-accent' : 'text-text-tertiary'}`}>
+                      Week {week}
+                    </span>
+                    {isCurrentWeek && (
+                      <span className="inline-flex items-center gap-1.5 h-5 px-2 rounded-full bg-accent/12 border border-accent/30 text-[10px] font-extrabold text-accent uppercase tracking-wider">
+                        <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" /> Current
+                      </span>
+                    )}
+                    <span className={`flex-1 h-px ${isCurrentWeek ? 'bg-gradient-to-r from-accent/50 via-white/10 to-transparent' : 'bg-gradient-to-r from-white/12 to-transparent'}`} />
+                    {isEnrolled && weekTraining > 0 && (
+                      <span className={`text-[11px] font-bold tabular-nums ${weekDone === weekTraining ? 'text-success' : 'text-text-tertiary'}`}>
+                        {weekDone}/{weekTraining}
+                      </span>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     {days.map((day, idx) => {
                       const weekIdx = week - 1;
@@ -558,16 +607,47 @@ export default function ProgramDetailPage() {
                       // product.
                       const isLocked = isMembershipLocked || needsPurchase || trialCapped;
 
+                      // A rest slot that has already been served (or skipped)
+                      // — drawn as passed, without the "done" green that is
+                      // reserved for trained sessions.
+                      const isRestPassed = isPast && day.isRest;
+                      const setCount = day.exercises.reduce((n, ex) => n + (Number(ex.sets) || 0), 0);
+
                       return (
                         <motion.div key={`${week}-${idx}`} layout id={`program-day-${absoluteDay}`}>
                           <Card
-                            className={`p-4 cursor-pointer transition-colors ${
+                            className={`relative overflow-hidden cursor-pointer transition-all ${
+                              day.isRest ? 'p-3' : 'p-4'
+                            } ${
                               isLocked ? 'opacity-60' :
-                              isCompleted ? 'border-success/30' :
-                              isToday ? 'border-accent/50 shadow-glow-sm' : ''
+                              isCompleted ? 'border-success/35 shadow-[0_0_24px_-8px_rgba(16,185,129,0.45)]' :
+                              isToday ? 'border-accent/60 shadow-[0_0_34px_-6px_rgba(245,166,35,0.55)]' :
+                              isRestPassed ? 'opacity-55' :
+                              day.isRest ? 'border-dashed' : ''
                             }`}
                             onClick={() => setExpandedDay(isExpanded ? null : absoluteDay)}
                           >
+                            {/* State wash — a soft edge-light from the left
+                                so completed rows read green and today's reads
+                                ember at a glance, before the eye gets to the
+                                badge. Kept faint so the glass still shows. */}
+                            {!isLocked && (isCompleted || isToday) && (
+                              <div
+                                className="pointer-events-none absolute inset-0"
+                                style={{
+                                  background: isCompleted
+                                    ? 'linear-gradient(90deg, rgba(16,185,129,0.14) 0%, rgba(16,185,129,0.03) 45%, transparent 100%)'
+                                    : 'radial-gradient(120% 140% at 0% 50%, rgb(var(--accent-rgb) / 0.22) 0%, rgb(var(--accent-rgb) / 0.04) 45%, transparent 75%)',
+                                }}
+                              />
+                            )}
+                            {/* Ember scanline on today's card only — a single
+                                thin sweep that keeps it alive without moving
+                                anything the user needs to read. */}
+                            {!isLocked && isToday && (
+                              <div className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer motion-reduce:hidden" />
+                            )}
+
                             {/* Three columns: fixed day tile, flexible title,
                                 fixed status. The status badge used to sit
                                 INLINE after the title, so on a phone a
@@ -578,24 +658,44 @@ export default function ProgramDetailPage() {
                                 right-hand column, and the title column gets
                                 min-w-0 so it wraps inside its own track
                                 instead of shoving its neighbours. */}
-                            <div className="flex items-center gap-3">
-                              <div className={`w-11 h-11 flex-shrink-0 rounded-2xl flex flex-col items-center justify-center text-xs font-bold ${
-                                isCompleted ? 'bg-success/20 text-success' :
-                                isToday ? 'bg-accent text-black shadow-glow-sm' :
-                                day.isRest ? 'bg-white/6 text-text-tertiary' :
-                                'bg-white/6 text-white'
-                              }`}>
-                                {isCompleted
-                                  ? <CheckCircle2 className="w-5 h-5" />
-                                  : <span className="text-center leading-none">{`D${idx + 1}`}</span>
-                                }
+                            <div className="relative flex items-center gap-3">
+                              {/* Day node — ring + tile. Completed: green
+                                  ring with a check. Today: solid ember with
+                                  glow. Rest: a dashed ring and moon, smaller
+                                  so recovery days sit visibly lighter in
+                                  the list than sessions. */}
+                              <div className={`relative flex-shrink-0 flex items-center justify-center ${day.isRest ? 'w-9 h-9' : 'w-11 h-11'}`}>
+                                {isCompleted && <span className="absolute inset-0 rounded-2xl border border-success/40" />}
+                                {isToday && !isCompleted && <span className="absolute -inset-1 rounded-[18px] border border-accent/40 animate-pulse" />}
+                                <div className={`absolute inset-[3px] rounded-xl flex items-center justify-center text-[11px] font-black tracking-wide ${
+                                  isCompleted ? 'bg-success/15 text-success' :
+                                  isToday ? 'bg-gradient-accent text-black shadow-glow-sm' :
+                                  day.isRest ? 'border border-dashed border-white/15 text-text-tertiary' :
+                                  'bg-white/6 border border-white/8 text-white'
+                                }`}>
+                                  {isCompleted
+                                    ? <CheckCircle2 className="w-5 h-5" />
+                                    : day.isRest
+                                      ? <Moon className="w-3.5 h-3.5" />
+                                      : <span className="leading-none">{`D${idx + 1}`}</span>
+                                  }
+                                </div>
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className={`text-sm font-medium ${isCompleted ? 'text-success' : isToday ? 'text-white' : 'text-text-secondary'}`}>
-                                  {stripWeekdayPrefix(day.label ?? '')}
+                                <p className={`${day.isRest ? 'text-[13px]' : 'text-sm'} font-semibold leading-snug ${
+                                  isCompleted ? 'text-success' :
+                                  isToday ? 'text-white' :
+                                  day.isRest ? 'text-text-tertiary' :
+                                  'text-text-secondary'
+                                }`}>
+                                  {day.isRest ? 'Recovery' : stripWeekdayPrefix(day.label ?? '')}
                                 </p>
-                                {!day.isRest && (
-                                  <p className="text-xs text-text-tertiary mt-0.5">{day.exercises.length} exercises</p>
+                                {!day.isRest ? (
+                                  <p className="text-[11px] text-text-tertiary mt-1 font-semibold uppercase tracking-wider tabular-nums">
+                                    D{idx + 1} · {day.exercises.length} exercises{setCount > 0 ? ` · ${setCount} sets` : ''}
+                                  </p>
+                                ) : (
+                                  <p className="text-[11px] text-text-tertiary/70 mt-0.5 uppercase tracking-wider font-semibold">D{idx + 1} · Rest day</p>
                                 )}
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
@@ -608,12 +708,10 @@ export default function ProgramDetailPage() {
                                     {isCompleted && <Badge variant="success">Done</Badge>}
                                     {!isCompleted && isToday && <Badge variant="accent">Today</Badge>}
                                     {!isCompleted && !isToday && isUpcoming && !day.isRest && <Badge variant="muted">Upcoming</Badge>}
-                                    {day.isRest ? (
-                                      <Moon className="w-4 h-4 text-text-tertiary" />
-                                    ) : isCompleted ? (
+                                    {day.isRest ? null : isCompleted ? (
                                       <CheckCircle2 className="w-4 h-4 text-success" />
                                     ) : (
-                                      <Dumbbell className="w-4 h-4 text-text-tertiary" />
+                                      <Dumbbell className={`w-4 h-4 ${isToday ? 'text-accent' : 'text-text-tertiary'}`} />
                                     )}
                                   </>
                                 )}
@@ -674,7 +772,8 @@ export default function ProgramDetailPage() {
                     })}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </motion.div>
         )}

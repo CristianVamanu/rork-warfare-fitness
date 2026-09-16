@@ -8,7 +8,7 @@ import { Moon, Dumbbell, Play, ChevronRight, Crown, CheckCircle2, RotateCcw, Loc
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, resolveProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
-import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
+import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex, getScheduleForWeek, getProgramDayForDow } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
@@ -107,6 +107,22 @@ export default function TrainingPage() {
   const todayDay = nextSession?.day ?? null;
   const isRestToday = nextSession?.isRestToday ?? false;
   const repeatIdx = resolvedActive ? getLastTrainingSlotIndex(resolvedActive, lastCompleted) : null;
+  // The current week's slots for the strip on the active card. Same
+  // absolute-index arithmetic as the program page's schedule list.
+  const weekStrip = (() => {
+    if (!resolvedActive || !activeProgram) return [] as { abs: number; week: number; label: string; isRest: boolean; done: boolean; isNext: boolean }[];
+    const schedLen = getScheduleForWeek(resolvedActive, 1)?.length ?? 0;
+    if (schedLen === 0) return [];
+    const weekIdx = Math.floor(nextAbsIdx / schedLen);
+    const out = [];
+    for (let i = 0; i < schedLen; i++) {
+      const abs = weekIdx * schedLen + i;
+      const d = getProgramDayForDow(resolvedActive, abs);
+      if (!d) break;
+      out.push({ abs, week: weekIdx + 1, label: stripWeekdayPrefix(d.label ?? ''), isRest: !!d.isRest, done: abs < nextAbsIdx && !d.isRest, isNext: abs === nextAbsIdx });
+    }
+    return out;
+  })();
   const [skippingRest, setSkippingRest] = useState(false);
   const handleSkipRest = async () => {
     if (!user || !activeProgram?.programId || !nextSession?.isRestToday) return;
@@ -204,14 +220,24 @@ export default function TrainingPage() {
     return (
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index, 6) * 0.04 }}>
         <Link href={`/training/${prog.id}`} className="block">
-          <Card glass className={`p-4 flex gap-3.5 card-float ${isActive ? 'border-accent/40 shadow-glow-sm' : ''}`}>
+          <Card glass className={`relative overflow-hidden p-4 flex gap-3.5 card-float ${isActive ? 'border-accent/40 shadow-glow-sm' : saved ? 'border-success/25' : ''}`}>
+            {/* Edge-light: ember for the active program, green for one with
+                saved progress — state you can read before the badges. */}
+            {(isActive || saved) && (
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{ background: isActive
+                  ? 'radial-gradient(120% 140% at 0% 50%, rgb(var(--accent-rgb) / 0.18) 0%, transparent 60%)'
+                  : 'linear-gradient(90deg, rgba(16,185,129,0.10) 0%, transparent 50%)' }}
+              />
+            )}
             <span
-              className="w-12 h-12 rounded-2xl flex items-center justify-center text-accent flex-shrink-0 border border-accent/25"
+              className="relative w-12 h-12 rounded-2xl flex items-center justify-center text-accent flex-shrink-0 border border-accent/25"
               style={{ background: 'linear-gradient(135deg, rgba(var(--accent-rgb) / 0.32), rgba(var(--accent-rgb) / 0.06))' }}
             >
               <GoalIcon className="w-6 h-6" strokeWidth={2} />
             </span>
-            <div className="flex-1 min-w-0">
+            <div className="relative flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">
@@ -253,10 +279,27 @@ export default function TrainingPage() {
               <p className="text-text-secondary text-sm mt-1">Your progress is safe. Pick another program below to carry on.</p>
             </Card>
           ) : activeProgram ? (
-            <Card glass className="p-5 border-accent/30 shadow-glow-sm">
+            <Card glass className="relative overflow-hidden p-5 border-accent/40 shadow-[0_0_44px_-10px_rgba(245,166,35,0.5)]">
+              {/* Ember wash + hairline grid — the home hero's surface, so the
+                  active program is unmistakably the live object on this tab
+                  and the browse list below reads as the library. */}
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background: [
+                    'radial-gradient(110% 120% at 100% 0%, rgb(var(--accent-rgb) / 0.24) 0%, transparent 55%)',
+                    'linear-gradient(rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px)',
+                    'linear-gradient(90deg, rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px)',
+                  ].join(','),
+                  backgroundSize: '100% 100%, 22px 22px, 22px 22px',
+                }}
+              />
+              <div className="relative">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-accent">Active program</p>
+                  <p className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" /> Active program
+                  </p>
                   <h3 className="text-[22px] font-black text-white leading-tight mt-1 truncate">{activeProgram.programName}</h3>
                   {todayDay && (
                     <p className="text-text-secondary text-sm mt-1">
@@ -274,6 +317,26 @@ export default function TrainingPage() {
                   <Badge variant="success"><CheckCircle2 className="w-3 h-3 inline mr-0.5" />Day {Math.max(1, completedWorkouts)} done today</Badge>
                 )}
               </div>
+              {/* This week, slot by slot — green for trained, ember for the
+                  slot that is up, dashed for rest. A glance says where in
+                  the week you are without opening the program. */}
+              {weekStrip.length > 0 && !programFinished && (
+                <div className="mt-4 flex items-center gap-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-text-tertiary mr-1">Wk {weekStrip[0].week}</span>
+                  {weekStrip.map((s) => (
+                    <span
+                      key={s.abs}
+                      title={s.isRest ? 'Rest' : s.label}
+                      className={`h-2 flex-1 rounded-full transition-colors ${
+                        s.done ? 'bg-success shadow-[0_0_8px_rgba(16,185,129,0.6)]' :
+                        s.isNext ? 'bg-accent shadow-[0_0_10px_rgba(245,166,35,0.7)] animate-pulse' :
+                        s.isRest ? 'border border-dashed border-white/20' :
+                        'bg-white/12'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
               <div className="mt-4 space-y-2">
                 {todayDay && (isRestToday ? (
                   <Button
@@ -318,6 +381,7 @@ export default function TrainingPage() {
                   </Button>
                   <ShareProgramButton programId={activeProgram.programId} programName={activeProgram.programName} />
                 </div>
+              </div>
               </div>
             </Card>
           ) : (
