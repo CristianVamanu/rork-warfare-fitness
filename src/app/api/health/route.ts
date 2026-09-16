@@ -42,6 +42,8 @@ export async function GET() {
       // two disagree, sha is the one telling the truth about what is running;
       // deploy tells you how the last attempt reported itself.
       sha: process.env.BUILD_SHA ?? 'unknown',
+      // So a runtime upgrade can be confirmed from outside the box.
+      node: process.version,
       deploy,
       uptimeSeconds: Math.round(process.uptime()),
       now: new Date().toISOString(),

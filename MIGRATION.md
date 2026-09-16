@@ -81,16 +81,16 @@ exception.
 ssh root@NEW_IP
 
 apt update && apt upgrade -y
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -   # Node 20 LTS — what CI builds against
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -   # Node 22 LTS — what CI builds against
 apt install -y nodejs git nginx certbot python3-certbot-nginx
 npm install -g pm2
 
-node -v    # expect v20.x
+node -v    # expect v22.x
 ```
 
-Node 20 is deliberate: `.github/workflows` builds on 20, so it is the version
-this code is actually tested on. Node 22 will very likely work — just do not
-find that out during a migration.
+Node 22 is deliberate: `.github/workflows` builds on 22, `package.json`
+declares `engines.node >= 22`, and the AWS SDK (R2 uploads) drops Node 20
+support in January 2027. Do not go lower.
 
 ## 2. Clone the code
 
