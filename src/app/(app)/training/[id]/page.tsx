@@ -677,7 +677,7 @@ export default function ProgramDetailPage() {
                                     ? <CheckCircle2 className="w-5 h-5" />
                                     : day.isRest
                                       ? <Moon className="w-3.5 h-3.5" />
-                                      : <span className="leading-none">{`D${idx + 1}`}</span>
+                                      : <span className="leading-none">{absoluteDay + 1}</span>
                                   }
                                 </div>
                               </div>
@@ -692,10 +692,10 @@ export default function ProgramDetailPage() {
                                 </p>
                                 {!day.isRest ? (
                                   <p className="text-[11px] text-text-tertiary mt-1 font-semibold uppercase tracking-wider tabular-nums">
-                                    D{idx + 1} · {day.exercises.length} exercises{setCount > 0 ? ` · ${setCount} sets` : ''}
+                                    Day {absoluteDay + 1} · {day.exercises.length} exercises{setCount > 0 ? ` · ${setCount} sets` : ''}
                                   </p>
                                 ) : (
-                                  <p className="text-[11px] text-text-tertiary/70 mt-0.5 uppercase tracking-wider font-semibold">D{idx + 1} · Rest day</p>
+                                  <p className="text-[11px] text-text-tertiary/70 mt-0.5 uppercase tracking-wider font-semibold">Day {absoluteDay + 1} · Rest day</p>
                                 )}
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
