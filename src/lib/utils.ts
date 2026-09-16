@@ -80,14 +80,19 @@ export function planHasAnyPrice(plan: PlanPrices): boolean {
 
 /** The cheapest way in, across every plan and every term on offer.
  *
- * Compared per MONTH so terms are ranked fairly ($99 for 6 months beats
- * $19/mo), but rendered as the amount actually charged — quoting "$16.50/mo"
- * for a plan that takes $99 in one go is the kind of maths a customer only
- * does after the charge lands. */
+ * Ranked by the CHARGE — the amount that actually leaves the card — not by
+ * a per-month average. This used to rank per month, which made a $490/year
+ * plan "cheaper" than $49/month (40.83 < 49) and put "then from $490.00
+ * every 12 months" under a $1 trial button whose default path was the
+ * $49/month plan. "From" has to mean the least a visitor can commit to per
+ * payment, and nobody can enter for less than the smallest single charge.
+ * A per-month view belongs on the pricing cards where both terms are shown
+ * side by side, not in a one-line disclosure. Ties go to the shorter term. */
 export function getCheapestEntryPrice(plans: PlanPrices[]): { months: 1 | 3 | 6 | 12; price: number } | null {
   const all = plans.flatMap((p) => getPlanBillingPeriods(p));
   if (all.length === 0) return null;
-  return all.reduce((best, cur) => (cur.price / cur.months < best.price / best.months ? cur : best));
+  return all.reduce((best, cur) =>
+    cur.price < best.price || (cur.price === best.price && cur.months < best.months) ? cur : best);
 }
 
 /** "$49.00/mo" or "$99.00 every 6 months" — never a per-month figure for a

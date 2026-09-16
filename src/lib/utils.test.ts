@@ -79,12 +79,26 @@ describe('getCheapestEntryPrice', () => {
     expect(getCheapestEntryPrice([{}, { priceMonthly: 0 }])).toBeNull();
   });
 
-  it('picks the lowest per-month cost across plans and terms', () => {
+  it('ranks by the charge that leaves the card, not a per-month average', () => {
+    // Per-month ranking made $180/year "beat" $19/month (15 < 19) and quoted
+    // a bigger up-front number as the entry price. The least anyone can
+    // commit to per payment here is $19.
     const cheapest = getCheapestEntryPrice([
       { priceMonthly: 49 },
-      { priceMonthly: 19, price12mo: 180 }, // 180/12 = 15/mo, the winner
+      { priceMonthly: 19, price12mo: 180 },
     ]);
-    expect(cheapest).toMatchObject({ months: 12, price: 180 });
+    expect(cheapest).toMatchObject({ months: 1, price: 19 });
+  });
+
+  it('the reported bug: a $49/month plan beside a $490/year plan enters at $49', () => {
+    // Vanguard monthly + Hero annual. 490/12 = 40.83 < 49 on a per-month
+    // view, so the old ranking put "from $490.00 every 12 months" under the
+    // $1 trial button. The visitor's default path is $49/month.
+    expect(getCheapestEntryPrice([{ priceMonthly: 49 }, { price12mo: 490 }])).toMatchObject({ months: 1, price: 49 });
+  });
+
+  it('breaks a tie on the shorter term', () => {
+    expect(getCheapestEntryPrice([{ price3mo: 99 }, { priceMonthly: 99 }])).toMatchObject({ months: 1, price: 99 });
   });
 });
 
@@ -97,6 +111,12 @@ describe('buildTrialTerms', () => {
     const t = buildTrialTerms({ trialDays: 7, paidTrialEnabled: true, cardUpFrontTrial: false, trialPriceCents: 100, plans });
     expect(t.ctaLabel).toBe('Start for $1.00');
     expect(t.disclosure).toBe('$1.00 for 7 days, then from $19.00/mo. Cancel anytime.');
+  });
+
+  it('a monthly plan beside an annual plan discloses the monthly price', () => {
+    const t = buildTrialTerms({ trialDays: 7, paidTrialEnabled: true, cardUpFrontTrial: false, trialPriceCents: 100,
+      plans: [{ priceMonthly: 49 }, { price12mo: 490 }] });
+    expect(t.disclosure).toBe('$1.00 for 7 days, then from $49.00/mo. Cancel anytime.');
   });
 
   it('drops the "from" when there is only one plan to choose', () => {

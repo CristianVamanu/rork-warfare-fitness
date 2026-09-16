@@ -3561,8 +3561,12 @@ function AdminPageInner() {
                       Under Paid Trial, Stripe has no way to discount a later charge from a checkout-time coupon — so this discount is applied to the ${((membership.trialPriceCents ?? 100) / 100).toFixed(2)} trial fee itself instead, not the ongoing plan price, which stays full price after the trial.
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
+                  {/* min-w-0 on both cells: a datetime-local input has an
+                      intrinsic width iOS Safari will not shrink below, and a
+                      grid track's default min-width is auto — so the Expires
+                      box grew past the card edge on a phone. */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="min-w-0">
                       <label className="text-xs text-text-secondary mb-1 block">Discount %</label>
                       <input
                         type="number"
@@ -3573,13 +3577,13 @@ function AdminPageInner() {
                         className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
                       />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="text-xs text-text-secondary mb-1 block">Expires</label>
                       <input
                         type="datetime-local"
                         value={membership.discountExpiresAt ? membership.discountExpiresAt.slice(0, 16) : ''}
                         onChange={e => setMembership(m => ({ ...m, discountExpiresAt: e.target.value ? new Date(e.target.value).toISOString() : undefined }))}
-                        className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                        className="w-full min-w-0 max-w-full appearance-none bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 [color-scheme:dark]"
                       />
                     </div>
                   </div>
