@@ -6,9 +6,10 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   Apple, Smartphone, Monitor, Share, MoreVertical, PlusSquare,
-  ArrowRight, Crown, Menu, X as XIcon, Zap, Download,
+  ArrowRight, Crown, Menu, X as XIcon, Zap, Download, ChevronLeft,
 } from 'lucide-react';
 import { getSystemConfig } from '@/lib/firestore';
+import { useAuth } from '@/contexts/AuthContext';
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
@@ -66,6 +67,10 @@ export default function DownloadClient({
   const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activePlatform, setActivePlatform] = useState<string>('ios');
+  // A signed-in member reaches this page from Profile → "Install the app".
+  // It lives outside the app shell (no bottom nav, no header back button),
+  // so without this they had no way back except the browser's own control.
+  const { user } = useAuth();
 
   useEffect(() => {
     getSystemConfig().then((cfg) => {
@@ -81,6 +86,15 @@ export default function DownloadClient({
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
+      {user && (
+        <div className="sticky top-0 z-30 bg-background/90 backdrop-blur-xl border-b border-white/8">
+          <div className="max-w-6xl mx-auto px-4 h-12 flex items-center">
+            <Link href="/profile" className="inline-flex items-center gap-1 text-sm font-semibold text-accent hover:text-white transition-colors">
+              <ChevronLeft className="w-4 h-4" /> Back to Profile
+            </Link>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="relative z-20 border-b border-white/8">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
