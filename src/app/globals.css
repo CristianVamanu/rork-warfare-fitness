@@ -99,7 +99,14 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* `hidden` makes body a scroll container on iOS, and iOS Chrome then lays
+     out position:fixed bars against a viewport that lags its retracting
+     toolbar — the bottom nav visibly floats up mid-scroll with page content
+     showing beneath it. `clip` clips the same overflow without creating a
+     scroll container; the `hidden` line stays as the fallback for engines
+     that predate it. */
   overflow-x: hidden;
+  overflow-x: clip;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 

@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { MailCheck, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { getMembershipConfig } from '@/lib/firestore';
+import { trialIsStripeManaged } from '@/lib/membership';
 import { signOut } from '@/lib/auth';
 import { Button } from './Button';
 import { Card } from './Card';
@@ -28,6 +30,16 @@ const MAX_SENDS = 3;
 const RESEND_COOLDOWN_MS = 45 * 1000;
 
 export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' | 'screen' }) {
+  // Under a PAID (Stripe-run) trial nothing is gated on the address any
+  // more — checkout charges the card, which is the stronger check — so the
+  // banner must not claim it "unlocks" anything. It still matters for one
+  // real reason: a mistyped address cannot reset its password. Say that.
+  const [paidTrial, setPaidTrial] = useState<boolean | null>(null);
+  useEffect(() => {
+    getMembershipConfig()
+      .then((cfg) => setPaidTrial(!!cfg && trialIsStripeManaged(cfg)))
+      .catch(() => setPaidTrial(false));
+  }, []);
   const { user } = useAuth();
   const [busy, setBusy] = useState<'send' | 'confirm' | 'email' | null>(null);
   const [codeSent, setCodeSent] = useState(false);
@@ -326,7 +338,11 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
     <div role="status" className="mx-4 mt-3 max-w-lg md:max-w-2xl lg:max-w-4xl lg:mx-auto rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-text-secondary">
       <div className="flex items-center gap-3">
         <MailCheck className="w-4 h-4 text-accent shrink-0" aria-hidden="true" />
-        <span className="flex-1">Confirm <span className="text-white">{user.email}</span> to unlock your trial.</span>
+        <span className="flex-1">
+          {paidTrial
+            ? <>Confirm <span className="text-white">{user.email}</span> so you can recover your account.</>
+            : <>Confirm <span className="text-white">{user.email}</span> to unlock your trial.</>}
+        </span>
         {!codeSent && (
           <button type="button" onClick={sendCode} disabled={busy !== null} className="font-semibold text-accent hover:underline disabled:opacity-50">
             {busy === 'send' ? 'Sending…' : 'Send code'}

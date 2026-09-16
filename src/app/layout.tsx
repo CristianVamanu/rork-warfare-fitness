@@ -135,6 +135,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             "moov atom at end of file" MP4s with ffmpeg -movflags +faststart. */}
         <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
+        {/* /checkout: the TLS handshakes to Stripe happen while the page is
+            still rendering, instead of after the first script tag appears. */}
+        <link rel="preconnect" href="https://js.stripe.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://checkout.stripe.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://api.stripe.com" />
       </head>
       <body>
         <ThemeProvider>

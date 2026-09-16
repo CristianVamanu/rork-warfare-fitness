@@ -61,11 +61,38 @@ export function CheckoutClient() {
     }
   }, [authLoading, user, router]);
 
+  const fetchClientSecret = useCallback((): Promise<string> => {
+    if (secretRef.current) return secretRef.current;
+    secretRef.current = (async () => {
+      if (!user || !planId) throw new Error('not ready');
+      const token = await getIdToken(user);
+      const res = await fetch('/api/stripe/plan-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userEmail: user.email, planId, periodMonths: months, embedded: true }),
+      });
+      const data = await res.json().catch(() => ({})) as { clientSecret?: string; url?: string; error?: string };
+      if (data.clientSecret) return data.clientSecret;
+      // A server still on hosted mode answers with a URL — honour it.
+      if (data.url) { window.location.href = data.url; return new Promise<string>(() => {}); }
+      const msg = data.error ?? 'Could not start checkout right now. Try again in a moment.';
+      setError(msg);
+      setPhase('error');
+      throw new Error(msg);
+    })();
+    return secretRef.current;
+  }, [user, planId, months]);
+
   // Stripe.js — or fall back to hosted checkout if it cannot be loaded.
   useEffect(() => {
     if (authLoading || !user) return;
     if (!planId) { setError('No plan was selected.'); setPhase('error'); return; }
     let alive = true;
+    // Creating the Stripe session is several round-trips on the server;
+    // loading Stripe.js is a ~200KB script. They used to run one after the
+    // other (session only once the provider mounted). Start the session
+    // now, in parallel — the provider reuses the same memoised promise.
+    void fetchClientSecret().catch(() => { /* surfaced via phase/error */ });
     (async () => {
       try {
         const res = await fetch('/api/stripe/publishable-key');
@@ -89,29 +116,7 @@ export function CheckoutClient() {
       }
     })();
     return () => { alive = false; };
-  }, [authLoading, user, planId, months]);
-
-  const fetchClientSecret = useCallback((): Promise<string> => {
-    if (secretRef.current) return secretRef.current;
-    secretRef.current = (async () => {
-      if (!user || !planId) throw new Error('not ready');
-      const token = await getIdToken(user);
-      const res = await fetch('/api/stripe/plan-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ userEmail: user.email, planId, periodMonths: months, embedded: true }),
-      });
-      const data = await res.json().catch(() => ({})) as { clientSecret?: string; url?: string; error?: string };
-      if (data.clientSecret) return data.clientSecret;
-      // A server still on hosted mode answers with a URL — honour it.
-      if (data.url) { window.location.href = data.url; return new Promise<string>(() => {}); }
-      const msg = data.error ?? 'Could not start checkout right now. Try again in a moment.';
-      setError(msg);
-      setPhase('error');
-      throw new Error(msg);
-    })();
-    return secretRef.current;
-  }, [user, planId, months]);
+  }, [authLoading, user, planId, months, fetchClientSecret]);
 
   // Stable identity — a new options object would re-initialise the iframe.
   const options = useMemo(() => ({ fetchClientSecret }), [fetchClientSecret]);
