@@ -14,6 +14,7 @@ import { getUserDoc } from '@/lib/firestore';
 import { getTrustedDevice } from '@/lib/twoFactor';
 import { isMfaRequiredError, totpChallengeFrom, resolveTotpSignIn, mfaErrorMessage, type TotpChallenge } from '@/lib/mfa';
 import { authErrorMessage } from '@/lib/authErrors';
+import { consumeCheckoutIntent } from '@/lib/checkoutMode';
 import type { User } from 'firebase/auth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -189,7 +190,8 @@ export default function LoginClient({
           return;
         }
       }
-      router.replace('/dashboard');
+      // A checkout interrupted by the sign-in gate is resumed; otherwise home.
+      router.replace(consumeCheckoutIntent() ?? '/dashboard');
     } catch (err: unknown) {
       const e = err as Error & { code?: string };
       console.error('[Login] Sign-in FAILED:', {

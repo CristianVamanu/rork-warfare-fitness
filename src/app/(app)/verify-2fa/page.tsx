@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useRef, useEffect } from 'react';
+import { consumeCheckoutIntent } from '@/lib/checkoutMode';
 import { useRouter } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -56,7 +57,7 @@ export default function Verify2FAPage() {
       // AuthContext's live profile subscription picks up the cleared
       // twoFactorPendingSince on its own, but navigating immediately avoids
       // sitting on this screen for a snapshot round-trip.
-      router.replace('/dashboard');
+      router.replace(consumeCheckoutIntent() ?? '/dashboard');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Verification failed');
     } finally {

@@ -43,7 +43,11 @@ export function middleware(request: NextRequest) {
     // trusts it as a script loaded BY a nonce'd script in any browser that
     // supports strict-dynamic — this explicit host is the fallback for
     // browsers/webviews that don't, same reasoning as digimetrix.ai above.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://digimetrix.ai https://www.googletagmanager.com`,
+    // js.stripe.com / checkout.stripe.com: Stripe.js for the on-site
+    // checkout (/checkout). Loaded by a nonce'd bundle, so strict-dynamic
+    // already trusts it; the explicit hosts are the fallback for browsers
+    // and webviews without strict-dynamic, same as the two above.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://digimetrix.ai https://www.googletagmanager.com https://js.stripe.com https://checkout.stripe.com`,
     // A prior attempt scoped unsafe-inline to style-src-attr only, on the
     // assumption this app never injects raw <style> blocks — that was
     // wrong. Framer Motion (AnimatePresence/layout animations) and the
@@ -100,7 +104,11 @@ export function middleware(request: NextRequest) {
     // Same class as fonts.gstatic.com, apis.google.com and googletagmanager
     // above: a hostname the app never references itself, reached only by a
     // library or the service worker, and governed by connect-src.
-    "connect-src 'self' https://*.googleapis.com https://apis.google.com https://www.google.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
+    // api.stripe.com / checkout.stripe.com / m.stripe.network / r.stripe.com:
+    // Stripe.js on /checkout talks to these from OUR page (session setup,
+    // fraud signals, telemetry); requests made inside Stripe's iframe are
+    // governed by Stripe's own policy, not this one.
+    "connect-src 'self' https://*.googleapis.com https://apis.google.com https://www.google.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://api.stripe.com https://checkout.stripe.com https://m.stripe.network https://m.stripe.com https://r.stripe.com",
     // Firebase Auth opens a hidden same-project iframe at
     // <project>.firebaseapp.com/__/auth/iframe as part of its normal init
     // (session persistence / cross-tab auth-state sync) — this fires even
@@ -113,7 +121,10 @@ export function middleware(request: NextRequest) {
     // as an iframe; without this it's silently blocked by the CSP with no
     // visible error beyond the console, reported live as "the welcome video
     // doesn't show" right after finishing onboarding.
-    "frame-src https://*.firebaseapp.com https://www.youtube.com https://www.youtube-nocookie.com",
+    // checkout.stripe.com / js.stripe.com / hooks.stripe.com — Stripe's
+    // Embedded Checkout iframe on /checkout, plus the 3-D Secure challenge
+    // frame it opens. Without these the whole checkout is a blank box.
+    "frame-src https://*.firebaseapp.com https://www.youtube.com https://www.youtube-nocookie.com https://checkout.stripe.com https://js.stripe.com https://hooks.stripe.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

@@ -18,6 +18,7 @@ import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getOrCreatePlanProduct, getOrCreateTrialFeeProduct } from '@/lib/stripeProducts';
 import type { MembershipPlan } from '@/types';
+import { checkoutReturnParams } from '@/lib/checkoutMode';
 
 function getAdminDb() {
   const app = getAdminApp();
@@ -35,7 +36,11 @@ export async function POST(req: NextRequest) {
   const userId = authCheck.uid;
 
   try {
-    const { userEmail, planId, periodMonths } = await req.json() as { userEmail: string; planId: string; periodMonths?: 1 | 3 | 6 | 12 };
+    // `embedded`: the session renders inside /checkout on our own domain
+    // (Stripe Embedded Checkout) and returns to /checkout/complete. Without
+    // it the session is Stripe-hosted, exactly as before — the fallback the
+    // page itself uses when Stripe.js cannot load.
+    const { userEmail, planId, periodMonths, embedded } = await req.json() as { userEmail: string; planId: string; periodMonths?: 1 | 3 | 6 | 12; embedded?: boolean };
     if (!planId) return NextResponse.json({ error: 'planId required' }, { status: 400 });
 
     const db = getAdminDb();
@@ -290,11 +295,14 @@ export async function POST(req: NextRequest) {
         userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership',
         ...(trialPeriodDays ? { trialUsed: 'true' } : {}),
       },
-      success_url: `${appUrl}/dashboard?subscribed=1`,
-      cancel_url: `${appUrl}/profile`,
+      ...checkoutReturnParams({ embedded: !!embedded, appUrl }),
     });
 
-    return NextResponse.json({ url: session.url });
+    // An embedded session has a client_secret and no url; a hosted one the
+    // reverse. The page keys off which one comes back.
+    return embedded
+      ? NextResponse.json({ clientSecret: session.client_secret })
+      : NextResponse.json({ url: session.url });
   } catch (err) {
     console.error('[plan-checkout] Stripe error:', err instanceof Error ? err.message : err);
     const msg = 'Could not start checkout right now. Try again in a moment.';

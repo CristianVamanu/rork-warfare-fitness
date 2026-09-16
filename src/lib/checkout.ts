@@ -1,9 +1,25 @@
 import type { User } from 'firebase/auth';
 import { getIdToken } from 'firebase/auth';
+import { checkoutPagePath } from './checkoutMode';
 
-/** Opens Stripe Checkout for a specific membership plan tier + billing term
- * (1/3/6/12 months — defaults to monthly). Redirects on success. */
+/** Starts checkout for a membership plan tier + billing term (1/3/6/12
+ * months — defaults to monthly). Navigates to /checkout, where Stripe's
+ * form renders on our own domain; the buyer never leaves the site. Same
+ * contract as before for every caller: navigates on success, returns an
+ * error string otherwise. Errors the server can raise (inactive plan,
+ * already a member) surface on that page, with a way back. */
 export async function startPlanCheckout(user: User, planId: string, periodMonths: 1 | 3 | 6 | 12 = 1): Promise<string | null> {
+  if (!user) return 'Sign in to continue';
+  if (!planId) return 'No plan selected';
+  window.location.href = checkoutPagePath(planId, periodMonths);
+  return null;
+}
+
+/** The previous flow — a Stripe-hosted Checkout page. Kept as the fallback
+ * /checkout uses when Stripe.js cannot load in the browser (no publishable
+ * key configured, script blocked): identical session, identical prices,
+ * just on Stripe's page. Redirects on success. */
+export async function startHostedPlanCheckout(user: User, planId: string, periodMonths: 1 | 3 | 6 | 12 = 1): Promise<string | null> {
   try {
     const token = await getIdToken(user);
     const res = await fetch('/api/stripe/plan-checkout', {
