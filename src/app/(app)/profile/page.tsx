@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Camera, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy } from 'lucide-react';
+import { Edit2, Camera, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy, Smartphone } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -61,6 +61,13 @@ export default function ProfilePage() {
   // happened to provide.
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  // Hidden once the app is running from the home screen — the guide is for
+  // people still opening it in a browser tab.
+  const [isStandalone, setIsStandalone] = useState(true);
+  useEffect(() => {
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches
+      || (navigator as Navigator & { standalone?: boolean }).standalone === true);
+  }, []);
   async function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !user) return;
@@ -743,6 +750,26 @@ export default function ProfilePage() {
             </Card>
           </Link>
         </motion.div>
+
+        {/* Install — the app is a PWA, and a member who never adds it to the
+            home screen never gets full screen, the faster launch, or push
+            reminders. /download has the per-platform steps. */}
+        {!isStandalone && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1875 }}>
+            <Link href="/download">
+              <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors border-accent/25">
+                <div className="p-2 bg-accent/10 rounded-lg">
+                  <Smartphone className="w-4 h-4 text-accent" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white">Install the app</p>
+                  <p className="text-xs text-text-secondary">Add it to your home screen for the best experience — full screen, faster, and reminders that reach you.</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+              </Card>
+            </Link>
+          </motion.div>
+        )}
 
         {/* Appearance */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.19 }}>
