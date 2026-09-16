@@ -161,9 +161,13 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
   sixtyDaysAgo.setHours(0, 0, 0, 0);
 
   const streakSnap = await queryEvents('WORKOUT_COMPLETED', Timestamp.fromDate(sixtyDaysAgo));
+  // Training outside the program counts as a training day. A member who
+  // did BJJ on Tuesday did not skip Tuesday — this is the whole reason
+  // ACTIVITY_LOGGED exists.
+  const activitySnap = await queryEvents('ACTIVITY_LOGGED', Timestamp.fromDate(sixtyDaysAgo));
 
   const workoutDays = new Set<string>();
-  streakSnap.docs.forEach((d) => {
+  [...streakSnap.docs, ...activitySnap.docs].forEach((d) => {
     const ts = d.data().createdAt as Timestamp | undefined;
     if (ts?.toDate) {
       const dt = ts.toDate();

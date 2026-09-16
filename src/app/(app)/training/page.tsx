@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Ring } from '@/components/dashboard/Ring';
 import { ShareProgramButton } from '@/components/training/ShareProgramButton';
+import { LogActivitySheet } from '@/components/activity/LogActivitySheet';
 import type { Program } from '@/types';
 
 export default function TrainingPage() {
@@ -102,6 +103,7 @@ export default function TrainingPage() {
   const pct = dayProgress?.pct ?? 0;
   const programFinished = dayProgress?.finished ?? false;
   const [skippingRest, setSkippingRest] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const handleSkipRest = async () => {
     if (!user || !activeProgram?.programId || !nextSession?.isRestToday) return;
     setSkippingRest(true);
@@ -344,6 +346,13 @@ export default function TrainingPage() {
                   </Button>
                   <ShareProgramButton programId={activeProgram.programId} programName={activeProgram.programName} />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setActivityOpen(true)}
+                  className="w-full text-center text-[12px] font-semibold text-text-tertiary hover:text-accent transition-colors pt-1"
+                >
+                  Trained outside the program? <span className="text-accent">Log it</span>
+                </button>
               </div>
               </div>
             </Card>
@@ -426,6 +435,7 @@ export default function TrainingPage() {
         </div>
       </div>
       </div>
+      <LogActivitySheet open={activityOpen} onClose={() => setActivityOpen(false)} />
     </div>
   );
 }

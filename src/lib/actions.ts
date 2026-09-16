@@ -20,6 +20,7 @@ import { auth, db } from './firebase';
 import { createEvent } from './events';
 import { incrementProgramWorkouts, updateUserGoals, postCommunityActivity, invalidateWorkoutsCache } from './firestore';
 import { calcWorkoutXP, xpToPowerLevel } from './xp';
+import { calcActivityXP } from './activity';
 import { estimateNutritionTargets } from './tdee';
 import { checkAndAwardAchievements, ACHIEVEMENT_DEFS } from './achievements';
 import { checkAndAwardQuests, QUEST_DEFS } from './quests';
@@ -322,6 +323,66 @@ export async function completeWorkout(
   }
 
   return { xpEarned, newAchievements, newPowerLevel, newQuests };
+}
+
+// ---------------------------------------------------------------------------
+// Activity — training outside the program (src/lib/activity.ts)
+// ---------------------------------------------------------------------------
+
+export interface ActivityResult { xpEarned: number; newPowerLevel: number }
+
+/**
+ * Logs a run / class / sport as an ACTIVITY_LOGGED event and credits a
+ * small, capped amount of XP. It updates statsCache.lastActivityDate — NOT
+ * lastWorkoutDate, which also drives program rest-day expiry — so the
+ * streak and "trained today" see it while the program pointer does not
+ * move. Streak itself is recomputed from the event ledger by
+ * recomputeStatsCache, which createEvent() already kicks off.
+ */
+export async function logActivityAction(
+  userId: string,
+  input: { type: string; minutes: number; note: string; date: string },
+): Promise<ActivityResult> {
+  const trainerId = await getTrainerId(userId);
+  const xpEarned = calcActivityXP(input.minutes);
+  const today = new Date().toLocaleDateString('sv-SE');
+  // Backdate to midday local on the chosen day so it lands in that day's
+  // streak bucket whatever the timezone; today uses the server clock.
+  const createdAt = input.date !== today ? new Date(`${input.date}T12:00:00`) : undefined;
+
+  await emit('ACTIVITY_LOGGED', userId, trainerId, {
+    activityType: input.type,
+    minutes: input.minutes,
+    note: input.note,
+    xpEarned,
+  }, createdAt);
+
+  let newPowerLevel = 0;
+  try {
+    const userRef = doc(db, 'users', userId);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(userRef);
+      const data = snap.data() ?? {};
+      const totalXP = ((data.xp as number) ?? 0) + xpEarned;
+      newPowerLevel = xpToPowerLevel(totalXP);
+      const statsCache = (data.statsCache as Record<string, unknown> | undefined) ?? {};
+      const prevActivity = statsCache.lastActivityDate as string | undefined;
+      tx.set(userRef, {
+        xp: totalXP,
+        powerLevel: newPowerLevel,
+        lastActive: serverTimestamp(),
+        statsCache: {
+          ...statsCache,
+          // Never move it backwards when someone logs last week's class.
+          lastActivityDate: prevActivity && prevActivity > input.date ? prevActivity : input.date,
+        },
+      }, { merge: true });
+    });
+  } catch (err) {
+    console.error('[Actions] Activity XP update failed:', err);
+  }
+
+  return { xpEarned, newPowerLevel };
 }
 
 // ---------------------------------------------------------------------------

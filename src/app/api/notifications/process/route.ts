@@ -308,7 +308,15 @@ export async function POST(req: NextRequest) {
             .orderBy('createdAt', 'desc')
             .limit(1)
             .get();
-          const hasWorkoutEventInWindow = eventsSnap.docs.some((d) => {
+          // A run or a class logged outside the program is training too —
+          // nobody should be told they skipped on the day they did BJJ.
+          const activitySnap = await db.collection('events')
+            .where('userId', '==', u.id)
+            .where('type', '==', 'ACTIVITY_LOGGED')
+            .orderBy('createdAt', 'desc')
+            .limit(1)
+            .get();
+          const hasWorkoutEventInWindow = [...eventsSnap.docs, ...activitySnap.docs].some((d) => {
             const createdAt = d.data().createdAt as FirebaseFirestore.Timestamp | undefined;
             return createdAt && createdAt.toMillis() >= oneDayAgo.toMillis();
           });
