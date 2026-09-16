@@ -121,6 +121,15 @@ for p in /robots.txt /sitemap.xml /manifest.webmanifest /sw.js; do
   fetch GET "$p"
   [ "$CODE" = "200" ] && ok "$p → 200" || fail "$p → HTTP $CODE"
 done
+# Apple Pay domain verification (rewritten to /api/stripe/apple-pay-domain).
+# 503 = the server could not reach stripe.com for the file; reported, not
+# blocking, because the checkout itself is unaffected.
+fetch GET /.well-known/apple-developer-merchantid-domain-association
+case "$CODE" in
+  200) ok "apple-pay domain file → 200" ;;
+  503) warn "apple-pay domain file → 503 (stripe.com unreachable from server?)" ;;
+  *) fail "apple-pay domain file → HTTP $CODE (rewrite missing?)" ;;
+esac
 
 echo "== security headers on / =="
 fetch GET /

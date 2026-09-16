@@ -380,6 +380,19 @@ const nextConfig = {
   // 404s in the console — a real report from a rapid-redeploy session).
   // Forcing no-cache means every page load always re-checks sw.js against
   // the current deploy instead of possibly running one build behind it.
+  // Apple Pay domain verification. Apple (via Stripe) fetches this exact
+  // path when the domain is registered; the route serves Stripe's file.
+  // beforeFiles so it wins even over a stale copy in public/.
+  async rewrites() {
+    return {
+      beforeFiles: [
+        {
+          source: '/.well-known/apple-developer-merchantid-domain-association',
+          destination: '/api/stripe/apple-pay-domain',
+        },
+      ],
+    };
+  },
   async headers() {
     return [
       {
