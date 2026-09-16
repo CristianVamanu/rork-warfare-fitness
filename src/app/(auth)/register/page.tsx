@@ -11,6 +11,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Mail, Lock, User, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { signUp } from '@/lib/auth';
+import { authErrorMessage } from '@/lib/authErrors';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -62,11 +63,10 @@ export default function RegisterPage() {
         message: e?.message,
         stack: e?.stack,
       });
-      // Show the real Firebase error code + message — never hide it
-      const display = e?.code
-        ? `${e.code}: ${e.message}`
-        : (e?.message || String(err));
-      toast.error(display, { duration: 8000 });
+      // The raw code/message is in the console.error above; the toast gets
+      // a sentence a person can act on (authErrorMessage falls back to the
+      // raw text for anything it does not recognise, so nothing is hidden).
+      toast.error(authErrorMessage(err), { duration: 6000 });
     } finally {
       setLoading(false);
     }

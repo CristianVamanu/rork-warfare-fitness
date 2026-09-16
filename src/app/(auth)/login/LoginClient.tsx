@@ -13,6 +13,7 @@ import { signIn, signOut } from '@/lib/auth';
 import { getUserDoc } from '@/lib/firestore';
 import { getTrustedDevice } from '@/lib/twoFactor';
 import { isMfaRequiredError, totpChallengeFrom, resolveTotpSignIn, mfaErrorMessage, type TotpChallenge } from '@/lib/mfa';
+import { authErrorMessage } from '@/lib/authErrors';
 import type { User } from 'firebase/auth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -105,11 +106,10 @@ export default function LoginClient({
         message: e?.message,
         stack: e?.stack,
       });
-      // Show the real Firebase error code + message — never hide it
-      const display = e?.code
-        ? `${e.code}: ${e.message}`
-        : (e?.message || String(err));
-      toast.error(display, { duration: 8000 });
+      // The raw code/message is in the console.error above; the toast gets
+      // a sentence a person can act on (authErrorMessage falls back to the
+      // raw text for anything it does not recognise, so nothing is hidden).
+      toast.error(authErrorMessage(err), { duration: 6000 });
     } finally {
       setLoading(false);
     }
@@ -197,11 +197,10 @@ export default function LoginClient({
         message: e?.message,
         stack: e?.stack,
       });
-      // Show the real Firebase error code + message — never hide it
-      const display = e?.code
-        ? `${e.code}: ${e.message}`
-        : (e?.message || String(err));
-      toast.error(display, { duration: 8000 });
+      // The raw code/message is in the console.error above; the toast gets
+      // a sentence a person can act on (authErrorMessage falls back to the
+      // raw text for anything it does not recognise, so nothing is hidden).
+      toast.error(authErrorMessage(err), { duration: 6000 });
     } finally {
       setLoading(false);
     }

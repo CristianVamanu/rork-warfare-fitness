@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Search, CornerDownLeft, Loader2, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,6 +33,10 @@ export function AdminSearch({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Portal target only exists after mount; rendering it during SSR/hydration
+  // would mismatch the server markup.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [q, setQ] = useState('');
   const [people, setPeople] = useState<Person[]>([]);
   const [searching, setSearching] = useState(false);
@@ -125,6 +130,12 @@ export function AdminSearch({
         <Search className="w-5 h-5" />
       </button>
 
+      {/* Portaled to <body>: the admin header is position:sticky with
+          backdrop-blur, and backdrop-filter makes an element the containing
+          block for its position:fixed descendants. Rendered in place, this
+          palette was centred on the 64px header rather than the viewport
+          and ran off the right edge of a phone. */}
+      {mounted && createPortal(
       <AnimatePresence>
         {open && (
           <>
@@ -191,7 +202,8 @@ export function AdminSearch({
             </motion.div>
           </>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body)}
     </>
   );
 }
