@@ -81,16 +81,18 @@ exception.
 ssh root@NEW_IP
 
 apt update && apt upgrade -y
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash -   # Node 22 LTS — what CI builds against
+curl -fsSL https://deb.nodesource.com/setup_24.x | bash -   # Node 24 LTS — what CI builds against
 apt install -y nodejs git nginx certbot python3-certbot-nginx
 npm install -g pm2
 
-node -v    # expect v22.x
+node -v    # expect v24.x
 ```
 
-Node 22 is deliberate: `.github/workflows` builds on 22, `package.json`
-declares `engines.node >= 22`, and the AWS SDK (R2 uploads) drops Node 20
-support in January 2027. Do not go lower.
+Node 24 is deliberate: `.github/workflows` builds on 24, `package.json`
+declares `engines.node >= 24`, and it is the active LTS line (supported to
+roughly April 2028, where Node 22 is maintenance-only until April 2027).
+`@zxing/library`, the barcode scanner, also declares `node >= 24`. Do not
+go lower.
 
 ## 2. Clone the code
 
