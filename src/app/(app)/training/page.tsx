@@ -198,15 +198,15 @@ export default function TrainingPage() {
     return (
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index, 6) * 0.04 }}>
         <Link href={`/training/${prog.id}`} className="block">
-          <Card glass className={`relative overflow-hidden p-4 flex gap-3.5 card-float ${isActive ? 'border-accent/40 shadow-glow-sm' : saved ? 'border-success/25' : ''}`}>
-            {/* Edge-light: ember for the active program, green for one with
-                saved progress — state you can read before the badges. */}
-            {(isActive || saved) && (
+          <Card glass className={`relative overflow-hidden p-4 flex gap-3.5 card-float ${isActive ? 'border-accent/40 shadow-glow-sm' : ''}`}>
+            {/* Ember edge-light on the active program only. Green is
+                reserved for trained sessions everywhere else in the app, so
+                a paused program does not get a green wash just for
+                existing. */}
+            {isActive && (
               <div
                 className="pointer-events-none absolute inset-0"
-                style={{ background: isActive
-                  ? 'radial-gradient(120% 140% at 0% 50%, rgb(var(--accent-rgb) / 0.18) 0%, transparent 60%)'
-                  : 'linear-gradient(90deg, rgba(16,185,129,0.10) 0%, transparent 50%)' }}
+                style={{ background: 'radial-gradient(120% 140% at 0% 50%, rgb(var(--accent-rgb) / 0.18) 0%, transparent 60%)' }}
               />
             )}
             <span
@@ -231,7 +231,7 @@ export default function TrainingPage() {
                 <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">{prog.daysPerWeek} d/wk</span>
                 <Badge variant={levelTone[prog.level] === 'ok' ? 'success' : levelTone[prog.level] === 'danger' ? 'danger' : 'accent'}>{prog.level}</Badge>
                 {isActive && <Badge variant="success">Active</Badge>}
-                {!isActive && saved && <Badge variant="muted">Continue · {saved.completedWorkouts} done</Badge>}
+                {!isActive && saved && saved.completedWorkouts > 0 && <Badge variant="muted">Continue · {saved.completedWorkouts} done</Badge>}
                 {locked
                   ? <Badge variant="accent"><Lock className="w-3 h-3 inline mr-0.5" />Upgrade to unlock</Badge>
                   : premium && !isActive && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
