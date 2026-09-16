@@ -30,6 +30,9 @@ interface NutrientLevels {
   salt?: 'low' | 'moderate' | 'high';
 }
 
+/** How many consecutive frames must decode to the same code before it is trusted. */
+const REQUIRED_AGREEING_FRAMES = 2;
+
 type CameraState = 'idle' | 'initializing' | 'scanning' | 'denied' | 'error';
 
 // ---------------------------------------------------------------------------
@@ -51,6 +54,15 @@ export default function BarcodePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null); // IScannerControls — .stop() actually releases the camera stream
   const scannedRef = useRef(false); // debounce: prevent multiple triggers
+  // Last decoded candidate and how many consecutive frames agreed on it.
+  // ZXing reports a result per frame and will happily decode a blurry or
+  // half-occluded frame into a valid-looking but WRONG number — CODE_128 and
+  // CODE_39 carry no mandatory check digit at all. Accepting the first
+  // decode meant that misread went to OpenFoodFacts, came back "Product not
+  // found", and the user rescanned the same item and got it. Two frames must
+  // now agree before a code is accepted, which costs a fraction of a second
+  // and removes the whole class of phantom not-founds.
+  const candidateRef = useRef<{ code: string; hits: number }>({ code: '', hits: 0 });
 
   const [cameraState, setCameraState] = useState<CameraState>('idle');
   const [cameraError, setCameraError] = useState<string>('');
@@ -105,6 +117,7 @@ export default function BarcodePage() {
     controlsRef.current = null;
     readerRef.current = null;
     scannedRef.current = false;
+    candidateRef.current = { code: '', hits: 0 };
     setCameraState('idle');
   }, []);
 
@@ -120,6 +133,7 @@ export default function BarcodePage() {
     setCameraState('initializing');
     setCameraError('');
     scannedRef.current = false;
+    candidateRef.current = { code: '', hits: 0 };
 
     try {
       // Dynamic import keeps ZXing out of the server bundle
@@ -165,8 +179,15 @@ export default function BarcodePage() {
         videoRef.current,
         (scanResult, err) => {
           if (scanResult && !scannedRef.current) {
-            scannedRef.current = true;
             const code = scanResult.getText();
+            const prev = candidateRef.current;
+            const hits = prev.code === code ? prev.hits + 1 : 1;
+            candidateRef.current = { code, hits };
+            // Wait for a second frame to agree. A misread is essentially
+            // never reproduced identically on the very next frame, while a
+            // real barcode decodes the same way every time it is in view.
+            if (hits < REQUIRED_AGREEING_FRAMES) return;
+            scannedRef.current = true;
             stopScanner();
             lookupBarcode(code);
           }
