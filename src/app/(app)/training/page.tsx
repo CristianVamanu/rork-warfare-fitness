@@ -320,20 +320,32 @@ export default function TrainingPage() {
                   slot that is up, dashed for rest. A glance says where in
                   the week you are without opening the program. */}
               {weekStrip.length > 0 && !programFinished && (
-                <div className="mt-4 flex items-center gap-1.5">
-                  <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-text-tertiary mr-1">Wk {weekStrip[0].week}</span>
-                  {weekStrip.map((s) => (
-                    <span
-                      key={s.abs}
-                      title={s.isRest ? 'Rest' : s.label}
-                      className={`h-2 flex-1 rounded-full transition-colors ${
-                        s.done ? 'bg-success shadow-[0_0_8px_rgba(16,185,129,0.6)]' :
-                        s.isNext ? 'bg-accent shadow-[0_0_10px_rgba(245,166,35,0.7)] animate-pulse' :
-                        s.isRest ? 'border border-dashed border-white/20' :
-                        'bg-white/12'
-                      }`}
-                    />
-                  ))}
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-text-tertiary">Week {weekStrip[0].week}</span>
+                    <span className="text-[10px] font-semibold text-text-tertiary">
+                      {weekStrip.filter((s) => s.done).length}/{weekStrip.filter((s) => !s.isRest).length} sessions
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-1.5">
+                    {weekStrip.map((s) => (
+                      <div key={s.abs} className="flex-1 min-w-0" title={s.isRest ? 'Rest day' : s.label}>
+                        <span
+                          className={`block h-2 rounded-full transition-colors ${
+                            s.done ? 'bg-success shadow-[0_0_8px_rgba(16,185,129,0.6)]' :
+                            s.isNext ? 'bg-accent shadow-[0_0_10px_rgba(245,166,35,0.7)] animate-pulse' :
+                            s.isRest ? 'border border-dashed border-white/25' :
+                            'bg-white/30'
+                          }`}
+                        />
+                        <span className={`block mt-1 text-center text-[9px] font-bold tabular-nums leading-none ${
+                          s.isNext ? 'text-accent' : s.done ? 'text-success' : 'text-text-tertiary'
+                        }`}>
+                          {s.isRest ? '·' : s.abs + 1}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
               <div className="mt-4 space-y-2">
