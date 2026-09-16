@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Moon, Flame, Crosshair, Wind, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, TrendingUp, Trophy, CheckSquare, Activity, Sparkles, Plus, Minus, Target, ClipboardCheck } from 'lucide-react';
+import { Moon, Flame, Crosshair, Wind, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
 import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, getProgressPhotos, resolveProgram, type PersonalBest } from '@/lib/firestore';
@@ -19,7 +19,6 @@ import { FastingWidget } from '@/components/dashboard/FastingWidget';
 import { DailyTip } from '@/components/dashboard/DailyTip';
 import { DaysWithoutWidget } from '@/components/dashboard/DaysWithoutWidget';
 import { Ring } from '@/components/dashboard/Ring';
-import { LogActivitySheet } from '@/components/activity/LogActivitySheet';
 import { Medallion } from '@/components/dashboard/Medallion';
 import { Header } from '@/components/layout/Header';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -63,7 +62,6 @@ export default function DashboardPage() {
   const [adjustingWater, setAdjustingWater] = useState(false);
   const [activeGoalCount, setActiveGoalCount] = useState(0);
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
-  const [activityOpen, setActivityOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -148,22 +146,14 @@ export default function DashboardPage() {
   // threshold out by one, matching computeStreak()'s own freeze logic in
   // src/lib/events.ts. Without this, a server-side freeze save would be
   // invisible: the UI would still show the streak as dead.
-  // Whichever is more recent of a program session and an ad-hoc activity
-  // (run, class, sport). Both are training days for the streak; only the
-  // program session moves the program itself.
-  const lastActivityDateStr = profile?.statsCache?.lastActivityDate as string | undefined;
-  const lastWorkoutDateStr = [profile?.statsCache?.lastWorkoutDate as string | undefined, lastActivityDateStr]
-    .filter((d): d is string => !!d)
-    .sort()
-    .pop();
+  const lastWorkoutDateStr = profile?.statsCache?.lastWorkoutDate as string | undefined;
   const daysSinceLastWorkout = lastWorkoutDateStr
     ? Math.round((new Date(localDateStr + 'T00:00:00').getTime() - new Date(lastWorkoutDateStr + 'T00:00:00').getTime()) / 86_400_000)
     : null;
   const freezeAvailable = profile?.streakFreeze?.available ?? true;
   const streakBroken = daysSinceLastWorkout !== null && daysSinceLastWorkout >= (freezeAvailable ? 3 : 2);
   const streak = streakBroken ? 0 : (profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0);
-  const trainedToday = workedOutToday || lastActivityDateStr === localDateStr;
-  const streakAtRisk = !loading && streak > 0 && !trainedToday;
+  const streakAtRisk = !loading && streak > 0 && !workedOutToday;
   const streakSavedByFreeze = daysSinceLastWorkout === 2 && freezeAvailable && streak > 0;
 
   const WATER_STEP_ML = 250;
@@ -572,31 +562,17 @@ export default function DashboardPage() {
             { icon: Sparkles, label: 'Meal ideas', href: '/nutrition/meal-planner', tone: 'bg-orange-400/15 text-orange-300' },
             { icon: TrendingUp, label: 'Progress', href: '/progress', tone: 'bg-teal-400/15 text-teal-300' },
             { icon: Trophy, label: 'Achievements', href: '/achievements', tone: 'bg-yellow-400/15 text-yellow-300' },
-            // Quests moved one tap deeper (Achievements) to make room: "I
-            // trained, but not the program" was the first feature a member
-            // asked for, and it belongs where they are when they think it.
-            { icon: Activity, label: 'Log activity', href: '', onClick: () => setActivityOpen(true), tone: 'bg-pink-400/15 text-pink-300' },
+            { icon: Swords, label: 'Quests', href: '/quests', tone: 'bg-pink-400/15 text-pink-300' },
           ].map((action) => (
             <motion.div key={action.label} variants={stagger.item}>
-              {action.onClick ? (
-                <button type="button" onClick={action.onClick} className="block w-full text-left">
-                  <Card glass className="h-[84px] flex flex-col items-center justify-center gap-2 card-float">
-                    <span className={`w-10 h-10 rounded-2xl flex items-center justify-center ${action.tone}`}>
-                      <action.icon className="w-5 h-5" strokeWidth={1.75} />
-                    </span>
-                    <span className="text-[10px] font-semibold text-text-secondary text-center leading-tight px-1">{action.label}</span>
-                  </Card>
-                </button>
-              ) : (
-                <Link href={action.href} className="block">
-                  <Card glass className="h-[84px] flex flex-col items-center justify-center gap-2 card-float">
-                    <span className={`w-10 h-10 rounded-2xl flex items-center justify-center ${action.tone}`}>
-                      <action.icon className="w-5 h-5" strokeWidth={1.75} />
-                    </span>
-                    <span className="text-[10px] font-semibold text-text-secondary text-center leading-tight px-1">{action.label}</span>
-                  </Card>
-                </Link>
-              )}
+              <Link href={action.href} className="block">
+                <Card glass className="h-[84px] flex flex-col items-center justify-center gap-2 card-float">
+                  <span className={`w-10 h-10 rounded-2xl flex items-center justify-center ${action.tone}`}>
+                    <action.icon className="w-5 h-5" strokeWidth={1.75} />
+                  </span>
+                  <span className="text-[10px] font-semibold text-text-secondary text-center leading-tight px-1">{action.label}</span>
+                </Card>
+              </Link>
             </motion.div>
           ))}
         </motion.div>
@@ -700,7 +676,6 @@ export default function DashboardPage() {
       </div>
       </div>
     </div>
-    <LogActivitySheet open={activityOpen} onClose={() => setActivityOpen(false)} />
     </>
   );
 }

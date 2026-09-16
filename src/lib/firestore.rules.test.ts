@@ -777,31 +777,3 @@ describe('channel replies — editable and deletable', () => {
     await assertSucceeds(deleteDoc(doc(asAlice(), 'channels', 'c2', 'posts', 'p9')));
   });
 });
-
-describe('events — ACTIVITY_LOGGED payload bounds', () => {
-  const evt = (payload: Record<string, unknown>) => ({
-    type: 'ACTIVITY_LOGGED', userId: ALICE, trainerId: null, createdAt: new Date(), payload,
-  });
-
-  it('accepts a normal activity', async () => {
-    await assertSucceeds(setDoc(doc(asAlice(), 'events', 'a1'),
-      evt({ activityType: 'martial', minutes: 60, note: 'BJJ, open mat', xpEarned: 110 })));
-  });
-
-  it('refuses zero or absurd minutes', async () => {
-    await assertFails(setDoc(doc(asAlice(), 'events', 'a2'), evt({ activityType: 'run', minutes: 0 })));
-    await assertFails(setDoc(doc(asAlice(), 'events', 'a3'), evt({ activityType: 'run', minutes: 5000 })));
-  });
-
-  it('refuses XP above the activity ceiling', async () => {
-    await assertFails(setDoc(doc(asAlice(), 'events', 'a4'), evt({ activityType: 'run', minutes: 30, xpEarned: 2000 })));
-  });
-
-  it('refuses an over-long note', async () => {
-    await assertFails(setDoc(doc(asAlice(), 'events', 'a5'), evt({ activityType: 'run', minutes: 30, note: 'x'.repeat(201) })));
-  });
-
-  it('cannot be logged for someone else', async () => {
-    await assertFails(setDoc(doc(asBob(), 'events', 'a6'), evt({ activityType: 'run', minutes: 30 })));
-  });
-});

@@ -525,16 +525,6 @@ service cloud.firestore {
         && p.get('xpEarned', 0) is number && p.get('xpEarned', 0) >= 0 && p.get('xpEarned', 0) <= maxXpPerWrite();
     }
 
-    // Bounds on an ACTIVITY_LOGGED payload (src/lib/activity.ts). Self-reported
-    // with no evidence, so the XP it can claim is a fraction of a session's.
-    function activityPayloadSane() {
-      let p = request.resource.data.payload;
-      return p.get('minutes', 0) is number && p.get('minutes', 0) >= 1 && p.get('minutes', 0) <= 600
-        && p.get('activityType', '') is string && p.get('activityType', '').size() <= 20
-        && p.get('note', '') is string && p.get('note', '').size() <= 200
-        && p.get('xpEarned', 0) is number && p.get('xpEarned', 0) >= 0 && p.get('xpEarned', 0) <= 150;
-    }
-
     match /events/{eventId} {
       // Read: own events, admin, or that event's own trainer — needed for
       // the admin panel's client profile modal (Training Activity: recent
@@ -552,8 +542,7 @@ service cloud.firestore {
       allow create: if isAuthed() && notTfaPending()
         && request.resource.data.userId == uid()
         && request.resource.data.keys().hasAll(['type', 'userId', 'trainerId', 'payload', 'createdAt'])
-        && (request.resource.data.type != 'WORKOUT_COMPLETED' || workoutPayloadSane())
-        && (request.resource.data.type != 'ACTIVITY_LOGGED' || activityPayloadSane());
+        && (request.resource.data.type != 'WORKOUT_COMPLETED' || workoutPayloadSane());
 
       // Delete: own events only (e.g. undo a log entry)
       allow delete: if isAuthed() && notTfaPending() && resource.data.userId == uid();

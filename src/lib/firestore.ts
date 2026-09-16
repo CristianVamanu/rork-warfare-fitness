@@ -727,34 +727,6 @@ async function fetchUserWorkouts(userId: string, limitCount: number) {
 }
 
 // ---------------------------------------------------------------------------
-// Activities — ACTIVITY_LOGGED events (src/lib/activity.ts), newest first.
-// ---------------------------------------------------------------------------
-
-export interface UserActivityRow {
-  id: string;
-  activityType: string;
-  minutes: number;
-  note: string;
-  xpEarned: number;
-  completedAt: unknown;
-}
-
-export async function getUserActivities(userId: string, limitCount = 50): Promise<UserActivityRow[]> {
-  const snap = await safeGetEvents(userId, 'ACTIVITY_LOGGED', undefined, undefined, limitCount);
-  return snap.docs.map((d) => {
-    const payload = d.data().payload as Record<string, unknown>;
-    return {
-      id: d.id,
-      activityType: String(payload.activityType ?? 'other'),
-      minutes: Number(payload.minutes ?? 0),
-      note: String(payload.note ?? ''),
-      xpEarned: Number(payload.xpEarned ?? 0),
-      completedAt: d.data().createdAt,
-    };
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Weight history — recordWeight() emits a WEIGHT_RECORDED event on every
 // log, this just reads them back oldest-first for a trend chart.
 // ---------------------------------------------------------------------------

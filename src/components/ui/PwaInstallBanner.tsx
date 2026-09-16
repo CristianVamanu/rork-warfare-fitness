@@ -77,8 +77,7 @@ export function PwaInstallBanner() {
   // dismiss, and dismissing snoozes it for a month. After a session they
   // have a reason to want it there.
   const hasTrained = (profile?.statsCache?.totalWorkouts ?? 0) >= 1
-    || (profile?.activeProgram?.completedWorkouts ?? 0) >= 1
-    || !!profile?.statsCache?.lastActivityDate;
+    || (profile?.activeProgram?.completedWorkouts ?? 0) >= 1;
 
   // Check admin toggle
   useEffect(() => {

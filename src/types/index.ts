@@ -21,7 +21,6 @@ export interface UserGoals {
 
 export type EventType =
   | 'WORKOUT_COMPLETED'
-  | 'ACTIVITY_LOGGED'      // training outside the program — a run, a class, a sport (src/lib/activity.ts)
   | 'MEAL_LOGGED'
   | 'WATER_LOGGED'
   | 'WEIGHT_RECORDED'
@@ -44,11 +43,6 @@ export interface StatsCache {
   lastUpdated: unknown;
   cacheDate?: string;          // YYYY-MM-DD local date when cache was last written
   lastWorkoutDate?: string;    // YYYY-MM-DD of the most recent completed workout
-  // YYYY-MM-DD of the most recent ad-hoc activity. Kept SEPARATE from
-  // lastWorkoutDate on purpose: that date also drives program rest-day
-  // expiry (getNextSession), and a BJJ class must not push the program back
-  // a day. Streak and "trained today" read both.
-  lastActivityDate?: string;
 }
 
 export interface TenantStripe {

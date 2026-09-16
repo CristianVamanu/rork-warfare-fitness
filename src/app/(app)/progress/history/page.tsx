@@ -2,10 +2,9 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Dumbbell, Clock, Flame, Activity } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Dumbbell, Clock, Flame } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserWorkouts, getUserActivities, type UserActivityRow } from '@/lib/firestore';
-import { activityLabel } from '@/lib/activity';
+import { getUserWorkouts } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
@@ -60,10 +59,6 @@ export default function WorkoutHistoryPage() {
   // skips straight to the modal instead of making that pick pointless.
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [detailWorkout, setDetailWorkout] = useState<WorkoutEntry | null>(null);
-  // Ad-hoc activities (runs, classes, sport) logged outside the program —
-  // shown on the same calendar so a training day is a training day.
-  const [activities, setActivities] = useState<UserActivityRow[]>([]);
-  const [detailActivity, setDetailActivity] = useState<UserActivityRow | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -71,7 +66,6 @@ export default function WorkoutHistoryPage() {
     // summary only ever needed the last handful of sessions, but "see my
     // full history" implies more than 30.
     getUserWorkouts(user.uid, 300).then((w) => setWorkouts(w as WorkoutEntry[]));
-    getUserActivities(user.uid, 300).then(setActivities).catch(() => setActivities([]));
   }, [user]);
 
   const byDay = useMemo(() => {
@@ -84,17 +78,6 @@ export default function WorkoutHistoryPage() {
     });
     return map;
   }, [workouts]);
-
-  const activitiesByDay = useMemo(() => {
-    const map = new Map<string, UserActivityRow[]>();
-    activities.forEach((a) => {
-      const d = toDate(a.completedAt);
-      if (!d) return;
-      const key = dateKey(d);
-      map.set(key, [...(map.get(key) ?? []), a]);
-    });
-    return map;
-  }, [activities]);
 
   const weightUnit = (profile?.weightUnit as 'kg' | 'lbs') ?? 'kg';
 
@@ -114,18 +97,13 @@ export default function WorkoutHistoryPage() {
   const monthLabel = monthCursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const todayKey = dateKey(new Date());
   const selectedWorkouts = selectedDay ? (byDay.get(selectedDay) ?? []) : [];
-  const selectedActivities = selectedDay ? (activitiesByDay.get(selectedDay) ?? []) : [];
 
   function openDay(key: string | null) {
     if (!key) return;
     const dayWorkouts = byDay.get(key) ?? [];
-    const dayActivities = activitiesByDay.get(key) ?? [];
-    const total = dayWorkouts.length + dayActivities.length;
-    if (total === 1 && dayWorkouts.length === 1) {
+    if (dayWorkouts.length === 1) {
       setDetailWorkout(dayWorkouts[0]);
-    } else if (total === 1 && dayActivities.length === 1) {
-      setDetailActivity(dayActivities[0]);
-    } else if (total > 1) {
+    } else if (dayWorkouts.length > 1) {
       setSelectedDay(key);
     }
   }
@@ -160,9 +138,7 @@ export default function WorkoutHistoryPage() {
           <div className="grid grid-cols-7 gap-1">
             {calendarCells.map((cell, i) => {
               if (cell.day === null) return <div key={i} />;
-              const hasSession = cell.key ? byDay.has(cell.key) : false;
-              const hasActivity = cell.key ? activitiesByDay.has(cell.key) : false;
-              const hasWorkout = hasSession || hasActivity;
+              const hasWorkout = cell.key ? byDay.has(cell.key) : false;
               const isToday = cell.key === todayKey;
               const isSelected = cell.key === selectedDay;
               return (
@@ -172,8 +148,7 @@ export default function WorkoutHistoryPage() {
                   onClick={() => openDay(cell.key)}
                   className={`aspect-square rounded-lg text-xs flex flex-col items-center justify-center gap-0.5 transition-colors ${
                     isSelected ? 'bg-accent text-black font-bold' :
-                    hasSession ? 'bg-accent-muted text-accent font-semibold hover:bg-accent/30' :
-                    hasActivity ? 'bg-pink-400/15 text-pink-300 font-semibold hover:bg-pink-400/25' :
+                    hasWorkout ? 'bg-accent-muted text-accent font-semibold hover:bg-accent/30' :
                     'text-text-tertiary'
                   } ${isToday && !isSelected ? 'ring-1 ring-accent/50' : ''}`}
                 >
@@ -184,11 +159,8 @@ export default function WorkoutHistoryPage() {
           </div>
         </Card>
 
-        {(byDay.size > 0 || activitiesByDay.size > 0) && (
-          <p className="text-center text-xs text-text-tertiary">
-            Tap a highlighted date for details.
-            {activitiesByDay.size > 0 && <> <span className="text-accent">Gold</span> is a program session, <span className="text-pink-300">pink</span> an activity you logged.</>}
-          </p>
+        {!workouts.length ? null : !byDay.size ? null : (
+          <p className="text-center text-xs text-text-tertiary">Tap a highlighted date to see that session&apos;s details.</p>
         )}
 
         {/* Only shown for a day with more than one logged workout — picks
@@ -206,17 +178,6 @@ export default function WorkoutHistoryPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white">{w.duration ? `${w.duration} min session` : 'Workout Session'}</p>
                   <p className="text-xs text-text-secondary">{w.exercises?.length ?? 0} exercises · tap for details</p>
-                </div>
-              </Card>
-            ))}
-            {selectedActivities.map((a) => (
-              <Card key={a.id} className="p-3 flex items-center gap-3 cursor-pointer" onClick={() => { setDetailActivity(a); setSelectedDay(null); }}>
-                <div className="p-2 bg-pink-400/15 rounded-xl flex-shrink-0">
-                  <Activity className="w-4 h-4 text-pink-300" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white">{activityLabel(a.activityType)} · {a.minutes} min</p>
-                  <p className="text-xs text-text-secondary truncate">{a.note || 'Logged outside the program'}</p>
                 </div>
               </Card>
             ))}
@@ -259,38 +220,6 @@ export default function WorkoutHistoryPage() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
-      </Modal>
-
-      <Modal open={!!detailActivity} onClose={() => setDetailActivity(null)} title="Activity">
-        {detailActivity && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-pink-400/15 flex items-center justify-center flex-shrink-0">
-                <Activity className="w-5 h-5 text-pink-300" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-base font-bold text-white">{activityLabel(detailActivity.activityType)}</p>
-                <p className="text-xs text-text-secondary">
-                  {toDate(detailActivity.completedAt)?.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-center">
-              <div className="p-2.5 bg-surface-elevated rounded-xl">
-                <Clock className="w-4 h-4 text-accent mx-auto mb-1" />
-                <p className="text-sm font-bold text-white">{detailActivity.minutes}</p>
-                <p className="text-[10px] text-text-tertiary">minutes</p>
-              </div>
-              <div className="p-2.5 bg-surface-elevated rounded-xl">
-                <Flame className="w-4 h-4 text-orange-400 mx-auto mb-1" />
-                <p className="text-sm font-bold text-white">+{detailActivity.xpEarned}</p>
-                <p className="text-[10px] text-text-tertiary">XP</p>
-              </div>
-            </div>
-            {detailActivity.note && <p className="text-sm text-text-secondary">{detailActivity.note}</p>}
-            <p className="text-[11px] text-text-tertiary">Counted toward your streak. Your program day was not moved.</p>
           </div>
         )}
       </Modal>
