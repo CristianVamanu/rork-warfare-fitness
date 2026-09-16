@@ -8,7 +8,7 @@ import { Moon, Dumbbell, Play, ChevronRight, Crown, CheckCircle2, RotateCcw, Loc
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, resolveProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
-import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex, getScheduleForWeek, getProgramDayForDow, getProgramDayProgress } from '@/lib/programs';
+import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex, getProgramDayProgress } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
@@ -101,22 +101,6 @@ export default function TrainingPage() {
   const dayProgress = activeProgram ? getProgramDayProgress(resolvedActive, activeProgram, nextAbsIdx) : null;
   const pct = dayProgress?.pct ?? 0;
   const programFinished = dayProgress?.finished ?? false;
-  // The current week's slots for the strip on the active card. Same
-  // absolute-index arithmetic as the program page's schedule list.
-  const weekStrip = (() => {
-    if (!resolvedActive || !activeProgram) return [] as { abs: number; week: number; label: string; isRest: boolean; done: boolean; isNext: boolean }[];
-    const schedLen = getScheduleForWeek(resolvedActive, 1)?.length ?? 0;
-    if (schedLen === 0) return [];
-    const weekIdx = Math.floor(nextAbsIdx / schedLen);
-    const out = [];
-    for (let i = 0; i < schedLen; i++) {
-      const abs = weekIdx * schedLen + i;
-      const d = getProgramDayForDow(resolvedActive, abs);
-      if (!d) break;
-      out.push({ abs, week: weekIdx + 1, label: stripWeekdayPrefix(d.label ?? ''), isRest: !!d.isRest, done: abs < nextAbsIdx && !d.isRest, isNext: abs === nextAbsIdx });
-    }
-    return out;
-  })();
   const [skippingRest, setSkippingRest] = useState(false);
   const handleSkipRest = async () => {
     if (!user || !activeProgram?.programId || !nextSession?.isRestToday) return;
@@ -316,38 +300,6 @@ export default function TrainingPage() {
                   <Badge variant="success"><CheckCircle2 className="w-3 h-3 inline mr-0.5" />Day {Math.max(1, completedWorkouts)} done today</Badge>
                 )}
               </div>
-              {/* This week, slot by slot — green for trained, ember for the
-                  slot that is up, dashed for rest. A glance says where in
-                  the week you are without opening the program. */}
-              {weekStrip.length > 0 && !programFinished && (
-                <div className="mt-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-text-tertiary">Week {weekStrip[0].week}</span>
-                    <span className="text-[10px] font-semibold text-text-tertiary">
-                      {weekStrip.filter((s) => s.done).length}/{weekStrip.filter((s) => !s.isRest).length} sessions
-                    </span>
-                  </div>
-                  <div className="flex items-start gap-1.5">
-                    {weekStrip.map((s) => (
-                      <div key={s.abs} className="flex-1 min-w-0" title={s.isRest ? 'Rest day' : s.label}>
-                        <span
-                          className={`block h-2 rounded-full transition-colors ${
-                            s.done ? 'bg-success shadow-[0_0_8px_rgba(16,185,129,0.6)]' :
-                            s.isNext ? 'bg-accent shadow-[0_0_10px_rgba(245,166,35,0.7)] animate-pulse' :
-                            s.isRest ? 'border border-dashed border-white/25' :
-                            'bg-white/30'
-                          }`}
-                        />
-                        <span className={`block mt-1 text-center text-[9px] font-bold tabular-nums leading-none ${
-                          s.isNext ? 'text-accent' : s.done ? 'text-success' : 'text-text-tertiary'
-                        }`}>
-                          {s.isRest ? '·' : s.abs + 1}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
               <div className="mt-4 space-y-2">
                 {todayDay && (isRestToday ? (
                   <Button
