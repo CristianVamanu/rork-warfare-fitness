@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { Moon, Flame, Crosshair, Wind, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocalDate } from '@/hooks/useLocalDate';
 import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, getProgressPhotos, resolveProgram, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
 import { SubscribeSuccess } from '@/components/ui/SubscribeSuccess';
@@ -128,7 +129,9 @@ export default function DashboardPage() {
   const powerLevel = profile?.powerLevel ?? 0;
   const tier = getLevelTier(powerLevel);
 
-  const localDateStr = new Date().toLocaleDateString('sv-SE');
+  // Reactive (see useLocalDate) — the training card's rest-day decision
+  // below must move with the calendar, not stay pinned to first render.
+  const localDateStr = useLocalDate();
   const workedOutToday = (profile?.activeProgram?.completedWorkouts ?? 0) > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
 
   // `stats.streak` is only recomputed when a workout is completed (see
@@ -254,7 +257,7 @@ export default function DashboardPage() {
   // advances past lastCompleted and correctly honors/skips a stale rest
   // day via lastWorkoutDate.
   const nextSession = programSource
-    ? getNextSession(programSource, lastCompleted, profile?.statsCache?.lastWorkoutDate)
+    ? getNextSession(programSource, lastCompleted, profile?.statsCache?.lastWorkoutDate, localDateStr)
     : null;
   const nextAbsIdx = nextSession?.index ?? lastCompleted + 1;
   const todayDay = nextSession?.day ?? null;

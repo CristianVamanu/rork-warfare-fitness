@@ -1666,14 +1666,15 @@ export function countTrainingSlotsThrough(program: Program, lastSlotIndex: numbe
  * Sunday morning the clocks go forward, when someone is most likely to be
  * looking at the app wondering why it is behaving oddly.
  */
-function daysSince(dateStr?: string): number {
+function daysSince(dateStr: string | undefined, todayStr: string): number {
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return 0;
   const [y, m, d] = dateStr.split('-').map(Number);
   const then = Date.UTC(y, m - 1, d, 12);
   if (Number.isNaN(then)) return 0;
   // Today in the viewer's own timezone, read back as a plain calendar date.
-  const [ty, tm, td] = new Date().toLocaleDateString('sv-SE').split('-').map(Number);
+  const [ty, tm, td] = todayStr.split('-').map(Number);
   const now = Date.UTC(ty, tm - 1, td, 12);
+  if (Number.isNaN(now)) return 0;
   return Math.max(0, Math.round((now - then) / 86_400_000));
 }
 
@@ -1716,11 +1717,18 @@ export interface NextSession {
  * statsCache), so "midnight" means their midnight. Without it — nobody has
  * trained yet — nothing expires and the rest day waits for the Skip button
  * as before.
+ *
+ * `today` is the same 'YYYY-MM-DD' for the current local day. Pages pass the
+ * value from useLocalDate() so the answer changes when the date does — a
+ * PWA left open overnight otherwise rendered once and kept yesterday's rest
+ * day on screen indefinitely, which is precisely how "it never resets at
+ * midnight" was reported even after the expiry logic above was correct.
  */
 export function getNextSession(
   program: Program,
   lastCompletedDayIndex: number,
   lastWorkoutDate?: string,
+  today: string = new Date().toLocaleDateString('sv-SE'),
 ): NextSession | null {
   let start = lastCompletedDayIndex + 1;
 
@@ -1728,7 +1736,7 @@ export function getNextSession(
   // the day the workout itself was finished on. Trained today → 0 served,
   // the rest card stands. Trained yesterday → the first rest slot is today's
   // and still stands. The day after that, it is spent.
-  let restBudget = Math.max(0, daysSince(lastWorkoutDate) - 1);
+  let restBudget = Math.max(0, daysSince(lastWorkoutDate, today) - 1);
   // Bounded by a week so an all-rest schedule cannot spin, and so a user
   // returning after months lands on the next training slot rather than
   // somewhere arbitrary.

@@ -16,6 +16,7 @@ import { getProgramDayLimit, hasActiveSubscription } from '@/lib/membership';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocalDate } from '@/hooks/useLocalDate';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -78,7 +79,8 @@ export default function ProgramDetailPage() {
 
   const activeProgram = profile?.activeProgram;
   const isEnrolled = activeProgram?.programId === id;
-  const localDateStr = new Date().toLocaleDateString('sv-SE');
+  // Reactive (see useLocalDate) so the rest-day decision follows the calendar.
+  const localDateStr = useLocalDate();
   const completedWorkouts = activeProgram?.completedWorkouts ?? 0;
 
   // lastCompleted: absolute 0-based day index of the last completed unique day.
@@ -133,7 +135,7 @@ export default function ProgramDetailPage() {
   // lastCompleted and correctly skips a stale rest day using
   // lastWorkoutDate, so there's no need to freeze progress on workedOutToday.
   const nextSession = program && isEnrolled
-    ? getNextSession(program, lastCompleted, profile?.statsCache?.lastWorkoutDate)
+    ? getNextSession(program, lastCompleted, profile?.statsCache?.lastWorkoutDate, localDateStr)
     : null;
   const nextAbsIdx = isEnrolled ? (nextSession?.index ?? lastCompleted + 1) : 0;
   const todayDayIndex = nextAbsIdx % scheduleLen; // which slot in the 7-day template

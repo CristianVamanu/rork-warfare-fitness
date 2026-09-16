@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { getPrograms, resolveProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
 import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocalDate } from '@/hooks/useLocalDate';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -36,7 +37,10 @@ export default function TrainingPage() {
   // ── Single source of truth for "which day is the user on" — mirrors
   // dashboard and training/[id]. lastCompletedDayIndex is authoritative;
   // programStartDate is never used for display/navigation.
-  const localDateStr = new Date().toLocaleDateString('sv-SE');
+  // Reactive — flips at local midnight / on foreground, so the rest-day card
+  // below is recomputed instead of frozen at whatever day the page first
+  // rendered on.
+  const localDateStr = useLocalDate();
   const completedWorkouts = activeProgram?.completedWorkouts ?? 0;
   const lastCompleted = activeProgram?.lastCompletedDayIndex !== undefined
     ? activeProgram.lastCompletedDayIndex
@@ -97,7 +101,7 @@ export default function TrainingPage() {
   // twice in one day is allowed, not blocked until the calendar date rolls
   // over (see training/[id]/page.tsx for the full rationale).
   const nextSession = resolvedActive && activeProgram
-    ? getNextSession(resolvedActive, lastCompleted, profile?.statsCache?.lastWorkoutDate)
+    ? getNextSession(resolvedActive, lastCompleted, profile?.statsCache?.lastWorkoutDate, localDateStr)
     : null;
   const nextAbsIdx = activeProgram ? (nextSession?.index ?? lastCompleted + 1) : 0;
   const todayDay = nextSession?.day ?? null;

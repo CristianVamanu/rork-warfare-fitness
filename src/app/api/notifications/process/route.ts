@@ -327,7 +327,9 @@ export async function POST(req: NextRequest) {
               const lastCompleted: number = typeof u.activeProgram.lastCompletedDayIndex === 'number'
                 ? u.activeProgram.lastCompletedDayIndex
                 : ((u.activeProgram.completedWorkouts ?? 0) > 0 ? u.activeProgram.completedWorkouts - 1 : -1);
-              nextSlotIsRest = getNextSession(program, lastCompleted, lastWorkoutDate)?.isRestToday === true;
+              // `today` is already in the member's own timezone (computed
+              // above for the nudge dedupe) — the server's clock is not.
+              nextSlotIsRest = getNextSession(program, lastCompleted, lastWorkoutDate, today)?.isRestToday === true;
             }
           } catch { /* treated as a training day */ }
 

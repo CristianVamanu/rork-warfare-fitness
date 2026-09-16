@@ -35,6 +35,21 @@ describe('getNextSession — rest days are shown, then explicitly skipped', () =
     }
   });
 
+  it('is a pure function of the `today` it is given — the page re-renders with a new date, not a new clock read', () => {
+    // Trained on the 14th, rest slot next. Rendered on the 15th the rest day
+    // stands; the same props on the 16th must yield the training slot. This
+    // is what useLocalDate() feeds in when the calendar rolls over under an
+    // app that was left open.
+    expect(getNextSession(standard, 1, '2026-09-14', '2026-09-15')).toMatchObject({ index: 2, isRestToday: true });
+    expect(getNextSession(standard, 1, '2026-09-14', '2026-09-16')).toMatchObject({ index: 3, isRestToday: false });
+    // Two rest slots in a row take two days.
+    const twoRests = prog([train('A'), rest(), rest(), train('B'), rest(), rest(), rest()]);
+    expect(getNextSession(twoRests, 0, '2026-09-14', '2026-09-16')).toMatchObject({ index: 2, isRestToday: true });
+    expect(getNextSession(twoRests, 0, '2026-09-14', '2026-09-17')).toMatchObject({ index: 3, isRestToday: false });
+    // A garbage `today` degrades to "nothing expired", never to a crash.
+    expect(getNextSession(standard, 1, '2026-09-14', 'not-a-date')).toMatchObject({ index: 2, isRestToday: true });
+  });
+
   it('a rest day expires at local midnight — the reported bug', () => {
     // Trained two days ago with one rest slot next: yesterday was the rest
     // day, so today the workout is waiting. This is the case that used to

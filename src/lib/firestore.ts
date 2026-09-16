@@ -34,6 +34,7 @@ import {
   arrayRemove,
   getCountFromServer,
   writeBatch,
+  type DocumentSnapshot,
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { stripUndefinedDeep } from './utils';
@@ -1374,9 +1375,30 @@ export type SkipRestResult =
  * `index + 1`), exactly as incrementProgramWorkouts does, so skipping a rest
  * day cannot inflate progress.
  */
+// A Firestore write does not reject when the server is unreachable — it
+// queues and its promise stays pending until the write is acknowledged,
+// which for a PWA whose stream died in the background can be never. The
+// "Skip rest day" button awaited that promise with its spinner on, so it
+// spun forever. Race every step against a deadline so the caller always
+// gets an answer; the queued write itself still goes through when the
+// connection comes back, and the realtime profile listener picks it up.
+const SKIP_REST_TIMEOUT_MS = 12_000;
+function withDeadline<T>(p: Promise<T>, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out`)), SKIP_REST_TIMEOUT_MS)),
+  ]);
+}
+
 export async function skipRestDay(userId: string, programId: string, restIndex: number): Promise<SkipRestResult> {
   const ref = doc(db, 'users', userId);
-  const snap = await getDoc(ref);
+  let snap: DocumentSnapshot;
+  try {
+    snap = await withDeadline(getDoc(ref), 'skipRestDay read');
+  } catch (err) {
+    console.error('[skipRestDay] read failed:', err);
+    return { ok: false, reason: 'failed' };
+  }
   const activeProgram = snap.data()?.activeProgram as { programId?: string; lastCompletedDayIndex?: number } | undefined;
   if (!activeProgram || activeProgram.programId !== programId) return { ok: false, reason: 'not-active' };
   const lastCompleted = activeProgram.lastCompletedDayIndex ?? -1;
@@ -1386,7 +1408,7 @@ export async function skipRestDay(userId: string, programId: string, restIndex: 
 
   let completedTraining: number | undefined;
   try {
-    const resolved = await resolveProgram(programId);
+    const resolved = await withDeadline(resolveProgram(programId), 'skipRestDay resolve');
     if (resolved) {
       const { countTrainingSlotsThrough, getProgramDayForDow } = await import('./programs');
       // Refuse to "skip" a training day — this action is only for rest slots.
@@ -1397,11 +1419,11 @@ export async function skipRestDay(userId: string, programId: string, restIndex: 
   } catch { /* fall through — the pointer move alone is still correct */ }
 
   try {
-    await updateDoc(ref, {
+    await withDeadline(updateDoc(ref, {
       'activeProgram.lastCompletedDayIndex': restIndex,
       ...(completedTraining !== undefined ? { 'activeProgram.completedWorkouts': completedTraining } : {}),
       lastActive: serverTimestamp(),
-    });
+    }), 'skipRestDay write');
     return { ok: true };
   } catch (err) {
     // firestore.rules' activeProgramWriteAllowed() caps how far a non-member
