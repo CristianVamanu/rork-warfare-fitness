@@ -72,6 +72,7 @@ let db = makeDb();
 let stripe: Record<string, unknown>;
 let constructEventImpl: (body: string, sig: string, secret: string) => unknown;
 const sentEmails: { to: string; subject: string }[] = [];
+const reminderArgs: Record<string, unknown>[] = [];
 
 vi.mock('@/lib/firebase-admin', () => ({
   getAdminApp: () => ({}),
@@ -84,7 +85,7 @@ vi.mock('@/lib/stripe', () => ({
 vi.mock('@/lib/email', () => ({
   sendEmail: async (m: { to: string; subject: string }) => { sentEmails.push(m); },
   paymentFailedEmailHtml: () => '<p/>',
-  trialEndingEmailHtml: () => '<p/>',
+  trialChargeReminderEmailHtml: (o: Record<string, unknown>) => { reminderArgs.push(o); return '<p/>'; },
 }));
 vi.mock('firebase-admin/firestore', () => ({
   FieldValue: {
@@ -119,6 +120,7 @@ beforeEach(() => {
   db = makeDb();
   db.docs.set(USER, { email: 'a@b.c', displayName: 'Ann' });
   sentEmails.length = 0;
+  reminderArgs.length = 0;
   stripe = {
     webhooks: { constructEvent: (b: string, s: string, k: string) => constructEventImpl(b, s, k) },
     subscriptions: {
@@ -379,6 +381,40 @@ describe('invoice.payment_failed', () => {
   });
 });
 
+describe('customer.subscription.trial_will_end — a paid trial names its amount and date', () => {
+  // A $1-for-7-days trial converting to £49/month. Stripe fires this three
+  // days before trial_end with the subscription object.
+  const inThreeDays = Math.floor(Date.now() / 1000) + 3 * 86_400;
+  const sub = {
+    id: 'sub_1', status: 'trialing', trial_end: inThreeDays,
+    metadata: { userId: 'u1', planName: 'Vanguard' },
+    items: { data: [{ price: { unit_amount: 4900, currency: 'gbp', recurring: { interval: 'month', interval_count: 1 } } }] },
+  };
+  const evt = { id: 'evt_t', type: 'customer.subscription.trial_will_end', data: { object: sub } };
+
+  it('emails the exact amount, cadence, plan and date — the facts a dispute form asks for', async () => {
+    await POST(req(evt));
+    expect(sentEmails).toHaveLength(1);
+    expect(sentEmails[0].to).toBe('a@b.c');
+    expect(sentEmails[0].subject).toContain('£49 a month');
+    expect(sentEmails[0].subject).toContain('Vanguard');
+    expect(reminderArgs[0]).toMatchObject({ planName: 'Vanguard', amountLabel: '£49', cadence: 'a month', name: 'Ann' });
+    expect(reminderArgs[0].chargeDate).toMatch(/\d{1,2} \w+ \d{4}/);
+  });
+
+  it('says what the charge will look like on a statement, from config when set', async () => {
+    db.docs.set('system/config', { appName: 'Warfare Fitness', statementDescriptor: 'WARFAREFITNESS.COM' });
+    await POST(req(evt));
+    expect(reminderArgs[0].statementDescriptor).toBe('WARFAREFITNESS.COM');
+  });
+
+  it('does not send twice on a replayed delivery', async () => {
+    await POST(req(evt));
+    await POST(req(evt));
+    expect(sentEmails).toHaveLength(1);
+  });
+});
+
 // ── Idempotency and retries ─────────────────────────────────────────────────
 
 describe('delivery guarantees', () => {
@@ -479,7 +515,9 @@ describe('customer.subscription.trial_will_end', () => {
     expect(res.status).toBe(200);
     expect(sentEmails).toHaveLength(1);
     expect(sentEmails[0].to).toBe('a@b.c');
-    expect(sentEmails[0].subject).toMatch(/ends in \d+ day/);
+    // Date, not a countdown: the date is what they will search their inbox
+    // for on the day the charge appears.
+    expect(sentEmails[0].subject).toMatch(/trial ends \d{1,2} \w+ \d{4}/);
   });
 
   it('never grants or revokes access', async () => {

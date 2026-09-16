@@ -6,7 +6,8 @@ import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
 import { FieldValue, FieldPath } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { resolveAccountEmail } from '@/lib/accountEmail';
-import { sendEmail, paymentFailedEmailHtml, trialEndingEmailHtml } from '@/lib/email';
+import { sendEmail, paymentFailedEmailHtml, trialChargeReminderEmailHtml } from '@/lib/email';
+import { describeUpcomingCharge, trialReminderSubject } from '@/lib/trialReminder';
 import type Stripe from 'stripe';
 
 function getAdminDb() {
@@ -331,18 +332,37 @@ export async function POST(req: NextRequest) {
         ]);
         const userEmail = await resolveAccountEmail(userId, userSnap.data()?.email as string | undefined);
         if (!userEmail) break;
-        const trialEndMs = (sub.trial_end ?? 0) * 1000;
-        const daysLeft = Math.max(1, Math.ceil((trialEndMs - Date.now()) / (24 * 60 * 60 * 1000)));
-        const appName = (cfgSnap.data()?.appName as string) || 'Warfare Fitness';
+        // Amount, cadence, date and plan come off the subscription itself —
+        // the one source that cannot disagree with the charge Stripe will
+        // make. The old version of this sent the FREE-trial template, which
+        // said "free" to someone who had paid for the trial and named no
+        // amount or date at all, which is precisely the email that produces
+        // an "unrecognised charge" dispute three days later.
+        const charge = describeUpcomingCharge(sub);
+        const cfg = cfgSnap.data() ?? {};
+        const appName = (cfg.appName as string) || 'Warfare Fitness';
         // logoUrl lives in the same config document appName came from, so the
         // email header gets the real logo for no extra read.
-        const brand = { name: appName, logoUrl: (cfgSnap.data()?.logoUrl as string) || null };
+        const brand = { name: appName, logoUrl: (cfg.logoUrl as string) || null };
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
+        // What the charge reads as on a bank statement. Configurable because
+        // it is set in the Stripe dashboard, not here, and the two must match.
+        const statementDescriptor = (cfg.statementDescriptor as string) || 'WARFAREFITNESS.COM';
         await sendEmail({
           to: userEmail,
-          subject: `Your trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`,
-          html: trialEndingEmailHtml(userSnap.data()?.displayName?.split(' ')[0] || 'there', daysLeft, brand, appUrl),
+          subject: trialReminderSubject(charge),
+          html: trialChargeReminderEmailHtml({
+            name: userSnap.data()?.displayName?.split(' ')[0] || 'there',
+            planName: charge.planName,
+            chargeDate: charge.chargeDate,
+            amountLabel: charge.amountLabel,
+            cadence: charge.cadence,
+            statementDescriptor,
+            brand,
+            appUrl,
+          }),
         });
+        console.log(`[Stripe webhook] trial_will_end: reminded user ${userId} — ${charge.amountLabel ?? 'unknown amount'} on ${charge.chargeDate}`);
         break;
       }
 

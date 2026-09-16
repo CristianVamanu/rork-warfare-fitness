@@ -438,6 +438,59 @@ export function trialEndingEmailHtml(name: string, daysLeft: number, brand: Emai
   `);
 }
 
+/**
+ * The notice before a PAID trial converts — sent from the Stripe webhook on
+ * customer.subscription.trial_will_end, three days out.
+ *
+ * Written to be the email a dispute form would otherwise be filled in from:
+ * the plan, the exact amount, the exact date, what the charge will look like
+ * on a statement, and how to stop it. Nothing is asked of a member who wants
+ * to continue. trialEndingEmailHtml above is the FREE-trial version the cron
+ * sends and says "free"; this one never does, because this trial was paid for.
+ */
+export function trialChargeReminderEmailHtml(opts: {
+  name: string;
+  planName: string;
+  chargeDate: string;
+  amountLabel: string | null;
+  cadence: string | null;
+  statementDescriptor: string;
+  brand: EmailBrand;
+  appUrl: string;
+}): string {
+  const name = escapeHtml(opts.name);
+  const plan = escapeHtml(opts.planName);
+  const date = escapeHtml(opts.chargeDate);
+  const descriptor = escapeHtml(opts.statementDescriptor);
+  const { name: appName } = brandOf(opts.brand);
+  const money = opts.amountLabel
+    ? `<strong style="color:#111111;">${escapeHtml(opts.amountLabel)}${opts.cadence ? ' ' + escapeHtml(opts.cadence) : ''}</strong>`
+    : 'the plan price';
+  const row = (k: string, v: string) => `
+        <tr>
+          <td style="padding:10px 14px;font-size:13px;color:#6b6b6b;border-top:1px solid #ececec;white-space:nowrap;">${k}</td>
+          <td align="right" style="padding:10px 14px;font-size:13px;font-weight:700;color:#111111;border-top:1px solid #ececec;">${v}</td>
+        </tr>`;
+  return shell(opts.brand, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Your trial ends on ${date}</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+      Hey ${name}. Your ${plan} trial ends on ${date}. From then, ${escapeHtml(appName)} bills ${money}
+      to the card you used at checkout. It will show on your statement as <strong style="color:#111111;">${descriptor}</strong>.
+    </p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;border:1px solid #ececec;border-radius:12px;border-collapse:separate;overflow:hidden;">
+      <tr>
+        <td style="padding:10px 14px;font-size:13px;color:#6b6b6b;white-space:nowrap;">Plan</td>
+        <td align="right" style="padding:10px 14px;font-size:13px;font-weight:700;color:#111111;">${plan}</td>
+      </tr>${row('First charge', date)}${row('Amount', opts.amountLabel ? escapeHtml(opts.amountLabel) + (opts.cadence ? ' ' + escapeHtml(opts.cadence) : '') : 'Plan price')}
+    </table>
+    <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#444444;">
+      <strong style="color:#111111;">Nothing to do if you want to keep going.</strong>
+      Want to stop before then? Cancel from Manage membership any time before ${date} and you will not be charged.
+    </p>
+    ${button('Manage membership', `${opts.appUrl}/profile`)}
+  `, `${opts.amountLabel ? opts.amountLabel + (opts.cadence ? ' ' + opts.cadence : '') + ' from ' : 'Billing starts '}${opts.chargeDate}. Cancel any time before then.`);
+}
+
 export function twoFactorCodeEmailHtml(code: string, brand: EmailBrand): string {
   const { name: appName } = brandOf(brand);
   return shell(brand, `
