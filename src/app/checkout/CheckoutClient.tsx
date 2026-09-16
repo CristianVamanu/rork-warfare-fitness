@@ -71,8 +71,13 @@ export function CheckoutClient() {
         const res = await fetch('/api/stripe/publishable-key');
         const data = await res.json().catch(() => ({})) as { key?: string };
         if (!res.ok || !data.key) throw new Error('no publishable key');
+        // Wait for Stripe.js itself, not just the key. If the script cannot
+        // load (blocked, offline) loadStripe rejects — caught below and the
+        // buyer goes to the hosted page instead of staring at a white box.
+        const stripe = await loadStripe(data.key);
+        if (!stripe) throw new Error('stripe.js unavailable');
         if (!alive) return;
-        setStripePromise(loadStripe(data.key));
+        setStripePromise(Promise.resolve(stripe));
         setPhase('ready');
       } catch {
         if (!alive) return;
@@ -110,6 +115,24 @@ export function CheckoutClient() {
 
   // Stable identity — a new options object would re-initialise the iframe.
   const options = useMemo(() => ({ fetchClientSecret }), [fetchClientSecret]);
+
+  // Watchdog. Stripe.js loading proves the script is reachable, not that
+  // the checkout FRAME can render (a frame-src block, an extension, a
+  // webview that refuses third-party frames). If no iframe has appeared
+  // inside the panel after 15s, take the hosted route rather than leave a
+  // blank panel with a "Secure checkout" label over it.
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (phase !== 'ready' || !user || !planId) return;
+    const t = setTimeout(async () => {
+      if (panelRef.current?.querySelector('iframe')) return;
+      console.warn('[checkout] embedded frame never rendered — falling back to hosted checkout');
+      setPhase('hosted');
+      const err = await startHostedPlanCheckout(user, planId, months);
+      if (err) { setError(err); setPhase('error'); }
+    }, 15_000);
+    return () => clearTimeout(t);
+  }, [phase, user, planId, months]);
 
   if (authLoading || !user || phase === 'booting') return <BrandSplash label="Preparing secure checkout" />;
   if (phase === 'hosted') return <BrandSplash label="Opening secure checkout" />;
@@ -150,7 +173,7 @@ export function CheckoutClient() {
                 page a buyer must trust on sight, and a card form that looks
                 like every other card form they have used is what earns that.
                 The ember glow and the grid around it are ours. */}
-            <div className="rounded-3xl overflow-hidden bg-white border border-white/10 shadow-[0_30px_80px_-30px_rgba(245,166,35,0.55)] min-h-[480px]">
+            <div ref={panelRef} className="rounded-3xl overflow-hidden bg-white border border-white/10 shadow-[0_30px_80px_-30px_rgba(245,166,35,0.55)] min-h-[480px]">
               <EmbeddedCheckoutProvider stripe={stripePromise} options={options}>
                 <EmbeddedCheckout />
               </EmbeddedCheckoutProvider>

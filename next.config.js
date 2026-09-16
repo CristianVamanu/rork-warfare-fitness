@@ -250,6 +250,17 @@ const withPWA = require('next-pwa')({
     // call still rejects so the calling code's own error handling/toast
     // still fires correctly; only a cancelled request is treated as a
     // non-event instead of a fake error.
+    // Stripe (js.stripe.com, checkout.stripe.com, api.stripe.com, and the
+    // m/r/q telemetry hosts). Falls through to next-pwa's cross-origin
+    // NetworkFirst default otherwise, which would put a caching layer in
+    // front of a PAYMENT script and the checkout iframe — a stale Stripe.js
+    // is a failed 3-D Secure, not a slow page. No handlerDidError here on
+    // purpose: a genuine load failure must reject so loadStripe() rejects
+    // and /checkout can fall back to the Stripe-hosted page.
+    {
+      urlPattern: ({ url }) => /(^|\.)stripe\.(com|network)$/.test(url.hostname),
+      handler: 'NetworkOnly',
+    },
     ...require('next-pwa/cache').map((rule) => ({
       ...rule,
       options: {

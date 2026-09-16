@@ -104,11 +104,16 @@ export function middleware(request: NextRequest) {
     // Same class as fonts.gstatic.com, apis.google.com and googletagmanager
     // above: a hostname the app never references itself, reached only by a
     // library or the service worker, and governed by connect-src.
-    // api.stripe.com / checkout.stripe.com / m.stripe.network / r.stripe.com:
-    // Stripe.js on /checkout talks to these from OUR page (session setup,
-    // fraud signals, telemetry); requests made inside Stripe's iframe are
-    // governed by Stripe's own policy, not this one.
-    "connect-src 'self' https://*.googleapis.com https://apis.google.com https://www.google.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://api.stripe.com https://checkout.stripe.com https://m.stripe.network https://m.stripe.com https://r.stripe.com",
+    // Stripe, for /checkout. js.stripe.com is here as well as in script-src
+    // for the same reason as apis.google.com and googletagmanager above:
+    // the service worker's cross-origin catch-all intercepts the script
+    // load and re-issues it as a fetch(), which only connect-src governs —
+    // missing, Stripe.js never loaded and the checkout panel was blank.
+    // api/checkout/hooks/m/r/q.stripe.* are what Stripe.js then talks to
+    // from OUR page (session setup, 3DS, fraud signals, telemetry).
+    // Requests made inside Stripe's iframe are governed by Stripe's own
+    // policy, not this one.
+    "connect-src 'self' https://*.googleapis.com https://apis.google.com https://www.google.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://js.stripe.com https://api.stripe.com https://checkout.stripe.com https://hooks.stripe.com https://m.stripe.network https://m.stripe.com https://r.stripe.com https://q.stripe.com",
     // Firebase Auth opens a hidden same-project iframe at
     // <project>.firebaseapp.com/__/auth/iframe as part of its normal init
     // (session persistence / cross-tab auth-state sync) — this fires even
