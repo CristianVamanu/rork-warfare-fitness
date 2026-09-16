@@ -8,7 +8,7 @@ import { Moon, Dumbbell, Play, ChevronRight, Crown, CheckCircle2, RotateCcw, Loc
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, resolveProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
-import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex, getScheduleForWeek, getProgramDayForDow } from '@/lib/programs';
+import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex, getScheduleForWeek, getProgramDayForDow, getProgramDayProgress } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
@@ -72,17 +72,6 @@ export default function TrainingPage() {
       })
       .catch(() => setSavedProgressMap({}));
   }, [user, activeProgram?.programId]);
-  // Clamped to 100: getScheduleForWeek has no "program finished" concept of
-  // its own — once a user's position runs past the program's last defined
-  // week, it just keeps repeating that final phase's schedule rather than
-  // stopping, so completedWorkouts can keep climbing past totalWorkouts.
-  // Without clamping, that read as "112%" or "9/8 sessions" instead of a
-  // completed program.
-  const pct = activeProgram && activeProgram.totalWorkouts > 0
-    ? Math.min(100, Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100))
-    : 0;
-  const programFinished = !!activeProgram && activeProgram.completedWorkouts >= activeProgram.totalWorkouts;
-
   // Shared resolver (Firestore-first, seed fallback) — this used to prefer
   // the built-in seed copy over the admin's saved Firestore edits, the
   // exact opposite precedence of the program detail page, which is how two
@@ -107,6 +96,11 @@ export default function TrainingPage() {
   const todayDay = nextSession?.day ?? null;
   const isRestToday = nextSession?.isRestToday ?? false;
   const repeatIdx = resolvedActive ? getLastTrainingSlotIndex(resolvedActive, lastCompleted) : null;
+  // Progress in DAYS, rest days included — "Day 9 of 84". See
+  // getProgramDayProgress for why sessions stopped being the headline.
+  const dayProgress = activeProgram ? getProgramDayProgress(resolvedActive, activeProgram, nextAbsIdx) : null;
+  const pct = dayProgress?.pct ?? 0;
+  const programFinished = dayProgress?.finished ?? false;
   // The current week's slots for the strip on the active card. Same
   // absolute-index arithmetic as the program page's schedule list.
   const weekStrip = (() => {
@@ -307,12 +301,17 @@ export default function TrainingPage() {
                     </p>
                   )}
                 </div>
-                <Ring value={activeProgram.totalWorkouts > 0 ? activeProgram.completedWorkouts / activeProgram.totalWorkouts : 0} size={64} stroke={6}>
+                <Ring value={pct / 100} size={64} stroke={6}>
                   <span className="text-[15px] font-black text-white tabular-nums">{pct}<span className="text-[10px] font-bold text-text-secondary">%</span></span>
                 </Ring>
               </div>
               <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-                <Badge variant="accent">{programFinished ? '🎉 Program complete' : `${activeProgram.completedWorkouts} of ${activeProgram.totalWorkouts} sessions`}</Badge>
+                <Badge variant="accent">{programFinished ? '🎉 Program complete' : `Day ${dayProgress?.dayNumber ?? 1} of ${dayProgress?.totalDays ?? activeProgram.totalWorkouts}`}</Badge>
+                {!programFinished && (
+                  <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">
+                    {activeProgram.completedWorkouts} session{activeProgram.completedWorkouts !== 1 ? 's' : ''} done
+                  </span>
+                )}
                 {workedOutToday && (
                   <Badge variant="success"><CheckCircle2 className="w-3 h-3 inline mr-0.5" />Day {Math.max(1, completedWorkouts)} done today</Badge>
                 )}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getNextSession, getLastTrainingSlotIndex, countTrainingSlotsThrough, getTotalTrainingDays, pickBestProgram, MOCK_PROGRAMS } from './programs';
+import { getNextSession, getLastTrainingSlotIndex, countTrainingSlotsThrough, getTotalTrainingDays, getProgramDayProgress, pickBestProgram, MOCK_PROGRAMS } from './programs';
 import type { Program, ProgramDay } from '@/types';
 
 const train = (label: string): ProgramDay => ({ label, isRest: false, exercises: [{ id: 'e', name: 'Squat', sets: 3, reps: 10, restSeconds: 60 }] });
@@ -260,5 +260,28 @@ describe('pickBestProgram — days per week is a preference, not a fit', () => {
     const three: Program = { ...standard, id: 'three', goal: 'weight-loss', level: 'beginner', daysPerWeek: 3 };
     expect(pickBestProgram([six, three], 'lose-fat', 'beginner', 3)!.id).toBe('three');
     expect(pickBestProgram([six, three], 'lose-fat', 'beginner', 6)!.id).toBe('six');
+  });
+});
+
+describe('getProgramDayProgress — progress counted in days, rest days included', () => {
+  const enrollment = { completedWorkouts: 3, totalWorkouts: 16 }; // `standard`: 4 weeks × 4 sessions
+  it('a 4-week, 7-slot program is 28 days; slots behind the next one are done', () => {
+    // Next slot is index 4 → four days behind it (incl. two rest slots).
+    expect(getProgramDayProgress(standard, enrollment, 4)).toMatchObject({ dayNumber: 5, daysDone: 4, totalDays: 28, pct: 14, finished: false });
+  });
+  it('a served rest day moves the number, a training day does not have to happen', () => {
+    const a = getProgramDayProgress(standard, enrollment, 2);
+    const b = getProgramDayProgress(standard, enrollment, 3); // rest slot 2 passed
+    expect(b.daysDone).toBe(a.daysDone + 1);
+  });
+  it('finishes on the last day, or when every session is done — whichever comes first', () => {
+    expect(getProgramDayProgress(standard, enrollment, 28)).toMatchObject({ daysDone: 28, dayNumber: 28, pct: 100, finished: true });
+    expect(getProgramDayProgress(standard, { completedWorkouts: 16, totalWorkouts: 16 }, 26)).toMatchObject({ finished: true, pct: 100 });
+  });
+  it('falls back to session counts when the program has not resolved', () => {
+    expect(getProgramDayProgress(null, { completedWorkouts: 3, totalWorkouts: 39 }, 99)).toMatchObject({ dayNumber: 4, daysDone: 3, totalDays: 39, pct: 8 });
+  });
+  it('never divides by zero on a legacy enrollment with no totals', () => {
+    expect(getProgramDayProgress(null, { completedWorkouts: 0, totalWorkouts: 0 }, 0)).toMatchObject({ pct: 0, totalDays: 0, finished: false });
   });
 });

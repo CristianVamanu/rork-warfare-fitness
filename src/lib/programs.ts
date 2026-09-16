@@ -1638,6 +1638,45 @@ export function getTotalTrainingDays(program: Program): number {
 }
 
 /**
+ * Program progress measured in DAYS — rest days included — which is how
+ * every member already thinks of a program ("12 weeks", "84 days"), and
+ * what the schedule list numbers its tiles by. Sessions (training days
+ * only) used to be the headline number, so the tile said Day 9 while the
+ * ring said 3 of 39, and a rest day moved nothing.
+ *
+ * `nextSlotIndex` is the slot the member is on next (getNextSession's
+ * index, which already advances past served rest days), so days done is
+ * simply the slots behind it. Purely derived — nothing new is stored.
+ * A program with no schedule (flat exercise list) has no rest days, so
+ * days and sessions coincide; an unresolved program falls back to the
+ * session counts stored on the enrollment.
+ */
+export function getProgramDayProgress(
+  program: Program | null | undefined,
+  enrollment: { completedWorkouts: number; totalWorkouts: number },
+  nextSlotIndex: number,
+): { dayNumber: number; daysDone: number; totalDays: number; pct: number; finished: boolean } {
+  const totalSessions = Math.max(0, enrollment.totalWorkouts || 0);
+  const sessionsDone = Math.max(0, enrollment.completedWorkouts || 0);
+  const scheduleLen = program ? (getScheduleForWeek(program, 1)?.length ?? 0) : 0;
+  const totalDays = program && scheduleLen > 0
+    ? Math.max(1, program.weeks || 1) * scheduleLen
+    : totalSessions;
+  const finishedBySessions = totalSessions > 0 && sessionsDone >= totalSessions;
+  if (totalDays <= 0) return { dayNumber: 1, daysDone: 0, totalDays: 0, pct: 0, finished: finishedBySessions };
+  const rawDone = program && scheduleLen > 0 ? Math.max(0, nextSlotIndex) : sessionsDone;
+  const finished = finishedBySessions || rawDone >= totalDays;
+  const daysDone = Math.min(finished ? totalDays : rawDone, totalDays);
+  return {
+    dayNumber: Math.min(rawDone + 1, totalDays),
+    daysDone,
+    totalDays,
+    pct: Math.min(100, Math.round((daysDone / totalDays) * 100)),
+    finished,
+  };
+}
+
+/**
  * How many TRAINING slots fall in [0..lastSlotIndex] inclusive — converts a
  * slot-based progress pointer (which counts rest days too) into an honest
  * "sessions completed" count. Phase-aware for the same reason as above.

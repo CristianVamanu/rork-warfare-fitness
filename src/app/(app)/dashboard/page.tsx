@@ -10,7 +10,7 @@ import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWate
 import type { ProgressPhoto, Program } from '@/types';
 import { SubscribeSuccess } from '@/components/ui/SubscribeSuccess';
 import { logWaterAction } from '@/lib/actions';
-import { getMockProgram, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex } from '@/lib/programs';
+import { getMockProgram, stripWeekdayPrefix, getNextSession, getProgramDayProgress, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
@@ -290,9 +290,13 @@ export default function DashboardPage() {
   // Guarded against a zero/missing totalWorkouts — enrollInProgram always
   // sets it now, but a legacy activeProgram written before that field
   // existed divides by undefined and renders a literal "NaN%".
-  const programPct = activeProgram && activeProgram.totalWorkouts
-    ? Math.min(100, Math.round((completedWorkouts / activeProgram.totalWorkouts) * 100))
-    : 0;
+  // Progress in DAYS, rest days included (see getProgramDayProgress) —
+  // "Day 9 of 84", not "3 of 39 sessions". Falls back to sessions until the
+  // program resolves, and for legacy enrollments with no totals.
+  const dayProgress = activeProgram
+    ? getProgramDayProgress(programSource, activeProgram, nextAbsIdx)
+    : null;
+  const programPct = dayProgress?.pct ?? 0;
 
   const firstExerciseName = !isRestToday ? todayDay?.exercises?.[0]?.name : nextSession?.nextTraining?.day.exercises?.[0]?.name;
 
@@ -315,7 +319,8 @@ export default function DashboardPage() {
   // mode gets its own values rather than an inverted dark one.
   const sessionCount = todayDay?.exercises?.length ?? 0;
   const dayLabel = todayDay ? stripWeekdayPrefix(todayDay.label) : '';
-  const remaining = activeProgram ? Math.max(0, activeProgram.totalWorkouts - completedWorkouts) : 0;
+  const remaining = dayProgress ? Math.max(0, dayProgress.totalDays - dayProgress.daysDone) : 0;
+  const programDone = dayProgress?.finished ?? false;
   const caloriesPct = goals.calories > 0 ? (calories ?? 0) / goals.calories : 0;
   const waterPct = goals.water > 0 ? (waterMl ?? 0) / goals.water : 0;
   const glassRow = 'p-3.5 h-full flex items-center gap-3.5 card-float';
@@ -372,9 +377,9 @@ export default function DashboardPage() {
                 {/* Always the NEXT session. A finished day is noted in the
                     subline; the chip, headline and list never point backwards. */}
                 <span className="inline-flex items-center h-[26px] px-2.5 rounded-full bg-[#141005]/15 text-[11px] font-extrabold">
-                  {remaining === 0
+                  {programDone
                     ? 'Program complete'
-                    : `${workedOutToday ? 'Next · ' : ''}Day ${Math.min(completedWorkouts + 1, activeProgram.totalWorkouts)} of ${activeProgram.totalWorkouts}`}
+                    : `${workedOutToday ? 'Next · ' : ''}Day ${dayProgress?.dayNumber ?? 1} of ${dayProgress?.totalDays ?? activeProgram.totalWorkouts}`}
                 </span>
                 {!isRestToday && sessionCount > 0 && (
                   <span className="inline-flex items-center h-[26px] px-2.5 rounded-full bg-[#141005]/15 text-[11px] font-extrabold">
@@ -384,7 +389,7 @@ export default function DashboardPage() {
               </div>
 
               <h2 className="text-[27px] font-black leading-[1.05] tracking-tight mt-3">
-                {remaining === 0
+                {programDone
                   ? 'You finished it.'
                   : isRestToday
                   ? 'Rest day.'
@@ -393,12 +398,12 @@ export default function DashboardPage() {
                   : activeProgram.programName}
               </h2>
               <p className="text-[13px] font-semibold mt-1.5 opacity-85">
-                {remaining === 0
+                {programDone
                   ? `${activeProgram.programName} · every session done. Pick your next fight.`
                   : isRestToday
                   ? `${activeProgram.programName} · recover, or skip it below`
                   : workedOutToday && completedWorkouts > 0
-                  ? `${activeProgram.programName} · today's session is done · ${remaining} left`
+                  ? `${activeProgram.programName} · today's session is done · ${remaining} day${remaining !== 1 ? 's' : ''} left`
                   : `${activeProgram.programName}${personalBest ? ` · your best on ${firstExerciseName}: ${personalBest.weight}${profile?.weightUnit ?? 'kg'} × ${personalBest.reps}` : ''}`}
               </p>
 
@@ -420,7 +425,7 @@ export default function DashboardPage() {
                 <div className="h-1.5 rounded-full bg-[#141005]/15 overflow-hidden">
                   <div className="h-full rounded-full bg-[#141005]" style={{ width: `${programPct}%` }} />
                 </div>
-                <p className="text-[11px] font-semibold mt-1.5 opacity-75">{programPct}% complete · {remaining} session{remaining !== 1 ? 's' : ''} remaining</p>
+                <p className="text-[11px] font-semibold mt-1.5 opacity-75">{programPct}% complete · {remaining} day{remaining !== 1 ? 's' : ''} remaining</p>
               </div>
 
               <div className="mt-3 space-y-2">

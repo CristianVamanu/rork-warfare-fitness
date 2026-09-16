@@ -11,7 +11,7 @@ import {
   Save, RotateCcw, Lock, Crown,
 } from 'lucide-react';
 import { resolveProgram, enrollInProgram, getMembershipConfig, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
-import { getMockProgram, stripWeekdayPrefix, getScheduleForWeek, getNextSession } from '@/lib/programs';
+import { getMockProgram, stripWeekdayPrefix, getScheduleForWeek, getNextSession, getProgramDayProgress } from '@/lib/programs';
 import { getProgramDayLimit, hasActiveSubscription } from '@/lib/membership';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { PaywallGate } from '@/components/ui/PaywallGate';
@@ -143,6 +143,7 @@ export default function ProgramDetailPage() {
   // Use whichever is larger: program's declared weeks or the user's actual progress
   const totalWeeks = Math.max(program?.weeks || 1, currentWeek + 1);
   const nextIsLocked = isEnrolled && nextAbsIdx >= dayLimit;
+  const dayProgress = isEnrolled && activeProgram ? getProgramDayProgress(program, activeProgram, nextAbsIdx) : null;
 
   // The FULL program, every week, in one flat list — previously paginated
   // one week at a time behind arrow buttons, which meant the trial day-lock
@@ -344,25 +345,25 @@ export default function ProgramDetailPage() {
             </div>
 
             {/* Enrollment progress bar */}
-            {isEnrolled && activeProgram && (
+            {isEnrolled && activeProgram && dayProgress && (
               <div className="mt-4">
+                {/* Days, rest days included — the same unit the schedule
+                    list numbers its tiles by, so the bar and the list agree. */}
                 <div className="flex justify-between text-xs mb-1">
                   <span className={workedOutToday ? 'text-success font-medium' : 'text-text-secondary'}>
-                    {workedOutToday
-                      ? `✓ Day ${Math.max(1, completedWorkouts)} complete`
-                      : `${completedWorkouts} workouts done`}
+                    {dayProgress.finished
+                      ? '✓ Program complete'
+                      : workedOutToday
+                        ? `✓ Day ${Math.max(1, dayProgress.daysDone)} complete · ${completedWorkouts} session${completedWorkouts !== 1 ? 's' : ''}`
+                        : `Day ${dayProgress.dayNumber} of ${dayProgress.totalDays} · ${completedWorkouts} session${completedWorkouts !== 1 ? 's' : ''} done`}
                   </span>
-                  <span className="text-text-tertiary">
-                    {/* Clamped: completedWorkouts can run past totalWorkouts once a
-                        user trains beyond the program's last defined week (see
-                        training/page.tsx's programFinished for why) — without this,
-                        "remaining" could show as negative. */}
-                    {Math.max(0, activeProgram.totalWorkouts - completedWorkouts)} remaining
+                  <span className="text-text-tertiary tabular-nums">
+                    {Math.max(0, dayProgress.totalDays - dayProgress.daysDone)} days left
                   </span>
                 </div>
                 <ProgressBar
-                  value={completedWorkouts}
-                  max={activeProgram.totalWorkouts}
+                  value={dayProgress.daysDone}
+                  max={dayProgress.totalDays}
                   color={workedOutToday ? 'success' : 'accent'}
                   size="sm"
                 />
