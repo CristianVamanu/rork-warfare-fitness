@@ -68,18 +68,7 @@ export function trialFeeProductId(planId: string): string {
  * down) do throw, and every caller here treats that as "fall back to an inline
  * product" rather than failing the sale.
  */
-// Products are permanent and their ids derived, so once one has been seen
-// active under its current name there is nothing a second retrieve can tell
-// us for a while. This saves one Stripe round-trip per product per checkout
-// — two on a paid trial (plan + trial-fee product) — on the request the
-// buyer is watching a spinner for. Short TTL so an admin rename still lands.
-const CONFIRMED_TTL_MS = 10 * 60_000;
-const confirmed = new Map<string, { name: string; at: number }>();
-
 export async function getOrCreateProduct(stripe: Stripe, id: string, name: string): Promise<string> {
-  const seen = confirmed.get(id);
-  if (seen && seen.name === name && Date.now() - seen.at < CONFIRMED_TTL_MS) return id;
-
   const existing = await stripe.products.retrieve(id).catch(() => null);
 
   if (existing) {
@@ -91,13 +80,11 @@ export async function getOrCreateProduct(stripe: Stripe, id: string, name: strin
     if (!existing.active || existing.name !== name) {
       await stripe.products.update(id, { active: true, name });
     }
-    confirmed.set(id, { name, at: Date.now() });
     return id;
   }
 
   try {
     const created = await stripe.products.create({ id, name });
-    confirmed.set(id, { name, at: Date.now() });
     return created.id;
   } catch (err) {
     // Lost a race with a concurrent request for the same product. The other

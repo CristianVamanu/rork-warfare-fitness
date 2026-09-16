@@ -257,7 +257,14 @@ export async function POST(req: NextRequest) {
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-      payment_method_types: ['card'],
+      // No payment_method_types. Pinning ['card'] switched off Stripe's
+      // dynamic payment methods, so a buyer on Android never saw Google
+      // Pay and one on an iPhone never saw Apple Pay as a first choice.
+      // Left to the Dashboard (Settings → Payment methods), Checkout shows
+      // each device its wallet — Apple Pay, Google Pay, Link — and filters
+      // out anything unfit for a subscription on its own. The webhook
+      // already refuses to grant on an unpaid session, so a delayed-
+      // confirmation method can never unlock access before money moves.
       customer: customerId,
       line_items: [
         {
