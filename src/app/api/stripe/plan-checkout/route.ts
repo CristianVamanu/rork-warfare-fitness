@@ -142,10 +142,15 @@ export async function POST(req: NextRequest) {
     // checkout.session.completed below).
     const alreadyUsedTrial = !!userSnap.data()?.trialUsedAt;
 
-    // A trial (paid or free) is what a throwaway address farms. A verified
-    // address is required to START one; a returning member paying full price
-    // (alreadyUsedTrial) is never blocked here — nobody farms full price.
-    if (trialDays > 0 && !alreadyUsedTrial && !authCheck.emailVerified) {
+    // A FREE trial is what a throwaway address farms, so a verified address
+    // is required to start one. A paid trial is not: the card is charged at
+    // checkout, which is a stronger identity check than an email link, and
+    // trialUsedAt (keyed off the Stripe customer) already stops the only
+    // real farming vector. Requiring verification there was pure friction on
+    // the highest-intent click in the funnel — "verify your email to give us
+    // a dollar". A returning member paying full price (alreadyUsedTrial) is
+    // never blocked either; nobody farms full price.
+    if (trialDays > 0 && !paidTrialEnabled && !alreadyUsedTrial && !authCheck.emailVerified) {
       return NextResponse.json(
         { error: 'Verify your email address to start your trial — check your inbox for the link, then try again.', code: 'EMAIL_NOT_VERIFIED' },
         { status: 403 },
