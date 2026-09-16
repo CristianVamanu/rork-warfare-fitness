@@ -131,14 +131,27 @@ async function setSubscriptionStatus(
 export async function POST(req: NextRequest) {
   let event: Stripe.Event;
 
+  // A request with NO stripe-signature header did not come from Stripe —
+  // Stripe always sends one. It is our own smoke test (which asserts this
+  // endpoint rejects unsigned calls) or an internet scanner, and logging it
+  // at error level filled the log with "[Stripe webhook] Verification
+  // failed" lines that looked like a billing outage and were nothing of the
+  // kind. Rejected the same way, logged as the noise it is.
+  const sig = req.headers.get('stripe-signature');
+  if (!sig) {
+    return NextResponse.json({ error: 'No stripe-signature header value was provided.' }, { status: 400 });
+  }
+
   try {
     const body = await req.text();
-    const sig = req.headers.get('stripe-signature') ?? '';
     const stripe = await getStripe();
     event = stripe.webhooks.constructEvent(body, sig, await getStripeWebhookSecret());
   } catch (err) {
+    // A signature that IS present but does not verify is worth shouting
+    // about: it means the endpoint secret is wrong, which silently breaks
+    // every subscription update until someone notices.
     const msg = err instanceof Error ? err.message : 'Webhook signature verification failed';
-    console.error('[Stripe webhook] Verification failed:', msg);
+    console.error('[Stripe webhook] Signature did not verify — check STRIPE_WEBHOOK_SECRET:', msg);
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
