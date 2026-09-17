@@ -17,6 +17,14 @@ interface AuthContextValue {
   tenant: Tenant | null;
   trainerId: string | null;
   loading: boolean;
+  /**
+   * True while `profile` has only been read from the on-device Firestore
+   * cache and the server has not yet confirmed it. With persistence on, the
+   * listener's first event is the cached copy from the previous visit —
+   * which, for someone who has just paid, still says "no membership". Any
+   * gate that turns on membership must treat that copy as provisional.
+   */
+  profileFromCache: boolean;
   refreshProfile: () => Promise<void>;
 }
 
@@ -26,6 +34,7 @@ const AuthContext = createContext<AuthContextValue>({
   tenant: null,
   trainerId: null,
   loading: true,
+  profileFromCache: true,
   refreshProfile: async () => {},
 });
 
@@ -151,6 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileFromCache, setProfileFromCache] = useState(true);
   const profileUnsubRef = useRef<(() => void) | null>(null);
 
   const subscribeToProfile = (firebaseUser: User, authErrorRetries = 0) => {
@@ -158,6 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Cancel any previous listener
     profileUnsubRef.current?.();
+    setProfileFromCache(true);
 
     // Right after onAuthStateChanged fires with a new user (especially when
     // switching accounts in the same session), the Firestore SDK's underlying
@@ -235,9 +246,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // this once (at account creation, via its merge-and-return-early
           // guard), so it doesn't reflect actual last-login without this.
           setDoc(doc(db, 'users', uid), { lastLoginAt: serverTimestamp() }, { merge: true }).catch(() => {});
+          // includeMetadataChanges: when the server copy matches the cached
+          // one byte for byte, Firestore fires no second data event — so
+          // without this the "server has confirmed it" signal would never
+          // arrive for the common case and the guard below would wait out
+          // its full grace period on every launch.
           const unsub = onSnapshot(
             doc(db, 'users', uid),
+            { includeMetadataChanges: true },
             (snap) => {
+              if (!snap.metadata.fromCache) setProfileFromCache(false);
               if (!snap.exists()) return;
               const p = snap.data() as UserProfile;
               setProfile(p);
@@ -314,6 +332,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profileUnsubRef.current?.();
         profileUnsubRef.current = null;
         setProfile(null);
+        setProfileFromCache(true);
         setTenant(null);
       }
       setLoading(false);
@@ -327,7 +346,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const trainerId = profile?.trainerId ?? null;
 
   return (
-    <AuthContext.Provider value={{ user, profile, tenant, trainerId, loading, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, tenant, trainerId, loading, profileFromCache, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

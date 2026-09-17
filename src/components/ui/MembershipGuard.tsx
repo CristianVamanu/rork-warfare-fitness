@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { isInFreeTrial, hasActiveSubscription, trialIsStripeManaged } from '@/lib/membership';
 import { Card } from './Card';
 import { Button } from './Button';
+import { BrandSplash } from './BrandSplash';
 import { VerifyEmailNotice } from './VerifyEmailNotice';
 import type { MembershipConfig, MembershipPlan, PlanBillingPeriodMonths } from '@/types';
 
@@ -44,6 +45,14 @@ const CONFIRMING_TIMEOUT_MS = 45_000;
 const JUST_PAID_KEY = 'wf:justPaidAt';
 
 /**
+ * How long to trust that the server copy of the profile is on its way
+ * before judging membership from the cached one. Online, the server
+ * snapshot follows the cached one within a second or so; this bound only
+ * matters offline, where the cached copy is all there will ever be.
+ */
+const CACHE_GRACE_MS = 8_000;
+
+/**
  * Stripe sends a paying member back to /profile?subscribed=1. Nothing read
  * that flag, so between the payment landing and the webhook writing
  * membership into Firestore, the guard did what it does for anyone without a
@@ -63,8 +72,15 @@ function readJustPaidAt(): number | null {
 }
 
 export function MembershipGuard({ pathname, children }: Props) {
-  const { user, profile } = useAuth();
+  const { user, profile, profileFromCache } = useAuth();
   const [justPaidAt, setJustPaidAt] = useState<number | null>(null);
+  // See CACHE_GRACE_MS. Reset whenever the profile source changes.
+  const [cacheGraceOver, setCacheGraceOver] = useState(false);
+  useEffect(() => {
+    if (!profileFromCache) { setCacheGraceOver(false); return; }
+    const t = setTimeout(() => setCacheGraceOver(true), CACHE_GRACE_MS);
+    return () => clearTimeout(t);
+  }, [profileFromCache]);
   const [config, setConfig] = useState<MembershipConfig | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -121,6 +137,18 @@ export function MembershipGuard({ pathname, children }: Props) {
   if (!loaded) {
     if (isStaff || paying || isFreePath) return <>{children}</>;
     return <GuardSkeleton />;
+  }
+
+  // The profile on screen is last visit's cached copy and the server has
+  // not spoken yet. For a member who paid since — or on any device that
+  // has an older profile on disk — that copy says "no membership", and
+  // judging it now flashed the full paywall at a paying member for the
+  // second or two before the live document arrived. Stay on the brand
+  // splash the layout was already showing; the wait is bounded so an
+  // offline device still gets an answer (the cached one, which is all
+  // it has).
+  if (profileFromCache && !cacheGraceOver && !isStaff && !paying && !isFreePath) {
+    return <BrandSplash label="Loading your membership" />;
   }
 
   if (loadFailed) {
