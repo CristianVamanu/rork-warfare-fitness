@@ -168,7 +168,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Cancel any previous listener
     profileUnsubRef.current?.();
-    setProfileFromCache(true);
+    // Only a fresh sign-in starts from "unconfirmed"; the permission-denied
+    // retries below re-enter here for the same user and must not reset it.
+    if (authErrorRetries === 0) setProfileFromCache(true);
 
     // Right after onAuthStateChanged fires with a new user (especially when
     // switching accounts in the same session), the Firestore SDK's underlying
@@ -255,6 +257,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             doc(db, 'users', uid),
             { includeMetadataChanges: true },
             (snap) => {
+              // One-way latch per sign-in: once the server has confirmed
+              // the profile, a later cache-only event (the stream blipping
+              // when a phone switches network or comes back from the
+              // background) must not flip the app back to a loading hold.
               if (!snap.metadata.fromCache) setProfileFromCache(false);
               if (!snap.exists()) return;
               const p = snap.data() as UserProfile;

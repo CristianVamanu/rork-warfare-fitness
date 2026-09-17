@@ -615,7 +615,12 @@ export default function ProgramDetailPage() {
                       const setCount = day.exercises.reduce((n, ex) => n + (Number(ex.sets) || 0), 0);
 
                       return (
-                        <motion.div key={`${week}-${idx}`} layout id={`program-day-${absoluteDay}`}>
+                        // No `layout` here: it made every one of 80+ rows run a
+                        // layout animation whenever anything above them changed
+                        // (a program switch flips the hero and CTA blocks), which
+                        // on iOS compounded into the whole screen flickering. The
+                        // expanded day's own content still animates in below.
+                        <motion.div key={`${week}-${idx}`} id={`program-day-${absoluteDay}`}>
                           <Card
                             className={`relative overflow-hidden cursor-pointer transition-all ${
                               day.isRest ? 'p-3' : 'p-4'

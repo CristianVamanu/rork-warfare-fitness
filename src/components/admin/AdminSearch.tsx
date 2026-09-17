@@ -142,7 +142,8 @@ export function AdminSearch({
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setOpen(false)}
-              className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm"
+              // No backdrop-filter — see Modal.tsx for the iOS flicker it caused.
+              className="fixed inset-0 z-[60] bg-black/60"
             />
             <motion.div
               initial={{ opacity: 0, y: -8, scale: 0.98 }}

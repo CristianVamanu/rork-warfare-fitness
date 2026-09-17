@@ -157,7 +157,8 @@ export function ChatDrawer() {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={closeChat}
             style={{ backgroundColor: 'var(--overlay)' }}
-            className="fixed inset-0 z-50 backdrop-blur-sm"
+            // No backdrop-filter — see Modal.tsx for the iOS flicker it caused.
+            className="fixed inset-0 z-50"
             aria-hidden="true"
           />
           <motion.aside

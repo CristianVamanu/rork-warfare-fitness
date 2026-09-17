@@ -116,7 +116,14 @@ export function Modal({ open, onClose, title, children, className, footer, dismi
             exit={{ opacity: 0 }}
             onClick={dismissOnOverlay ? onClose : undefined}
             style={{ backgroundColor: 'var(--overlay)' }}
-            className="fixed inset-0 backdrop-blur-sm z-50"
+            // No backdrop-filter here. Blurring a full-screen layer whose
+            // opacity is animating, over the app background's own
+            // filter:blur orbs, makes iOS Safari (and the installed PWA)
+            // re-composite the whole screen each frame — seen live as the
+            // page flashing on and off while a modal opened or closed and
+            // the page behind it re-rendered. The tint alone reads the
+            // same and costs nothing.
+            className="fixed inset-0 z-50"
             aria-hidden="true"
           />
           <motion.div
