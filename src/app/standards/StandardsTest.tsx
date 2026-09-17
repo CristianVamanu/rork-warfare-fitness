@@ -34,6 +34,50 @@ function parseTime(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+const FIELD = 'w-full bg-black/40 border border-white/12 rounded-xl px-3.5 py-3 text-base text-white tabular-nums placeholder:text-text-tertiary focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20';
+
+/**
+ * Minutes and seconds as two numeric boxes. One free-text "mm:ss" box
+ * asked people to type a colon on a phone keyboard, and "2234" for 22:34
+ * parsed as 2,234 minutes. Two boxes give the number pad for both and
+ * cannot be typed wrong. The value handed back is still "m:ss" so the
+ * scoring code is unchanged.
+ */
+function TimeInput({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  const [m, sRaw] = value.includes(':') ? value.split(':') : [value, ''];
+  const sec = sRaw ?? '';
+  const emit = (mins: string, secs: string) => {
+    onChange(!mins && !secs ? '' : `${mins || '0'}:${secs.padStart(2, '0')}`);
+  };
+  const digits = (v: string, max: number) => v.replace(/\D/g, '').slice(0, max);
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        id={id}
+        inputMode="numeric"
+        aria-label="Minutes"
+        value={m}
+        onChange={(e) => emit(digits(e.target.value, 3), sec)}
+        placeholder="0"
+        className={FIELD}
+      />
+      <span className="text-sm font-semibold text-text-tertiary shrink-0">min</span>
+      <input
+        inputMode="numeric"
+        aria-label="Seconds"
+        value={sec}
+        onChange={(e) => {
+          const d = digits(e.target.value, 2);
+          emit(m, d && Number(d) > 59 ? '59' : d);
+        }}
+        placeholder="00"
+        className={FIELD}
+      />
+      <span className="text-sm font-semibold text-text-tertiary shrink-0">sec</span>
+    </div>
+  );
+}
+
 function parseNum(v: string): number | null {
   const n = Number(v.trim());
   return v.trim() && Number.isFinite(n) ? n : null;
@@ -110,9 +154,9 @@ const INPUTS: { key: keyof Answers; event: keyof UnitStandard['events']; label: 
   { key: 'pullups', event: 'pullups', label: 'Pull-ups', hint: 'Strict, dead hang, no kipping' },
   { key: 'pushups', event: 'pushups', label: 'Push-ups', hint: 'Max in two minutes' },
   { key: 'situps', event: 'situps', label: 'Sit-ups', hint: 'Max in two minutes' },
-  { key: 'plank', event: 'plankSeconds', label: 'Plank', hint: 'Time held, as m:ss' },
+  { key: 'plank', event: 'plankSeconds', label: 'Plank', hint: 'Time held' },
   { key: 'beep', event: 'beepLevel', label: 'Bleep test', hint: 'Level reached' },
-  { key: 'run', event: 'runMinutes', label: 'Run', hint: 'Your time, as mm:ss' },
+  { key: 'run', event: 'runMinutes', label: 'Run', hint: 'Your time' },
 ];
 
 export function StandardsTest({ initialStandardId }: { initialStandardId?: string }) {
@@ -221,14 +265,22 @@ export function StandardsTest({ initialStandardId }: { initialStandardId?: strin
                 {i.key === 'run' ? (standard.runLabel ?? 'Run') : i.label}
                 <span className="font-normal text-text-tertiary"> · {i.hint}</span>
               </label>
-              <input
-                id={`in-${i.key}`}
-                inputMode={i.key === 'run' || i.key === 'plank' ? 'text' : 'numeric'}
-                value={answers[i.key]}
-                onChange={(e) => setAnswers((a) => ({ ...a, [i.key]: e.target.value }))}
-                placeholder={i.key === 'run' || i.key === 'plank' ? 'mm:ss' : '0'}
-                className="w-full bg-black/40 border border-white/12 rounded-xl px-3.5 py-3 text-base text-white tabular-nums placeholder:text-text-tertiary focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20"
-              />
+              {i.key === 'run' || i.key === 'plank' ? (
+                <TimeInput
+                  id={`in-${i.key}`}
+                  value={answers[i.key]}
+                  onChange={(v) => setAnswers((a) => ({ ...a, [i.key]: v }))}
+                />
+              ) : (
+                <input
+                  id={`in-${i.key}`}
+                  inputMode="numeric"
+                  value={answers[i.key]}
+                  onChange={(e) => setAnswers((a) => ({ ...a, [i.key]: e.target.value }))}
+                  placeholder="0"
+                  className={FIELD}
+                />
+              )}
             </div>
           ))}
         </div>
