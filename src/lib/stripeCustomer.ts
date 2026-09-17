@@ -32,7 +32,7 @@ export const CUSTOMER_INDEX = 'stripeCustomers';
  * between this and a real failure decides whether a member can pay.
  */
 class CustomerOwnedByAnotherAccount extends Error {
-  constructor(readonly customerId: string) {
+  constructor(readonly customerId: string, readonly owner: string) {
     super(`Stripe customer ${customerId} is already mapped to a different account`);
     this.name = 'CustomerOwnedByAnotherAccount';
   }
@@ -122,12 +122,18 @@ export async function getOrCreateStripeCustomer(opts: {
   // Creating a fresh customer instead keeps the protection exactly as strong
   // (nobody reaches another account's invoices, card or cancel button) while
   // letting the sale complete.
-  const tryAdopt = async (customerId: string): Promise<string | null> => {
+  // `via` names which lookup produced the candidate, and the log names the
+  // owner: without both, a production line reading "cannot adopt X" could
+  // not be traced to a subscription id on this user's document (a data
+  // problem worth chasing) or to an email match in Stripe (the normal
+  // case for an address that was registered before, e.g. an account that
+  // was deleted and re-created).
+  const tryAdopt = async (customerId: string, via: 'subscription' | 'email'): Promise<string | null> => {
     try {
       return await claim(db, userRef, uid, customerId, rejected);
     } catch (err) {
       if (err instanceof CustomerOwnedByAnotherAccount) {
-        console.error(`[stripeCustomer] ${uid} cannot adopt ${customerId} — another account owns it; creating a new customer instead`);
+        console.error(`[stripeCustomer] ${uid} cannot adopt ${customerId} (found via ${via}, owned by ${err.owner}); creating a new customer instead`);
         rejected.add(customerId);
         return null;
       }
@@ -141,7 +147,7 @@ export async function getOrCreateStripeCustomer(opts: {
     const sub = await stripe.subscriptions.retrieve(subId).catch(() => null);
     const fromSub = sub && (typeof sub.customer === 'string' ? sub.customer : sub.customer?.id);
     if (fromSub) {
-      const adopted = await tryAdopt(fromSub);
+      const adopted = await tryAdopt(fromSub, 'subscription');
       if (adopted) return adopted;
     }
   }
@@ -153,7 +159,7 @@ export async function getOrCreateStripeCustomer(opts: {
     const found = await stripe.customers.list({ email: accountEmail, limit: 1 }).catch(() => null);
     const candidate = found?.data?.[0];
     if (candidate && !candidate.deleted) {
-      const adopted = await tryAdopt(candidate.id);
+      const adopted = await tryAdopt(candidate.id, 'email');
       if (adopted) return adopted;
     }
   }
@@ -195,7 +201,7 @@ async function claim(
 
     const owner = indexSnap.data()?.uid as string | undefined;
     if (owner && owner !== uid) {
-      throw new CustomerOwnedByAnotherAccount(customerId);
+      throw new CustomerOwnedByAnotherAccount(customerId, owner);
     }
 
     // Compare-and-set. Two checkouts racing — a double-click, or a retry on a
