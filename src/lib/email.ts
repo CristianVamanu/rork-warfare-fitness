@@ -506,19 +506,28 @@ export function checkoutRecoveryEmailHtml(opts: {
   trialLabel: string | null;
   resumeUrl: string;
   brand: EmailBrand;
+  /** 'first' a few hours after they left; 'followup' two days on. */
+  step?: 'first' | 'followup';
 }): string {
   const name = escapeHtml(opts.name);
   const plan = escapeHtml(opts.planName);
   const { name: appName } = brandOf(opts.brand);
+  const followup = opts.step === 'followup';
   const offer = opts.trialLabel
     ? `<strong style="color:#111111;">${escapeHtml(opts.trialLabel)}</strong>, then ${escapeHtml(opts.amountLabel)}. Cancel any time.`
     : `<strong style="color:#111111;">${escapeHtml(opts.amountLabel)}</strong>. Cancel any time.`;
+  const heading = followup ? 'Still thinking about it?' : 'You were one step away';
+  const intro = followup
+    ? `Hey ${name}. Two days ago you got as far as the payment step for <strong style="color:#111111;">${plan}</strong> on ${escapeHtml(appName)}.
+      If you had finished, you&rsquo;d be on day two of your program by now. It only takes a minute, and the first week costs less than a coffee.`
+    : `Hey ${name}. You started signing up for <strong style="color:#111111;">${plan}</strong> on ${escapeHtml(appName)} and didn&rsquo;t finish.
+      Your program, your standards tests and your progress are all set up and waiting on the other side of it.`;
+  const closing = followup
+    ? 'This is the last note about it. If now isn&rsquo;t the time, no hard feelings, and your account will be here when it is.'
+    : 'We&rsquo;ll send one more note in a couple of days, then leave you alone.';
   return shell(opts.brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">You were one step away</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
-      Hey ${name}. You started signing up for <strong style="color:#111111;">${plan}</strong> on ${escapeHtml(appName)} and didn&rsquo;t finish.
-      Your program, your standards tests and your progress are all set up and waiting on the other side of it.
-    </p>
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">${heading}</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">${intro}</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;border:1px solid #ececec;border-radius:12px;border-collapse:separate;overflow:hidden;">
       <tr>
         <td style="padding:10px 14px;font-size:13px;color:#6b6b6b;white-space:nowrap;">Plan</td>
@@ -532,7 +541,7 @@ export function checkoutRecoveryEmailHtml(opts: {
     ${button('Finish signing up', opts.resumeUrl)}
     <p style="margin:22px 0 0;font-size:12px;line-height:1.6;color:#8a8a8a;">
       If something went wrong at the payment step, just reply to this email and a human will sort it out.
-      This is the only reminder you&rsquo;ll get about this.
+      ${closing}
     </p>
   `, `${plan}: ${opts.trialLabel ? opts.trialLabel + ', then ' : ''}${opts.amountLabel}. Pick up where you left off.`);
 }

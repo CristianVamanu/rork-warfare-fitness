@@ -273,6 +273,7 @@ export interface UserProfile {
     amountLabel: string; trialLabel: string | null; startedAt: unknown;
   };
   checkoutRecoveryEmailSentAt?: unknown;
+  checkoutRecoveryFollowupSentAt?: unknown;
   xp?: number;
   powerLevel?: number;
   currentWeightKg?: number;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  describeCheckoutOffer, checkoutRecoveryDue, checkoutRecoverySubject,
-  RECOVERY_DELAY_MS, RECOVERY_MAX_AGE_MS,
+  describeCheckoutOffer, checkoutRecoveryDue, checkoutRecoveryStep, checkoutRecoverySubject,
+  RECOVERY_DELAY_MS, RECOVERY_FOLLOWUP_DELAY_MS, RECOVERY_MAX_AGE_MS,
 } from './checkoutRecovery';
 
 const H = 60 * 60 * 1000;
@@ -69,8 +69,50 @@ describe('checkoutRecovery — when to send', () => {
   });
 });
 
-describe('checkoutRecovery — subject', () => {
-  it('names the plan', () => {
+describe('checkoutRecovery — the 48-hour follow-up', () => {
+  const now = 1_800_000_000_000;
+  const started = new Date(now - RECOVERY_FOLLOWUP_DELAY_MS - 60_000);
+  const base = {
+    email: 'a@b.c',
+    checkoutIntent: { planId: 'vanguard', planName: 'Vanguard', months: 1, amountLabel: '$49 a month', trialLabel: '7 days for $1', startedAt: started },
+    checkoutRecoveryEmailSentAt: new Date(started.getTime() + RECOVERY_DELAY_MS),
+  };
+
+  it('is owed once 48h have passed and the first went out', () => {
+    expect(checkoutRecoveryStep(base, now)).toBe('followup');
+  });
+
+  it('is sent once, then silence', () => {
+    expect(checkoutRecoveryStep({ ...base, checkoutRecoveryFollowupSentAt: new Date(now - 1000) }, now)).toBe(null);
+  });
+
+  it('before 48h it is the first email that is owed, not both', () => {
+    const early = { ...base, checkoutIntent: { ...base.checkoutIntent, startedAt: new Date(now - 4 * H) }, checkoutRecoveryEmailSentAt: undefined };
+    expect(checkoutRecoveryStep(early, now)).toBe('first');
+    expect(checkoutRecoveryStep({ ...early, checkoutRecoveryEmailSentAt: new Date(now - H) }, now)).toBe(null);
+  });
+
+  it('if the first was never sent and 48h have passed, only the follow-up goes', () => {
+    expect(checkoutRecoveryStep({ ...base, checkoutRecoveryEmailSentAt: undefined }, now)).toBe('followup');
+  });
+
+  it('a paid member never gets it, whenever they paid', () => {
+    expect(checkoutRecoveryStep({ ...base, membership: { status: 'active' } }, now)).toBe(null);
+  });
+
+  it('a fresh checkout start restarts the sequence', () => {
+    const restarted = {
+      ...base,
+      checkoutRecoveryFollowupSentAt: new Date(now - 2 * H),
+      checkoutIntent: { ...base.checkoutIntent, startedAt: new Date(now - 4 * H) },
+    };
+    expect(checkoutRecoveryStep(restarted, now)).toBe('first');
+  });
+});
+
+describe('checkoutRecovery — subjects', () => {
+  it('name the plan, differently per step', () => {
     expect(checkoutRecoverySubject('Vanguard')).toBe('Your Vanguard plan is still waiting');
+    expect(checkoutRecoverySubject('Vanguard', 'followup')).toBe('Still thinking about Vanguard?');
   });
 });

@@ -14,7 +14,7 @@ import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { sendEmail, trialEndingEmailHtml, checkoutRecoveryEmailHtml } from '@/lib/email';
-import { checkoutRecoveryDue, checkoutRecoverySubject } from '@/lib/checkoutRecovery';
+import { checkoutRecoveryStep, checkoutRecoverySubject } from '@/lib/checkoutRecovery';
 import { checkoutPagePath, parseCheckoutParams } from '@/lib/checkoutMode';
 import { timingSafeEqualString } from '@/lib/crypto';
 import { isNudgeDue, daysBetween, nudgeCopy, isMissedToday, aiMotivationDue } from '@/lib/nudgeSchedule';
@@ -288,12 +288,13 @@ export async function POST(req: NextRequest) {
       // gate below, because its timing is "a few hours after they left the
       // checkout", not "at breakfast". checkoutRecoveryDue is what keeps it
       // to one email per checkout start; the stamp below is what it reads.
-      if (checkoutRecoveryDue(u)) {
+      const recoveryStep = checkoutRecoveryStep(u);
+      if (recoveryStep) {
         try {
           const intent = u.checkoutIntent;
           const ok = await sendEmail({
             to: u.email,
-            subject: checkoutRecoverySubject(intent.planName),
+            subject: checkoutRecoverySubject(intent.planName, recoveryStep),
             html: checkoutRecoveryEmailHtml({
               name: u.displayName?.split(' ')[0] || 'there',
               planName: intent.planName,
@@ -301,11 +302,13 @@ export async function POST(req: NextRequest) {
               trialLabel: intent.trialLabel ?? null,
               resumeUrl: `${appUrl}${checkoutPagePath(intent.planId, parseCheckoutParams((k) => (k === 'months' ? String(intent.months ?? 1) : null)).months)}`,
               brand,
+              step: recoveryStep,
             }),
           });
           if (ok) {
-            await db.collection('users').doc(u.id).update({ checkoutRecoveryEmailSentAt: Timestamp.now() });
-            sent.push(`checkout_recovery:${u.id}`);
+            const flag = recoveryStep === 'followup' ? 'checkoutRecoveryFollowupSentAt' : 'checkoutRecoveryEmailSentAt';
+            await db.collection('users').doc(u.id).update({ [flag]: Timestamp.now() });
+            sent.push(`checkout_recovery_${recoveryStep}:${u.id}`);
           }
         } catch (err) {
           usersFailed++;
