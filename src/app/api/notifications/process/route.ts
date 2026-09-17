@@ -13,7 +13,9 @@ import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
-import { sendEmail, trialEndingEmailHtml } from '@/lib/email';
+import { sendEmail, trialEndingEmailHtml, checkoutRecoveryEmailHtml } from '@/lib/email';
+import { checkoutRecoveryDue, checkoutRecoverySubject } from '@/lib/checkoutRecovery';
+import { checkoutPagePath, parseCheckoutParams } from '@/lib/checkoutMode';
 import { timingSafeEqualString } from '@/lib/crypto';
 import { isNudgeDue, daysBetween, nudgeCopy, isMissedToday, aiMotivationDue } from '@/lib/nudgeSchedule';
 import { getMockProgram, getNextSession } from '@/lib/programs';
@@ -281,6 +283,37 @@ export async function POST(req: NextRequest) {
       await mapWithConcurrency(page, 6, async (user) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const u = user as any;
+
+      // Abandoned checkout — runs every hour for everyone, ahead of the 8am
+      // gate below, because its timing is "a few hours after they left the
+      // checkout", not "at breakfast". checkoutRecoveryDue is what keeps it
+      // to one email per checkout start; the stamp below is what it reads.
+      if (checkoutRecoveryDue(u)) {
+        try {
+          const intent = u.checkoutIntent;
+          const ok = await sendEmail({
+            to: u.email,
+            subject: checkoutRecoverySubject(intent.planName),
+            html: checkoutRecoveryEmailHtml({
+              name: u.displayName?.split(' ')[0] || 'there',
+              planName: intent.planName,
+              amountLabel: intent.amountLabel ?? 'the plan price',
+              trialLabel: intent.trialLabel ?? null,
+              resumeUrl: `${appUrl}${checkoutPagePath(intent.planId, parseCheckoutParams((k) => (k === 'months' ? String(intent.months ?? 1) : null)).months)}`,
+              brand,
+            }),
+          });
+          if (ok) {
+            await db.collection('users').doc(u.id).update({ checkoutRecoveryEmailSentAt: Timestamp.now() });
+            sent.push(`checkout_recovery:${u.id}`);
+          }
+        } catch (err) {
+          usersFailed++;
+          firstFailure ??= err instanceof Error ? err.message : String(err);
+          console.error(`[notifications/process] checkout recovery failed for ${u.id}:`, err);
+        }
+      }
+
       // Not this user's notification hour yet (or already past) — every
       // rule below sends at most once per matching run, so gating the whole
       // block per-hour is also what stops the hourly cron from sending the

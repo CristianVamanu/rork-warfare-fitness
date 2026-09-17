@@ -266,6 +266,13 @@ export interface UserProfile {
   // api/stripe/plan-checkout's alreadyUsedTrial check. Never client-writable
   // (see firestore.rules' self-update blocklist).
   trialUsedAt?: unknown;
+  /** Server-written by api/stripe/plan-checkout when a Stripe session is
+   *  created; read by the hourly job for the abandoned-checkout email. */
+  checkoutIntent?: {
+    planId: string; planName: string; months: number;
+    amountLabel: string; trialLabel: string | null; startedAt: unknown;
+  };
+  checkoutRecoveryEmailSentAt?: unknown;
   xp?: number;
   powerLevel?: number;
   currentWeightKg?: number;

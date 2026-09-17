@@ -19,6 +19,7 @@ import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getOrCreatePlanProduct, getOrCreateTrialFeeProduct } from '@/lib/stripeProducts';
 import type { MembershipPlan } from '@/types';
 import { checkoutReturnParams } from '@/lib/checkoutMode';
+import { describeCheckoutOffer } from '@/lib/checkoutRecovery';
 
 function getAdminDb() {
   const app = getAdminApp();
@@ -304,6 +305,30 @@ export async function POST(req: NextRequest) {
       },
       ...checkoutReturnParams({ embedded: !!embedded, appUrl }),
     });
+
+    // Remember that this person reached checkout for this plan. The hourly
+    // notifications job turns an intent that never became a membership into
+    // one recovery email (lib/checkoutRecovery). Best effort: a failed write
+    // here must never cost the sale that is one click away.
+    try {
+      const offer = describeCheckoutOffer({
+        planName: plan.name,
+        totalPrice,
+        currency: plan.currency ?? 'USD',
+        months,
+        trialDays: trialPeriodDays ?? 0,
+        trialPriceCents: trialFeeLineItem ? trialFeeLineItem.price_data.unit_amount : null,
+      });
+      await db.collection('users').doc(userId).set({
+        checkoutIntent: {
+          planId, planName: plan.name, months,
+          amountLabel: offer.amountLabel, trialLabel: offer.trialLabel,
+          startedAt: new Date(),
+        },
+      }, { merge: true });
+    } catch (err) {
+      console.warn('[plan-checkout] could not record checkout intent:', err instanceof Error ? err.message : err);
+    }
 
     // An embedded session has a client_secret and no url; a hosted one the
     // reverse. The page keys off which one comes back.

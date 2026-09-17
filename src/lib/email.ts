@@ -491,6 +491,52 @@ export function trialChargeReminderEmailHtml(opts: {
   `, `${opts.amountLabel ? opts.amountLabel + (opts.cadence ? ' ' + opts.cadence : '') + ' from ' : 'Billing starts '}${opts.chargeDate}. Cancel any time before then.`);
 }
 
+/**
+ * Abandoned checkout, sent once by the hourly job a few hours after someone
+ * opened checkout for a plan and did not finish (see lib/checkoutRecovery).
+ *
+ * No discount and no urgency theatre: the plan, what it costs, the trial if
+ * there is one, and a button straight back into checkout for that plan. The
+ * closing line says this is the only one they will get, and means it.
+ */
+export function checkoutRecoveryEmailHtml(opts: {
+  name: string;
+  planName: string;
+  amountLabel: string;
+  trialLabel: string | null;
+  resumeUrl: string;
+  brand: EmailBrand;
+}): string {
+  const name = escapeHtml(opts.name);
+  const plan = escapeHtml(opts.planName);
+  const { name: appName } = brandOf(opts.brand);
+  const offer = opts.trialLabel
+    ? `<strong style="color:#111111;">${escapeHtml(opts.trialLabel)}</strong>, then ${escapeHtml(opts.amountLabel)}. Cancel any time.`
+    : `<strong style="color:#111111;">${escapeHtml(opts.amountLabel)}</strong>. Cancel any time.`;
+  return shell(opts.brand, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">You were one step away</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+      Hey ${name}. You started signing up for <strong style="color:#111111;">${plan}</strong> on ${escapeHtml(appName)} and didn&rsquo;t finish.
+      Your program, your standards tests and your progress are all set up and waiting on the other side of it.
+    </p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;border:1px solid #ececec;border-radius:12px;border-collapse:separate;overflow:hidden;">
+      <tr>
+        <td style="padding:10px 14px;font-size:13px;color:#6b6b6b;white-space:nowrap;">Plan</td>
+        <td align="right" style="padding:10px 14px;font-size:13px;font-weight:700;color:#111111;">${plan}</td>
+      </tr>
+      <tr>
+        <td style="padding:10px 14px;font-size:13px;color:#6b6b6b;border-top:1px solid #ececec;white-space:nowrap;">Price</td>
+        <td align="right" style="padding:10px 14px;font-size:13px;color:#111111;border-top:1px solid #ececec;">${offer}</td>
+      </tr>
+    </table>
+    ${button('Finish signing up', opts.resumeUrl)}
+    <p style="margin:22px 0 0;font-size:12px;line-height:1.6;color:#8a8a8a;">
+      If something went wrong at the payment step, just reply to this email and a human will sort it out.
+      This is the only reminder you&rsquo;ll get about this.
+    </p>
+  `, `${plan}: ${opts.trialLabel ? opts.trialLabel + ', then ' : ''}${opts.amountLabel}. Pick up where you left off.`);
+}
+
 export function twoFactorCodeEmailHtml(code: string, brand: EmailBrand): string {
   const { name: appName } = brandOf(brand);
   return shell(brand, `
