@@ -57,6 +57,10 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
   const [editingEmail, setEditingEmail] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const checking = useRef(false);
+  // Whether the server has been asked "is a code already live for this
+  // account?". Until it answers, neither variant may send one — see the
+  // status route for the two bugs that came from guessing.
+  const [statusChecked, setStatusChecked] = useState(false);
 
   // Kept for accounts mid-migration: anyone who already tapped a verification
   // LINK from the old flow gets picked up when they return to the app, rather
@@ -83,6 +87,42 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
     };
   }, [user]);
 
+  // A code issued on the SERVER is invisible to this component's state. The
+  // clearest case: change-email mails a code and then signs the member out,
+  // so the next session starts with codeSent=false while a perfectly good
+  // code sits in their inbox. Ask, rather than assume.
+  const statusAsked = useRef(false);
+  useEffect(() => {
+    if (statusAsked.current) return;
+    if (!user || user.emailVerified) return;
+    statusAsked.current = true;
+    (async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch('/api/auth/verify-email/status', { headers: { Authorization: `Bearer ${idToken}` } });
+        const data = await res.json().catch(() => null) as { pending?: boolean; expiresAt?: number | null; alreadyVerified?: boolean } | null;
+        if (data?.alreadyVerified) {
+          await user.reload();
+          await user.getIdToken(true);
+          window.location.reload();
+          return;
+        }
+        if (data?.pending && typeof data.expiresAt === 'number') {
+          setCodeSent(true);
+          setExpiresAt(data.expiresAt);
+          // When it was sent, derived from when it dies — so the resend
+          // cooldown is honest about a code this session never asked for.
+          setLastSentAt(data.expiresAt - CODE_TTL_MS);
+        }
+      } catch {
+        // Offline or the route failed: fall through to the old behaviour,
+        // which is to offer a code rather than to show nothing.
+      } finally {
+        setStatusChecked(true);
+      }
+    })();
+  }, [user]);
+
   // One second tick, and only while there is something counting down.
   useEffect(() => {
     if (!expiresAt) return;
@@ -103,9 +143,14 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
   useEffect(() => {
     if (variant !== 'screen' || autoSent.current) return;
     if (!user || user.emailVerified) return;
+    // Never before the status answer. Issuing a code OVERWRITES the stored
+    // one, so auto-sending here used to invalidate the code change-email had
+    // just mailed — the member typed the code they were given and was told it
+    // was wrong. codeSent means one is already live; leave it alone.
+    if (!statusChecked || codeSent) return;
     autoSent.current = true;
     void sendCodeRef.current?.();
-  }, [variant, user]);
+  }, [variant, user, statusChecked, codeSent]);
 
   if (!user || user.emailVerified) return null;
 
@@ -339,11 +384,19 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
       <div className="flex items-center gap-3">
         <MailCheck className="w-4 h-4 text-accent shrink-0" aria-hidden="true" />
         <span className="flex-1">
-          {paidTrial
-            ? <>Confirm <span className="text-white">{user.email}</span> so you can recover your account.</>
-            : <>Confirm <span className="text-white">{user.email}</span> to unlock your trial.</>}
+          {codeSent
+            // A code is live — the instruction is to type it, not to confirm
+            // an address in the abstract. Someone who has just been mailed one
+            // was previously told to ask for another.
+            ? <>Enter the code we sent to <span className="text-white">{user.email}</span>.</>
+            : paidTrial
+              ? <>Confirm <span className="text-white">{user.email}</span> so you can recover your account.</>
+              : <>Confirm <span className="text-white">{user.email}</span> to unlock your trial.</>}
         </span>
-        {!codeSent && (
+        {/* Held back until the server has said whether a code is already
+            live, so this never flashes "Send code" at someone whose code is
+            about to appear below it. */}
+        {!codeSent && statusChecked && (
           <button type="button" onClick={sendCode} disabled={busy !== null} className="font-semibold text-accent hover:underline disabled:opacity-50">
             {busy === 'send' ? 'Sending…' : 'Send code'}
           </button>
