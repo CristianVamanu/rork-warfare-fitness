@@ -3,14 +3,13 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Lock, Star, Crown, Check } from 'lucide-react';
-import { getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
+import { getMembershipConfig, getMembershipPlans, peekMembershipConfig } from '@/lib/firestore';
 import { startPlanCheckout } from '@/lib/checkout';
 import { getPlanBillingPeriods, planHasAnyPrice, getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { isInFreeTrial, hasActiveSubscription, trialIsStripeManaged } from '@/lib/membership';
 import { Card } from './Card';
 import { Button } from './Button';
-import { BrandSplash } from './BrandSplash';
 import { VerifyEmailNotice } from './VerifyEmailNotice';
 import type { MembershipConfig, MembershipPlan, PlanBillingPeriodMonths } from '@/types';
 
@@ -50,7 +49,11 @@ const JUST_PAID_KEY = 'wf:justPaidAt';
  * snapshot follows the cached one within a second or so; this bound only
  * matters offline, where the cached copy is all there will ever be.
  */
-const CACHE_GRACE_MS = 8_000;
+// Short on purpose. This exists only to avoid flashing the paywall at a
+// member whose CACHED profile predates their payment — a sub-second
+// annoyance. Waiting eight seconds to prevent it traded a brief flash for
+// an app that looks like it is relaunching, which is far worse.
+const CACHE_GRACE_MS = 1_200;
 
 /**
  * Stripe sends a paying member back to /profile?subscribed=1. Nothing read
@@ -81,8 +84,10 @@ export function MembershipGuard({ pathname, children }: Props) {
     const t = setTimeout(() => setCacheGraceOver(true), CACHE_GRACE_MS);
     return () => clearTimeout(t);
   }, [profileFromCache]);
-  const [config, setConfig] = useState<MembershipConfig | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  // Seeded from the last launch, so the guard usually has its answer before
+  // the network is even consulted. A fresh read still runs below.
+  const [config, setConfig] = useState<MembershipConfig | null>(() => peekMembershipConfig());
+  const [loaded, setLoaded] = useState(() => peekMembershipConfig() !== null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
@@ -115,7 +120,9 @@ export function MembershipGuard({ pathname, children }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoaded(false);
+    // Deliberately NOT setLoaded(false): blanking a config we already have
+    // would put the whole app back behind a splash to re-fetch something
+    // that has not changed.
     setLoadFailed(false);
     getMembershipConfig()
       .then((cfg) => { if (!cancelled) setConfig(cfg); })
@@ -148,7 +155,10 @@ export function MembershipGuard({ pathname, children }: Props) {
   // offline device still gets an answer (the cached one, which is all
   // it has).
   if (profileFromCache && !cacheGraceOver && !isStaff && !paying && !isFreePath) {
-    return <BrandSplash label="Loading your membership" />;
+    // A skeleton, not the brand splash. Both are a wait, but a skeleton
+    // reads as "this screen is loading" while a full-screen splash reads as
+    // "the app restarted", which is what made this feel broken.
+    return <GuardSkeleton />;
   }
 
   if (loadFailed) {

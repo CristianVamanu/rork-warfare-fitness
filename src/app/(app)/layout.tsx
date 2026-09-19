@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { signOut } from '@/lib/auth';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { getMembershipConfig } from '@/lib/firestore';
 import { HeaderDataProvider } from '@/contexts/HeaderDataContext';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { BrandSplash } from '@/components/ui/BrandSplash';
@@ -19,6 +20,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+
+  // Kick the membership config off NOW, in parallel with auth and the
+  // profile, instead of when MembershipGuard mounts — which is only after
+  // both of those have already resolved. Three network round trips were
+  // running one after another before the app drew anything; this makes the
+  // third overlap the first two. getMembershipConfig dedupes in flight and
+  // caches, so the guard's own call gets this same promise.
+  useEffect(() => { void getMembershipConfig().catch(() => {}); }, []);
 
   // If the profile document never arrives (rules rejected its creation, an
   // offline first login, a listener stuck on permission-denied), this layout

@@ -1800,14 +1800,42 @@ export function clearMembershipCache() {
   membershipPlansCache = null;
 }
 
+/**
+ * The membership config, remembered across app launches.
+ *
+ * MembershipGuard blocks the entire app behind a splash until this resolves,
+ * and the in-memory cache above dies with the tab — so every cold open of
+ * the installed app waited on a Firestore round trip before drawing a single
+ * pixel of the dashboard. It is plan names, prices and flags an admin
+ * changes once a month, not per-user data.
+ *
+ * The stored copy is used as the immediate answer and a fresh read still
+ * runs, so an admin's change lands on the next launch rather than never.
+ */
+const MEMBERSHIP_CONFIG_KEY = 'wf:membership-config:v1';
+
+function rememberMembershipConfig(cfg: MembershipConfig | null) {
+  try { localStorage.setItem(MEMBERSHIP_CONFIG_KEY, JSON.stringify({ at: Date.now(), cfg })); } catch { /* private mode */ }
+}
+
+/** Synchronous: the config from the last launch, or null. */
+export function peekMembershipConfig(): MembershipConfig | null {
+  try {
+    const raw = localStorage.getItem(MEMBERSHIP_CONFIG_KEY);
+    if (!raw) return null;
+    return (JSON.parse(raw) as { cfg: MembershipConfig | null }).cfg ?? null;
+  } catch { return null; }
+}
+
 export async function getMembershipConfig(): Promise<MembershipConfig | null> {
   if (membershipConfigCache && Date.now() - membershipConfigCache.at < CONFIG_TTL_MS) {
     return membershipConfigCache.promise;
   }
   const promise = (async () => {
     const snap = await getDoc(doc(db, 'config', 'membership'));
-    if (!snap.exists()) return null;
-    return snap.data() as MembershipConfig;
+    const cfg = snap.exists() ? (snap.data() as MembershipConfig) : null;
+    rememberMembershipConfig(cfg);
+    return cfg;
   })();
   // A failed fetch must not be cached — otherwise one blip locks the whole tab
   // out of its own membership config for the full TTL.
