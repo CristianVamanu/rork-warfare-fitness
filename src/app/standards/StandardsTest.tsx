@@ -3,11 +3,17 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, X, Loader2, Mail } from 'lucide-react';
+import { ArrowRight, Check, X, Loader2, Mail, Share2 } from 'lucide-react';
 import {
-  UNIT_STANDARDS, slugFor, formatSeconds, formatMinutes,
+  UNIT_STANDARDS, slugFor,
   type UnitStandard,
 } from '@/lib/ptStandards';
+// Judging lives in lib so this screen, a shared link and the generated image
+// can never disagree about who passed.
+import {
+  judge, summarise, resultPath, verdictHeadline,
+  EMPTY_ANSWERS as EMPTY, type Answers,
+} from '@/lib/standardsShare';
 
 /**
  * The public test. No account, nothing stored, nothing gated.
@@ -16,23 +22,6 @@ import {
  * arrives from a video gets the thing they came for before being asked for
  * anything. The email box appears after the verdict, never before it.
  */
-
-type Answers = { pullups: string; pushups: string; situps: string; plank: string; beep: string; run: string };
-const EMPTY: Answers = { pullups: '', pushups: '', situps: '', plank: '', beep: '', run: '' };
-
-/** Minutes from "9:30" or "9.5". People type both. */
-function parseTime(v: string): number | null {
-  const t = v.trim();
-  if (!t) return null;
-  if (t.includes(':')) {
-    const [m, s] = t.split(':');
-    const mins = Number(m); const secs = Number(s);
-    if (!Number.isFinite(mins) || !Number.isFinite(secs)) return null;
-    return mins + secs / 60;
-  }
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
-}
 
 const FIELD = 'w-full bg-black/40 border border-white/12 rounded-xl px-3.5 py-3 text-base text-white tabular-nums placeholder:text-text-tertiary focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20';
 
@@ -78,78 +67,6 @@ function TimeInput({ id, value, onChange }: { id: string; value: string; onChang
   );
 }
 
-function parseNum(v: string): number | null {
-  const n = Number(v.trim());
-  return v.trim() && Number.isFinite(n) ? n : null;
-}
-
-interface Verdict {
-  key: string;
-  label: string;
-  yours: string;
-  target: string;
-  passed: boolean;
-  /** How far off, phrased for a human. Empty when they cleared it. */
-  gap: string;
-}
-
-function judge(standard: UnitStandard, a: Answers): Verdict[] {
-  const out: Verdict[] = [];
-  const e = standard.events;
-
-  if (e.pullups !== undefined) {
-    const yours = parseNum(a.pullups);
-    out.push({
-      key: 'pullups', label: 'Pull-ups', yours: yours === null ? '—' : String(yours),
-      target: String(e.pullups), passed: yours !== null && yours >= e.pullups,
-      gap: yours !== null && yours < e.pullups ? `${e.pullups - yours} short` : '',
-    });
-  }
-  if (e.pushups !== undefined) {
-    const yours = parseNum(a.pushups);
-    out.push({
-      key: 'pushups', label: 'Push-ups', yours: yours === null ? '—' : String(yours),
-      target: String(e.pushups), passed: yours !== null && yours >= e.pushups,
-      gap: yours !== null && yours < e.pushups ? `${e.pushups - yours} short` : '',
-    });
-  }
-  if (e.situps !== undefined) {
-    const yours = parseNum(a.situps);
-    out.push({
-      key: 'situps', label: 'Sit-ups', yours: yours === null ? '—' : String(yours),
-      target: String(e.situps), passed: yours !== null && yours >= e.situps,
-      gap: yours !== null && yours < e.situps ? `${e.situps - yours} short` : '',
-    });
-  }
-  if (e.plankSeconds !== undefined) {
-    const yours = parseTime(a.plank);
-    const yoursSec = yours === null ? null : yours * 60;
-    out.push({
-      key: 'plank', label: 'Plank', yours: yoursSec === null ? '—' : formatSeconds(yoursSec),
-      target: formatSeconds(e.plankSeconds), passed: yoursSec !== null && yoursSec >= e.plankSeconds,
-      gap: yoursSec !== null && yoursSec < e.plankSeconds ? `${Math.round(e.plankSeconds - yoursSec)}s short` : '',
-    });
-  }
-  if (e.beepLevel !== undefined) {
-    const yours = parseNum(a.beep);
-    out.push({
-      key: 'beep', label: 'Bleep test level', yours: yours === null ? '—' : String(yours),
-      target: String(e.beepLevel), passed: yours !== null && yours >= e.beepLevel,
-      gap: yours !== null && yours < e.beepLevel ? `${(e.beepLevel - yours).toFixed(1)} levels short` : '',
-    });
-  }
-  if (e.runMinutes !== undefined) {
-    const yours = parseTime(a.run);
-    out.push({
-      key: 'run', label: standard.runLabel ?? 'Run', yours: yours === null ? '—' : formatMinutes(yours),
-      target: formatMinutes(e.runMinutes), passed: yours !== null && yours <= e.runMinutes,
-      // Lower is better here, which is the one place the arithmetic flips.
-      gap: yours !== null && yours > e.runMinutes ? `${formatMinutes(yours - e.runMinutes)} too slow` : '',
-    });
-  }
-  return out;
-}
-
 const INPUTS: { key: keyof Answers; event: keyof UnitStandard['events']; label: string; hint: string }[] = [
   { key: 'pullups', event: 'pullups', label: 'Pull-ups', hint: 'Strict, dead hang, no kipping' },
   { key: 'pushups', event: 'pushups', label: 'Push-ups', hint: 'Max in two minutes' },
@@ -170,9 +87,32 @@ export function StandardsTest({ initialStandardId }: { initialStandardId?: strin
 
   const standard = UNIT_STANDARDS.find((s) => s.id === selectedId) ?? UNIT_STANDARDS[0];
   const verdicts = useMemo(() => judge(standard, answers), [standard, answers]);
-  const answered = verdicts.filter((v) => v.yours !== '—').length;
-  const passedAll = verdicts.length > 0 && verdicts.every((v) => v.passed);
-  const failures = verdicts.filter((v) => !v.passed && v.yours !== '—');
+  const { answered, passedAll, failures } = useMemo(() => summarise(verdicts), [verdicts]);
+
+  // Share. The result is the most screenshot-worthy thing this product makes,
+  // and until now there was nothing to send — the numbers lived in React
+  // state and died with the tab. The link carries only the scores typed in
+  // this box: no name, no email, no account.
+  const [copied, setCopied] = useState(false);
+  const share = async () => {
+    const url = `${window.location.origin}${resultPath(slugFor(standard.id), answers)}`;
+    const text = verdictHeadline(standard, verdicts);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: standard.resultTitle, text, url });
+        return;
+      }
+    } catch {
+      // Dismissing the share sheet lands here. Not an error, and not a
+      // reason to then silently copy something they chose not to send.
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch { /* clipboard blocked — the button simply does nothing */ }
+  };
 
   const relevant = INPUTS.filter((i) => standard.events[i.event] !== undefined);
 
@@ -389,6 +329,18 @@ export function StandardsTest({ initialStandardId }: { initialStandardId?: strin
             >
               {passedAll ? 'Train to hold it' : 'Get the plan that closes this'} <ArrowRight className="w-4 h-4" />
             </Link>
+
+            {/* Sits UNDER the training CTA on purpose: the person in front of
+                us is worth more than the one they might bring, so the ask
+                that converts goes first. */}
+            <button
+              type="button"
+              onClick={share}
+              className="mt-2.5 w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl border border-white/12 text-white font-bold text-sm hover:border-accent/40 transition-colors"
+            >
+              <Share2 className="w-4 h-4" />
+              {copied ? 'Link copied' : passedAll ? 'Share this result' : 'Challenge someone'}
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
