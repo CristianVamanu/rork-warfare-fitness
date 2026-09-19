@@ -96,7 +96,7 @@ export default function PRReviewPage() {
         ) : (
           <div className="space-y-3">
             {shown.map((post, i) => (
-              <motion.div key={post.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
+              <div key={post.id} className="wf-rise" style={{ animationDelay: `${i * 0.03}s` }}>
                 <Card className="p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0 text-xs font-bold text-accent">
@@ -186,7 +186,7 @@ export default function PRReviewPage() {
                     </div>
                   </div>
                 </Card>
-              </motion.div>
+              </div>
             ))}
           </div>
         )}

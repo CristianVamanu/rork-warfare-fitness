@@ -209,11 +209,7 @@ export default function LoginClient({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <div className="wf-rise">
       <AuthBrandMark title={appName} subtitle="Welcome back" eager />
 
       <Card glass className="p-6">
@@ -287,6 +283,6 @@ export default function LoginClient({
           Create account
         </Link>
       </p>
-    </motion.div>
+    </div>
   );
 }

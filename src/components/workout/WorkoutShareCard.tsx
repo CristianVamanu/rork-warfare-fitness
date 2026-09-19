@@ -154,24 +154,7 @@ export function WorkoutShareCard({
             Everything here is countable by the person reading it; see
             cardHeadline.ts for why the weight comparison that used to live
             in this slot was removed. */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="relative rounded-xl border border-accent/[0.18] mb-4 overflow-hidden text-center px-3.5 pt-3.5 pb-3"
-          /* The fire-lit well: light thrown up from the bottom edge, the same
-             amber the burning logo is lit with, so the glyph sits INSIDE the
-             brand's world rather than on top of it. Inline rather than a
-             Tailwind arbitrary value because html-to-image rasterizes
-             computed styles — a multi-layer background belongs somewhere it
-             cannot be purged or reordered. */
-          style={{
-            background:
-              'radial-gradient(ellipse 70% 90% at 50% 105%, rgba(245,166,35,0.42), transparent 62%),' +
-              'radial-gradient(ellipse 120% 80% at 50% 120%, rgba(200,60,0,0.30), transparent 70%),' +
-              '#0b0b0b',
-          }}
-        >
+        <div className="relative rounded-xl border border-accent/[0.18] mb-4 overflow-hidden text-center px-3.5 pt-3.5 pb-3 wf-rise" style={{ animationDelay: `${0.15}s` }}>
           <motion.p
             className="text-[52px] leading-[1.05] mb-0"
             style={{ filter: 'drop-shadow(0 0 18px rgba(245,166,35,0.75)) drop-shadow(0 2px 3px rgba(0,0,0,0.8))' }}
@@ -184,7 +167,7 @@ export function WorkoutShareCard({
             {headline.headline}
           </p>
           <p className="text-[11px] text-accent mt-1.5">{headline.sub}</p>
-        </motion.div>
+        </div>
 
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-2 mb-4">
@@ -218,12 +201,7 @@ export function WorkoutShareCard({
 
       {/* New achievements */}
       {newAchievements.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-2"
-        >
+        <div className="space-y-2 wf-rise" style={{ animationDelay: `${0.3}s` }}>
           <p className="text-xs font-bold text-accent tracking-wider uppercase">
             🎉 Achievement{newAchievements.length > 1 ? 's' : ''} Unlocked
           </p>
@@ -241,17 +219,12 @@ export function WorkoutShareCard({
               </div>
             );
           })}
-        </motion.div>
+        </div>
       )}
 
       {/* New quests completed */}
       {newQuests.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35 }}
-          className="space-y-2"
-        >
+        <div className="space-y-2 wf-rise" style={{ animationDelay: `${0.35}s` }}>
           <p className="text-xs font-bold text-purple-400 tracking-wider uppercase">
             ⚔️ Quest{newQuests.length > 1 ? 's' : ''} Complete
           </p>
@@ -268,7 +241,7 @@ export function WorkoutShareCard({
               </div>
             );
           })}
-        </motion.div>
+        </div>
       )}
 
       {/* Actions — sticky at the bottom of the modal's own scroll area

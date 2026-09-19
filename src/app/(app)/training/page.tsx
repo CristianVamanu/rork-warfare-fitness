@@ -45,7 +45,7 @@ function ProgramRow({ prog, isActive, saved, locked, index }: {
   const gender = (prog as { targetGender?: string }).targetGender;
   const premium = (prog as { isPremium?: boolean }).isPremium;
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index, 6) * 0.04 }}>
+    <div className="wf-rise" style={{ animationDelay: `${Math.min(index, 6) * 0.04}s` }}>
       <Link href={`/training/${prog.id}`} className="block">
         <Card glass className={`relative overflow-hidden p-4 flex gap-3.5 card-float ${isActive ? 'border-accent/40 shadow-glow-sm' : ''}`}>
           {/* Ember edge-light on the active program only. Green is
@@ -88,7 +88,7 @@ function ProgramRow({ prog, isActive, saved, locked, index }: {
           </div>
         </Card>
       </Link>
-    </motion.div>
+    </div>
   );
 }
 
@@ -265,7 +265,7 @@ export default function TrainingPage() {
       <Header title="Training" />
       <div className="px-4 py-4 space-y-4">
         {/* Active program */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="wf-rise">
           {activeProgram && activeResolved && !resolvedActive ? (
             <Card glass className="p-5">
               <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">Active program</p>
@@ -370,7 +370,7 @@ export default function TrainingPage() {
               <p className="text-text-secondary text-sm mt-1">Choose a program below and your first session is written before you get to the gym.</p>
             </Card>
           )}
-        </motion.div>
+        </div>
 
         {/* My Built Programs */}
         {customPrograms.length > 0 && (

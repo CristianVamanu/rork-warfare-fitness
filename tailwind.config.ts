@@ -31,11 +31,7 @@ const config: Config = {
         info: '#3B82F6',
       },
       fontFamily: {
-        // var() with a real fallback chain: if the font file has not arrived
-        // yet the page still renders in something deliberate.
-        sans: ['var(--font-sans)', 'Inter', 'system-ui', 'sans-serif'],
-        display: ['var(--font-display)', 'Archivo', 'Inter', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         '2xl': '1rem',
@@ -51,18 +47,8 @@ const config: Config = {
         'spin-slow': 'spin 3s linear infinite',
         'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
         shimmer: 'shimmer 2.8s ease-in-out infinite',
-        // A readout sweep, for surfaces that should feel like an instrument
-        // rather than a poster. Slow on purpose: a fast scan reads as a
-        // loading state, which is the opposite of what it is saying.
-        scan: 'scan 4.5s cubic-bezier(0.4, 0, 0.2, 1) infinite',
       },
       keyframes: {
-        scan: {
-          '0%': { transform: 'translateY(-100%)', opacity: '0' },
-          '12%': { opacity: '1' },
-          '88%': { opacity: '1' },
-          '100%': { transform: 'translateY(2000%)', opacity: '0' },
-        },
         fadeIn: {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },

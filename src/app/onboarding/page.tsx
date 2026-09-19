@@ -753,12 +753,7 @@ function OnboardingPageInner() {
           />
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="mx-auto w-full max-w-md lg:max-w-4xl px-4 py-10 lg:py-14"
-        >
+        <div className="mx-auto w-full max-w-md lg:max-w-4xl px-4 py-10 lg:py-14 wf-rise">
           {/* Header. Centered, because it is one short announcement — the
               body below is left-aligned, since centred paragraphs give the
               eye no consistent left edge to return to. */}
@@ -918,7 +913,7 @@ function OnboardingPageInner() {
               Let&apos;s Go <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-        </motion.div>
+        </div>
       </div>
     );
   }

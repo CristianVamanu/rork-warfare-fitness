@@ -193,7 +193,7 @@ export default function ProgressPage() {
       <div className="px-4 py-4 space-y-5">
 
         {/* Power Level Hero */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="wf-rise">
           <Card className="p-5 bg-gradient-to-br from-surface to-surface-elevated border-accent/20">
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -214,10 +214,10 @@ export default function ProgressPage() {
             </div>
             <p className="text-xs text-text-tertiary mt-2">{totalXP} total XP earned</p>
           </Card>
-        </motion.div>
+        </div>
 
         {/* Stats Grid */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 wf-rise" style={{ animationDelay: `${0.05}s` }}>
           {[
             { icon: Dumbbell, label: 'Total Workouts', value: totalWorkouts,                    color: 'text-purple-400', bg: 'bg-purple-400/10' },
             { icon: TrendingUp, label: 'Day Streak',   value: `${streak}d`,                    color: 'text-accent',    bg: 'bg-accent-muted'  },
@@ -232,11 +232,11 @@ export default function ProgressPage() {
               <p className="text-xs text-text-secondary mt-0.5">{label}</p>
             </Card>
           ))}
-        </motion.div>
+        </div>
 
         {/* Weekly volume — real numbers only, no invented daily breakdown */}
         {weeklySummary && (weeklySummary.workoutsCompleted > 0 || weeklySummary.volumeKg > 0) && (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }}>
+          <div className="wf-rise" style={{ animationDelay: `${0.07}s` }}>
             <Card className="p-3.5 flex items-center justify-between relative overflow-hidden">
               <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
                 <TrendingUp className="w-20 h-20 text-accent" />
@@ -260,11 +260,11 @@ export default function ProgressPage() {
                 </div>
               </div>
             </Card>
-          </motion.div>
+          </div>
         )}
 
         {/* Weight Tracker */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
+        <div className="wf-rise" style={{ animationDelay: `${0.08}s` }}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-bold text-white">Body Weight</h2>
             <Button size="sm" variant="ghost" onClick={() => setWeightModal(true)}>
@@ -297,10 +297,10 @@ export default function ProgressPage() {
               </div>
             )}
           </Card>
-        </motion.div>
+        </div>
 
         {/* Body Progress Photos — private, only visible to this user and admin/trainer */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.09 }}>
+        <div className="wf-rise" style={{ animationDelay: `${0.09}s` }}>
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-1.5">
               <h2 className="text-base font-bold text-white">Body Photos</h2>
@@ -401,10 +401,10 @@ export default function ProgressPage() {
               })()}
             </Card>
           )}
-        </motion.div>
+        </div>
 
         {/* Weekly Activity Chart */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+        <div className="wf-rise" style={{ animationDelay: `${0.1}s` }}>
           <h2 className="text-base font-bold text-white mb-3">Weekly Activity</h2>
           <Card className="p-4">
             <p className="text-xs text-text-secondary mb-3">Minutes trained per day (last 7 workouts)</p>
@@ -414,10 +414,10 @@ export default function ProgressPage() {
               <WeeklyActivityChart data={volumeData} />
             )}
           </Card>
-        </motion.div>
+        </div>
 
         {/* Achievements */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+        <div className="wf-rise" style={{ animationDelay: `${0.15}s` }}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-bold text-white">Achievements</h2>
             <Badge variant="accent">{earnedAchievements.size}/{ACHIEVEMENT_DEFS.length}</Badge>
@@ -449,11 +449,11 @@ export default function ProgressPage() {
               </div>
             );
           })}
-        </motion.div>
+        </div>
 
         {/* Recent Workouts Summary */}
         {!loading && workouts.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <div className="wf-rise" style={{ animationDelay: `${0.2}s` }}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold text-white">Recent Sessions</h2>
               <Link href="/progress/history" className="text-xs font-medium text-accent flex items-center gap-0.5 hover:underline">
@@ -484,7 +484,7 @@ export default function ProgressPage() {
                 );
               })}
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
 

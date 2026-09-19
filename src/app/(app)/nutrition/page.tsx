@@ -289,7 +289,7 @@ function NutritionPageInner() {
 
         {/* Coach-assigned nutrition plan */}
         {profile?.assignedNutritionPlan && (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="wf-rise">
             <button onClick={() => setShowPlanModal(true)} className="w-full text-left">
               <Card glass className="p-4 flex items-center gap-3.5 card-float border-accent/30">
                 <Medallion><Beef className="w-6 h-6" strokeWidth={2} /></Medallion>
@@ -313,11 +313,11 @@ function NutritionPageInner() {
                 <ChevronRight className="w-4 h-4 text-accent flex-shrink-0" />
               </Card>
             </button>
-          </motion.div>
+          </div>
         )}
 
         {/* Calories + macros — the hero */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="wf-rise">
           <Card glass className="p-5 border-accent/30 shadow-glow-sm">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
@@ -367,10 +367,10 @@ function NutritionPageInner() {
               ))}
             </div>
           </Card>
-        </motion.div>
+        </div>
 
         {/* Water — today only for logging, history for any day */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+        <div className="wf-rise" style={{ animationDelay: `${0.05}s` }}>
           <Card glass className="p-4">
             <div className="flex items-center gap-4">
               <Ring value={goals.water > 0 ? waterMl / goals.water : 0} size={56} stroke={6} color="#3B82F6">
@@ -433,7 +433,7 @@ function NutritionPageInner() {
               )}
             </AnimatePresence>
           </Card>
-        </motion.div>
+        </div>
 
         {/* Log something — today only */}
         {isToday && (
@@ -464,7 +464,7 @@ function NutritionPageInner() {
         ) : (
           <div className="space-y-4">
             {MEAL_TYPES.map((type) => (
-              <motion.div key={type} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+              <div key={type} className="wf-rise">
                 <div className="flex items-center justify-between px-0.5 mb-2">
                   <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">{type}</p>
                   <span className="text-[11px] text-text-tertiary tabular-nums">
@@ -515,7 +515,7 @@ function NutritionPageInner() {
                     </button>
                   </div>
                 )}
-              </motion.div>
+              </div>
             ))}
           </div>
         )}

@@ -1,61 +1,15 @@
 'use client';
 
 /**
- * The landing page's shared surface treatment.
+ * Small, static landing-page trim.
  *
- * The page used to be flat black between sections with one diagonal hazard
- * stripe as its only divider, so every section read as an unrelated block on
- * a void and the whole thing looked like a template with a logo dropped in.
- * These four pieces give it one continuous surface: a backdrop that runs the
- * full length of the page, a divider that reads as an instrument rather than
- * roadworks tape, a consistent section label, and the corner brackets that
- * the standards card established.
- *
- * Everything here is decoration and every piece is aria-hidden and
- * pointer-events-none. None of it is load-bearing for reading the page,
- * which is why it can all be masked, blurred or animated freely.
+ * Deliberately cheap. An earlier version of this file also carried a
+ * full-page animated backdrop — a fixed 58vw element with blur-3xl and a
+ * pulse animation — which on a phone is a continuous full-screen repaint
+ * and was a real part of why the site started to stutter. Everything that
+ * survives here paints once and then costs nothing: no animation, no
+ * filters, no compositing layers.
  */
-
-/**
- * The page-wide surface. Fixed, so it does not scroll away or repeat, and
- * behind everything.
- *
- * Three layers: a grid that fades toward the middle of the viewport so it
- * never fights body text, two slow ember zones that give the page depth
- * without the cost of more WebGL, and a vignette that keeps the edges dark
- * so content holds the centre.
- */
-export function LandingBackdrop() {
-  return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      <div className="absolute inset-0 bg-background" />
-      <div
-        className="absolute inset-0 opacity-[0.055]"
-        style={{
-          backgroundImage:
-            'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
-          backgroundSize: '54px 54px',
-          maskImage: 'radial-gradient(ellipse 120% 90% at 50% 50%, transparent 8%, black 65%)',
-          WebkitMaskImage: 'radial-gradient(ellipse 120% 90% at 50% 50%, transparent 8%, black 65%)',
-        }}
-      />
-      {/* Ember zones. Deliberately enormous and very low opacity: at this
-          size they read as light in the room rather than as two blobs. */}
-      <div
-        className="absolute -left-1/4 top-[8%] w-[58vw] h-[58vw] rounded-full blur-3xl opacity-[0.14] motion-safe:animate-pulse-glow"
-        style={{ background: 'radial-gradient(circle, rgb(var(--accent-rgb) / 0.5), transparent 68%)' }}
-      />
-      <div
-        className="absolute -right-1/4 top-[52%] w-[52vw] h-[52vw] rounded-full blur-3xl opacity-[0.10]"
-        style={{ background: 'radial-gradient(circle, rgb(var(--accent-rgb) / 0.45), transparent 68%)' }}
-      />
-      <div
-        className="absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse 90% 70% at 50% 50%, transparent 30%, rgb(0 0 0 / 0.55) 100%)' }}
-      />
-    </div>
-  );
-}
 
 /**
  * Between sections.
@@ -94,7 +48,7 @@ export function DataDivider() {
  */
 export function SectionEyebrow({ children, live = false }: { children: React.ReactNode; live?: boolean }) {
   return (
-    <p className="inline-flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-accent">
+    <p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-accent">
       <span className="relative flex w-1.5 h-1.5">
         {live && <span className="absolute inline-flex w-full h-full rounded-full bg-accent opacity-60 animate-ping motion-reduce:hidden" />}
         <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-accent" />

@@ -170,7 +170,7 @@ export default function AuthActionClient() {
     : 'Choose a New Password';
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+    <div className="wf-rise">
       <AuthBrandMark title={title} subtitle={email ?? undefined} />
 
       <Card glass className="p-6">
@@ -261,6 +261,6 @@ export default function AuthActionClient() {
           <ArrowLeft className="w-4 h-4" /> Back to login
         </Link>
       </div>
-    </motion.div>
+    </div>
   );
 }

@@ -145,15 +145,7 @@ export function AdminSearch({
               // No backdrop-filter — see Modal.tsx for the iOS flicker it caused.
               className="fixed inset-0 z-[60] bg-black/60"
             />
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.98 }}
-              transition={{ duration: 0.14 }}
-              role="dialog"
-              aria-label="Search the admin"
-              className="fixed z-[61] left-1/2 -translate-x-1/2 top-[12vh] w-[min(560px,calc(100vw-32px))] rounded-2xl border border-white/10 bg-surface shadow-2xl overflow-hidden"
-            >
+            <div className="fixed z-[61] left-1/2 -translate-x-1/2 top-[12vh] w-[min(560px,calc(100vw-32px))] rounded-2xl border border-white/10 bg-surface shadow-2xl overflow-hidden wf-rise">
               <div className="flex items-center gap-2.5 px-4 h-14 border-b border-white/8">
                 <Search className="w-4 h-4 text-text-tertiary flex-shrink-0" strokeWidth={1.75} />
                 <input
@@ -200,7 +192,7 @@ export function AdminSearch({
                   Accounts match from the start of an email or name, and names are case-sensitive.
                 </p>
               )}
-            </motion.div>
+            </div>
           </>
         )}
       </AnimatePresence>,

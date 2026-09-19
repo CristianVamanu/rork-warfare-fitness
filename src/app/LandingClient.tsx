@@ -6,17 +6,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { UNIT_STANDARDS, standardFor, formatMinutes } from '@/lib/ptStandards';
-import dynamic from 'next/dynamic';
-import { LandingBackdrop, DataDivider, SectionEyebrow, CornerBrackets } from '@/components/landing/chrome';
+import { DataDivider, SectionEyebrow, CornerBrackets } from '@/components/landing/chrome';
+import { BrandVideo } from '@/components/ui/BrandVideo';
 
-// The ember column is ~150KB of WebGL on a page that is the top of a paid
-// funnel, so it is never in the critical path: no SSR, loaded after the rest
-// of the hero has painted, and absent entirely if it fails. The hero reads
-// correctly without it — it is a layer over a background that already works.
-const EmberColumn = dynamic(
-  () => import('@/components/landing/EmberColumn').then((m) => m.EmberColumn),
-  { ssr: false, loading: () => null },
-);
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
   ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
@@ -440,9 +432,7 @@ export default function LandingPage({
       {/* Both are always in the HTML. Which one is visible is decided by CSS
           from the html[data-wf-session] attribute — see BrandSplash. */}
       <BrandSplash gated />
-    <div data-landing-body className="min-h-screen overflow-x-hidden relative">
-      {/* One surface for the whole page, behind every section. */}
-      <LandingBackdrop />
+    <div data-landing-body className="min-h-screen bg-background overflow-x-hidden relative">
       {/* Ambient glow + grid texture, contained to the hero viewport so it
           doesn't bleed color into the feature/social-proof sections below. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[640px] overflow-hidden">
@@ -455,23 +445,6 @@ export default function LandingPage({
             maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)',
           }}
         />
-      </div>
-
-      {/* The ember column. Sits above the grid and below every pixel of
-          content, masked at the edges so it burns out of the page rather
-          than ending at a rectangle. mix-blend-screen keeps it additive
-          against whatever hero image an admin has set underneath. */}
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-[900px] overflow-hidden opacity-55 mix-blend-screen"
-        style={{
-          // Hottest low and wide, gone before it reaches the headline. The
-          // column is atmosphere behind the copy, and copy that competes
-          // with its own background does not get read.
-          maskImage: 'radial-gradient(ellipse 85% 58% at 50% 92%, black 20%, transparent 80%)',
-          WebkitMaskImage: 'radial-gradient(ellipse 85% 58% at 50% 92%, black 20%, transparent 80%)',
-        }}
-      >
-        <EmberColumn className="w-full h-full" />
       </div>
 
       {/* Hero background image — full-bleed behind the entire hero, not
@@ -559,29 +532,20 @@ export default function LandingPage({
 
       {/* Hero */}
       <section className="relative max-w-3xl mx-auto px-5 pt-10 pb-16 text-center">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+        <div className="wf-rise">
           {/* Animated brand mark — logo emerging through smoke into flame.
               Muted/looped/inline so it autoplays everywhere including iOS
               Safari; the poster frame paints instantly so there's no blank
               gap while the ~900KB clip loads. */}
           <div className="relative w-32 h-32 mx-auto mb-6">
-            <video
-              className="relative w-full h-full rounded-2xl object-cover shadow-glow-accent"
-              src="/videos/hero-logo.mp4"
-              poster="/videos/hero-logo-poster.jpg"
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="auto"
-            />
+            <BrandVideo className="relative w-full h-full rounded-2xl object-cover shadow-glow-accent" ariaHidden={false} />
           </div>
           {landing.badgeText && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-muted text-accent font-mono text-[11px] uppercase tracking-[0.1em] mb-5 border border-accent/20">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-muted text-accent text-[11px] uppercase tracking-[0.1em] mb-5 border border-accent/20">
               <Trophy className="w-3.5 h-3.5" /> {landing.badgeText}
             </div>
           )}
-          <h1 className="font-display text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.15] sm:leading-[1.1] text-balance">
+          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.15] sm:leading-[1.1] text-balance">
             {landing.headlineLine1}<br className="hidden sm:block" />{' '}
             <span className="text-accent">{landing.headlineLine2}</span>
           </h1>
@@ -701,17 +665,17 @@ export default function LandingPage({
           {stats && stats.totalUsers >= 15 && (
             <div className="flex items-center justify-center gap-6 mt-8 text-sm">
               <div className="text-center">
-                <p className="font-mono text-xl font-bold text-white tabular-nums">{stats.totalUsers.toLocaleString()}+</p>
+                <p className="text-xl font-bold text-white tabular-nums">{stats.totalUsers.toLocaleString()}+</p>
                 <p className="text-xs text-text-tertiary">athletes</p>
               </div>
               <div className="w-px h-8 bg-white/10" />
               <div className="text-center">
-                <p className="font-mono text-xl font-bold text-white tabular-nums">{stats.totalWorkouts.toLocaleString()}+</p>
+                <p className="text-xl font-bold text-white tabular-nums">{stats.totalWorkouts.toLocaleString()}+</p>
                 <p className="text-xs text-text-tertiary">workouts logged</p>
               </div>
             </div>
           )}
-        </motion.div>
+        </div>
       </section>
 
       {/* The free thing, first under the hero and asking for nothing.
@@ -753,13 +717,6 @@ export default function LandingPage({
             className="pointer-events-none absolute inset-x-0 top-0 h-px"
             style={{ background: 'linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 0.65), transparent)' }}
           />
-          {/* The sweep. motion-reduce disables it; it is decoration only. */}
-          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div
-              className="h-px w-full animate-scan motion-reduce:hidden"
-              style={{ background: 'linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 0.5), transparent)' }}
-            />
-          </div>
           {/* Corner brackets. */}
           {[
             'left-3 top-3 border-l-2 border-t-2',
@@ -783,7 +740,7 @@ export default function LandingPage({
                 </span>
                 Free · no account
               </p>
-              <h2 className="font-display text-2xl sm:text-[34px] font-black text-white tracking-tight mt-3 leading-[1.08]">
+              <h2 className="text-2xl sm:text-[34px] font-black text-white tracking-tight mt-3 leading-[1.08]">
                 Could you pass selection?
               </h2>
               <p className="text-sm text-text-secondary mt-3 max-w-md leading-relaxed">
@@ -800,20 +757,20 @@ export default function LandingPage({
                 page can never quote a number the test disagrees with. */}
             <div className="hidden sm:block flex-shrink-0 w-[13.5rem] rounded-xl border border-accent/20 bg-black/50 backdrop-blur-sm overflow-hidden">
               <div className="flex items-center justify-between px-3 py-2 border-b border-accent/15 bg-accent/[0.06]">
-                <span className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-accent">
+                <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-accent">
                   {RECON_SAMPLE.label}
                 </span>
-                <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-text-tertiary">Entry</span>
+                <span className="text-[9px] uppercase tracking-[0.14em] text-text-tertiary">Entry</span>
               </div>
               <div className="divide-y divide-white/[0.06]">
                 {RECON_SAMPLE.rows.map((r) => (
                   <div key={r.label} className="flex items-baseline justify-between px-3 py-2">
-                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-tertiary">{r.label}</span>
-                    <span className="font-mono text-[15px] font-bold tabular-nums text-white">{r.value}</span>
+                    <span className="text-[10px] uppercase tracking-[0.12em] text-text-tertiary">{r.label}</span>
+                    <span className="text-[15px] font-bold tabular-nums text-white">{r.value}</span>
                   </div>
                 ))}
               </div>
-              <div className="px-3 py-2 border-t border-accent/15 font-mono text-[9px] uppercase tracking-[0.14em] text-text-tertiary">
+              <div className="px-3 py-2 border-t border-accent/15 text-[9px] uppercase tracking-[0.14em] text-text-tertiary">
                 + {UNIT_STANDARDS.length - 1} more standards
               </div>
             </div>
@@ -833,21 +790,14 @@ export default function LandingPage({
       <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pt-16 pb-16">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-3"><SectionEyebrow>The system</SectionEyebrow></div>
-          <h2 className="font-display text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
+          <h2 className="text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
           <p className="text-text-secondary text-sm mt-2">One app for training, nutrition, accountability, and progress.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch [&>*:first-child]:lg:col-span-2">
           {landing.features.map((f, i) => {
             const style = getFeatureStyle(f.title);
             return (
-              <motion.div
-                key={`${f.title}-${i}`}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.35, delay: (i % 3) * 0.05 }}
-                className="group relative p-5 rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-sm hover:border-accent/35 hover:bg-surface transition-all duration-300 flex flex-col items-start overflow-hidden"
-              >
+              <div key={`${f.title}-${i}`} className="group relative p-5 rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-sm hover:border-accent/35 hover:bg-surface transition-all duration-300 flex flex-col items-start overflow-hidden wf-rise" style={{ animationDelay: `${(i % 3) * 0.05}s` }}>
                 {/* Hairline along the top edge, lighting up on hover — the
                     same cue the standards card uses, so a panel here and a
                     panel there read as the same machine. */}
@@ -859,7 +809,7 @@ export default function LandingPage({
                 <CornerBrackets size="w-3.5 h-3.5" />
                 {/* A channel index. Small, monospaced, and the thing that
                     turns nine cards into one instrument rather than nine. */}
-                <span aria-hidden className="absolute top-4 right-4 font-mono text-[10px] font-bold tabular-nums tracking-widest text-white/15 group-hover:text-accent/45 transition-colors duration-300">
+                <span aria-hidden className="absolute top-4 right-4 text-[10px] font-bold tabular-nums tracking-widest text-white/15 group-hover:text-accent/45 transition-colors duration-300">
                   {String(i + 1).padStart(2, '0')}
                 </span>
                 <div className={`relative w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
@@ -876,7 +826,7 @@ export default function LandingPage({
                   )}
                 </div>
                 <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">{f.desc}</p>
-              </motion.div>
+              </div>
             );
           })}
         </div>
@@ -912,17 +862,11 @@ export default function LandingPage({
         return (
           <section className="relative overflow-hidden max-w-4xl mx-auto px-5 pb-16">
             <div className="text-center mb-8">
-              <h2 className="font-display text-2xl sm:text-3xl font-black text-white">{sc.heading?.trim() || 'Four subscriptions. Or one.'}</h2>
+              <h2 className="text-2xl sm:text-3xl font-black text-white">{sc.heading?.trim() || 'Four subscriptions. Or one.'}</h2>
               {sc.subheading?.trim() && <p className="text-text-secondary text-sm mt-2 max-w-xl mx-auto">{sc.subheading}</p>}
             </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-40px' }}
-              transition={{ duration: 0.35 }}
-              className="rounded-2xl border border-white/10 bg-surface overflow-hidden"
-            >
+            <div className="rounded-2xl border border-white/10 bg-surface overflow-hidden wf-rise">
               {/* Two equal columns on a phone, three on desktop. The first
                   cut gave the feature name its own full-width row above the
                   two cells, which broke the column rhythm: the tinted brand
@@ -990,7 +934,7 @@ export default function LandingPage({
                   )}
                 </div>
               </div>
-            </motion.div>
+            </div>
 
             {comparable && (
               <p className="text-sm text-center mt-4 text-white">
@@ -1015,22 +959,14 @@ export default function LandingPage({
         <section id="programs" className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16 scroll-mt-6">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-3"><SectionEyebrow live>Program library</SectionEyebrow></div>
-            <h2 className="font-display text-2xl sm:text-3xl font-black text-white">Train Like an Elite Soldier</h2>
+            <h2 className="text-2xl sm:text-3xl font-black text-white">Train Like an Elite Soldier</h2>
             <p className="text-text-secondary text-sm mt-2">The quiz matches you to one. It&apos;s a starting point, not a lock-in — switch to any program here, any time, and your progress is kept.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {programs.map((p, i) => {
               const badge = PROGRAM_BADGE[p.id];
               return (
-              <motion.div
-                key={p.id}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.35, delay: (i % 6) * 0.05 }}
-                onClick={() => setSelectedProgram(p)}
-                className="rounded-2xl border border-white/8 bg-surface hover:border-accent/30 hover:shadow-glow-accent transition-all overflow-hidden flex flex-col cursor-pointer text-left"
-              >
+              <div key={p.id} className="rounded-2xl border border-white/8 bg-surface hover:border-accent/30 hover:shadow-glow-accent transition-all overflow-hidden flex flex-col cursor-pointer text-left wf-rise" style={{ animationDelay: `${(i % 6) * 0.05}s` }}>
                 {/* Fixed-aspect image slot, same size for every card — a
                     themed gradient + icon fallback when no admin image is
                     set yet, so the grid never looks unfinished. */}
@@ -1074,7 +1010,7 @@ export default function LandingPage({
                     <Button fullWidth size="sm">Enroll Now <ArrowRight className="w-3.5 h-3.5" /></Button>
                   </Link>
                 </div>
-              </motion.div>
+              </div>
               );
             })}
           </div>
@@ -1159,13 +1095,7 @@ export default function LandingPage({
       {/* Motivational quote — admin-editable, full-bleed accent treatment */}
       {landing.quoteText && (
         <section className="max-w-4xl mx-auto px-5 pb-16">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-40px' }}
-            transition={{ duration: 0.4 }}
-            className="relative rounded-3xl border border-white/10 bg-surface p-8 sm:p-12 text-center overflow-hidden"
-          >
+          <div className="relative rounded-3xl border border-white/10 bg-surface p-8 sm:p-12 text-center overflow-hidden wf-rise">
             {/* Fixed-size badge instead of a giant absolutely-positioned glyph
                 behind the text — the old version overlapped the quote on
                 narrow screens since it never adapted to width or copy length. */}
@@ -1178,7 +1108,7 @@ export default function LandingPage({
             {landing.quoteAuthor && (
               <p className="relative text-sm text-accent font-medium mt-4">— {landing.quoteAuthor}</p>
             )}
-          </motion.div>
+          </div>
         </section>
       )}
 
@@ -1190,25 +1120,18 @@ export default function LandingPage({
       {landing.transformationPhotos && landing.transformationPhotos.length > 0 && (
         <section className="max-w-5xl mx-auto px-5 pb-16">
           <div className="text-center mb-8">
-            <h2 className="font-display text-2xl sm:text-3xl font-black text-white">Real Results</h2>
+            <h2 className="text-2xl sm:text-3xl font-black text-white">Real Results</h2>
             <p className="text-text-secondary text-sm mt-2">Real members, real progress — no stock photos.</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {landing.transformationPhotos.map((p, i) => (
-              <motion.div
-                key={p.imageUrl + i}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.35, delay: (i % 4) * 0.05 }}
-                className="rounded-2xl overflow-hidden border border-white/8 bg-surface"
-              >
+              <div key={p.imageUrl + i} className="rounded-2xl overflow-hidden border border-white/8 bg-surface wf-rise" style={{ animationDelay: `${(i % 4) * 0.05}s` }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={p.imageUrl} alt={p.caption ?? 'Member transformation'} className="w-full aspect-[3/4] object-cover" />
                 {p.caption && (
                   <p className="text-xs text-text-secondary p-3 leading-relaxed">{p.caption}</p>
                 )}
-              </motion.div>
+              </div>
             ))}
           </div>
         </section>
@@ -1219,21 +1142,14 @@ export default function LandingPage({
       {landing.testimonials && landing.testimonials.length > 0 && (
         <section className="max-w-5xl mx-auto px-5 pb-16">
           <div className="text-center mb-8">
-            <h2 className="font-display text-2xl sm:text-3xl font-black text-white">What Members Are Saying</h2>
+            <h2 className="text-2xl sm:text-3xl font-black text-white">What Members Are Saying</h2>
           </div>
           <div className={`grid gap-4 ${landing.testimonials.length > 1 ? 'sm:grid-cols-2 lg:grid-cols-3' : 'max-w-lg mx-auto'}`}>
             {landing.testimonials.map((t, i) => (
-              <motion.div
-                key={`${t.name}-${i}`}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.35, delay: (i % 3) * 0.05 }}
-                className="rounded-2xl border border-white/8 bg-surface p-5"
-              >
+              <div key={`${t.name}-${i}`} className="rounded-2xl border border-white/8 bg-surface p-5 wf-rise" style={{ animationDelay: `${(i % 3) * 0.05}s` }}>
                 <p className="text-sm text-text-secondary leading-relaxed">&ldquo;{t.quote}&rdquo;</p>
                 <p className="text-sm font-bold text-white mt-3">{t.name}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </section>
@@ -1244,7 +1160,7 @@ export default function LandingPage({
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && (
         <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16">
           <div className="text-center mb-8">
-            <h2 className="font-display text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
+            <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
             <p className="text-text-secondary text-sm mt-2">
               {trialDays <= 0 ? 'Simple pricing. Cancel anytime.'
                 : paidTrialEnabled ? `Try it for $${trialPrice} — ${trialDays} days, then your plan's price.`
@@ -1265,14 +1181,7 @@ export default function LandingPage({
               // exactly as before.
               const isFeatured = anyPlanMarkedPopular ? !!plan.mostPopular : i === 0;
               return (
-              <motion.div
-                key={plan.id}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.35, delay: i * 0.05 }}
-                className={`relative rounded-2xl p-5 h-full flex flex-col bg-surface ${isFeatured ? 'border-2 border-accent' : 'border border-white/10'}`}
-              >
+              <div key={plan.id} className="wf-rise" style={{ animationDelay: `${i * 0.05}s` }}>
                 {/* Text label, not just the border color — a color-only cue
                     is easy to miss when someone's quickly scanning prices. */}
                 {isFeatured && (
@@ -1334,18 +1243,11 @@ export default function LandingPage({
                     {trialDays <= 0 ? 'Join Now' : paidTrialEnabled ? `Start for $${trialPrice}` : `Start ${trialDays}-Day Free Trial`} <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
-              </motion.div>
+              </div>
               );
             })}
             {coachingPlans.map((plan) => (
-              <motion.div
-                key={plan.id}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.35, delay: 0.05 }}
-                className="relative rounded-2xl border border-white/10 bg-surface p-5 h-full flex flex-col"
-              >
+              <div key={plan.id} className="relative rounded-2xl border border-white/10 bg-surface p-5 h-full flex flex-col wf-rise" style={{ animationDelay: `${0.05}s` }}>
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
                     <span className="text-[10px] font-bold text-white">{discountPercent}% OFF 1ST</span>
@@ -1382,7 +1284,7 @@ export default function LandingPage({
                     Apply Now <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
-              </motion.div>
+              </div>
             ))}
           </div>
         </section>
@@ -1405,7 +1307,7 @@ export default function LandingPage({
       {/* FAQ — kills objections right before the final ask */}
       <section className="max-w-2xl mx-auto px-5 pb-16">
         <div className="text-center mb-6">
-          <h2 className="font-display text-2xl sm:text-3xl font-black text-white">Questions? Answered.</h2>
+          <h2 className="text-2xl sm:text-3xl font-black text-white">Questions? Answered.</h2>
         </div>
         <div className="rounded-2xl border border-white/8 bg-surface px-5">
           {FAQ_ITEMS.map((item, i) => ({
@@ -1432,7 +1334,7 @@ export default function LandingPage({
 
       {/* Final CTA */}
       <section className="relative overflow-hidden max-w-2xl mx-auto px-5 pt-16 pb-20 text-center">
-        <h2 className="font-display text-2xl sm:text-3xl font-black text-white">{landing.finalCtaHeadline}</h2>
+        <h2 className="text-2xl sm:text-3xl font-black text-white">{landing.finalCtaHeadline}</h2>
         <p className="text-text-secondary text-sm mt-2 mb-6">{fillPlaceholders(landing.finalCtaSubtext)}</p>
         <Link href="/onboarding">
           <Button size="lg" className="px-10">

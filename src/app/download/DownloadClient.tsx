@@ -248,15 +248,7 @@ export default function DownloadClient({
 
         <div className="grid md:grid-cols-3 gap-5">
           {PLATFORMS.map((platform, pIdx) => (
-            <motion.div
-              key={platform.id}
-              id={`platform-${platform.id}`}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-40px' }}
-              transition={{ duration: 0.3, delay: pIdx * 0.05 }}
-              className="rounded-2xl border border-white/10 bg-surface p-5 scroll-mt-24"
-            >
+            <div key={platform.id} className="rounded-2xl border border-white/10 bg-surface p-5 scroll-mt-24 wf-rise" style={{ animationDelay: `${pIdx * 0.05}s` }}>
               <p className="text-[11px] font-bold uppercase tracking-widest text-accent mb-2">{platform.eyebrow}</p>
               <div className="flex items-center gap-2 mb-5">
                 <div className="w-9 h-9 rounded-xl bg-accent-muted flex items-center justify-center">
@@ -281,7 +273,7 @@ export default function DownloadClient({
                   </li>
                 ))}
               </ol>
-            </motion.div>
+            </div>
           ))}
         </div>
       </section>

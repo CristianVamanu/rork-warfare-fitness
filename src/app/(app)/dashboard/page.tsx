@@ -339,11 +339,7 @@ export default function DashboardPage() {
       <div className="px-4 py-4 space-y-3.5">
         {/* Streak Urgency Banner */}
         {streakAtRisk && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3 p-3 bg-amber-400/10 border border-amber-400/30 rounded-2xl"
-          >
+          <div className="flex items-center gap-3 p-3 bg-amber-400/10 border border-amber-400/30 rounded-2xl wf-rise">
             <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-bold text-white">🔥 {streak}-day streak at risk!</p>
@@ -352,7 +348,7 @@ export default function DashboardPage() {
             <Link href="/training">
               <Button size="sm" variant="ghost" className="text-amber-400 border-amber-400/30">Train</Button>
             </Link>
-          </motion.div>
+          </div>
         )}
 
         {/* Greeting */}
@@ -368,7 +364,7 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* Today's session — the hero. Amber gradient, dark ink, one action. */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
+        <div className="wf-rise" style={{ animationDelay: `${0.05}s` }}>
           {activeProgram ? (
             <div
               className="hero-card relative overflow-hidden rounded-[28px] p-5 text-[#141005] shadow-[0_30px_70px_-30px_rgba(245,166,35,0.6)]"
@@ -490,7 +486,7 @@ export default function DashboardPage() {
               </div>
             </Link>
           )}
-        </motion.div>
+        </div>
 
         {/* The day's three numbers as rings */}
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-3 gap-2.5">

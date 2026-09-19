@@ -158,7 +158,7 @@ export default function GoalsPage() {
       <Header title="My Goals" showBack />
       <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-3">
         {weightGoal && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="wf-rise">
             <WeightGoalCard
               startWeightKg={weightGoal.startWeightKg}
               targetWeightKg={weightGoal.targetWeightKg}
@@ -167,7 +167,7 @@ export default function GoalsPage() {
               estimatedTargetDate={weightGoal.estimatedTargetDate}
               direction={weightGoal.direction}
             />
-          </motion.div>
+          </div>
         )}
         {loading ? (
           <div className="space-y-3">{[1, 2].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div>
@@ -182,9 +182,9 @@ export default function GoalsPage() {
         ) : (
           <>
             {active.map((goal, i) => (
-              <motion.div key={goal.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+              <div key={goal.id} className="wf-rise" style={{ animationDelay: `${i * 0.05}s` }}>
                 <GoalCard goal={goal} onUpdate={(v) => handleUpdate(goal.id, v)} />
-              </motion.div>
+              </div>
             ))}
             {past.length > 0 && (
               <div className="pt-2">

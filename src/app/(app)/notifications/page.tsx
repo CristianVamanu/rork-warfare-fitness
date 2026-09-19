@@ -162,12 +162,7 @@ export default function NotificationsPage() {
               const Icon = TYPE_ICON[n.type] ?? Bell;
               const colorClass = TYPE_COLOR[n.type] ?? 'text-text-secondary bg-surface-elevated';
               return (
-                <motion.div
-                  key={n.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                >
+                <div key={n.id} className="wf-rise" style={{ animationDelay: `${i * 0.04}s` }}>
                   <Card
                     className={`p-4 cursor-pointer transition-colors hover:bg-white/5 ${!n.read ? 'border-accent/30' : 'opacity-70'}`}
                     onClick={() => handleMarkRead(n)}
@@ -198,7 +193,7 @@ export default function NotificationsPage() {
                       </div>
                     </div>
                   </Card>
-                </motion.div>
+                </div>
               );
             })}
           </div>

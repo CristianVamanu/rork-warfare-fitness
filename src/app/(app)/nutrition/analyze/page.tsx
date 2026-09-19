@@ -209,7 +209,7 @@ function AnalyzeFoodPageInner() {
           </p>
         )}
         {/* Upload Area */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="wf-rise">
           <input
             ref={fileRef}
             type="file"
@@ -263,7 +263,7 @@ function AnalyzeFoodPageInner() {
               </div>
             </button>
           )}
-        </motion.div>
+        </div>
 
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-3">
@@ -278,11 +278,7 @@ function AnalyzeFoodPageInner() {
         {/* Result Card */}
         <AnimatePresence>
           {result && scaledResult && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-            >
+            <div className="wf-rise">
               <Card className="p-5 space-y-4">
                 <div className="flex items-start justify-between">
                   <div>
@@ -357,7 +353,7 @@ function AnalyzeFoodPageInner() {
                   Add to {mealType.charAt(0).toUpperCase() + mealType.slice(1)}
                 </Button>
               </Card>
-            </motion.div>
+            </div>
           )}
         </AnimatePresence>
 

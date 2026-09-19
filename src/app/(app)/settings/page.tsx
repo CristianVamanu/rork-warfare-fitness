@@ -342,7 +342,7 @@ export default function SettingsPage() {
       <Header title="Settings" />
       <div className="px-4 py-4 space-y-5">
         {sections.map(({ title, items }) => (
-          <motion.div key={title} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+          <div key={title} className="wf-rise">
             <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">{title}</h2>
             <Card className="overflow-hidden">
               {items.map(({ icon: Icon, label, description, action, rightLabel }, i) => (
@@ -372,12 +372,12 @@ export default function SettingsPage() {
                 </button>
               ))}
             </Card>
-          </motion.div>
+          </div>
         ))}
 
         {/* Push Notifications */}
         {'Notification' in window || true ? (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="wf-rise">
             <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Notifications</h2>
             <Card className="flex items-center gap-3 px-4 py-3.5">
               <div className="p-2 bg-surface-elevated rounded-lg">
@@ -395,11 +395,11 @@ export default function SettingsPage() {
                 <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${pushSubscribed ? 'left-6' : 'left-1'}`} />
               </button>
             </Card>
-          </motion.div>
+          </div>
         ) : null}
 
         {/* Privacy & Data — self-service GDPR export/delete */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="wf-rise">
           <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Privacy &amp; Data</h2>
           <Card className="overflow-hidden">
             <button
@@ -441,11 +441,11 @@ export default function SettingsPage() {
               </div>
             </button>
           </Card>
-        </motion.div>
+        </div>
 
         {/* Admin Panel link — only visible to admins */}
         {profile?.role === 'admin' && (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="wf-rise">
             <Link href="/admin">
               <Card className="flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors border-danger/30">
                 <div className="p-2 bg-danger/10 rounded-lg">
@@ -458,11 +458,11 @@ export default function SettingsPage() {
                 <ChevronRight className="w-4 h-4 text-danger" />
               </Card>
             </Link>
-          </motion.div>
+          </div>
         )}
 
         {/* Sign Out */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <div className="wf-rise" style={{ animationDelay: `${0.2}s` }}>
           <Button
             variant="danger"
             fullWidth
@@ -471,7 +471,7 @@ export default function SettingsPage() {
           >
             <LogOut className="w-4 h-4" /> Sign Out
           </Button>
-        </motion.div>
+        </div>
 
         <p className="text-center text-xs text-text-tertiary pb-4">
           Warfare Fitness · Built with ❤️ for athletes

@@ -226,7 +226,7 @@ export default function ScanAndGoPage() {
         )}
 
         {result && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+          <div className="space-y-4 wf-rise">
             <Card className="p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Dumbbell className="w-4 h-4 text-accent" />
@@ -271,7 +271,7 @@ export default function ScanAndGoPage() {
                 Start Workout <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
     </div>

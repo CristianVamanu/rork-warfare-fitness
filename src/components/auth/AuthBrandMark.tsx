@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { BrandVideo } from '@/components/ui/BrandVideo';
 
 /**
  * The animated brand mark at the top of every auth screen.
@@ -33,17 +34,7 @@ export function AuthBrandMark({
   return (
     <Link href="/" className="flex flex-col items-center mb-8">
       <div className="relative w-32 h-32 mb-4">
-        <video
-          className="relative w-full h-full rounded-2xl object-cover shadow-glow-accent"
-          src="/videos/hero-logo.mp4"
-          poster="/videos/hero-logo-poster.jpg"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload={eager ? 'auto' : 'none'}
-          aria-hidden="true"
-        />
+        <BrandVideo className="relative w-full h-full rounded-2xl object-cover shadow-glow-accent" />
       </div>
       <h1 className="text-2xl font-black text-white tracking-tight text-center">{title}</h1>
       {subtitle && <p className="text-text-secondary text-sm mt-1 text-center">{subtitle}</p>}

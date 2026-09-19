@@ -73,12 +73,7 @@ export default function AchievementsPage() {
                 const showNearMiss = !unlocked && progress !== null && progress >= 0.7 && remaining !== null;
                 const [singular, plural] = UNIT_LABEL[def.category];
                 return (
-                  <motion.div
-                    key={def.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                  >
+                  <div key={def.id} className="wf-rise" style={{ animationDelay: `${i * 0.03}s` }}>
                     <Card className={`p-3.5 text-center ${unlocked ? 'border-accent/30 bg-accent/5' : 'opacity-50'}`}>
                       <div className="relative w-10 h-10 mx-auto mb-2 flex items-center justify-center">
                         {unlocked ? (
@@ -97,7 +92,7 @@ export default function AchievementsPage() {
                         </p>
                       )}
                     </Card>
-                  </motion.div>
+                  </div>
                 );
               })}
             </div>

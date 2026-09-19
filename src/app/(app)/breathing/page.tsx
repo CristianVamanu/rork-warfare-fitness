@@ -350,7 +350,7 @@ export default function BreathingPage() {
 
       {step === 'complete' && (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 text-center">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-sm w-full">
+          <div className="max-w-sm w-full wf-rise">
             <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-5">
               <CheckCircle className="w-8 h-8 text-accent" />
             </div>
@@ -361,7 +361,7 @@ export default function BreathingPage() {
             <Button fullWidth size="lg" onClick={() => { setStep('method'); setMethod(null); }}>
               Done
             </Button>
-          </motion.div>
+          </div>
         </div>
       )}
       </PaywallGate>

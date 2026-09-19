@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { BrandVideo } from './BrandVideo';
 
 /**
  * Full-screen brand hold — the same burning-logo clip the landing page and
@@ -81,17 +82,7 @@ export function BrandSplash({ label = 'Loading', gated = false }: { label?: stri
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] h-[440px] rounded-full bg-accent/[0.10] blur-3xl" />
       </div>
       <div className="relative w-32 h-32">
-        <video
-          className="w-full h-full rounded-2xl object-cover shadow-glow-accent"
-          src="/videos/hero-logo.mp4"
-          poster="/videos/hero-logo-poster.jpg"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="auto"
-          aria-hidden="true"
-        />
+        <BrandVideo className="w-full h-full rounded-2xl object-cover shadow-glow-accent" />
       </div>
       {/* Same width as the logo, sitting just under it. The track is faint;
           the fill is the brand accent with a soft glow so it reads on the

@@ -315,7 +315,7 @@ export default function ProgramDetailPage() {
       <div className="px-4 py-4 space-y-5">
 
         {/* Program Hero */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="wf-rise">
           <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-surface to-surface-elevated">
             <div className="flex gap-2 mb-3">
               <Badge variant={(goalColors[program.goal] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
@@ -370,10 +370,10 @@ export default function ProgramDetailPage() {
               </div>
             )}
           </Card>
-        </motion.div>
+        </div>
 
         {/* Enroll / Continue CTA */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+        <div className="wf-rise" style={{ animationDelay: `${0.05}s` }}>
           {isEnrolled ? (
             <div className="space-y-2">
               {/* Non-blocking acknowledgment — training more than once a day
@@ -437,14 +437,14 @@ export default function ProgramDetailPage() {
                 : hasDifferentProgram ? 'Switch to This Program' : 'Start Program'}
             </Button>
           )}
-        </motion.div>
+        </div>
 
         {/* Next Workout — hidden once the trial's day-limit is hit; the CTA
             above already explains the lock and offers to subscribe.
             Always the next not-yet-completed day, startable immediately
             regardless of whether the user already trained today. */}
         {isEnrolled && todayDay && !nextIsLocked && (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
+          <div className="wf-rise" style={{ animationDelay: `${0.08}s` }}>
             <h2 className="text-base font-bold text-white mb-3">Next Workout</h2>
             <Card className={`relative overflow-hidden p-4 ${isRestToday ? 'border-white/10' : 'border-accent/45 shadow-[0_0_40px_-8px_rgba(245,166,35,0.5)]'}`}>
               {/* Ember wash + hairline grid — the same "tech" surface the
@@ -504,7 +504,7 @@ export default function ProgramDetailPage() {
                 )}
               </div>
             </Card>
-          </motion.div>
+          </div>
         )}
 
         {/* Schedule — the FULL program, every week, in one continuous list.
@@ -529,7 +529,7 @@ export default function ProgramDetailPage() {
         )}
 
         {allWeeks.length > 0 && !isMembershipLocked && (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <div className="wf-rise" style={{ animationDelay: `${0.1}s` }}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold text-white">
                 {isEnrolled ? `Full Program — ${totalWeeks} Weeks` : 'Weekly Schedule'}
@@ -781,7 +781,7 @@ export default function ProgramDetailPage() {
                 );
               })}
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
 

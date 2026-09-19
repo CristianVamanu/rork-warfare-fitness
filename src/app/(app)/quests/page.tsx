@@ -40,12 +40,7 @@ export default function QuestsPage() {
         {QUEST_DEFS.map((quest, i) => {
           const done = completed.has(quest.id) || isQuestComplete(quest, stats);
           return (
-            <motion.div
-              key={quest.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-            >
+            <div key={quest.id} className="wf-rise" style={{ animationDelay: `${i * 0.05}s` }}>
               <Card className={`p-4 ${done ? 'border-accent/40 bg-accent/5' : ''}`}>
                 <div className="flex items-start gap-3 mb-3">
                   <span className="text-3xl flex-shrink-0">{quest.rewardIcon}</span>
@@ -78,7 +73,7 @@ export default function QuestsPage() {
                   {done ? `🎉 ${quest.rewardTitle} Earned` : `Reward: ${quest.rewardTitle}`}
                 </div>
               </Card>
-            </motion.div>
+            </div>
           );
         })}
       </div>

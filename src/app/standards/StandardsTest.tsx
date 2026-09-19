@@ -240,10 +240,7 @@ export function StandardsTest({ initialStandardId }: { initialStandardId?: strin
       {/* Verdict */}
       <AnimatePresence>
         {submitted && answered > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl border border-accent/30 bg-accent/[0.06] p-5 sm:p-6"
-          >
+          <div className="rounded-2xl border border-accent/30 bg-accent/[0.06] p-5 sm:p-6 wf-rise">
             <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-accent">Result</p>
             <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-1.5">
               {passedAll
@@ -344,7 +341,7 @@ export function StandardsTest({ initialStandardId }: { initialStandardId?: strin
               <Share2 className="w-4 h-4" />
               {copied ? 'Link copied' : passedAll ? 'Share this result' : 'Challenge someone'}
             </button>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

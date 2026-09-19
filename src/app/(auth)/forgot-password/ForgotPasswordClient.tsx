@@ -49,11 +49,7 @@ export default function ForgotPasswordClient({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <div className="wf-rise">
       <AuthBrandMark title="Reset Password" subtitle="We'll send you a reset link" />
 
       <Card glass className="p-6">
@@ -92,6 +88,6 @@ export default function ForgotPasswordClient({
           Back to login
         </Link>
       </div>
-    </motion.div>
+    </div>
   );
 }

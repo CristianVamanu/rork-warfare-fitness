@@ -958,7 +958,7 @@ export default function ChannelPage() {
               <p className="text-text-secondary text-sm mt-1">Be the first to post!</p>
             </Card>
           ) : posts.map((post, i) => (
-            <motion.div key={post.id} id={`post-${post.id}`} data-post-id={post.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+            <div key={post.id} className="wf-rise" style={{ animationDelay: `${i * 0.04}s` }}>
               <PostCard
                 post={post}
                 userId={user?.uid ?? ''}
@@ -972,7 +972,7 @@ export default function ChannelPage() {
                 onDeleteReply={(p, r) => setConfirmDeleteReply({ post: p, reply: r })}
                 onPin={handlePin}
               />
-            </motion.div>
+            </div>
           ))}
           <div ref={postsEndRef} />
         </div>

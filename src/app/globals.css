@@ -96,7 +96,7 @@ html {
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* `hidden` makes body a scroll container on iOS, and iOS Chrome then lays
@@ -465,3 +465,26 @@ html.light .bg-gradient-to-r.text-transparent { -webkit-text-fill-color: transpa
 [data-brand-splash] { display: none; }
 html[data-wf-session="1"] [data-brand-splash] { display: flex; }
 html[data-wf-session="1"] [data-landing-body] { visibility: hidden; }
+
+/* Entrance animation that does NOT wait for JavaScript.
+   ---------------------------------------------------------------------
+   Sections were wrapped in framer-motion elements with initial opacity 0.
+   That renders `opacity:0` into the server HTML, so the page shipped fully
+   formed but INVISIBLE, and stayed invisible until ~350KB of JS hydrated
+   and framer-motion animated it back. Measured on a throttled phone: first
+   paint at 576ms, hero text at 3112ms, with zero layout shift — the content
+   was never late, it was hidden.
+
+   A CSS animation runs off the stylesheet, so it starts at first paint and
+   is finished long before hydration. Same fade-and-rise, none of the wait.
+   `both` holds the start frame during any delay and the end frame after. */
+@keyframes wf-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+.wf-rise {
+  animation: wf-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wf-rise { animation: none; }
+}

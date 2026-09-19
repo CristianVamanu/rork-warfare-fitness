@@ -158,7 +158,7 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
   const [showMenu, setShowMenu] = useState(false);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
+    <div className="wf-rise" style={{ animationDelay: `${index * 0.04}s` }}>
       <Card className="p-4 card-float">
         <div className="flex items-center gap-2.5 mb-3">
           <Avatar name={post.displayName} src={post.photoURL} size="md" />
@@ -225,7 +225,7 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
           {post.likeCount}
         </button>
       </Card>
-    </motion.div>
+    </div>
   );
 }
 

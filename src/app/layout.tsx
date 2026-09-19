@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
-import { Archivo, Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -11,63 +10,6 @@ import { ChunkErrorReloader } from '@/components/ui/ChunkErrorReloader';
 import { ErrorReporter } from '@/components/ui/ErrorReporter';
 import { CookieConsent } from '@/components/ui/CookieConsent';
 import { ConsentGatedScripts } from '@/components/ui/ConsentGatedScripts';
-
-/**
- * The type system.
- *
- * globals.css has asked for Inter since the beginning and NOTHING EVER
- * LOADED IT, so every screen in this app has been rendering in whatever the
- * browser defaults to — Arial on most Windows machines. That single omission
- * is why the site read as a template no matter what was done to the
- * backgrounds: the letterforms were the ones every unstyled page uses.
- *
- * Three faces, each with a job:
- *  - Archivo, heavy, for headlines. A grotesque with real weight at 800/900,
- *    which is what lets a headline carry a page without a graphic.
- *  - Inter for body copy, which is what it is good at.
- *  - JetBrains Mono for every number, label and readout. Monospaced data is
- *    the strongest signal that a product measures things, and measuring
- *    things is this product's entire claim.
- *
- * next/font self-hosts these at build time: no runtime request to Google,
- * nothing for the CSP to allow, and no layout shift while they load.
- */
-const archivo = Archivo({
-  subsets: ['latin'],
-  // Only 900. Every heading that uses this face is font-black; asking for
-  // 600/700/800 as well shipped three families nobody rendered.
-  weight: ['900'],
-  style: ['normal'],
-  variable: '--font-display',
-  display: 'swap',
-  // NOT preloaded, and that is the whole point. Archivo is used on the
-  // landing page and nowhere else, so a preload link in the root layout made
-  // every dashboard, training and nutrition screen fetch a font it never
-  // draws with. Without the preload the browser fetches it only when an
-  // element actually asks for the family.
-  preload: false,
-});
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-sans',
-  // 'optional', NOT 'swap'. This is the body face, so it is on essentially
-  // every element of every screen — with swap, the moment it arrived the
-  // whole page re-laid-out at once, which is exactly the "everything blinks"
-  // people reported. 'optional' gives the browser a short window and then
-  // commits: either the font was ready and it is used from the first paint,
-  // or the metric-matched fallback is kept for that navigation and nothing
-  // ever moves. Preloading is what makes the first branch the normal one.
-  display: 'optional',
-  preload: true,
-});
-const mono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '700'],
-  style: ['normal'],
-  variable: '--font-mono',
-  display: 'swap',
-  preload: false,
-});
 
 // generateMetadata runs on EVERY server render — and with the app layout
 // force-dynamic, that is every navigation. It read system/config from
@@ -168,7 +110,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // Next 15: request APIs (headers/cookies/params) are async.
   const nonce = (await headers()).get('x-nonce') ?? undefined;
   return (
-    <html lang="en" className={`dark ${archivo.variable} ${inter.variable} ${mono.variable}`}>
+    <html lang="en" className="dark">
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         {/* Runs before first paint. If this device has a signed-in session

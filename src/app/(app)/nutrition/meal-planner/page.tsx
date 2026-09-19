@@ -162,12 +162,7 @@ export default function MealPlannerPage() {
         {meals && (
           <div className="space-y-3">
             {meals.map((meal, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.08 }}
-              >
+              <div key={i} className="wf-rise" style={{ animationDelay: `${i * 0.08}s` }}>
                 <Card className="overflow-hidden">
                   <button onClick={() => setExpanded(expanded === i ? null : i)} className="w-full text-left p-4">
                     <div className="flex items-start justify-between gap-2">
@@ -228,7 +223,7 @@ export default function MealPlannerPage() {
                     )}
                   </AnimatePresence>
                 </Card>
-              </motion.div>
+              </div>
             ))}
           </div>
         )}

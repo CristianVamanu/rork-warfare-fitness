@@ -73,11 +73,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <div className="wf-rise">
       {/* Was a 16×16 gold square with a hardcoded "W" in it — the only place
           in the app that assumed the brand's initial, and visibly smaller and
           plainer than the mark on every other auth screen. */}
@@ -208,6 +204,6 @@ export default function RegisterPage() {
           Sign in
         </Link>
       </p>
-    </motion.div>
+    </div>
   );
 }

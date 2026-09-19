@@ -52,7 +52,7 @@ export default function CommunityPage() {
             ) : (
               <div className="space-y-2">
                 {channels.map((ch, i) => (
-                  <motion.div key={ch.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+                  <div key={ch.id} className="wf-rise" style={{ animationDelay: `${i * 0.05}s` }}>
                     <Link href={`/community/${ch.id}`}>
                       <Card className="p-4 hover:border-accent/30 transition-colors card-float">
                         <div className="flex items-center gap-3.5">
@@ -83,7 +83,7 @@ export default function CommunityPage() {
                         </div>
                       </Card>
                     </Link>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             )}
