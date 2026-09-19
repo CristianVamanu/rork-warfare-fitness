@@ -598,6 +598,18 @@ export default function LandingPage({
             )}
           </div>
 
+          {/* The wedge, above the fold. Everything else in this hero asks a
+              stranger to commit to a quiz; this asks for ninety seconds and
+              gives them a number about themselves, which is the one thing on
+              this page no other fitness app offers. */}
+          <Link
+            href="/standards"
+            className="group inline-flex items-center gap-2 mt-4 text-sm font-bold text-accent hover:underline"
+          >
+            Or find out if you could pass selection
+            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+          </Link>
+
           <div className="flex items-center justify-center gap-4 mt-5 flex-wrap">
             <p className="text-xs text-text-tertiary">{paidTrialEnabled || cardUpFrontTrial ? `Cancel anytime` : 'No credit card required'}</p>
             <span className="text-text-tertiary">·</span>
@@ -660,19 +672,11 @@ export default function LandingPage({
         </motion.div>
       </section>
 
-      {/* Feature grid — uniform equal-size cards. Deliberately NOT a
-          position-dependent bento layout (a wide "hero" first tile, a
-          full-width last tile) — that broke the moment an admin added,
-          removed, or reordered a feature in the landing-page editor, since
-          the hero/full-width slots and icon assignment were both keyed to
-          a fixed index that only matched one specific save order. A plain
-          uniform grid always looks right regardless of count or order. */}
-      <TacticalStripe />
-
-      {/* The free thing, placed high and asking for nothing.
+      {/* The free thing, first under the hero and asking for nothing.
           It is the only block on this page a stranger can act on without
-          handing over an email or a card, which is exactly why it sits above
-          everything that does ask. */}
+          handing over an email or a card, and it is the one thing here no
+          other fitness app offers — so it goes before the feature grid, not
+          after it. Everything below this point asks for something. */}
       <section className="relative max-w-5xl mx-auto px-5 pt-14">
         <Link
           href="/standards"
@@ -713,6 +717,15 @@ export default function LandingPage({
           </div>
         </Link>
       </section>
+
+      {/* Feature grid — uniform equal-size cards. Deliberately NOT a
+          position-dependent bento layout (a wide "hero" first tile, a
+          full-width last tile) — that broke the moment an admin added,
+          removed, or reordered a feature in the landing-page editor, since
+          the hero/full-width slots and icon assignment were both keyed to
+          a fixed index that only matched one specific save order. A plain
+          uniform grid always looks right regardless of count or order. */}
+      <TacticalStripe />
 
       <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pt-16 pb-16">
         <GlowOrb className="w-80 h-80 bg-accent/[0.08] -top-20 -left-20 -z-10" />

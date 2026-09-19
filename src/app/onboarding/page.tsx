@@ -9,6 +9,7 @@ import {
   Flame, Dumbbell, RefreshCw, Zap, Shield,
   ChevronRight, ChevronLeft, Loader2, CheckCircle,
   Home, Building2, Package, User, AlertCircle, TrendingDown, TrendingUp, PartyPopper,
+  Eye, EyeOff,
 } from 'lucide-react';
 import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -96,9 +97,6 @@ interface OnboardingDraft {
   weightUnit: 'kg' | 'lbs';
   heightUnit: 'cm' | 'ftin';
   medicalHistory: MedicalHistoryAnswers;
-  targetFocus: OnboardingData['targetFocus'] | null;
-  sessionMinutes: OnboardingData['sessionMinutes'] | null;
-  trainingStyle: OnboardingData['trainingStyle'] | null;
   name: string;
   email: string;
 }
@@ -157,13 +155,9 @@ function OnboardingPageInner() {
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(draft.weightUnit ?? 'kg');
   const [heightUnit, setHeightUnit] = useState<'cm' | 'ftin'>(draft.heightUnit ?? 'cm');
   const [medicalHistory, setMedicalHistory] = useState<MedicalHistoryAnswers>(draft.medicalHistory ?? {});
-  const [targetFocus, setTargetFocus] = useState<OnboardingData['targetFocus'] | null>(draft.targetFocus ?? null);
-  const [sessionMinutes, setSessionMinutes] = useState<OnboardingData['sessionMinutes'] | null>(draft.sessionMinutes ?? null);
-  const [trainingStyle, setTrainingStyle] = useState<OnboardingData['trainingStyle'] | null>(draft.trainingStyle ?? null);
   const [name, setName] = useState(draft.name ?? '');
   const [email, setEmail] = useState(draft.email ?? '');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'generating' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
@@ -196,11 +190,11 @@ function OnboardingPageInner() {
       const draftToSave: OnboardingDraft = {
         step, goal, experience, trainingDays, equipment, limitations,
         sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory,
-        targetFocus, sessionMinutes, trainingStyle, name, email,
+        name, email,
       };
       localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(draftToSave));
     } catch { /* ignore — e.g. private browsing storage quota */ }
-  }, [step, goal, experience, trainingDays, equipment, limitations, sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory, targetFocus, sessionMinutes, trainingStyle, name, email]);
+  }, [step, goal, experience, trainingDays, equipment, limitations, sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory, name, email]);
 
   // Pre-fills sex/age from the landing page's quick-start selector (now
   // mandatory there — see LandingClient.tsx). Visitors who didn't come
@@ -282,8 +276,8 @@ function OnboardingPageInner() {
   // step is pure drop-off. The `limitations` value itself is still part of
   // the profile and still saved when present (a draft started before this
   // change can carry one) — it just isn't asked for here any more.
-  const TOTAL_STEPS = needsAccount ? 8 : 7;
-  const ACCOUNT_STEP = 7;
+  const TOTAL_STEPS = needsAccount ? 7 : 6;
+  const ACCOUNT_STEP = 6;
 
   // Second half of the draft clamp above. An already-signed-in visitor has
   // one fewer step (no account step), so a restored draft sitting exactly on
@@ -322,7 +316,7 @@ function OnboardingPageInner() {
   // lib/tdee.ts and the weight-goal scoring bonus in pickBestProgram).
   const biometricsValid = sexAgeAnswered && heightNum >= 100 && heightNum <= 250
     && weightNum >= 30 && weightNum <= 300 && targetWeightNum >= 30 && targetWeightNum <= 300;
-  const accountValid = name.trim().length >= 2 && /^\S+@\S+\.\S+$/.test(email) && password.length >= 8 && password === confirmPassword;
+  const accountValid = name.trim().length >= 2 && /^\S+@\S+\.\S+$/.test(email) && password.length >= 8;
 
   const canAdvance = [
     !!goal && sexAgeAnswered,
@@ -331,7 +325,6 @@ function OnboardingPageInner() {
     !!equipment,
     biometricsValid,
     true, // BMI result step is informational only
-    true, // focus/session/style preferences are optional
     accountValid, // only reached when needsAccount is true
   ][step];
 
@@ -439,8 +432,7 @@ function OnboardingPageInner() {
       setError(
         !name.trim() || name.trim().length < 2 ? 'Enter your name (at least 2 characters).' :
         !/^\S+@\S+\.\S+$/.test(email) ? 'Enter a valid email address.' :
-        password.length < 8 ? 'Password must be at least 8 characters.' :
-        'Passwords don’t match — check both password fields.'
+        'Password must be at least 8 characters.'
       );
       return;
     }
@@ -596,9 +588,6 @@ function OnboardingPageInner() {
         ...(limitations.trim() ? { limitations: limitations.trim() } : {}),
         ...(biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, targetWeightKg: targetWeightNum } : {}),
         ...(Object.keys(cleanedMedicalHistory).length > 0 ? { medicalHistory: cleanedMedicalHistory } : {}),
-        ...(targetFocus ? { targetFocus } : {}),
-        ...(sessionMinutes ? { sessionMinutes } : {}),
-        ...(trainingStyle ? { trainingStyle } : {}),
       };
       // onboardingComplete has to actually land, or the account gets stuck
       // in a redirect loop back to /onboarding forever (see AppLayout) — if
@@ -1042,19 +1031,11 @@ function OnboardingPageInner() {
             {step === 5 && (
               <StepBmiResult heightCm={heightNum} weightKg={weightNum} weightUnit={weightUnit} />
             )}
-            {step === 6 && (
-              <StepPreferences
-                targetFocus={targetFocus} onTargetFocus={setTargetFocus}
-                sessionMinutes={sessionMinutes} onSessionMinutes={setSessionMinutes}
-                trainingStyle={trainingStyle} onTrainingStyle={setTrainingStyle}
-              />
-            )}
             {step === ACCOUNT_STEP && needsAccount && (
               <StepAccount
                 name={name} onName={setName}
                 email={email} onEmail={setEmail}
                 password={password} onPassword={setPassword}
-                confirmPassword={confirmPassword} onConfirmPassword={setConfirmPassword}
               />
             )}
           </motion.div>
@@ -1329,85 +1310,6 @@ function StepEquipment({ selected, onSelect }: { selected: EquipmentType | null;
   );
 }
 
-const TARGET_FOCUS: { value: NonNullable<OnboardingData['targetFocus']>; label: string }[] = [
-  { value: 'full-body', label: 'Full Body' },
-  { value: 'upper-body', label: 'Upper Body' },
-  { value: 'lower-body', label: 'Lower Body' },
-  { value: 'core', label: 'Core Focus' },
-];
-
-const SESSION_MINUTES: NonNullable<OnboardingData['sessionMinutes']>[] = [30, 45, 60, 90];
-
-const TRAINING_STYLE: { value: NonNullable<OnboardingData['trainingStyle']>; label: string; sub: string }[] = [
-  { value: 'free-weights', label: 'Free Weights', sub: 'Barbells & dumbbells' },
-  { value: 'machines', label: 'Machines', sub: 'Guided, joint-friendly' },
-  { value: 'bodyweight', label: 'Bodyweight', sub: 'Calisthenics-style' },
-  { value: 'mixed', label: 'No Preference', sub: 'Whatever fits the program' },
-];
-
-function StepPreferences({
-  targetFocus, onTargetFocus, sessionMinutes, onSessionMinutes, trainingStyle, onTrainingStyle,
-}: {
-  targetFocus: OnboardingData['targetFocus'] | null;
-  onTargetFocus: (v: NonNullable<OnboardingData['targetFocus']>) => void;
-  sessionMinutes: OnboardingData['sessionMinutes'] | null;
-  onSessionMinutes: (v: NonNullable<OnboardingData['sessionMinutes']>) => void;
-  trainingStyle: OnboardingData['trainingStyle'] | null;
-  onTrainingStyle: (v: NonNullable<OnboardingData['trainingStyle']>) => void;
-}) {
-  return (
-    <div>
-      <h1 className="text-2xl font-black text-white mb-1">Dial it in</h1>
-      <p className="text-text-secondary text-sm mb-5">A few more details so your AI-generated program fits exactly how you train.</p>
-
-      <p className="text-xs font-medium text-text-secondary mb-2">Focus area</p>
-      <div className="grid grid-cols-2 gap-2 mb-5">
-        {TARGET_FOCUS.map(({ value, label }) => (
-          <button
-            key={value}
-            onClick={() => onTargetFocus(value)}
-            className={`py-3 rounded-xl text-sm font-bold transition-all border ${
-              targetFocus === value ? 'bg-accent text-black border-accent' : 'border-white/10 text-white bg-surface-elevated hover:border-accent/40'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <p className="text-xs font-medium text-text-secondary mb-2">Time per session</p>
-      <div className="grid grid-cols-4 gap-2 mb-5">
-        {SESSION_MINUTES.map((m) => (
-          <button
-            key={m}
-            onClick={() => onSessionMinutes(m)}
-            className={`py-3 rounded-xl text-sm font-bold transition-all border ${
-              sessionMinutes === m ? 'bg-accent text-black border-accent' : 'border-white/10 text-white bg-surface-elevated hover:border-accent/40'
-            }`}
-          >
-            {m}m
-          </button>
-        ))}
-      </div>
-
-      <p className="text-xs font-medium text-text-secondary mb-2">Training style</p>
-      <div className="space-y-2">
-        {TRAINING_STYLE.map(({ value, label, sub }) => (
-          <button key={value} onClick={() => onTrainingStyle(value)} className="w-full text-left">
-            <Card className={`p-3.5 flex items-center gap-3 transition-colors ${trainingStyle === value ? 'border-accent bg-accent/5' : ''}`}>
-              <div>
-                <p className="font-bold text-white text-sm">{label}</p>
-                <p className="text-xs text-text-secondary">{sub}</p>
-              </div>
-              {trainingStyle === value && <CheckCircle className="w-4 h-4 text-accent ml-auto flex-shrink-0" />}
-            </Card>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 const SEX_OPTIONS: { value: BiologicalSex; label: string; icon: React.ElementType }[] = [
   { value: 'male', label: 'Male', icon: User },
   { value: 'female', label: 'Female', icon: User },
@@ -1640,14 +1542,18 @@ function StepBiometrics({
 }
 
 function StepAccount({
-  name, onName, email, onEmail, password, onPassword, confirmPassword, onConfirmPassword,
+  name, onName, email, onEmail, password, onPassword,
 }: {
   name: string; onName: (v: string) => void;
   email: string; onEmail: (v: string) => void;
   password: string; onPassword: (v: string) => void;
-  confirmPassword: string; onConfirmPassword: (v: string) => void;
 }) {
-  const passwordsMismatch = confirmPassword.length > 0 && password !== confirmPassword;
+  // One password box, with a reveal — not two. A confirm field exists to
+  // catch a typo you cannot see, which a show/hide button solves without
+  // making a stranger type the same thing twice on a phone keyboard at the
+  // last step of a signup. Getting it wrong was never unrecoverable either:
+  // password reset has always been one tap away.
+  const [reveal, setReveal] = useState(false);
   return (
     <div>
       <h1 className="text-2xl font-black text-white mb-1">Almost there</h1>
@@ -1675,29 +1581,27 @@ function StepAccount({
             className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-medium text-text-secondary mb-1.5 block">Password</label>
+        <div>
+          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Password</label>
+          <div className="relative">
             <input
-              type="password"
+              type={reveal ? 'text' : 'password'}
               value={password}
               onChange={(e) => onPassword(e.target.value)}
               placeholder="8+ characters"
-              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+              autoComplete="new-password"
+              className="w-full bg-surface border border-white/10 rounded-xl pl-3 pr-12 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
             />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-text-secondary mb-1.5 block">Confirm</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => onConfirmPassword(e.target.value)}
-              placeholder="Repeat password"
-              className={`w-full bg-surface border rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none ${passwordsMismatch ? 'border-danger/60' : 'border-white/10 focus:border-accent/50'}`}
-            />
+            <button
+              type="button"
+              onClick={() => setReveal((v) => !v)}
+              aria-label={reveal ? 'Hide password' : 'Show password'}
+              className="absolute inset-y-0 right-0 px-3 flex items-center text-text-tertiary hover:text-white"
+            >
+              {reveal ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
           </div>
         </div>
-        {passwordsMismatch && <p className="text-xs text-danger">Passwords don&apos;t match.</p>}
       </div>
       <p className="text-xs text-text-tertiary mt-4 text-center">
         By continuing you agree to our{' '}
