@@ -34,20 +34,39 @@ import { ConsentGatedScripts } from '@/components/ui/ConsentGatedScripts';
  */
 const archivo = Archivo({
   subsets: ['latin'],
-  weight: ['600', '700', '800', '900'],
+  // Only 900. Every heading that uses this face is font-black; asking for
+  // 600/700/800 as well shipped three families nobody rendered.
+  weight: ['900'],
+  style: ['normal'],
   variable: '--font-display',
   display: 'swap',
+  // NOT preloaded, and that is the whole point. Archivo is used on the
+  // landing page and nowhere else, so a preload link in the root layout made
+  // every dashboard, training and nutrition screen fetch a font it never
+  // draws with. Without the preload the browser fetches it only when an
+  // element actually asks for the family.
+  preload: false,
 });
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-sans',
-  display: 'swap',
+  // 'optional', NOT 'swap'. This is the body face, so it is on essentially
+  // every element of every screen — with swap, the moment it arrived the
+  // whole page re-laid-out at once, which is exactly the "everything blinks"
+  // people reported. 'optional' gives the browser a short window and then
+  // commits: either the font was ready and it is used from the first paint,
+  // or the metric-matched fallback is kept for that navigation and nothing
+  // ever moves. Preloading is what makes the first branch the normal one.
+  display: 'optional',
+  preload: true,
 });
 const mono = JetBrains_Mono({
   subsets: ['latin'],
-  weight: ['400', '500', '700'],
+  weight: ['400', '700'],
+  style: ['normal'],
   variable: '--font-mono',
   display: 'swap',
+  preload: false,
 });
 
 // generateMetadata runs on EVERY server render — and with the app layout
