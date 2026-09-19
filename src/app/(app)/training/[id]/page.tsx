@@ -5,14 +5,18 @@ import { useState, useEffect, useRef } from 'react';
 import { getIdToken } from 'firebase/auth';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 import {
   Play, Clock, Target, Dumbbell, Moon, CheckCircle, CheckCircle2, ChevronLeft,
-  AlertTriangle, RotateCcw, Lock, Crown,
+  Save, RotateCcw, Lock, Crown,
 } from 'lucide-react';
-import { resolveProgram, enrollInProgram, getMembershipConfig } from '@/lib/firestore';
-import { getMockProgram, MOCK_PROGRAMS, stripWeekdayPrefix, getScheduleForWeek, getProgramDayForDow, getNextSession } from '@/lib/programs';
-import { getProgramDayLimit } from '@/lib/membership';
+import { resolveProgram, enrollInProgram, getMembershipConfig, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
+import { getMockProgram, stripWeekdayPrefix, getScheduleForWeek, getNextSession, getProgramDayProgress } from '@/lib/programs';
+import { getProgramDayLimit, hasActiveSubscription } from '@/lib/membership';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocalDate } from '@/hooks/useLocalDate';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -51,19 +55,32 @@ export default function ProgramDetailPage() {
   const [purchasing, setPurchasing] = useState(false);
   const [membershipConfig, setMembershipConfig] = useState<MembershipConfig | null>(null);
   const [membershipLoaded, setMembershipLoaded] = useState(false);
+  // Saved position from a previous stint on this exact program, if this
+  // isn't the currently active one — lets the CTA say "Resume — Week X Day
+  // Y" instead of "Switch to This Program" when there's real progress to
+  // pick back up, per the non-destructive program-switching redesign.
+  const [savedProgress, setSavedProgress] = useState<{ completedWorkouts: number; lastCompletedDayIndex?: number } | null>(null);
 
   useEffect(() => {
     getMembershipConfig().then(setMembershipConfig).catch(() => setMembershipConfig(null)).finally(() => setMembershipLoaded(true));
   }, []);
 
+  useEffect(() => {
+    if (!user || !id) { setSavedProgress(null); return; }
+    getAllProgramProgress(user.uid)
+      .then((all) => setSavedProgress(id in all && !all[id].isActive ? all[id] : null))
+      .catch(() => setSavedProgress(null));
+  }, [user, id, enrolling]);
+
   // Infinity until membership config has actually loaded — treating an
   // unloaded config as "no limit" avoids a flash of locked days that then
   // unlock a moment later once the real config arrives.
-  const dayLimit = membershipLoaded ? getProgramDayLimit(membershipConfig, profile) : Infinity;
+  const dayLimit = membershipLoaded ? getProgramDayLimit(membershipConfig, profile, id) : Infinity;
 
   const activeProgram = profile?.activeProgram;
   const isEnrolled = activeProgram?.programId === id;
-  const localDateStr = new Date().toLocaleDateString('sv-SE');
+  // Reactive (see useLocalDate) so the rest-day decision follows the calendar.
+  const localDateStr = useLocalDate();
   const completedWorkouts = activeProgram?.completedWorkouts ?? 0;
 
   // lastCompleted: absolute 0-based day index of the last completed unique day.
@@ -72,6 +89,14 @@ export default function ProgramDetailPage() {
     : (completedWorkouts > 0 ? completedWorkouts - 1 : -1);
 
   // workedOutToday: did the user complete a workout today (for this or any program)?
+  // Purely informational now (shown as a small "nice work" banner) — it no
+  // longer blocks progression. It used to force the whole page to show
+  // "come back tomorrow" and hide the next day's session entirely, which
+  // meant finishing a workout at any time of day locked the user out of
+  // starting their next one until the calendar date rolled over — up to a
+  // full ~24h wait for someone who trained first thing in the morning.
+  // Nothing about program structure requires that; a user who wants to
+  // train twice in one day should be able to.
   const workedOutToday = completedWorkouts > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
 
   const hasDifferentProgram = !!activeProgram && !isEnrolled;
@@ -81,9 +106,17 @@ export default function ProgramDetailPage() {
     // Shared resolver (Firestore-first, seed fallback) — same source of
     // truth as the dashboard card and workout session, so this page can
     // never show a different schedule than the rest of the app.
+    // A null result here means this id doesn't resolve to any real program
+    // (Firestore doc deleted, and not a built-in seed) — surfacing the
+    // existing "Program not found" state below is correct. Substituting an
+    // unrelated program (this used to fall back to MOCK_PROGRAMS[0]) used
+    // to silently show the wrong schedule/exercises for someone whose
+    // enrolled "Build Your Own" program got deleted, while their saved
+    // progress (lastCompletedDayIndex etc.) kept being interpreted against
+    // that unrelated program's schedule length.
     resolveProgram(id)
-      .then((p) => setProgram(p ?? (MOCK_PROGRAMS[0] as Program)))
-      .catch(() => setProgram(getMockProgram(id) ?? (MOCK_PROGRAMS[0] as Program)))
+      .then((p) => setProgram(p))
+      .catch(() => setProgram(getMockProgram(id) ?? null))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -97,19 +130,20 @@ export default function ProgramDetailPage() {
   // getNextSession skips stale rest slots (deadlock fix) — same shared
   // logic as the dashboard card and training list, so all three screens
   // always agree on what the user should do next.
-  const nextSession = program && isEnrolled && !workedOutToday
-    ? getNextSession(program, lastCompleted, profile?.statsCache?.lastWorkoutDate)
+  // Always points at the next NOT-YET-completed day, regardless of whether
+  // the user already trained today — getNextSession already advances past
+  // lastCompleted and correctly skips a stale rest day using
+  // lastWorkoutDate, so there's no need to freeze progress on workedOutToday.
+  const nextSession = program && isEnrolled
+    ? getNextSession(program, lastCompleted, profile?.statsCache?.lastWorkoutDate, localDateStr)
     : null;
-  const nextAbsIdx = isEnrolled
-    ? (workedOutToday ? lastCompleted : (nextSession?.index ?? lastCompleted + 1))
-    : 0;
+  const nextAbsIdx = isEnrolled ? (nextSession?.index ?? lastCompleted + 1) : 0;
   const todayDayIndex = nextAbsIdx % scheduleLen; // which slot in the 7-day template
   const currentWeek = Math.floor(nextAbsIdx / scheduleLen); // 0-based week the user is in
   // Use whichever is larger: program's declared weeks or the user's actual progress
   const totalWeeks = Math.max(program?.weeks || 1, currentWeek + 1);
-  // Never locks a day already completed (workedOutToday means nextAbsIdx
-  // points at what was just finished, not the next new day).
-  const nextIsLocked = isEnrolled && !workedOutToday && nextAbsIdx >= dayLimit;
+  const nextIsLocked = isEnrolled && nextAbsIdx >= dayLimit;
+  const dayProgress = isEnrolled && activeProgram ? getProgramDayProgress(program, activeProgram, nextAbsIdx) : null;
 
   // The FULL program, every week, in one flat list — previously paginated
   // one week at a time behind arrow buttons, which meant the trial day-lock
@@ -119,10 +153,26 @@ export default function ProgramDetailPage() {
   const allWeeks: { week: number; days: ProgramDay[] }[] = program
     ? Array.from({ length: totalWeeks }, (_, w) => ({ week: w + 1, days: getScheduleForWeek(program, w + 1) ?? [] }))
     : [];
-  const todayDay: ProgramDay | null = workedOutToday
-    ? (program ? getProgramDayForDow(program, lastCompleted) : null)
-    : (nextSession?.day ?? null);
-  const isRestToday = isEnrolled && !workedOutToday && (nextSession?.isRestToday ?? false);
+  const todayDay: ProgramDay | null = nextSession?.day ?? null;
+  const isRestToday = isEnrolled && (nextSession?.isRestToday ?? false);
+  const [skippingRest, setSkippingRest] = useState(false);
+  const handleSkipRest = async () => {
+    if (!user || !program || !nextSession?.isRestToday) return;
+    setSkippingRest(true);
+    try {
+      const res = await skipRestDay(user.uid, program.id, nextSession.index);
+      if (!res.ok) {
+        toast.error(
+          res.reason === 'locked'
+            ? 'Your trial covers a limited number of days — upgrade to keep going.'
+            : res.reason === 'not-a-rest-day'
+            ? 'That session is a workout, not a rest day.'
+            : 'Could not skip the rest day. Try again.'
+        );
+      }
+    } catch { toast.error('Could not skip the rest day. Try again.'); }
+    finally { setSkippingRest(false); }
+  };
 
   // Auto-scroll to today's slot once the full list has rendered — a 12+
   // week program is a long scroll, and nobody wants to hunt for "today"
@@ -135,8 +185,39 @@ export default function ProgramDetailPage() {
     if (el) requestAnimationFrame(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
   }, [isEnrolled, loading, nextAbsIdx]);
 
-  const handleEnroll = async (force = false) => {
+  const hasMembership = hasActiveSubscription(profile);
+  // Admin can also lock specific programs to members-only via
+  // MembershipConfig.lockedProgramIds (Admin → Membership), independently
+  // of a program's own isPremium flag — e.g. to temporarily gate a
+  // normally-free program without editing the program itself.
+  const isLockedByConfig = !!membershipConfig?.enabled && !!program?.id
+    && (membershipConfig.lockedProgramIds ?? []).includes(program.id);
+  // Only pass a programId to the hook for programs that actually need
+  // gating — passing it unconditionally would make useFeatureAccess treat
+  // every program as needing the 'premium-programs' entitlement, locking
+  // ordinary free programs out for any member whose plan restricts tools
+  // at all. This also correctly folds in per-plan tiering (a Conquer
+  // subscriber's plan.featureAccess can omit 'premium-programs' while a
+  // Vanguard/Hero plan's includes it or is left unrestricted) and honors
+  // the free trial the same way every other gated feature does — the
+  // previous plain `!hasMembership` check locked premium programs even
+  // during an active trial, which was itself a real bug.
+  // A program the user has actually BOUGHT is never gated, whatever else
+  // it's flagged as. Previously a program that was both isPremium/locked
+  // AND priced stayed locked after purchase — the purchase satisfied the
+  // price check further down but nothing here, so the enroll button stayed
+  // disabled and handleEnroll's own guard returned early. Money taken, no
+  // access. (firestore.rules' premiumEnrollAllowed had the same hole and
+  // is fixed to match.)
+  const alreadyPurchased = !!(program?.id && profile?.purchasedProgramIds?.includes(program.id));
+  const gatedProgramId = program && (program.isPremium || isLockedByConfig) && !alreadyPurchased ? program.id : undefined;
+  const { isLocked: programAccessLocked, switchNeeded, switchesLeft } = useFeatureAccess(undefined, gatedProgramId);
+
+  const handleEnroll = async (force = false, restart = false) => {
     if (!user || !program) return;
+    // Defense-in-depth — the button that calls this is already hidden
+    // behind isMembershipLocked, but never trust a client-side gate alone.
+    if (programAccessLocked) return;
     if (hasDifferentProgram && !force) {
       setSwitchModal(true);
       return;
@@ -149,18 +230,24 @@ export default function ProgramDetailPage() {
         name: program.name,
         weeks: program.weeks,
         daysPerWeek: program.daysPerWeek,
-      });
+      }, restart, switchNeeded);
       await refreshProfile();
     } catch (err) {
       console.error('[Enroll] failed:', err);
+      toast.error('Could not enroll — please try again.');
     } finally {
       setEnrolling(false);
     }
   };
 
-  const hasPurchased = !!(program?.id && profile?.purchasedProgramIds?.includes(program.id));
-  const hasMembership = profile?.membership?.status === 'active';
+  const hasPurchased = alreadyPurchased;
   const needsPurchase = !!program?.price && program.price > 0 && !hasPurchased && !hasMembership;
+  // program.isPremium was previously admin-toggleable (Admin → Programs)
+  // but never actually checked anywhere — the toggle showed a "Premium"
+  // badge and did nothing else, so marking a program premium never
+  // actually restricted access to it. Unlike `price` (a one-time purchase
+  // alternative), isPremium means membership-only with no purchase bypass.
+  const isMembershipLocked = programAccessLocked;
 
   const handleBuyProgram = async () => {
     if (!user || !program) return;
@@ -174,8 +261,13 @@ export default function ProgramDetailPage() {
       });
       const data = await res.json() as { url?: string; error?: string };
       if (data.url) window.location.href = data.url;
-      else { setPurchasing(false); }
-    } catch {
+      else {
+        toast.error(data.error || 'Could not start checkout — please try again.');
+        setPurchasing(false);
+      }
+    } catch (err) {
+      console.error('[BuyProgram] failed:', err);
+      toast.error('Could not start checkout — please try again.');
       setPurchasing(false);
     }
   };
@@ -253,19 +345,25 @@ export default function ProgramDetailPage() {
             </div>
 
             {/* Enrollment progress bar */}
-            {isEnrolled && activeProgram && (
+            {isEnrolled && activeProgram && dayProgress && (
               <div className="mt-4">
+                {/* Days, rest days included — the same unit the schedule
+                    list numbers its tiles by, so the bar and the list agree. */}
                 <div className="flex justify-between text-xs mb-1">
                   <span className={workedOutToday ? 'text-success font-medium' : 'text-text-secondary'}>
-                    {workedOutToday
-                      ? `✓ Day ${Math.max(1, completedWorkouts)} complete`
-                      : `${completedWorkouts} workouts done`}
+                    {dayProgress.finished
+                      ? '✓ Program complete'
+                      : workedOutToday
+                        ? `✓ Day ${Math.max(1, dayProgress.daysDone)} complete · ${completedWorkouts} session${completedWorkouts !== 1 ? 's' : ''}`
+                        : `Day ${dayProgress.dayNumber} of ${dayProgress.totalDays} · ${completedWorkouts} session${completedWorkouts !== 1 ? 's' : ''} done`}
                   </span>
-                  <span className="text-text-tertiary">{activeProgram.totalWorkouts - completedWorkouts} remaining</span>
+                  <span className="text-text-tertiary tabular-nums">
+                    {Math.max(0, dayProgress.totalDays - dayProgress.daysDone)} days left
+                  </span>
                 </div>
                 <ProgressBar
-                  value={completedWorkouts}
-                  max={activeProgram.totalWorkouts}
+                  value={dayProgress.daysDone}
+                  max={dayProgress.totalDays}
                   color={workedOutToday ? 'success' : 'accent'}
                   size="sm"
                 />
@@ -278,6 +376,21 @@ export default function ProgramDetailPage() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
           {isEnrolled ? (
             <div className="space-y-2">
+              {/* Non-blocking acknowledgment — training more than once a day
+                  is allowed, so this never hides the CTA below it. */}
+              {workedOutToday && (
+                <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-success/10 border border-success/30">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-success">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Day {Math.max(1, completedWorkouts)} complete
+                  </span>
+                  <button
+                    onClick={() => router.push(`/training/session?programId=${program.id}&dow=${lastCompleted}`)}
+                    className="flex items-center gap-1 text-xs text-text-secondary hover:text-white transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Repeat
+                  </button>
+                </div>
+              )}
               {nextIsLocked ? (
                 <div className="p-4 bg-surface border border-accent/30 rounded-2xl text-center">
                   <Lock className="w-6 h-6 text-accent mx-auto mb-1.5" />
@@ -289,17 +402,6 @@ export default function ProgramDetailPage() {
                     <Crown className="w-4 h-4" /> View Plans
                   </Button>
                 </div>
-              ) : workedOutToday ? (
-                <div className="p-4 bg-success/10 border border-success/30 rounded-2xl text-center">
-                  <CheckCircle2 className="w-6 h-6 text-success mx-auto mb-1.5" />
-                  <p className="text-sm font-bold text-white">Day {Math.max(1, completedWorkouts)} Complete!</p>
-                  <p className="text-xs text-text-secondary mt-0.5">
-                    Come back tomorrow for Day {completedWorkouts + 1}
-                  </p>
-                  <Button size="sm" variant="ghost" className="mt-2" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
-                    <RotateCcw className="w-3.5 h-3.5" /> Repeat Today
-                  </Button>
-                </div>
               ) : todayDay && !isRestToday ? (
                 <Button fullWidth size="lg" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
                   <Play className="w-5 h-5" /> Start — {stripWeekdayPrefix(todayDay.label ?? '')}
@@ -307,14 +409,19 @@ export default function ProgramDetailPage() {
               ) : (
                 <div className="p-4 bg-surface border border-white/8 rounded-2xl text-center">
                   <Moon className="w-5 h-5 text-text-tertiary mx-auto mb-1" />
-                  <p className="text-sm text-text-secondary">Rest day today</p>
-                  <p className="text-xs text-text-tertiary mt-0.5">Come back tomorrow</p>
+                  <p className="text-sm text-text-secondary">Rest day</p>
+                  <p className="text-xs text-text-tertiary mt-0.5">Recovery is part of the program too.</p>
                 </div>
               )}
               <Button variant="ghost" fullWidth size="sm" onClick={() => router.push('/training')}>
                 <RotateCcw className="w-3.5 h-3.5" /> Switch Program
               </Button>
             </div>
+          ) : isMembershipLocked ? (
+            // Nothing in the action slot. The upgrade screen renders below in
+            // place of the schedule and is itself the call to action; a
+            // summary of the same lock above it was the duplicate card.
+            null
           ) : needsPurchase ? (
             <div className="space-y-2">
               <Button fullWidth size="lg" loading={purchasing} onClick={handleBuyProgram}>
@@ -325,49 +432,77 @@ export default function ProgramDetailPage() {
           ) : (
             <Button fullWidth size="lg" loading={enrolling} onClick={() => handleEnroll(false)}>
               <Play className="w-5 h-5" />
-              {hasDifferentProgram ? 'Switch to This Program' : 'Start Program'}
+              {savedProgress
+                ? `Resume — ${savedProgress.completedWorkouts} workouts done`
+                : hasDifferentProgram ? 'Switch to This Program' : 'Start Program'}
             </Button>
           )}
         </motion.div>
 
-        {/* Today's Workout — hidden once the trial's day-limit is hit;
-            the CTA above already explains the lock and offers to subscribe. */}
+        {/* Next Workout — hidden once the trial's day-limit is hit; the CTA
+            above already explains the lock and offers to subscribe.
+            Always the next not-yet-completed day, startable immediately
+            regardless of whether the user already trained today. */}
         {isEnrolled && todayDay && !nextIsLocked && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
-            <h2 className="text-base font-bold text-white mb-3">Today&apos;s Workout</h2>
-            <Card className={`p-4 ${workedOutToday ? 'border-success/30' : isRestToday ? 'border-white/5' : 'border-accent/30'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  {workedOutToday ? (
-                    <CheckCircle2 className="w-4 h-4 text-success" />
-                  ) : isRestToday ? (
-                    <Moon className="w-4 h-4 text-text-tertiary" />
+            <h2 className="text-base font-bold text-white mb-3">Next Workout</h2>
+            <Card className={`relative overflow-hidden p-4 ${isRestToday ? 'border-white/10' : 'border-accent/45 shadow-[0_0_40px_-8px_rgba(245,166,35,0.5)]'}`}>
+              {/* Ember wash + hairline grid — the same "tech" surface the
+                  home hero uses, so the session that is up next reads as the
+                  live thing on the page rather than another list row. */}
+              {!isRestToday && (
+                <div
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    background: [
+                      'radial-gradient(120% 120% at 100% 0%, rgb(var(--accent-rgb) / 0.22) 0%, transparent 55%)',
+                      'linear-gradient(rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px)',
+                      'linear-gradient(90deg, rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px)',
+                    ].join(','),
+                    backgroundSize: '100% 100%, 22px 22px, 22px 22px',
+                  }}
+                />
+              )}
+              <div className="relative">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center ${isRestToday ? 'border border-dashed border-white/15 text-text-tertiary' : 'bg-gradient-accent text-black shadow-glow-sm'}`}>
+                      {isRestToday ? <Moon className="w-4 h-4" /> : <Dumbbell className="w-4 h-4" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent/90">
+                        {isRestToday ? 'Recovery' : `Up next · Day ${nextAbsIdx + 1}`}
+                      </p>
+                      <p className="text-sm font-bold text-white leading-snug truncate">{stripWeekdayPrefix(todayDay.label)}</p>
+                    </div>
+                  </div>
+                  {isRestToday ? (
+                    <Button size="sm" variant="secondary" loading={skippingRest} onClick={handleSkipRest}>
+                      Skip rest day
+                    </Button>
                   ) : (
-                    <Dumbbell className="w-4 h-4 text-accent" />
+                    <Button size="sm" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
+                      <Play className="w-4 h-4" /> Start
+                    </Button>
                   )}
-                  <span className="text-sm font-bold text-white">{stripWeekdayPrefix(todayDay.label)}</span>
-                  {workedOutToday ? <Badge variant="success">Done</Badge> : isRestToday ? <Badge variant="muted">Rest</Badge> : null}
                 </div>
-                {!isRestToday && !workedOutToday && (
-                  <Button size="sm" onClick={() => router.push(`/training/session?programId=${program.id}&dow=${nextAbsIdx}`)}>
-                    <Play className="w-4 h-4" /> Start
-                  </Button>
+                {isRestToday && (
+                  <p className="text-xs text-text-secondary">
+                    Recovery day. Skip it to move on to {nextSession?.nextTraining ? stripWeekdayPrefix(nextSession.nextTraining.day.label) : 'the next session'}.
+                  </p>
+                )}
+                {!isRestToday && todayDay.exercises.length > 0 && (
+                  <div className="mt-1 rounded-xl border border-white/8 bg-black/20 divide-y divide-white/6">
+                    {todayDay.exercises.map((ex, i) => (
+                      <div key={ex.id ?? i} className="flex items-center gap-2.5 px-3 py-2 text-sm">
+                        <span className="w-5 text-[10px] font-black text-accent/80 tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+                        <span className="flex-1 min-w-0 truncate text-text-secondary">{ex.name}</span>
+                        <span className="text-text-tertiary text-[11px] font-semibold tabular-nums">{ex.sets}×{ex.reps}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-              {!isRestToday && todayDay.exercises.length > 0 && (
-                <div className="space-y-2 mt-2">
-                  {todayDay.exercises.map((ex, i) => (
-                    <div key={ex.id ?? i} className="flex items-center justify-between text-sm">
-                      <CheckCircle className={`w-3 h-3 flex-shrink-0 ${workedOutToday ? 'text-success' : 'text-text-tertiary'}`} />
-                      <span className={`flex-1 ml-2 ${workedOutToday ? 'text-text-secondary line-through' : 'text-text-secondary'}`}>{ex.name}</span>
-                      <span className="text-text-tertiary text-xs">{ex.sets}×{ex.reps}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {isRestToday && (
-                <p className="text-xs text-text-secondary">Recovery day — let your muscles grow.</p>
-              )}
             </Card>
           </motion.div>
         )}
@@ -376,7 +511,24 @@ export default function ProgramDetailPage() {
             Previously paginated one week at a time behind arrow buttons,
             which meant the trial day-lock below was invisible unless a
             user manually paged forward past their free days first. */}
-        {allWeeks.length > 0 && (
+        {/* A program the member's plan does not cover shows the offer, not the
+            product. Locking each day individually still listed every week and
+            every session title, which is the shape of the thing being sold.
+            The offer is the SAME gate every other paid feature uses. This page
+            used to hand-roll a "Members Only" card whose button bounced to
+            /profile — so the one screen where someone has just decided they
+            want a program sent them to a settings page to work out for
+            themselves which plan covers it, while the barcode scanner and the
+            meal planner put real, purchasable plans directly in front of
+            them. Programs had no reason to be the exception and it was the
+            worst place to be one. */}
+        {allWeeks.length > 0 && isMembershipLocked && (
+          <PaywallGate programId={program.id} noTaste>
+            <></>
+          </PaywallGate>
+        )}
+
+        {allWeeks.length > 0 && !isMembershipLocked && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold text-white">
@@ -392,12 +544,36 @@ export default function ProgramDetailPage() {
               )}
             </div>
 
-            <div className="space-y-4">
-              {allWeeks.map(({ week, days }) => (
+            <div className="space-y-6">
+              {allWeeks.map(({ week, days }) => {
+                const isCurrentWeek = isEnrolled && week === currentWeek + 1;
+                const weekIdx0 = week - 1;
+                const weekTraining = days.filter((d) => !d.isRest).length;
+                const weekDone = isEnrolled
+                  ? days.filter((d, i) => !d.isRest && weekIdx0 * scheduleLen + i < nextAbsIdx).length
+                  : 0;
+                return (
                 <div key={week}>
-                  <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-2 px-1">
-                    Week {week}{week === currentWeek + 1 && isEnrolled ? ' · Current' : ''}
-                  </p>
+                  {/* Week header — a rail with the week label, the current
+                      week lit in accent, and a per-week session tally so a
+                      long program reads as a series of chapters, not a wall
+                      of identical rows. */}
+                  <div className="flex items-center gap-3 mb-3 px-1">
+                    <span className={`text-[11px] font-black uppercase tracking-[0.18em] ${isCurrentWeek ? 'text-accent' : 'text-text-tertiary'}`}>
+                      Week {week}
+                    </span>
+                    {isCurrentWeek && (
+                      <span className="inline-flex items-center gap-1.5 h-5 px-2 rounded-full bg-accent/12 border border-accent/30 text-[10px] font-extrabold text-accent uppercase tracking-wider">
+                        <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" /> Current
+                      </span>
+                    )}
+                    <span className={`flex-1 h-px ${isCurrentWeek ? 'bg-gradient-to-r from-accent/50 via-white/10 to-transparent' : 'bg-gradient-to-r from-white/12 to-transparent'}`} />
+                    {isEnrolled && weekTraining > 0 && (
+                      <span className={`text-[11px] font-bold tabular-nums ${weekDone === weekTraining ? 'text-success' : 'text-text-tertiary'}`}>
+                        {weekDone}/{weekTraining}
+                      </span>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     {days.map((day, idx) => {
                       const weekIdx = week - 1;
@@ -405,66 +581,147 @@ export default function ProgramDetailPage() {
                       const absoluteDay = weekIdx * scheduleLen + idx;
                       // Is this slot the one the user is currently on?
                       const isToday = isEnrolled && weekIdx === currentWeek && idx === todayDayIndex;
+                      // nextAbsIdx always points at the next not-yet-done day now
+                      // (see workedOutToday above), so anything before it —
+                      // including "today"'s slot once nextAbsIdx has moved past
+                      // it — is genuinely completed. No separate workedOutToday
+                      // check needed here anymore.
                       const isPast = isEnrolled && absoluteDay < nextAbsIdx && !isToday;
-                      const isDoneToday = isToday && workedOutToday;
-                      const isCompleted = (isPast || isDoneToday) && !day.isRest;
+                      const isCompleted = isPast && !day.isRest;
                       const isExpanded = expandedDay === absoluteDay;
 
                       const isUpcoming = isEnrolled && !isToday && !isPast;
                       // Never locks a day the user already trained — this caps
                       // how much NEW progress a lapsed-trial user can make, not
                       // access to what they've already done.
-                      const isLocked = absoluteDay >= dayLimit && !isCompleted;
+                      const trialCapped = absoluteDay >= dayLimit && !isCompleted;
+                      // Three reasons a day is locked, and all three lock the
+                      // whole schedule, not just the tail: the member's plan
+                      // does not include this program, the program is priced
+                      // and unbought, or the trial day-cap has been reached.
+                      // Only the third used to count, so a "Members Only"
+                      // card sat above a schedule that listed every exercise
+                      // in the program — the lock was decorative, and the
+                      // upgrade it asked for bought nothing the page was not
+                      // already showing. Day labels and exercise counts stay
+                      // visible: that is the teaser; the exercises are the
+                      // product.
+                      const isLocked = isMembershipLocked || needsPurchase || trialCapped;
+
+                      // A rest slot that has already been served (or skipped)
+                      // — drawn as passed, without the "done" green that is
+                      // reserved for trained sessions.
+                      const isRestPassed = isPast && day.isRest;
+                      const setCount = day.exercises.reduce((n, ex) => n + (Number(ex.sets) || 0), 0);
 
                       return (
-                        <motion.div key={`${week}-${idx}`} layout id={`program-day-${absoluteDay}`}>
+                        // No `layout` here: it made every one of 80+ rows run a
+                        // layout animation whenever anything above them changed
+                        // (a program switch flips the hero and CTA blocks), which
+                        // on iOS compounded into the whole screen flickering. The
+                        // expanded day's own content still animates in below.
+                        <motion.div key={`${week}-${idx}`} id={`program-day-${absoluteDay}`}>
                           <Card
-                            className={`p-4 cursor-pointer transition-colors ${
+                            className={`relative overflow-hidden cursor-pointer transition-all ${
+                              day.isRest ? 'p-3' : 'p-4'
+                            } ${
                               isLocked ? 'opacity-60' :
-                              isCompleted ? 'border-success/30 bg-success/5' :
-                              isToday ? 'border-accent/50 bg-accent/5' : ''
+                              isCompleted ? 'border-success/35 shadow-[0_0_24px_-8px_rgba(16,185,129,0.45)]' :
+                              isToday ? 'border-accent/60 shadow-[0_0_34px_-6px_rgba(245,166,35,0.55)]' :
+                              isRestPassed ? 'opacity-55' :
+                              day.isRest ? 'border-dashed' : ''
                             }`}
                             onClick={() => setExpandedDay(isExpanded ? null : absoluteDay)}
                           >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center text-xs font-bold ${
-                                  isCompleted ? 'bg-success/20 text-success' :
-                                  isToday ? 'bg-accent text-black' :
-                                  day.isRest ? 'bg-surface-elevated text-text-tertiary' :
-                                  'bg-surface-elevated text-white'
+                            {/* State wash — a soft edge-light from the left
+                                so completed rows read green and today's reads
+                                ember at a glance, before the eye gets to the
+                                badge. Kept faint so the glass still shows. */}
+                            {!isLocked && (isCompleted || isToday) && (
+                              <div
+                                className="pointer-events-none absolute inset-0"
+                                style={{
+                                  background: isCompleted
+                                    ? 'linear-gradient(90deg, rgba(16,185,129,0.14) 0%, rgba(16,185,129,0.03) 45%, transparent 100%)'
+                                    : 'radial-gradient(120% 140% at 0% 50%, rgb(var(--accent-rgb) / 0.22) 0%, rgb(var(--accent-rgb) / 0.04) 45%, transparent 75%)',
+                                }}
+                              />
+                            )}
+                            {/* Ember scanline on today's card only — a single
+                                thin sweep that keeps it alive without moving
+                                anything the user needs to read. */}
+                            {!isLocked && isToday && (
+                              <div className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer motion-reduce:hidden" />
+                            )}
+
+                            {/* Three columns: fixed day tile, flexible title,
+                                fixed status. The status badge used to sit
+                                INLINE after the title, so on a phone a
+                                two-line title ("Legs (Quads, Hamstrings,
+                                Glutes, Calves)") pushed "Today" hard up
+                                against the row icon with no breathing room.
+                                It now lives with the icon in its own
+                                right-hand column, and the title column gets
+                                min-w-0 so it wraps inside its own track
+                                instead of shoving its neighbours. */}
+                            <div className="relative flex items-center gap-3">
+                              {/* Day node — ring + tile. Completed: green
+                                  ring with a check. Today: solid ember with
+                                  glow. Rest: a dashed ring and moon, smaller
+                                  so recovery days sit visibly lighter in
+                                  the list than sessions. */}
+                              <div className={`relative flex-shrink-0 flex items-center justify-center ${day.isRest ? 'w-9 h-9' : 'w-11 h-11'}`}>
+                                {isCompleted && <span className="absolute inset-0 rounded-2xl border border-success/40" />}
+                                {isToday && !isCompleted && <span className="absolute -inset-1 rounded-[18px] border border-accent/40 animate-pulse" />}
+                                <div className={`absolute inset-[3px] rounded-xl flex items-center justify-center text-[11px] font-black tracking-wide ${
+                                  isCompleted ? 'bg-success/15 text-success' :
+                                  isToday ? 'bg-gradient-accent text-black shadow-glow-sm' :
+                                  day.isRest ? 'border border-dashed border-white/15 text-text-tertiary' :
+                                  'bg-white/6 border border-white/8 text-white'
                                 }`}>
                                   {isCompleted
                                     ? <CheckCircle2 className="w-5 h-5" />
-                                    : isLocked
-                                    ? <Lock className="w-4 h-4 text-text-tertiary" />
-                                    : <span className="text-center leading-none">{`D${idx + 1}`}</span>
+                                    : day.isRest
+                                      ? <Moon className="w-3.5 h-3.5" />
+                                      : <span className="leading-none">{absoluteDay + 1}</span>
                                   }
                                 </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <p className={`text-sm font-medium ${isCompleted ? 'text-success' : isToday ? 'text-white' : 'text-text-secondary'}`}>
-                                      {stripWeekdayPrefix(day.label ?? '')}
-                                    </p>
-                                    {isCompleted && <Badge variant="success">Done</Badge>}
-                                    {isLocked && <Badge variant="muted">Members Only</Badge>}
-                                    {!isCompleted && !isLocked && isToday && <Badge variant="accent">Today</Badge>}
-                                    {!isCompleted && !isLocked && !isToday && isUpcoming && !day.isRest && <Badge variant="muted">Upcoming</Badge>}
-                                  </div>
-                                  {!day.isRest && (
-                                    <p className="text-xs text-text-tertiary mt-0.5">{day.exercises.length} exercises</p>
-                                  )}
-                                </div>
                               </div>
-                              {isLocked ? (
-                                <Lock className="w-4 h-4 text-text-tertiary" />
-                              ) : day.isRest ? (
-                                <Moon className="w-4 h-4 text-text-tertiary" />
-                              ) : isCompleted ? (
-                                <CheckCircle2 className="w-4 h-4 text-success" />
-                              ) : (
-                                <Dumbbell className="w-4 h-4 text-text-tertiary" />
-                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className={`${day.isRest ? 'text-[13px]' : 'text-sm'} font-semibold leading-snug ${
+                                  isCompleted ? 'text-success' :
+                                  isToday ? 'text-white' :
+                                  day.isRest ? 'text-text-tertiary' :
+                                  'text-text-secondary'
+                                }`}>
+                                  {day.isRest ? 'Recovery' : stripWeekdayPrefix(day.label ?? '')}
+                                </p>
+                                {!day.isRest ? (
+                                  <p className="text-[11px] text-text-tertiary mt-1 font-semibold uppercase tracking-wider tabular-nums">
+                                    Day {absoluteDay + 1} · {day.exercises.length} exercises{setCount > 0 ? ` · ${setCount} sets` : ''}
+                                  </p>
+                                ) : (
+                                  <p className="text-[11px] text-text-tertiary/70 mt-0.5 uppercase tracking-wider font-semibold">Day {absoluteDay + 1} · Rest day</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {isLocked ? (
+                                  <Badge variant="muted" className="inline-flex items-center gap-1 whitespace-nowrap">
+                                    <Lock className="w-3 h-3" /> Members
+                                  </Badge>
+                                ) : (
+                                  <>
+                                    {isCompleted && <Badge variant="success">Done</Badge>}
+                                    {!isCompleted && isToday && <Badge variant="accent">Today</Badge>}
+                                    {!isCompleted && !isToday && isUpcoming && !day.isRest && <Badge variant="muted">Upcoming</Badge>}
+                                    {day.isRest ? null : isCompleted ? (
+                                      <CheckCircle2 className="w-4 h-4 text-success" />
+                                    ) : (
+                                      <Dumbbell className={`w-4 h-4 ${isToday ? 'text-accent' : 'text-text-tertiary'}`} />
+                                    )}
+                                  </>
+                                )}
+                              </div>
                             </div>
 
                             {isExpanded && isLocked && (
@@ -474,11 +731,23 @@ export default function ProgramDetailPage() {
                                 className="mt-3 pt-3 border-t border-white/8 text-center"
                               >
                                 <p className="text-xs text-text-secondary mb-2.5">
-                                  Your free trial covers the first {dayLimit} days of this program. Subscribe to keep going from here.
+                                  {isMembershipLocked
+                                    ? (hasMembership
+                                        ? "Your current plan doesn't include this program. Upgrade to see the workouts."
+                                        : 'This program is included with an active membership. Subscribe to see the workouts.')
+                                    : needsPurchase
+                                      ? 'Buy this program to see the workouts.'
+                                      : `Your free trial covers the first ${dayLimit} days of this program. Subscribe to keep going from here.`}
                                 </p>
-                                <Button size="sm" fullWidth onClick={(e) => { e.stopPropagation(); router.push('/profile'); }}>
-                                  <Crown className="w-3.5 h-3.5" /> View Plans
-                                </Button>
+                                {needsPurchase && !isMembershipLocked ? (
+                                  <Button size="sm" fullWidth loading={purchasing} onClick={(e) => { e.stopPropagation(); handleBuyProgram(); }}>
+                                    <Play className="w-3.5 h-3.5" /> Buy Program — ${program.price!.toFixed(2)}
+                                  </Button>
+                                ) : (
+                                  <Button size="sm" fullWidth onClick={(e) => { e.stopPropagation(); router.push('/profile'); }}>
+                                    <Crown className="w-3.5 h-3.5" /> View Plans
+                                  </Button>
+                                )}
                               </motion.div>
                             )}
                             {isExpanded && !isLocked && !day.isRest && day.exercises.length > 0 && (
@@ -509,31 +778,63 @@ export default function ProgramDetailPage() {
                     })}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </motion.div>
         )}
       </div>
 
-      {/* Switch Program Modal */}
-      <Modal open={switchModal} onClose={() => setSwitchModal(false)} title="Switch Program?">
+      {/* Switch Program Modal — switching no longer destroys progress:
+          enrollInProgram saves the outgoing program's position under
+          programProgress[programId] and restores the target program's own
+          saved position if it has one, so this is now a reassurance dialog
+          rather than a destructive-action warning. */}
+      <Modal open={switchModal} onClose={() => setSwitchModal(false)} title={`Switch to ${program.name}?`}>
         <div className="space-y-4">
-          <div className="flex items-start gap-3 p-3 bg-amber-400/10 border border-amber-400/20 rounded-xl">
-            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 p-3 bg-accent/10 border border-accent/20 rounded-xl">
+            <Save className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-white">You are currently enrolled in</p>
-              <p className="text-sm text-accent font-bold">{activeProgram?.programName}</p>
-              <p className="text-xs text-text-secondary mt-1">
-                Switching will reset your progress ({activeProgram?.completedWorkouts ?? 0} workouts completed).
+              <p className="text-sm text-text-secondary">
+                Your <span className="text-white font-medium">{activeProgram?.programName}</span> progress
+                ({activeProgram?.completedWorkouts ?? 0} workouts completed) will be saved.
+                You can resume it anytime from My Programs.
+                {switchNeeded && (
+                  <>
+                    {' '}This program is outside your plan, so it uses one of your{' '}
+                    <span className="text-white font-medium">{switchesLeft} remaining</span>{' '}
+                    program {switchesLeft === 1 ? 'switch' : 'switches'}.
+                    {switchesLeft === 1 && ' After this, moving again needs the full library.'}
+                  </>
+                )}
+                {savedProgress && (
+                  <> You also have {savedProgress.completedWorkouts} workout{savedProgress.completedWorkouts === 1 ? '' : 's'} of saved progress on {program.name} — resume it, or start fresh.</>
+                )}
               </p>
             </div>
           </div>
-          <div className="flex gap-3">
-            <Button variant="ghost" fullWidth onClick={() => setSwitchModal(false)}>Cancel</Button>
-            <Button fullWidth loading={enrolling} onClick={() => handleEnroll(true)}>
-              Switch to {program.name}
-            </Button>
-          </div>
+          {savedProgress ? (
+            // A genuine choice only makes sense when there's actual saved
+            // progress to choose between — "switching to test a program"
+            // and coming back used to always silently resume old progress,
+            // with no way to actually start clean if that's what you meant.
+            <div className="space-y-2">
+              <Button fullWidth loading={enrolling} onClick={() => handleEnroll(true, false)}>
+                Resume — {savedProgress.completedWorkouts} workouts done
+              </Button>
+              <Button variant="ghost" fullWidth loading={enrolling} onClick={() => handleEnroll(true, true)}>
+                Restart from Day 1
+              </Button>
+              <Button variant="ghost" fullWidth onClick={() => setSwitchModal(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <div className="flex gap-3">
+              <Button variant="ghost" fullWidth onClick={() => setSwitchModal(false)}>Cancel</Button>
+              <Button fullWidth loading={enrolling} onClick={() => handleEnroll(true)}>
+                Switch Program
+              </Button>
+            </div>
+          )}
         </div>
       </Modal>
     </div>

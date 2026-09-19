@@ -99,13 +99,129 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* `hidden` makes body a scroll container on iOS, and iOS Chrome then lays
+     out position:fixed bars against a viewport that lags its retracting
+     toolbar — the bottom nav visibly floats up mid-scroll with page content
+     showing beneath it. `clip` clips the same overflow without creating a
+     scroll container; the `hidden` line stays as the fallback for engines
+     that predate it. */
   overflow-x: hidden;
+  overflow-x: clip;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Safe area for iOS */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* BottomNav's real rendered height is its content (~4rem) PLUS its own
+   pb-safe inset on devices with a home indicator — anything fixed-
+   positioned above it (e.g. the community compose bar) needs to add that
+   same inset on top of the plain 4rem offset, or it sits underneath the
+   nav's safe-area padding with no visible gap on notch/home-indicator
+   devices. */
+.above-bottom-nav {
+  bottom: calc(4rem + 10px + env(safe-area-inset-bottom, 0px));
+}
+
+/* App background — subtle tech-grid + drifting glow orbs, rendered behind
+   the content column. Only visible in the empty side margins on wide/
+   desktop viewports; on mobile the content column covers the full width
+   so this is never seen. Kept very low-opacity so it reads as texture,
+   not decoration competing with real content. */
+/* The chat panel's ground: the signature grid on a darker note than the
+   page, so the panel reads as its own room rather than a flat slab. The
+   grid is unmasked here — the panel is narrow and mostly text, so it wants
+   the full texture, faded only toward the bottom under the composer. */
+.chat-bg {
+  background-color: #070707;
+  background-image:
+    radial-gradient(120% 60% at 100% 0%, rgb(var(--accent-rgb) / 0.10), transparent 60%),
+    linear-gradient(rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px);
+  background-size: 100% 100%, 44px 44px, 44px 44px;
+}
+html.light .chat-bg {
+  background-color: #E4E4EA;
+  background-image:
+    radial-gradient(120% 60% at 100% 0%, rgb(var(--accent-rgb) / 0.12), transparent 60%),
+    linear-gradient(rgb(var(--accent-rgb) / 0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--accent-rgb) / 0.10) 1px, transparent 1px);
+}
+
+/* The panel's composer. The page does not opt into viewport-fit=cover, so
+   env(safe-area-inset-bottom) is 0 in the installed app and the home
+   indicator sat over the input. Standalone mode gets fixed clearance. */
+.chat-composer { padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px)); }
+@media (display-mode: standalone) {
+  .chat-composer { padding-bottom: calc(0.75rem + 22px); }
+}
+
+.app-bg-grid {
+  background-image:
+    linear-gradient(rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px);
+  background-size: 56px 56px;
+  /* Softly fades the grid toward the center so it never competes with
+     dense/colorful content, while still letting a faint trace of it bleed
+     into the content column's own gaps (page padding, space between
+     cards) — a hard cutoff here made text-light pages (Community, PR Wall,
+     the simple list pages) look like a flat black rectangle dropped onto
+     the textured page instead of blending with it. */
+  mask-image: radial-gradient(ellipse 70% 70% at center, transparent 10%, black 85%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at center, transparent 10%, black 85%);
+}
+
+.app-bg-orb {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(var(--accent-rgb) / 0.22) 0%, rgb(var(--accent-rgb) / 0) 70%);
+  filter: blur(40px);
+  will-change: transform;
+}
+
+.app-bg-orb-1 {
+  width: 42vw;
+  height: 42vw;
+  top: -10%;
+  left: -12%;
+  animation: app-bg-drift-1 26s ease-in-out infinite;
+}
+
+.app-bg-orb-2 {
+  width: 36vw;
+  height: 36vw;
+  bottom: -14%;
+  right: -10%;
+  animation: app-bg-drift-2 32s ease-in-out infinite;
+}
+
+.app-bg-orb-3 {
+  width: 24vw;
+  height: 24vw;
+  top: 40%;
+  left: 65%;
+  animation: app-bg-drift-3 22s ease-in-out infinite;
+}
+
+@keyframes app-bg-drift-1 {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(4vw, 5vh); }
+}
+
+@keyframes app-bg-drift-2 {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-3vw, -6vh); }
+}
+
+@keyframes app-bg-drift-3 {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-5vw, 3vh); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-bg-orb { animation: none; }
 }
 
 /* Custom scrollbar */
@@ -163,6 +279,31 @@ button, a { touch-action: manipulation; }
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   cursor: pointer;
 }
+
+/* ── Home hero card ──
+   The dark theme's hero is a saturated amber slab with near-black ink and a
+   near-black button: on a dark page it is the one warm thing on screen. On a
+   light page the same slab is a heavy orange block fighting white cards, so
+   light mode gets its own treatment rather than a dimmed copy — a pale amber
+   surface, the accent reserved for the button and the progress fill, and dark
+   ink. The gradient lives here, not inline, so the light rule can win. */
+.hero-card {
+  background: linear-gradient(135deg, #F5A623 0%, #E8941A 55%, #B86F0E 100%);
+}
+html.light .hero-card {
+  background: linear-gradient(135deg, #FFF4DE 0%, #FFE7B8 60%, #FFD98F 100%);
+  border: 1px solid rgba(212, 130, 10, 0.30);
+  color: #2A1B04;
+  box-shadow: 0 24px 50px -32px rgba(212, 130, 10, 0.55) !important;
+}
+/* Everything inside that used the near-black ink as a tint now uses accent. */
+html.light .hero-card .bg-\[\#141005\]\/10,
+html.light .hero-card .bg-\[\#141005\]\/12,
+html.light .hero-card .bg-\[\#141005\]\/15 { background-color: rgba(212, 130, 10, 0.12) !important; }
+html.light .hero-card .border-\[\#141005\]\/10 { border-color: rgba(212, 130, 10, 0.18) !important; }
+/* The primary button and the progress fill: solid accent, white text. */
+html.light .hero-card .bg-\[\#141005\] { background-color: var(--accent) !important; }
+html.light .hero-card .bg-\[\#141005\].text-accent { color: #FFFFFF !important; }
 
 /* ── Light-mode overrides for Tailwind utilities that can't use CSS vars ── */
 /* These cover page-level usages of raw Tailwind color classes */
@@ -291,3 +432,36 @@ html.light .bg-gradient-to-r.text-transparent { -webkit-text-fill-color: transpa
 @media (prefers-reduced-motion: reduce) {
   .flame-ignite, .ignite-flash { animation: none; }
 }
+
+/* Subtle floating/depth effect for dashboard tiles — pure CSS transform +
+   box-shadow (both GPU-composited, no layout/repaint cost), so it's free
+   performance-wise. Static lift on all devices (shows on mobile, where
+   :hover never fires) with a slightly stronger lift + press-down on
+   hover/tap for pointer devices. */
+.card-float {
+  box-shadow: 0 3px 10px -4px rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.25);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.card-float:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px -6px rgba(0, 0, 0, 0.45), 0 2px 6px -2px rgba(0, 0, 0, 0.3);
+}
+.card-float:active {
+  transform: translateY(-1px) scale(0.98);
+  box-shadow: 0 2px 6px -3px rgba(0, 0, 0, 0.35);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-float { transition: none; }
+  .card-float:hover, .card-float:active { transform: none; }
+}
+
+/* Landing page: returning member vs stranger, decided before first paint.
+   layout.tsx sets data-wf-session on <html> from a localStorage flag before
+   anything renders. With it, the landing body is hidden and the brand splash
+   shown until the redirect to the dashboard; without it, the server-rendered
+   landing is visible from the first byte. Pure CSS so hydration has nothing
+   to disagree about. LandingClient removes the attribute if auth resolves to
+   "no user" (stale flag), which reveals the landing. */
+[data-brand-splash] { display: none; }
+html[data-wf-session="1"] [data-brand-splash] { display: flex; }
+html[data-wf-session="1"] [data-landing-body] { visibility: hidden; }

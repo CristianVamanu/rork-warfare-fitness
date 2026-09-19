@@ -8,6 +8,7 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 
 // ─── Breathing methods ──────────────────────────────────────────────────────
 // Each phase drives both the visual guide's scale target and its duration —
@@ -230,9 +231,10 @@ export default function BreathingPage() {
   return (
     <div>
       {step !== 'session' && <Header title="Breathing" showBack />}
+      <PaywallGate feature="breathing" noTaste>
 
       {step === 'method' && (
-        <div className="px-4 py-4 space-y-3 max-w-lg mx-auto">
+        <div className="px-4 py-4 space-y-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
           <p className="text-text-secondary text-sm mb-2">Pick a technique to relax and reset.</p>
           {METHODS.map((m) => (
             <motion.button
@@ -260,7 +262,7 @@ export default function BreathingPage() {
       )}
 
       {step === 'duration' && method && (
-        <div className="px-4 py-4 max-w-lg mx-auto">
+        <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
           <button onClick={() => setStep('method')} className="text-xs text-text-secondary mb-4">← Choose a different method</button>
           <h2 className="text-xl font-black text-white mb-1">{method.name}</h2>
           <p className="text-text-secondary text-sm mb-6">How long do you want to practice?</p>
@@ -279,7 +281,7 @@ export default function BreathingPage() {
 
       {step === 'session' && method && (
         <div className="min-h-screen bg-background flex flex-col items-center justify-between py-8 px-4">
-          <div className="w-full max-w-lg flex items-center justify-between">
+          <div className="w-full max-w-lg md:max-w-2xl lg:max-w-4xl flex items-center justify-between">
             <button onClick={requestQuit} className="p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/8 transition-colors" aria-label="End session">
               <X className="w-5 h-5" />
             </button>
@@ -362,6 +364,7 @@ export default function BreathingPage() {
           </motion.div>
         </div>
       )}
+      </PaywallGate>
     </div>
   );
 }

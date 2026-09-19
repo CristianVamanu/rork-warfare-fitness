@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
  * signed-in user for their own account, no admin involvement required. */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuthed } from '@/lib/verifyAdmin';
+import { verifyAuthedNotTfaPending as verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { deleteUserCompletely } from '@/lib/accountDeletion';
 

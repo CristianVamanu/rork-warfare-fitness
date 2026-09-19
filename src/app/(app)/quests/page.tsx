@@ -8,6 +8,7 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { QUEST_DEFS, requirementProgress, isQuestComplete, type QuestProgressInput } from '@/lib/quests';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 
 export default function QuestsPage() {
   const { profile } = useAuth();
@@ -22,9 +23,10 @@ export default function QuestsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen pb-24">
       <Header title="Quests" showBack />
-      <div className="px-4 pt-4 max-w-lg mx-auto space-y-4">
+      <PaywallGate feature="quests" noTaste>
+      <div className="px-4 pt-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-4">
         <Card className="p-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-white">Missions</p>
@@ -80,6 +82,7 @@ export default function QuestsPage() {
           );
         })}
       </div>
+      </PaywallGate>
     </div>
   );
 }

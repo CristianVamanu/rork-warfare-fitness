@@ -3,14 +3,20 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Dumbbell, Timer, TrendingUp, Target, CheckCircle2, XCircle } from 'lucide-react';
+import { Trophy, Dumbbell, Timer, TrendingUp, Target, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { createPtTestResult, getPtTestResults } from '@/lib/firestore';
+import {
+  UNIT_STANDARDS, standardFor, standardForProgram, TIER_LABEL,
+  scorePushups, scoreSitups, scoreRun, tierFor, formatSeconds, formatMinutes,
+  type UnitStandard,
+} from '@/lib/ptStandards';
+import { createPtTestResult, getPtTestResults, deletePtTestResult } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import type { PtTestResult } from '@/types';
 
 // Published (unclassified) elite-unit selection PT standards, sourced from
@@ -22,162 +28,89 @@ import type { PtTestResult } from '@/types';
 // swims, obstacle courses, medical/psych screening) that this app has no way
 // to simulate — the linked program trains toward those too, this page just
 // tracks the part that's expressible as reps/time.
-interface UnitStandard {
-  id: string;
-  flag: string;
-  label: string;        // short toggle label
-  resultTitle: string;  // shown on the result screen
-  description: string;
-  runLabel?: string;
-  events: {
-    pullups?: number;
-    pushups?: number;   // 2-minute max unless stated in description
-    situps?: number;    // 2-minute max
-    runMinutes?: number; // max allowed time for runLabel's distance/task
-  };
+/**
+ * One event of the test: icon, name, what it asks for, and the input, on a
+ * single line. Rows sit inside one panel divided by hairlines — the form used
+ * a separate Card per event, which gave four inputs the same visual weight as
+ * the whole rest of the page.
+ */
+function EventRow({ icon: Icon, label, hint, target, children }: {
+  icon: React.ElementType;
+  label: string;
+  hint: string;
+  /** The number to beat, shown once per row instead of as placeholder text
+   *  inside the input — a placeholder disappears the moment you type, which
+   *  is exactly when you want to still see it. */
+  target?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+      <div className="flex items-start gap-2.5 min-w-0">
+        <Icon className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-white leading-tight">{label}</p>
+          <p className="text-[11px] text-text-tertiary mt-0.5">
+            {hint}
+            {target && <span className="text-accent font-semibold"> · {target}</span>}
+          </p>
+        </div>
+      </div>
+      <div className="flex-shrink-0">{children}</div>
+    </div>
+  );
 }
 
-const UNIT_STANDARDS: UnitStandard[] = [
-  {
-    id: 'spetsnaz',
-    flag: '🇷🇺',
-    label: 'Spetsnaz Selection',
-    resultTitle: 'Spetsnaz Selection Standard',
-    description: 'The published (unclassified) Spetsnaz selection PT standard: 20 strict pull-ups, 90 push-ups in 2 minutes, and a 3km run under 10:30.',
-    runLabel: '3km Run',
-    events: { pullups: 20, pushups: 90, runMinutes: 10.5 },
-  },
-  {
-    id: 'ranger',
-    flag: '🇺🇸',
-    label: 'Ranger Assessment',
-    resultTitle: 'Ranger (RASP) Standard',
-    description: 'The published pre-RASP entry standard: 53 push-ups, 63 sit-ups, 4 pull-ups, and a 2-mile run under 14:30. RASP itself adds a 6-mile ruck march this app doesn’t track.',
-    runLabel: '2-Mile Run',
-    events: { pushups: 53, situps: 63, pullups: 4, runMinutes: 14.5 },
-  },
-  {
-    id: 'seal',
-    flag: '🇺🇸',
-    label: 'SEAL Selection',
-    resultTitle: 'Navy SEAL PST Standard',
-    description: 'The published Navy SEAL Physical Screening Test minimums: 42 push-ups, 50 sit-ups, 10 pull-ups, and a 1.5-mile run under 10:30. The PST also includes a 500-yard swim this app doesn’t track.',
-    runLabel: '1.5-Mile Run',
-    events: { pushups: 42, situps: 50, pullups: 10, runMinutes: 10.5 },
-  },
-  {
-    id: 'sas',
-    flag: '🇬🇧',
-    label: 'SAS Selection',
-    resultTitle: 'SAS Combat Fitness Standard',
-    description: 'The published SAS Combat Fitness Test run standard: 2 miles under 18:00. Full selection also includes the Fan Dance (a 26km, 40lb march over Pen y Fan) this app doesn’t track.',
-    runLabel: '2-Mile Run',
-    events: { runMinutes: 18 },
-  },
-  {
-    id: 'ksk',
-    flag: '🇩🇪',
-    label: 'KSK Selection',
-    resultTitle: 'KSK Endurance Standard',
-    description: 'The published German KSK field endurance standard: a 7km ruck march with a 20kg pack under 52:00. Selection also includes 1-minute max push-up/sit-up tests and a 500m swim this app doesn’t track.',
-    runLabel: '7km Ruck (20kg)',
-    events: { runMinutes: 52 },
-  },
-  {
-    id: 'commando',
-    flag: '🇬🇧',
-    label: 'Commando PT Test',
-    resultTitle: 'Royal Marines Commando Standard',
-    description: 'The published Royal Marines Candidate Preparation standard: 30 push-ups, 40 sit-ups, 4 pull-ups minimum, and a 1.5-mile run under 11:15.',
-    runLabel: '1.5-Mile Run',
-    events: { pushups: 30, situps: 40, pullups: 4, runMinutes: 11.25 },
-  },
-  {
-    id: 'commando-endurance',
-    flag: '🇬🇧',
-    label: 'Commando Endurance',
-    resultTitle: 'Royal Marines Endurance Course Standard',
-    description: 'The published Royal Marines Endurance Course standard: 6 miles carrying 21lb fighting order under 73:00, immediately followed by a marksmanship test in real selection.',
-    runLabel: '6-Mile Load Carry (21lb)',
-    events: { runMinutes: 73 },
-  },
-  {
-    id: 'recon',
-    flag: '🇺🇸',
-    label: 'Force Recon Prep',
-    resultTitle: 'USMC Force Recon Standard',
-    description: 'A Force Recon-competitive standard: 20 pull-ups and a 3-mile run under 18:00 — well above the standard Marine PFT minimum. Recon screening also includes underwater confidence and rucking events this app doesn’t track.',
-    runLabel: '3-Mile Run',
-    events: { pullups: 20, runMinutes: 18 },
-  },
-  {
-    id: 'legion',
-    flag: '🇫🇷',
-    label: 'Legion Selection',
-    resultTitle: 'French Foreign Legion Standard',
-    description: 'The published French Foreign Legion recruiting-station standard: 7 strict pull-ups from a dead hang. Selection also requires at least level 7 on the Luc Léger beep test, which doesn’t convert cleanly to a loggable time here.',
-    events: { pullups: 7 },
-  },
-  {
-    id: 'pj',
-    flag: '🇺🇸',
-    label: 'PJ Indoc Prep',
-    resultTitle: 'Air Force Pararescue Standard',
-    description: 'The published Pararescue (PJ) PAST standard: 10 pull-ups. The full PAST also gates on a 25m underwater swim and timed run this app doesn’t track.',
-    events: { pullups: 10 },
-  },
-];
-
-function standardFor(id?: string): UnitStandard | undefined {
-  return UNIT_STANDARDS.find((s) => s.id === id);
-}
-
-// Simplified 0-100 benchmark scale per event, loosely modeled on published
-// (unclassified) military PT test ranges for a young-adult male baseline —
-// NOT an official/exact Army ACFT or Marine PFT score, which are banded by
-// age and sex with far more precision. Good enough to track your own
-// progress over time and get an honest sense of where you stand. Only used
-// for the "Generic PT Test" mode; unit-standard mode compares directly
-// against that unit's real published numbers instead.
-function scorePushups(reps: number): number {
-  return Math.max(0, Math.min(100, Math.round((reps / 80) * 100)));
-}
-function scoreSitups(reps: number): number {
-  return Math.max(0, Math.min(100, Math.round((reps / 100) * 100)));
-}
-function scoreRun(minutes: number, distance: 1.5 | 2): number {
-  const worst = distance === 1.5 ? 15 : 20;
-  const best = distance === 1.5 ? 9 : 12;
-  const pct = (worst - minutes) / (worst - best);
-  return Math.max(0, Math.min(100, Math.round(pct * 100)));
-}
-function tierFor(total: number): PtTestResult['tier'] {
-  if (total >= 275) return 'elite';
-  if (total >= 225) return 'strong';
-  if (total >= 150) return 'solid';
-  return 'needs-work';
-}
-const TIER_LABEL: Record<PtTestResult['tier'], { label: string; color: string }> = {
-  elite: { label: 'Elite', color: 'text-accent' },
-  strong: { label: 'Strong', color: 'text-green-400' },
-  solid: { label: 'Solid', color: 'text-blue-400' },
-  'needs-work': { label: 'Needs Work', color: 'text-yellow-400' },
-};
-
-function formatMinutes(mins: number): string {
-  return `${Math.floor(mins)}:${String(Math.round((mins % 1) * 60)).padStart(2, '0')}`;
+function NumberField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <input
+      type="number"
+      min="0"
+      inputMode="numeric"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="0"
+      className="w-20 bg-surface border border-white/10 rounded-lg px-3 py-2 text-white text-lg font-bold text-right tabular-nums focus:outline-none focus:border-accent/50"
+    />
+  );
 }
 
 export default function PtTestPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  // The standard this member's own program trains toward, if any — used to
+  // preselect it and to mark it in the list.
+  const ownStandard = standardForProgram(profile?.activeProgram?.programName);
   const [history, setHistory] = useState<PtTestResult[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  async function handleDeleteResult(id: string) {
+    if (!confirm('Delete this result? It cannot be restored.')) return;
+    setDeletingId(id);
+    try {
+      await deletePtTestResult(id);
+      setHistory((prev) => prev.filter((r) => r.id !== id));
+      toast.success('Result deleted');
+    } catch {
+      toast.error('Could not delete that result');
+    } finally {
+      setDeletingId(null);
+    }
+  }
   const [loading, setLoading] = useState(true);
   const [standardId, setStandardId] = useState<string>('generic');
+  // Opens on the member's own standard rather than the generic test. Runs
+  // once the profile has loaded, and never fights a choice already made.
+  const [standardTouched, setStandardTouched] = useState(false);
+  useEffect(() => {
+    if (!standardTouched && ownStandard) setStandardId(ownStandard);
+  }, [ownStandard, standardTouched]);
   const [pushups, setPushups] = useState('');
   const [situps, setSitups] = useState('');
   const [pullups, setPullups] = useState('');
   const [runMin, setRunMin] = useState('');
   const [runSec, setRunSec] = useState('');
+  const [plankMin, setPlankMin] = useState('');
+  const [plankSec, setPlankSec] = useState('');
+  const [beep, setBeep] = useState('');
   const [distance, setDistance] = useState<1.5 | 2>(1.5);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<PtTestResult | null>(null);
@@ -202,7 +135,9 @@ export default function PtTestPage() {
       const missing = (events.pushups !== undefined && isNaN(pu as number))
         || (events.situps !== undefined && isNaN(su as number))
         || (events.pullups !== undefined && isNaN(pull as number))
-        || (events.runMinutes !== undefined && (!mins || mins <= 0));
+        || (events.runMinutes !== undefined && (!mins || mins <= 0))
+        || (events.plankSeconds !== undefined && !(Number(plankMin || 0) * 60 + Number(plankSec || 0)))
+        || (events.beepLevel !== undefined && !Number(beep));
       if (missing) {
         toast.error('Fill in every event for this standard');
         return;
@@ -210,9 +145,13 @@ export default function PtTestPage() {
 
       setSaving(true);
       try {
+        const plankTotal = Number(plankMin || 0) * 60 + Number(plankSec || 0);
+        const beepLevelValue = Number(beep || 0);
         const standardPassed = (events.pullups === undefined || (pull ?? 0) >= events.pullups)
           && (events.pushups === undefined || (pu ?? 0) >= events.pushups)
           && (events.situps === undefined || (su ?? 0) >= events.situps)
+          && (events.plankSeconds === undefined || plankTotal >= events.plankSeconds)
+          && (events.beepLevel === undefined || beepLevelValue >= events.beepLevel)
           && (events.runMinutes === undefined || (mins ?? Infinity) <= events.runMinutes);
 
         // Unused core fields are kept populated at 0 since PtTestResult's
@@ -230,6 +169,8 @@ export default function PtTestPage() {
           tier: 'solid' as PtTestResult['tier'],
           standard: active.id as PtTestResult['standard'],
           standardPassed,
+          ...(events.plankSeconds !== undefined ? { plankSeconds: plankTotal } : {}),
+          ...(events.beepLevel !== undefined ? { beepLevel: beepLevelValue } : {}),
         };
         const id = await createPtTestResult(data);
         const saved = { id, createdAt: new Date(), ...data };
@@ -281,22 +222,26 @@ export default function PtTestPage() {
   function reset() {
     setResult(null);
     setPushups(''); setSitups(''); setPullups(''); setRunMin(''); setRunSec('');
+    setPlankMin(''); setPlankSec(''); setBeep('');
   }
 
   if (result && result.standard && result.standard !== 'generic') {
     const std = standardFor(result.standard);
     if (std) {
+      const comp = std.competitive;
       const events = [
-        std.events.pullups !== undefined && { label: 'Pull-ups', value: `${result.pullups}`, target: `${std.events.pullups}+`, passed: (result.pullups ?? 0) >= std.events.pullups },
-        std.events.pushups !== undefined && { label: 'Push-ups (2min)', value: `${result.pushups}`, target: `${std.events.pushups}+`, passed: result.pushups >= std.events.pushups },
-        std.events.situps !== undefined && { label: 'Sit-ups (2min)', value: `${result.situps}`, target: `${std.events.situps}+`, passed: result.situps >= std.events.situps },
-        std.events.runMinutes !== undefined && { label: std.runLabel ?? 'Run', value: formatMinutes(result.runMinutes), target: formatMinutes(std.events.runMinutes), passed: result.runMinutes <= std.events.runMinutes },
-      ].filter(Boolean) as { label: string; value: string; target: string; passed: boolean }[];
+        std.events.pullups !== undefined && { label: 'Pull-ups', value: `${result.pullups}`, target: `${std.events.pullups}+`, passed: (result.pullups ?? 0) >= std.events.pullups, comp: comp?.pullups ? `${comp.pullups}+` : undefined },
+        std.events.pushups !== undefined && { label: 'Push-ups (2min)', value: `${result.pushups}`, target: `${std.events.pushups}+`, passed: result.pushups >= std.events.pushups, comp: comp?.pushups ? `${comp.pushups}+` : undefined },
+        std.events.situps !== undefined && { label: 'Sit-ups (2min)', value: `${result.situps}`, target: `${std.events.situps}+`, passed: result.situps >= std.events.situps, comp: comp?.situps ? `${comp.situps}+` : undefined },
+        std.events.plankSeconds !== undefined && { label: 'Plank', value: formatSeconds(result.plankSeconds ?? 0), target: formatSeconds(std.events.plankSeconds), passed: (result.plankSeconds ?? 0) >= std.events.plankSeconds },
+        std.events.beepLevel !== undefined && { label: 'Bleep test', value: `level ${result.beepLevel ?? 0}`, target: `level ${std.events.beepLevel}+`, passed: (result.beepLevel ?? 0) >= std.events.beepLevel },
+        std.events.runMinutes !== undefined && { label: std.runLabel ?? 'Run', value: formatMinutes(result.runMinutes), target: formatMinutes(std.events.runMinutes), passed: result.runMinutes <= std.events.runMinutes, comp: comp?.runMinutes ? formatMinutes(comp.runMinutes) : undefined },
+      ].filter(Boolean) as { label: string; value: string; target: string; passed: boolean; comp?: string }[];
 
       return (
         <div>
           <Header title={`${std.label} Result`} showBack />
-          <div className="px-4 py-6 max-w-lg mx-auto text-center">
+          <div className="px-4 py-6 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto text-center">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
               <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${result.standardPassed ? 'bg-accent-muted' : 'bg-white/5'}`}>
                 <Target className={`w-8 h-8 ${result.standardPassed ? 'text-accent' : 'text-text-secondary'}`} />
@@ -311,7 +256,10 @@ export default function PtTestPage() {
                       {e.passed ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
                       <p className="text-sm font-bold text-white">{e.label}</p>
                     </div>
-                    <p className="text-sm text-text-secondary">{e.value} <span className="text-text-tertiary">/ {e.target}</span></p>
+                    <div className="text-right">
+                      <p className="text-sm text-text-secondary">{e.value} <span className="text-text-tertiary">/ {e.target}</span></p>
+                      {e.comp && <p className="text-[10px] text-text-tertiary mt-0.5">competitive {e.comp}</p>}
+                    </div>
                   </Card>
                 ))}
               </div>
@@ -329,7 +277,7 @@ export default function PtTestPage() {
     return (
       <div>
         <Header title="PT Test Result" showBack />
-        <div className="px-4 py-6 max-w-lg mx-auto text-center">
+        <div className="px-4 py-6 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto text-center">
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
             <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-4">
               <Trophy className="w-8 h-8 text-accent" />
@@ -365,118 +313,209 @@ export default function PtTestPage() {
   return (
     <div>
       <Header title="PT Test" showBack />
-      <div className="px-4 py-4 max-w-lg mx-auto space-y-5">
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setStandardId('generic')}
-            className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-colors ${standardId === 'generic' ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
-          >
-            Generic PT Test
-          </button>
-          {UNIT_STANDARDS.map((s) => (
+      {/* See the habits page for why noTaste is set here. */}
+      <PaywallGate feature="pt-test" noTaste>
+      <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-5">
+        {/* Standard picker — one horizontally scrolling rail rather than a
+            wrapping block. Eleven chips wrapped into four ragged rows and
+            pushed the form itself off the screen, which is what made this
+            page read as scattered. */}
+        <div className="-mx-4 px-4 overflow-x-auto">
+          <div className="flex gap-2 w-max pb-1">
             <button
-              key={s.id}
-              onClick={() => setStandardId(s.id)}
-              className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-colors ${standardId === s.id ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
+              onClick={() => { setStandardTouched(true); setStandardId('generic'); }}
+              className={`whitespace-nowrap py-2 px-3.5 rounded-lg text-xs font-bold border transition-colors ${standardId === 'generic' ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
             >
-              {s.flag} {s.label}
+              Generic
             </button>
-          ))}
+            {/* The member's own standard is pulled to the front, so the rail
+                starts with the one that applies to them instead of whichever
+                unit happened to be first in the array. */}
+            {[...UNIT_STANDARDS]
+              .sort((a, b) => (a.id === ownStandard ? -1 : b.id === ownStandard ? 1 : 0))
+              .map((s) => (
+              <button
+                key={s.id}
+                onClick={() => { setStandardTouched(true); setStandardId(s.id); }}
+                className={`whitespace-nowrap py-2 px-3.5 rounded-lg text-xs font-bold border transition-colors ${standardId === s.id ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
+              >
+                {s.flag} {s.label}
+                {s.id === ownStandard && (
+                  <span className={`ml-1.5 text-[9px] font-bold uppercase tracking-wide ${standardId === s.id ? 'text-black/70' : 'text-accent'}`}>
+                    yours
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {/* Standard briefing: what it is, and what it asks of you, above the
+            form rather than repeated as placeholder text inside every input. */}
         <Card className="p-4">
-          <p className="text-xs text-text-tertiary leading-relaxed">
+          <div className="flex items-center gap-2">
+            <span className="w-1 h-3.5 bg-accent rounded-full" />
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">
+              {active ? 'Standard' : 'Benchmark'}
+            </p>
+          </div>
+          <p className="text-sm font-bold text-white mt-2">{active ? active.resultTitle : 'Generic 3-event PT test'}</p>
+          <p className="text-xs text-text-secondary leading-relaxed mt-1.5">
             {active
               ? active.description
               : 'A classic 3-event military-style fitness test — max push-ups, max sit-ups, and a timed run. Scored on a simplified 0-100-per-event scale for tracking your own progress; not an official Army/Marine score.'}
           </p>
+          {active && (
+            <div className="mt-3 pt-3 border-t border-white/8 space-y-1.5">
+              <p className="text-[11px] text-text-tertiary leading-relaxed">
+                <span className="text-text-secondary font-semibold">Source:</span> {active.source}
+              </p>
+              {active.notTracked && (
+                <p className="text-[11px] text-text-tertiary leading-relaxed">
+                  <span className="text-text-secondary font-semibold">Not tested here:</span> {active.notTracked}{' '}
+                  Passing this is not passing selection.
+                </p>
+              )}
+            </div>
+          )}
+          <p className="text-xs text-text-tertiary leading-relaxed mt-3 pt-3 border-t border-white/8">
+            Enter your numbers and they are scored against this standard straight away, then kept in
+            your history. Nothing is uploaded and nobody reviews it.
+          </p>
         </Card>
 
-        <div className="space-y-3">
-          {(active ? active.events.pullups !== undefined : false) && (
-            <Card className="p-4">
-              <label className="text-sm font-bold text-white flex items-center gap-2 mb-2">
-                <Dumbbell className="w-4 h-4 text-accent" /> Pull-ups (strict, max reps)
-              </label>
-              <input
-                type="number" min="0" value={pullups} onChange={(e) => setPullups(e.target.value)}
-                placeholder={`Target: ${active?.events.pullups}+`}
-                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:border-accent/50"
-              />
-            </Card>
-          )}
+        {/* Every event in ONE panel, separated by hairlines. Five stacked
+            cards each with its own border, padding and shadow gave equal
+            visual weight to four inputs and a paragraph, with no sense of
+            them belonging to the same test. */}
+        <Card className="p-0 overflow-hidden">
+          <div className="divide-y divide-white/8">
+            {(active ? active.events.pullups !== undefined : false) && (
+              <EventRow
+                icon={Dumbbell}
+                label="Pull-ups"
+                hint="Strict, max reps"
+                target={`${active?.events.pullups}+`}
+              >
+                <NumberField value={pullups} onChange={setPullups} />
+              </EventRow>
+            )}
 
-          {(active ? active.events.pushups !== undefined : true) && (
-            <Card className="p-4">
-              <label className="text-sm font-bold text-white flex items-center gap-2 mb-2">
-                <Dumbbell className="w-4 h-4 text-accent" /> Push-ups (2 min max)
-              </label>
-              <input
-                type="number" min="0" value={pushups} onChange={(e) => setPushups(e.target.value)}
-                placeholder={active ? `Target: ${active.events.pushups}+` : 'e.g. 45'}
-                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:border-accent/50"
-              />
-            </Card>
-          )}
+            {(active ? active.events.pushups !== undefined : true) && (
+              <EventRow
+                icon={Dumbbell}
+                label="Push-ups"
+                hint="2 minute max"
+                target={active ? `${active.events.pushups}+` : undefined}
+              >
+                <NumberField value={pushups} onChange={setPushups} />
+              </EventRow>
+            )}
 
-          {(active ? active.events.situps !== undefined : true) && (
-            <Card className="p-4">
-              <label className="text-sm font-bold text-white flex items-center gap-2 mb-2">
-                <TrendingUp className="w-4 h-4 text-accent" /> Sit-ups (2 min max)
-              </label>
-              <input
-                type="number" min="0" value={situps} onChange={(e) => setSitups(e.target.value)}
-                placeholder={active ? `Target: ${active.events.situps}+` : 'e.g. 55'}
-                className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:border-accent/50"
-              />
-            </Card>
-          )}
+            {(active ? active.events.situps !== undefined : true) && (
+              <EventRow
+                icon={TrendingUp}
+                label="Sit-ups"
+                hint="2 minute max"
+                target={active ? `${active.events.situps}+` : undefined}
+              >
+                <NumberField value={situps} onChange={setSitups} />
+              </EventRow>
+            )}
 
-          {(active ? active.events.runMinutes !== undefined : true) && (
-            <Card className="p-4">
-              <label className="text-sm font-bold text-white flex items-center gap-2 mb-2">
-                <Timer className="w-4 h-4 text-accent" /> {active?.runLabel ?? 'Timed Run'}
-              </label>
-              {!active && (
-                <div className="flex gap-2 mb-3">
+            {active?.events.plankSeconds !== undefined && (
+              <EventRow
+                icon={Timer}
+                label="Plank"
+                hint="Held, forearms"
+                target={formatSeconds(active.events.plankSeconds)}
+              >
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number" min="0" inputMode="numeric" value={plankMin} onChange={(e) => setPlankMin(e.target.value)}
+                    placeholder="00"
+                    aria-label="Plank minutes"
+                    className="w-14 bg-surface border border-white/10 rounded-lg px-2 py-2 text-white text-lg font-bold text-center tabular-nums focus:outline-none focus:border-accent/50"
+                  />
+                  <span className="text-text-tertiary font-bold">:</span>
+                  <input
+                    type="number" min="0" max="59" inputMode="numeric" value={plankSec} onChange={(e) => setPlankSec(e.target.value)}
+                    placeholder="00"
+                    aria-label="Plank seconds"
+                    className="w-14 bg-surface border border-white/10 rounded-lg px-2 py-2 text-white text-lg font-bold text-center tabular-nums focus:outline-none focus:border-accent/50"
+                  />
+                </div>
+              </EventRow>
+            )}
+
+            {active?.events.beepLevel !== undefined && (
+              <EventRow
+                icon={TrendingUp}
+                label="Bleep test"
+                hint="20m shuttle, level reached"
+                target={`level ${active.events.beepLevel}+`}
+              >
+                <NumberField value={beep} onChange={setBeep} />
+              </EventRow>
+            )}
+
+            {(active ? active.events.runMinutes !== undefined : true) && (
+              <EventRow
+                icon={Timer}
+                label={active?.runLabel ?? 'Timed run'}
+                hint={active ? 'Time to beat' : 'Pick a distance'}
+                target={active ? `under ${formatMinutes(active.events.runMinutes!)}` : undefined}
+              >
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number" min="0" inputMode="numeric" value={runMin} onChange={(e) => setRunMin(e.target.value)}
+                    placeholder="00"
+                    aria-label="Run minutes"
+                    className="w-14 bg-surface border border-white/10 rounded-lg px-2 py-2 text-white text-lg font-bold text-center tabular-nums focus:outline-none focus:border-accent/50"
+                  />
+                  <span className="text-text-tertiary font-bold">:</span>
+                  <input
+                    type="number" min="0" max="59" inputMode="numeric" value={runSec} onChange={(e) => setRunSec(e.target.value)}
+                    placeholder="00"
+                    aria-label="Run seconds"
+                    className="w-14 bg-surface border border-white/10 rounded-lg px-2 py-2 text-white text-lg font-bold text-center tabular-nums focus:outline-none focus:border-accent/50"
+                  />
+                </div>
+              </EventRow>
+            )}
+
+            {!active && (
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <p className="text-xs text-text-secondary">Run distance</p>
+                <div className="flex gap-2">
                   {([1.5, 2] as const).map((d) => (
                     <button
                       key={d}
                       onClick={() => setDistance(d)}
-                      className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-colors ${distance === d ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
+                      className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition-colors tabular-nums ${distance === d ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
                     >
-                      {d} miles
+                      {d} mi
                     </button>
                   ))}
                 </div>
-              )}
-              <div className="flex items-center gap-2">
-                <input
-                  type="number" min="0" value={runMin} onChange={(e) => setRunMin(e.target.value)}
-                  placeholder={active ? `Target: <${Math.floor(active.events.runMinutes!)}` : 'min'}
-                  className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold text-center focus:outline-none focus:border-accent/50"
-                />
-                <span className="text-text-tertiary font-bold">:</span>
-                <input
-                  type="number" min="0" max="59" value={runSec} onChange={(e) => setRunSec(e.target.value)}
-                  placeholder="sec"
-                  className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold text-center focus:outline-none focus:border-accent/50"
-                />
               </div>
-            </Card>
-          )}
-        </div>
+            )}
+          </div>
+        </Card>
 
         <Button fullWidth loading={saving} onClick={handleSubmit}>Submit Test</Button>
 
         {!loading && history.length > 0 && (
           <div>
-            <h2 className="text-sm font-bold text-white mb-2">Past Results</h2>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-1 h-3 bg-accent rounded-full" />
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">Past results</h2>
+            </div>
             <div className="space-y-2">
               {history.map((r) => {
                 const std = r.standard && r.standard !== 'generic' ? standardFor(r.standard) : undefined;
                 return (
-                  <Card key={r.id} className="p-3 flex items-center justify-between">
+                  <Card key={r.id} className="p-3 flex items-center justify-between gap-3">
                     {std ? (
                       <div>
                         <p className={`text-sm font-bold ${r.standardPassed ? 'text-green-400' : 'text-white'}`}>
@@ -497,6 +536,14 @@ export default function PtTestPage() {
                         <p className="text-xs text-text-tertiary">{r.pushups} push-ups · {r.situps} sit-ups · {r.runDistanceMiles}mi run</p>
                       </div>
                     )}
+                    <button
+                      onClick={() => handleDeleteResult(r.id)}
+                      disabled={deletingId === r.id}
+                      aria-label="Delete this result"
+                      className="p-2 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors disabled:opacity-50 flex-shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </Card>
                 );
               })}
@@ -505,6 +552,7 @@ export default function PtTestPage() {
         )}
         {loading && <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-16 rounded-2xl" />)}</div>}
       </div>
+      </PaywallGate>
     </div>
   );
 }
