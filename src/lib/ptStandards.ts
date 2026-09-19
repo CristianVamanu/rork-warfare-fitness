@@ -48,6 +48,17 @@ export interface UnitStandard {
     beepLevel?: number;
     runMinutes?: number;
   };
+  /**
+   * Per-event protocol, where this unit differs from the generic hint.
+   *
+   * The test's input labels are generic ("max in two minutes"), but the
+   * protocols are not: the Army counts hand-release push-ups over two
+   * minutes and the Coast Guard counts ordinary push-ups over one. Testing
+   * yourself against the right number using the wrong protocol produces a
+   * result that means nothing, so where a unit differs it says so on the
+   * field itself.
+   */
+  eventHints?: Partial<Record<keyof UnitStandard['events'], string>>;
   /** Where the numbers come from, shown under the briefing. */
   source: string;
   /** Real selection events this app deliberately does not track. */
@@ -117,6 +128,24 @@ export const UNIT_STANDARDS: UnitStandard[] = [
     notTracked: '6-mile ruck with 35lb and weapon inside 1:30, building to 12 miles.',
   },
   {
+    // Replaced the ACFT on 1 June 2025, so anything still published as "ACFT
+    // standards" is describing a test the Army no longer runs.
+    id: 'army-aft',
+    flag: '🇺🇸',
+    label: 'Army AFT',
+    resultTitle: 'US Army Fitness Test (AFT)',
+    description:
+      'The Army\u2019s test of record since 1 June 2025, when it replaced the ACFT. Five events, each scored 0\u2013100. Every soldier must score at least 60 points per event; soldiers in combat specialties must also reach 350 points overall. The marks below are the 60-point minimum for a male aged 17\u201321, with the 100-point maximum alongside. Note these are HAND-RELEASE push-ups \u2014 hands lift clear of the deck at the bottom of every rep, which is materially harder than a standard press-up.',
+    runLabel: '2-Mile Run',
+    // Written as arithmetic rather than decimals so each figure can be read
+    // straight off the official table: 19:57 and 13:22.
+    events: { pushups: 15, plankSeconds: 90, runMinutes: 19 + 57 / 60 },
+    competitive: { pushups: 58, plankSeconds: 220, runMinutes: 13 + 22 / 60 },
+    eventHints: { pushups: 'Hand-release, max in two minutes' },
+    source: 'AFT Score Tables, approved 15 May 2025, effective 1 June 2025, and Army Directive 2025-06 \u2014 60-point and 100-point marks, male 17\u201321.',
+    notTracked: 'The three-rep max deadlift (150lb at 60 points, 340lb at 100) and the sprint-drag-carry (2:28 at 60 points) \u2014 both need a loaded bar, a sled and a measured lane.',
+  },
+  {
     id: 'pj',
     flag: '🇺🇸',
     label: 'PJ / Special Warfare',
@@ -128,6 +157,21 @@ export const UNIT_STANDARDS: UnitStandard[] = [
     competitive: { pullups: 15, pushups: 65, situps: 75, runMinutes: 9.5 },
     source: 'Air Force Special Warfare IFT minimums.',
     notTracked: 'Two 25m underwater swims and a 500m surface swim, both gating.',
+  },
+  {
+    // The one standard here an ordinary fit man can realistically clear
+    // today, which makes it the honest entry point to the rest.
+    id: 'uscg-boat-crew',
+    flag: '\ud83c\uddfa\ud83c\uddf8',
+    label: 'USCG Boat Crew',
+    resultTitle: 'US Coast Guard Boat Crew',
+    description:
+      'The semi-annual physical fitness standard every Coast Guard boat crewmember has to hold to stay qualified \u2014 not a selection course, a proficiency requirement. Push-ups and sit-ups are each scored over ONE minute, not two. The marks below are for a male under 30. Every section must be completed in one sitting; fail one and the whole test is retaken.',
+    runLabel: '1.5-Mile Run',
+    events: { pushups: 29, situps: 38, runMinutes: 12 + 51 / 60 },
+    eventHints: { pushups: 'Max in ONE minute', situps: 'Max in ONE minute' },
+    source: 'Coast Guard Boat Operations and Training Manual, Table 4-5 \u2014 Physical Fitness Standards, male under 30.',
+    notTracked: 'The 12-minute swim, which may be taken instead of the run: 500 yards for a male under 30.',
   },
   {
     id: 'commando',
@@ -314,9 +358,11 @@ export const STANDARD_SLUGS: Record<string, string> = {
   'seal': 'navy-seal',
   'ranger': 'army-ranger',
   'pj': 'air-force-pj',
+  'uscg-boat-crew': 'coast-guard-boat-crew',
   'commando': 'royal-marines',
   'sas': 'uk-special-forces',
   'legion': 'french-foreign-legion',
+  'army-aft': 'army-fitness-test',
   'spetsnaz': 'spetsnaz',
   'ksk': 'german-ksk',
   'commando-pjfa': 'royal-marines-entry-test',

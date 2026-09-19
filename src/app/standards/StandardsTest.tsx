@@ -203,7 +203,10 @@ export function StandardsTest({ initialStandardId }: { initialStandardId?: strin
             <div key={i.key}>
               <label htmlFor={`in-${i.key}`} className="text-xs font-semibold text-white block mb-1.5">
                 {i.key === 'run' ? (standard.runLabel ?? 'Run') : i.label}
-                <span className="font-normal text-text-tertiary"> · {i.hint}</span>
+                {/* A unit's own protocol wins over the generic hint — the
+                    Army counts hand-release push-ups over two minutes, the
+                    Coast Guard ordinary ones over one. */}
+                <span className="font-normal text-text-tertiary"> · {standard.eventHints?.[i.event] ?? i.hint}</span>
               </label>
               {i.key === 'run' || i.key === 'plank' ? (
                 <TimeInput
