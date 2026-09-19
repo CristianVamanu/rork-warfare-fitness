@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
+import { UNIT_STANDARDS, standardFor, formatMinutes } from '@/lib/ptStandards';
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
   ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
@@ -82,6 +83,20 @@ interface PublicProgram {
   imageUrl: string | null;
   targetGender: string;
 }
+
+// The readout on the standards card. Pulled from the same data the test
+// scores against, so the landing page can never quote a number the test
+// itself disagrees with — the one drift that would undermine the whole
+// "real published standards" claim on the page that makes it.
+const RECON_STANDARD = standardFor('recon');
+const RECON_SAMPLE = {
+  label: RECON_STANDARD?.label ?? 'Marine Recon',
+  rows: [
+    { label: 'Pull-ups', value: String(RECON_STANDARD?.events.pullups ?? 15) },
+    { label: 'Push-ups', value: String(RECON_STANDARD?.events.pushups ?? 60) },
+    { label: '3-mile run', value: formatMinutes(RECON_STANDARD?.events.runMinutes ?? 19.5) },
+  ],
+};
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
@@ -676,43 +691,104 @@ export default function LandingPage({
           It is the only block on this page a stranger can act on without
           handing over an email or a card, and it is the one thing here no
           other fitness app offers — so it goes before the feature grid, not
-          after it. Everything below this point asks for something. */}
-      <section className="relative max-w-5xl mx-auto px-5 pt-14">
+          after it. Everything below this point asks for something.
+
+          Dressed as an instrument rather than a marketing card: corner
+          brackets, a slow readout sweep, and the numbers in a labelled panel.
+          The point it makes visually is the point the product makes, which is
+          that these are measurements, not motivation. */}
+      <section className="relative max-w-5xl mx-auto px-5 pt-14 pb-14">
         <Link
           href="/standards"
-          className="group relative block overflow-hidden rounded-3xl border border-accent/25 bg-gradient-to-br from-accent/[0.12] via-accent/[0.04] to-transparent p-6 sm:p-8 transition-colors hover:border-accent/50"
+          className="group relative block overflow-hidden rounded-2xl border border-accent/25 bg-[#0B0B0C] p-6 sm:p-8 transition-all duration-300 hover:border-accent/60 hover:shadow-[0_0_60px_-18px_rgba(245,166,35,0.55)]"
         >
+          {/* Instrument grid, fading toward the readout on the right. */}
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-40"
+            className="pointer-events-none absolute inset-0 opacity-50"
             style={{
               backgroundImage:
                 'linear-gradient(rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px)',
-              backgroundSize: '38px 38px',
-              maskImage: 'radial-gradient(ellipse 70% 80% at 85% 50%, black, transparent 70%)',
-              WebkitMaskImage: 'radial-gradient(ellipse 70% 80% at 85% 50%, black, transparent 70%)',
+              backgroundSize: '34px 34px',
+              maskImage: 'radial-gradient(ellipse 75% 85% at 88% 50%, black, transparent 72%)',
+              WebkitMaskImage: 'radial-gradient(ellipse 75% 85% at 88% 50%, black, transparent 72%)',
             }}
           />
-          <div className="relative flex items-start justify-between gap-5">
+          {/* Ember wash from the corner the readout sits in. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{ background: 'radial-gradient(120% 130% at 100% 0%, rgb(var(--accent-rgb) / 0.16) 0%, transparent 58%)' }}
+          />
+          {/* Hairline along the top edge — brightest in the middle. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px"
+            style={{ background: 'linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 0.65), transparent)' }}
+          />
+          {/* The sweep. motion-reduce disables it; it is decoration only. */}
+          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div
+              className="h-px w-full animate-scan motion-reduce:hidden"
+              style={{ background: 'linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 0.5), transparent)' }}
+            />
+          </div>
+          {/* Corner brackets. */}
+          {[
+            'left-3 top-3 border-l-2 border-t-2',
+            'right-3 top-3 border-r-2 border-t-2',
+            'left-3 bottom-3 border-l-2 border-b-2',
+            'right-3 bottom-3 border-r-2 border-b-2',
+          ].map((pos) => (
+            <span
+              key={pos}
+              aria-hidden
+              className={`pointer-events-none absolute w-5 h-5 border-accent/40 group-hover:border-accent/80 transition-colors duration-300 ${pos}`}
+            />
+          ))}
+
+          <div className="relative flex items-start justify-between gap-6">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-accent">Free · no account</p>
-              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-2 leading-tight">
+              <p className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.22em] text-accent">
+                <span className="relative flex w-1.5 h-1.5">
+                  <span className="absolute inline-flex w-full h-full rounded-full bg-accent opacity-60 animate-ping motion-reduce:hidden" />
+                  <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-accent" />
+                </span>
+                Free · no account
+              </p>
+              <h2 className="text-2xl sm:text-[34px] font-black text-white tracking-tight mt-3 leading-[1.08]">
                 Could you pass selection?
               </h2>
-              <p className="text-sm text-text-secondary mt-2 max-w-md leading-relaxed">
+              <p className="text-sm text-text-secondary mt-3 max-w-md leading-relaxed">
                 The real published standards for Marine Recon, the SEALs, the Royal Marines, UKSF and more.
                 Put your numbers in and find out which ones you would clear today.
               </p>
-              <span className="inline-flex items-center gap-1.5 text-sm font-bold text-accent mt-4">
-                Test yourself <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              <span className="inline-flex items-center gap-2 mt-5 h-10 px-4 rounded-xl bg-accent text-black text-sm font-extrabold transition-transform group-hover:translate-x-0.5">
+                Test yourself <ArrowRight className="w-4 h-4" />
               </span>
             </div>
-            <div className="hidden sm:flex flex-col items-end gap-1.5 flex-shrink-0 pt-1">
-              {['15 pull-ups', '60 push-ups', '3 miles · 19:30'].map((t) => (
-                <span key={t} className="text-[11px] font-semibold tabular-nums text-text-tertiary border border-white/10 rounded-lg px-2.5 py-1 bg-black/30">
-                  {t}
+
+            {/* A readout, not three pills. Every figure is pulled from the
+                same standards data the test scores against, so the landing
+                page can never quote a number the test disagrees with. */}
+            <div className="hidden sm:block flex-shrink-0 w-[13.5rem] rounded-xl border border-accent/20 bg-black/50 backdrop-blur-sm overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-accent/15 bg-accent/[0.06]">
+                <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-accent">
+                  {RECON_SAMPLE.label}
                 </span>
-              ))}
+                <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-text-tertiary">Entry</span>
+              </div>
+              <div className="divide-y divide-white/[0.06]">
+                {RECON_SAMPLE.rows.map((r) => (
+                  <div key={r.label} className="flex items-baseline justify-between px-3 py-2">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-tertiary">{r.label}</span>
+                    <span className="text-[15px] font-black tabular-nums text-white">{r.value}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="px-3 py-2 border-t border-accent/15 text-[9px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+                + {UNIT_STANDARDS.length - 1} more standards
+              </div>
             </div>
           </div>
         </Link>
