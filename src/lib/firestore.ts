@@ -861,6 +861,32 @@ const PROGRAMS_CACHE_TTL_MS = 30_000;
  * Falls back to the direct read if the endpoint is unreachable: a slow list
  * is a much better failure than a Training tab that shows nothing.
  */
+// The last lean list this device received, kept across app opens.
+//
+// The in-memory cache above lives 30s and dies with the tab, so every cold
+// open of the Training tab sat on skeletons for a token refresh plus a
+// round trip through Cloudflare before drawing cards that had not changed
+// since yesterday. This lets the screen paint the previous list at once and
+// swap in the fresh one when it lands. Keyed by uid so a shared device never
+// shows one person's personal programs to the next; the list holds nothing
+// the same request would not hand that user anyway.
+const PROGRAM_LIST_KEY = 'wf:program-list:v1';
+
+/** Synchronous: the list from the last successful load, or null. */
+export function peekProgramList(uid: string): Record<string, unknown>[] | null {
+  try {
+    const raw = localStorage.getItem(PROGRAM_LIST_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { uid?: string; programs?: unknown };
+    if (parsed.uid !== uid || !Array.isArray(parsed.programs)) return null;
+    return parsed.programs as Record<string, unknown>[];
+  } catch { return null; }
+}
+
+function rememberProgramList(uid: string, programs: Record<string, unknown>[]) {
+  try { localStorage.setItem(PROGRAM_LIST_KEY, JSON.stringify({ uid, programs })); } catch { /* quota or private mode */ }
+}
+
 async function loadProgramList(): Promise<Record<string, unknown>[]> {
   try {
     const { getAuth } = await import('firebase/auth');
@@ -872,6 +898,7 @@ async function loadProgramList(): Promise<Record<string, unknown>[]> {
     if (!res.ok) throw new Error(`programs/list ${res.status}`);
     const body = await res.json();
     if (!Array.isArray(body.programs)) throw new Error('malformed program list');
+    rememberProgramList(user.uid, body.programs as Record<string, unknown>[]);
     return body.programs as Record<string, unknown>[];
   } catch (err) {
     console.warn('[programs] Lean list unavailable, falling back to a direct read:', err);
@@ -901,16 +928,30 @@ export function invalidateProgramsCache() {
   programsGeneration++;
 }
 
-export async function getPrograms(trainerId?: string) {
-  // Full collection scan + client-side filter avoids composite index requirement
+/** The browse list: public programs, by name. Shared with peekProgramList callers. */
+export function selectPublicPrograms(all: Record<string, unknown>[], trainerId?: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const all = await fetchAllPrograms() as any[];
+  const list = all as any[];
   if (trainerId) {
-    return all.filter((p) => p.trainerId === trainerId).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    return list.filter((p) => p.trainerId === trainerId).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   }
-  return all
+  return list
     .filter((p) => p.isPublic === true || p.visibility === 'public')
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+/** A member's own "Build Your Own" programs, newest first. */
+export function selectCustomPrograms(all: Record<string, unknown>[], uid: string) {
+  return all
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((p: any) => p.ownerId === uid)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .sort((a: any, b: any) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+}
+
+export async function getPrograms(trainerId?: string) {
+  // Full collection scan + client-side filter avoids composite index requirement
+  return selectPublicPrograms(await fetchAllPrograms(), trainerId);
 }
 
 // Personal ("Build Your Own") programs are saved with visibility:'personal'
@@ -921,12 +962,7 @@ export async function getPrograms(trainerId?: string) {
 // just invisible. This surfaces the ones a given user owns so the training
 // screen can list them separately and let the user re-select one.
 export async function getUserCustomPrograms(uid: string) {
-  const all = await fetchAllPrograms();
-  return all
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter((p: any) => p.ownerId === uid)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .sort((a: any, b: any) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+  return selectCustomPrograms(await fetchAllPrograms(), uid);
 }
 
 export async function getProgram(id: string) {

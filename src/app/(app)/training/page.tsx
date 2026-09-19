@@ -1,13 +1,13 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { Moon, Dumbbell, Play, ChevronRight, Crown, CheckCircle2, RotateCcw, Lock, Flame, Mountain, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getPrograms, resolveProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
+import { getPrograms, resolveProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, skipRestDay, peekProgramList, selectPublicPrograms, selectCustomPrograms } from '@/lib/firestore';
 import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex, getProgramDayProgress } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
@@ -21,15 +21,89 @@ import { Ring } from '@/components/dashboard/Ring';
 import { ShareProgramButton } from '@/components/training/ShareProgramButton';
 import type { Program } from '@/types';
 
+const GOAL_ICON: Record<string, React.ElementType> = {
+  strength: Dumbbell, hypertrophy: Flame, endurance: Mountain, 'weight-loss': Flame, general: Activity,
+};
+const GOAL_LABEL: Record<string, string> = {
+  strength: 'Strength', hypertrophy: 'Muscle', endurance: 'Selection', 'weight-loss': 'Fat loss', general: 'General',
+};
+const levelTone: Record<string, 'ok' | 'accent' | 'danger'> = { beginner: 'ok', intermediate: 'accent', advanced: 'danger' };
+
+// One card for every program in either list — same anatomy for built-in,
+// admin-published and self-built programs, so the list reads as one set.
+//
+// MODULE scope, not inside TrainingPage. Declared inside the page it was a
+// brand-new component type on every render, so React threw away every row
+// and mounted a fresh one each time any state changed — and each fresh
+// mount replayed the fade-in below. With five async loads landing at
+// different moments (list, custom list, active program, profile snapshots,
+// the date hook), the whole list faded in over and over: the flicker.
+function ProgramRow({ prog, isActive, saved, locked, index }: {
+  prog: Program; isActive: boolean; saved?: { completedWorkouts: number }; locked?: boolean; index: number;
+}) {
+  const GoalIcon = GOAL_ICON[prog.goal] ?? Dumbbell;
+  const gender = (prog as { targetGender?: string }).targetGender;
+  const premium = (prog as { isPremium?: boolean }).isPremium;
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index, 6) * 0.04 }}>
+      <Link href={`/training/${prog.id}`} className="block">
+        <Card glass className={`relative overflow-hidden p-4 flex gap-3.5 card-float ${isActive ? 'border-accent/40 shadow-glow-sm' : ''}`}>
+          {/* Ember edge-light on the active program only. Green is
+              reserved for trained sessions everywhere else in the app, so
+              a paused program does not get a green wash just for
+              existing. */}
+          {isActive && (
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{ background: 'radial-gradient(120% 140% at 0% 50%, rgb(var(--accent-rgb) / 0.18) 0%, transparent 60%)' }}
+            />
+          )}
+          <span
+            className="relative w-12 h-12 rounded-2xl flex items-center justify-center text-accent flex-shrink-0 border border-accent/25"
+            style={{ background: 'linear-gradient(135deg, rgba(var(--accent-rgb) / 0.32), rgba(var(--accent-rgb) / 0.06))' }}
+          >
+            <GoalIcon className="w-6 h-6" strokeWidth={2} />
+          </span>
+          <div className="relative flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">
+                  {GOAL_LABEL[prog.goal] ?? prog.goal}{gender && gender !== 'anyone' ? ` · ${gender}` : ''}
+                </p>
+                <h3 className="text-[15px] font-extrabold text-white leading-tight mt-0.5 truncate">{prog.name}</h3>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0 mt-1" />
+            </div>
+            <p className="text-xs text-text-secondary mt-1.5 line-clamp-2 leading-relaxed">{prog.description}</p>
+            <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+              <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">{prog.weeks} wk</span>
+              <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">{prog.daysPerWeek} d/wk</span>
+              <Badge variant={levelTone[prog.level] === 'ok' ? 'success' : levelTone[prog.level] === 'danger' ? 'danger' : 'accent'}>{prog.level}</Badge>
+              {isActive && <Badge variant="success">Active</Badge>}
+              {!isActive && saved && saved.completedWorkouts > 0 && <Badge variant="muted">Continue · {saved.completedWorkouts} done</Badge>}
+              {locked
+                ? <Badge variant="accent"><Lock className="w-3 h-3 inline mr-0.5" />Upgrade to unlock</Badge>
+                : premium && !isActive && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
+            </div>
+          </div>
+        </Card>
+      </Link>
+    </motion.div>
+  );
+}
+
 export default function TrainingPage() {
   const { user, profile } = useAuth();
   // One read for the whole list — useFeatureAccess can't be called per
   // program inside the map, since hooks cannot run in a loop.
   const { otherProgramsLocked: programsLockedByPlan, switchesLeft } = useFeatureAccess();
   const router = useRouter();
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [customPrograms, setCustomPrograms] = useState<Program[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Paint the last list this device saw before the network answers. The
+  // fresh list replaces it a moment later; usually it is identical.
+  const remembered = useMemo(() => (user ? peekProgramList(user.uid) : null), [user]);
+  const [programs, setPrograms] = useState<Program[]>(() => (remembered ? selectPublicPrograms(remembered) as Program[] : []));
+  const [customPrograms, setCustomPrograms] = useState<Program[]>(() => (remembered && user ? selectCustomPrograms(remembered, user.uid) as unknown as Program[] : []));
+  const [loading, setLoading] = useState(remembered === null);
   const [filter, setFilter] = useState<string>('all');
 
   const activeProgram = profile?.activeProgram;
@@ -59,30 +133,36 @@ export default function TrainingPage() {
   // the "Continue — Week X • Day Y" line on programs other than the
   // currently active one, so switching away and back is visibly
   // non-destructive right from this browse list.
-  const [savedProgressMap, setSavedProgressMap] = useState<Record<string, { completedWorkouts: number }>>({});
-  useEffect(() => {
-    if (!user) { setSavedProgressMap({}); return; }
-    getAllProgramProgress(user.uid)
-      .then((all) => {
-        const nonActive: Record<string, { completedWorkouts: number }> = {};
-        for (const [pid, p] of Object.entries(all)) {
-          if (!p.isActive) nonActive[pid] = { completedWorkouts: p.completedWorkouts };
-        }
-        setSavedProgressMap(nonActive);
-      })
-      .catch(() => setSavedProgressMap({}));
-  }, [user, activeProgram?.programId]);
+  //
+  // Read straight off the profile the auth context already streams — this
+  // used to re-fetch the same user document, which arrived a beat after
+  // everything else and re-rendered every row a second time.
+  const savedProgressMap = useMemo(() => {
+    const nonActive: Record<string, { completedWorkouts: number }> = {};
+    for (const [pid, p] of Object.entries(profile?.programProgress ?? {})) {
+      if (pid !== activeProgram?.programId) nonActive[pid] = { completedWorkouts: p.completedWorkouts ?? 0 };
+    }
+    return nonActive;
+  }, [profile?.programProgress, activeProgram?.programId]);
   // Shared resolver (Firestore-first, seed fallback) — this used to prefer
   // the built-in seed copy over the admin's saved Firestore edits, the
   // exact opposite precedence of the program detail page, which is how two
   // screens ended up disagreeing about the same program's schedule.
+  //
+  // Keyed on the program ID, not the activeProgram object. That object is a
+  // fresh identity on every profile snapshot — every completed set, every
+  // metadata tick — so keying on it re-fetched the full program document
+  // and flipped the card through its loading state each time.
+  const activeProgramId = activeProgram?.programId;
   useEffect(() => {
-    if (!activeProgram) { setResolvedActive(null); return; }
+    if (!activeProgramId) { setResolvedActive(null); return; }
     setActiveResolved(false);
-    resolveProgram(activeProgram.programId)
-      .then((p) => { setResolvedActive(p); setActiveResolved(true); })
-      .catch(() => { setResolvedActive(null); setActiveResolved(true); });
-  }, [activeProgram]);
+    let alive = true;
+    resolveProgram(activeProgramId)
+      .then((p) => { if (alive) { setResolvedActive(p); setActiveResolved(true); } })
+      .catch(() => { if (alive) { setResolvedActive(null); setActiveResolved(true); } });
+    return () => { alive = false; };
+  }, [activeProgramId]);
 
   // getNextSession skips stale rest slots (deadlock fix) — same shared
   // logic as the dashboard card and program detail page. Always points at
@@ -178,70 +258,6 @@ export default function TrainingPage() {
   // after "Load more" leaves an expanded count applied to a different, often
   // much shorter list, and the button vanishes for no visible reason.
   useEffect(() => { setVisibleCount(PROGRAMS_PAGE); }, [filter]);
-
-  const GOAL_ICON: Record<string, React.ElementType> = {
-    strength: Dumbbell, hypertrophy: Flame, endurance: Mountain, 'weight-loss': Flame, general: Activity,
-  };
-  const GOAL_LABEL: Record<string, string> = {
-    strength: 'Strength', hypertrophy: 'Muscle', endurance: 'Selection', 'weight-loss': 'Fat loss', general: 'General',
-  };
-  const levelTone: Record<string, 'ok' | 'accent' | 'danger'> = { beginner: 'ok', intermediate: 'accent', advanced: 'danger' };
-
-  // One card for every program in either list — same anatomy for built-in,
-  // admin-published and self-built programs, so the list reads as one set.
-  const ProgramRow = ({ prog, isActive, saved, locked, index }: {
-    prog: Program; isActive: boolean; saved?: { completedWorkouts: number }; locked?: boolean; index: number;
-  }) => {
-    const GoalIcon = GOAL_ICON[prog.goal] ?? Dumbbell;
-    const gender = (prog as { targetGender?: string }).targetGender;
-    const premium = (prog as { isPremium?: boolean }).isPremium;
-    return (
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index, 6) * 0.04 }}>
-        <Link href={`/training/${prog.id}`} className="block">
-          <Card glass className={`relative overflow-hidden p-4 flex gap-3.5 card-float ${isActive ? 'border-accent/40 shadow-glow-sm' : ''}`}>
-            {/* Ember edge-light on the active program only. Green is
-                reserved for trained sessions everywhere else in the app, so
-                a paused program does not get a green wash just for
-                existing. */}
-            {isActive && (
-              <div
-                className="pointer-events-none absolute inset-0"
-                style={{ background: 'radial-gradient(120% 140% at 0% 50%, rgb(var(--accent-rgb) / 0.18) 0%, transparent 60%)' }}
-              />
-            )}
-            <span
-              className="relative w-12 h-12 rounded-2xl flex items-center justify-center text-accent flex-shrink-0 border border-accent/25"
-              style={{ background: 'linear-gradient(135deg, rgba(var(--accent-rgb) / 0.32), rgba(var(--accent-rgb) / 0.06))' }}
-            >
-              <GoalIcon className="w-6 h-6" strokeWidth={2} />
-            </span>
-            <div className="relative flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">
-                    {GOAL_LABEL[prog.goal] ?? prog.goal}{gender && gender !== 'anyone' ? ` · ${gender}` : ''}
-                  </p>
-                  <h3 className="text-[15px] font-extrabold text-white leading-tight mt-0.5 truncate">{prog.name}</h3>
-                </div>
-                <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0 mt-1" />
-              </div>
-              <p className="text-xs text-text-secondary mt-1.5 line-clamp-2 leading-relaxed">{prog.description}</p>
-              <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-                <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">{prog.weeks} wk</span>
-                <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">{prog.daysPerWeek} d/wk</span>
-                <Badge variant={levelTone[prog.level] === 'ok' ? 'success' : levelTone[prog.level] === 'danger' ? 'danger' : 'accent'}>{prog.level}</Badge>
-                {isActive && <Badge variant="success">Active</Badge>}
-                {!isActive && saved && saved.completedWorkouts > 0 && <Badge variant="muted">Continue · {saved.completedWorkouts} done</Badge>}
-                {locked
-                  ? <Badge variant="accent"><Lock className="w-3 h-3 inline mr-0.5" />Upgrade to unlock</Badge>
-                  : premium && !isActive && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
-              </div>
-            </div>
-          </Card>
-        </Link>
-      </motion.div>
-    );
-  };
 
   return (
     <div className="relative">
