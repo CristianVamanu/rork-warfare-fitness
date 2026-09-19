@@ -12,18 +12,23 @@ import type { LandingPageConfig, B2BLandingConfig } from '@/types';
 // Admin → Membership), which is the only list that can stay in step with
 // what a plan actually unlocks.
 
-// POSITIONING. The old copy ("Stop training like everyone else / Train like
-// the elite do", followed by a paragraph about adaptive programs and food
-// photos) described a category, not a difference — every fitness app on the
-// market claims a version of it, so it gave a stranger no reason to pick this
-// one. The one thing here that no other app does is measure you against the
-// real published entry standards of named units and then close the gap. That
-// is testable, specific to this product, and the reason the free test is the
-// front door. Everything below says that and stops selling the feature list.
+// POSITIONING. Two problems, fixed in order.
+//
+// The original copy ("Stop training like everyone else / Train like the elite
+// do", over a paragraph about adaptive programs and food photos) described a
+// category, not a difference. Every fitness app claims a version of it.
+//
+// The replacement went too far the other way: "Could you pass selection?"
+// only speaks to someone who wants to enlist, and most of this audience is a
+// 45-year-old who simply does not want to be soft. The standards are the
+// MEASURING STICK, not the destination — "train like the elite" means an
+// ordinary person reaching an extraordinary standard, on an ordinary
+// schedule. The copy below keeps the measurement, which is the one thing no
+// other app offers, and drops the assumption that you want a career in it.
 export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
-  badgeText: 'Real published standards. Your real numbers.',
-  headlineLine1: 'Could you pass selection?',
-  headlineLine2: 'Find out, then train until you can.',
+  badgeText: 'Real published standards. Any age. No guesswork.',
+  headlineLine1: 'Most men have never been tested.',
+  headlineLine2: 'Find out where you stand.',
   // Rewritten to stop implying every plan includes a human coach — 1:1
   // coaching is a separate, application-gated tier (see coachingPlans),
   // not something Conquer/Vanguard members get by default. Claiming it in
@@ -31,7 +36,7 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   // gets refund requests once someone actually signs up and looks for it.
   // Also shortened from one 43-word sentence to something scannable in the
   // 2-3 seconds most visitors actually give a hero subheadline.
-  subheadline: '{appName} scores you against the real published entry standards of the Royal Marines, Marine Recon, the SEALs and more — then builds the program that closes the gap. The test is free, takes ninety seconds, and needs no account.',
+  subheadline: '{appName} scores you against the real published standards of the Royal Marines, Marine Recon and the SEALs — then builds the program that closes the gap. You do not need to be a soldier, or twenty-five. You need to know where you actually stand. The test is free and takes ninety seconds.',
   ctaPrimaryLabel: 'Get Matched Free',
   ctaSecondaryLabel: 'Sign In',
   features: [
@@ -76,15 +81,15 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     ],
     asOf: 'Vendor list prices as of September 2026. They change; check before you rely on them.',
   },
-  socialProof: ['Measured against published standards.', 'A program built to close your gap.', 'Built to keep you consistent.'],
-  quoteText: 'Most men have never been tested. The ones who have know exactly what to work on.',
+  socialProof: ['Measured against published standards.', 'A program built to close your gap.', 'Built for men with jobs and families.'],
+  quoteText: 'The standard does not care how old you are. It just tells you the truth.',
   quoteAuthor: 'The Warfare Fitness difference',
   finalCtaHeadline: 'Find out where you actually stand.',
   // {trialDays} is substituted from the live membership config at render
   // time (see fillPlaceholders in LandingClient) — this used to hardcode
   // "free for 7 days", which silently lied the moment an admin changed the
   // trial length or switched to a paid trial.
-  finalCtaSubtext: 'Take the free test, see the gap, then get the program that closes it — {trialDays} days to try it.',
+  finalCtaSubtext: 'Take the free test, see the gap, then get the program that closes it. Whatever your age, whatever your schedule — {trialDays} days to try it.',
   programsToShow: 0,
   testimonials: [],
   transformationPhotos: [],

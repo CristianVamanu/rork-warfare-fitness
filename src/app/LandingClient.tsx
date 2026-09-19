@@ -6,6 +6,17 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { UNIT_STANDARDS, standardFor, formatMinutes } from '@/lib/ptStandards';
+import dynamic from 'next/dynamic';
+import { LandingBackdrop, DataDivider, SectionEyebrow, CornerBrackets } from '@/components/landing/chrome';
+
+// The ember column is ~150KB of WebGL on a page that is the top of a paid
+// funnel, so it is never in the critical path: no SSR, loaded after the rest
+// of the hero has painted, and absent entirely if it fails. The hero reads
+// correctly without it — it is a layer over a background that already works.
+const EmberColumn = dynamic(
+  () => import('@/components/landing/EmberColumn').then((m) => m.EmberColumn),
+  { ssr: false, loading: () => null },
+);
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
   ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
@@ -180,9 +191,6 @@ function TacticalStripe() {
 // (that section must be `relative overflow-hidden`) so it scales with
 // content instead of needing a fixed pixel offset down a page whose total
 // height varies by admin-configured content.
-function GlowOrb({ className }: { className: string }) {
-  return <div className={`orb-drift pointer-events-none absolute rounded-full blur-3xl ${className}`} aria-hidden="true" />;
-}
 
 function FaqItem({ q, a, open, onToggle }: { q: string; a: string; open: boolean; onToggle: () => void }) {
   return (
@@ -432,7 +440,9 @@ export default function LandingPage({
       {/* Both are always in the HTML. Which one is visible is decided by CSS
           from the html[data-wf-session] attribute — see BrandSplash. */}
       <BrandSplash gated />
-    <div data-landing-body className="min-h-screen bg-background overflow-x-hidden relative">
+    <div data-landing-body className="min-h-screen overflow-x-hidden relative">
+      {/* One surface for the whole page, behind every section. */}
+      <LandingBackdrop />
       {/* Ambient glow + grid texture, contained to the hero viewport so it
           doesn't bleed color into the feature/social-proof sections below. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[640px] overflow-hidden">
@@ -445,6 +455,23 @@ export default function LandingPage({
             maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)',
           }}
         />
+      </div>
+
+      {/* The ember column. Sits above the grid and below every pixel of
+          content, masked at the edges so it burns out of the page rather
+          than ending at a rectangle. mix-blend-screen keeps it additive
+          against whatever hero image an admin has set underneath. */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-[900px] overflow-hidden opacity-55 mix-blend-screen"
+        style={{
+          // Hottest low and wide, gone before it reaches the headline. The
+          // column is atmosphere behind the copy, and copy that competes
+          // with its own background does not get read.
+          maskImage: 'radial-gradient(ellipse 85% 58% at 50% 92%, black 20%, transparent 80%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 85% 58% at 50% 92%, black 20%, transparent 80%)',
+        }}
+      >
+        <EmberColumn className="w-full h-full" />
       </div>
 
       {/* Hero background image — full-bleed behind the entire hero, not
@@ -801,12 +828,11 @@ export default function LandingPage({
           the hero/full-width slots and icon assignment were both keyed to
           a fixed index that only matched one specific save order. A plain
           uniform grid always looks right regardless of count or order. */}
-      <TacticalStripe />
+      <DataDivider />
 
       <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pt-16 pb-16">
-        <GlowOrb className="w-80 h-80 bg-accent/[0.08] -top-20 -left-20 -z-10" />
-        <GlowOrb className="w-72 h-72 bg-accent/[0.06] bottom-0 -right-16 -z-10" />
         <div className="text-center mb-8">
+          <div className="flex justify-center mb-3"><SectionEyebrow>The system</SectionEyebrow></div>
           <h2 className="text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
           <p className="text-text-secondary text-sm mt-2">One app for training, nutrition, accountability, and progress.</p>
         </div>
@@ -820,9 +846,23 @@ export default function LandingPage({
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35, delay: (i % 3) * 0.05 }}
-                className="p-5 rounded-2xl border border-white/8 bg-surface hover:border-accent/30 transition-colors flex flex-col items-start"
+                className="group relative p-5 rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-sm hover:border-accent/35 hover:bg-surface transition-all duration-300 flex flex-col items-start overflow-hidden"
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
+                {/* Hairline along the top edge, lighting up on hover — the
+                    same cue the standards card uses, so a panel here and a
+                    panel there read as the same machine. */}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 top-0 h-px opacity-40 group-hover:opacity-100 transition-opacity duration-300"
+                  style={{ background: 'linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 0.7), transparent)' }}
+                />
+                <CornerBrackets size="w-3.5 h-3.5" />
+                {/* A channel index. Small, monospaced, and the thing that
+                    turns nine cards into one instrument rather than nine. */}
+                <span aria-hidden className="absolute top-4 right-4 text-[10px] font-black tabular-nums tracking-widest text-white/15 group-hover:text-accent/45 transition-colors duration-300">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <div className={`relative w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
                   <style.icon className={`w-5 h-5 ${style.color}`} />
                 </div>
                 <div className="flex items-start gap-2 flex-wrap">
@@ -871,7 +911,6 @@ export default function LandingPage({
         const cols = 'grid grid-cols-2 sm:grid-cols-[1.3fr_1fr_1fr]';
         return (
           <section className="relative overflow-hidden max-w-4xl mx-auto px-5 pb-16">
-            <GlowOrb className="w-80 h-80 bg-accent/[0.07] -bottom-24 -right-24 -z-10" />
             <div className="text-center mb-8">
               <h2 className="text-2xl sm:text-3xl font-black text-white">{sc.heading?.trim() || 'Four subscriptions. Or one.'}</h2>
               {sc.subheading?.trim() && <p className="text-text-secondary text-sm mt-2 max-w-xl mx-auto">{sc.subheading}</p>}
@@ -974,9 +1013,8 @@ export default function LandingPage({
           could drift out of sync with the real program library. */}
       {programs.length > 0 && (
         <section id="programs" className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16 scroll-mt-6">
-          <GlowOrb className="w-72 h-72 bg-accent/10 -top-10 -left-16 -z-10" />
-          <GlowOrb className="w-80 h-80 bg-accent/[0.07] bottom-0 -right-20 -z-10" />
           <div className="text-center mb-8">
+            <div className="flex justify-center mb-3"><SectionEyebrow live>Program library</SectionEyebrow></div>
             <h2 className="text-2xl sm:text-3xl font-black text-white">Train Like an Elite Soldier</h2>
             <p className="text-text-secondary text-sm mt-2">The quiz matches you to one. It&apos;s a starting point, not a lock-in — switch to any program here, any time, and your progress is kept.</p>
           </div>
@@ -1128,7 +1166,6 @@ export default function LandingPage({
             transition={{ duration: 0.4 }}
             className="relative rounded-3xl border border-white/10 bg-surface p-8 sm:p-12 text-center overflow-hidden"
           >
-            <GlowOrb className="w-64 h-64 bg-accent/[0.08] -top-20 -right-20 -z-10" />
             {/* Fixed-size badge instead of a giant absolutely-positioned glyph
                 behind the text — the old version overlapped the quote on
                 narrow screens since it never adapted to width or copy length. */}
@@ -1203,10 +1240,9 @@ export default function LandingPage({
       )}
 
       {/* Pricing */}
-      {(membershipPlans.length > 0 || coachingPlans.length > 0) && <TacticalStripe />}
+      {(membershipPlans.length > 0 || coachingPlans.length > 0) && <DataDivider />}
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && (
         <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16">
-          <GlowOrb className="w-96 h-96 bg-accent/[0.08] -top-16 left-1/2 -translate-x-1/2 -z-10" />
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
             <p className="text-text-secondary text-sm mt-2">
@@ -1392,11 +1428,10 @@ export default function LandingPage({
         </div>
       </section>
 
-      <TacticalStripe />
+      <DataDivider />
 
       {/* Final CTA */}
       <section className="relative overflow-hidden max-w-2xl mx-auto px-5 pt-16 pb-20 text-center">
-        <GlowOrb className="w-[420px] h-[420px] bg-accent/[0.1] top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 -z-10" />
         <h2 className="text-2xl sm:text-3xl font-black text-white">{landing.finalCtaHeadline}</h2>
         <p className="text-text-secondary text-sm mt-2 mb-6">{fillPlaceholders(landing.finalCtaSubtext)}</p>
         <Link href="/onboarding">
