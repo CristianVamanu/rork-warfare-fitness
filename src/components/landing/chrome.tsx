@@ -94,7 +94,7 @@ export function DataDivider() {
  */
 export function SectionEyebrow({ children, live = false }: { children: React.ReactNode; live?: boolean }) {
   return (
-    <p className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.22em] text-accent">
+    <p className="inline-flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-accent">
       <span className="relative flex w-1.5 h-1.5">
         {live && <span className="absolute inline-flex w-full h-full rounded-full bg-accent opacity-60 animate-ping motion-reduce:hidden" />}
         <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-accent" />

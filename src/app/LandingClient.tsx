@@ -577,11 +577,11 @@ export default function LandingPage({
             />
           </div>
           {landing.badgeText && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-muted text-accent text-xs font-bold mb-5 border border-accent/20">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-muted text-accent font-mono text-[11px] uppercase tracking-[0.1em] mb-5 border border-accent/20">
               <Trophy className="w-3.5 h-3.5" /> {landing.badgeText}
             </div>
           )}
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.15] sm:leading-[1.1] text-balance">
+          <h1 className="font-display text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.15] sm:leading-[1.1] text-balance">
             {landing.headlineLine1}<br className="hidden sm:block" />{' '}
             <span className="text-accent">{landing.headlineLine2}</span>
           </h1>
@@ -701,12 +701,12 @@ export default function LandingPage({
           {stats && stats.totalUsers >= 15 && (
             <div className="flex items-center justify-center gap-6 mt-8 text-sm">
               <div className="text-center">
-                <p className="text-xl font-black text-white">{stats.totalUsers.toLocaleString()}+</p>
+                <p className="font-mono text-xl font-bold text-white tabular-nums">{stats.totalUsers.toLocaleString()}+</p>
                 <p className="text-xs text-text-tertiary">athletes</p>
               </div>
               <div className="w-px h-8 bg-white/10" />
               <div className="text-center">
-                <p className="text-xl font-black text-white">{stats.totalWorkouts.toLocaleString()}+</p>
+                <p className="font-mono text-xl font-bold text-white tabular-nums">{stats.totalWorkouts.toLocaleString()}+</p>
                 <p className="text-xs text-text-tertiary">workouts logged</p>
               </div>
             </div>
@@ -783,7 +783,7 @@ export default function LandingPage({
                 </span>
                 Free · no account
               </p>
-              <h2 className="text-2xl sm:text-[34px] font-black text-white tracking-tight mt-3 leading-[1.08]">
+              <h2 className="font-display text-2xl sm:text-[34px] font-black text-white tracking-tight mt-3 leading-[1.08]">
                 Could you pass selection?
               </h2>
               <p className="text-sm text-text-secondary mt-3 max-w-md leading-relaxed">
@@ -800,20 +800,20 @@ export default function LandingPage({
                 page can never quote a number the test disagrees with. */}
             <div className="hidden sm:block flex-shrink-0 w-[13.5rem] rounded-xl border border-accent/20 bg-black/50 backdrop-blur-sm overflow-hidden">
               <div className="flex items-center justify-between px-3 py-2 border-b border-accent/15 bg-accent/[0.06]">
-                <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-accent">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-accent">
                   {RECON_SAMPLE.label}
                 </span>
-                <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-text-tertiary">Entry</span>
+                <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-text-tertiary">Entry</span>
               </div>
               <div className="divide-y divide-white/[0.06]">
                 {RECON_SAMPLE.rows.map((r) => (
                   <div key={r.label} className="flex items-baseline justify-between px-3 py-2">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-tertiary">{r.label}</span>
-                    <span className="text-[15px] font-black tabular-nums text-white">{r.value}</span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-tertiary">{r.label}</span>
+                    <span className="font-mono text-[15px] font-bold tabular-nums text-white">{r.value}</span>
                   </div>
                 ))}
               </div>
-              <div className="px-3 py-2 border-t border-accent/15 text-[9px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+              <div className="px-3 py-2 border-t border-accent/15 font-mono text-[9px] uppercase tracking-[0.14em] text-text-tertiary">
                 + {UNIT_STANDARDS.length - 1} more standards
               </div>
             </div>
@@ -833,10 +833,10 @@ export default function LandingPage({
       <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pt-16 pb-16">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-3"><SectionEyebrow>The system</SectionEyebrow></div>
-          <h2 className="text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
+          <h2 className="font-display text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
           <p className="text-text-secondary text-sm mt-2">One app for training, nutrition, accountability, and progress.</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch [&>*:first-child]:lg:col-span-2">
           {landing.features.map((f, i) => {
             const style = getFeatureStyle(f.title);
             return (
@@ -859,7 +859,7 @@ export default function LandingPage({
                 <CornerBrackets size="w-3.5 h-3.5" />
                 {/* A channel index. Small, monospaced, and the thing that
                     turns nine cards into one instrument rather than nine. */}
-                <span aria-hidden className="absolute top-4 right-4 text-[10px] font-black tabular-nums tracking-widest text-white/15 group-hover:text-accent/45 transition-colors duration-300">
+                <span aria-hidden className="absolute top-4 right-4 font-mono text-[10px] font-bold tabular-nums tracking-widest text-white/15 group-hover:text-accent/45 transition-colors duration-300">
                   {String(i + 1).padStart(2, '0')}
                 </span>
                 <div className={`relative w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
@@ -912,7 +912,7 @@ export default function LandingPage({
         return (
           <section className="relative overflow-hidden max-w-4xl mx-auto px-5 pb-16">
             <div className="text-center mb-8">
-              <h2 className="text-2xl sm:text-3xl font-black text-white">{sc.heading?.trim() || 'Four subscriptions. Or one.'}</h2>
+              <h2 className="font-display text-2xl sm:text-3xl font-black text-white">{sc.heading?.trim() || 'Four subscriptions. Or one.'}</h2>
               {sc.subheading?.trim() && <p className="text-text-secondary text-sm mt-2 max-w-xl mx-auto">{sc.subheading}</p>}
             </div>
 
@@ -1015,7 +1015,7 @@ export default function LandingPage({
         <section id="programs" className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16 scroll-mt-6">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-3"><SectionEyebrow live>Program library</SectionEyebrow></div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white">Train Like an Elite Soldier</h2>
+            <h2 className="font-display text-2xl sm:text-3xl font-black text-white">Train Like an Elite Soldier</h2>
             <p className="text-text-secondary text-sm mt-2">The quiz matches you to one. It&apos;s a starting point, not a lock-in — switch to any program here, any time, and your progress is kept.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -1190,7 +1190,7 @@ export default function LandingPage({
       {landing.transformationPhotos && landing.transformationPhotos.length > 0 && (
         <section className="max-w-5xl mx-auto px-5 pb-16">
           <div className="text-center mb-8">
-            <h2 className="text-2xl sm:text-3xl font-black text-white">Real Results</h2>
+            <h2 className="font-display text-2xl sm:text-3xl font-black text-white">Real Results</h2>
             <p className="text-text-secondary text-sm mt-2">Real members, real progress — no stock photos.</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -1219,7 +1219,7 @@ export default function LandingPage({
       {landing.testimonials && landing.testimonials.length > 0 && (
         <section className="max-w-5xl mx-auto px-5 pb-16">
           <div className="text-center mb-8">
-            <h2 className="text-2xl sm:text-3xl font-black text-white">What Members Are Saying</h2>
+            <h2 className="font-display text-2xl sm:text-3xl font-black text-white">What Members Are Saying</h2>
           </div>
           <div className={`grid gap-4 ${landing.testimonials.length > 1 ? 'sm:grid-cols-2 lg:grid-cols-3' : 'max-w-lg mx-auto'}`}>
             {landing.testimonials.map((t, i) => (
@@ -1244,7 +1244,7 @@ export default function LandingPage({
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && (
         <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16">
           <div className="text-center mb-8">
-            <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
+            <h2 className="font-display text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
             <p className="text-text-secondary text-sm mt-2">
               {trialDays <= 0 ? 'Simple pricing. Cancel anytime.'
                 : paidTrialEnabled ? `Try it for $${trialPrice} — ${trialDays} days, then your plan's price.`
@@ -1405,7 +1405,7 @@ export default function LandingPage({
       {/* FAQ — kills objections right before the final ask */}
       <section className="max-w-2xl mx-auto px-5 pb-16">
         <div className="text-center mb-6">
-          <h2 className="text-2xl sm:text-3xl font-black text-white">Questions? Answered.</h2>
+          <h2 className="font-display text-2xl sm:text-3xl font-black text-white">Questions? Answered.</h2>
         </div>
         <div className="rounded-2xl border border-white/8 bg-surface px-5">
           {FAQ_ITEMS.map((item, i) => ({
@@ -1432,7 +1432,7 @@ export default function LandingPage({
 
       {/* Final CTA */}
       <section className="relative overflow-hidden max-w-2xl mx-auto px-5 pt-16 pb-20 text-center">
-        <h2 className="text-2xl sm:text-3xl font-black text-white">{landing.finalCtaHeadline}</h2>
+        <h2 className="font-display text-2xl sm:text-3xl font-black text-white">{landing.finalCtaHeadline}</h2>
         <p className="text-text-secondary text-sm mt-2 mb-6">{fillPlaceholders(landing.finalCtaSubtext)}</p>
         <Link href="/onboarding">
           <Button size="lg" className="px-10">
