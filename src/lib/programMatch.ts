@@ -28,7 +28,6 @@ export interface MatchAnswers {
   experience: string;
   trainingDays: number;
   sex?: string;
-  hasLimitations?: boolean;
   equipment?: string;
   estimatedWeeksToGoal?: number;
 }
@@ -56,10 +55,10 @@ export async function programPool(): Promise<Program[]> {
 
 /** Null only when there is genuinely nothing to match against. */
 export async function matchProgram(answers: MatchAnswers): Promise<MatchedProgram | null> {
-  const { goal, experience, trainingDays, sex, hasLimitations, equipment, estimatedWeeksToGoal } = answers;
+  const { goal, experience, trainingDays, sex, equipment, estimatedWeeksToGoal } = answers;
   const program = pickBestProgram(
     await programPool(),
-    goal, experience, trainingDays, sex, hasLimitations, equipment, estimatedWeeksToGoal,
+    goal, experience, trainingDays, sex, equipment, estimatedWeeksToGoal,
   );
   if (!program) return null;
 

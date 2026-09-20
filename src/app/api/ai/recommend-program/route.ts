@@ -20,14 +20,14 @@ export async function POST(req: NextRequest) {
   if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
 
   try {
-    const { goal, experience, trainingDays, sex, hasLimitations, equipment, estimatedWeeksToGoal } =
+    const { goal, experience, trainingDays, sex, equipment, estimatedWeeksToGoal } =
       (await req.json()) as MatchAnswers;
 
     if (!goal || !experience || !trainingDays) {
       return NextResponse.json({ error: 'Missing required fields: goal, experience, trainingDays' }, { status: 400 });
     }
 
-    const program = await matchProgram({ goal, experience, trainingDays, sex, hasLimitations, equipment, estimatedWeeksToGoal });
+    const program = await matchProgram({ goal, experience, trainingDays, sex, equipment, estimatedWeeksToGoal });
     if (!program) return NextResponse.json({ error: 'No programs available' }, { status: 500 });
 
     return NextResponse.json({ program });

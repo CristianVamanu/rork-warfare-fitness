@@ -29,14 +29,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } });
     }
 
-    const { goal, experience, trainingDays, sex, hasLimitations, equipment, estimatedWeeksToGoal } =
+    const { goal, experience, trainingDays, sex, equipment, estimatedWeeksToGoal } =
       (await req.json()) as MatchAnswers;
 
     if (!goal || !experience || !trainingDays) {
       return NextResponse.json({ error: 'Missing required fields: goal, experience, trainingDays' }, { status: 400 });
     }
 
-    const program = await matchProgram({ goal, experience, trainingDays, sex, hasLimitations, equipment, estimatedWeeksToGoal });
+    const program = await matchProgram({ goal, experience, trainingDays, sex, equipment, estimatedWeeksToGoal });
     if (!program) return NextResponse.json({ error: 'No programs available' }, { status: 404 });
 
     return NextResponse.json({ program });

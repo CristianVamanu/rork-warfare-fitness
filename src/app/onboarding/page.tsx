@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic';
 import { useState, useRef, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Flame, Dumbbell, RefreshCw, Zap, Shield,
   ChevronRight, ChevronLeft, Loader2, CheckCircle,
@@ -60,11 +59,6 @@ const DAYS = [3, 4, 5, 6];
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const slideVariants = {
-  enter: (dir: number) => ({ x: dir > 0 ? 60 : -60, opacity: 0 }),
-  center: { x: 0, opacity: 1, transition: { duration: 0.25, ease: 'easeOut' } },
-  exit: (dir: number) => ({ x: dir > 0 ? -60 : 60, opacity: 0, transition: { duration: 0.2 } }),
-};
 
 export default function OnboardingPage() {
   return (
@@ -138,7 +132,6 @@ function OnboardingPageInner() {
   const [step, setStep] = useState(() =>
     Math.max(0, Math.min(MAX_STEP_INDEX, draft.step ?? 0))
   );
-  const [dir, setDir] = useState(1);
   const [goal, setGoal] = useState<FitnessGoal | null>(draft.goal ?? null);
   const [experience, setExperience] = useState<ExperienceLevel | null>(draft.experience ?? null);
   const [trainingDays, setTrainingDays] = useState<number | null>(draft.trainingDays ?? null);
@@ -382,7 +375,6 @@ function OnboardingPageInner() {
     const payload = {
       goal, experience, trainingDays,
       sex: sex ?? undefined,
-      hasLimitations: !!buildLimitationsSummary(),
       equipment: equipment ?? undefined,
       estimatedWeeksToGoal: timeline?.weeksToGoal ?? undefined,
     };
@@ -413,7 +405,6 @@ function OnboardingPageInner() {
   }, [step, needsAccount, goal, experience, trainingDays, equipment, sex, biometricsValid, weightNum, targetWeightNum]);
 
   function go(delta: number) {
-    setDir(delta);
     setStep((s) => Math.max(0, Math.min(TOTAL_STEPS - 1, s + delta)));
   }
 
@@ -438,29 +429,7 @@ function OnboardingPageInner() {
     autoAdvanceRef.current = setTimeout(() => {
       autoAdvanceRef.current = null;
       setStep((s) => (s === fromStep ? Math.min(TOTAL_STEPS - 1, s + 1) : s));
-      setDir(1);
     }, 260);
-  }
-
-  // Combines the free-text limitations field with any "Yes"-flagged medical
-  // history answers into one summary string for the AI prompt — the
-  // medical questionnaire was previously collected but never actually
-  // reached program generation.
-  function buildLimitationsSummary(): string {
-    const parts: string[] = [];
-    if (limitations.trim()) parts.push(limitations.trim());
-    const flags: [boolean | undefined, string, string | undefined][] = [
-      [medicalHistory.movementDisorders, 'movement disorder', medicalHistory.movementDisordersDetail],
-      [medicalHistory.previousSurgeries, 'previous surgery', medicalHistory.previousSurgeriesDetail],
-      [medicalHistory.sportsInjuries, 'sports injury', medicalHistory.sportsInjuriesDetail],
-      [medicalHistory.musculoskeletalProblems, 'musculoskeletal problem', medicalHistory.musculoskeletalProblemsDetail],
-      [medicalHistory.heartDisease, 'heart condition', medicalHistory.heartDiseaseDetail],
-      [medicalHistory.otherMedicalConditions, 'other medical condition', medicalHistory.otherMedicalConditionsDetail],
-    ];
-    for (const [flag, label, detail] of flags) {
-      if (flag) parts.push(detail ? `${label} (${detail})` : label);
-    }
-    return parts.join('; ');
   }
 
   /**
@@ -469,8 +438,8 @@ function OnboardingPageInner() {
    * Calls pickBestProgram — the SAME function the API route calls — rather
    * than a local re-implementation of it. There used to be a copy here that
    * claimed to mirror it and had silently fallen behind: it scored on goal,
-   * level, days and duration only, with no sex, no equipment and no injury
-   * handling. pickBestProgram hard-excludes a program whose targetGender
+   * level, days and duration only, with no sex and no equipment handling.
+   * pickBestProgram hard-excludes a program whose targetGender
    * contradicts the member's, because without that filter every man who
    * picked Build Muscle as a beginner training 4-5 days was handed Valkyrie,
    * the women's program, in 8 of 96 onboarding combinations.
@@ -488,7 +457,6 @@ function OnboardingPageInner() {
       experience!,
       trainingDays ?? 3,
       sex ?? undefined,
-      !!buildLimitationsSummary(),
       equipment ?? undefined,
       estimatedWeeksToGoal,
     ) ?? MOCK_PROGRAMS[0];
@@ -589,7 +557,6 @@ function OnboardingPageInner() {
               body: JSON.stringify({
                 goal, experience, trainingDays,
                 sex: sex ?? undefined,
-                hasLimitations: !!buildLimitationsSummary(),
                 equipment: equipment ?? undefined,
                 estimatedWeeksToGoal: timeline?.weeksToGoal ?? undefined,
               }),
@@ -767,7 +734,7 @@ function OnboardingPageInner() {
       // If account creation itself failed, jump back to the account step so
       // the error is visible right next to the field that needs fixing
       // rather than wherever the user happened to be scrolled to.
-      if (code?.startsWith('auth/')) { setStep(ACCOUNT_STEP); setDir(-1); }
+      if (code?.startsWith('auth/')) setStep(ACCOUNT_STEP);
       setStatus('idle');
     }
   }
@@ -1066,16 +1033,10 @@ function OnboardingPageInner() {
 
       {/* Content */}
       <div className="flex-1 px-4 max-w-lg mx-auto w-full overflow-hidden">
-        <AnimatePresence mode="wait" custom={dir}>
-          <motion.div
-            key={step}
-            custom={dir}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            className="space-y-4"
-          >
+        {/* key={step} remounts on every step change, which is what replays
+            the CSS animation. See .wf-step for why this is no longer
+            framer-motion. */}
+        <div key={step} className="wf-step space-y-4">
             {step === 0 && (
               <StepGoal
                 // Only auto-advances once sex/age are actually answered —
@@ -1116,8 +1077,7 @@ function OnboardingPageInner() {
                 match={previewProgram} matchState={previewState}
               />
             )}
-          </motion.div>
-        </AnimatePresence>
+        </div>
       </div>
 
       {/* Error */}

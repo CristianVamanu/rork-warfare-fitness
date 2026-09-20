@@ -544,3 +544,26 @@ html[data-wf-session="1"] [data-landing-body] { visibility: hidden; }
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
+
+/* A step change in a multi-step form.
+   The onboarding quiz used framer-motion with AnimatePresence mode="wait":
+   the outgoing step animated out over 200ms, the container was then empty
+   for a beat, and only then did the next step animate in. Two visible
+   faults came out of that. The header counter updates immediately, so for
+   a fifth of a second it read "Step 2 of 6" above step 1's questions; and
+   because the old child unmounts before the new one mounts, the content
+   box collapsed to nothing in between, which on a phone is a page-height
+   jump. Throttled to a mid-range phone it reads as a flicker on every tap.
+   Replacing the step is instantaneous here — there is no exit, so there is
+   no gap and nothing to fall out of sync with. Short, because this fires on
+   every single tap through the quiz and anything longer becomes a wait. */
+@keyframes wf-step {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.wf-step {
+  animation: wf-step 0.18s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wf-step { animation: none; }
+}

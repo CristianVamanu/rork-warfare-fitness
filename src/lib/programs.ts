@@ -1395,18 +1395,23 @@ const GOAL_TO_PROGRAM_GOAL: Record<string, Program['goal']> = {
  * hard include/exclude programs — every program is appropriate for any
  * athlete; biometrics only matter for calorie targets (handled separately)
  * and for calibrating starting loads once training, not for which plan gets
- * picked. `sex` and `hasLimitations` are optional soft signals only: a
- * gender-targeted program gets a small nudge for a matching user, and
- * programs flagged as physically demanding get a small penalty when the
- * user has reported an injury/medical limitation — nudges, never exclusions,
- * so a real coach isn't overridden by a single onboarding checkbox.
+ * picked. `sex` is an optional soft signal: a gender-targeted program gets
+ * a small nudge for a matching user — a nudge, never an exclusion, so a
+ * real coach isn't overridden by a single onboarding answer.
+ *
+ * There used to be a `hasLimitations` penalty here that dropped advanced
+ * programs for anyone reporting an injury. Nothing had fed it since the
+ * health questions moved to the coaching application, so it was scoring
+ * every user identically; this is not a rehab product and the screen that
+ * would have fed it is not coming back, so the parameter is gone rather
+ * than left looking live.
  */
 // Programs don't carry an explicit equipment tag, so this estimates the
 // heaviest equipment tier a program actually requires by scanning its own
 // exercise names — 'barbell' implies a full gym/rack, kettlebell/dumbbell
 // implies at-home free weights are enough, anything else is bodyweight-only.
 // Used only as a soft nudge against a user's stated equipment access, same
-// spirit as the sex/limitations signals above: never a hard exclusion.
+// spirit as the sex signal above: never a hard exclusion.
 const EQUIPMENT_RANK: Record<string, number> = { minimal: 0, home: 1, 'full-gym': 2 };
 
 /**
@@ -1456,7 +1461,6 @@ export function pickBestProgram(
   experience: string,
   trainingDays: number,
   sex?: string,
-  hasLimitations?: boolean,
   equipment?: string,
   // Weeks needed to reach the user's chosen goal weight at a safe rate
   // (see estimateWeightGoalTimeline in lib/tdee.ts) — a program whose
@@ -1510,9 +1514,6 @@ export function pickBestProgram(
 
     if (sex && p.targetGender && p.targetGender !== 'anyone') {
       score += p.targetGender === sex ? 2 : -3;
-    }
-    if (hasLimitations) {
-      score -= p.level === 'advanced' ? 4 : p.level === 'intermediate' ? 1 : 0;
     }
     if (userEquipmentRank !== undefined) {
       const programNeedRank = EQUIPMENT_RANK[estimateEquipmentTier(p)];

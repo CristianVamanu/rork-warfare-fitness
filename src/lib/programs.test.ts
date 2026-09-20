@@ -181,7 +181,7 @@ describe('pickBestProgram — weight-goal timeline scoring', () => {
   });
 
   it('prefers the program whose duration is closest to the estimated timeline', () => {
-    const result = pickBestProgram(pool, 'lose-fat', 'beginner', 4, undefined, undefined, undefined, 24);
+    const result = pickBestProgram(pool, 'lose-fat', 'beginner', 4, undefined, undefined, 24);
     expect(result!.id).toBe('medium');
   });
 
@@ -191,7 +191,7 @@ describe('pickBestProgram — weight-goal timeline scoring', () => {
     // still make a same-goal program a better pick even at a worse duration.
     const wrongGoal: Program = { ...standard, id: 'wrong-goal', weeks: 24, goal: 'strength' };
     const rightGoalOffDuration: Program = { ...standard, id: 'right-goal', weeks: 8, goal: 'weight-loss' };
-    const result = pickBestProgram([wrongGoal, rightGoalOffDuration], 'lose-fat', 'beginner', 4, undefined, undefined, undefined, 24);
+    const result = pickBestProgram([wrongGoal, rightGoalOffDuration], 'lose-fat', 'beginner', 4, undefined, undefined, 24);
     expect(result!.id).toBe('right-goal');
   });
 });
