@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Menu, X as XIcon } from 'lucide-react';
 
 /**
@@ -27,17 +28,47 @@ export const PUBLIC_NAV_LINKS = [
   { href: '/trainers', label: 'For Trainers' },
 ];
 
-export function PublicHeader({ ctaHref = '/onboarding', ctaLabel = 'Get your plan' }: {
+export function PublicHeader({
+  appName = 'Warfare Fitness',
+  logoUrl = null,
+  ctaHref = '/onboarding',
+  ctaLabel = 'Get your plan',
+}: {
+  /** From system config, same source the landing header reads. */
+  appName?: string;
+  logoUrl?: string | null;
   ctaHref?: string;
   ctaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  // A broken/removed logo URL falls back to the initial rather than leaving
+  // a dead image frame in the header — same behaviour as the landing nav.
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logo = logoUrl && !logoFailed ? logoUrl : null;
 
   return (
     <header className="relative border-b border-white/8">
       <div className="max-w-5xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
-        <Link href="/" className="text-sm font-black tracking-[0.14em] uppercase text-white flex-shrink-0">
-          Warfare<span className="text-accent">Fitness</span>
+        {/* The real mark, not a text wordmark. This header stands in for the
+            landing nav on the public pages, and a different logo treatment
+            on the page people arrive at from search is the fastest way to
+            look like two unrelated sites. */}
+        <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
+          <span className={`w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0 ${logo ? '' : 'bg-accent'}`}>
+            {logo ? (
+              <Image
+                src={logo}
+                alt={appName}
+                width={36}
+                height={36}
+                className="w-full h-full object-cover"
+                onError={() => setLogoFailed(true)}
+              />
+            ) : (
+              <span className="text-base font-black text-black">{appName[0]}</span>
+            )}
+          </span>
+          <span className="text-sm font-black text-white tracking-tight hidden sm:inline">{appName}</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-6">

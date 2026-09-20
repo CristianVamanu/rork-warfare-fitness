@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { WHY_GYM_ONLY } from '@/lib/ptStandards';
 import { PublicHeader } from '@/components/landing/PublicHeader';
+import { getSystemConfig } from '@/lib/firestore';
 
 export const metadata: Metadata = {
   title: { default: 'Military selection standards', template: '%s' },
@@ -16,7 +17,14 @@ export const metadata: Metadata = {
  * land from search, so they are precisely the visitors who need a way
  * through to the programs and the rest of the site.
  */
-export default function StandardsLayout({ children }: { children: React.ReactNode }) {
+export default async function StandardsLayout({ children }: { children: React.ReactNode }) {
+  // Read server-side, exactly as the landing page does, so the header shows
+  // the admin's actual logo and app name rather than a hardcoded wordmark —
+  // and shows it in the first HTML rather than popping in after hydration.
+  const cfg = await getSystemConfig().catch(() => null);
+  const appName = (cfg?.appName as string) || 'Warfare Fitness';
+  const logoUrl = (cfg?.logoUrl as string) || null;
+
   return (
     <div className="min-h-screen bg-background">
       {/* A quiet ambient field. The rest of the page is dark and dense, so
@@ -38,7 +46,7 @@ export default function StandardsLayout({ children }: { children: React.ReactNod
         />
       </div>
 
-      <PublicHeader />
+      <PublicHeader appName={appName} logoUrl={logoUrl} />
 
       <main className="relative max-w-3xl mx-auto px-5 py-10 sm:py-14">{children}</main>
 

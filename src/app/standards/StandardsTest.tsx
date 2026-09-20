@@ -151,7 +151,16 @@ export function StandardsTest({ initialStandardId }: { initialStandardId?: strin
           which is also more honest — none of these is the headline. */}
       <div>
         <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-text-tertiary mb-3">Pick a standard</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {/* Flex rather than grid, so the last row fills.
+            As a 3-column grid, fourteen standards left two tiles sitting in
+            a row with a hole beside them — and the count is data, not a
+            constant: this list has already gone from eleven to fourteen and
+            will grow again, so any fix pinned to "14 % 3" is wrong by the
+            next addition. With flex-wrap and grow, whatever lands on the
+            final row simply shares that row's width between them. The basis
+            values are exact — two items plus one gap, or three plus two —
+            so full rows still break at 2 and 3 across. */}
+        <div className="flex flex-wrap gap-2">
           {UNIT_STANDARDS.map((s) => {
             const on = s.id === selectedId;
             return (
@@ -159,7 +168,7 @@ export function StandardsTest({ initialStandardId }: { initialStandardId?: strin
                 key={s.id}
                 onClick={() => { setSelectedId(s.id); setSubmitted(false); }}
                 aria-pressed={on}
-                className={`flex items-center gap-2.5 min-h-[54px] px-3 py-2.5 rounded-xl border text-left transition-all ${
+                className={`flex grow basis-[calc(50%-0.25rem)] sm:basis-[calc(33.333%-0.334rem)] items-center gap-2.5 min-h-[54px] px-3 py-2.5 rounded-xl border text-left transition-all ${
                   on
                     ? 'bg-accent text-black border-accent shadow-[0_0_26px_-8px_rgb(var(--accent-rgb)/0.8)]'
                     : 'bg-white/[0.03] text-text-secondary border-white/10 hover:border-white/25 hover:text-white'
