@@ -248,7 +248,18 @@ export default function DownloadClient({
 
         <div className="grid md:grid-cols-3 gap-5">
           {PLATFORMS.map((platform, pIdx) => (
-            <div key={platform.id} className="rounded-2xl border border-white/10 bg-surface p-5 scroll-mt-24 wf-rise" style={{ animationDelay: `${pIdx * 0.05}s` }}>
+            // The id is the scroll target for the platform buttons above —
+            // scrollToPlatform does getElementById(`platform-${id}`). It was
+            // dropped when this stopped being a motion.div, so every one of
+            // those buttons had been silently doing nothing. `scroll-mt-24`
+            // surviving alone is the tell: margin for an anchor that was no
+            // longer there.
+            <div
+              key={platform.id}
+              id={`platform-${platform.id}`}
+              className="rounded-2xl border border-white/10 bg-surface p-5 scroll-mt-24 wf-rise"
+              style={{ animationDelay: `${pIdx * 0.05}s` }}
+            >
               <p className="text-[11px] font-bold uppercase tracking-widest text-accent mb-2">{platform.eyebrow}</p>
               <div className="flex items-center gap-2 mb-5">
                 <div className="w-9 h-9 rounded-xl bg-accent-muted flex items-center justify-center">

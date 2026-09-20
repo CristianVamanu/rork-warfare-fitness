@@ -145,7 +145,11 @@ export function AdminSearch({
               // No backdrop-filter — see Modal.tsx for the iOS flicker it caused.
               className="fixed inset-0 z-[60] bg-black/60"
             />
-            <div className="fixed z-[61] left-1/2 -translate-x-1/2 top-[12vh] w-[min(560px,calc(100vw-32px))] rounded-2xl border border-white/10 bg-surface shadow-2xl overflow-hidden wf-rise">
+            <div
+              role="dialog"
+              aria-label="Search the admin"
+              className="fixed z-[61] left-1/2 -translate-x-1/2 top-[12vh] w-[min(560px,calc(100vw-32px))] rounded-2xl border border-white/10 bg-surface shadow-2xl overflow-hidden wf-rise"
+            >
               <div className="flex items-center gap-2.5 px-4 h-14 border-b border-white/8">
                 <Search className="w-4 h-4 text-text-tertiary flex-shrink-0" strokeWidth={1.75} />
                 <input

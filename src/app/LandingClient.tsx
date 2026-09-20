@@ -991,7 +991,27 @@ export default function LandingPage({
             {programs.map((p, i) => {
               const badge = PROGRAM_BADGE[p.id];
               return (
-              <div key={p.id} className="rounded-2xl border border-white/8 bg-surface hover:border-accent/30 hover:shadow-glow-accent transition-all overflow-hidden flex flex-col cursor-pointer text-left wf-rise" style={{ animationDelay: `${(i % 6) * 0.05}s` }}>
+              // The onClick here was dropped when this stopped being a
+              // motion.div, which left the card wearing `cursor-pointer`
+              // while doing nothing at all: the detail modal below could
+              // only ever be closed, never opened, so the whole program
+              // preview was unreachable from the landing page.
+              //
+              // Stays a div rather than becoming a <button>: the card
+              // contains its own "Enroll Now" Link, and an <a> inside a
+              // <button> is invalid HTML. role/tabIndex/onKeyDown give it
+              // the keyboard access it never had as a bare clickable div.
+              <div
+                key={p.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedProgram(p)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedProgram(p); }
+                }}
+                className="rounded-2xl border border-white/8 bg-surface hover:border-accent/30 hover:shadow-glow-accent transition-all overflow-hidden flex flex-col cursor-pointer text-left wf-rise focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                style={{ animationDelay: `${(i % 6) * 0.05}s` }}
+              >
                 {/* Fixed-aspect image slot, same size for every card — a
                     themed gradient + icon fallback when no admin image is
                     set yet, so the grid never looks unfinished. */}

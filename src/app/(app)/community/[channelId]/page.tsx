@@ -958,7 +958,20 @@ export default function ChannelPage() {
               <p className="text-text-secondary text-sm mt-1">Be the first to post!</p>
             </Card>
           ) : posts.map((post, i) => (
-            <div key={post.id} className="wf-rise" style={{ animationDelay: `${i * 0.04}s` }}>
+            // id and data-post-id are not decoration: the scroll handler
+            // above finds the topmost visible post with
+            // querySelectorAll('[data-post-id]') and stores it as this
+            // channel's last-read marker. They were dropped when this
+            // stopped being a motion.div, so that query had been returning
+            // nothing and the marker was never written — the channel
+            // silently stopped remembering where you had got to.
+            <div
+              key={post.id}
+              id={`post-${post.id}`}
+              data-post-id={post.id}
+              className="wf-rise"
+              style={{ animationDelay: `${i * 0.04}s` }}
+            >
               <PostCard
                 post={post}
                 userId={user?.uid ?? ''}
