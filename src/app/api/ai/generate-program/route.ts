@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { verifyAdmin } from '@/lib/verifyAdmin';
+import { withTruncationRetry, parseLooseJson, BREVITY_ADDENDUM, TruncatedError } from '@/lib/aiJson';
 
 const PLAN_SYSTEM_PROMPT = `You are an elite strength and conditioning coach with 20+ years of experience. Based on the trainer's description, design the SHAPE of a genuinely PERIODIZED workout program — not the day-by-day content yet, just its metadata and phase breakdown. Real programs progress: volume, intensity, complexity, and exercise selection should all change meaningfully from the first phase to the last, with a deload where the program length calls for one.
 
 Return ONLY valid JSON with this exact structure (no markdown, no extra text):
 {
   "name": "Program Name",
-  "description": "2-4 sentence description of the program philosophy, goals, and how it progresses phase to phase",
+  "description": "2-4 sentences (max 400 characters) on the program philosophy, goals, and how it progresses phase to phase",
   "level": "beginner" | "intermediate" | "advanced",
   "goal": "strength" | "hypertrophy" | "endurance" | "weight-loss" | "general",
   "targetGender": "male" | "female" | "anyone",
@@ -19,7 +20,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no extra text):
       "label": "e.g. Phase 1: Foundation",
       "startWeek": <number, 1-indexed inclusive>,
       "endWeek": <number, 1-indexed inclusive>,
-      "focus": "1-2 sentences on what this phase trains and how it differs from the phase before/after it — this is handed to a separate step that writes the actual day-by-day schedule, so be concrete about volume/intensity/exercise-selection changes"
+      "focus": "1-2 sentences, MAX 300 CHARACTERS, on what this phase trains and how it differs from the phase before/after it — this is handed to a separate step that writes the actual day-by-day schedule, so be concrete about volume/intensity/exercise-selection changes"
     }
   ]
 }
@@ -29,7 +30,8 @@ PHASE RULES:
 - Programs of 6-9 weeks: 3 phases (e.g. Foundation, Build, Peak), with a deload built into the final week of one phase or as its own short phase if the length allows.
 - Programs of 10-16 weeks: 4 phases, ALWAYS including at least one explicit deload/recovery week (roughly half the working sets/volume of the phase around it, same movements) — never string more than 6 weeks of straight progression without one.
 - startWeek/endWeek across all phases must exactly cover 1 through the program's total "weeks" with no gaps or overlaps.
-- "targetGender": set to "male" or "female" ONLY if the trainer's prompt explicitly says so (e.g. "female weight loss program", "program for men"); otherwise "anyone".`;
+- "targetGender": set to "male" or "female" ONLY if the trainer's prompt explicitly says so (e.g. "female weight loss program", "program for men"); otherwise "anyone".
+- Keep every prose field within its stated limit. This response is metadata only — the day-by-day content is written later by a separate step, so there is no reason for it to be long.`;
 
 const phaseSystemPrompt = (daysPerWeek: number) => `You are an elite strength and conditioning coach continuing work on a periodized program. You've already agreed on the overall program and this specific phase's purpose — now write ONLY this one phase's 7-day weekly schedule in full detail.
 
@@ -126,27 +128,43 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         const ping = () => controller.enqueue(encoder.encode('.'));
         try {
-          const planStream = await openai.chat.completions.create({
-            model,
-            max_tokens: 2000,
-            temperature: 0.7,
-            messages: [
-              { role: 'system', content: PLAN_SYSTEM_PROMPT },
-              { role: 'user', content: prompt + docContext },
-            ],
-            response_format: { type: 'json_object' },
-            stream: true,
-          });
-          let planRaw = '';
-          let planFinish: string | null = null;
-          for await (const chunk of planStream) {
-            const delta = chunk.choices[0]?.delta?.content ?? '';
-            if (chunk.choices[0]?.finish_reason) planFinish = chunk.choices[0].finish_reason;
-            if (delta) { planRaw += delta; ping(); }
-          }
-          if (planFinish === 'length') throw new Error('PLAN_TRUNCATED');
+          // One streamed completion, reporting whether it ran out of room
+          // rather than throwing — withTruncationRetry decides what to do
+          // about that. `brief` is set on the retry only.
+          const complete = async (system: string, user: string, maxTokens: number, brief: boolean) => {
+            const stream = await openai.chat.completions.create({
+              model,
+              max_tokens: maxTokens,
+              // Lower on the retry: the first attempt already wandered past
+              // the ceiling, and this pass wants compliance, not variety.
+              temperature: brief ? 0.4 : 0.7,
+              messages: [
+                { role: 'system', content: brief ? system + BREVITY_ADDENDUM : system },
+                { role: 'user', content: user },
+              ],
+              response_format: { type: 'json_object' },
+              stream: true,
+            });
+            let raw = '';
+            let finish: string | null = null;
+            for await (const chunk of stream) {
+              const delta = chunk.choices[0]?.delta?.content ?? '';
+              if (chunk.choices[0]?.finish_reason) finish = chunk.choices[0].finish_reason;
+              // Every chunk still pings, retry included, so the proxy never
+              // sees a silent connection while a second attempt runs.
+              if (delta) { raw += delta; ping(); }
+            }
+            return { raw, truncated: finish === 'length' };
+          };
+
+          // 4000, not 2000. The plan is metadata and a phase outline, but a
+          // 4-phase program with a real description was landing close enough
+          // to the old ceiling that ordinary verbosity went over it — which
+          // is exactly what PLAN_TRUNCATED was in the logs.
+          const planRaw = await withTruncationRetry('PLAN', (brief) =>
+            complete(PLAN_SYSTEM_PROMPT, prompt + docContext, 4000, brief));
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const plan: any = JSON.parse(planRaw);
+          const plan: any = parseLooseJson(planRaw);
           const daysPerWeek = Number(plan.daysPerWeek) || 4;
           const planPhases: PlanPhase[] = Array.isArray(plan.phases) && plan.phases.length > 0
             ? plan.phases
@@ -160,27 +178,14 @@ export async function POST(req: NextRequest) {
               : '';
             const userMsg = `Overall program: "${prompt}"\n\nProgram name: ${plan.name}\nProgram goal: ${plan.goal}, level: ${plan.level}\n\nNow write the schedule for: ${ph.label} (weeks ${ph.startWeek}-${ph.endWeek})\nThis phase's focus: ${ph.focus}${priorSummary}${docContext}`;
 
-            const phaseStream = await openai.chat.completions.create({
-              model,
-              max_tokens: 4000,
-              temperature: 0.7,
-              messages: [
-                { role: 'system', content: phaseSystemPrompt(daysPerWeek) },
-                { role: 'user', content: userMsg },
-              ],
-              response_format: { type: 'json_object' },
-              stream: true,
-            });
-            let phaseRaw = '';
-            let phaseFinish: string | null = null;
-            for await (const chunk of phaseStream) {
-              const delta = chunk.choices[0]?.delta?.content ?? '';
-              if (chunk.choices[0]?.finish_reason) phaseFinish = chunk.choices[0].finish_reason;
-              if (delta) { phaseRaw += delta; ping(); }
-            }
-            if (phaseFinish === 'length') throw new Error('PHASE_TRUNCATED');
+            // 6000, not 4000. A six-day week at six exercises a day, each
+            // carrying a coaching note, is a lot of JSON — the old ceiling
+            // left almost no headroom for the densest programs, which are
+            // precisely the ones worth generating.
+            const phaseRaw = await withTruncationRetry('PHASE', (brief) =>
+              complete(phaseSystemPrompt(daysPerWeek), userMsg, 6000, brief));
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const phaseData: any = JSON.parse(phaseRaw);
+            const phaseData: any = parseLooseJson(phaseRaw);
             phaseSchedules.push(fixSchedule(phaseData.schedule));
           }
 
@@ -220,11 +225,14 @@ export async function POST(req: NextRequest) {
           // just keep-alive dots, everything after is the real payload.
           controller.enqueue(encoder.encode('\n__RESULT__\n' + JSON.stringify({ program })));
         } catch (err) {
-          const truncated = err instanceof Error && (err.message === 'PLAN_TRUNCATED' || err.message === 'PHASE_TRUNCATED');
-          console.error('[generate-program] error:', err, truncated ? '(hit max_tokens on ' + (err as Error).message + ')' : '');
+          // Only reported after the brevity retry has ALSO failed, so the
+          // advice is now genuinely the last resort rather than the first
+          // thing an admin sees on a slightly wordy answer.
+          const truncated = err instanceof TruncatedError;
+          console.error('[generate-program] error:', err, truncated ? `(still over max_tokens after a brevity retry on ${err.stage})` : '');
           controller.enqueue(encoder.encode('\n__RESULT__\n' + JSON.stringify({
             error: truncated
-              ? 'One part of the program was too detailed to generate in one go — try fewer weeks/days per week, or a shorter prompt.'
+              ? 'One part of the program was too detailed to generate, even after a shorter retry — try fewer weeks/days per week, or a shorter prompt.'
               : 'Failed to generate program',
           })));
         } finally {
