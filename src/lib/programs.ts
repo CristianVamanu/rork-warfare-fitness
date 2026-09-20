@@ -1444,7 +1444,7 @@ function exerciseTier(name: string): 0 | 1 | 2 {
   return 0;
 }
 
-function estimateEquipmentTier(p: Program): 'minimal' | 'home' | 'full-gym' {
+export function estimateEquipmentTier(p: Program): 'minimal' | 'home' | 'full-gym' {
   const fromPhases = (p.phases ?? []).flatMap((ph) => ph.schedule ?? []);
   const days = fromPhases.length > 0 ? fromPhases : (p.schedule ?? []);
   const names = [
@@ -1484,7 +1484,30 @@ export function pickBestProgram(
   // onboarding combinations. It is excluded outright, unless it is genuinely
   // the only thing available.
   const wrongSex = (p: Program) => !!sex && !!p.targetGender && p.targetGender !== 'anyone' && p.targetGender !== sex;
-  const candidates = pool.some((p) => !wrongSex(p)) ? pool.filter((p) => !wrongSex(p)) : pool;
+  const bySex = pool.some((p) => !wrongSex(p)) ? pool.filter((p) => !wrongSex(p)) : pool;
+
+  // Equipment is now an exclusion too, for the same reason and with the same
+  // escape hatch.
+  //
+  // As a -5-per-tier penalty it lost to the +10 for a goal match: a fat-loss
+  // program needing dumbbells still beat a bodyweight program of another
+  // goal. Swept across every onboarding combination, 92 of 360 — better than
+  // a quarter of members — were handed a program demanding kit they had just
+  // told us they do not own, while something they could actually do sat in
+  // the catalogue.
+  //
+  // The old reasoning was that the app substitutes movements when equipment
+  // is missing, so an over-equipped program is workable. Substitution is a
+  // repair, though, and asking someone to repair their plan on day one, on
+  // the strength of an answer they gave sixty seconds earlier, is the wrong
+  // way round. A program you can do beats a program about the right goal.
+  //
+  // Still not absolute: if EVERY program needs more kit than they have, the
+  // filter would leave nothing, so it falls back to the whole set and the
+  // -5-per-tier penalty below picks the least over-equipped one.
+  const tooMuchKit = (p: Program) =>
+    userEquipmentRank !== undefined && (EQUIPMENT_RANK[estimateEquipmentTier(p)] ?? 0) > userEquipmentRank;
+  const candidates = bySex.some((p) => !tooMuchKit(p)) ? bySex.filter((p) => !tooMuchKit(p)) : bySex;
 
   const scored = candidates.map((p) => {
     let score = 0;
