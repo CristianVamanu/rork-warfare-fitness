@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Flame, Dumbbell, RefreshCw, Zap, Shield,
   ChevronRight, ChevronLeft, Loader2, CheckCircle,
-  Home, Building2, Package, User, AlertCircle, TrendingDown, TrendingUp, PartyPopper,
+  Home, Building2, Package, User, TrendingDown, TrendingUp, PartyPopper,
   Eye, EyeOff,
 } from 'lucide-react';
 import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
@@ -21,6 +21,7 @@ import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, typ
 import { lbsToKg, kgToLbs, cmToFtIn, ftInToCm } from '@/lib/utils';
 import { MOCK_PROGRAMS, pickBestProgram } from '@/lib/programs';
 import { buildProgramMarketing, type ProgramMarketing } from '@/lib/programMarketing';
+import type { MatchedProgram } from '@/lib/programMatch';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Medallion } from '@/components/dashboard/Medallion';
@@ -133,7 +134,7 @@ function OnboardingPageInner() {
   // drops them on the last real step instead. MAX_STEP_INDEX is the highest
   // index any configuration can reach (ACCOUNT_STEP); the effect below
   // tightens it once needsAccount resolves and the true TOTAL_STEPS is known.
-  const MAX_STEP_INDEX = 7;
+  const MAX_STEP_INDEX = 6;
   const [step, setStep] = useState(() =>
     Math.max(0, Math.min(MAX_STEP_INDEX, draft.step ?? 0))
   );
@@ -276,8 +277,17 @@ function OnboardingPageInner() {
   // step is pure drop-off. The `limitations` value itself is still part of
   // the profile and still saved when present (a draft started before this
   // change can carry one) — it just isn't asked for here any more.
-  const TOTAL_STEPS = needsAccount ? 7 : 6;
-  const ACCOUNT_STEP = 6;
+  //
+  // The BMI result had a whole step to itself and asked nothing. Worse, it
+  // was the screen immediately before the account ask, and for a good share
+  // of the people this product is for — the forty-somethings the landing
+  // page now speaks to — it opened with a red "Obese" label before they had
+  // been shown a single thing they were getting. The step even carried its
+  // own disclaimer explaining that BMI cannot tell muscle from fat, which is
+  // a screen admitting it is not worth a screen. The number is now one quiet
+  // line on the biometrics step, where it costs no extra tap.
+  const TOTAL_STEPS = needsAccount ? 6 : 5;
+  const ACCOUNT_STEP = 5;
 
   // Second half of the draft clamp above. An already-signed-in visitor has
   // one fewer step (no account step), so a restored draft sitting exactly on
@@ -300,6 +310,7 @@ function OnboardingPageInner() {
   // turning a recoverable hiccup into a dead end. Checked first thing in
   // handleFinish to reuse the already-created account instead.
   const createdUserRef = useRef<FirebaseUser | null>(null);
+
 
   const ageNum = parseInt(age, 10);
   const heightNum = parseFloat(heightCm);
@@ -324,7 +335,6 @@ function OnboardingPageInner() {
     !!trainingDays,
     !!equipment,
     biometricsValid,
-    true, // BMI result step is informational only
     accountValid, // only reached when needsAccount is true
   ][step];
 
@@ -335,6 +345,72 @@ function OnboardingPageInner() {
     trackEvent('OnboardingStep', { step: step + 1, of: TOTAL_STEPS });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
+
+  /**
+   * The matched program, fetched BEFORE the account exists.
+   *
+   * This flow used to ask for a name, an email and a password and only then
+   * say which program the answers had earned. That is the hardest ask in the
+   * funnel placed before anything has been given back — the visitor is
+   * paying a price for something they have not been shown.
+   *
+   * So the match is now fetched the moment the questions are done and shown
+   * on the account step itself. Same number of screens, same fields; the
+   * difference is that the ask is now "save this" rather than "sign up to
+   * find out".
+   *
+   * /api/public/match-program shares its matcher with the authenticated
+   * assignment route, and handleFinish enrolls THIS id rather than matching
+   * a second time, so the program named here is the program that lands.
+   */
+  const [previewProgram, setPreviewProgram] = useState<MatchedProgram | null>(null);
+  const [previewState, setPreviewState] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
+  // Guards against the fetch firing again on every keystroke in the account
+  // form, and against a second run when someone steps back and forward.
+  const previewKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Only on the account step, and only when there is something to match.
+    if (step !== ACCOUNT_STEP || !needsAccount) return;
+    if (!goal || !experience || !trainingDays || !equipment) return;
+    // Someone who picked a specific program on the landing page already
+    // knows what they are getting; re-announcing a different match would be
+    // the opposite of reassuring.
+    if (preselectedProgramId) return;
+
+    const timeline = biometricsValid ? estimateWeightGoalTimeline(weightNum, targetWeightNum) : null;
+    const payload = {
+      goal, experience, trainingDays,
+      sex: sex ?? undefined,
+      hasLimitations: !!buildLimitationsSummary(),
+      equipment: equipment ?? undefined,
+      estimatedWeeksToGoal: timeline?.weeksToGoal ?? undefined,
+    };
+    const key = JSON.stringify(payload);
+    if (previewKeyRef.current === key) return;
+    previewKeyRef.current = key;
+
+    let alive = true;
+    setPreviewState('loading');
+    fetch('/api/public/match-program', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: { program?: MatchedProgram }) => {
+        if (!alive) return;
+        if (d.program) { setPreviewProgram(d.program); setPreviewState('ready'); }
+        else setPreviewState('failed');
+      })
+      .catch(() => {
+        // Never fatal. The account form stands on its own; it just loses the
+        // headline above it, which is exactly how this screen worked before.
+        if (alive) { setPreviewState('failed'); previewKeyRef.current = null; }
+      });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, needsAccount, goal, experience, trainingDays, equipment, sex, biometricsValid, weightNum, targetWeightNum]);
 
   function go(delta: number) {
     setDir(delta);
@@ -494,6 +570,15 @@ function OnboardingPageInner() {
           } catch {
             // fall through to AI matching / local fallback below
           }
+        }
+
+        // The program already shown on the account step, enrolled as-is.
+        // Matching a second time here would risk naming one program on the
+        // signup screen and handing over another — the answers are the same,
+        // but a program published or unpublished in between is all it would
+        // take. What they were shown is what they get.
+        if (!program && previewProgram) {
+          program = previewProgram;
         }
 
         if (!program) {
@@ -1023,14 +1108,12 @@ function OnboardingPageInner() {
                 sexAgeAnswered={sexAgeAnswered} onEditSexAge={() => { setSex(null); setAge(''); }}
               />
             )}
-            {step === 5 && (
-              <StepBmiResult heightCm={heightNum} weightKg={weightNum} weightUnit={weightUnit} />
-            )}
             {step === ACCOUNT_STEP && needsAccount && (
               <StepAccount
                 name={name} onName={setName}
                 email={email} onEmail={setEmail}
                 password={password} onPassword={setPassword}
+                match={previewProgram} matchState={previewState}
               />
             )}
           </motion.div>
@@ -1082,7 +1165,12 @@ function OnboardingPageInner() {
             ) : (
               <>
                 <CheckCircle className="w-4 h-4" />
-                {needsAccount ? 'Create Account & Get My Plan' : 'Generate My Program'}
+                {/* "Get My Plan" was a promise about something unseen. Once
+                    the match is on the screen above, the button is claiming
+                    a named thing, so it says so. */}
+                {!needsAccount ? 'Generate My Program'
+                  : previewState === 'ready' && previewProgram ? 'Create Account & Start'
+                  : 'Create Account & Get My Plan'}
               </>
             )}
           </Button>
@@ -1342,6 +1430,20 @@ function StepBiometrics({
   const [feetText, setFeetText] = useState(initialFtIn ? String(initialFtIn.ft) : '');
   const [inchesText, setInchesText] = useState(initialFtIn ? String(initialFtIn.inches) : '');
 
+  // The reference line at the bottom of this step. Computed here rather than
+  // passed in, because it is derived entirely from two fields this component
+  // already owns. Null until both are in a plausible range — a half-typed
+  // height would otherwise flash a nonsense BMI on every keystroke.
+  const bmiHeight = parseFloat(heightCm);
+  const bmiWeight = parseFloat(weightKg);
+  const bmiReading = (bmiHeight >= 100 && bmiHeight <= 250 && bmiWeight >= 30 && bmiWeight <= 300)
+    ? (() => {
+        const { bmi, healthyWeightRangeKg } = calculateBmi(bmiHeight, bmiWeight);
+        const show = (kg: number) => (weightUnit === 'lbs' ? kgToLbs(kg) : kg);
+        return { bmi, low: show(healthyWeightRangeKg[0]), high: show(healthyWeightRangeKg[1]) };
+      })()
+    : null;
+
   function pushFtIn(ftRaw: string, inRaw: string) {
     const ft = parseFloat(ftRaw);
     const inches = inRaw === '' ? 0 : parseFloat(inRaw);
@@ -1532,16 +1634,39 @@ function StepBiometrics({
           We&apos;ll use this to estimate your timeline and pick a program matched to it — not just your current weight.
         </p>
       </div>
+
+      {/* What is left of the BMI step. It used to be a screen of its own,
+          opening with a large coloured category label — which for a lot of
+          people meant being told they were "Obese" in red immediately before
+          being asked to create an account, having been shown nothing in
+          return yet. As a reference figure it is worth a line; the category
+          judgement is not worth a screen, and BMI cannot tell muscle from
+          fat anyway. Appears only once both numbers are actually valid. */}
+      {bmiReading && (
+        <div className="flex items-baseline justify-between rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2.5">
+          <span className="text-[11px] text-text-tertiary">
+            For reference, your BMI
+          </span>
+          <span className="text-sm font-bold text-white tabular-nums">
+            {bmiReading.bmi}
+            <span className="text-[11px] font-medium text-text-tertiary ml-1.5">
+              healthy {bmiReading.low}–{bmiReading.high} {weightUnit}
+            </span>
+          </span>
+        </div>
+      )}
     </div>
   );
 }
 
 function StepAccount({
-  name, onName, email, onEmail, password, onPassword,
+  name, onName, email, onEmail, password, onPassword, match, matchState,
 }: {
   name: string; onName: (v: string) => void;
   email: string; onEmail: (v: string) => void;
   password: string; onPassword: (v: string) => void;
+  match: MatchedProgram | null;
+  matchState: 'idle' | 'loading' | 'ready' | 'failed';
 }) {
   // One password box, with a reveal — not two. A confirm field exists to
   // catch a typo you cannot see, which a show/hide button solves without
@@ -1549,11 +1674,54 @@ function StepAccount({
   // last step of a signup. Getting it wrong was never unrecoverable either:
   // password reset has always been one tap away.
   const [reveal, setReveal] = useState(false);
+  const showing = matchState === 'ready' && !!match;
   return (
     <div>
-      <h1 className="text-2xl font-black text-white mb-1">Almost there</h1>
+      {/* The match, above the form rather than behind it.
+          The whole point of this screen's new shape: the visitor can see
+          what their six answers earned before being asked for an email. The
+          form below is unchanged — what changed is that it is now asking
+          them to keep something rather than to gamble on something. */}
+      {matchState === 'loading' && (
+        <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4 mb-5 flex items-center gap-3">
+          <Loader2 className="w-4 h-4 text-accent animate-spin flex-shrink-0" />
+          <p className="text-sm text-text-secondary">Matching you to a program…</p>
+        </div>
+      )}
+      {showing && (
+        <div className="rounded-2xl border border-accent/25 bg-accent/[0.06] p-4 mb-5">
+          <p className="text-[10px] font-bold text-accent uppercase tracking-[0.18em]">Your match</p>
+          <p className="text-lg font-black text-white leading-tight mt-1.5">{match.name}</p>
+          {match.marketing?.hook && (
+            <p className="text-[13px] text-text-secondary leading-snug mt-1.5">{match.marketing.hook}</p>
+          )}
+          {/* The commitment line, not the program's raw weeks and days.
+              Those two numbers describe how the program is WRITTEN, which is
+              not what this person signed up for: someone who just answered
+              "3 days" was being shown "6 days / week" directly underneath,
+              which reads as the app not having listened. buildProgramMarketing
+              already phrases this properly against the member's own days —
+              the program advances session by session, not by the calendar,
+              so fewer days simply means more weeks. */}
+          {match.marketing?.commitment && (
+            <p className="text-[11px] text-text-tertiary leading-relaxed mt-3 pt-3 border-t border-white/8">
+              {match.marketing.commitment}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Headline follows the match, so it reads as the next step rather
+          than as the start of something. Falls back to the original wording
+          when there is no match to show — a failed preview must never leave
+          this screen referring to a plan that is not on it. */}
+      <h1 className="text-2xl font-black text-white mb-1">
+        {showing ? 'Save your program' : 'Almost there'}
+      </h1>
       <p className="text-text-secondary text-sm mb-5">
-        Create your account to save this plan and get your dashboard.
+        {showing
+          ? 'Create your account to keep this plan and start day one.'
+          : 'Create your account to save this plan and get your dashboard.'}
       </p>
       <div className="space-y-3">
         <div>
@@ -1604,66 +1772,6 @@ function StepAccount({
         {' '}and{' '}
         <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-accent underline">Privacy Policy</a>.
       </p>
-    </div>
-  );
-}
-
-function StepBmiResult({ heightCm, weightKg, weightUnit }: { heightCm: number; weightKg: number; weightUnit: 'kg' | 'lbs' }) {
-  const { bmi, category, healthyWeightRangeKg } = calculateBmi(heightCm, weightKg);
-
-  const categoryColor = {
-    Underweight: 'text-blue-400',
-    Healthy: 'text-success',
-    Overweight: 'text-amber-400',
-    Obese: 'text-red-400',
-  }[category];
-
-  return (
-    <div>
-      <h1 className="text-2xl font-black text-white mb-1">Your BMI</h1>
-      <p className="text-text-secondary text-sm mb-5">
-        A starting reference point — your program will track real progress from here.
-      </p>
-
-      <Card className="p-6 text-center border-accent/20">
-        <p className="text-5xl font-black text-white">{bmi}</p>
-        <p className={`text-sm font-bold mt-1 ${categoryColor}`}>{category}</p>
-        <p className="text-xs text-text-tertiary mt-2">
-          Healthy range for your height: {weightUnit === 'lbs' ? kgToLbs(healthyWeightRangeKg[0]) : healthyWeightRangeKg[0]}–{weightUnit === 'lbs' ? kgToLbs(healthyWeightRangeKg[1]) : healthyWeightRangeKg[1]} {weightUnit}
-        </p>
-      </Card>
-
-      {/* Used to also show its own "X months to a healthy BMI range"
-          estimate here — but the goal-weight question a few steps later
-          produces a second, different timeline (to the weight the user
-          actually asked for, not a generic BMI band), and showing two
-          different "months to X" numbers back-to-back read as the app
-          contradicting itself. The real, personalized one now only ever
-          appears once, on the final reveal screen. */}
-      {category === 'Healthy' ? (
-        <div className="mt-4 p-4 bg-success/10 border border-success/20 rounded-2xl flex items-start gap-3">
-          <PartyPopper className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-text-secondary">
-            You&apos;re already in a healthy BMI range! Your program will focus on building strength and performance from here.
-          </p>
-        </div>
-      ) : (
-        <div className="mt-4 p-4 bg-accent/5 border border-accent/20 rounded-2xl flex items-start gap-3">
-          <TrendingUp className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-text-secondary">
-            Your goal weight (next up) will drive your program and your personalized timeline — this is just a reference point, not a target.
-          </p>
-        </div>
-      )}
-
-      <div className="mt-3 p-3 bg-surface-elevated rounded-xl flex items-start gap-2.5">
-        <AlertCircle className="w-4 h-4 text-text-tertiary flex-shrink-0 mt-0.5" />
-        <p className="text-xs text-text-tertiary leading-relaxed">
-          BMI doesn&apos;t distinguish muscle from fat — very muscular individuals often score
-          &quot;overweight&quot; or higher on BMI while being perfectly healthy. Treat this as a rough
-          starting reference, not a diagnosis. Consult a professional for a full body composition assessment.
-        </p>
-      </div>
     </div>
   );
 }
