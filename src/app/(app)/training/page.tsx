@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { Moon, Dumbbell, Play, ChevronRight, Crown, CheckCircle2, RotateCcw, Lock, Flame, Mountain, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getPrograms, resolveProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, skipRestDay, peekProgramList, selectPublicPrograms, selectCustomPrograms } from '@/lib/firestore';
+import { getPrograms, resolveProgram, peekResolvedProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, skipRestDay, peekProgramList, selectPublicPrograms, selectCustomPrograms } from '@/lib/firestore';
 import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex, getProgramDayProgress } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
@@ -121,7 +121,9 @@ export default function TrainingPage() {
     : (completedWorkouts > 0 ? completedWorkouts - 1 : -1);
   const workedOutToday = completedWorkouts > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
 
-  const [resolvedActive, setResolvedActive] = useState<Program | null>(null);
+  const [resolvedActive, setResolvedActive] = useState<Program | null>(
+    () => peekResolvedProgram(profile?.activeProgram?.programId),
+  );
   // Whether the resolve has FINISHED — distinct from whether it found
   // anything. The card below keys on the activeProgram pointer stored on the
   // user doc, which outlives the program it points at: a program that has

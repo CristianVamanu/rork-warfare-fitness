@@ -10,7 +10,7 @@ import {
   Play, Clock, Target, Dumbbell, Moon, CheckCircle, CheckCircle2, ChevronLeft,
   Save, RotateCcw, Lock, Crown,
 } from 'lucide-react';
-import { resolveProgram, enrollInProgram, getMembershipConfig, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
+import { resolveProgram, peekResolvedProgram, enrollInProgram, getMembershipConfig, getAllProgramProgress, skipRestDay } from '@/lib/firestore';
 import { getMockProgram, stripWeekdayPrefix, getScheduleForWeek, getNextSession, getProgramDayProgress } from '@/lib/programs';
 import { getProgramDayLimit, hasActiveSubscription } from '@/lib/membership';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
@@ -47,8 +47,11 @@ export default function ProgramDetailPage() {
   const { user, profile, refreshProfile } = useAuth();
   const id = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
 
-  const [program, setProgram] = useState<Program | null>(null);
-  const [loading, setLoading] = useState(true);
+  // The stored copy of the active program, when this page is that program —
+  // renders the real schedule on the first frame instead of a skeleton.
+  const cached = peekResolvedProgram(typeof params.id === 'string' ? params.id : undefined);
+  const [program, setProgram] = useState<Program | null>(cached);
+  const [loading, setLoading] = useState(cached === null);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [switchModal, setSwitchModal] = useState(false);

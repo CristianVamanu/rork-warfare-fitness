@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Moon, Flame, Crosshair, Wind, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
-import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, getProgressPhotos, resolveProgram, type PersonalBest } from '@/lib/firestore';
+import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, getProgressPhotos, resolveProgram, peekResolvedProgram, type PersonalBest } from '@/lib/firestore';
 import type { ProgressPhoto, Program } from '@/types';
 import { SubscribeSuccess } from '@/components/ui/SubscribeSuccess';
 import { logWaterAction } from '@/lib/actions';
@@ -57,7 +57,13 @@ export default function DashboardPage() {
     [profile?.goals?.calories, profile?.goals?.water]
   );
   const [loading, setLoading] = useState(true);
-  const [resolvedProgram, setResolvedProgram] = useState<Program | null>(null);
+  // Seeded from the last launch so the card is correct on the first frame.
+  // Without this an admin-created program has no local stand-in at all and
+  // the card renders a wrong day count with no exercises until the network
+  // answers. The fetch below still runs and overwrites this.
+  const [resolvedProgram, setResolvedProgram] = useState<Program | null>(
+    () => peekResolvedProgram(profile?.activeProgram?.programId),
+  );
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
   const [adjustingWater, setAdjustingWater] = useState(false);
   const [activeGoalCount, setActiveGoalCount] = useState(0);
@@ -303,7 +309,7 @@ export default function DashboardPage() {
   const activeProgramId = profile?.activeProgram?.programId;
   useEffect(() => {
     if (!activeProgramId) { setResolvedProgram(null); return; }
-    resolveProgram(activeProgramId).then(setResolvedProgram).catch(() => setResolvedProgram(null));
+    resolveProgram(activeProgramId).then((p) => { if (p) setResolvedProgram(p); }).catch(() => {});
   }, [activeProgramId]);
 
   useEffect(() => {

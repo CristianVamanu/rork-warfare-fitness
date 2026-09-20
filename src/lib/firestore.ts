@@ -984,6 +984,45 @@ export async function getProgram(id: string) {
  * built-in seed fills any field the doc doesn't carry (e.g. a doc saved
  * before `phases` existed shouldn't erase the seed's phases).
  */
+/**
+ * The last fully-resolved program, kept across app launches.
+ *
+ * The dashboard card renders from `getMockProgram()` until resolveProgram's
+ * network read lands. For the ten bundled programs that is a decent stand-in;
+ * for an admin-created program there is NO bundled copy, so the card shows
+ * the program name, the wrong day total (taken from the pointer on the user
+ * document) and no exercises, then visibly corrects itself when Firestore
+ * answers — "Day 1 of 65" becoming "Day 1 of 91, 4 exercises" a few seconds
+ * later. Reported from a real device, and the reason the home screen felt
+ * slow: the document carries the whole schedule, so it is the heaviest read
+ * on that screen.
+ *
+ * Only the active program is worth keeping, so this holds exactly one entry
+ * and is size-capped — a schedule for a long program is large, and
+ * localStorage is a small, synchronous, shared budget.
+ */
+const RESOLVED_PROGRAM_KEY = 'wf:resolved-program:v1';
+const RESOLVED_PROGRAM_MAX_BYTES = 400_000;
+
+function rememberResolvedProgram(p: Program) {
+  try {
+    const json = JSON.stringify({ id: p.id, program: p });
+    if (json.length > RESOLVED_PROGRAM_MAX_BYTES) return;
+    localStorage.setItem(RESOLVED_PROGRAM_KEY, json);
+  } catch { /* quota or private mode — the network path still works */ }
+}
+
+/** Synchronous: the stored program if it is the one being asked for. */
+export function peekResolvedProgram(programId: string | undefined): Program | null {
+  if (!programId) return null;
+  try {
+    const raw = localStorage.getItem(RESOLVED_PROGRAM_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { id?: string; program?: Program };
+    return parsed.id === programId && parsed.program ? parsed.program : null;
+  } catch { return null; }
+}
+
 export async function resolveProgram(programId: string): Promise<Program | null> {
   const { getMockProgram } = await import('./programs');
   const mock = getMockProgram(programId);
@@ -995,13 +1034,17 @@ export async function resolveProgram(programId: string): Promise<Program | null>
   }
   if (!fsDoc && !mock) return null;
 
-  return {
+  const resolved = {
     ...(mock ?? {}),
     ...(fsDoc ?? {}),
     schedule: fsDoc?.schedule?.length ? fsDoc.schedule : mock?.schedule,
     phases: fsDoc?.phases?.length ? fsDoc.phases : mock?.phases,
     exercises: fsDoc?.exercises?.length ? fsDoc.exercises : (mock?.exercises ?? []),
   } as Program;
+  // Only worth storing once the Firestore doc actually arrived; caching the
+  // seed copy would just re-serve the same stand-in the caller already has.
+  if (fsDoc) rememberResolvedProgram(resolved);
+  return resolved;
 }
 
 export async function createProgram(data: Record<string, unknown>) {
