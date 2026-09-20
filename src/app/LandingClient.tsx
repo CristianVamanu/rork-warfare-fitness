@@ -433,6 +433,9 @@ export default function LandingPage({
           from the html[data-wf-session] attribute — see BrandSplash. */}
       <BrandSplash gated />
     <div data-landing-body className="min-h-screen bg-background overflow-x-hidden relative">
+      {/* Static backdrop behind the hero. See .wf-field — it paints once and
+          then costs nothing, which is the whole point of it. */}
+      <div aria-hidden className="wf-field" />
       {/* Ambient glow + grid texture, contained to the hero viewport so it
           doesn't bleed color into the feature/social-proof sections below. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[640px] overflow-hidden">
@@ -547,7 +550,7 @@ export default function LandingPage({
           )}
           <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.15] sm:leading-[1.1] text-balance">
             {landing.headlineLine1}<br className="hidden sm:block" />{' '}
-            <span className="text-accent">{landing.headlineLine2}</span>
+            <span className="wf-lit">{landing.headlineLine2}</span>
           </h1>
           <p className="text-text-secondary text-base sm:text-lg mt-5 max-w-xl mx-auto leading-relaxed">
             {subheadline}
@@ -560,8 +563,12 @@ export default function LandingPage({
               onboarding instead (still right at the start there, just not
               on the landing page itself). Rides along as a query param and
               pre-fills the same field on the biometrics step. */}
-          <div className="max-w-md mx-auto mt-8 p-5 rounded-2xl border border-white/8 bg-surface/60 backdrop-blur-sm">
-            <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-3">Start building your program</p>
+          {/* The start card wears the same targeting brackets as the rest of
+              the page's panels, so the one thing we want tapped reads as the
+              instrument's control rather than as a generic form box. */}
+          <div className="group relative max-w-md mx-auto mt-8 p-5 rounded-2xl border border-accent/20 bg-surface/60 backdrop-blur-sm">
+            <CornerBrackets size="w-3.5 h-3.5" />
+            <p className="wf-readout text-[10px] font-bold text-accent mb-3">Start building your program</p>
             <div className="grid grid-cols-2 gap-2 mb-3">
               {(['male', 'female'] as const).map((s) => (
                 <button
@@ -604,17 +611,14 @@ export default function LandingPage({
             )}
           </div>
 
-          {/* The wedge, above the fold. Everything else in this hero asks a
-              stranger to commit to a quiz; this asks for ninety seconds and
-              gives them a number about themselves, which is the one thing on
-              this page no other fitness app offers. */}
-          <Link
-            href="/standards"
-            className="group inline-flex items-center gap-2 mt-4 text-sm font-bold text-accent hover:underline"
-          >
-            Or find out if you could pass selection
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </Link>
+          {/* There used to be an "Or find out if you could pass selection"
+              link here, directly under the start button. It read as a second
+              option at the exact moment the visitor was being asked to pick
+              one, and the standards test is a route AWAY from signup — so the
+              cheaper choice won and onboarding lost people at the last step.
+              The test still has its own section further down the page, where
+              it catches the visitors who were never going to sign up today
+              instead of poaching the ones who were. */}
 
           <div className="flex items-center justify-center gap-4 mt-5 flex-wrap">
             <p className="text-xs text-text-tertiary">{paidTrialEnabled || cardUpFrontTrial ? `Cancel anytime` : 'No credit card required'}</p>
@@ -648,16 +652,25 @@ export default function LandingPage({
               signal at all above the fold, right when a cold visitor needs
               one most. These claims are true regardless of user count, so
               there's nothing fabricated about showing them from day one. */}
-          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mt-6">
-            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
-              <ShieldCheck className="w-3.5 h-3.5 text-accent" /> Secure checkout
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
-              <XCircle className="w-3.5 h-3.5 text-accent" /> Cancel anytime
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
-              <CheckCircle2 className="w-3.5 h-3.5 text-accent" /> Matched to you in 2 minutes
-            </div>
+          {/* Set as one hairline-divided strip rather than three floating
+              phrases — a spec row reads as stated fact, loose text reads as
+              marketing. Divider suppressed on the first item and whenever a
+              row wraps to one item per line on a narrow phone. */}
+          <div className="inline-flex flex-wrap items-center justify-center gap-y-2 mt-6 rounded-xl border border-white/8 bg-white/[0.02] px-1.5 py-2">
+            {[
+              { Icon: ShieldCheck, label: 'Secure checkout' },
+              { Icon: XCircle, label: 'Cancel anytime' },
+              { Icon: CheckCircle2, label: 'Matched to you in 2 minutes' },
+            ].map(({ Icon, label }, i) => (
+              <div
+                key={label}
+                className={`flex items-center gap-1.5 px-3 text-[11px] text-text-tertiary wf-readout ${
+                  i > 0 ? 'sm:border-l sm:border-white/10' : ''
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {label}
+              </div>
+            ))}
           </div>
 
           {/* Real usage numbers only — hidden below a threshold so a brand

@@ -80,7 +80,11 @@ export function CornerBrackets({ size = 'w-4 h-4' }: { size?: string }) {
         <span
           key={pos}
           aria-hidden
-          className={`pointer-events-none absolute ${size} border-transparent group-hover:border-accent/55 transition-colors duration-300 ${pos}`}
+          // Visible at rest, not only on hover. Hover-only brackets meant
+          // that on a phone — which is most of this traffic — they never
+          // appeared at all, so the panels lost the one detail that makes
+          // them read as instrument panels rather than plain cards.
+          className={`pointer-events-none absolute ${size} border-accent/25 group-hover:border-accent/60 transition-colors duration-300 ${pos}`}
         />
       ))}
     </>

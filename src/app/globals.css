@@ -488,3 +488,59 @@ html[data-wf-session="1"] [data-landing-body] { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .wf-rise { animation: none; }
 }
+
+/* ── Landing: the instrument field ────────────────────────────────────────
+   The landing page was a column of text on flat black, which reads as a
+   template rather than as a product that measures things.
+
+   What follows is deliberately the CHEAPEST possible way to fix that. An
+   earlier attempt at the same brief used a Three.js particle column, a
+   blurred full-screen pulsing orb and framer-motion on every block, and
+   the page stuttered on a phone and took three seconds to show its own
+   headline. So there is nothing here that runs after first paint: no
+   animation, no `filter: blur()`, no compositing layer, no canvas, no
+   bytes. Two gradients and a mask, painted once, then idle forever.
+
+   It sits on its own fixed-height element at the top of the page rather
+   than on the page wrapper, because the wrapper is thousands of pixels
+   tall and a percentage-based mask on it stretches into mush. */
+.wf-field {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 760px;
+  pointer-events: none;
+  background-image:
+    /* The bloom behind the brand mark — the page's one source of light. */
+    radial-gradient(70% 46% at 50% 8%, rgb(var(--accent-rgb) / 0.16), transparent 68%),
+    /* The measuring grid. Faint on purpose: at 0.05 it reads as texture,
+       and anything stronger turns a fitness page into a sci-fi poster. */
+    linear-gradient(rgb(var(--accent-rgb) / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--accent-rgb) / 0.05) 1px, transparent 1px);
+  background-size: 100% 100%, 64px 64px, 64px 64px;
+  /* Fades out downward so the grid never collides with the content below
+     and there is no visible seam where the element ends. */
+  mask-image: linear-gradient(to bottom, black 0%, black 42%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 42%, transparent 100%);
+}
+
+/* The accent half of the headline, lit from the left rather than flat.
+   background-clip on text is a paint-time effect with no runtime cost.
+   The explicit `color` is the fallback for anything that doesn't support
+   it — without it, an unsupported browser renders the words invisible. */
+.wf-lit {
+  color: rgb(var(--accent-rgb));
+  background-image: linear-gradient(100deg, rgb(var(--accent-rgb)) 0%, #FFD9A0 46%, rgb(var(--accent-rgb)) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .wf-lit { color: transparent; }
+}
+
+/* A readout label: small, tracked out, tabular. Used for the little
+   status lines that make the page read as an instrument panel. */
+.wf-readout {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
