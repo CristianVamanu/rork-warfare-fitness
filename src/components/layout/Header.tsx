@@ -47,10 +47,10 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
             {showBack && (
               <button
                 onClick={() => router.back()}
-                className="p-1.5 -ml-1.5 rounded-xl text-text-secondary hover:text-foreground transition-colors"
+                className="wf-icon-tile -ml-1 mr-1"
                 aria-label="Back"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-[19px] h-[19px]" strokeWidth={1.75} />
               </button>
             )}
             <h1 className="text-lg font-bold text-foreground">{title}</h1>
@@ -74,11 +74,12 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
             <>
               <Link
                 href="/notifications"
-                className="relative p-2 rounded-xl text-text-secondary transition-colors"
+                aria-label={unreadNotifs > 0 ? `Notifications, ${unreadNotifs} unread` : 'Notifications'}
+                className="wf-icon-tile"
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-[19px] h-[19px]" strokeWidth={1.75} />
                 {unreadNotifs > 0 && (
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
+                  <span className="wf-icon-badge tabular-nums">
                     {unreadNotifs > 9 ? '9+' : unreadNotifs}
                   </span>
                 )}
@@ -91,11 +92,11 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
                   type="button"
                   onClick={openChat}
                   aria-label={unreadMessages > 0 ? `Messages, ${unreadMessages} unread` : 'Messages'}
-                  className="relative p-2 rounded-xl text-text-secondary transition-colors"
+                  className="wf-icon-tile"
                 >
-                  <MessageCircle className="w-5 h-5" />
+                  <MessageCircle className="w-[19px] h-[19px]" strokeWidth={1.75} />
                   {unreadMessages > 0 && (
-                    <span className="absolute top-1 right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
+                    <span className="wf-icon-badge tabular-nums">
                       {unreadMessages > 9 ? '9+' : unreadMessages}
                     </span>
                   )}
@@ -109,17 +110,23 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
                 <Link
                   href={isAdmin ? '/admin?tab=support' : '/support'}
                   aria-label={unreadSupport > 0 ? `Support, ${unreadSupport} unread` : 'Support'}
-                  className="relative p-2 rounded-xl text-text-secondary transition-colors"
+                  className="wf-icon-tile"
                 >
-                  <LifeBuoy className="w-5 h-5" />
+                  <LifeBuoy className="w-[19px] h-[19px]" strokeWidth={1.75} />
                   {unreadSupport > 0 && (
-                    <span className="absolute top-1 right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
+                    <span className="wf-icon-badge tabular-nums">
                       {unreadSupport > 9 ? '9+' : unreadSupport}
                     </span>
                   )}
                 </Link>
               )}
-              <Link href="/settings">
+              {/* The avatar keeps its photo but sits in the same tile as the
+                  rest of the row, so the four actions read as one set. */}
+              <Link
+                href="/settings"
+                aria-label="Settings"
+                className="wf-icon-tile overflow-hidden p-[3px]"
+              >
                 <Avatar src={profile?.photoURL} name={profile?.displayName} size="sm" />
               </Link>
             </>

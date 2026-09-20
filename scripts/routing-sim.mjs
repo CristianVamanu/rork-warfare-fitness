@@ -96,12 +96,14 @@ function pickBestProgram(pool, goal, experience, trainingDays, sex, equipment) {
   const candidates = eligible(pool, sex, equipment);
   const scored = candidates.map((p) => {
     let score = 0;
+    const recommended = Array.isArray(p.recommendedForGoals) && p.recommendedForGoals.includes(goal);
+    if (recommended) score += 14;
     if (p.goal === targetGoal) score += 10; else if (p.goal === 'general') score += 4;
     const levelGap = Math.abs((levelRank[p.level] ?? 1) - (levelRank[experience] ?? 1));
     score += levelGap === 0 ? 6 : levelGap === 1 ? 2 : 0;
     score -= 0.5 * Math.abs(p.daysPerWeek - trainingDays);
     if ((p.phases?.length ?? 0) > 1) score += 1;
-    if (p.priorityPick && p.goal === targetGoal) score += 5;
+    if (p.priorityPick && (p.goal === targetGoal || recommended)) score += 5;
     if (userEquipmentRank !== undefined) {
       const need = EQUIPMENT_RANK[estimateEquipmentTier(p)];
       if (need > userEquipmentRank) score -= 5 * (need - userEquipmentRank);

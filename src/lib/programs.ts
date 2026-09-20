@@ -3,7 +3,7 @@
  * is empty. Each program has a full 7-day weekly schedule (index 0 = Monday).
  */
 
-import type { Program, ProgramDay } from '@/types';
+import type { FitnessGoal, Program, ProgramDay } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1522,6 +1522,21 @@ export function pickBestProgram(
 
   const scored = candidates.map((p) => {
     let score = 0;
+    // The admin's explicit routing beats every inference below it.
+    //
+    // At 14 it clears the category match (10) outright, so a program the
+    // admin named for "Selection Prep" wins over one that merely carries
+    // the endurance label — which is the entire point of the control. It
+    // is additive with the category match rather than exclusive, so a
+    // program that is both stays ahead of one that is only recommended.
+    //
+    // It cannot reach across a hard exclusion: sex and equipment filter the
+    // pool BEFORE scoring, so recommending a full-gym program for Lose Fat
+    // still never sends it to somebody training in a bedroom. Those are
+    // answers about what the member can physically do; this is an opinion
+    // about what they should do.
+    const recommended = p.recommendedForGoals?.includes(goal as FitnessGoal) === true;
+    if (recommended) score += 14;
     if (p.goal === targetGoal) score += 10;
     else if (p.goal === 'general') score += 4; // general programs are a reasonable fallback for any goal
     const levelGap = Math.abs((levelRank[p.level] ?? 1) - (levelRank[experience] ?? 1));
@@ -1551,7 +1566,7 @@ export function pickBestProgram(
     // someone who asked to lose fat. At 5 it beats an exact level match
     // (6) only in combination with something else, and never beats the
     // goal itself (10) — so a flagged program cannot hijack other goals.
-    if (p.priorityPick && p.goal === targetGoal) score += 5;
+    if (p.priorityPick && (p.goal === targetGoal || recommended)) score += 5;
 
     if (sex && p.targetGender && p.targetGender !== 'anyone') {
       score += p.targetGender === sex ? 2 : -3;

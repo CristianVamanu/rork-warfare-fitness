@@ -626,6 +626,26 @@ export interface Program {
    * within the program's own goal, not across goals.
    */
   priorityPick?: boolean;
+  /**
+   * The admin's own routing table: the onboarding goals this program should
+   * be offered for, named directly.
+   *
+   * `goal` above is a category label ('hypertrophy', 'endurance') and the
+   * matcher maps the five onboarding answers onto it. That mapping is a
+   * guess made once, in code, and it is why "Selection Prep" quietly means
+   * "anything tagged endurance" — an admin who wants their two selection
+   * programs shown to people who picked Selection Prep has no way to say so.
+   *
+   * Listing an answer here says it outright: this program is a recommended
+   * answer to that question. It scores above the category match, so an
+   * explicit choice beats an inferred one, and it works ACROSS categories —
+   * a program tagged 'strength' can be the recommendation for Build Muscle
+   * if that is what the admin wants.
+   *
+   * Empty or missing means nothing changes: the category mapping decides,
+   * exactly as before.
+   */
+  recommendedForGoals?: FitnessGoal[];
   imageUrl?: string; // cover image shown on the landing page & program lists
 }
 

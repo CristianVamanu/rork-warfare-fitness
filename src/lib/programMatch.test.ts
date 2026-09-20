@@ -159,3 +159,92 @@ describe('the admin overrides', () => {
     expect(pickBestProgram([flaggedGym, homeOption], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('home');
   });
 });
+
+/**
+ * The admin's own routing table: "when somebody picks Selection Prep, send
+ * them HERE" — named directly, not inferred from the program's category.
+ *
+ * The distinction that matters throughout: this overrides opinions (which
+ * category the program is filed under) but never facts (what kit the member
+ * owns, which sex the program is written for).
+ */
+describe('admin-chosen recommendations per onboarding goal', () => {
+  const base = MOCK_PROGRAMS[0];
+  const prog = (o: Record<string, unknown>) => ({ ...base, ...o }) as unknown as Parameters<typeof pickBestProgram>[0][number];
+  const anyEquip = ['minimal', 'home', 'full-gym'];
+
+  it('sends the named goal to the named program, across categories', () => {
+    // The admin's pick is filed under strength; the member asked for
+    // Selection Prep, which normally maps to endurance. The admin wins.
+    const named = prog({ id: 'named', level: 'intermediate', goal: 'strength', suitableEquipment: anyEquip, recommendedForGoals: ['military-prep'] });
+    const categoryMatch = prog({ id: 'endurance', level: 'intermediate', goal: 'endurance', suitableEquipment: anyEquip });
+    expect(pickBestProgram([named, categoryMatch], 'military-prep', 'intermediate', 4, 'male', 'home')!.id).toBe('named');
+    // Array order must not decide it.
+    expect(pickBestProgram([categoryMatch, named], 'military-prep', 'intermediate', 4, 'male', 'home')!.id).toBe('named');
+  });
+
+  it('leaves every other goal alone', () => {
+    // Recommended for Selection Prep only — a member asking to lose fat
+    // must still get the fat-loss program.
+    const named = prog({ id: 'named', level: 'intermediate', goal: 'strength', suitableEquipment: anyEquip, recommendedForGoals: ['military-prep'] });
+    const fatLoss = prog({ id: 'fatloss', level: 'intermediate', goal: 'weight-loss', suitableEquipment: anyEquip });
+    expect(pickBestProgram([named, fatLoss], 'lose-fat', 'intermediate', 4, 'male', 'home')!.id).toBe('fatloss');
+  });
+
+  it('accepts several goals on one program', () => {
+    const named = prog({ id: 'named', level: 'intermediate', goal: 'general', suitableEquipment: anyEquip, recommendedForGoals: ['build-muscle', 'recomposition'] });
+    // Tagged hypertrophy, so it is the natural pick for both of those two
+    // goals — the recommendation has to beat a real category match.
+    const other = prog({ id: 'other', level: 'intermediate', goal: 'hypertrophy', suitableEquipment: anyEquip });
+    for (const goal of ['build-muscle', 'recomposition']) {
+      expect(pickBestProgram([named, other], goal, 'intermediate', 4, 'male', 'home')!.id).toBe('named');
+    }
+    // A goal NOT on the list falls back to ordinary scoring. Both are off
+    // category here, so pit the recommendation against a genuine strength
+    // program: the unlisted goal must not be dragged to 'named'.
+    const strengthOne = prog({ id: 'strength', level: 'intermediate', goal: 'strength', suitableEquipment: anyEquip });
+    expect(pickBestProgram([named, strengthOne], 'strength', 'intermediate', 4, 'male', 'home')!.id).toBe('strength');
+  });
+
+  it('still never sends a member kit they do not have', () => {
+    // The admin recommended a full-gym program for Lose Fat. Someone
+    // training at home asked to lose fat. Equipment is a fact, not an
+    // opinion — they get the home program.
+    const gymPick = prog({ id: 'gym', level: 'intermediate', goal: 'weight-loss', suitableEquipment: ['full-gym'], recommendedForGoals: ['lose-fat'] });
+    const homeOne = prog({ id: 'home', level: 'intermediate', goal: 'general', suitableEquipment: ['home'] });
+    expect(pickBestProgram([gymPick, homeOne], 'lose-fat', 'intermediate', 4, 'male', 'home')!.id).toBe('home');
+    // ...and the full-gym member does get it.
+    expect(pickBestProgram([gymPick, homeOne], 'lose-fat', 'intermediate', 4, 'male', 'full-gym')!.id).toBe('gym');
+  });
+
+  it('still never sends a man the women-only program', () => {
+    const womens = prog({ id: 'womens', level: 'intermediate', goal: 'general', targetGender: 'female', suitableEquipment: anyEquip, recommendedForGoals: ['build-muscle'] });
+    const open = prog({ id: 'open', level: 'beginner', goal: 'general', targetGender: 'anyone', suitableEquipment: anyEquip });
+    expect(pickBestProgram([womens, open], 'build-muscle', 'intermediate', 4, 'male', 'home')!.id).toBe('open');
+    expect(pickBestProgram([womens, open], 'build-muscle', 'intermediate', 4, 'female', 'home')!.id).toBe('womens');
+  });
+
+  it('a recommended program that also matches the category beats one that only matches the category', () => {
+    const both = prog({ id: 'both', level: 'intermediate', goal: 'endurance', suitableEquipment: anyEquip, recommendedForGoals: ['military-prep'] });
+    const categoryOnly = prog({ id: 'category', level: 'intermediate', goal: 'endurance', suitableEquipment: anyEquip });
+    expect(pickBestProgram([categoryOnly, both], 'military-prep', 'intermediate', 4, 'male', 'home')!.id).toBe('both');
+  });
+
+  it('breaks a tie between two recommended programs with the priority flag', () => {
+    const a = prog({ id: 'a', level: 'intermediate', goal: 'general', suitableEquipment: anyEquip, recommendedForGoals: ['strength'] });
+    const b = prog({ id: 'b', level: 'intermediate', goal: 'general', suitableEquipment: anyEquip, recommendedForGoals: ['strength'], priorityPick: true });
+    expect(pickBestProgram([a, b], 'strength', 'intermediate', 4, 'male', 'home')!.id).toBe('b');
+    expect(pickBestProgram([b, a], 'strength', 'intermediate', 4, 'male', 'home')!.id).toBe('b');
+  });
+
+  it('changes nothing at all when no program declares one', () => {
+    // The guarantee that makes this safe to ship: every existing program
+    // has no list, so the whole live catalogue routes exactly as before.
+    expect(MOCK_PROGRAMS.every((p) => !p.recommendedForGoals?.length)).toBe(true);
+    sweep((a) => {
+      const withField = pickBestProgram(MOCK_PROGRAMS.map((p) => ({ ...p })), a.goal, a.level, a.days, a.sex, a.equipment);
+      const plain = match(a);
+      expect(withField?.id).toBe(plain?.id);
+    });
+  });
+});

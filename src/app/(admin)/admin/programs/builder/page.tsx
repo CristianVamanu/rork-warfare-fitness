@@ -18,6 +18,7 @@ import { uploadVideo, resolveStorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
+import type { FitnessGoal } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -79,10 +80,28 @@ interface BProg {
   targetGender: 'male' | 'female' | 'anyone';
   suitableEquipment: ('minimal' | 'home' | 'full-gym')[];
   priorityPick: boolean;
+  recommendedForGoals: FitnessGoal[];
   imageUrl: string;
   schedule: BDay[];
   phases: BPhase[];
 }
+
+/**
+ * The five goals as onboarding actually words them, in onboarding's order.
+ *
+ * Kept verbatim from src/app/onboarding/page.tsx so an admin ticking
+ * "Selection Prep" here is ticking the same button the member pressed —
+ * the whole control is worthless if the two lists drift apart. The values
+ * are FitnessGoal, so a rename in the type breaks the build rather than
+ * silently un-recommending a program.
+ */
+const ONBOARDING_GOALS: { v: FitnessGoal; label: string }[] = [
+  { v: 'military-prep', label: 'Selection Prep' },
+  { v: 'lose-fat', label: 'Lose Fat' },
+  { v: 'build-muscle', label: 'Build Muscle' },
+  { v: 'recomposition', label: 'Recomposition' },
+  { v: 'strength', label: 'Get Stronger' },
+];
 
 interface UserRow { id: string; displayName?: string; email?: string; role?: string; activeProgram?: { programName?: string } }
 
@@ -130,7 +149,7 @@ function blankEx(): BEx {
 function emptyProg(): BProg {
   return {
     name: '', description: '', level: 'intermediate', goal: 'hypertrophy',
-    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', suitableEquipment: [], priorityPick: false, imageUrl: '',
+    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', suitableEquipment: [], priorityPick: false, recommendedForGoals: [], imageUrl: '',
     schedule: [blankDay('Push Day'), blankDay('Pull Day'), blankDay('Legs'), restDay(), blankDay('Upper Body'), restDay(), restDay()],
     phases: [],
   };
@@ -341,6 +360,7 @@ function BuilderInner() {
     name: string; description: string; level: BProg['level']; goal: BProg['goal'];
     weeks: number; daysPerWeek: number; visibility?: string; targetGender?: BProg['targetGender']; imageUrl?: string;
     suitableEquipment?: BProg['suitableEquipment']; priorityPick?: boolean;
+    recommendedForGoals?: FitnessGoal[];
     schedule?: BDay[];
     phases?: { id: string; label: string; startWeek: number; endWeek: number; schedule: BDay[] }[];
   }
@@ -412,6 +432,7 @@ function BuilderInner() {
           targetGender: program.targetGender ?? 'anyone',
           suitableEquipment: program.suitableEquipment ?? [],
           priorityPick: program.priorityPick === true,
+          recommendedForGoals: program.recommendedForGoals ?? [],
           imageUrl: program.imageUrl ?? '',
           schedule,
           phases,
@@ -587,6 +608,7 @@ function BuilderInner() {
         visibility: 'public',
         suitableEquipment: p.suitableEquipment ?? [],
         priorityPick: p.priorityPick === true,
+        recommendedForGoals: [],
         targetGender: (p.targetGender === 'male' || p.targetGender === 'female') ? p.targetGender : 'anyone',
         imageUrl: '',
         schedule: phases.length > 0 ? phases[0].schedule : normalizeSchedule(p.schedule),
@@ -656,6 +678,9 @@ function BuilderInner() {
         // which is what an untouched program has always done. Saving an
         // empty array would silently make the program unreachable.
         suitableEquipment: prog.suitableEquipment.length ? prog.suitableEquipment : undefined,
+        // Same rule: nothing ticked means "no opinion", stored as absent so
+        // the goal-category mapping decides on its own as it always has.
+        recommendedForGoals: prog.recommendedForGoals.length ? prog.recommendedForGoals : undefined,
         schedule: prog.phases.length > 0 ? prog.phases[0].schedule : prog.schedule,
         isPublic: publish || prog.visibility === 'public',
         exercises: unique.map(e => ({ ...e, reps: e.reps })),
@@ -990,6 +1015,44 @@ function BuilderInner() {
               two columns on a phone too, so a half-width cell squeezed
               three option cards into about 150px and wrapped every label
               onto four lines. */}
+          {/* The routing table. "Suitable for" below says who CAN do this
+              program; this says who should be SENT here — the goal the
+              member picked in onboarding, named directly rather than
+              inferred from the program's own category label. */}
+          <div className="col-span-2">
+            <label className="text-xs text-text-secondary mb-1.5 block">Recommend for these goals</label>
+            <div className="flex flex-wrap gap-2">
+              {ONBOARDING_GOALS.map(({ v, label }) => {
+                const on = prog.recommendedForGoals.includes(v);
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setProg(s => ({
+                      ...s,
+                      recommendedForGoals: on
+                        ? s.recommendedForGoals.filter(x => x !== v)
+                        : [...s.recommendedForGoals, v],
+                    }))}
+                    className={`min-h-[44px] px-3 rounded-xl border text-[13px] font-semibold transition-colors ${
+                      on
+                        ? 'border-accent bg-accent/15 text-white'
+                        : 'border-white/10 bg-surface text-text-secondary hover:border-white/25'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-text-tertiary mt-1.5 leading-relaxed">
+              {prog.recommendedForGoals.length
+                ? 'Members who pick one of these in onboarding are sent here ahead of programs that only match by category.'
+                : 'Nothing picked \u2014 onboarding matches this program by its Goal field above.'}
+              {' '}Equipment and gender still apply: a member is never sent a program they cannot do.
+            </p>
+          </div>
           <div className="col-span-2">
             <label className="text-xs text-text-secondary mb-1.5 block">Suitable for</label>
             {/* Chips rather than stacked cards. Three tall cards with a

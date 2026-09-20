@@ -605,3 +605,63 @@ html[data-wf-session="1"] [data-landing-body] { visibility: hidden; }
 .wf-ember {
   background-image: radial-gradient(120% 120% at 100% 0%, rgb(var(--accent-rgb) / 0.20) 0%, transparent 55%);
 }
+
+/* Header actions — the same vocabulary the bottom bar speaks.
+   Down there a tab is a rounded-xl tile that fills with accent-muted and
+   tints its glyph when it is the live one; up here nothing is ever "live",
+   so the tile is always present but held one step back: a hairline edge
+   over a barely-there fill, warming to the accent on hover/focus. That
+   keeps the two rows reading as one system instead of plain outline icons
+   floating above a designed nav.
+
+   Sized at 38px so the row still clears a 40px touch column without the
+   tiles crowding the logo on a 390px screen. */
+.wf-icon-tile {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background:
+    radial-gradient(120% 120% at 100% 0%, rgb(var(--accent-rgb) / 0.10) 0%, transparent 60%),
+    rgb(var(--accent-rgb) / 0.04);
+  color: var(--text-secondary);
+  transition: color 0.2s, border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+
+.wf-icon-tile:hover,
+.wf-icon-tile:focus-visible {
+  color: rgb(var(--accent-rgb));
+  border-color: rgb(var(--accent-rgb) / 0.45);
+  background-color: var(--accent-muted);
+  box-shadow: 0 0 18px -6px rgb(var(--accent-rgb) / 0.55);
+}
+
+/* An unread count is the one thing here allowed to shout. The ring is the
+   header's own backdrop, so the badge reads as notched into the tile edge
+   rather than stuck on top of it. */
+.wf-icon-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: #EF4444;
+  box-shadow: 0 0 0 2px var(--background);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wf-icon-tile { transition: none; }
+}
