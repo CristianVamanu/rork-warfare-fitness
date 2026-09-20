@@ -1540,10 +1540,25 @@ export function pickBestProgram(
     }
     if (userEquipmentRank !== undefined) {
       const programNeedRank = EQUIPMENT_RANK[estimateEquipmentTier(p)];
-      // Only penalize when the program needs MORE equipment than the user
-      // has access to — never penalize a simple bodyweight program for
-      // someone with a full gym, that's still a perfectly valid match.
+      // Needing MORE than they have is now handled by exclusion above, so
+      // this only fires in the fallback case where every program is over
+      // tier — there it picks the least over-equipped.
       if (programNeedRank > userEquipmentRank) score -= 5 * (programNeedRank - userEquipmentRank);
+      // Needing LESS is a mild preference against, which it previously was
+      // not: the old rule scored a bodyweight program and a barbell program
+      // identically for someone with a full gym, on the grounds that
+      // bodyweight is "still a perfectly valid match". It is — but it left
+      // equipment contributing nothing at all for anyone at the top tier,
+      // so the choice fell to whatever broke the tie next. Someone who
+      // answered "advanced, full gym" was being handed beginner home
+      // workouts, which reads as the app ignoring both answers.
+      //
+      // Deliberately small. At 1.5 a tier it settles ties between otherwise
+      // equal programs and cannot outrank a goal match (10), an exact level
+      // match (6), or rescue a program from the wrong goal — so a gym
+      // member with only bodyweight options still gets the right goal
+      // rather than nothing.
+      else if (programNeedRank < userEquipmentRank) score -= 1.5 * (userEquipmentRank - programNeedRank);
     }
     if (estimatedWeeksToGoal && estimatedWeeksToGoal > 0) {
       score -= Math.min(10, Math.abs(p.weeks - estimatedWeeksToGoal) * 0.3);
