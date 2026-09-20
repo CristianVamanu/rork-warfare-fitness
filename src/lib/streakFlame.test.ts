@@ -26,7 +26,7 @@ describe('the flame', () => {
     expect(v.flameState).toBe('unlit');
     expect(v.streak).toBe(0);
     expect(v.atRisk).toBe(false);
-    expect(streakCaption(v)).toBe('Finish your first workout');
+    expect(streakCaption(v)).toBe('Light it — finish your first workout');
   });
 
   it('blazes on a day the workout is done', () => {
@@ -43,7 +43,7 @@ describe('the flame', () => {
     expect(v.flameState).toBe('flickering');
     expect(v.streak).toBe(5);
     expect(v.atRisk).toBe(true);
-    expect(streakCaption(v)).toBe('Train today to keep it');
+    expect(streakCaption(v)).toBe('Flickering — train today to keep it lit');
   });
 
   it('goes out after two missed days with no freeze', () => {
@@ -51,7 +51,7 @@ describe('the flame', () => {
     const v = on({ lastWorkoutDate: '2026-09-18', cachedStreak: 5, completedWorkouts: 12 });
     expect(v.flameState).toBe('out');
     expect(v.streak).toBe(0);
-    expect(streakCaption(v)).toBe('Start a new streak');
+    expect(streakCaption(v)).toBe("Flame's out — start a new streak today");
   });
 
   it('a freeze buys exactly one more day, and says so', () => {
@@ -62,7 +62,7 @@ describe('the flame', () => {
     expect(saved.flameState).toBe('flickering');
     expect(saved.streak).toBe(5);
     expect(saved.savedByFreeze).toBe(true);
-    expect(streakCaption(saved)).toBe('Freeze saved it — train today');
+    expect(streakCaption(saved)).toBe('🧊 Freeze saved your streak — train today to keep it');
   });
 
   it('a freeze does not save a third missed day', () => {

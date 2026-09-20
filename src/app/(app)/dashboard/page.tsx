@@ -3,11 +3,11 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Moon, Flame, Crosshair, Wind, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, ClipboardCheck } from 'lucide-react';
+import { Moon, Flame, Crosshair, Wind, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, ClipboardCheck, Droplets, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
-import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, getProgressPhotos, resolveProgram, peekResolvedProgram, type PersonalBest } from '@/lib/firestore';
-import type { ProgressPhoto, Program } from '@/types';
+import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, markFlameIgnited, resolveProgram, peekResolvedProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
+import type { Program } from '@/types';
 import { SubscribeSuccess } from '@/components/ui/SubscribeSuccess';
 import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix, getNextSession, getProgramDayProgress, getLastTrainingSlotIndex } from '@/lib/programs';
@@ -16,6 +16,7 @@ import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
 import { deriveStreak, streakCaption } from '@/lib/streakFlame';
 import { Card } from '@/components/ui/Card';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import { FastingWidget } from '@/components/dashboard/FastingWidget';
 import { DailyTip } from '@/components/dashboard/DailyTip';
 import { DaysWithoutWidget } from '@/components/dashboard/DaysWithoutWidget';
@@ -66,16 +67,19 @@ export default function DashboardPage() {
     () => peekResolvedProgram(profile?.activeProgram?.programId),
   );
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
+  // Drives the weekly dots under the flame. Reads through the shared
+  // workouts cache in lib/firestore, the same one getPersonalBest below
+  // uses, so this is not a second heavy fetch.
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [adjustingWater, setAdjustingWater] = useState(false);
   const [activeGoalCount, setActiveGoalCount] = useState(0);
-  const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
 
   useEffect(() => {
     if (!user) return;
     getClientGoals(user.uid)
       .then((goals) => setActiveGoalCount(goals.filter((g) => g.status === 'active').length))
       .catch(() => {});
-    getProgressPhotos(user.uid).then(setProgressPhotos).catch(() => {});
+    getWeeklySummary(user.uid).then(setWeeklySummary).catch(() => {});
   }, [user]);
 
   // Today's calories + water used to arrive from THREE places at once: a
@@ -337,143 +341,15 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* Today's session — the hero. Amber gradient, dark ink, one action. */}
-        <div className="wf-rise" style={{ animationDelay: `${0.05}s` }}>
-          {activeProgram ? (
-            <div
-              className="hero-card relative overflow-hidden rounded-[28px] p-5 text-[#141005] shadow-[0_30px_70px_-30px_rgba(245,166,35,0.6)]"
-            >
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                {/* Always the NEXT session. A finished day is noted in the
-                    subline; the chip, headline and list never point backwards. */}
-                <span className="inline-flex items-center h-[26px] px-2.5 rounded-full bg-[#141005]/15 text-[11px] font-extrabold">
-                  {programDone
-                    ? 'Program complete'
-                    : `${workedOutToday ? 'Next · ' : ''}Day ${dayProgress?.dayNumber ?? 1} of ${dayProgress?.totalDays ?? activeProgram.totalWorkouts}`}
-                </span>
-                {!isRestToday && sessionCount > 0 && (
-                  <span className="inline-flex items-center h-[26px] px-2.5 rounded-full bg-[#141005]/15 text-[11px] font-extrabold">
-                    {sessionCount} exercise{sessionCount !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
+        {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
+        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
 
-              <h2 className="text-[27px] font-black leading-[1.05] tracking-tight mt-3">
-                {programDone
-                  ? 'You finished it.'
-                  : isRestToday
-                  ? 'Rest day.'
-                  : dayLabel
-                  ? `${dayLabel}.`
-                  : activeProgram.programName}
-              </h2>
-              <p className="text-[13px] font-semibold mt-1.5 opacity-85">
-                {programDone
-                  ? `${activeProgram.programName} · every session done. Pick your next fight.`
-                  : isRestToday
-                  ? `${activeProgram.programName} · recover, or skip it below`
-                  : workedOutToday && completedWorkouts > 0
-                  ? `${activeProgram.programName} · today's session is done · ${remaining} day${remaining !== 1 ? 's' : ''} left`
-                  : `${activeProgram.programName}${personalBest ? ` · your best on ${firstExerciseName}: ${personalBest.weight}${profile?.weightUnit ?? 'kg'} × ${personalBest.reps}` : ''}`}
-              </p>
-
-              {!isRestToday && sessionCount > 0 && (
-                <div className="mt-3 rounded-2xl bg-[#141005]/10 px-3.5 py-1">
-                  {todayDay!.exercises.slice(0, 4).map((ex) => (
-                    <div key={ex.id} className="flex items-center justify-between text-[13px] py-1.5 border-t border-[#141005]/10 first:border-t-0">
-                      <span className="truncate font-semibold">{ex.name}</span>
-                      <span className="flex-shrink-0 ml-3 tabular-nums opacity-80">{ex.sets}×{ex.reps}</span>
-                    </div>
-                  ))}
-                  {sessionCount > 4 && (
-                    <p className="text-[12px] py-1.5 border-t border-[#141005]/10 opacity-70">+{sessionCount - 4} more in session</p>
-                  )}
-                </div>
-              )}
-
-              <div className="mt-4">
-                <div className="h-1.5 rounded-full bg-[#141005]/15 overflow-hidden">
-                  <div className="h-full rounded-full bg-[#141005]" style={{ width: `${programPct}%` }} />
-                </div>
-                <p className="text-[11px] font-semibold mt-1.5 opacity-75">{programPct}% complete · {remaining} day{remaining !== 1 ? 's' : ''} remaining</p>
-              </div>
-
-              <div className="mt-3 space-y-2">
-                {isRestToday ? (
-                  <button
-                    onClick={handleSkipRest}
-                    disabled={skippingRest}
-                    /* Two lines, not one long one. The session name can run to
-                       "Push — Chest, Triceps, Abs", which wrapped; a wrapped
-                       text node fills the width, and centring the icon beside
-                       it then pushed the moon hard against the left edge. The
-                       moon now sits with "Skip rest day", which never wraps, so
-                       it cannot strand however long the session name gets.
-                       min-h rather than h, so the second line has somewhere to
-                       go instead of overflowing a fixed 52px. */
-                    className="w-full min-h-[52px] px-4 py-2.5 rounded-2xl bg-[#141005] text-accent font-extrabold text-[15px] flex flex-col items-center justify-center gap-0.5 leading-tight disabled:opacity-60 active:scale-[0.98] transition-transform"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Moon className="w-4 h-4 flex-shrink-0" />
-                      {skippingRest ? 'Skipping…' : 'Skip rest day'}
-                    </span>
-                    {!skippingRest && nextSession?.nextTraining && (
-                      <span className="text-[12px] font-bold opacity-70 text-center">
-                        {stripWeekdayPrefix(nextSession.nextTraining.day.label)}
-                      </span>
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}
-                    className="w-full h-[52px] px-4 rounded-2xl bg-[#141005] text-accent font-extrabold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-                  >
-                    <Play className="w-4 h-4 fill-current flex-shrink-0" /> {workedOutToday ? 'Start another session' : 'Start session'}
-                  </button>
-                )}
-                <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                  {workedOutToday && repeatIdx !== null && (
-                    <button onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${repeatIdx}`)} className="h-9 rounded-xl bg-[#141005]/12 text-[12px] font-bold flex items-center justify-center gap-1.5">
-                      <RotateCcw className="w-3.5 h-3.5" /> Repeat
-                    </button>
-                  )}
-                  <button onClick={() => router.push(`/training/${activeProgram.programId}`)} className="h-9 rounded-xl bg-[#141005]/12 text-[12px] font-bold flex items-center justify-center gap-1.5">
-                    <ChevronRight className="w-3.5 h-3.5" /> View program
-                  </button>
-                  <button onClick={() => router.push('/training')} className="h-9 rounded-xl bg-[#141005]/12 text-[12px] font-bold flex items-center justify-center gap-1.5">
-                    <RefreshCw className="w-3.5 h-3.5" /> Switch
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <Link href="/training" className="block">
-              <div
-                className="hero-card rounded-[28px] p-5 text-[#141005] shadow-[0_30px_70px_-30px_rgba(245,166,35,0.6)]"
-              >
-                <span className="inline-flex items-center h-[26px] px-2.5 rounded-full bg-[#141005]/15 text-[11px] font-extrabold">No active program</span>
-                <h2 className="text-[27px] font-black leading-[1.05] tracking-tight mt-3">Pick your fight.</h2>
-                <p className="text-[13px] font-semibold mt-1.5 opacity-85">Choose a program and your first session is written before you get to the gym.</p>
-                <div className="mt-4 w-full h-[52px] rounded-2xl bg-[#141005] text-accent font-extrabold text-[15px] flex items-center justify-center gap-2">
-                  <Dumbbell className="w-4 h-4" /> Browse programs
-                </div>
-              </div>
-            </Link>
-          )}
-        </div>
-
-        {/* Streak as the hero tile, calories and water stacked beside it.
-            The streak had been flattened into a third ring in a row of
-            three identical ones — which made the app's only piece of real
-            jeopardy look like a statistic. The flame is the point: it is
-            lit, flickering or out depending on whether you trained, so the
-            screen states the consequence rather than reporting a number. */}
-        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-2 gap-2.5">
-          <motion.div variants={stagger.item} className="row-span-2">
+          {/* Streak — hero tile, flame centered behind the number */}
+          <motion.div variants={stagger.item} className="col-span-2 row-span-2">
             <Card className="p-4 h-full flex flex-col bg-gradient-to-br from-surface-elevated to-surface relative overflow-hidden card-float">
               <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide relative">Streak</span>
 
-              <div className="flex-1 flex items-center justify-center relative min-h-[132px]">
+              <div className="flex-1 flex items-center justify-center relative">
                 {igniting && (
                   <div
                     className="ignite-flash absolute w-36 h-36 rounded-full pointer-events-none"
@@ -481,10 +357,6 @@ export default function DashboardPage() {
                   />
                 )}
                 {(() => {
-                  // Four states, four different fires. Sizes and opacities
-                  // are the originals — a blazing flame is meant to be
-                  // noticeably bigger than a flickering one, so the tile
-                  // reads at a glance without anyone parsing the caption.
                   const cfg = {
                     blazing:    { glow: 'rgba(245,166,35,0.55)', size: 104, opacity: 0.25, anim: 'flame-glow flame-flicker',      gray: false },
                     flickering: { glow: 'rgba(245,166,35,0.35)', size: 76,  opacity: 0.22, anim: 'flame-glow flame-flicker-weak', gray: false },
@@ -499,7 +371,7 @@ export default function DashboardPage() {
                       />
                       <span
                         key={igniting ? 'igniting' : 'settled'}
-                        className={`${igniting ? 'flame-ignite' : cfg.anim} absolute leading-none pointer-events-none select-none motion-reduce:animate-none`}
+                        className={`${igniting ? 'flame-ignite' : cfg.anim} absolute leading-none pointer-events-none select-none`}
                         style={{ fontSize: cfg.size, opacity: igniting ? 1 : cfg.opacity, filter: !igniting && cfg.gray ? 'grayscale(0.75) brightness(0.85)' : undefined }}
                       >
                         🔥
@@ -507,54 +379,232 @@ export default function DashboardPage() {
                     </>
                   );
                 })()}
-                <p className="text-4xl font-black text-white leading-none relative drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] tabular-nums">
+                <p className="text-4xl font-black text-white leading-none relative drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
                   {streak}<span className="text-lg font-bold text-text-secondary ml-0.5">d</span>
                 </p>
               </div>
 
-              <p className={`text-[10px] text-center font-medium relative leading-tight ${igniting ? 'text-accent font-bold' : 'text-amber-400/80'}`}>
-                {igniting ? 'Your flame is lit 🔥' : streakCaption(streakView)}
-              </p>
+              {igniting ? (
+                <p className="text-[9px] text-center text-accent font-bold mb-1.5 relative">
+                  Your flame is lit 🔥
+                </p>
+              ) : (
+                <p className="text-[9px] text-center text-amber-400/80 font-medium mb-1.5 relative">
+                  {streakCaption(streakView)}
+                </p>
+              )}
+
+              {activeMock?.daysPerWeek ? (
+                <div className="flex gap-1 relative">
+                  {Array.from({ length: activeMock.daysPerWeek }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`flex-1 h-1.5 rounded-full ${i < (weeklySummary?.workoutsCompleted ?? 0) ? 'bg-accent' : 'bg-white/8'}`}
+                    />
+                  ))}
+                </div>
+              ) : null}
             </Card>
           </motion.div>
 
-          <motion.div variants={stagger.item}>
-            <Card glass className="p-3 h-full flex flex-col items-center text-center gap-2">
-              <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Calories</span>
-              {loading && calories === null ? <Skeleton className="w-14 h-14 rounded-full" /> : (
-                <Ring value={caloriesPct} size={56} stroke={6} color="#10B981">
-                  <span className="text-[15px] font-black text-white tabular-nums">{Math.round(caloriesPct * 100)}<span className="text-[10px] font-bold text-text-secondary">%</span></span>
-                </Ring>
+          {/* Calories */}
+          <motion.div variants={stagger.item} className="col-span-2 row-span-1">
+            <Card className="p-3.5 h-full flex flex-col justify-between">
+              {loading && calories === null ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <Flame className="w-3.5 h-3.5 text-orange-400" />
+                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Calories</span>
+                  </div>
+                  <p className="text-lg font-black text-white">
+                    {calories ?? 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.calories}</span>
+                  </p>
+                  <ProgressBar value={calories ?? 0} max={goals.calories} color="danger" size="sm" />
+                </>
               )}
-              <p className="text-[10px] leading-tight text-text-tertiary tabular-nums">{(calories ?? 0).toLocaleString()} / {goals.calories.toLocaleString()}</p>
             </Card>
           </motion.div>
 
-          <motion.div variants={stagger.item}>
-            <Card glass className="p-3 h-full flex flex-col items-center text-center gap-2">
-              <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Water</span>
-              {loading && waterMl === null ? <Skeleton className="w-14 h-14 rounded-full" /> : (
-                <Ring value={waterPct} size={56} stroke={6} color="#3B82F6">
-                  <span className="text-[15px] font-black text-white tabular-nums">{waterMl ? +(waterMl / 1000).toFixed(1) : 0}<span className="text-[10px] font-bold text-text-secondary">L</span></span>
-                </Ring>
+          {/* Water */}
+          <motion.div variants={stagger.item} className="col-span-2 row-span-1">
+            <Card className="p-3.5 h-full flex flex-col justify-between">
+              {loading && waterMl === null ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Droplets className="w-3.5 h-3.5 text-blue-400" />
+                      <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Water</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleRemoveWater}
+                        disabled={adjustingWater || !waterMl}
+                        aria-label="Remove 250ml"
+                        className="w-7 h-7 rounded-full bg-blue-400/10 text-blue-400 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={handleAddWater}
+                        disabled={adjustingWater}
+                        aria-label="Add 250ml"
+                        className="w-7 h-7 rounded-full bg-blue-400/10 text-blue-400 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-lg font-black text-white">
+                    {waterMl ? +(waterMl / 1000).toFixed(2) : 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.water / 1000}L</span>
+                  </p>
+                  <ProgressBar value={waterMl ?? 0} max={goals.water} color="info" size="sm" />
+                </>
               )}
-              <div className="flex items-center gap-2">
-                <button onClick={handleRemoveWater} disabled={adjustingWater || !waterMl} aria-label="Remove 250ml"
-                  className="w-7 h-7 rounded-full bg-blue-400/10 text-blue-400 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform">
-                  <Minus className="w-3.5 h-3.5" />
-                </button>
-                <span className="text-[10px] text-text-tertiary">of {goals.water / 1000}L</span>
-                <button onClick={handleAddWater} disabled={adjustingWater} aria-label="Add 250ml"
-                  className="w-7 h-7 rounded-full bg-blue-400/10 text-blue-400 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform">
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
             </Card>
           </motion.div>
         </motion.div>
 
         {/* The day's tip. Renders nothing when there is none. */}
         <DailyTip />
+
+        {/* Today's Workout — hero. Pulled out of the bento grid entirely:
+            that grid's rows are a fixed 86px each (auto-rows-[86px]), so any
+            fixed row-span here was always wrong for one direction or the
+            other — too short clipped the action row off the bottom, too
+            tall left a dead gap of empty card below it whenever a shorter
+            day (fewer exercises, no personal-best banner) didn't fill the
+            reserved space. As its own full-width block outside the grid,
+            its height is just whatever its content needs — never clipped,
+            never padded with empty space either. */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} className="mb-3">
+            {activeProgram ? (
+              <Card className="p-5 h-full relative overflow-hidden flex flex-col card-float">
+                <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
+                  <Dumbbell className="w-28 h-28 text-accent" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    {workedOutToday && completedWorkouts > 0 ? (
+                      <Badge variant="success">
+                        <CheckCircle2 className="w-3 h-3 mr-1" />
+                        Day {Math.max(1, completedWorkouts)} Complete
+                      </Badge>
+                    ) : (
+                      <Badge variant="accent">
+                        Day {completedWorkouts + 1} of {activeProgram.totalWorkouts}
+                      </Badge>
+                    )}
+                  </div>
+                  <h3 className="text-base font-bold text-white">{activeProgram.programName}</h3>
+                  {workedOutToday && completedWorkouts > 0 ? (
+                    <p className="text-sm text-success mt-0.5">
+                      🎉 Great work on Day {Math.max(1, completedWorkouts)}!
+                      {activeProgram.totalWorkouts - completedWorkouts > 0 &&
+                        ` ${activeProgram.totalWorkouts - completedWorkouts} session${activeProgram.totalWorkouts - completedWorkouts !== 1 ? 's' : ''} remaining.`
+                      }
+                    </p>
+                  ) : todayDay ? (
+                    <p className="text-sm text-text-secondary mt-0.5">
+                      {isRestToday ? 'Rest day — recover, or skip it below' : workedOutToday ? `Next: ${stripWeekdayPrefix(todayDay.label)}` : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
+                    </p>
+                  ) : null}
+                  {/* Full session preview — the card spans 3 grid rows, so a
+                      single "Target:" line left a large dead gap between the
+                      header and the progress bar. Listing every exercise for
+                      today fills that space with the thing the user actually
+                      opens this card to know: what's in the session. */}
+                  {!isRestToday && (todayDay?.exercises?.length ?? 0) > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      {todayDay!.exercises.slice(0, 4).map((ex) => (
+                        <div key={ex.id} className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1.5 text-text-secondary min-w-0">
+                            <Dumbbell className="w-3 h-3 text-text-tertiary flex-shrink-0" />
+                            <span className="truncate">{ex.name}</span>
+                          </span>
+                          <span className="text-text-tertiary flex-shrink-0 ml-2">{ex.sets}×{ex.reps}</span>
+                        </div>
+                      ))}
+                      {/* The card is a fixed-height grid cell with
+                          overflow-hidden — an uncapped list on a 7-exercise
+                          day would clip against the border exactly like the
+                          button row used to. */}
+                      {todayDay!.exercises.length > 4 && (
+                        <p className="text-[11px] text-text-tertiary">+{todayDay!.exercises.length - 4} more in session</p>
+                      )}
+                    </div>
+                  )}
+                  {!isRestToday && personalBest && (
+                    <div className="mt-2 flex items-center gap-1.5 p-2 bg-accent/5 border border-accent/20 rounded-lg">
+                      <Trophy className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                      <p className="text-xs text-accent">
+                        Your best: {personalBest.weight}{profile?.weightUnit ?? 'kg'} × {personalBest.reps}. Beat it today.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Was pinned to the bottom of the card via justify-between,
+                    which left a huge dead gap above it whenever the content
+                    above was short (e.g. no personal-best banner, only 1-2
+                    exercises). Flows directly after content now with a
+                    fixed margin instead — still never clipped (row-span-4
+                    still gives enough headroom for the tallest content
+                    case), just no longer stretched away from it. */}
+                <div className="mt-4">
+                  <div className="mb-3">
+                    <ProgressBar value={completedWorkouts} max={activeProgram.totalWorkouts} color={workedOutToday ? 'success' : 'accent'} size="sm" />
+                    <p className="text-xs text-text-tertiary mt-1">
+                      {programPct}% complete · {activeProgram.totalWorkouts - completedWorkouts} sessions remaining
+                    </p>
+                  </div>
+                  {/* One primary action, full width. Secondary actions in a
+                      single evenly-divided row below it — the previous
+                      flex-wrap put "Repeat Today / View" on one line and
+                      "Switch" orphaned on the next at phone widths. */}
+                  <div className="space-y-2">
+                    {isRestToday ? (
+                      <Button fullWidth variant="secondary" loading={skippingRest} onClick={handleSkipRest}>
+                        <Moon className="w-4 h-4" /> Skip rest day{nextSession?.nextTraining ? ` · ${stripWeekdayPrefix(nextSession.nextTraining.day.label)}` : ''}
+                      </Button>
+                    ) : (
+                      <Button fullWidth onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
+                        <Play className="w-4 h-4" /> {workedOutToday ? 'Start Next Workout' : 'Start Workout'}
+                      </Button>
+                    )}
+                    <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                      {workedOutToday && repeatIdx !== null && (
+                        <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${repeatIdx}`)}>
+                          <RotateCcw className="w-3.5 h-3.5" /> Repeat
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
+                        <ChevronRight className="w-3.5 h-3.5" /> View
+                      </Button>
+                      <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push('/training')}>
+                        <RefreshCw className="w-3.5 h-3.5" /> Switch
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ) : (
+              <Link href="/training" className="block h-full">
+                <Card className="p-4 h-full relative overflow-hidden hover:border-accent/20 transition-colors flex flex-col justify-center card-float">
+                  <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
+                    <Dumbbell className="w-28 h-28 text-accent" />
+                  </div>
+                  <Badge variant="muted" className="mb-2 self-start">No active program</Badge>
+                  <h3 className="text-base font-bold text-white">Choose a Program</h3>
+                  <p className="text-sm text-text-secondary mt-1">Pick a training program to get started</p>
+                  <Button variant="primary" size="sm" className="mt-3 self-start">Browse Programs</Button>
+                </Card>
+              </Link>
+            )}
+        </motion.div>
 
         {/* Below the fold the screen is three labelled groups, in the order
             a day actually goes: the tools you use, the things you are

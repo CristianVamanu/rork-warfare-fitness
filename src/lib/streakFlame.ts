@@ -96,15 +96,19 @@ export function deriveStreak(input: StreakInput): StreakView {
   };
 }
 
-/** The caption under the flame. Short enough for a tile. */
+/**
+ * The line under the flame. Phrased as the state of the fire, not as a
+ * statistic — "Flickering — train today to keep it lit" is the mechanic
+ * stated out loud, which is the entire reason the tile works.
+ */
 export const STREAK_CAPTION: Record<FlameState, string> = {
-  unlit: 'Finish your first workout',
-  blazing: 'Trained today',
-  flickering: 'Train today to keep it',
-  out: 'Start a new streak',
+  unlit: 'Light it — finish your first workout',
+  blazing: 'Blazing — keep it going',
+  flickering: 'Flickering — train today to keep it lit',
+  out: "Flame's out — start a new streak today",
 };
 
 export function streakCaption(view: StreakView): string {
-  if (view.savedByFreeze) return 'Freeze saved it — train today';
+  if (view.savedByFreeze) return '🧊 Freeze saved your streak — train today to keep it';
   return STREAK_CAPTION[view.flameState];
 }
