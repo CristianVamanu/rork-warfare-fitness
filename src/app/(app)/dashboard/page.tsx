@@ -489,19 +489,16 @@ export default function DashboardPage() {
                     from different apps. Replaces a giant 4%-opacity dumbbell
                     watermark, which was the only thing marking this card out
                     and read as a smudge rather than a surface. */}
+                {/* Two layers rather than one: the ember light, and a dot
+                    lattice over it. See .wf-dots — the square grid this
+                    replaces was a second rectangular pattern sitting under
+                    the streak tile's own, and on this screen that read as
+                    busy rather than technical. */}
                 {!isRestToday && (
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute inset-0"
-                    style={{
-                      background: [
-                        'radial-gradient(120% 120% at 100% 0%, rgb(var(--accent-rgb) / 0.22) 0%, transparent 55%)',
-                        'linear-gradient(rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px)',
-                        'linear-gradient(90deg, rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px)',
-                      ].join(','),
-                      backgroundSize: '100% 100%, 22px 22px, 22px 22px',
-                    }}
-                  />
+                  <>
+                    <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
+                    <div aria-hidden className="wf-dots pointer-events-none absolute inset-0" />
+                  </>
                 )}
                 <div className="relative">
                   {/* Panel header: which program this is, and how far through

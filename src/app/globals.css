@@ -567,3 +567,41 @@ html[data-wf-session="1"] [data-landing-body] { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .wf-step { animation: none; }
 }
+
+/* ── Panel surface: dot matrix ────────────────────────────────────────────
+   The tech texture for a card that sits among other cards.
+
+   The square hairline grid works on the program screen, where the Next
+   Workout card is alone on the page and reads as a blueprint. On the home
+   screen the same card sits directly under the streak tile, and two
+   different rectangular lattices stacked on each other is a busy surface
+   fighting the flame above it — the grid stopped reading as texture and
+   started reading as a pattern.
+
+   A dot lattice is the same instrument family and much quieter: it holds
+   the surface without drawing an edge anywhere, and the eye reads it as
+   the ground the numbers sit on instead of as a second frame. Offsetting
+   the second layer by half a step gives a diagonal weave rather than
+   columns, which is what stops it looking like perforated card.
+
+   Static, like everything else in this file's tech surfaces: two gradients
+   and a wash, painted once, no animation and no filter. */
+.wf-dots {
+  background-image:
+    radial-gradient(circle, rgb(var(--accent-rgb) / 0.16) 1px, transparent 1.4px),
+    radial-gradient(circle, rgb(var(--accent-rgb) / 0.07) 1px, transparent 1.4px);
+  background-size: 18px 18px, 18px 18px;
+  background-position: 0 0, 9px 9px;
+  /* Faded toward the far corner so the lattice is strongest where the ember
+     light is and dissolves away from it. Tiled evenly across the whole card
+     it read as perforated board — a printed pattern rather than a surface
+     catching light. Same corner as .wf-ember, so the two agree. */
+  mask-image: radial-gradient(130% 130% at 100% 0%, black 0%, rgb(0 0 0 / 0.35) 55%, transparent 90%);
+  -webkit-mask-image: radial-gradient(130% 130% at 100% 0%, black 0%, rgb(0 0 0 / 0.35) 55%, transparent 90%);
+}
+
+/* The ember light above it — the card's one source of warmth, same corner
+   and same falloff the program screen uses so the two still feel related. */
+.wf-ember {
+  background-image: radial-gradient(120% 120% at 100% 0%, rgb(var(--accent-rgb) / 0.20) 0%, transparent 55%);
+}
