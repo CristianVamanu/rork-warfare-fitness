@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Moon, Flame, Crosshair, Wind, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, ClipboardCheck, Droplets, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
-import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getWeeklySummary, getPersonalBest, markFlameIgnited, resolveProgram, peekResolvedProgram, type WeeklySummary, type PersonalBest } from '@/lib/firestore';
+import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, resolveProgram, peekResolvedProgram, type PersonalBest } from '@/lib/firestore';
 import type { Program } from '@/types';
 import { SubscribeSuccess } from '@/components/ui/SubscribeSuccess';
 import { logWaterAction } from '@/lib/actions';
@@ -67,10 +67,6 @@ export default function DashboardPage() {
     () => peekResolvedProgram(profile?.activeProgram?.programId),
   );
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
-  // Drives the weekly dots under the flame. Reads through the shared
-  // workouts cache in lib/firestore, the same one getPersonalBest below
-  // uses, so this is not a second heavy fetch.
-  const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [adjustingWater, setAdjustingWater] = useState(false);
   const [activeGoalCount, setActiveGoalCount] = useState(0);
 
@@ -79,7 +75,6 @@ export default function DashboardPage() {
     getClientGoals(user.uid)
       .then((goals) => setActiveGoalCount(goals.filter((g) => g.status === 'active').length))
       .catch(() => {});
-    getWeeklySummary(user.uid).then(setWeeklySummary).catch(() => {});
   }, [user]);
 
   // Today's calories + water used to arrive from THREE places at once: a
@@ -224,6 +219,28 @@ export default function DashboardPage() {
   // copy renders immediately and gets replaced if the admin has saved edits.
   const activeMock = activeProgram ? getMockProgram(activeProgram.programId) : null;
   const programSource = resolvedProgram ?? activeMock;
+
+  /**
+   * How far into the CURRENT program week you are — the weekly bars under
+   * the flame.
+   *
+   * These used to be filled by getWeeklySummary, which counts every workout
+   * completed in a rolling seven-day window across every program you have
+   * ever been on. So starting a fresh 6-day program lit all six bars on day
+   * one, because last week's sessions from the previous program were still
+   * inside the window. It was measuring something real, just not the thing
+   * the bars claim to show.
+   *
+   * A program week is daysPerWeek sessions long, so the position within it
+   * is simply the session count wrapped by that length: 0 of 6 before the
+   * first session, 1 of 6 after it, back to 0 when a new week begins.
+   * completedWorkouts is per-program and resets on switch, which is exactly
+   * the behaviour wanted here.
+   */
+  const sessionsThisWeek = programSource?.daysPerWeek
+    ? completedWorkouts % programSource.daysPerWeek
+    : 0;
+
   // getNextSession is the single shared answer to "what's next" — the next
   // slot after the last completed one, with rest days shown on the day they
   // fall and expiring at the user's own midnight.
@@ -402,11 +419,11 @@ export default function DashboardPage() {
                   (three for a 3-day plan, six for a 6-day one), which just
                   made it look arbitrary. It says what it is now.
 
-                  "Last 7 days", not "this week", because that is literally
-                  what getWeeklySummary measures: a rolling seven-day window,
-                  not Monday-to-Sunday. Calling it "this week" would be the
-                  same class of quiet lie as pairing a day count with a
-                  session total.
+                  Filled from sessionsThisWeek — the position inside the
+                  CURRENT program's week. It used to be a rolling seven-day
+                  count across every program, which lit all six bars on day
+                  one of a fresh 6-day plan because the previous program's
+                  sessions were still inside the window.
 
                   Reads programSource, not activeMock — getMockProgram
                   returns null for anything an admin created, so on those
@@ -414,16 +431,16 @@ export default function DashboardPage() {
               {programSource?.daysPerWeek ? (
                 <div className="relative w-full">
                   <div className="flex items-baseline justify-between mb-1">
-                    <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-text-tertiary">Last 7 days</span>
+                    <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-text-tertiary">This week</span>
                     <span className="text-[8px] font-bold text-text-tertiary tabular-nums">
-                      {Math.min(weeklySummary?.workoutsCompleted ?? 0, programSource.daysPerWeek)}/{programSource.daysPerWeek}
+                      {sessionsThisWeek}/{programSource.daysPerWeek}
                     </span>
                   </div>
                   <div className="flex gap-1">
                     {Array.from({ length: programSource.daysPerWeek }).map((_, i) => (
                       <div
                         key={i}
-                        className={`flex-1 h-1.5 rounded-full ${i < (weeklySummary?.workoutsCompleted ?? 0) ? 'bg-accent' : 'bg-white/8'}`}
+                        className={`flex-1 h-1.5 rounded-full ${i < sessionsThisWeek ? 'bg-accent' : 'bg-white/8'}`}
                       />
                     ))}
                   </div>
