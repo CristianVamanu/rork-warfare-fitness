@@ -1510,9 +1510,15 @@ export function pickBestProgram(
   // Still not absolute: if EVERY program needs more kit than they have, the
   // filter would leave nothing, so it falls back to the whole set and the
   // -5-per-tier penalty below picks the least over-equipped one.
-  const tooMuchKit = (p: Program) =>
-    userEquipmentRank !== undefined && (EQUIPMENT_RANK[estimateEquipmentTier(p)] ?? 0) > userEquipmentRank;
-  const candidates = bySex.some((p) => !tooMuchKit(p)) ? bySex.filter((p) => !tooMuchKit(p)) : bySex;
+  // An explicit list is the whole answer: offered to exactly these answers
+  // and no others. Only when a program has none does the inferred tier
+  // decide, in which case it means "this much kit or more".
+  const unsuitable = (p: Program) => {
+    if (!equipment) return false;
+    if (p.suitableEquipment?.length) return !p.suitableEquipment.includes(equipment as 'minimal' | 'home' | 'full-gym');
+    return (EQUIPMENT_RANK[estimateEquipmentTier(p)] ?? 0) > (userEquipmentRank ?? 0);
+  };
+  const candidates = bySex.some((p) => !unsuitable(p)) ? bySex.filter((p) => !unsuitable(p)) : bySex;
 
   const scored = candidates.map((p) => {
     let score = 0;
@@ -1570,7 +1576,12 @@ export function pickBestProgram(
       // match (6), or rescue a program from the wrong goal — so a gym
       // member with only bodyweight options still gets the right goal
       // rather than nothing.
-      else if (programNeedRank < userEquipmentRank) score -= 1.5 * (userEquipmentRank - programNeedRank);
+      // Skipped entirely when the admin listed the suitable answers: they
+      // said this program suits a full-gym member, so it is not "under" for
+      // them and must not be quietly demoted for it.
+      else if (!p.suitableEquipment?.length && programNeedRank < userEquipmentRank) {
+        score -= 1.5 * (userEquipmentRank - programNeedRank);
+      }
     }
     if (estimatedWeeksToGoal && estimatedWeeksToGoal > 0) {
       score -= Math.min(10, Math.abs(p.weeks - estimatedWeeksToGoal) * 0.3);

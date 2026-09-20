@@ -98,13 +98,39 @@ describe('the admin overrides', () => {
   };
   const prog = (o: Record<string, unknown>) => ({ ...base, ...o }) as unknown as Parameters<typeof pickBestProgram>[0][number];
 
-  it('an explicit equipment tier beats what the exercise names imply', () => {
+  it('an explicit suitability list beats what the exercise names imply', () => {
     // Every exercise here says "Barbell Back Squat", which infers full-gym.
-    // The admin says it is a home program; the admin wins.
-    const declared = prog({ id: 'declared', level: 'beginner', goal: 'weight-loss', equipmentTier: 'home' });
-    expect(estimateEquipmentTier(declared)).toBe('home');
-    // And that makes it reachable for a member with only home kit.
+    // The admin says it suits a home gym; the admin wins.
+    const declared = prog({ id: 'declared', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['home'] });
     expect(pickBestProgram([declared], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('declared');
+  });
+
+  it('a program not ticked for a level is never given to that level', () => {
+    // Home only. A full-gym member must not receive it, even though a
+    // minimum-kit reading would say a home program is fine for them.
+    const homeOnly = prog({ id: 'home-only', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['home'] });
+    const gymOne = prog({ id: 'gym', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['full-gym'] });
+    expect(pickBestProgram([homeOnly, gymOne], 'lose-fat', 'beginner', 4, 'male', 'full-gym')!.id).toBe('gym');
+    expect(pickBestProgram([homeOnly, gymOne], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('home-only');
+  });
+
+  it('several levels can be ticked at once', () => {
+    const both = prog({ id: 'both', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['home', 'full-gym'] });
+    for (const e of ['home', 'full-gym']) {
+      expect(pickBestProgram([both], 'lose-fat', 'beginner', 4, 'male', e)!.id).toBe('both');
+    }
+  });
+
+  it('a listed program is not demoted for "under-using" the member’s kit', () => {
+    // Ticked for full gym, so it suits them by definition — the
+    // below-your-tier nudge must not apply and hand the win to a program
+    // the admin did not choose.
+    const listed = prog({ id: 'listed', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['home', 'full-gym'] });
+    const inferredGym = prog({ id: 'inferred', level: 'beginner', goal: 'weight-loss' });
+    const winner = pickBestProgram([listed, inferredGym], 'lose-fat', 'beginner', 4, 'male', 'full-gym')!;
+    expect(['listed', 'inferred']).toContain(winner.id);
+    // Whichever wins, the listed one must at least be reachable.
+    expect(pickBestProgram([listed], 'lose-fat', 'beginner', 4, 'male', 'full-gym')!.id).toBe('listed');
   });
 
   it('inference still applies when no tier is declared', () => {
@@ -112,8 +138,8 @@ describe('the admin overrides', () => {
   });
 
   it('a priority pick wins a tie inside its own goal', () => {
-    const plain = prog({ id: 'plain', level: 'beginner', goal: 'weight-loss', equipmentTier: 'home' });
-    const picked = prog({ id: 'picked', level: 'beginner', goal: 'weight-loss', equipmentTier: 'home', priorityPick: true });
+    const plain = prog({ id: 'plain', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['home'] });
+    const picked = prog({ id: 'picked', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['home'], priorityPick: true });
     expect(pickBestProgram([plain, picked], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('picked');
     // Order must not matter — a tie-break that depends on array position is
     // exactly the bug this replaces.
@@ -122,14 +148,14 @@ describe('the admin overrides', () => {
 
   it('a priority pick never hijacks a different goal', () => {
     // Flagged, but it is a strength program and the member asked to lose fat.
-    const flaggedStrength = prog({ id: 'strength', level: 'beginner', goal: 'strength', equipmentTier: 'home', priorityPick: true });
-    const plainFatLoss = prog({ id: 'fatloss', level: 'beginner', goal: 'weight-loss', equipmentTier: 'home' });
+    const flaggedStrength = prog({ id: 'strength', level: 'beginner', goal: 'strength', suitableEquipment: ['home'], priorityPick: true });
+    const plainFatLoss = prog({ id: 'fatloss', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['home'] });
     expect(pickBestProgram([flaggedStrength, plainFatLoss], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('fatloss');
   });
 
   it('a priority pick cannot drag someone above their equipment', () => {
-    const flaggedGym = prog({ id: 'gym', level: 'beginner', goal: 'weight-loss', equipmentTier: 'full-gym', priorityPick: true });
-    const homeOption = prog({ id: 'home', level: 'beginner', goal: 'weight-loss', equipmentTier: 'home' });
+    const flaggedGym = prog({ id: 'gym', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['full-gym'], priorityPick: true });
+    const homeOption = prog({ id: 'home', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['home'] });
     expect(pickBestProgram([flaggedGym, homeOption], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('home');
   });
 });

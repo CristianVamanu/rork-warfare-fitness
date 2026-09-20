@@ -602,13 +602,20 @@ export interface Program {
   price?: number;      // one-time USD price for individual purchase (alternative to membership gate)
   targetGender?: 'male' | 'female' | 'anyone'; // display label; defaults to 'anyone' if unset
   /**
-   * What kit this program needs, set by an admin.
+   * Exactly which equipment answers this program is offered to.
    *
-   * When unset the matcher infers it from exercise NAMES, which is a guess
-   * and a fragile one: a single "Rowing Machine" or a bare "Romanian
-   * Deadlift" reads as a full gym and puts a home program out of reach of
-   * everyone it was written for. Setting this stops the guessing.
+   * The admin ticks Minimal / Home / Full gym in the builder; a member is
+   * matched only if their own answer is in this list. Explicit and total —
+   * it can say "home only, never give this to gym members", which a single
+   * minimum-kit setting cannot.
+   *
+   * When absent the matcher falls back to inferring a tier from exercise
+   * NAMES and offering the program to that tier and above. That inference
+   * is fragile — one "Rowing Machine" or a bare "Romanian Deadlift" reads
+   * as a full gym — which is why setting this explicitly is preferred.
    */
+  suitableEquipment?: ('minimal' | 'home' | 'full-gym')[];
+  /** Superseded by suitableEquipment; still honoured by the tier inference. */
   equipmentTier?: 'minimal' | 'home' | 'full-gym';
   /**
    * Admin's thumb on the scale — the preferred pick for its goal.

@@ -75,8 +75,14 @@ function eligible(pool, sex, equipment) {
   const rank = EQUIPMENT_RANK[equipment];
   const wrongSex = (p) => !!sex && !!p.targetGender && p.targetGender !== 'anyone' && p.targetGender !== sex;
   const bySex = pool.some((p) => !wrongSex(p)) ? pool.filter((p) => !wrongSex(p)) : pool;
-  const tooMuchKit = (p) => rank !== undefined && EQUIPMENT_RANK[estimateEquipmentTier(p)] > rank;
-  return bySex.some((p) => !tooMuchKit(p)) ? bySex.filter((p) => !tooMuchKit(p)) : bySex;
+  // Explicit "Suitable for" list wins; otherwise the inferred tier means
+  // "this much kit or more". Mirrors src/lib/programs.ts.
+  const unsuitable = (p) => {
+    if (!equipment) return false;
+    if (p.suitableEquipment?.length) return !p.suitableEquipment.includes(equipment);
+    return EQUIPMENT_RANK[estimateEquipmentTier(p)] > rank;
+  };
+  return bySex.some((p) => !unsuitable(p)) ? bySex.filter((p) => !unsuitable(p)) : bySex;
 }
 
 function pickBestProgram(pool, goal, experience, trainingDays, sex, equipment) {
@@ -99,7 +105,7 @@ function pickBestProgram(pool, goal, experience, trainingDays, sex, equipment) {
     if (userEquipmentRank !== undefined) {
       const need = EQUIPMENT_RANK[estimateEquipmentTier(p)];
       if (need > userEquipmentRank) score -= 5 * (need - userEquipmentRank);
-      else if (need < userEquipmentRank) score -= 1.5 * (userEquipmentRank - need);
+      else if (!p.suitableEquipment?.length && need < userEquipmentRank) score -= 1.5 * (userEquipmentRank - need);
     }
     return { p, score };
   });

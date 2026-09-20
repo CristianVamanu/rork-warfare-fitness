@@ -77,7 +77,7 @@ interface BProg {
   daysPerWeek: number;
   visibility: 'public' | 'coaching';
   targetGender: 'male' | 'female' | 'anyone';
-  equipmentTier: '' | 'minimal' | 'home' | 'full-gym';
+  suitableEquipment: ('minimal' | 'home' | 'full-gym')[];
   priorityPick: boolean;
   imageUrl: string;
   schedule: BDay[];
@@ -130,7 +130,7 @@ function blankEx(): BEx {
 function emptyProg(): BProg {
   return {
     name: '', description: '', level: 'intermediate', goal: 'hypertrophy',
-    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', equipmentTier: '', priorityPick: false, imageUrl: '',
+    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', suitableEquipment: [], priorityPick: false, imageUrl: '',
     schedule: [blankDay('Push Day'), blankDay('Pull Day'), blankDay('Legs'), restDay(), blankDay('Upper Body'), restDay(), restDay()],
     phases: [],
   };
@@ -340,7 +340,7 @@ function BuilderInner() {
   interface LoadedProgram {
     name: string; description: string; level: BProg['level']; goal: BProg['goal'];
     weeks: number; daysPerWeek: number; visibility?: string; targetGender?: BProg['targetGender']; imageUrl?: string;
-    equipmentTier?: BProg['equipmentTier']; priorityPick?: boolean;
+    suitableEquipment?: BProg['suitableEquipment']; priorityPick?: boolean;
     schedule?: BDay[];
     phases?: { id: string; label: string; startWeek: number; endWeek: number; schedule: BDay[] }[];
   }
@@ -410,7 +410,7 @@ function BuilderInner() {
           daysPerWeek: program.daysPerWeek,
           visibility: (program.visibility as 'public' | 'coaching') ?? 'public',
           targetGender: program.targetGender ?? 'anyone',
-          equipmentTier: program.equipmentTier ?? '',
+          suitableEquipment: program.suitableEquipment ?? [],
           priorityPick: program.priorityPick === true,
           imageUrl: program.imageUrl ?? '',
           schedule,
@@ -585,7 +585,7 @@ function BuilderInner() {
         weeks: p.weeks || 8,
         daysPerWeek: p.daysPerWeek || 4,
         visibility: 'public',
-        equipmentTier: p.equipmentTier ?? '',
+        suitableEquipment: p.suitableEquipment ?? [],
         priorityPick: p.priorityPick === true,
         targetGender: (p.targetGender === 'male' || p.targetGender === 'female') ? p.targetGender : 'anyone',
         imageUrl: '',
@@ -651,11 +651,11 @@ function BuilderInner() {
       const unique = exercises.filter((e, i, arr) => arr.findIndex(x => x.name === e.name) === i);
       const data = stripUndefinedDeep({
         ...prog,
-        // "Auto" is the absence of an answer, not an empty answer — store
-        // nothing so estimateEquipmentTier falls through to inferring it.
-        // Left as '' the field would be falsy and still work, but every
-        // program document would carry a meaningless empty string.
-        equipmentTier: prog.equipmentTier === '' ? undefined : prog.equipmentTier,
+        // No boxes ticked means "not set" rather than "suits nobody" —
+        // stored as absent so the matcher falls back to inferring a tier,
+        // which is what an untouched program has always done. Saving an
+        // empty array would silently make the program unreachable.
+        suitableEquipment: prog.suitableEquipment.length ? prog.suitableEquipment : undefined,
         schedule: prog.phases.length > 0 ? prog.phases[0].schedule : prog.schedule,
         isPublic: publish || prog.visibility === 'public',
         exercises: unique.map(e => ({ ...e, reps: e.reps })),
@@ -986,24 +986,48 @@ function BuilderInner() {
               <option value="female">Female</option>
             </select>
           </div>
-          <div>
-            {/* Explicit beats inferred. Left on Auto the matcher reads the
-                exercise names, which is a guess — one "Rowing Machine" or a
-                bare "Romanian Deadlift" reads as a full gym and hides a home
-                program from everyone it was written for. */}
-            <label className="text-xs text-text-secondary mb-1 block">Equipment needed</label>
-            <select
-              value={prog.equipmentTier}
-              onChange={e => setProg(s => ({ ...s, equipmentTier: e.target.value as BProg['equipmentTier'] }))}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
-            >
-              <option value="">Auto — work it out from the exercises</option>
-              <option value="minimal">Minimal — bodyweight &amp; a pull-up bar</option>
-              <option value="home">Home — dumbbells, kettlebells, bands</option>
-              <option value="full-gym">Full gym — barbells, machines, cables</option>
-            </select>
-            <p className="text-[11px] text-text-tertiary mt-1">
-              Members are never matched to a program above the equipment they said they have.
+          <div className="sm:col-span-2">
+            {/* Explicit beats inferred. With nothing ticked the matcher
+                guesses a tier from exercise names and offers the program to
+                that tier and above — one "Rowing Machine" or a bare
+                "Romanian Deadlift" reads as a full gym, which is how a home
+                program disappears from everyone it was written for. */}
+            <label className="text-xs text-text-secondary mb-1 block">Suitable for</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {([
+                { v: 'minimal', label: 'Minimal', sub: 'Bodyweight & a pull-up bar' },
+                { v: 'home', label: 'Home gym', sub: 'Dumbbells, kettlebells, bands' },
+                { v: 'full-gym', label: 'Full gym', sub: 'Barbells, machines, cables' },
+              ] as const).map(({ v, label, sub }) => {
+                const on = prog.suitableEquipment.includes(v);
+                return (
+                  <label
+                    key={v}
+                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${on ? 'border-accent/50 bg-accent/10' : 'border-white/10 bg-surface hover:border-white/20'}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={e => setProg(s => ({
+                        ...s,
+                        suitableEquipment: e.target.checked
+                          ? [...s.suitableEquipment, v]
+                          : s.suitableEquipment.filter(x => x !== v),
+                      }))}
+                      className="mt-0.5 w-4 h-4 accent-[var(--accent)] flex-shrink-0"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-white">{label}</span>
+                      <span className="block text-[11px] text-text-tertiary">{sub}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-text-tertiary mt-1.5">
+              {prog.suitableEquipment.length
+                ? 'Only members who answered one of these are matched to this program.'
+                : 'Nothing ticked — the app will guess from the exercise names. Tick the ones you mean.'}
             </p>
           </div>
           <div className="sm:col-span-2">
