@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { Moon, Dumbbell, Play, ChevronRight, Crown, CheckCircle2, RotateCcw, Lock, Flame, Mountain, Activity } from 'lucide-react';
+import { Moon, Dumbbell, Play, ChevronRight, Crown, CheckCircle2, RotateCcw, Lock, Flame, Mountain, Activity, MousePointerClick, X as XIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPrograms, resolveProgram, peekResolvedProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, skipRestDay, peekProgramList, selectPublicPrograms, selectCustomPrograms } from '@/lib/firestore';
@@ -98,6 +98,29 @@ export default function TrainingPage() {
   // program inside the map, since hooks cannot run in a loop.
   const { otherProgramsLocked: programsLockedByPlan, switchesLeft } = useFeatureAccess();
   const router = useRouter();
+
+  /**
+   * Arrived here by tapping "Switch Program" on a program page.
+   *
+   * That button used to push to /training and stop — dropping someone on a
+   * list of cards with nothing saying that tapping one IS the switch. It
+   * read as a button that did nothing but change screens.
+   *
+   * Read off window rather than useSearchParams so this needs no Suspense
+   * boundary; it is a hint, and a hint that appears a tick after paint is
+   * fine. Cleared from the URL on dismissal so a refresh or a back-and-
+   * forward does not keep re-announcing it.
+   */
+  const [switchHint, setSwitchHint] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('switch') === '1') setSwitchHint(true);
+  }, []);
+  const dismissSwitchHint = () => {
+    setSwitchHint(false);
+    if (typeof window !== 'undefined') window.history.replaceState(null, '', '/training');
+  };
+
   // Paint the last list this device saw before the network answers. The
   // fresh list replaces it a moment later; usually it is identical.
   const remembered = useMemo(() => (user ? peekProgramList(user.uid) : null), [user]);
@@ -414,9 +437,57 @@ export default function TrainingPage() {
 
         {/* Programs */}
         <div>
+          {/* Shown only to someone who came here to switch. Deliberately a
+              panel rather than a toast: a toast is gone in four seconds,
+              and this has to still be on screen while they read down a
+              list of twelve programs deciding. */}
+          {switchHint && (
+            <div className="relative overflow-hidden rounded-2xl border border-accent/30 bg-accent/[0.07] p-4 mb-3 wf-rise">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 opacity-60"
+                style={{
+                  backgroundImage:
+                    'radial-gradient(80% 60% at 100% 0%, rgb(var(--accent-rgb) / 0.12), transparent 60%),' +
+                    'linear-gradient(rgb(var(--accent-rgb) / 0.05) 1px, transparent 1px),' +
+                    'linear-gradient(90deg, rgb(var(--accent-rgb) / 0.05) 1px, transparent 1px)',
+                  backgroundSize: '100% 100%, 22px 22px, 22px 22px',
+                }}
+              />
+              <div className="relative flex items-start gap-3">
+                <span className="w-8 h-8 rounded-xl bg-accent/15 flex items-center justify-center flex-shrink-0">
+                  <MousePointerClick className="w-4 h-4 text-accent" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="wf-readout text-[10px] font-bold text-accent">Switching program</p>
+                  <p className="text-sm text-white font-semibold mt-1 leading-snug">
+                    Pick any program below to switch to it.
+                  </p>
+                  <p className="text-[11px] text-text-secondary mt-1 leading-relaxed">
+                    Your current progress is saved under its own program — come back to it any time and
+                    carry on exactly where you stopped.
+                  </p>
+                </div>
+                <button
+                  onClick={dismissSwitchHint}
+                  aria-label="Dismiss"
+                  className="p-1 -m-1 text-text-tertiary hover:text-white transition-colors flex-shrink-0"
+                >
+                  <XIcon className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between px-0.5 mb-2">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">Programs</p>
-            {!loading && <p className="text-[11px] text-text-tertiary tabular-nums">{filtered.length} available</p>}
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">Programs</p>
+              {/* The standing affordance, for everyone — not just people who
+                  arrived via the switch button. The rows always were
+                  tappable; nothing on screen ever said so. */}
+              <p className="text-[11px] text-text-tertiary mt-0.5">Tap any one to switch — progress is kept per program.</p>
+            </div>
+            {!loading && <p className="text-[11px] text-text-tertiary tabular-nums flex-shrink-0 ml-3">{filtered.length} available</p>}
           </div>
           {loading ? (
             <div className="space-y-2.5">

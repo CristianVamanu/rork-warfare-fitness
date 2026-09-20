@@ -416,7 +416,11 @@ export default function ProgramDetailPage() {
                   <p className="text-xs text-text-tertiary mt-0.5">Recovery is part of the program too.</p>
                 </div>
               )}
-              <Button variant="ghost" fullWidth size="sm" onClick={() => router.push('/training')}>
+              {/* Carries the INTENT, not just the destination. Landing on
+                  /training with no context left people staring at a list
+                  with no sign that tapping a row is the switch — the button
+                  appeared to do nothing but change screens. */}
+              <Button variant="ghost" fullWidth size="sm" onClick={() => router.push('/training?switch=1')}>
                 <RotateCcw className="w-3.5 h-3.5" /> Switch Program
               </Button>
             </div>
