@@ -49,13 +49,24 @@ function estimateEquipmentTier(p) {
   const max = names.reduce((m, n) => Math.max(m, exerciseTier(n)), 0);
   return max === 2 ? 'full-gym' : max === 1 ? 'home' : 'minimal';
 }
-function pickBestProgram(pool, goal, experience, trainingDays, sex, hasLimitations, equipment) {
+/** Right sex, and kit they actually own. Mirrors the two exclusions. */
+function eligible(pool, sex, equipment) {
+  const rank = EQUIPMENT_RANK[equipment];
+  const wrongSex = (p) => !!sex && !!p.targetGender && p.targetGender !== 'anyone' && p.targetGender !== sex;
+  const bySex = pool.some((p) => !wrongSex(p)) ? pool.filter((p) => !wrongSex(p)) : pool;
+  const tooMuchKit = (p) => rank !== undefined && EQUIPMENT_RANK[estimateEquipmentTier(p)] > rank;
+  return bySex.some((p) => !tooMuchKit(p)) ? bySex.filter((p) => !tooMuchKit(p)) : bySex;
+}
+
+function pickBestProgram(pool, goal, experience, trainingDays, sex, equipment) {
   if (!pool.length) return null;
   const targetGoal = GOAL_TO_PROGRAM_GOAL[goal] ?? goal;
   const levelRank = { beginner: 0, intermediate: 1, advanced: 2 };
   const userEquipmentRank = equipment ? EQUIPMENT_RANK[equipment] : undefined;
-  const wrongSex = (p) => !!sex && !!p.targetGender && p.targetGender !== 'anyone' && p.targetGender !== sex;
-  const candidates = pool.some((p) => !wrongSex(p)) ? pool.filter((p) => !wrongSex(p)) : pool;
+  // Equipment is an EXCLUSION now, not just a penalty — see pickBestProgram
+  // in src/lib/programs.ts. The penalty below still runs, but only decides
+  // between programs in the fallback case where everything is over-tier.
+  const candidates = eligible(pool, sex, equipment);
   const scored = candidates.map((p) => {
     let score = 0;
     if (p.goal === targetGoal) score += 10; else if (p.goal === 'general') score += 4;
@@ -63,7 +74,6 @@ function pickBestProgram(pool, goal, experience, trainingDays, sex, hasLimitatio
     score += levelGap === 0 ? 6 : levelGap === 1 ? 2 : 0;
     score -= 0.5 * Math.abs(p.daysPerWeek - trainingDays);
     if ((p.phases?.length ?? 0) > 1) score += 1;
-    if (hasLimitations) score -= p.level === 'advanced' ? 4 : p.level === 'intermediate' ? 1 : 0;
     if (userEquipmentRank !== undefined) {
       const need = EQUIPMENT_RANK[estimateEquipmentTier(p)];
       if (need > userEquipmentRank) score -= 5 * (need - userEquipmentRank);
@@ -94,7 +104,7 @@ const goalMisses = [];
 for (const eq of EQUIP) {
   const counts = {};
   for (const sex of SEX) for (const goal of GOALS) for (const level of LEVELS) for (const days of DAYS) {
-    const p = pickBestProgram(pool, goal, level, days, sex, false, eq);
+    const p = pickBestProgram(pool, goal, level, days, sex, eq);
     counts[p.name] = (counts[p.name] ?? 0) + 1;
     totalCounts[p.name] = (totalCounts[p.name] ?? 0) + 1;
     if (p.goal !== GOAL_TO_PROGRAM_GOAL[goal]) goalMisses.push(`${pad(eq, 9)} ${pad(sex, 7)} ${pad(goal, 14)} ${pad(level, 13)} ${days}d -> ${p.name} (${p.goal})`);
@@ -102,6 +112,26 @@ for (const eq of EQUIP) {
   console.log(`\n${eq}:`);
   for (const [n, c] of Object.entries(counts).sort((a, b) => b[1] - a[1])) console.log(`  ${pad(n, 30)} ${String(c).padStart(3)}`);
 }
+
+// ── Headroom: what could a better question set even choose between? ───────
+// A question can only improve a match if two or more programs are eligible
+// for that member. Where the count is 1 the answer is forced, and no number
+// of extra questions changes it — that cell needs a PROGRAM, not a question.
+console.log('\nEligible programs per goal x equipment (the ceiling on matching):');
+console.log(`  ${pad('goal', 15)} ${EQUIP.map((e) => pad(e, 10)).join('')}`);
+const gaps = [];
+for (const goal of GOALS) {
+  const cells = EQUIP.map((eq) => {
+    const ids = new Set();
+    for (const sex of SEX) for (const p of eligible(pool, sex, eq)) ids.add(p.id);
+    if (ids.size <= 1) gaps.push(`${goal} / ${eq}`);
+    return pad(ids.size, 10);
+  });
+  console.log(`  ${pad(goal, 15)} ${cells.join('')}`);
+}
+console.log(gaps.length
+  ? `\n${gaps.length} cell(s) where the member has NO real choice — one program or none:\n  ${gaps.join('\n  ')}\n  Build a program for these before adding onboarding questions; a question cannot pick between one option.`
+  : '\nEvery goal/equipment cell has at least two eligible programs.');
 
 const never = pool.filter((p) => !totalCounts[p.name]).map((p) => p.name);
 console.log(`\nNever assigned by any of the ${GOALS.length * LEVELS.length * DAYS.length * SEX.length * EQUIP.length} possible answers: ${never.length ? never.join(', ') : 'none'}`);
