@@ -986,51 +986,53 @@ function BuilderInner() {
               <option value="female">Female</option>
             </select>
           </div>
-          <div className="sm:col-span-2">
-            {/* Explicit beats inferred. With nothing ticked the matcher
-                guesses a tier from exercise names and offers the program to
-                that tier and above — one "Rowing Machine" or a bare
-                "Romanian Deadlift" reads as a full gym, which is how a home
-                program disappears from everyone it was written for. */}
-            <label className="text-xs text-text-secondary mb-1 block">Suitable for</label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {/* col-span-2 at EVERY width, not sm and up: the parent grid is
+              two columns on a phone too, so a half-width cell squeezed
+              three option cards into about 150px and wrapped every label
+              onto four lines. */}
+          <div className="col-span-2">
+            <label className="text-xs text-text-secondary mb-1.5 block">Suitable for</label>
+            {/* Chips rather than stacked cards. Three tall cards with a
+                description each cost a whole screen of vertical space on a
+                phone for what is one three-way choice; the examples move to
+                a single line underneath, where they are read once. */}
+            <div className="flex gap-2">
               {([
-                { v: 'minimal', label: 'Minimal', sub: 'Bodyweight & a pull-up bar' },
-                { v: 'home', label: 'Home gym', sub: 'Dumbbells, kettlebells, bands' },
-                { v: 'full-gym', label: 'Full gym', sub: 'Barbells, machines, cables' },
-              ] as const).map(({ v, label, sub }) => {
+                { v: 'minimal', label: 'Minimal' },
+                { v: 'home', label: 'Home gym' },
+                { v: 'full-gym', label: 'Full gym' },
+              ] as const).map(({ v, label }) => {
                 const on = prog.suitableEquipment.includes(v);
                 return (
-                  <label
+                  <button
                     key={v}
-                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${on ? 'border-accent/50 bg-accent/10' : 'border-white/10 bg-surface hover:border-white/20'}`}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setProg(s => ({
+                      ...s,
+                      suitableEquipment: on
+                        ? s.suitableEquipment.filter(x => x !== v)
+                        : [...s.suitableEquipment, v],
+                    }))}
+                    className={`flex-1 min-h-[44px] px-2 rounded-xl border text-[13px] font-semibold transition-colors ${
+                      on
+                        ? 'border-accent bg-accent/15 text-white'
+                        : 'border-white/10 bg-surface text-text-secondary hover:border-white/25'
+                    }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={e => setProg(s => ({
-                        ...s,
-                        suitableEquipment: e.target.checked
-                          ? [...s.suitableEquipment, v]
-                          : s.suitableEquipment.filter(x => x !== v),
-                      }))}
-                      className="mt-0.5 w-4 h-4 accent-[var(--accent)] flex-shrink-0"
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-white">{label}</span>
-                      <span className="block text-[11px] text-text-tertiary">{sub}</span>
-                    </span>
-                  </label>
+                    {label}
+                  </button>
                 );
               })}
             </div>
-            <p className="text-[11px] text-text-tertiary mt-1.5">
+            <p className="text-[11px] text-text-tertiary mt-1.5 leading-relaxed">
               {prog.suitableEquipment.length
                 ? 'Only members who answered one of these are matched to this program.'
-                : 'Nothing ticked — the app will guess from the exercise names. Tick the ones you mean.'}
+                : 'Nothing picked — the app will guess from the exercise names.'}
+              {' '}Minimal is bodyweight and a pull-up bar, Home adds dumbbells, kettlebells and bands, Full gym adds barbells, machines and cables.
             </p>
           </div>
-          <div className="sm:col-span-2">
+          <div className="col-span-2">
             <label className="flex items-start gap-3 p-3 rounded-xl border border-white/10 bg-surface cursor-pointer">
               <input
                 type="checkbox"
@@ -1040,9 +1042,9 @@ function BuilderInner() {
               />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-white">Priority pick for this goal</span>
-                <span className="block text-[11px] text-text-tertiary mt-0.5">
-                  When several programs suit a member equally, send them here. Applies only within this
-                  program&apos;s own goal — it will never be given to someone who asked for a different one.
+                <span className="block text-[11px] text-text-tertiary mt-0.5 leading-relaxed">
+                  When several programs suit a member equally, send them here. Only applies within this
+                  program&apos;s own goal.
                 </span>
               </span>
             </label>
