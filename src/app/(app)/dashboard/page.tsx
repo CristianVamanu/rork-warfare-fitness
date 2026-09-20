@@ -482,24 +482,56 @@ export default function DashboardPage() {
             never padded with empty space either. */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} className="mb-3">
             {activeProgram ? (
-              <Card className="p-5 h-full relative overflow-hidden flex flex-col card-float">
-                <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
-                  <Dumbbell className="w-28 h-28 text-accent" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    {workedOutToday && completedWorkouts > 0 ? (
-                      <Badge variant="success">
-                        <CheckCircle2 className="w-3 h-3 mr-1" />
-                        Day {Math.max(1, completedWorkouts)} Complete
-                      </Badge>
-                    ) : (
-                      <Badge variant="accent">
-                        Day {completedWorkouts + 1} of {activeProgram.totalWorkouts}
-                      </Badge>
+              <Card className={`p-5 h-full relative overflow-hidden flex flex-col card-float ${isRestToday ? '' : 'border-accent/45 shadow-[0_0_40px_-8px_rgba(245,166,35,0.5)]'}`}>
+                {/* The same ember wash and hairline grid the Next Workout
+                    card on the program screen uses. The two cards show the
+                    same session; they had no business looking like they came
+                    from different apps. Replaces a giant 4%-opacity dumbbell
+                    watermark, which was the only thing marking this card out
+                    and read as a smudge rather than a surface. */}
+                {!isRestToday && (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                      background: [
+                        'radial-gradient(120% 120% at 100% 0%, rgb(var(--accent-rgb) / 0.22) 0%, transparent 55%)',
+                        'linear-gradient(rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px)',
+                        'linear-gradient(90deg, rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px)',
+                      ].join(','),
+                      backgroundSize: '100% 100%, 22px 22px, 22px 22px',
+                    }}
+                  />
+                )}
+                <div className="relative">
+                  {/* Icon tile, eyebrow, title, and the one action — the
+                      same header shape as the program screen's card. The day
+                      counter moves into the eyebrow, where it belongs: it is
+                      a label for the session, not a badge floating above it. */}
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center ${isRestToday ? 'border border-dashed border-white/15 text-text-tertiary' : 'bg-gradient-accent text-black shadow-glow-sm'}`}>
+                        {isRestToday ? <Moon className="w-4 h-4" /> : workedOutToday && completedWorkouts > 0 ? <CheckCircle2 className="w-4 h-4" /> : <Dumbbell className="w-4 h-4" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent/90">
+                          {isRestToday
+                            ? 'Recovery'
+                            : workedOutToday && completedWorkouts > 0
+                              ? `Day ${Math.max(1, completedWorkouts)} complete`
+                              : `Up next · Day ${completedWorkouts + 1} of ${activeProgram.totalWorkouts}`}
+                        </p>
+                        <p className="text-sm font-bold text-white leading-snug truncate">
+                          {todayDay && !isRestToday ? stripWeekdayPrefix(todayDay.label) : activeProgram.programName}
+                        </p>
+                      </div>
+                    </div>
+                    {!isRestToday && (
+                      <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
+                        <Play className="w-4 h-4" /> Start
+                      </Button>
                     )}
                   </div>
-                  <h3 className="text-base font-bold text-white">{activeProgram.programName}</h3>
                   {workedOutToday && completedWorkouts > 0 ? (
                     <p className="text-sm text-success mt-0.5">
                       🎉 Great work on Day {Math.max(1, completedWorkouts)}!
@@ -507,10 +539,8 @@ export default function DashboardPage() {
                         ` ${activeProgram.totalWorkouts - completedWorkouts} session${activeProgram.totalWorkouts - completedWorkouts !== 1 ? 's' : ''} remaining.`
                       }
                     </p>
-                  ) : todayDay ? (
-                    <p className="text-sm text-text-secondary mt-0.5">
-                      {isRestToday ? 'Rest day — recover, or skip it below' : workedOutToday ? `Next: ${stripWeekdayPrefix(todayDay.label)}` : `Today: ${stripWeekdayPrefix(todayDay.label)}`}
-                    </p>
+                  ) : isRestToday ? (
+                    <p className="text-sm text-text-secondary mt-0.5">Rest day — recover, or skip it below</p>
                   ) : null}
                   {/* Full session preview — the card spans 3 grid rows, so a
                       single "Target:" line left a large dead gap between the
@@ -518,14 +548,12 @@ export default function DashboardPage() {
                       today fills that space with the thing the user actually
                       opens this card to know: what's in the session. */}
                   {!isRestToday && (todayDay?.exercises?.length ?? 0) > 0 && (
-                    <div className="mt-3 space-y-1.5">
-                      {todayDay!.exercises.slice(0, 4).map((ex) => (
-                        <div key={ex.id} className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1.5 text-text-secondary min-w-0">
-                            <Dumbbell className="w-3 h-3 text-text-tertiary flex-shrink-0" />
-                            <span className="truncate">{ex.name}</span>
-                          </span>
-                          <span className="text-text-tertiary flex-shrink-0 ml-2">{ex.sets}×{ex.reps}</span>
+                    <div className="mt-1 rounded-xl border border-white/8 bg-black/20 divide-y divide-white/6">
+                      {todayDay!.exercises.slice(0, 4).map((ex, i) => (
+                        <div key={ex.id ?? i} className="flex items-center gap-2.5 px-3 py-2 text-sm">
+                          <span className="w-5 text-[10px] font-black text-accent/80 tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+                          <span className="flex-1 min-w-0 truncate text-text-secondary">{ex.name}</span>
+                          <span className="text-text-tertiary text-[11px] font-semibold tabular-nums">{ex.sets}×{ex.reps}</span>
                         </div>
                       ))}
                       {/* The card is a fixed-height grid cell with
@@ -533,7 +561,7 @@ export default function DashboardPage() {
                           day would clip against the border exactly like the
                           button row used to. */}
                       {todayDay!.exercises.length > 4 && (
-                        <p className="text-[11px] text-text-tertiary">+{todayDay!.exercises.length - 4} more in session</p>
+                        <p className="px-3 py-2 text-[11px] text-text-tertiary">+{todayDay!.exercises.length - 4} more in session</p>
                       )}
                     </div>
                   )}
@@ -565,14 +593,15 @@ export default function DashboardPage() {
                       single evenly-divided row below it — the previous
                       flex-wrap put "Repeat Today / View" on one line and
                       "Switch" orphaned on the next at phone widths. */}
+                  {/* No second Start button here. It moved into the header
+                      with the session title, matching the program screen —
+                      one primary action per card, next to the thing it acts
+                      on. A rest day has no session to start, so its skip
+                      action stays full width down here. */}
                   <div className="space-y-2">
-                    {isRestToday ? (
+                    {isRestToday && (
                       <Button fullWidth variant="secondary" loading={skippingRest} onClick={handleSkipRest}>
                         <Moon className="w-4 h-4" /> Skip rest day{nextSession?.nextTraining ? ` · ${stripWeekdayPrefix(nextSession.nextTraining.day.label)}` : ''}
-                      </Button>
-                    ) : (
-                      <Button fullWidth onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                        <Play className="w-4 h-4" /> {workedOutToday ? 'Start Next Workout' : 'Start Workout'}
                       </Button>
                     )}
                     <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-3' : 'grid-cols-2'}`}>
