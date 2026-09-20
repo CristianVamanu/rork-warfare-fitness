@@ -89,3 +89,47 @@ describe('the onboarding matcher, over every answer combination', () => {
     sweep((a) => { expect(ids.has(match(a)!.id)).toBe(true); });
   });
 });
+
+describe('the admin overrides', () => {
+  const base = {
+    id: 'x', name: 'X', description: '', weeks: 12, daysPerWeek: 4,
+    exercises: [{ id: '1', name: 'Barbell Back Squat', sets: 3, reps: 10, restSeconds: 60 }],
+    createdBy: 'a', isPublic: true,
+  };
+  const prog = (o: Record<string, unknown>) => ({ ...base, ...o }) as unknown as Parameters<typeof pickBestProgram>[0][number];
+
+  it('an explicit equipment tier beats what the exercise names imply', () => {
+    // Every exercise here says "Barbell Back Squat", which infers full-gym.
+    // The admin says it is a home program; the admin wins.
+    const declared = prog({ id: 'declared', level: 'beginner', goal: 'weight-loss', equipmentTier: 'home' });
+    expect(estimateEquipmentTier(declared)).toBe('home');
+    // And that makes it reachable for a member with only home kit.
+    expect(pickBestProgram([declared], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('declared');
+  });
+
+  it('inference still applies when no tier is declared', () => {
+    expect(estimateEquipmentTier(prog({ id: 'guessed', level: 'beginner', goal: 'weight-loss' }))).toBe('full-gym');
+  });
+
+  it('a priority pick wins a tie inside its own goal', () => {
+    const plain = prog({ id: 'plain', level: 'beginner', goal: 'weight-loss', equipmentTier: 'home' });
+    const picked = prog({ id: 'picked', level: 'beginner', goal: 'weight-loss', equipmentTier: 'home', priorityPick: true });
+    expect(pickBestProgram([plain, picked], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('picked');
+    // Order must not matter — a tie-break that depends on array position is
+    // exactly the bug this replaces.
+    expect(pickBestProgram([picked, plain], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('picked');
+  });
+
+  it('a priority pick never hijacks a different goal', () => {
+    // Flagged, but it is a strength program and the member asked to lose fat.
+    const flaggedStrength = prog({ id: 'strength', level: 'beginner', goal: 'strength', equipmentTier: 'home', priorityPick: true });
+    const plainFatLoss = prog({ id: 'fatloss', level: 'beginner', goal: 'weight-loss', equipmentTier: 'home' });
+    expect(pickBestProgram([flaggedStrength, plainFatLoss], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('fatloss');
+  });
+
+  it('a priority pick cannot drag someone above their equipment', () => {
+    const flaggedGym = prog({ id: 'gym', level: 'beginner', goal: 'weight-loss', equipmentTier: 'full-gym', priorityPick: true });
+    const homeOption = prog({ id: 'home', level: 'beginner', goal: 'weight-loss', equipmentTier: 'home' });
+    expect(pickBestProgram([flaggedGym, homeOption], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('home');
+  });
+});

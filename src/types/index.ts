@@ -601,6 +601,24 @@ export interface Program {
   isPremium?: boolean; // requires active membership to access
   price?: number;      // one-time USD price for individual purchase (alternative to membership gate)
   targetGender?: 'male' | 'female' | 'anyone'; // display label; defaults to 'anyone' if unset
+  /**
+   * What kit this program needs, set by an admin.
+   *
+   * When unset the matcher infers it from exercise NAMES, which is a guess
+   * and a fragile one: a single "Rowing Machine" or a bare "Romanian
+   * Deadlift" reads as a full gym and puts a home program out of reach of
+   * everyone it was written for. Setting this stops the guessing.
+   */
+  equipmentTier?: 'minimal' | 'home' | 'full-gym';
+  /**
+   * Admin's thumb on the scale — the preferred pick for its goal.
+   *
+   * Onboarding scores programs on goal, level, days and equipment, and when
+   * several tie the winner is effectively arbitrary. This lets a human say
+   * which one should win: "for weight loss, send people here." Applies
+   * within the program's own goal, not across goals.
+   */
+  priorityPick?: boolean;
   imageUrl?: string; // cover image shown on the landing page & program lists
 }
 

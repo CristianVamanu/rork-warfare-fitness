@@ -77,6 +77,8 @@ interface BProg {
   daysPerWeek: number;
   visibility: 'public' | 'coaching';
   targetGender: 'male' | 'female' | 'anyone';
+  equipmentTier: '' | 'minimal' | 'home' | 'full-gym';
+  priorityPick: boolean;
   imageUrl: string;
   schedule: BDay[];
   phases: BPhase[];
@@ -128,7 +130,7 @@ function blankEx(): BEx {
 function emptyProg(): BProg {
   return {
     name: '', description: '', level: 'intermediate', goal: 'hypertrophy',
-    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', imageUrl: '',
+    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', equipmentTier: '', priorityPick: false, imageUrl: '',
     schedule: [blankDay('Push Day'), blankDay('Pull Day'), blankDay('Legs'), restDay(), blankDay('Upper Body'), restDay(), restDay()],
     phases: [],
   };
@@ -338,6 +340,7 @@ function BuilderInner() {
   interface LoadedProgram {
     name: string; description: string; level: BProg['level']; goal: BProg['goal'];
     weeks: number; daysPerWeek: number; visibility?: string; targetGender?: BProg['targetGender']; imageUrl?: string;
+    equipmentTier?: BProg['equipmentTier']; priorityPick?: boolean;
     schedule?: BDay[];
     phases?: { id: string; label: string; startWeek: number; endWeek: number; schedule: BDay[] }[];
   }
@@ -407,6 +410,8 @@ function BuilderInner() {
           daysPerWeek: program.daysPerWeek,
           visibility: (program.visibility as 'public' | 'coaching') ?? 'public',
           targetGender: program.targetGender ?? 'anyone',
+          equipmentTier: program.equipmentTier ?? '',
+          priorityPick: program.priorityPick === true,
           imageUrl: program.imageUrl ?? '',
           schedule,
           phases,
@@ -580,6 +585,8 @@ function BuilderInner() {
         weeks: p.weeks || 8,
         daysPerWeek: p.daysPerWeek || 4,
         visibility: 'public',
+        equipmentTier: p.equipmentTier ?? '',
+        priorityPick: p.priorityPick === true,
         targetGender: (p.targetGender === 'male' || p.targetGender === 'female') ? p.targetGender : 'anyone',
         imageUrl: '',
         schedule: phases.length > 0 ? phases[0].schedule : normalizeSchedule(p.schedule),
@@ -644,6 +651,11 @@ function BuilderInner() {
       const unique = exercises.filter((e, i, arr) => arr.findIndex(x => x.name === e.name) === i);
       const data = stripUndefinedDeep({
         ...prog,
+        // "Auto" is the absence of an answer, not an empty answer — store
+        // nothing so estimateEquipmentTier falls through to inferring it.
+        // Left as '' the field would be falsy and still work, but every
+        // program document would carry a meaningless empty string.
+        equipmentTier: prog.equipmentTier === '' ? undefined : prog.equipmentTier,
         schedule: prog.phases.length > 0 ? prog.phases[0].schedule : prog.schedule,
         isPublic: publish || prog.visibility === 'public',
         exercises: unique.map(e => ({ ...e, reps: e.reps })),
@@ -973,6 +985,43 @@ function BuilderInner() {
               <option value="male">Male</option>
               <option value="female">Female</option>
             </select>
+          </div>
+          <div>
+            {/* Explicit beats inferred. Left on Auto the matcher reads the
+                exercise names, which is a guess — one "Rowing Machine" or a
+                bare "Romanian Deadlift" reads as a full gym and hides a home
+                program from everyone it was written for. */}
+            <label className="text-xs text-text-secondary mb-1 block">Equipment needed</label>
+            <select
+              value={prog.equipmentTier}
+              onChange={e => setProg(s => ({ ...s, equipmentTier: e.target.value as BProg['equipmentTier'] }))}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+            >
+              <option value="">Auto — work it out from the exercises</option>
+              <option value="minimal">Minimal — bodyweight &amp; a pull-up bar</option>
+              <option value="home">Home — dumbbells, kettlebells, bands</option>
+              <option value="full-gym">Full gym — barbells, machines, cables</option>
+            </select>
+            <p className="text-[11px] text-text-tertiary mt-1">
+              Members are never matched to a program above the equipment they said they have.
+            </p>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="flex items-start gap-3 p-3 rounded-xl border border-white/10 bg-surface cursor-pointer">
+              <input
+                type="checkbox"
+                checked={prog.priorityPick}
+                onChange={e => setProg(s => ({ ...s, priorityPick: e.target.checked }))}
+                className="mt-0.5 w-4 h-4 accent-[var(--accent)] flex-shrink-0"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-white">Priority pick for this goal</span>
+                <span className="block text-[11px] text-text-tertiary mt-0.5">
+                  When several programs suit a member equally, send them here. Applies only within this
+                  program&apos;s own goal — it will never be given to someone who asked for a different one.
+                </span>
+              </span>
+            </label>
           </div>
           <div>
             <label className="text-xs text-text-secondary mb-1 block">Duration (weeks)</label>

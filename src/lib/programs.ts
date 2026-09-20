@@ -1445,6 +1445,11 @@ function exerciseTier(name: string): 0 | 1 | 2 {
 }
 
 export function estimateEquipmentTier(p: Program): 'minimal' | 'home' | 'full-gym' {
+  // An admin's explicit answer always wins. Everything below is a guess
+  // made from exercise names, and a guess should never override someone who
+  // actually knows — one mis-read name was enough to put a home program out
+  // of reach of every member it was written for.
+  if (p.equipmentTier) return p.equipmentTier;
   const fromPhases = (p.phases ?? []).flatMap((ph) => ph.schedule ?? []);
   const days = fromPhases.length > 0 ? fromPhases : (p.schedule ?? []);
   const names = [
@@ -1534,6 +1539,13 @@ export function pickBestProgram(
     // anything at all: it scored identically to SAS Selection on every
     // endurance/advanced answer and lost every time to array order.
     if ((p.phases?.length ?? 0) > 1) score += 1;
+    // The admin's preferred pick for this goal. Deliberately only applies
+    // when the goal actually matches: it is "of the weight-loss programs,
+    // send people to this one", not a way to push a strength program at
+    // someone who asked to lose fat. At 5 it beats an exact level match
+    // (6) only in combination with something else, and never beats the
+    // goal itself (10) — so a flagged program cannot hijack other goals.
+    if (p.priorityPick && p.goal === targetGoal) score += 5;
 
     if (sex && p.targetGender && p.targetGender !== 'anyone') {
       score += p.targetGender === sex ? 2 : -3;

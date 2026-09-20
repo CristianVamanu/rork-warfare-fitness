@@ -62,6 +62,8 @@ function exerciseNames(p) {
 }
 
 function estimateEquipmentTier(p) {
+  // Admin's explicit answer wins — mirrors src/lib/programs.ts.
+  if (p.equipmentTier) return p.equipmentTier;
   const fromPhases = (p.phases ?? []).flatMap((ph) => ph.schedule ?? []);
   const days = fromPhases.length > 0 ? fromPhases : (p.schedule ?? []);
   const names = [...days.flatMap((d) => (d.exercises ?? []).map((e) => e.name)), ...(p.exercises ?? []).map((e) => e.name)];
@@ -93,9 +95,11 @@ function pickBestProgram(pool, goal, experience, trainingDays, sex, equipment) {
     score += levelGap === 0 ? 6 : levelGap === 1 ? 2 : 0;
     score -= 0.5 * Math.abs(p.daysPerWeek - trainingDays);
     if ((p.phases?.length ?? 0) > 1) score += 1;
+    if (p.priorityPick && p.goal === targetGoal) score += 5;
     if (userEquipmentRank !== undefined) {
       const need = EQUIPMENT_RANK[estimateEquipmentTier(p)];
       if (need > userEquipmentRank) score -= 5 * (need - userEquipmentRank);
+      else if (need < userEquipmentRank) score -= 1.5 * (userEquipmentRank - need);
     }
     return { p, score };
   });
