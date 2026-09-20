@@ -394,14 +394,39 @@ export default function DashboardPage() {
                 </p>
               )}
 
-              {activeMock?.daysPerWeek ? (
-                <div className="flex gap-1 relative">
-                  {Array.from({ length: activeMock.daysPerWeek }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`flex-1 h-1.5 rounded-full ${i < (weeklySummary?.workoutsCompleted ?? 0) ? 'bg-accent' : 'bg-white/8'}`}
-                    />
-                  ))}
+              {/* One bar per training day the program asks for in a week,
+                  filled by how many sessions were actually logged.
+
+                  It had no label at all, so it was a row of dashes nobody
+                  could interpret — and the count changed with the program
+                  (three for a 3-day plan, six for a 6-day one), which just
+                  made it look arbitrary. It says what it is now.
+
+                  "Last 7 days", not "this week", because that is literally
+                  what getWeeklySummary measures: a rolling seven-day window,
+                  not Monday-to-Sunday. Calling it "this week" would be the
+                  same class of quiet lie as pairing a day count with a
+                  session total.
+
+                  Reads programSource, not activeMock — getMockProgram
+                  returns null for anything an admin created, so on those
+                  programs (which is most of them) the bars simply vanished. */}
+              {programSource?.daysPerWeek ? (
+                <div className="relative w-full">
+                  <div className="flex items-baseline justify-between mb-1">
+                    <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-text-tertiary">Last 7 days</span>
+                    <span className="text-[8px] font-bold text-text-tertiary tabular-nums">
+                      {Math.min(weeklySummary?.workoutsCompleted ?? 0, programSource.daysPerWeek)}/{programSource.daysPerWeek}
+                    </span>
+                  </div>
+                  <div className="flex gap-1">
+                    {Array.from({ length: programSource.daysPerWeek }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`flex-1 h-1.5 rounded-full ${i < (weeklySummary?.workoutsCompleted ?? 0) ? 'bg-accent' : 'bg-white/8'}`}
+                      />
+                    ))}
+                  </div>
                 </div>
               ) : null}
             </Card>
