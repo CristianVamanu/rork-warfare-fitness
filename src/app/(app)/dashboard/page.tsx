@@ -15,6 +15,8 @@ import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
 import { deriveStreak, streakCaption } from '@/lib/streakFlame';
+import { shouldCelebrate } from '@/lib/programCompletion';
+import { ProgramCompleteCard } from '@/components/training/ProgramCompleteCard';
 import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { FastingWidget } from '@/components/dashboard/FastingWidget';
@@ -316,6 +318,19 @@ export default function DashboardPage() {
   const dayLabel = todayDay ? stripWeekdayPrefix(todayDay.label) : '';
   const remaining = dayProgress ? Math.max(0, dayProgress.totalDays - dayProgress.daysDone) : 0;
   const programDone = dayProgress?.finished ?? false;
+
+  // The end-of-program moment. Shown once per program, and dismissed into a
+  // Firestore flag rather than local state alone, so it does not greet them
+  // again on every launch or on a second device. Local state is what hides
+  // it immediately on tap — waiting for the write to land before the card
+  // disappears would make dismissal feel broken on a slow connection.
+  const [completionDismissed, setCompletionDismissed] = useState(false);
+  const celebrateProgram = !completionDismissed && shouldCelebrate({
+    finished: programDone,
+    programId: activeProgram?.programId,
+    celebrated: profile?.celebratedPrograms,
+    sessionsDone: completedWorkouts,
+  });
   const caloriesPct = goals.calories > 0 ? (calories ?? 0) / goals.calories : 0;
   const waterPct = goals.water > 0 ? (waterMl ?? 0) / goals.water : 0;
   const glassRow = 'p-3.5 h-full flex items-center gap-3.5 card-float';
@@ -522,6 +537,21 @@ export default function DashboardPage() {
             reserved space. As its own full-width block outside the grid,
             its height is just whatever its content needs — never clipped,
             never padded with empty space either. */}
+        {/* The completion moment REPLACES the workout card rather than
+            stacking above it. A finished program's card has nothing to
+            offer — no session, no Start — so showing both would put a dead
+            panel directly under the one thing worth reading. */}
+        {celebrateProgram && activeProgram ? (
+          <div className="mb-3">
+            <ProgramCompleteCard
+              programId={activeProgram.programId}
+              programName={activeProgram.programName}
+              totalDays={dayProgress?.totalDays ?? completedWorkouts}
+              sessionsDone={completedWorkouts}
+              onDismiss={() => setCompletionDismissed(true)}
+            />
+          </div>
+        ) : (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} className="mb-3">
             {activeProgram ? (
               <Card className={`p-5 h-full relative overflow-hidden flex flex-col card-float ${isRestToday ? '' : 'border-accent/45 shadow-[0_0_40px_-8px_rgba(245,166,35,0.5)]'}`}>
@@ -734,6 +764,7 @@ export default function DashboardPage() {
               </Link>
             )}
         </motion.div>
+        )}
 
         {/* Below the fold the screen is three labelled groups, in the order
             a day actually goes: the tools you use, the things you are

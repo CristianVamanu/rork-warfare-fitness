@@ -255,6 +255,14 @@ export interface UserProfile {
   // in Firestore (not localStorage) so it's a true once-ever moment across
   // every device, not just the one they onboarded on.
   flameIgnited?: boolean;
+  /**
+   * Programs this member has already seen the completion moment for.
+   *
+   * A list, not a boolean: finishing a second program should celebrate
+   * again. Written with arrayUnion so two devices finishing together
+   * cannot clobber each other's entry.
+   */
+  celebratedPrograms?: string[];
   assignedNutritionPlan?: NutritionPlan;
   achievements?: string[];
   questsCompleted?: string[];

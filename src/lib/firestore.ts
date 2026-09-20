@@ -1658,6 +1658,22 @@ export async function markFlameIgnited(userId: string) {
 }
 
 /**
+ * Remember that this member has already been shown the end-of-program
+ * moment, so it fires once and does not greet them again every launch.
+ *
+ * arrayUnion, not a rewritten array: two devices finishing the same sync
+ * within a moment of each other would otherwise each write the list they
+ * read, and the slower write would drop the other's entry.
+ *
+ * A list rather than a boolean, because finishing a SECOND program deserves
+ * the moment too — a flat flag would silence every completion after the
+ * first, which is backwards.
+ */
+export async function markProgramCelebrated(userId: string, programId: string) {
+  await updateDoc(doc(db, 'users', userId), { celebratedPrograms: arrayUnion(programId) });
+}
+
+/**
  * A page of users, newest-id-first is NOT what this does — see below.
  *
  * This used to read the ENTIRE users collection with no limit, on every visit
