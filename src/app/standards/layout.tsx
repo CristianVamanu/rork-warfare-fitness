@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { WHY_GYM_ONLY } from '@/lib/ptStandards';
+import { PublicHeader } from '@/components/landing/PublicHeader';
 
 export const metadata: Metadata = {
   title: { default: 'Military selection standards', template: '%s' },
@@ -9,10 +10,11 @@ export const metadata: Metadata = {
 /**
  * The public standards section: one shell for the index and every unit page.
  *
- * Deliberately not wired into the main site nav beyond a single link. There
- * are eleven unit pages and they exist for search engines and for people
- * arriving from a video, not to be browsed from a menu — a nav with eleven
- * new entries would bury the things that actually sell.
+ * The unit pages stay out of the MENU — there are fourteen of them and they
+ * are reached from the index or from search, not browsed from a dropdown.
+ * The header itself is the normal site one: these pages are where strangers
+ * land from search, so they are precisely the visitors who need a way
+ * through to the programs and the rest of the site.
  */
 export default function StandardsLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -36,19 +38,7 @@ export default function StandardsLayout({ children }: { children: React.ReactNod
         />
       </div>
 
-      <header className="relative border-b border-white/8">
-        <div className="max-w-3xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
-          <Link href="/" className="text-sm font-black tracking-[0.14em] uppercase text-white">
-            Warfare<span className="text-accent">Fitness</span>
-          </Link>
-          <Link
-            href="/onboarding"
-            className="text-[13px] font-bold px-4 py-2 rounded-xl bg-accent text-black hover:brightness-110 transition"
-          >
-            Get your plan
-          </Link>
-        </div>
-      </header>
+      <PublicHeader />
 
       <main className="relative max-w-3xl mx-auto px-5 py-10 sm:py-14">{children}</main>
 

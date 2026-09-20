@@ -806,11 +806,23 @@ export default function LandingPage({
           <h2 className="text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
           <p className="text-text-secondary text-sm mt-2">One app for training, nutrition, accountability, and progress.</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch [&>*:first-child]:lg:col-span-2">
+        {/* No first-child col-span here, and the comment above says why: a
+            wide opening tile made the first feature occupy two of the three
+            slots, so nine features filled ten and the ninth sat alone in a
+            row of its own with a hole beside it.
+
+            The only span that survives is computed from the count, not from
+            a fixed position: when the final row would hold exactly one card,
+            that card takes the full width, so it reads as a deliberate
+            closing panel instead of an orphan. Admins add and remove
+            features from the landing editor, so anything keyed to a
+            hard-coded index is a layout that breaks on the next save. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
           {landing.features.map((f, i) => {
             const style = getFeatureStyle(f.title);
+            const lonelyLast = landing.features.length % 3 === 1 && i === landing.features.length - 1;
             return (
-              <div key={`${f.title}-${i}`} className="group relative p-5 rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-sm hover:border-accent/35 hover:bg-surface transition-all duration-300 flex flex-col items-start overflow-hidden wf-rise" style={{ animationDelay: `${(i % 3) * 0.05}s` }}>
+              <div key={`${f.title}-${i}`} className={`group relative p-5 rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-sm hover:border-accent/35 hover:bg-surface transition-all duration-300 flex flex-col items-start overflow-hidden wf-rise ${lonelyLast ? 'lg:col-span-3' : ''}`} style={{ animationDelay: `${(i % 3) * 0.05}s` }}>
                 {/* Hairline along the top edge, lighting up on hover — the
                     same cue the standards card uses, so a panel here and a
                     panel there read as the same machine. */}
@@ -1194,7 +1206,21 @@ export default function LandingPage({
               // exactly as before.
               const isFeatured = anyPlanMarkedPopular ? !!plan.mostPopular : i === 0;
               return (
-              <div key={plan.id} className="wf-rise" style={{ animationDelay: `${i * 0.05}s` }}>
+              // The panel classes here were lost when this card stopped
+              // being a motion.div: the rewrite kept the animation and
+              // dropped the className with it. Every one of them is
+              // load-bearing — `relative` is what the "Most Popular" badge
+              // is positioned against, and `h-full flex flex-col` is what
+              // lets the CTA's `mt-auto` push it to the bottom so the two
+              // cards' buttons line up regardless of how many features each
+              // plan lists.
+              <div
+                key={plan.id}
+                className={`relative rounded-2xl p-5 h-full flex flex-col bg-surface wf-rise ${
+                  isFeatured ? 'border-2 border-accent' : 'border border-white/10'
+                }`}
+                style={{ animationDelay: `${i * 0.05}s` }}
+              >
                 {/* Text label, not just the border color — a color-only cue
                     is easy to miss when someone's quickly scanning prices. */}
                 {isFeatured && (
