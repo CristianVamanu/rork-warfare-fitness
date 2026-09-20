@@ -42,6 +42,25 @@ function exerciseTier(name) {
   if (/bench press|deadlift|back squat|front squat|overhead press|power clean|snatch/.test(n)) return 2;
   return 0;
 }
+/** Same rules as exerciseTier, but says WHICH one fired. */
+function tierReason(name) {
+  const n = String(name ?? '').toLowerCase();
+  const heavy = n.match(/barbell|smith|machine|cable|leg press|lat pulldown|pec deck|hack squat|\bbb\b/);
+  if (heavy) return { tier: 2, why: `matched "${heavy[0]}" — treated as gym equipment` };
+  const hand = n.match(/kettlebell|dumbbell|\bdb\b|\bkb\b|band|resistance band/);
+  if (hand) return { tier: 1, why: `matched "${hand[0]}" — handheld weight` };
+  const bare = n.match(/bench press|deadlift|back squat|front squat|overhead press|power clean|snatch/);
+  if (bare) return { tier: 2, why: `bare lift "${bare[0]}" with no implement named — assumed barbell` };
+  return { tier: 0, why: 'bodyweight' };
+}
+
+/** All exercise names in a program, phases first. */
+function exerciseNames(p) {
+  const fromPhases = (p.phases ?? []).flatMap((ph) => ph.schedule ?? []);
+  const days = fromPhases.length > 0 ? fromPhases : (p.schedule ?? []);
+  return [...days.flatMap((d) => (d.exercises ?? []).map((e) => e.name)), ...(p.exercises ?? []).map((e) => e.name)];
+}
+
 function estimateEquipmentTier(p) {
   const fromPhases = (p.phases ?? []).flatMap((ph) => ph.schedule ?? []);
   const days = fromPhases.length > 0 ? fromPhases : (p.schedule ?? []);
@@ -89,12 +108,46 @@ const snap = await db.collection('programs').where('isPublic', '==', true).get()
 const pool = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 if (!pool.length) { console.log('\nNo public programs in Firestore.\n'); process.exit(0); }
 
+const pad = (s, n) => String(s ?? '').slice(0, n).padEnd(n);
+
+// ── --why "<name fragment>": explain one program's equipment tier ─────────
+// The tier is INFERRED from exercise names, so a single renamed movement can
+// push a home program into the full-gym bucket and quietly put it out of
+// reach of everyone it was written for. This prints the reasoning.
+const whyArg = process.argv.indexOf('--why');
+if (whyArg !== -1) {
+  const frag = (process.argv[whyArg + 1] ?? '').toLowerCase();
+  const hits = pool.filter((p) => String(p.name ?? '').toLowerCase().includes(frag));
+  if (!frag || !hits.length) {
+    console.log(`\nNo program matching "${process.argv[whyArg + 1] ?? ''}". Names:`);
+    pool.forEach((p) => console.log('  ' + p.name));
+    process.exit(1);
+  }
+  for (const p of hits) {
+    console.log(`\n${p.name} — tier: ${estimateEquipmentTier(p)}`);
+    const names = [...new Set(exerciseNames(p))];
+    const rated = names.map((n) => ({ n, ...tierReason(n) }));
+    const gym = rated.filter((r) => r.tier === 2);
+    if (gym.length) {
+      console.log(`\n  These ${gym.length} name(s) are what make it full-gym — rename them and the whole program drops a tier:`);
+      gym.forEach((r) => console.log(`    ${pad(r.n, 38)} ${r.why}`));
+    } else {
+      console.log('\n  Nothing forces full-gym.');
+    }
+    const hand = rated.filter((r) => r.tier === 1);
+    const body = rated.filter((r) => r.tier === 0);
+    console.log(`\n  ${hand.length} handheld (home), ${body.length} bodyweight, ${names.length} exercises total.`);
+    if (!gym.length && !hand.length) console.log('  Pure bodyweight — tier is minimal.');
+  }
+  console.log('');
+  process.exit(0);
+}
+
 const GOALS = Object.keys(GOAL_TO_PROGRAM_GOAL);
 const LEVELS = ['beginner', 'intermediate', 'advanced'];
 const DAYS = [3, 4, 5, 6];
 const SEX = ['male', 'female'];
 const EQUIP = ['full-gym', 'home', 'minimal'];
-const pad = (s, n) => String(s ?? '').slice(0, n).padEnd(n);
 
 console.log(`\n${pool.length} public programs. Equipment tier as the app estimates it:`);
 for (const p of pool) console.log(`  ${pad(p.name, 30)} ${pad(p.goal, 12)} ${pad(p.level, 13)} ${p.daysPerWeek}d  ${estimateEquipmentTier(p)}${p.targetGender && p.targetGender !== 'anyone' ? '  (' + p.targetGender + ')' : ''}`);
