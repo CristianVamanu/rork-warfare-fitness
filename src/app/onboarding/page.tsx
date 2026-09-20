@@ -1398,6 +1398,15 @@ const SEX_OPTIONS: { value: BiologicalSex; label: string; icon: React.ElementTyp
   { value: 'female', label: 'Female', icon: User },
 ];
 
+// The drawn BMI scale. 15–40 covers the range real readings land in, and
+// the healthy band matches calculateBmi's own thresholds exactly — a bar
+// that disagreed with the number printed above it would be worse than no
+// bar at all.
+const SCALE_MIN = 15;
+const SCALE_MAX = 40;
+const HEALTHY_LOW = 18.5;
+const HEALTHY_HIGH = 25;
+
 function StepBiometrics({
   sex, onSex, age, onAge, heightCm, onHeight, weightKg, onWeight, targetWeightKg, onTargetWeight,
   weightUnit, onWeightUnit, heightUnit, onHeightUnit, sexAgeAnswered, onEditSexAge,
@@ -1436,11 +1445,33 @@ function StepBiometrics({
   // height would otherwise flash a nonsense BMI on every keystroke.
   const bmiHeight = parseFloat(heightCm);
   const bmiWeight = parseFloat(weightKg);
+  const bmiTarget = parseFloat(targetWeightKg);
   const bmiReading = (bmiHeight >= 100 && bmiHeight <= 250 && bmiWeight >= 30 && bmiWeight <= 300)
     ? (() => {
         const { bmi, healthyWeightRangeKg } = calculateBmi(bmiHeight, bmiWeight);
         const show = (kg: number) => (weightUnit === 'lbs' ? kgToLbs(kg) : kg);
-        return { bmi, low: show(healthyWeightRangeKg[0]), high: show(healthyWeightRangeKg[1]) };
+        // Where a BMI sits on the drawn scale, as a percentage. The scale
+        // runs 15–40 because that is the range real readings fall in;
+        // anchoring it at zero would squash every human being into the
+        // middle third of the bar.
+        const pos = (v: number) => Math.min(100, Math.max(0, ((v - SCALE_MIN) / (SCALE_MAX - SCALE_MIN)) * 100));
+        // The goal weight, on the same scale. This is the reason the panel
+        // is worth its space: a bare number tells a heavier man something he
+        // already knows, whereas two marks and the distance between them
+        // show him where he is going. Only drawn once the goal is plausible.
+        const goalBmi = (bmiTarget >= 30 && bmiTarget <= 300)
+          ? Math.round((bmiTarget / ((bmiHeight / 100) ** 2)) * 10) / 10
+          : null;
+        return {
+          bmi,
+          low: show(healthyWeightRangeKg[0]),
+          high: show(healthyWeightRangeKg[1]),
+          pct: pos(bmi),
+          goalBmi,
+          goalPct: goalBmi === null ? null : pos(goalBmi),
+          bandLeft: pos(HEALTHY_LOW),
+          bandWidth: pos(HEALTHY_HIGH) - pos(HEALTHY_LOW),
+        };
       })()
     : null;
 
@@ -1643,16 +1674,77 @@ function StepBiometrics({
           judgement is not worth a screen, and BMI cannot tell muscle from
           fat anyway. Appears only once both numbers are actually valid. */}
       {bmiReading && (
-        <div className="flex items-baseline justify-between rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2.5">
-          <span className="text-[11px] text-text-tertiary">
-            For reference, your BMI
-          </span>
-          <span className="text-sm font-bold text-white tabular-nums">
-            {bmiReading.bmi}
-            <span className="text-[11px] font-medium text-text-tertiary ml-1.5">
-              healthy {bmiReading.low}–{bmiReading.high} {weightUnit}
-            </span>
-          </span>
+        <div className="relative overflow-hidden rounded-2xl border border-accent/20 bg-surface/60 px-4 py-4 mt-7">
+          {/* The same faint grid the landing page uses, so a readout inside
+              the product looks like it came from the same instrument. Static
+              background-image on an element that already exists — no extra
+              node, no animation, no filter. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-[0.5]"
+            style={{
+              backgroundImage:
+                'radial-gradient(90% 70% at 100% 0%, rgb(var(--accent-rgb) / 0.10), transparent 62%),' +
+                'linear-gradient(rgb(var(--accent-rgb) / 0.045) 1px, transparent 1px),' +
+                'linear-gradient(90deg, rgb(var(--accent-rgb) / 0.045) 1px, transparent 1px)',
+              backgroundSize: '100% 100%, 26px 26px, 26px 26px',
+            }}
+          />
+          <div className="relative">
+            <div className="flex items-baseline justify-between">
+              <p className="wf-readout text-[10px] font-bold text-accent">Body mass index</p>
+              <p className="text-[10px] text-text-tertiary tabular-nums">
+                healthy {bmiReading.low}–{bmiReading.high} {weightUnit}
+              </p>
+            </div>
+
+            <p className="text-3xl font-black text-white tabular-nums leading-none mt-2">
+              {bmiReading.bmi}
+            </p>
+
+            {/* The scale. The healthy band is drawn as a lit section rather
+                than stated as a verdict — no "Obese" label, which is what
+                made the old full-screen version worth deleting. */}
+            <div className="relative h-8 mt-3">
+              {/* The unlit part of the track has to be clearly visible or
+                  the healthy band reads as a bar that simply ends, not as a
+                  section of a scale — which loses the only thing the scale
+                  is for: seeing where you sit ALONG it. */}
+              <div className="absolute inset-x-0 top-3 h-1.5 rounded-full bg-white/[0.14] overflow-hidden">
+                <div
+                  className="absolute inset-y-0 bg-success/55"
+                  style={{ left: `${bmiReading.bandLeft}%`, width: `${bmiReading.bandWidth}%` }}
+                />
+              </div>
+
+              {/* Goal weight, hollow — where they are heading. Drawn first so
+                  the solid current marker wins if the two overlap. */}
+              {bmiReading.goalPct !== null && (
+                <span
+                  aria-hidden
+                  className="absolute top-[7px] w-3 h-3 -ml-1.5 rounded-full border-2 border-white/55 bg-background"
+                  style={{ left: `${bmiReading.goalPct}%` }}
+                />
+              )}
+              {/* Where they are now. */}
+              <span
+                aria-hidden
+                className="absolute top-[5px] w-4 h-4 -ml-2 rounded-full bg-accent ring-4 ring-accent/20"
+                style={{ left: `${bmiReading.pct}%` }}
+              />
+
+              <div className="absolute inset-x-0 bottom-0 flex justify-between text-[9px] text-text-tertiary tabular-nums">
+                <span>{SCALE_MIN}</span>
+                <span>{SCALE_MAX}</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-text-tertiary leading-relaxed mt-2">
+              {bmiReading.goalBmi !== null
+                ? <>Your goal weight puts you at <span className="text-white font-semibold tabular-nums">{bmiReading.goalBmi}</span>. A reference point only — it can&apos;t tell muscle from fat.</>
+                : <>A reference point only — it can&apos;t tell muscle from fat.</>}
+            </p>
+          </div>
         </div>
       )}
     </div>
