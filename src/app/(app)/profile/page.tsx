@@ -29,6 +29,7 @@ import { Badge } from '@/components/ui/Badge';
 import { QuestBadgeRow } from '@/components/ui/QuestBadgeRow';
 import { ReferralCard } from '@/components/profile/ReferralCard';
 import { Modal } from '@/components/ui/Modal';
+import { announceOnce } from '@/lib/purchaseNotice';
 import { HealthScreeningFields, LifestyleHabitsFields } from '@/components/ui/HealthScreening';
 import type { MembershipConfig, MembershipPlan, CoachingPlan, CoachingApplication, PlanBillingPeriodMonths, MedicalHistoryAnswers } from '@/types';
 
@@ -37,13 +38,19 @@ function SubscribeSuccessHandler({ onSuccess }: { onSuccess: () => void }) {
   const searchParams = useSearchParams();
   useEffect(() => {
     const subscribed = searchParams.get('subscribed');
+    // Same one-shot guard as the dashboard's SubscribeSuccess — a reload
+    // of this URL must not re-thank or re-report the sale.
     if (subscribed === '1') {
-      toast.success('Membership activated! Welcome aboard 🎉');
-      trackEvent('Purchase');
+      if (announceOnce('1')) {
+        toast.success('Membership activated! Welcome aboard 🎉');
+        trackEvent('Purchase');
+      }
       onSuccess();
     } else if (subscribed === 'coaching') {
-      toast.success('Coaching plan activated! Your trainer has been notified 🎉');
-      trackEvent('Purchase');
+      if (announceOnce('coaching')) {
+        toast.success('Coaching plan activated! Your trainer has been notified 🎉');
+        trackEvent('Purchase');
+      }
       onSuccess();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

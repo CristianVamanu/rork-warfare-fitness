@@ -12,6 +12,7 @@ import { Card } from './Card';
 import { Button } from './Button';
 import { VerifyEmailNotice } from './VerifyEmailNotice';
 import type { MembershipConfig, MembershipPlan, PlanBillingPeriodMonths } from '@/types';
+import { clearSubscribedParam } from '@/lib/purchaseNotice';
 
 // Pages that are always accessible regardless of membership — account
 // management, not "the product" itself. /dashboard is deliberately NOT
@@ -100,6 +101,19 @@ export function MembershipGuard({ pathname, children }: Props) {
       }
     } catch { /* private mode — fall through to the normal paywall */ }
     setJustPaidAt(readJustPaidAt());
+    // Now that everything which needed the flag has read it, take it out of
+    // the address bar. It used to sit there for the whole visit, so anything
+    // that reloaded the page — confirming an email code does exactly that —
+    // looked like a fresh arrival from checkout and re-fired the "payment
+    // received" toast and its Purchase conversion event.
+    //
+    // This is deliberately the LAST reader: MembershipGuard lives in the
+    // layout and the toast components live in the pages beneath it, and
+    // React runs child effects before parent ones. Clearing it from a child
+    // would remove the flag before this effect could stamp the marker, and
+    // the member would get the paywall flashed at them while Stripe's
+    // webhook was still in flight. Moving this call is not safe.
+    clearSubscribedParam();
   }, [pathname]);
 
   const paidNow = hasActiveSubscription(profile);

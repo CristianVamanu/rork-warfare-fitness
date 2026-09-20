@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { trackEvent } from '@/lib/analytics';
+import { announceOnce } from '@/lib/purchaseNotice';
 
 /**
  * Handles the ?subscribed= flag Stripe sends the member back with.
@@ -28,13 +29,24 @@ export function SubscribeSuccess({ onSuccess }: { onSuccess: () => void }) {
     // the plan can still show as locked. The profile listener lifts it live
     // the moment the webhook lands, so nothing needs polling; the wording
     // just has to not promise something the screen is not yet showing.
+    // announceOnce, not just the parameter: confirming an email code
+    // reloads this exact URL, and without it the member is thanked for a
+    // payment they made minutes ago — and a second Purchase conversion is
+    // reported for one sale. See lib/purchaseNotice.
     if (subscribed === '1') {
-      toast.success('Payment received — unlocking your membership now 🎉', { duration: 6000 });
-      trackEvent('Purchase');
+      if (announceOnce('1')) {
+        toast.success('Payment received — unlocking your membership now 🎉', { duration: 6000 });
+        trackEvent('Purchase');
+      }
+      // onSuccess refreshes the profile and is safe to repeat — it is how
+      // the screen picks up the webhook's write, which may still be in
+      // flight on a reload.
       onSuccess();
     } else if (subscribed === 'coaching') {
-      toast.success('Payment received — your trainer has been notified 🎉', { duration: 6000 });
-      trackEvent('Purchase');
+      if (announceOnce('coaching')) {
+        toast.success('Payment received — your trainer has been notified 🎉', { duration: 6000 });
+        trackEvent('Purchase');
+      }
       onSuccess();
     }
     // Once, on arrival. Re-running would re-toast on every param change.
