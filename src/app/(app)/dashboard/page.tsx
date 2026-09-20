@@ -504,10 +504,34 @@ export default function DashboardPage() {
                   />
                 )}
                 <div className="relative">
-                  {/* Icon tile, eyebrow, title, and the one action — the
-                      same header shape as the program screen's card. The day
-                      counter moves into the eyebrow, where it belongs: it is
-                      a label for the session, not a badge floating above it. */}
+                  {/* Panel header: which program this is, and how far through
+                      it you are. The program name had nowhere to live once
+                      the title became the session name — and it is the thing
+                      that answers "what am I even doing" at a glance, so it
+                      gets its own strip rather than being crammed into the
+                      eyebrow, where a name like "Kettlebell Warfare" plus a
+                      day counter would wrap on any phone.
+
+                      Reads as an instrument panel's label: a live dot, the
+                      name tracked out, the counter tabular on the right, a
+                      hairline under the lot. Same vocabulary as the section
+                      eyebrows on the landing page. */}
+                  <div className="flex items-baseline justify-between gap-3 pb-2 mb-3 border-b border-white/8">
+                    <p className="flex items-center gap-1.5 min-w-0 text-[10px] font-extrabold uppercase tracking-[0.18em] text-text-tertiary">
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />
+                      <span className="truncate">{activeProgram.programName}</span>
+                    </p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-text-tertiary tabular-nums flex-shrink-0">
+                      {programDone
+                        ? 'Complete'
+                        : dayProgress?.totalDays
+                          ? `Day ${dayProgress.dayNumber} / ${dayProgress.totalDays}`
+                          : `Day ${completedWorkouts + 1}`}
+                    </p>
+                  </div>
+
+                  {/* Icon tile, eyebrow, session title, and the one action —
+                      the same header shape as the program screen's card. */}
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center ${isRestToday ? 'border border-dashed border-white/15 text-text-tertiary' : 'bg-gradient-accent text-black shadow-glow-sm'}`}>
@@ -518,30 +542,33 @@ export default function DashboardPage() {
                         {isRestToday ? <Moon className="w-4 h-4" /> : programDone ? <CheckCircle2 className="w-4 h-4" /> : <Dumbbell className="w-4 h-4" />}
                       </div>
                       <div className="min-w-0">
-                        {/* Always describes the session the button will
-                            start — never the one just finished. It briefly
-                            said "Day 1 complete" while the title, the
-                            exercise list and Start underneath it all
-                            referred to the NEXT day, which is a card
-                            labelling itself with the wrong session. The
-                            congratulation for the finished day is the green
-                            line below; this line's job is to say what
-                            happens when you press Start.
+                        {/* Describes the session the button will start —
+                            never the one just finished. It briefly said
+                            "Day 1 complete" while the title, the exercise
+                            list and Start underneath all referred to the
+                            NEXT day, which is a card labelling itself with
+                            the wrong session. The congratulation for the day
+                            just done is the green line below.
 
-                            dayNumber and totalDays both come from
-                            getProgramDayProgress, so they are the same unit.
-                            Pairing a day number with totalWorkouts (a
-                            session count) is what produced "Day 1 of 65" on
-                            a 91-day program. */}
+                            The day counter lives in the strip above now, so
+                            this is just the state. Both numbers up there come
+                            from getProgramDayProgress and share a unit —
+                            pairing a day number with totalWorkouts (a session
+                            count) is what produced "Day 1 of 65" on a 91-day
+                            program. */}
                         <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent/90">
-                          {isRestToday
-                            ? 'Recovery'
-                            : programDone
-                              ? 'Program complete'
-                              : `Up next · Day ${dayProgress?.dayNumber ?? completedWorkouts + 1}${dayProgress?.totalDays ? ` of ${dayProgress.totalDays}` : ''}`}
+                          {isRestToday ? 'Recovery' : programDone ? 'Program complete' : 'Up next'}
                         </p>
+                        {/* No longer falls back to the program name — that
+                            is in the strip above, and printing it twice on
+                            a rest day made the card look like it had lost
+                            track of the session. */}
                         <p className="text-sm font-bold text-white leading-snug truncate">
-                          {todayDay && !isRestToday ? stripWeekdayPrefix(todayDay.label) : activeProgram.programName}
+                          {isRestToday
+                            ? 'Rest day'
+                            : todayDay
+                              ? stripWeekdayPrefix(todayDay.label)
+                              : programDone ? 'Every session done' : 'Next session'}
                         </p>
                       </div>
                     </div>
@@ -612,7 +639,15 @@ export default function DashboardPage() {
                   <div className="mb-3">
                     <ProgressBar value={completedWorkouts} max={activeProgram.totalWorkouts} color={workedOutToday ? 'success' : 'accent'} size="sm" />
                     <p className="text-xs text-text-tertiary mt-1">
-                      {programPct}% complete · {activeProgram.totalWorkouts - completedWorkouts} sessions remaining
+                      {/* Both halves in days. programPct comes from
+                          getProgramDayProgress (day-based) and was sitting
+                          next to a remainder counted in sessions, so a
+                          program could read "1% complete · 64 sessions
+                          remaining" while the strip above said Day 2 of 91 —
+                          three numbers, two units, no way to reconcile them.
+                          `remaining` is the day-based figure and already
+                          existed for this. */}
+                      {programPct}% complete · {remaining} day{remaining === 1 ? '' : 's'} remaining
                     </p>
                   </div>
                   {/* One primary action, full width. Secondary actions in a
