@@ -14,6 +14,7 @@ import { getMockProgram, stripWeekdayPrefix, getNextSession, getProgramDayProgre
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
+import { deriveStreak, streakCaption } from '@/lib/streakFlame';
 import { Card } from '@/components/ui/Card';
 import { FastingWidget } from '@/components/dashboard/FastingWidget';
 import { DailyTip } from '@/components/dashboard/DailyTip';
@@ -138,29 +139,19 @@ export default function DashboardPage() {
   // Reactive (see useLocalDate) — the training card's rest-day decision
   // below must move with the calendar, not stay pinned to first render.
   const localDateStr = useLocalDate();
-  const workedOutToday = (profile?.activeProgram?.completedWorkouts ?? 0) > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
-
-  // `stats.streak` is only recomputed when a workout is completed (see
-  // completeWorkout() in actions.ts) — there's no daily job that decays it,
-  // so it stays stuck at its last value for however many days the user
-  // stays away, showing a stale "lit" streak long after it's actually
-  // broken. Derive the *real* state here from the day-gap instead of
-  // trusting the cached number on its own: 0 days = trained today, 1 day =
-  // still salvageable today (the one grace day), 2+ days = the streak is
-  // dead until a fresh workout starts a new one — UNLESS a streak freeze
-  // is available, which absorbs exactly one missed day and pushes the dead
-  // threshold out by one, matching computeStreak()'s own freeze logic in
-  // src/lib/events.ts. Without this, a server-side freeze save would be
-  // invisible: the UI would still show the streak as dead.
-  const lastWorkoutDateStr = profile?.statsCache?.lastWorkoutDate as string | undefined;
-  const daysSinceLastWorkout = lastWorkoutDateStr
-    ? Math.round((new Date(localDateStr + 'T00:00:00').getTime() - new Date(lastWorkoutDateStr + 'T00:00:00').getTime()) / 86_400_000)
-    : null;
-  const freezeAvailable = profile?.streakFreeze?.available ?? true;
-  const streakBroken = daysSinceLastWorkout !== null && daysSinceLastWorkout >= (freezeAvailable ? 3 : 2);
-  const streak = streakBroken ? 0 : (profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0);
-  const streakAtRisk = !loading && streak > 0 && !workedOutToday;
-  const streakSavedByFreeze = daysSinceLastWorkout === 2 && freezeAvailable && streak > 0;
+  // Every one of these comes from lib/streakFlame, which is pure and
+  // tested. It used to be derived inline here, which made the app's only
+  // real jeopardy — train today or the fire goes out — the one significant
+  // piece of logic with nothing asserting it.
+  const streakView = deriveStreak({
+    today: localDateStr,
+    lastWorkoutDate: profile?.statsCache?.lastWorkoutDate as string | undefined,
+    cachedStreak: profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0,
+    completedWorkouts: profile?.activeProgram?.completedWorkouts ?? 0,
+    freezeAvailable: profile?.streakFreeze?.available ?? true,
+  });
+  const { streak, flameState, workedOutToday, savedByFreeze: streakSavedByFreeze } = streakView;
+  const streakAtRisk = !loading && streakView.atRisk;
 
   const WATER_STEP_ML = 250;
 
@@ -193,29 +184,6 @@ export default function DashboardPage() {
     } finally {
       setAdjustingWater(false);
     }
-  };
-
-  // Flame state on the streak card — derived from data we already have, no
-  // new tracking needed: never-trained users get an unlit ember to invite
-  // their first workout; a live streak with today's session done blazes;
-  // a live streak with today's session still pending (same "at risk" window
-  // as the banner above) flickers as a warning; a broken streak (0, but
-  // they've trained before) goes fully out until they start a new one.
-  type FlameState = 'unlit' | 'blazing' | 'flickering' | 'out';
-  const neverWorkedOut = !profile?.statsCache?.lastWorkoutDate;
-  const flameState: FlameState = neverWorkedOut
-    ? 'unlit'
-    : workedOutToday
-    ? 'blazing'
-    : streak > 0
-    ? 'flickering'
-    : 'out';
-  // Short enough for a tile caption; the ring above it is a seven-day dial.
-  const STREAK_CAPTION: Record<FlameState, string> = {
-    unlit: 'Finish your first workout',
-    blazing: 'Trained today',
-    flickering: streakSavedByFreeze ? 'Freeze saved it — train today' : 'Train today to keep it',
-    out: 'Start a new streak',
   };
 
   // One-time "ignition" moment — the ember flaring up into a real flame the
@@ -494,20 +462,58 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* The day's three numbers as rings */}
-        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-3 gap-2.5">
-          <motion.div variants={stagger.item}>
-            <Card glass className="p-3 h-full flex flex-col items-center text-center gap-2 relative overflow-hidden">
-              {igniting && (
-                <div className="ignite-flash absolute inset-0 pointer-events-none rounded-2xl" style={{ background: 'radial-gradient(circle, rgba(255,214,140,0.7) 0%, rgba(245,166,35,0) 70%)' }} />
-              )}
-              <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Streak</span>
-              <Ring value={Math.min(streak, 7) / 7} size={56} stroke={6}
-                color={flameState === 'blazing' || flameState === 'flickering' ? 'var(--accent)' : 'var(--text-tertiary)'}>
-                <span className="text-[17px] font-black text-white tabular-nums">{streak}<span className="text-[10px] font-bold text-text-secondary">d</span></span>
-              </Ring>
-              <p className="text-[10px] leading-tight text-text-tertiary line-clamp-2 px-0.5">
-                {igniting ? 'Your flame is lit 🔥' : STREAK_CAPTION[flameState]}
+        {/* Streak as the hero tile, calories and water stacked beside it.
+            The streak had been flattened into a third ring in a row of
+            three identical ones — which made the app's only piece of real
+            jeopardy look like a statistic. The flame is the point: it is
+            lit, flickering or out depending on whether you trained, so the
+            screen states the consequence rather than reporting a number. */}
+        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-2 gap-2.5">
+          <motion.div variants={stagger.item} className="row-span-2">
+            <Card className="p-4 h-full flex flex-col bg-gradient-to-br from-surface-elevated to-surface relative overflow-hidden card-float">
+              <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide relative">Streak</span>
+
+              <div className="flex-1 flex items-center justify-center relative min-h-[132px]">
+                {igniting && (
+                  <div
+                    className="ignite-flash absolute w-36 h-36 rounded-full pointer-events-none"
+                    style={{ background: 'radial-gradient(circle, rgba(255,214,140,0.9) 0%, rgba(245,166,35,0) 70%)' }}
+                  />
+                )}
+                {(() => {
+                  // Four states, four different fires. Sizes and opacities
+                  // are the originals — a blazing flame is meant to be
+                  // noticeably bigger than a flickering one, so the tile
+                  // reads at a glance without anyone parsing the caption.
+                  const cfg = {
+                    blazing:    { glow: 'rgba(245,166,35,0.55)', size: 104, opacity: 0.25, anim: 'flame-glow flame-flicker',      gray: false },
+                    flickering: { glow: 'rgba(245,166,35,0.35)', size: 76,  opacity: 0.22, anim: 'flame-glow flame-flicker-weak', gray: false },
+                    out:        { glow: 'rgba(120,113,108,0.4)', size: 60,  opacity: 0.20, anim: 'ember-pulse',                   gray: true },
+                    unlit:      { glow: 'rgba(120,113,108,0.4)', size: 56,  opacity: 0.18, anim: 'ember-pulse',                   gray: true },
+                  }[flameState];
+                  return (
+                    <>
+                      <div
+                        className="absolute rounded-full pointer-events-none"
+                        style={{ width: cfg.size * 1.3, height: cfg.size * 1.3, background: `radial-gradient(circle, ${cfg.glow} 0%, rgba(0,0,0,0) 70%)` }}
+                      />
+                      <span
+                        key={igniting ? 'igniting' : 'settled'}
+                        className={`${igniting ? 'flame-ignite' : cfg.anim} absolute leading-none pointer-events-none select-none motion-reduce:animate-none`}
+                        style={{ fontSize: cfg.size, opacity: igniting ? 1 : cfg.opacity, filter: !igniting && cfg.gray ? 'grayscale(0.75) brightness(0.85)' : undefined }}
+                      >
+                        🔥
+                      </span>
+                    </>
+                  );
+                })()}
+                <p className="text-4xl font-black text-white leading-none relative drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] tabular-nums">
+                  {streak}<span className="text-lg font-bold text-text-secondary ml-0.5">d</span>
+                </p>
+              </div>
+
+              <p className={`text-[10px] text-center font-medium relative leading-tight ${igniting ? 'text-accent font-bold' : 'text-amber-400/80'}`}>
+                {igniting ? 'Your flame is lit 🔥' : streakCaption(streakView)}
               </p>
             </Card>
           </motion.div>
