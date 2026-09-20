@@ -511,32 +511,58 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center ${isRestToday ? 'border border-dashed border-white/15 text-text-tertiary' : 'bg-gradient-accent text-black shadow-glow-sm'}`}>
-                        {isRestToday ? <Moon className="w-4 h-4" /> : workedOutToday && completedWorkouts > 0 ? <CheckCircle2 className="w-4 h-4" /> : <Dumbbell className="w-4 h-4" />}
+                        {/* Matches the eyebrow: a tick only when the whole
+                            program is done. Ticking it merely because today
+                            was done sat beside "Up next", which says the
+                            opposite. */}
+                        {isRestToday ? <Moon className="w-4 h-4" /> : programDone ? <CheckCircle2 className="w-4 h-4" /> : <Dumbbell className="w-4 h-4" />}
                       </div>
                       <div className="min-w-0">
+                        {/* Always describes the session the button will
+                            start — never the one just finished. It briefly
+                            said "Day 1 complete" while the title, the
+                            exercise list and Start underneath it all
+                            referred to the NEXT day, which is a card
+                            labelling itself with the wrong session. The
+                            congratulation for the finished day is the green
+                            line below; this line's job is to say what
+                            happens when you press Start.
+
+                            dayNumber and totalDays both come from
+                            getProgramDayProgress, so they are the same unit.
+                            Pairing a day number with totalWorkouts (a
+                            session count) is what produced "Day 1 of 65" on
+                            a 91-day program. */}
                         <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent/90">
                           {isRestToday
                             ? 'Recovery'
-                            : workedOutToday && completedWorkouts > 0
-                              ? `Day ${Math.max(1, completedWorkouts)} complete`
-                              : `Up next · Day ${completedWorkouts + 1} of ${activeProgram.totalWorkouts}`}
+                            : programDone
+                              ? 'Program complete'
+                              : `Up next · Day ${dayProgress?.dayNumber ?? completedWorkouts + 1}${dayProgress?.totalDays ? ` of ${dayProgress.totalDays}` : ''}`}
                         </p>
                         <p className="text-sm font-bold text-white leading-snug truncate">
                           {todayDay && !isRestToday ? stripWeekdayPrefix(todayDay.label) : activeProgram.programName}
                         </p>
                       </div>
                     </div>
-                    {!isRestToday && (
+                    {/* Nothing left to start once the program is finished —
+                        the button would point at a day past the end. */}
+                    {!isRestToday && !programDone && (
                       <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
                         <Play className="w-4 h-4" /> Start
                       </Button>
                     )}
                   </div>
                   {workedOutToday && completedWorkouts > 0 ? (
+                    // No day number here. This counted SESSIONS while the
+                    // eyebrow above counts DAYS, so a card could show "Day 1
+                    // complete" directly above "Up next · Day 3" and mean
+                    // both — rest days are days but not sessions. Saying
+                    // "today's session" is true in either unit.
                     <p className="text-sm text-success mt-0.5">
-                      🎉 Great work on Day {Math.max(1, completedWorkouts)}!
+                      🎉 Today&apos;s session is done.
                       {activeProgram.totalWorkouts - completedWorkouts > 0 &&
-                        ` ${activeProgram.totalWorkouts - completedWorkouts} session${activeProgram.totalWorkouts - completedWorkouts !== 1 ? 's' : ''} remaining.`
+                        ` ${activeProgram.totalWorkouts - completedWorkouts} session${activeProgram.totalWorkouts - completedWorkouts !== 1 ? 's' : ''} left in the program.`
                       }
                     </p>
                   ) : isRestToday ? (
