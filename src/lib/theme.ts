@@ -18,8 +18,24 @@
 
 export type Theme = 'dark' | 'light';
 
-export function resolveTheme(input: { preference: Theme; signedIn: boolean; inAppShell: boolean }): Theme {
-  const { preference, signedIn, inAppShell } = input;
+/**
+ * Null means "leave the document alone for now".
+ *
+ * Auth resolves asynchronously after hydration. Until it has, signedIn is
+ * false for everyone — including a member whose session is about to be
+ * restored — and writing 'dark' at that moment strips the class the
+ * pre-hydration script just added, so a light-mode member watched the
+ * dashboard go light, dark, light on every load. The class is only written
+ * once the answer is known.
+ */
+export function resolveTheme(input: {
+  preference: Theme;
+  signedIn: boolean;
+  inAppShell: boolean;
+  authResolved?: boolean;
+}): Theme | null {
+  const { preference, signedIn, inAppShell, authResolved = true } = input;
+  if (!authResolved) return null;
   if (!signedIn || !inAppShell) return 'dark';
   return preference;
 }

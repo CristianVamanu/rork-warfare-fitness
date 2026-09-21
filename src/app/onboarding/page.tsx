@@ -389,6 +389,12 @@ function OnboardingPageInner() {
 
     let alive = true;
     setPreviewState('loading');
+    // New answers, new match. Clear the old one now rather than on success:
+    // if this request fails, or the visitor finishes before it returns, the
+    // enrolment path below must not fall back to a program matched for
+    // answers they have since changed.
+    setPreviewProgram(null);
+    setPreviewOptions([]);
     fetch('/api/public/match-program', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -405,12 +411,12 @@ function OnboardingPageInner() {
           setPreviewOptions([top, ...alternatives]);
           setPreviewState('ready');
         }
-        else setPreviewState('failed');
+        else { setPreviewState('failed'); setPreviewProgram(null); setPreviewOptions([]); }
       })
       .catch(() => {
         // Never fatal. The account form stands on its own; it just loses the
         // headline above it, which is exactly how this screen worked before.
-        if (alive) { setPreviewState('failed'); previewKeyRef.current = null; }
+        if (alive) { setPreviewState('failed'); setPreviewProgram(null); setPreviewOptions([]); previewKeyRef.current = null; }
       });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps

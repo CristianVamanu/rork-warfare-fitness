@@ -15,6 +15,17 @@ describe('where light mode may show', () => {
     expect(resolveTheme({ preference: 'light', signedIn: true, inAppShell: false })).toBe('dark');
   });
 
+  it('leaves the document alone until auth has resolved — the flash fix', () => {
+    // Before auth resolves, signedIn is false for everyone. Writing 'dark'
+    // then stripped the class the pre-hydration script had added, giving
+    // a light-mode member light → dark → light on every app-shell load.
+    expect(resolveTheme({ preference: 'light', signedIn: false, inAppShell: false, authResolved: false })).toBeNull();
+    expect(resolveTheme({ preference: 'light', signedIn: false, inAppShell: true, authResolved: false })).toBeNull();
+    // ...and decides normally once it has.
+    expect(resolveTheme({ preference: 'light', signedIn: true, inAppShell: true, authResolved: true })).toBe('light');
+    expect(resolveTheme({ preference: 'light', signedIn: false, inAppShell: true, authResolved: true })).toBe('dark');
+  });
+
   it('honours the preference inside the app shell while signed in', () => {
     expect(resolveTheme({ preference: 'light', signedIn: true, inAppShell: true })).toBe('light');
     expect(resolveTheme({ preference: 'dark', signedIn: true, inAppShell: true })).toBe('dark');

@@ -46,18 +46,19 @@ function applyTheme(t: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [preference, setPreference] = useState<Theme>('dark');
-  const [inAppShell, setInAppShell] = useState(false);
-  const { user } = useAuth();
-  const signedIn = !!user;
-
-  // On mount: local storage first (instant), then Firestore (authoritative).
-  useEffect(() => {
+  // Read synchronously on the client so the first evaluation already knows
+  // the preference, rather than deciding 'dark' and correcting a tick later.
+  // Renders no markup from this value, so there is nothing to mismatch.
+  const [preference, setPreference] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return 'dark';
     try {
-      const local = localStorage.getItem('theme') as Theme | null;
-      if (local === 'light' || local === 'dark') setPreference(local);
-    } catch { /* private mode — stay dark */ }
-  }, []);
+      const local = localStorage.getItem('theme');
+      return local === 'light' ? 'light' : 'dark';
+    } catch { return 'dark'; }
+  });
+  const [inAppShell, setInAppShell] = useState(false);
+  const { user, loading } = useAuth();
+  const signedIn = !!user;
 
   // When the user signs in: their saved theme from Firestore.
   useEffect(() => {
@@ -77,9 +78,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // The one place the class is written. Re-evaluated whenever the
   // preference, the session or the shell changes — which is what makes
   // signing out, or navigating to a public page, snap back to dark.
+  // Null while auth is still resolving: the pre-hydration script has
+  // already set the right class for this load, and writing 'dark' here
+  // before the session is known would strip it and flash.
   useEffect(() => {
-    applyTheme(resolveTheme({ preference, signedIn, inAppShell }));
-  }, [preference, signedIn, inAppShell]);
+    const t = resolveTheme({ preference, signedIn, inAppShell, authResolved: !loading });
+    if (t) applyTheme(t);
+  }, [preference, signedIn, inAppShell, loading]);
 
   const toggleTheme = useCallback(() => {
     setPreference((prev) => {
