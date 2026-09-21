@@ -1,4 +1,4 @@
-import type { FitnessGoal, Program } from '@/types';
+import type { AgeBracket, FitnessGoal, Program } from '@/types';
 
 /**
  * The words the admin sees when deciding who a program is for.
@@ -44,4 +44,12 @@ export const EQUIPMENT_OPTIONS: { v: EquipmentTier; label: string }[] = [
   { v: 'minimal', label: 'Minimal' },
   { v: 'home', label: 'Home gym' },
   { v: 'full-gym', label: 'Full gym' },
+];
+
+/** Ages a program can be restricted to. Must agree with lib/ageBracket. */
+export const AGE_BRACKETS: { v: AgeBracket; label: string }[] = [
+  { v: '18-29', label: '18–29' },
+  { v: '30-39', label: '30–39' },
+  { v: '40-49', label: '40–49' },
+  { v: '50-plus', label: '50+' },
 ];

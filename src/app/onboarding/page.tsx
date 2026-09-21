@@ -377,6 +377,7 @@ function OnboardingPageInner() {
       sex: sex ?? undefined,
       equipment: equipment ?? undefined,
       estimatedWeeksToGoal: timeline?.weeksToGoal ?? undefined,
+      age: Number.isFinite(ageNum) ? ageNum : undefined,
     };
     const key = JSON.stringify(payload);
     if (previewKeyRef.current === key) return;
@@ -459,6 +460,7 @@ function OnboardingPageInner() {
       sex ?? undefined,
       equipment ?? undefined,
       estimatedWeeksToGoal,
+      Number.isFinite(ageNum) ? ageNum : undefined,
     ) ?? MOCK_PROGRAMS[0];
   }
 
@@ -559,6 +561,7 @@ function OnboardingPageInner() {
                 sex: sex ?? undefined,
                 equipment: equipment ?? undefined,
                 estimatedWeeksToGoal: timeline?.weeksToGoal ?? undefined,
+                age: Number.isFinite(ageNum) ? ageNum : undefined,
               }),
             });
             if (!res.ok) throw new Error('Program assignment unavailable');

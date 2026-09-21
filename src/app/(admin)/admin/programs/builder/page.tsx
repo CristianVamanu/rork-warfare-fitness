@@ -18,8 +18,8 @@ import { uploadVideo, resolveStorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import type { FitnessGoal } from '@/types';
-import { ONBOARDING_GOALS } from '@/lib/onboardingGoals';
+import type { AgeBracket, FitnessGoal } from '@/types';
+import { ONBOARDING_GOALS, AGE_BRACKETS } from '@/lib/onboardingGoals';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -82,6 +82,7 @@ interface BProg {
   suitableEquipment: ('minimal' | 'home' | 'full-gym')[];
   priorityPick: boolean;
   recommendedForGoals: FitnessGoal[];
+  ageBrackets: AgeBracket[];
   imageUrl: string;
   schedule: BDay[];
   phases: BPhase[];
@@ -133,7 +134,7 @@ function blankEx(): BEx {
 function emptyProg(): BProg {
   return {
     name: '', description: '', level: 'intermediate', goal: 'hypertrophy',
-    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', suitableEquipment: [], priorityPick: false, recommendedForGoals: [], imageUrl: '',
+    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', suitableEquipment: [], priorityPick: false, recommendedForGoals: [], ageBrackets: [], imageUrl: '',
     schedule: [blankDay('Push Day'), blankDay('Pull Day'), blankDay('Legs'), restDay(), blankDay('Upper Body'), restDay(), restDay()],
     phases: [],
   };
@@ -345,6 +346,7 @@ function BuilderInner() {
     weeks: number; daysPerWeek: number; visibility?: string; targetGender?: BProg['targetGender']; imageUrl?: string;
     suitableEquipment?: BProg['suitableEquipment']; priorityPick?: boolean;
     recommendedForGoals?: FitnessGoal[];
+    ageBrackets?: AgeBracket[];
     schedule?: BDay[];
     phases?: { id: string; label: string; startWeek: number; endWeek: number; schedule: BDay[] }[];
   }
@@ -417,6 +419,7 @@ function BuilderInner() {
           suitableEquipment: program.suitableEquipment ?? [],
           priorityPick: program.priorityPick === true,
           recommendedForGoals: program.recommendedForGoals ?? [],
+          ageBrackets: program.ageBrackets ?? [],
           imageUrl: program.imageUrl ?? '',
           schedule,
           phases,
@@ -593,6 +596,7 @@ function BuilderInner() {
         suitableEquipment: p.suitableEquipment ?? [],
         priorityPick: p.priorityPick === true,
         recommendedForGoals: [],
+        ageBrackets: [],
         targetGender: (p.targetGender === 'male' || p.targetGender === 'female') ? p.targetGender : 'anyone',
         imageUrl: '',
         schedule: phases.length > 0 ? phases[0].schedule : normalizeSchedule(p.schedule),
@@ -665,6 +669,7 @@ function BuilderInner() {
         // list. [] is both clearable and harmless.
         suitableEquipment: prog.suitableEquipment,
         recommendedForGoals: prog.recommendedForGoals,
+        ageBrackets: prog.ageBrackets,
         schedule: prog.phases.length > 0 ? prog.phases[0].schedule : prog.schedule,
         isPublic: publish || prog.visibility === 'public',
         exercises: unique.map(e => ({ ...e, reps: e.reps })),
@@ -1035,6 +1040,39 @@ function BuilderInner() {
                 ? 'Members who pick one of these in onboarding are sent here ahead of programs that only match by category.'
                 : 'Nothing picked \u2014 onboarding matches this program by its Goal field above.'}
               {' '}Equipment and gender still apply: a member is never sent a program they cannot do.
+            </p>
+          </div>
+          {/* Who CAN get it, by age — an exclusion like equipment, not a
+              preference. Empty means any age. */}
+          <div className="col-span-2">
+            <label className="text-xs text-text-secondary mb-1.5 block">Ages</label>
+            <div className="flex flex-wrap gap-2">
+              {AGE_BRACKETS.map(({ v, label }) => {
+                const on = prog.ageBrackets.includes(v);
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setProg(s => ({
+                      ...s,
+                      ageBrackets: on ? s.ageBrackets.filter(x => x !== v) : [...s.ageBrackets, v],
+                    }))}
+                    className={`min-h-[44px] px-3 rounded-xl border text-[13px] font-semibold transition-colors ${
+                      on
+                        ? 'border-accent bg-accent/15 text-white'
+                        : 'border-white/10 bg-surface text-text-secondary hover:border-white/25'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-text-tertiary mt-1.5 leading-relaxed">
+              {prog.ageBrackets.length
+                ? 'Only members in these brackets are matched to this program. Someone who did not give an age can still reach it.'
+                : 'Nothing picked — any age.'}
             </p>
           </div>
           <div className="col-span-2">

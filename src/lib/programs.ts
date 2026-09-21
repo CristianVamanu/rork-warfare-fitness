@@ -4,6 +4,7 @@
  */
 
 import type { FitnessGoal, Program, ProgramDay } from '@/types';
+import { ageBracketFor } from '@/lib/ageBracket';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1474,9 +1475,14 @@ export function pickBestProgram(
   // someone whose weight goal realistically needs 6 months. Capped at 10
   // points (same ceiling as the goal-category match) so it's a real factor
   // without swamping every other signal.
-  estimatedWeeksToGoal?: number
+  estimatedWeeksToGoal?: number,
+  // Collected by onboarding since the biometrics step existed, and never
+  // passed here until the catalogue's over-fifty program turned out to be
+  // reachable by anyone of any age.
+  age?: number
 ): Program | null {
   if (pool.length === 0) return null;
+  const bracket = ageBracketFor(age);
   const targetGoal = GOAL_TO_PROGRAM_GOAL[goal] ?? goal;
   const levelRank: Record<string, number> = { beginner: 0, intermediate: 1, advanced: 2 };
   const userEquipmentRank = equipment ? EQUIPMENT_RANK[equipment] : undefined;
@@ -1490,6 +1496,13 @@ export function pickBestProgram(
   // the only thing available.
   const wrongSex = (p: Program) => !!sex && !!p.targetGender && p.targetGender !== 'anyone' && p.targetGender !== sex;
   const bySex = pool.some((p) => !wrongSex(p)) ? pool.filter((p) => !wrongSex(p)) : pool;
+
+  // Age is the same kind of rule as sex: a program the admin restricted to
+  // certain ages is a wrong answer for anyone outside them, not a penalty.
+  // No bracket (age not given, or under 18) excludes nothing — a member who
+  // did not say their age must still be able to reach every program.
+  const wrongAge = (p: Program) => !!bracket && !!p.ageBrackets?.length && !p.ageBrackets.includes(bracket);
+  const byAge = bySex.some((p) => !wrongAge(p)) ? bySex.filter((p) => !wrongAge(p)) : bySex;
 
   // Equipment is now an exclusion too, for the same reason and with the same
   // escape hatch.
@@ -1518,7 +1531,7 @@ export function pickBestProgram(
     if (p.suitableEquipment?.length) return !p.suitableEquipment.includes(equipment as 'minimal' | 'home' | 'full-gym');
     return (EQUIPMENT_RANK[estimateEquipmentTier(p)] ?? 0) > (userEquipmentRank ?? 0);
   };
-  const candidates = bySex.some((p) => !unsuitable(p)) ? bySex.filter((p) => !unsuitable(p)) : bySex;
+  const candidates = byAge.some((p) => !unsuitable(p)) ? byAge.filter((p) => !unsuitable(p)) : byAge;
 
   const scored = candidates.map((p) => {
     let score = 0;
@@ -1537,6 +1550,13 @@ export function pickBestProgram(
     // about what they should do.
     const recommended = p.recommendedForGoals?.includes(goal as FitnessGoal) === true;
     if (recommended) score += 14;
+    // A program written FOR this member's age edges out an otherwise equal
+    // general one. Small on purpose: it settles ties, it does not outrank
+    // the goal (10) or a recommendation (14) — a 60-year-old who asked to
+    // lose fat still gets the fat-loss program, not the over-fifty
+    // strength one. The admin can make the over-fifty program win outright
+    // by also recommending it for a goal.
+    if (bracket && p.ageBrackets?.includes(bracket)) score += 3;
     if (p.goal === targetGoal) score += 10;
     else if (p.goal === 'general') score += 4; // general programs are a reasonable fallback for any goal
     const levelGap = Math.abs((levelRank[p.level] ?? 1) - (levelRank[experience] ?? 1));

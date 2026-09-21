@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { SlidersHorizontal, ChevronDown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { ONBOARDING_GOALS, PROGRAM_LEVELS, PROGRAM_GOALS, EQUIPMENT_OPTIONS } from '@/lib/onboardingGoals';
+import { ONBOARDING_GOALS, PROGRAM_LEVELS, PROGRAM_GOALS, EQUIPMENT_OPTIONS, AGE_BRACKETS } from '@/lib/onboardingGoals';
 import { readMatching, matchingEqual, describeMatching, type ProgramMatching } from '@/lib/programMatching';
 import type { Program } from '@/types';
 
@@ -72,7 +72,7 @@ export function ProgramMatchingPanel({
   const [saving, setSaving] = useState(false);
   const dirty = !matchingEqual(draft, saved);
 
-  const toggle = <K extends 'suitableEquipment' | 'recommendedForGoals'>(key: K, v: ProgramMatching[K][number]) =>
+  const toggle = <K extends 'suitableEquipment' | 'recommendedForGoals' | 'ageBrackets'>(key: K, v: ProgramMatching[K][number]) =>
     setDraft((d) => {
       const list = d[key] as string[];
       const next = list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
@@ -139,6 +139,17 @@ export function ProgramMatchingPanel({
           >
             {EQUIPMENT_OPTIONS.map(({ v, label }) => (
               <Chip key={v} label={label} on={draft.suitableEquipment.includes(v)} onClick={() => toggle('suitableEquipment', v)} />
+            ))}
+          </Row>
+
+          <Row
+            label="Ages"
+            hint={draft.ageBrackets.length
+              ? 'Only members in these brackets are matched to this program. Someone who did not give an age can still reach it.'
+              : 'Nothing ticked — any age.'}
+          >
+            {AGE_BRACKETS.map(({ v, label }) => (
+              <Chip key={v} label={label} on={draft.ageBrackets.includes(v)} onClick={() => toggle('ageBrackets', v)} />
             ))}
           </Row>
 

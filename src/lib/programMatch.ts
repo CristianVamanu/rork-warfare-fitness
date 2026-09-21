@@ -30,6 +30,8 @@ export interface MatchAnswers {
   sex?: string;
   equipment?: string;
   estimatedWeeksToGoal?: number;
+  /** Years. Anything outside 13–100 is treated as not given. */
+  age?: number;
 }
 
 /** What a caller shows. Deliberately not the whole program — a phased
@@ -55,10 +57,14 @@ export async function programPool(): Promise<Program[]> {
 
 /** Null only when there is genuinely nothing to match against. */
 export async function matchProgram(answers: MatchAnswers): Promise<MatchedProgram | null> {
-  const { goal, experience, trainingDays, sex, equipment, estimatedWeeksToGoal } = answers;
+  const { goal, experience, trainingDays, sex, equipment, estimatedWeeksToGoal, age } = answers;
+  // Sanitised here, once, because the public preview route accepts this
+  // from an unauthenticated body. A nonsense age becomes "not given",
+  // which excludes nothing.
+  const safeAge = typeof age === 'number' && Number.isFinite(age) && age >= 13 && age <= 100 ? age : undefined;
   const program = pickBestProgram(
     await programPool(),
-    goal, experience, trainingDays, sex, equipment, estimatedWeeksToGoal,
+    goal, experience, trainingDays, sex, equipment, estimatedWeeksToGoal, safeAge,
   );
   if (!program) return null;
 

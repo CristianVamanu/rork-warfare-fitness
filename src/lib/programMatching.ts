@@ -1,5 +1,5 @@
-import type { FitnessGoal, Program } from '@/types';
-import { ONBOARDING_GOALS, PROGRAM_LEVELS, PROGRAM_GOALS, EQUIPMENT_OPTIONS, type EquipmentTier } from '@/lib/onboardingGoals';
+import type { AgeBracket, FitnessGoal, Program } from '@/types';
+import { ONBOARDING_GOALS, PROGRAM_LEVELS, PROGRAM_GOALS, EQUIPMENT_OPTIONS, AGE_BRACKETS, type EquipmentTier } from '@/lib/onboardingGoals';
 
 /**
  * The five fields that decide who a program is offered to, as one unit.
@@ -24,6 +24,7 @@ export interface ProgramMatching {
   goal: Program['goal'];
   suitableEquipment: EquipmentTier[];
   recommendedForGoals: FitnessGoal[];
+  ageBrackets: AgeBracket[];
   priorityPick: boolean;
 }
 
@@ -31,6 +32,7 @@ const LEVELS = new Set(PROGRAM_LEVELS.map((x) => x.v));
 const GOALS = new Set(PROGRAM_GOALS.map((x) => x.v));
 const EQUIPMENT = new Set<string>(EQUIPMENT_OPTIONS.map((x) => x.v));
 const ONBOARDING = new Set<string>(ONBOARDING_GOALS.map((x) => x.v));
+const AGES = new Set<string>(AGE_BRACKETS.map((x) => x.v));
 
 /** Keep only known values, in canonical order, once each. */
 function pick<T extends string>(raw: unknown, allowed: Set<string>, order: { v: T }[]): T[] {
@@ -45,6 +47,7 @@ export function readMatching(p: Partial<Program>): ProgramMatching {
     goal: p.goal,
     suitableEquipment: p.suitableEquipment,
     recommendedForGoals: p.recommendedForGoals,
+    ageBrackets: p.ageBrackets,
     priorityPick: p.priorityPick,
   });
 }
@@ -54,6 +57,7 @@ export function normalizeMatching(input: {
   goal?: unknown;
   suitableEquipment?: unknown;
   recommendedForGoals?: unknown;
+  ageBrackets?: unknown;
   priorityPick?: unknown;
 }): ProgramMatching {
   const level = typeof input.level === 'string' && LEVELS.has(input.level as Program['level'])
@@ -67,6 +71,7 @@ export function normalizeMatching(input: {
     goal,
     suitableEquipment: pick<EquipmentTier>(input.suitableEquipment, EQUIPMENT, EQUIPMENT_OPTIONS),
     recommendedForGoals: pick<FitnessGoal>(input.recommendedForGoals, ONBOARDING, ONBOARDING_GOALS),
+    ageBrackets: pick<AgeBracket>(input.ageBrackets, AGES, AGE_BRACKETS),
     priorityPick: input.priorityPick === true,
   };
 }
@@ -77,7 +82,8 @@ export function matchingEqual(a: ProgramMatching, b: ProgramMatching): boolean {
     && a.goal === b.goal
     && a.priorityPick === b.priorityPick
     && a.suitableEquipment.join() === b.suitableEquipment.join()
-    && a.recommendedForGoals.join() === b.recommendedForGoals.join();
+    && a.recommendedForGoals.join() === b.recommendedForGoals.join()
+    && a.ageBrackets.join() === b.ageBrackets.join();
 }
 
 /**
@@ -94,5 +100,8 @@ export function describeMatching(m: ProgramMatching): string {
   const rec = m.recommendedForGoals.length
     ? `Recommended for ${m.recommendedForGoals.map((v) => ONBOARDING_GOALS.find((o) => o.v === v)?.label ?? v).join(', ')}`
     : 'No goal recommendation — matched by category only';
-  return `${equip}. ${rec}.`;
+  const ages = m.ageBrackets.length
+    ? ` Ages ${m.ageBrackets.map((v) => AGE_BRACKETS.find((o) => o.v === v)?.label ?? v).join(', ')} only.`
+    : '';
+  return `${equip}. ${rec}.${ages}`;
 }

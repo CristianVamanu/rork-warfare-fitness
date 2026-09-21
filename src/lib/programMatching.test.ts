@@ -15,8 +15,14 @@ describe('normalising a program\'s matching fields', () => {
       goal: 'weight-loss',
       suitableEquipment: ['minimal', 'home'],
       recommendedForGoals: ['lose-fat'],
+      ageBrackets: [],
       priorityPick: true,
     });
+  });
+
+  it('keeps age brackets, dropping anything that is not one', () => {
+    const m = normalizeMatching({ ageBrackets: ['50-plus', '12-17', '40-49'] });
+    expect(m.ageBrackets).toEqual(['40-49', '50-plus']);
   });
 
   it('writes EMPTY ARRAYS for nothing ticked — the clear-on-save bug', () => {
@@ -79,5 +85,10 @@ describe('the one-line summary on the list', () => {
       recommendedForGoals: ['lose-fat'],
     }));
     expect(s).toBe('Minimal · Home gym. Recommended for Lose Fat.');
+  });
+
+  it('says when a program is age-restricted', () => {
+    const s = describeMatching(normalizeMatching({ suitableEquipment: ['home'], ageBrackets: ['50-plus'] }));
+    expect(s).toMatch(/Ages 50\+ only\.$/);
   });
 });

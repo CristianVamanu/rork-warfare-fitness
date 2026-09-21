@@ -32,6 +32,11 @@ initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
 const db = getFirestore();
 
 // ── Mirror of src/lib/programs.ts ──────────────────────────────────────────
+// Not mirrored: age. The sweep does not vary it, and with no age given the
+// real matcher applies no age exclusion and no age bonus — so on the
+// combinations swept here the two agree exactly. A program tagged with
+// ageBrackets is treated as reachable by everyone, which is what the real
+// matcher does for a member who did not say their age.
 const GOAL_TO_PROGRAM_GOAL = { 'military-prep': 'endurance', 'lose-fat': 'weight-loss', 'build-muscle': 'hypertrophy', recomposition: 'hypertrophy', strength: 'strength' };
 const EQUIPMENT_RANK = { minimal: 0, home: 1, 'full-gym': 2 };
 function exerciseTier(name) {

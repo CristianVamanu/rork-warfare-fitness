@@ -237,6 +237,40 @@ describe('admin-chosen recommendations per onboarding goal', () => {
     expect(pickBestProgram([b, a], 'strength', 'intermediate', 4, 'male', 'home')!.id).toBe('b');
   });
 
+  it('an over-fifty program is never handed to a 25-year-old', () => {
+    const fifty = prog({ id: 'fifty', level: 'intermediate', goal: 'strength', suitableEquipment: anyEquip, ageBrackets: ['50-plus'] });
+    const open = prog({ id: 'open', level: 'intermediate', goal: 'strength', suitableEquipment: anyEquip });
+    expect(pickBestProgram([fifty, open], 'strength', 'intermediate', 4, 'male', 'home', undefined, 25)!.id).toBe('open');
+    expect(pickBestProgram([open, fifty], 'strength', 'intermediate', 4, 'male', 'home', undefined, 25)!.id).toBe('open');
+  });
+
+  it('an over-fifty program wins for a 60-year-old over an equal general one', () => {
+    const fifty = prog({ id: 'fifty', level: 'intermediate', goal: 'strength', suitableEquipment: anyEquip, ageBrackets: ['50-plus'] });
+    const open = prog({ id: 'open', level: 'intermediate', goal: 'strength', suitableEquipment: anyEquip });
+    expect(pickBestProgram([open, fifty], 'strength', 'intermediate', 4, 'male', 'home', undefined, 60)!.id).toBe('fifty');
+  });
+
+  it('age never overrides the goal', () => {
+    // 60, asked to lose fat. The over-fifty program is strength; the
+    // fat-loss program is for anyone. They get the fat-loss program.
+    const fifty = prog({ id: 'fifty', level: 'intermediate', goal: 'strength', suitableEquipment: anyEquip, ageBrackets: ['50-plus'] });
+    const fatLoss = prog({ id: 'fatloss', level: 'intermediate', goal: 'weight-loss', suitableEquipment: anyEquip });
+    expect(pickBestProgram([fifty, fatLoss], 'lose-fat', 'intermediate', 4, 'male', 'home', undefined, 60)!.id).toBe('fatloss');
+  });
+
+  it('a member who gave no age is never excluded by a bracket', () => {
+    const fifty = prog({ id: 'fifty', level: 'intermediate', goal: 'strength', suitableEquipment: anyEquip, ageBrackets: ['50-plus'] });
+    expect(pickBestProgram([fifty], 'strength', 'intermediate', 4, 'male', 'home')!.id).toBe('fifty');
+    expect(pickBestProgram([fifty], 'strength', 'intermediate', 4, 'male', 'home', undefined, 17)!.id).toBe('fifty');
+  });
+
+  it('falls back to the bracketed program when it is the only one', () => {
+    // The escape hatch every exclusion has: nothing suitable exists, so
+    // the member still gets a program rather than nothing.
+    const fifty = prog({ id: 'fifty', level: 'intermediate', goal: 'strength', suitableEquipment: anyEquip, ageBrackets: ['50-plus'] });
+    expect(pickBestProgram([fifty], 'strength', 'intermediate', 4, 'male', 'home', undefined, 25)!.id).toBe('fifty');
+  });
+
   it('changes nothing at all when no program declares one', () => {
     // The guarantee that makes this safe to ship: every existing program
     // has no list, so the whole live catalogue routes exactly as before.

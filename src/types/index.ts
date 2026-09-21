@@ -94,6 +94,8 @@ export type FitnessGoal = 'military-prep' | 'lose-fat' | 'build-muscle' | 'recom
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 export type EquipmentType = 'home' | 'full-gym' | 'minimal';
 export type BiologicalSex = 'male' | 'female';
+/** Program matching buckets for a member's age. See lib/ageBracket. */
+export type AgeBracket = '18-29' | '30-39' | '40-49' | '50-plus';
 
 export interface OnboardingData {
   fitnessGoal: FitnessGoal;
@@ -646,6 +648,15 @@ export interface Program {
    * exactly as before.
    */
   recommendedForGoals?: FitnessGoal[];
+  /**
+   * Who CAN be offered this program, by age. Same kind of rule as
+   * suitableEquipment — a fact about the member, applied as an exclusion
+   * before scoring — so a program written for people over fifty is never
+   * handed to a 25-year-old, and gets a small edge for a 60-year-old over
+   * an otherwise equal general program. Empty or missing means any age.
+   * A member who did not give an age is never excluded by this.
+   */
+  ageBrackets?: AgeBracket[];
   imageUrl?: string; // cover image shown on the landing page & program lists
 }
 
