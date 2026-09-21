@@ -35,11 +35,8 @@ export function resolveTheme(input: { preference: Theme; signedIn: boolean; inAp
  * be added after hydration. The inline script in the root layout adds it
  * early on these paths; the provider still has the final say once it runs.
  *
- * `/programs` is deliberately left out. Both a public program page and the
- * member program list live under it, and a public page must never paint
- * light — so that one route accepts a dark-to-light flip for signed-in
- * members rather than risk the reverse for visitors. A test keeps this
- * list in step with the (app) directory.
+ * A test keeps this list in step with the (app) directory: a new member
+ * route must be listed here or explicitly excused below.
  */
 export const APP_SHELL_PREFIXES: readonly string[] = [
   '/achievements', '/banned', '/breathing', '/community', '/dashboard', '/goals', '/habits',
@@ -48,10 +45,12 @@ export const APP_SHELL_PREFIXES: readonly string[] = [
   '/admin',
 ];
 
-/** App routes intentionally missing from APP_SHELL_PREFIXES, with the reason. */
-export const APP_SHELL_BOOTSTRAP_EXCLUDED: Readonly<Record<string, string>> = {
-  '/programs': 'shared with a public route; a public page must never paint light',
-};
+/**
+ * App routes intentionally missing from APP_SHELL_PREFIXES, with the reason.
+ * Empty at the moment: the last entry was /programs, shared with a public
+ * route until the retired member stub under it was replaced by a redirect.
+ */
+export const APP_SHELL_BOOTSTRAP_EXCLUDED: Readonly<Record<string, string>> = {};
 
 /**
  * The inline script for the root layout. Runs before any React; adds the

@@ -393,6 +393,17 @@ const nextConfig = {
       ],
     };
   },
+  async redirects() {
+    return [
+      // The self-serve "Build Your Own Program" page was retired. It lived
+      // on as a client-side stub under the MEMBER route group at
+      // /programs/build, which made /programs the one URL shared between a
+      // public page and the app shell — and forced a special case in the
+      // theme scoping. A framework redirect keeps old bookmarks working
+      // with no page, no group collision and no special case.
+      { source: '/programs/build', destination: '/training', permanent: true },
+    ];
+  },
   async headers() {
     return [
       {
