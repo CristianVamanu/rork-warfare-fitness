@@ -1593,10 +1593,19 @@ export function pickBestProgram(
     }
     if (userEquipmentRank !== undefined) {
       const programNeedRank = EQUIPMENT_RANK[estimateEquipmentTier(p)];
-      // Needing MORE than they have is now handled by exclusion above, so
-      // this only fires in the fallback case where every program is over
-      // tier — there it picks the least over-equipped.
-      if (programNeedRank > userEquipmentRank) score -= 5 * (programNeedRank - userEquipmentRank);
+      // Needing MORE than they have is handled by exclusion above, so this
+      // only fires in the fallback case where every program is over tier —
+      // there it picks the least over-equipped.
+      //
+      // Never when the admin listed the suitable answers. The inference
+      // said Burn Ops needs a full gym because one exercise is called
+      // "Single-Leg Deadlifts"; the admin ticked minimal/home/full-gym. It
+      // passed the exclusion on the admin's word and then lost 5 points at
+      // home and 10 at minimal on the guess — enough to hand every home
+      // fat-loss member to a different program, with nothing in the report
+      // to say why. The admin's list is the whole answer here, as it is
+      // for the exclusion.
+      if (!p.suitableEquipment?.length && programNeedRank > userEquipmentRank) score -= 5 * (programNeedRank - userEquipmentRank);
       // Needing LESS is a mild preference against, which it previously was
       // not: the old rule scored a bodyweight program and a barbell program
       // identically for someone with a full gym, on the grounds that

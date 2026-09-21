@@ -109,7 +109,7 @@ function pickBestProgram(pool, goal, experience, trainingDays, sex, equipment) {
     if (p.priorityPick && (p.goal === targetGoal || recommended)) score += 5;
     if (userEquipmentRank !== undefined) {
       const need = EQUIPMENT_RANK[estimateEquipmentTier(p)];
-      if (need > userEquipmentRank) score -= 5 * (need - userEquipmentRank);
+      if (!p.suitableEquipment?.length && need > userEquipmentRank) score -= 5 * (need - userEquipmentRank);
       else if (!p.suitableEquipment?.length && need < userEquipmentRank) score -= 1.5 * (userEquipmentRank - need);
     }
     return { p, score };
@@ -226,6 +226,20 @@ console.log(gaps.length
 const never = pool.filter((p) => !totalCounts[p.name]).map((p) => p.name);
 console.log(`\nNever assigned by any of the ${GOALS.length * LEVELS.length * DAYS.length * SEX.length * EQUIP.length} possible answers: ${never.length ? never.join(', ') : 'none'}`);
 if (never.length) console.log('  Either not eligible anywhere (check its "Suitable for" chips) or shadowed by a program with the same tags. Give it a "Recommend for" goal or Priority pick, or tick more equipment.');
+
+// "Recommend for" only routes when it is selective. A program recommended
+// for four of the five goals, or a goal carried by most of the catalogue,
+// hands out +14 to everyone and the decision falls back to level, days and
+// array order — which is exactly the state the control was built to fix.
+const broad = pool.filter((p) => (p.recommendedForGoals?.length ?? 0) >= 4).map((p) => `${p.name} (${p.recommendedForGoals.length} of 5 goals)`);
+const crowded = GOALS.filter((g) => pool.filter((p) => p.recommendedForGoals?.includes(g)).length >= 4)
+  .map((g) => `${g}: ${pool.filter((p) => p.recommendedForGoals?.includes(g)).map((p) => p.name).join(', ')}`);
+if (broad.length || crowded.length) {
+  console.log('\nRecommendations that no longer choose anything:');
+  for (const b of broad) console.log(`  ${b} — recommended for nearly everything, so it is recommended for nothing`);
+  for (const c of crowded) console.log(`  ${c} — all recommended for the same goal, so the recommendation decides nothing between them`);
+  console.log('  Keep "Recommend for" to the one or two goals a program is THE answer to. Category handles the rest.');
+}
 
 const missTotal = [...goalMisses.values()].reduce((a, b) => a + b, 0);
 console.log(`\n${missTotal} answer(s) landed on a program that matches the goal neither by category nor by recommendation${missTotal ? ':' : '.'}`);

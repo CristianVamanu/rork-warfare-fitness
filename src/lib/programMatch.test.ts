@@ -153,6 +153,19 @@ describe('the admin overrides', () => {
     expect(pickBestProgram([flaggedStrength, plainFatLoss], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('fatloss');
   });
 
+  it('an explicit suitability list is not second-guessed by the exercise names', () => {
+    // Burn Ops in production: every exercise name reads as bare "deadlift"
+    // etc., so inference says full-gym; the admin ticked minimal/home/full.
+    // It passed the exclusion on the admin's word, then lost 5 points at
+    // home and 10 at minimal on the inference, and a plain home program
+    // took every fat-loss member. The list is the whole answer.
+    const declaredHome = prog({ id: 'declared', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['minimal', 'home', 'full-gym'] });
+    const inferredHome = prog({ id: 'plain', level: 'beginner', goal: 'general', suitableEquipment: ['home'] });
+    expect(estimateEquipmentTier(declaredHome)).toBe('full-gym');
+    expect(pickBestProgram([inferredHome, declaredHome], 'lose-fat', 'beginner', 4, 'male', 'home')!.id).toBe('declared');
+    expect(pickBestProgram([inferredHome, declaredHome], 'lose-fat', 'beginner', 4, 'male', 'minimal')!.id).toBe('declared');
+  });
+
   it('a priority pick cannot drag someone above their equipment', () => {
     const flaggedGym = prog({ id: 'gym', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['full-gym'], priorityPick: true });
     const homeOption = prog({ id: 'home', level: 'beginner', goal: 'weight-loss', suitableEquipment: ['home'] });
