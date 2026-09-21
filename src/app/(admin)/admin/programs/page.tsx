@@ -17,6 +17,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { AdminShell } from '@/components/admin/AdminShell';
 import { adminGroups } from '@/components/admin/nav';
 import type { Program } from '@/types';
+import { ProgramMatchingPanel } from '@/components/admin/ProgramMatchingPanel';
+import type { ProgramMatching } from '@/lib/programMatching';
 
 interface UserRow { id: string; displayName?: string; email?: string; activeProgram?: { programId?: string; programName?: string } }
 
@@ -126,6 +128,27 @@ export default function ProgramsPage() {
       setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, isPremium: !x.isPremium, _mock: false } : x));
       toast.success(p.isPremium ? 'Set to Free' : 'Set to Premium');
     } catch { toast.error('Failed to update'); }
+  }
+
+  // The matching fields — level, category, equipment, goal recommendation,
+  // priority — saved straight from the list. Same promotion rule as price
+  // and premium: writing to a built-in turns it into a real doc.
+  async function handleSaveMatching(p: Program & { _mock?: boolean }, m: ProgramMatching) {
+    try {
+      if (p._mock) {
+        const { _mock, ...data } = p;
+        void _mock;
+        await upsertProgram(p.id, { ...data, ...m });
+      } else {
+        await updateProgram(p.id, { ...m });
+      }
+      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, ...m, _mock: false } : x));
+      toast.success(`Matching saved for "${p.name}"`);
+    } catch {
+      // Not rethrown: the panel keeps its draft (the prop did not change),
+      // so the admin can simply press Save again.
+      toast.error('Failed to save matching');
+    }
   }
 
   async function handlePublish(p: Program) {
@@ -348,6 +371,7 @@ export default function ProgramsPage() {
                     </div>
                     <span className="text-xs text-text-tertiary">optional — sells this program on its own</span>
                   </div>
+                  <ProgramMatchingPanel program={p} onSave={(m) => handleSaveMatching(p, m)} />
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {!(p as { _mock?: boolean })._mock && !p.isPublic && p.visibility !== 'coaching' && p.visibility !== 'public' && (

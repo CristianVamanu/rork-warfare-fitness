@@ -19,6 +19,7 @@ import { extractVideoThumbnail } from '@/lib/videoThumbnail';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import type { FitnessGoal } from '@/types';
+import { ONBOARDING_GOALS } from '@/lib/onboardingGoals';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -85,23 +86,6 @@ interface BProg {
   schedule: BDay[];
   phases: BPhase[];
 }
-
-/**
- * The five goals as onboarding actually words them, in onboarding's order.
- *
- * Kept verbatim from src/app/onboarding/page.tsx so an admin ticking
- * "Selection Prep" here is ticking the same button the member pressed —
- * the whole control is worthless if the two lists drift apart. The values
- * are FitnessGoal, so a rename in the type breaks the build rather than
- * silently un-recommending a program.
- */
-const ONBOARDING_GOALS: { v: FitnessGoal; label: string }[] = [
-  { v: 'military-prep', label: 'Selection Prep' },
-  { v: 'lose-fat', label: 'Lose Fat' },
-  { v: 'build-muscle', label: 'Build Muscle' },
-  { v: 'recomposition', label: 'Recomposition' },
-  { v: 'strength', label: 'Get Stronger' },
-];
 
 interface UserRow { id: string; displayName?: string; email?: string; role?: string; activeProgram?: { programName?: string } }
 
@@ -673,14 +657,14 @@ function BuilderInner() {
       const unique = exercises.filter((e, i, arr) => arr.findIndex(x => x.name === e.name) === i);
       const data = stripUndefinedDeep({
         ...prog,
-        // No boxes ticked means "not set" rather than "suits nobody" —
-        // stored as absent so the matcher falls back to inferring a tier,
-        // which is what an untouched program has always done. Saving an
-        // empty array would silently make the program unreachable.
-        suitableEquipment: prog.suitableEquipment.length ? prog.suitableEquipment : undefined,
-        // Same rule: nothing ticked means "no opinion", stored as absent so
-        // the goal-category mapping decides on its own as it always has.
-        recommendedForGoals: prog.recommendedForGoals.length ? prog.recommendedForGoals : undefined,
+        // Written as-is, EMPTY ARRAYS included. This used to store
+        // `undefined` for nothing-ticked, on the theory that an empty list
+        // would make the program unreachable — but the matcher treats [] as
+        // "not set" (`?.length`), and updateProgram strips undefined before
+        // writing, so unticking every chip and saving silently kept the old
+        // list. [] is both clearable and harmless.
+        suitableEquipment: prog.suitableEquipment,
+        recommendedForGoals: prog.recommendedForGoals,
         schedule: prog.phases.length > 0 ? prog.phases[0].schedule : prog.schedule,
         isPublic: publish || prog.visibility === 'public',
         exercises: unique.map(e => ({ ...e, reps: e.reps })),
