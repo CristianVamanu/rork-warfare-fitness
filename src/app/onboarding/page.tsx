@@ -358,6 +358,10 @@ function OnboardingPageInner() {
    */
   const [previewProgram, setPreviewProgram] = useState<MatchedProgram | null>(null);
   const [previewState, setPreviewState] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
+  // The match plus its runners-up, best first. previewProgram is whichever
+  // of these the visitor currently has selected — the top one unless they
+  // tapped an alternative — and it is what gets enrolled.
+  const [previewOptions, setPreviewOptions] = useState<MatchedProgram[]>([]);
   // Guards against the fetch firing again on every keystroke in the account
   // form, and against a second run when someone steps back and forward.
   const previewKeyRef = useRef<string | null>(null);
@@ -393,7 +397,14 @@ function OnboardingPageInner() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: { program?: MatchedProgram }) => {
         if (!alive) return;
-        if (d.program) { setPreviewProgram(d.program); setPreviewState('ready'); }
+        if (d.program) {
+          // alternatives is split off here so it never travels with the
+          // selected program into enrolment.
+          const { alternatives = [], ...top } = d.program;
+          setPreviewProgram(top);
+          setPreviewOptions([top, ...alternatives]);
+          setPreviewState('ready');
+        }
         else setPreviewState('failed');
       })
       .catch(() => {
@@ -566,7 +577,9 @@ function OnboardingPageInner() {
             });
             if (!res.ok) throw new Error('Program assignment unavailable');
             const { program: matched } = await res.json();
-            program = matched;
+            const { alternatives: _alts, ...top } = matched as MatchedProgram;
+            void _alts;
+            program = top;
           } catch {
             const seed = fallbackRecommendProgram(timeline?.weeksToGoal ?? undefined);
             program = { id: seed.id, name: seed.name, description: seed.description, weeks: seed.weeks, daysPerWeek: seed.daysPerWeek, marketing: buildProgramMarketing(seed) };
@@ -1078,6 +1091,7 @@ function OnboardingPageInner() {
                 email={email} onEmail={setEmail}
                 password={password} onPassword={setPassword}
                 match={previewProgram} matchState={previewState}
+                options={previewOptions} onPick={setPreviewProgram}
               />
             )}
         </div>
@@ -1715,13 +1729,16 @@ function StepBiometrics({
 }
 
 function StepAccount({
-  name, onName, email, onEmail, password, onPassword, match, matchState,
+  name, onName, email, onEmail, password, onPassword, match, matchState, options, onPick,
 }: {
   name: string; onName: (v: string) => void;
   email: string; onEmail: (v: string) => void;
   password: string; onPassword: (v: string) => void;
   match: MatchedProgram | null;
   matchState: 'idle' | 'loading' | 'ready' | 'failed';
+  /** Match first, then runners-up. Empty until the preview answers. */
+  options: MatchedProgram[];
+  onPick: (p: MatchedProgram) => void;
 }) {
   // One password box, with a reveal — not two. A confirm field exists to
   // catch a typo you cannot see, which a show/hide button solves without
@@ -1745,7 +1762,9 @@ function StepAccount({
       )}
       {showing && (
         <div className="rounded-2xl border border-accent/25 bg-accent/[0.06] p-4 mb-5">
-          <p className="text-[10px] font-bold text-accent uppercase tracking-[0.18em]">Your match</p>
+          <p className="text-[10px] font-bold text-accent uppercase tracking-[0.18em]">
+            {options[0] && match.id !== options[0].id ? 'Your pick' : 'Your match'}
+          </p>
           <p className="text-lg font-black text-white leading-tight mt-1.5">{match.name}</p>
           {match.marketing?.hook && (
             <p className="text-[13px] text-text-secondary leading-snug mt-1.5">{match.marketing.hook}</p>
@@ -1762,6 +1781,30 @@ function StepAccount({
             <p className="text-[11px] text-text-tertiary leading-relaxed mt-3 pt-3 border-t border-white/8">
               {match.marketing.commitment}
             </p>
+          )}
+          {/* The runners-up, small, under the match — one tap swaps the
+              selection and the card above re-renders as their pick. The
+              default path is untouched: do nothing, and the match is what
+              you get. This is what makes a wrong match a tap rather than a
+              paywall, without turning the highest-drop-off screen in the
+              product into a menu. The current selection is left out of the
+              row, so the original match reappears here after a swap. */}
+          {options.length > 1 && (
+            <div className="mt-3 pt-3 border-t border-white/8">
+              <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-[0.18em]">Also fits you</p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {options.filter((o) => o.id !== match.id).map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => onPick(o)}
+                    className="min-h-[40px] px-3 rounded-xl border border-white/10 bg-surface text-[13px] font-semibold text-text-secondary hover:border-accent/40 hover:text-white transition-colors"
+                  >
+                    {o.name}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}

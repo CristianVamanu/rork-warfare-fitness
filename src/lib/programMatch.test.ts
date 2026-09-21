@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { MOCK_PROGRAMS, pickBestProgram, estimateEquipmentTier } from './programs';
+import { MOCK_PROGRAMS, pickBestProgram, rankPrograms, estimateEquipmentTier } from './programs';
+import { pickAlternatives } from './programMatch';
 
 /**
  * Invariants for the onboarding matcher, swept across every combination of
@@ -33,6 +34,51 @@ function sweep(fn: (a: { goal: string; level: string; days: number; sex: string;
 
 const match = (a: { goal: string; level: string; days: number; sex: string; equipment: string }) =>
   pickBestProgram(MOCK_PROGRAMS, a.goal, a.level, a.days, a.sex, a.equipment, undefined);
+
+describe('the full ranking behind the reveal\'s "also fits you"', () => {
+  it('starts with exactly what pickBestProgram returns, for every answer', () => {
+    sweep((a) => {
+      const ranked = rankPrograms(MOCK_PROGRAMS, a.goal, a.level, a.days, a.sex, a.equipment);
+      expect(ranked[0]?.id).toBe(match(a)?.id);
+    });
+  });
+
+  it('never offers an alternative the filters removed', () => {
+    // An alternative is a program the member can actually do. The ranking
+    // is built AFTER the sex, age and equipment exclusions, so nothing a
+    // filter took out can come back as a runner-up.
+    const failures: string[] = [];
+    sweep((a) => {
+      const ranked = rankPrograms(MOCK_PROGRAMS, a.goal, a.level, a.days, a.sex, a.equipment);
+      for (const p of pickAlternatives(ranked)) {
+        const wrongSex = !!p.targetGender && p.targetGender !== 'anyone' && p.targetGender !== a.sex;
+        const over = p.suitableEquipment?.length
+          ? !p.suitableEquipment.includes(a.equipment as 'minimal' | 'home' | 'full-gym')
+          : RANK[estimateEquipmentTier(p)] > RANK[a.equipment];
+        if (wrongSex || over) failures.push(`${JSON.stringify(a)} -> alt ${p.id}`);
+      }
+    });
+    expect(failures).toEqual([]);
+  });
+
+  it('offers at most two, never the winner, never a duplicate', () => {
+    const ranked = rankPrograms(MOCK_PROGRAMS, 'lose-fat', 'beginner', 4, 'male', 'home');
+    const alts = pickAlternatives(ranked);
+    expect(alts.length).toBeLessThanOrEqual(2);
+    expect(alts.map((p) => p.id)).not.toContain(ranked[0].id);
+    expect(new Set(alts.map((p) => p.id)).size).toBe(alts.length);
+  });
+
+  it('is empty when there is nothing else to offer', () => {
+    expect(pickAlternatives([MOCK_PROGRAMS[0]])).toEqual([]);
+    expect(pickAlternatives([])).toEqual([]);
+  });
+
+  it('skips a duplicate id that sneaks into the ranking', () => {
+    const a = MOCK_PROGRAMS[0], b = MOCK_PROGRAMS[1];
+    expect(pickAlternatives([a, b, b, a]).map((p) => p.id)).toEqual([b.id]);
+  });
+});
 
 describe('the onboarding matcher, over every answer combination', () => {
   it('always assigns a program — nobody finishes the quiz with nothing', () => {

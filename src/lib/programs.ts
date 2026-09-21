@@ -1461,7 +1461,18 @@ export function estimateEquipmentTier(p: Program): 'minimal' | 'home' | 'full-gy
   return max === 2 ? 'full-gym' : max === 1 ? 'home' : 'minimal';
 }
 
-export function pickBestProgram(
+/**
+ * Every eligible program, best first — the same scoring pickBestProgram
+ * has always used, returned in full instead of cut to one.
+ *
+ * The onboarding reveal shows the top match and offers the next two as
+ * "also fits you". Those alternatives come from THIS list, after the sex,
+ * age and equipment exclusions, so an alternative is always a program the
+ * member can actually do — never a way back to a program the filters
+ * removed. Returning the ranking rather than re-scoring elsewhere keeps
+ * one matcher, no drift.
+ */
+export function rankPrograms(
   pool: Program[],
   goal: string,
   experience: string,
@@ -1480,8 +1491,8 @@ export function pickBestProgram(
   // passed here until the catalogue's over-fifty program turned out to be
   // reachable by anyone of any age.
   age?: number
-): Program | null {
-  if (pool.length === 0) return null;
+): Program[] {
+  if (pool.length === 0) return [];
   const bracket = ageBracketFor(age);
   const targetGoal = GOAL_TO_PROGRAM_GOAL[goal] ?? goal;
   const levelRank: Record<string, number> = { beginner: 0, intermediate: 1, advanced: 2 };
@@ -1635,7 +1646,21 @@ export function pickBestProgram(
   });
 
   scored.sort((a, b) => b.score - a.score);
-  return scored[0].p;
+  return scored.map((s) => s.p);
+}
+
+/** The single best fit, or null only for an empty pool. */
+export function pickBestProgram(
+  pool: Program[],
+  goal: string,
+  experience: string,
+  trainingDays: number,
+  sex?: string,
+  equipment?: string,
+  estimatedWeeksToGoal?: number,
+  age?: number
+): Program | null {
+  return rankPrograms(pool, goal, experience, trainingDays, sex, equipment, estimatedWeeksToGoal, age)[0] ?? null;
 }
 
 /**

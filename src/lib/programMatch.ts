@@ -1,5 +1,5 @@
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
-import { MOCK_PROGRAMS, pickBestProgram } from '@/lib/programs';
+import { MOCK_PROGRAMS, rankPrograms } from '@/lib/programs';
 import { buildProgramMarketing, type ProgramMarketing } from '@/lib/programMarketing';
 import type { Program } from '@/types';
 
@@ -43,6 +43,31 @@ export interface MatchedProgram {
   weeks: number;
   daysPerWeek: number;
   marketing: ProgramMarketing;
+  /**
+   * The next-best fits, best first — up to two. Only on the top match.
+   *
+   * The reveal shows the match large with these small underneath as "also
+   * fits you": one tap swaps the selection, the default path is unchanged.
+   * A wrong match becomes a tap instead of a paywall, without turning the
+   * highest-drop-off screen in the product into a menu.
+   */
+  alternatives?: MatchedProgram[];
+}
+
+/** How many runners-up to offer. Two: a choice, not a catalogue. */
+export const ALTERNATIVE_COUNT = 2;
+
+/** The runners-up from a ranking: after the winner, distinct by id. */
+export function pickAlternatives(ranked: Program[], n = ALTERNATIVE_COUNT): Program[] {
+  const seen = new Set<string>(ranked[0] ? [ranked[0].id] : []);
+  const out: Program[] = [];
+  for (const p of ranked.slice(1)) {
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    out.push(p);
+    if (out.length >= n) break;
+  }
+  return out;
 }
 
 /** The candidate pool: the admin's own public programs, or the seed library
@@ -62,23 +87,26 @@ export async function matchProgram(answers: MatchAnswers): Promise<MatchedProgra
   // from an unauthenticated body. A nonsense age becomes "not given",
   // which excludes nothing.
   const safeAge = typeof age === 'number' && Number.isFinite(age) && age >= 13 && age <= 100 ? age : undefined;
-  const program = pickBestProgram(
+  const ranked = rankPrograms(
     await programPool(),
     goal, experience, trainingDays, sex, equipment, estimatedWeeksToGoal, safeAge,
   );
+  const program = ranked[0];
   if (!program) return null;
 
-  return {
-    id: program.id,
-    name: program.name,
-    description: program.description,
-    weeks: program.weeks,
-    daysPerWeek: program.daysPerWeek,
-    // The same sales copy the public /programs pages use — hook, stats, who
-    // it is for — so a reveal can lead with a line and three numbers instead
-    // of the entire coaching description. Third argument is the member's own
-    // days per week, so the commitment line is honest for someone training
-    // fewer days than the program itself lists.
-    marketing: buildProgramMarketing(program, undefined, trainingDays),
-  };
+  // The same sales copy the public /programs pages use — hook, stats, who
+  // it is for — so a reveal can lead with a line and three numbers instead
+  // of the entire coaching description. Third argument is the member's own
+  // days per week, so the commitment line is honest for someone training
+  // fewer days than the program itself lists.
+  const summarise = (p: Program): MatchedProgram => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    weeks: p.weeks,
+    daysPerWeek: p.daysPerWeek,
+    marketing: buildProgramMarketing(p, undefined, trainingDays),
+  });
+
+  return { ...summarise(program), alternatives: pickAlternatives(ranked).map(summarise) };
 }
