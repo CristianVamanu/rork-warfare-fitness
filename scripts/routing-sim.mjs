@@ -164,18 +164,40 @@ const DAYS = [3, 4, 5, 6];
 const SEX = ['male', 'female'];
 const EQUIP = ['full-gym', 'home', 'minimal'];
 
-console.log(`\n${pool.length} public programs. Equipment tier as the app estimates it:`);
-for (const p of pool) console.log(`  ${pad(p.name, 30)} ${pad(p.goal, 12)} ${pad(p.level, 13)} ${p.daysPerWeek}d  ${estimateEquipmentTier(p)}${p.targetGender && p.targetGender !== 'anyone' ? '  (' + p.targetGender + ')' : ''}`);
+// The explicit tags decide routing whenever they are set; the inferred tier
+// only matters for a program with no "Suitable for" list. Printing only the
+// inference (as this used to) made it impossible to tell from the report
+// whether an admin's chips had actually been saved.
+const tags = (p) => {
+  const bits = [];
+  bits.push(p.suitableEquipment?.length ? `suits: ${p.suitableEquipment.join('/')}` : `suits: (not set → inferred ${estimateEquipmentTier(p)})`);
+  if (p.recommendedForGoals?.length) bits.push(`recommend: ${p.recommendedForGoals.join('/')}`);
+  if (p.ageBrackets?.length) bits.push(`ages: ${p.ageBrackets.join('/')}`);
+  if (p.priorityPick) bits.push('priority');
+  return bits.join('  ');
+};
+console.log(`\n${pool.length} public programs, with the admin's matching tags:`);
+for (const p of pool) {
+  console.log(`  ${pad(p.name, 30)} ${pad(p.goal, 12)} ${pad(p.level, 13)} ${p.daysPerWeek}d${p.targetGender && p.targetGender !== 'anyone' ? '  (' + p.targetGender + ')' : ''}`);
+  console.log(`  ${pad('', 30)} ${tags(p)}`);
+}
 
 const totalCounts = {};
-const goalMisses = [];
+const goalMisses = new Map();
 for (const eq of EQUIP) {
   const counts = {};
   for (const sex of SEX) for (const goal of GOALS) for (const level of LEVELS) for (const days of DAYS) {
     const p = pickBestProgram(pool, goal, level, days, sex, eq);
     counts[p.name] = (counts[p.name] ?? 0) + 1;
     totalCounts[p.name] = (totalCounts[p.name] ?? 0) + 1;
-    if (p.goal !== GOAL_TO_PROGRAM_GOAL[goal]) goalMisses.push(`${pad(eq, 9)} ${pad(sex, 7)} ${pad(goal, 14)} ${pad(level, 13)} ${days}d -> ${p.name} (${p.goal})`);
+    // Not a miss when the admin said "send this goal here" — that is the
+    // routing working, not failing. Only a program that reached the member
+    // through the category fallback, with the wrong category, counts.
+    const recommended = Array.isArray(p.recommendedForGoals) && p.recommendedForGoals.includes(goal);
+    if (!recommended && p.goal !== GOAL_TO_PROGRAM_GOAL[goal]) {
+      const key = `${pad(eq, 9)} ${pad(goal, 14)} ${pad(level, 13)} -> ${p.name} (${p.goal})`;
+      goalMisses.set(key, (goalMisses.get(key) ?? 0) + 1);
+    }
   }
   console.log(`\n${eq}:`);
   for (const [n, c] of Object.entries(counts).sort((a, b) => b[1] - a[1])) console.log(`  ${pad(n, 30)} ${String(c).padStart(3)}`);
@@ -203,9 +225,11 @@ console.log(gaps.length
 
 const never = pool.filter((p) => !totalCounts[p.name]).map((p) => p.name);
 console.log(`\nNever assigned by any of the ${GOALS.length * LEVELS.length * DAYS.length * SEX.length * EQUIP.length} possible answers: ${never.length ? never.join(', ') : 'none'}`);
-if (never.length) console.log('  A program in a slot identical to another (same goal, level, days) loses every tie. Retag or relabel one of them.');
+if (never.length) console.log('  Either not eligible anywhere (check its "Suitable for" chips) or shadowed by a program with the same tags. Give it a "Recommend for" goal or Priority pick, or tick more equipment.');
 
-console.log(`\n${goalMisses.length} answer(s) landed on a program that does not match the goal asked for${goalMisses.length ? ':' : '.'}`);
-for (const m of goalMisses) console.log('  ' + m);
+const missTotal = [...goalMisses.values()].reduce((a, b) => a + b, 0);
+console.log(`\n${missTotal} answer(s) landed on a program that matches the goal neither by category nor by recommendation${missTotal ? ':' : '.'}`);
+for (const [k, c] of [...goalMisses.entries()].sort((a, b) => b[1] - a[1])) console.log(`  ${String(c).padStart(3)}×  ${k}`);
+if (missTotal) console.log('  Each line is a gap: no program tagged for that goal is eligible at that equipment level. Tick "Suitable for" on one that fits, or build one.');
 console.log('');
 process.exit(0);
