@@ -28,6 +28,8 @@
  * Kept pure and separate so both halves can be asserted without a browser.
  */
 
+import { removeQueryParam } from '@/lib/queryParam';
+
 /** The values ?subscribed= is set to: a membership, or a coaching plan. */
 export type PurchaseKind = '1' | 'coaching';
 
@@ -82,10 +84,5 @@ export function announceOnce(kind: PurchaseKind): boolean {
  * from checkout.
  */
 export function clearSubscribedParam(): void {
-  try {
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has('subscribed')) return;
-    url.searchParams.delete('subscribed');
-    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
-  } catch { /* nothing depends on this succeeding */ }
+  removeQueryParam('subscribed');
 }

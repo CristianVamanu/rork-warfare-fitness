@@ -9,6 +9,7 @@ import { useLocalDate } from '@/hooks/useLocalDate';
 import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, resolveProgram, peekResolvedProgram, type PersonalBest } from '@/lib/firestore';
 import type { Program } from '@/types';
 import { SubscribeSuccess } from '@/components/ui/SubscribeSuccess';
+import { sessionsIntoWeek } from '@/lib/programWeek';
 import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix, getNextSession, getProgramDayProgress, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
@@ -239,9 +240,11 @@ export default function DashboardPage() {
    * completedWorkouts is per-program and resets on switch, which is exactly
    * the behaviour wanted here.
    */
-  const sessionsThisWeek = programSource?.daysPerWeek
-    ? completedWorkouts % programSource.daysPerWeek
-    : 0;
+  // sessionsIntoWeek, not a bare modulo: `completed % daysPerWeek` reads 0
+  // the moment the LAST session of a week is logged, so finishing session
+  // 6 of 6 showed "0/6" with every bar dark. A full week now stays full
+  // until the next week's first session. See lib/programWeek.
+  const sessionsThisWeek = sessionsIntoWeek(completedWorkouts, programSource?.daysPerWeek ?? 0);
 
   // getNextSession is the single shared answer to "what's next" — the next
   // slot after the last completed one, with rest days shown on the day they
@@ -314,7 +317,6 @@ export default function DashboardPage() {
   // ring tiles for the day's numbers, and glass for everything else. Glass
   // is the Card's `glass` prop, which resolves to theme tokens, so light
   // mode gets its own values rather than an inverted dark one.
-  const sessionCount = todayDay?.exercises?.length ?? 0;
   const dayLabel = todayDay ? stripWeekdayPrefix(todayDay.label) : '';
   const remaining = dayProgress ? Math.max(0, dayProgress.totalDays - dayProgress.daysDone) : 0;
   const programDone = dayProgress?.finished ?? false;

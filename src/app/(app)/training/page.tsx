@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Ring } from '@/components/dashboard/Ring';
 import { ShareProgramButton } from '@/components/training/ShareProgramButton';
+import { removeQueryParam } from '@/lib/queryParam';
 import type { Program } from '@/types';
 
 const GOAL_ICON: Record<string, React.ElementType> = {
@@ -118,7 +119,9 @@ export default function TrainingPage() {
   }, []);
   const dismissSwitchHint = () => {
     setSwitchHint(false);
-    if (typeof window !== 'undefined') window.history.replaceState(null, '', '/training');
+    // Only the hint's own flag — rewriting to a bare '/training' threw away
+    // every other parameter on the URL with it.
+    removeQueryParam('switch');
   };
 
   // Paint the last list this device saw before the network answers. The

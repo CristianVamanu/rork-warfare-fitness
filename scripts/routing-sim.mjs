@@ -64,10 +64,8 @@ function exerciseNames(p) {
 function estimateEquipmentTier(p) {
   // Admin's explicit answer wins — mirrors src/lib/programs.ts.
   if (p.equipmentTier) return p.equipmentTier;
-  const fromPhases = (p.phases ?? []).flatMap((ph) => ph.schedule ?? []);
-  const days = fromPhases.length > 0 ? fromPhases : (p.schedule ?? []);
-  const names = [...days.flatMap((d) => (d.exercises ?? []).map((e) => e.name)), ...(p.exercises ?? []).map((e) => e.name)];
-  const max = names.reduce((m, n) => Math.max(m, exerciseTier(n)), 0);
+  // Same collection --why uses, so the two can never disagree about a tier.
+  const max = exerciseNames(p).reduce((m, n) => Math.max(m, exerciseTier(n)), 0);
   return max === 2 ? 'full-gym' : max === 1 ? 'home' : 'minimal';
 }
 /** Right sex, and kit they actually own. Mirrors the two exclusions. */
