@@ -13,6 +13,7 @@ import { PwaInstallBanner } from '@/components/ui/PwaInstallBanner';
 import { MembershipGuard } from '@/components/ui/MembershipGuard';
 import { WelcomeVideo } from '@/components/ui/WelcomeVideo';
 import { VerifyEmailNotice } from '@/components/ui/VerifyEmailNotice';
+import { AppThemeScope } from '@/contexts/ThemeContext';
 import { AppBackground } from '@/components/ui/AppBackground';
 import { ChatDrawer } from '@/components/chat/ChatDrawer';
 
@@ -122,6 +123,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen">
       <AppBackground />
       <HeaderDataProvider>
+        {/* Inside the app shell: the member's theme preference may show.
+            Unmounts on navigation to any public page, which goes dark. */}
+        <AppThemeScope />
         {!hideNav && <VerifyEmailNotice variant="banner" />}
         {!hideNav && <ChatDrawer />}
         <main className="pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { tenantHasAdminAccess } from '@/lib/tenants';
 import { BrandSplash } from '@/components/ui/BrandSplash';
+import { AppThemeScope } from '@/contexts/ThemeContext';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, tenant, loading } = useAuth();
@@ -28,5 +29,5 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // page, so this layout is only the access guard plus the page ground. The
   // old bar duplicated the page heading and pinned the content to 896px,
   // which is what made the dashboard feel like a phone screen on a desktop.
-  return <div className="min-h-screen bg-background">{children}</div>;
+  return <div className="min-h-screen bg-background"><AppThemeScope />{children}</div>;
 }

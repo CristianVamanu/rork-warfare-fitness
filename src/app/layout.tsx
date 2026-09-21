@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { themeBootstrapScript } from '@/lib/theme';
 import { getSystemConfig } from '@/lib/firestore';
 import { ServiceWorkerUpdater } from '@/components/ui/ServiceWorkerUpdater';
 import { AppToaster } from '@/components/ui/AppToaster';
@@ -128,6 +129,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             __html: "try{if(localStorage.getItem('wf:session')==='1')document.documentElement.setAttribute('data-wf-session','1')}catch(e){}",
           }}
         />
+        {/* Light mode, early, on app-shell paths only — so a signed-in
+            member who prefers it does not watch the dashboard paint dark
+            and flip. Public paths are never touched here, and the provider
+            has the final say once it runs (lib/theme). Nonce'd for the CSP. */}
+        <script
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: themeBootstrapScript() }}
+        />
         {/* Open the connection to Firebase Storage (exercise demo videos,
             uploaded images) as early as possible, so the TLS/DNS handshake
             is already done by the time a video element needs to fetch —
@@ -142,16 +151,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="dns-prefetch" href="https://api.stripe.com" />
       </head>
       <body>
-        <ThemeProvider>
+        {/* ThemeProvider INSIDE AuthProvider. The other way round, its
+            useAuth() only ever saw the context default (user: null), so the
+            saved theme was never loaded on sign-in and the toggle never
+            persisted — and it had no way to go dark on sign-out. */}
         <AuthProvider>
+        <ThemeProvider>
           {children}
           <ServiceWorkerUpdater />
           <ChunkErrorReloader />
           <ErrorReporter />
           <CookieConsent />
           <AppToaster />
-        </AuthProvider>
         </ThemeProvider>
+        </AuthProvider>
         <ConsentGatedScripts nonce={nonce} />
       </body>
     </html>
