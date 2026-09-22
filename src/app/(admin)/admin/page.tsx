@@ -14,6 +14,7 @@ import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/
 import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
 import { PromoCodesPanel } from '@/components/admin/PromoCodesPanel';
+import { EmailsPanel } from '@/components/admin/EmailsPanel';
 import { DailyBriefPanel } from '@/components/admin/DailyBriefPanel';
 import { LeadsPanel } from '@/components/admin/LeadsPanel';
 import { ErrorsPanel } from '@/components/admin/ErrorsPanel';
@@ -75,7 +76,7 @@ function SupportStatusPill({ status }: { status: SupportTicketStatus }) {
   );
 }
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'errors' | 'settings' | 'restore';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'emails' | 'errors' | 'settings' | 'restore';
 
 // Shared by both plan editors (CoachingPlan's Tool Access and
 // MembershipPlan's Tool Access) — feature ids here must match what
@@ -4989,6 +4990,7 @@ function AdminPageInner() {
 
       {/* ── Leads ─────────────────────────────────────────────────────────────── */}
       {tab === 'leads' && <LeadsPanel />}
+      {tab === 'emails' && <EmailsPanel />}
 
       {/* ── Errors ─────────────────────────────────────────── */}
       {tab === 'errors' && <ErrorsPanel />}

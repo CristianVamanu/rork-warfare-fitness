@@ -181,3 +181,64 @@ export function dueStep(seq: SequenceDef, daysSinceTrigger: number, sentKeys: Re
 export function daysSince(thenMs: number, nowMs: number): number {
   return Math.floor((nowMs - thenMs) / (24 * 60 * 60 * 1000));
 }
+
+// ── Admin overrides ──────────────────────────────────────────────────────
+
+/** What the admin may change on a step. Every field optional: absent = default. */
+export interface StepOverride {
+  enabled?: boolean;
+  day?: number;
+  subject?: string;
+  heading?: string;
+  paragraphs?: string[];
+  ctaLabel?: string;
+  ctaPath?: string;
+}
+
+export interface SequenceOverride {
+  enabled?: boolean;
+  steps?: Record<string, StepOverride>;
+}
+
+/** system/emailOverrides — one entry per sequence key. */
+export type SequenceOverrides = Partial<Record<SequenceKey, SequenceOverride>>;
+
+export interface ResolvedStep extends SequenceStep { enabled: boolean }
+export interface ResolvedSequence extends Omit<SequenceDef, 'steps'> { enabled: boolean; steps: ResolvedStep[] }
+
+/**
+ * The built-in sequences with the admin's edits laid over them.
+ *
+ * Rules that keep an edit from breaking the funnel: a blank subject or
+ * heading falls back to the default rather than sending an empty email; a
+ * day offset must be a whole non-negative number; steps are re-sorted by
+ * day after overrides so "never bunch up, never skip" still holds; and a
+ * disabled step is simply removed from the list, which means the ones
+ * after it still send on their own days.
+ */
+export function resolveSequences(overrides: SequenceOverrides | null | undefined, toggles: SequenceToggles = SEQUENCE_DEFAULTS): Record<SequenceKey, ResolvedSequence> {
+  const out = {} as Record<SequenceKey, ResolvedSequence>;
+  for (const def of Object.values(SEQUENCES)) {
+    const ov = overrides?.[def.key];
+    const enabled = typeof ov?.enabled === 'boolean' ? ov.enabled : toggles[def.key];
+    const steps: ResolvedStep[] = def.steps.map((st) => {
+      const o = ov?.steps?.[st.key] ?? {};
+      const day = Number.isInteger(o.day) && (o.day as number) >= 0 ? (o.day as number) : st.day;
+      const text = (v: unknown, fallback: string) => (typeof v === 'string' && v.trim() ? v.trim() : fallback);
+      const paragraphs = Array.isArray(o.paragraphs) && o.paragraphs.some((x) => typeof x === 'string' && x.trim())
+        ? o.paragraphs.filter((x): x is string => typeof x === 'string' && !!x.trim()).map((x) => x.trim())
+        : st.paragraphs;
+      return {
+        ...st,
+        enabled: o.enabled !== false,
+        day,
+        subject: text(o.subject, st.subject),
+        heading: text(o.heading, st.heading),
+        paragraphs,
+        cta: { label: text(o.ctaLabel, st.cta.label), path: text(o.ctaPath, st.cta.path).startsWith('/') ? text(o.ctaPath, st.cta.path) : st.cta.path },
+      };
+    }).filter((st) => st.enabled).sort((a, b) => a.day - b.day);
+    out[def.key] = { key: def.key, label: def.label, description: def.description, enabled, steps };
+  }
+  return out;
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SEQUENCES, dueStep, daysSince, sequenceToggles } from './emailSequences';
+import { SEQUENCES, dueStep, daysSince, sequenceToggles, resolveSequences } from './emailSequences';
 import { unsubscribeToken, verifyUnsubscribeToken, unsubscribeUrl } from './emailUnsubscribe';
 
 const seq = SEQUENCES.winBack; // days 3, 7, 14
@@ -89,5 +89,45 @@ describe('unsubscribe tokens', () => {
     expect(url).toContain('e=a%40example.com');
     expect(url).toContain('s=user');
     expect(url).toContain(`t=${unsubscribeToken(secret, 'a@example.com', 'user')}`);
+  });
+});
+
+describe('admin overrides', () => {
+  it('leaves everything at default with no overrides', () => {
+    const r = resolveSequences(null);
+    expect(r.winBack.steps.map((s) => s.day)).toEqual([3, 7, 14]);
+    expect(r.winBack.enabled).toBe(true);
+    expect(r.winBack.steps[0].subject).toBe(SEQUENCES.winBack.steps[0].subject);
+  });
+
+  it('applies an edited subject, day and button', () => {
+    const r = resolveSequences({ winBack: { steps: { d3: { subject: 'Oi', day: 2, ctaLabel: 'Go', ctaPath: '/training' } } } });
+    const s = r.winBack.steps[0];
+    expect(s.subject).toBe('Oi');
+    expect(s.day).toBe(2);
+    expect(s.cta).toEqual({ label: 'Go', path: '/training' });
+  });
+
+  it('never sends an empty email — blank edits fall back to the default', () => {
+    const r = resolveSequences({ winBack: { steps: { d3: { subject: '   ', heading: '', paragraphs: ['', ' '] } } } });
+    expect(r.winBack.steps[0].subject).toBe(SEQUENCES.winBack.steps[0].subject);
+    expect(r.winBack.steps[0].heading).toBe(SEQUENCES.winBack.steps[0].heading);
+    expect(r.winBack.steps[0].paragraphs).toEqual(SEQUENCES.winBack.steps[0].paragraphs);
+  });
+
+  it('rejects a bad day or an off-site button link', () => {
+    const r = resolveSequences({ winBack: { steps: { d3: { day: -1, ctaPath: 'https://evil.example' } } } });
+    expect(r.winBack.steps[0].day).toBe(3);
+    expect(r.winBack.steps[0].cta.path).toBe('/training');
+  });
+
+  it('drops a disabled step and keeps the rest in day order', () => {
+    const r = resolveSequences({ winBack: { steps: { d7: { enabled: false }, d14: { day: 5 } } } });
+    expect(r.winBack.steps.map((s) => [s.key, s.day])).toEqual([['d3', 3], ['d14', 5]]);
+  });
+
+  it('a sequence switch in overrides beats the settings toggle', () => {
+    expect(resolveSequences({ winBack: { enabled: false } }, { leadTips: true, onboardingAbandon: true, winBack: true }).winBack.enabled).toBe(false);
+    expect(resolveSequences({}, { leadTips: true, onboardingAbandon: true, winBack: false }).winBack.enabled).toBe(false);
   });
 });

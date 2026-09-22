@@ -1,6 +1,6 @@
 import {
   Activity, Dumbbell, Users, MessageSquare, LifeBuoy, Bell, CreditCard,
-  UserCheck, Video, TrendingUp, Key, Mail, Settings, RotateCcw, AlertTriangle,
+  UserCheck, Video, TrendingUp, Key, Mail, Send, Settings, RotateCcw, AlertTriangle,
 } from 'lucide-react';
 import type { AdminTabGroup } from './AdminShell';
 
@@ -19,7 +19,7 @@ import type { AdminTabGroup } from './AdminShell';
 export type AdminTabId =
   | 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community'
   | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics'
-  | 'integrations' | 'leads' | 'errors' | 'settings' | 'restore';
+  | 'integrations' | 'leads' | 'emails' | 'errors' | 'settings' | 'restore';
 
 export const ADMIN_TABS: { id: AdminTabId; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: Activity },
@@ -35,6 +35,7 @@ export const ADMIN_TABS: { id: AdminTabId; label: string; icon: React.ElementTyp
   { id: 'analytics', label: 'Analytics', icon: TrendingUp },
   { id: 'integrations', label: 'Integrations', icon: Key },
   { id: 'leads', label: 'Leads', icon: Mail },
+  { id: 'emails', label: 'Emails', icon: Send },
   { id: 'errors', label: 'Errors', icon: AlertTriangle },
   { id: 'settings', label: 'Settings', icon: Settings },
   // Last in the list, but a tab of its own: disaster recovery buried at the
@@ -50,7 +51,7 @@ export const ADMIN_TAB_BY_ID = Object.fromEntries(
 export const ADMIN_GROUP_IDS: { label: string; ids: AdminTabId[] }[] = [
   { label: 'Operate', ids: ['overview', 'clients', 'messages', 'support', 'community', 'notifications'] },
   { label: 'Product', ids: ['programs', 'library', 'membership', 'coaching'] },
-  { label: 'Growth', ids: ['analytics', 'leads'] },
+  { label: 'Growth', ids: ['analytics', 'leads', 'emails'] },
   { label: 'System', ids: ['integrations', 'errors', 'settings', 'restore'] },
 ];
 

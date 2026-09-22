@@ -14,7 +14,7 @@ import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { sendEmail, trialEndingEmailHtml, checkoutRecoveryEmailHtml, marketingEmailHtml } from '@/lib/email';
-import { SEQUENCES, sequenceToggles, dueStep, daysSince } from '@/lib/emailSequences';
+import { sequenceToggles, resolveSequences, dueStep, daysSince, type SequenceOverrides } from '@/lib/emailSequences';
 import { unsubscribeUrl, unsubscribeSecret } from '@/lib/emailUnsubscribe';
 import { checkoutRecoveryStep, checkoutRecoverySubject } from '@/lib/checkoutRecovery';
 import { checkoutPagePath, parseCheckoutParams } from '@/lib/checkoutMode';
@@ -144,7 +144,20 @@ export async function POST(req: NextRequest) {
     // send unless an unsubscribe link can be signed — no secret, no
     // marketing mail, by design. See lib/emailSequences.
     const seqToggles = sequenceToggles(systemCfgSnap.data() as { emailSequences?: Record<string, boolean> } | undefined);
+    // The admin's edits (system/emailOverrides) laid over the built-in copy;
+    // a disabled step is already removed, a disabled sequence has enabled=false.
+    const overridesSnap = await db.doc('system/emailOverrides').get();
+    const SEQ = resolveSequences((overridesSnap.data() ?? {}) as SequenceOverrides, seqToggles);
     const unsubSecret = unsubscribeSecret();
+    /** One counter per step and one log row per send — what the Emails tab shows. */
+    const recordSend = async (seq: string, step: string, to: string, ref: { uid?: string; leadId?: string }) => {
+      try {
+        await Promise.all([
+          db.doc('system/emailStats').set({ counts: { [seq]: { [step]: FieldValue.increment(1) } } }, { merge: true }),
+          db.collection('emailLog').add({ at: FieldValue.serverTimestamp(), kind: 'sequence', seq, step, to, ...ref }),
+        ]);
+      } catch { /* a missed count is not a missed email */ }
+    };
     const toMs = (v: unknown): number | null => {
       const t = v as { toMillis?: () => number } | undefined;
       return t && typeof t.toMillis === 'function' ? t.toMillis() : null;
@@ -164,6 +177,7 @@ export async function POST(req: NextRequest) {
       });
       if (ok) {
         await db.collection('users').doc(u.id as string).update({ [`emailSeq.${seqKey}.${stepKey}`]: FieldValue.serverTimestamp(), ...extraStamp });
+        await recordSend(seqKey, stepKey, email, { uid: u.id as string });
         sent.push(`${seqKey}:${stepKey}:${u.id}`);
       }
     };
@@ -573,8 +587,8 @@ export async function POST(req: NextRequest) {
           const createdMs = toMs(u.createdAt);
           const lastActiveMs = toMs(u.lastActive) ?? createdMs;
 
-          if (seqToggles.onboardingAbandon && totalWorkouts === 0 && createdMs !== null) {
-            const step = dueStep(SEQUENCES.onboardingAbandon, daysSince(createdMs, Date.now()), seqState.onboardingAbandon);
+          if (SEQ.onboardingAbandon.enabled && totalWorkouts === 0 && createdMs !== null) {
+            const step = dueStep(SEQ.onboardingAbandon, daysSince(createdMs, Date.now()), seqState.onboardingAbandon);
             if (step) await sendSequenceStep(u, 'onboardingAbandon', step.key, step);
           }
 
@@ -583,10 +597,10 @@ export async function POST(req: NextRequest) {
           // reset — so a member who lapses twice is nudged gently twice,
           // not silently never again.
           const isMember = (u as { membership?: { status?: string } }).membership?.status === 'active';
-          if (seqToggles.winBack && isMember && totalWorkouts > 0 && lastActiveMs !== null) {
+          if (SEQ.winBack.enabled && isMember && totalWorkouts > 0 && lastActiveMs !== null) {
             const wb = (seqState.winBack ?? {}) as Record<string, unknown> & { anchor?: number };
             const fresh = wb.anchor === lastActiveMs ? wb : {};
-            const step = dueStep(SEQUENCES.winBack, daysSince(lastActiveMs, Date.now()), fresh);
+            const step = dueStep(SEQ.winBack, daysSince(lastActiveMs, Date.now()), fresh);
             if (step) {
               // A reset replaces the whole map first, in its own write: one
               // update() may not touch both `emailSeq.winBack` and a child
@@ -611,7 +625,7 @@ export async function POST(req: NextRequest) {
     // Leads are not users: consent lives on the lead row (marketingOptIn,
     // with a timestamp, because "prove they opted in" is the whole question
     // if it is ever asked) and any unsubscribe link flips it false.
-    if (seqToggles.leadTips && unsubSecret) {
+    if (SEQ.leadTips.enabled && unsubSecret) {
       try {
         const leads = await db.collection('landingLeads').where('marketingOptIn', '==', true).limit(500).get();
         for (const d of leads.docs) {
@@ -619,13 +633,13 @@ export async function POST(req: NextRequest) {
           if (lead.source !== 'standards' || !lead.email) continue;
           const createdMs = toMs(lead.createdAt);
           if (createdMs === null) continue;
-          const step = dueStep(SEQUENCES.leadTips, daysSince(createdMs, Date.now()), lead.emailSeq);
+          const step = dueStep(SEQ.leadTips, daysSince(createdMs, Date.now()), lead.emailSeq);
           if (!step) continue;
           // Converted since? Then the member sequences own them; stop here
           // and stamp the whole sequence done so this lookup never repeats.
           const asUser = await db.collection('users').where('email', '==', lead.email).limit(1).get();
           if (!asUser.empty) {
-            await d.ref.update({ emailSeq: Object.fromEntries(SEQUENCES.leadTips.steps.map((s) => [s.key, 'converted'])) });
+            await d.ref.update({ emailSeq: Object.fromEntries(SEQ.leadTips.steps.map((s) => [s.key, 'converted'])) });
             continue;
           }
           const unsub = unsubscribeUrl(appUrl, unsubSecret, lead.email, 'lead');
@@ -635,6 +649,7 @@ export async function POST(req: NextRequest) {
           });
           if (ok) {
             await d.ref.update({ [`emailSeq.${step.key}`]: FieldValue.serverTimestamp() });
+            await recordSend('leadTips', step.key, lead.email, { leadId: d.id });
             sent.push(`leadTips:${step.key}:${d.id}`);
           }
         }
