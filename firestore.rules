@@ -906,6 +906,18 @@ service cloud.firestore {
         && (!('message' in request.resource.data) || (request.resource.data.message is string && request.resource.data.message.size() <= 2000));
     }
 
+    // Queued broadcasts are created by the admin route (Admin SDK) and
+    // sent by the cron; the Emails tab reads them to show progress.
+    match /broadcasts/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    // One row per marketing send, written server-side only.
+    match /emailLog/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /landingLeads/{leadId} {
       allow read, update, delete: if isAdmin();
       // Exit-intent capture on the logged-out consumer landing page — same

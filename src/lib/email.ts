@@ -744,3 +744,58 @@ export function marketingEmailHtml(opts: {
     </p>`;
   return shell(brand, body, heading);
 }
+
+/** A message from the admin to one member. No unsubscribe line: it is a letter, not a campaign. */
+export function directEmailHtml(opts: { brand: EmailBrand; paragraphs: string[]; name?: string }): string {
+  const { brand, paragraphs, name } = opts;
+  const body = `
+    ${name ? `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">${escapeHtml(name)},</p>` : ''}
+    ${paragraphs.map((p) => `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">${escapeHtml(p)}</p>`).join('')}`;
+  return shell(brand, body, paragraphs[0] ?? '');
+}
+
+/**
+ * One day of the free plan: the session, as the program has it, with the
+ * pitch for the rest kept to a line and a button. The last day says what
+ * they have done and what changes after it.
+ */
+export function dripEmailHtml(opts: {
+  brand: EmailBrand;
+  appUrl: string;
+  program: { id: string; name: string; weeks: number; daysPerWeek: number };
+  dayNumber: number;
+  totalDays: number;
+  session: { label: string; isRest: boolean; exercises: { name: string; sets: number; reps: number | string; restSeconds?: number; notes?: string }[] };
+  unsubscribeUrl: string;
+}): string {
+  const { brand, appUrl, program, dayNumber, totalDays, session, unsubscribeUrl } = opts;
+  const base = appUrl.replace(/\/$/, '');
+  const isLast = dayNumber >= totalDays;
+  const weeksDone = Math.max(1, Math.round(totalDays / 7));
+  const rows = session.isRest ? '' : session.exercises.map((e) => `
+    <tr>
+      <td style="padding:10px 0;border-bottom:1px solid #EEEEEE;font-size:14px;color:#111111;">
+        <strong>${escapeHtml(e.name)}</strong>${e.notes ? `<br><span style="font-size:12px;color:#666666;">${escapeHtml(e.notes)}</span>` : ''}
+      </td>
+      <td align="right" style="padding:10px 0;border-bottom:1px solid #EEEEEE;font-size:14px;color:#111111;white-space:nowrap;">
+        ${e.sets} × ${escapeHtml(String(e.reps))}${e.restSeconds ? `<br><span style="font-size:12px;color:#666666;">rest ${e.restSeconds}s</span>` : ''}
+      </td>
+    </tr>`).join('');
+  const body = `
+    <p style="margin:0 0 6px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#888888;">Day ${dayNumber} of ${totalDays} · ${escapeHtml(program.name)}</p>
+    <h1 style="margin:0 0 14px;font-size:22px;line-height:1.25;color:#111111;">${escapeHtml(session.isRest ? 'Rest day.' : session.label || 'Training day')}</h1>
+    ${session.isRest
+      ? `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">Nothing to do today, on purpose. The program builds in rest because that is when the work from yesterday turns into strength. Walk, eat, sleep. Tomorrow's session is already on its way.</p>`
+      : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 4px;">${rows}</table>
+         <p style="margin:12px 0 0;font-size:13px;line-height:1.5;color:#666666;">Warm up for five minutes first. Rest as written. If a weight is not given, pick one that makes the last two reps hard and clean.</p>`}
+    ${isLast
+      ? `<p style="margin:20px 0 0;font-size:15px;line-height:1.55;color:#333333;">You have done ${weeksDone === 1 ? 'a week' : `${weeksDone} weeks`} of a ${program.weeks}-week program. The rest changes every four weeks — that is the part that makes it work. It is set up and waiting.</p>
+         ${button(`Continue ${escapeHtml(program.name)}`, `${base}/onboarding?programId=${encodeURIComponent(program.id)}`)}`
+      : `<p style="margin:20px 0 0;font-size:13px;line-height:1.5;color:#888888;">This is week one of ${program.weeks}. The full program tracks every set, adjusts the loads, and keeps the streak.</p>
+         ${button('See the full program', `${base}/onboarding?programId=${encodeURIComponent(program.id)}`)}`}
+    <p style="margin:28px 0 0;font-size:12px;line-height:1.5;color:#888888;">
+      You asked for ${totalDays} days of ${escapeHtml(program.name)}. Changed your mind?
+      <a href="${escapeHtml(unsubscribeUrl)}" style="color:#888888;">Stop them in one click</a>.
+    </p>`;
+  return shell(brand, body, `Day ${dayNumber} of ${totalDays}`);
+}

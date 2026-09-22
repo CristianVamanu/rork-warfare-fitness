@@ -15,6 +15,7 @@ import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
 import { PromoCodesPanel } from '@/components/admin/PromoCodesPanel';
 import { EmailsPanel } from '@/components/admin/EmailsPanel';
+import { Mail as MailIcon } from 'lucide-react';
 import { DailyBriefPanel } from '@/components/admin/DailyBriefPanel';
 import { LeadsPanel } from '@/components/admin/LeadsPanel';
 import { ErrorsPanel } from '@/components/admin/ErrorsPanel';
@@ -450,6 +451,10 @@ function AdminPageInner() {
   const [togglingMember, setTogglingMember] = useState<string | null>(null);
   // The member an admin is about to cancel; the confirm offers period-end or now.
   const [cancellingMember, setCancellingMember] = useState<UserData | null>(null);
+  // One email from the admin to one member, from the row.
+  const [emailingMember, setEmailingMember] = useState<UserData | null>(null);
+  const [emailDraft, setEmailDraft] = useState({ subject: '', body: '' });
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [changingRole, setChangingRole] = useState<string | null>(null);
   const [assigningTrainer, setAssigningTrainer] = useState<string | null>(null);
 
@@ -1620,6 +1625,26 @@ function AdminPageInner() {
     } finally {
       setResettingTrial(null);
     }
+  }
+
+  async function handleEmailUser() {
+    if (!user || !emailingMember) return;
+    setSendingEmail(true);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/email-user', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: emailingMember.id, subject: emailDraft.subject, body: emailDraft.body }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to send');
+      toast.success(`Sent to ${emailingMember.displayName || emailingMember.email}`);
+      setEmailingMember(null);
+      setEmailDraft({ subject: '', body: '' });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send');
+    } finally { setSendingEmail(false); }
   }
 
   type MembershipAction = 'active' | 'none' | 'cancel_at_period_end';
@@ -3895,6 +3920,16 @@ function AdminPageInner() {
                           {currentPlanName && <p className="text-xs text-accent mt-0.5">📋 {currentPlanName}</p>}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
+                          {u.email && (
+                            <button
+                              onClick={() => { setEmailingMember(u); setEmailDraft({ subject: '', body: '' }); }}
+                              title="Email this member"
+                              aria-label="Email this member"
+                              className="p-2 rounded-lg hover:bg-white/5 text-text-secondary hover:text-accent transition-colors"
+                            >
+                              <MailIcon className="w-4 h-4" />
+                            </button>
+                          )}
                           {(() => {
                             const ending = isMember && (u as UserData & { membership?: { cancelAtPeriodEnd?: boolean } }).membership?.cancelAtPeriodEnd === true;
                             const busy = togglingMember === u.id;
@@ -4342,6 +4377,23 @@ function AdminPageInner() {
       {/* Cancelling a membership is a billing action, so it is never one
           tap. The two options say exactly what happens to the member and
           to their money; the graceful one comes first and is recommended. */}
+      <Modal open={!!emailingMember} onClose={() => setEmailingMember(null)} title={`Email ${emailingMember?.displayName || emailingMember?.email || 'member'}`}>
+        <div className="space-y-3">
+          <p className="text-xs text-text-secondary">A direct message from you, in the app&apos;s email template. Not marketing: no unsubscribe line, and it is logged.</p>
+          <input
+            type="text" value={emailDraft.subject} onChange={(e) => setEmailDraft((d) => ({ ...d, subject: e.target.value }))} placeholder="Subject"
+            className="w-full bg-surface border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+          <textarea
+            rows={6} value={emailDraft.body} onChange={(e) => setEmailDraft((d) => ({ ...d, body: e.target.value }))} placeholder="Write it like a message, not a newsletter."
+            className="w-full bg-surface border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setEmailingMember(null)}>Cancel</Button>
+            <Button size="sm" onClick={handleEmailUser} loading={sendingEmail} disabled={!emailDraft.subject.trim() || !emailDraft.body.trim()}>Send</Button>
+          </div>
+        </div>
+      </Modal>
       <Modal open={!!cancellingMember} onClose={() => setCancellingMember(null)} title={`Cancel ${cancellingMember?.displayName || 'this member'}'s membership`}>
         {cancellingMember && (() => {
           const hasStripe = !!(cancellingMember as UserData & { membership?: { stripeSubscriptionId?: string } }).membership?.stripeSubscriptionId;
