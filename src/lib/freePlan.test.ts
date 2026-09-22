@@ -63,7 +63,9 @@ describe('which drip day is due', () => {
 describe('wording', () => {
   it('names the day and the session', () => {
     expect(sessionSubject('Burn Ops', 3, 7, d('Legs'))).toBe('Day 3 of 7: Legs');
-    expect(sessionSubject('Burn Ops', 4, 7, d('Rest', true))).toBe('Day 4 of 7: rest day');
+    expect(sessionSubject('Burn Ops', 4, 7, d('Rest', true))).toBe('Day 4 of 7: rest day. It still counts.');
+    expect(sessionSubject('Burn Ops', 1, 7, d('Push'))).toBe('Day 1 of 7: Burn Ops, week one, as written');
+    expect(sessionSubject('Burn Ops', 7, 7, d('Run'))).toBe('Day 7 of 7: where you stand');
   });
 
   it('describes the free portion in weeks against the whole program', () => {

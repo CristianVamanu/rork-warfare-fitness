@@ -172,7 +172,9 @@ export function dueDripDay(daysSinceStart: number, sent: Record<string, unknown>
 
 /** A single line a session can be described by, for a subject. */
 export function sessionSubject(programName: string, n: number, total: number, day: ProgramDay): string {
-  if (day.isRest) return `Day ${n} of ${total}: rest day`;
+  if (n === 1) return `Day 1 of ${total}: ${programName}, week one, as written`;
+  if (n >= total) return `Day ${total} of ${total}: where you stand`;
+  if (day.isRest) return `Day ${n} of ${total}: rest day. It still counts.`;
   return `Day ${n} of ${total}: ${day.label || 'training day'}`;
 }
 

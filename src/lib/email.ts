@@ -759,6 +759,22 @@ export function directEmailHtml(opts: { brand: EmailBrand; paragraphs: string[];
  * pitch for the rest kept to a line and a button. The last day says what
  * they have done and what changes after it.
  */
+/**
+ * One line per day on what the app does with this session that an email
+ * cannot. The free week is an assessment, not a trial: every email shows
+ * the session AND the thing the reader is doing by hand that the product
+ * does for them. By the last day the email is visibly the poor cousin of
+ * the app, which is the point. Cycled for 14- and 30-day plans.
+ */
+const DRIP_APP_LINES: { title: string; text: string }[] = [
+  { title: 'What you are doing by hand today', text: 'Writing down sets and reps. In the app this session is a checklist: tap a set, it is saved, and the weight for next week is already decided from what you lifted today.' },
+  { title: 'The app counts this', text: 'A rest day is a completed day. The app keeps the streak through it and puts tomorrow on the calendar, so the week does not quietly fall apart on the day you did nothing.' },
+  { title: 'Your numbers against the standard', text: 'Run time, push-ups, pull-ups: the app keeps a PT test log and shows each one against the published standard, so you know the exact gap you are training to close, not a feeling.' },
+  { title: 'The half you are not seeing', text: 'Training is half of it. The app scans a barcode or a plate photo and logs it, sets a target that matches this program, and tells you when you are under it.' },
+  { title: 'Next week is not this week again', text: 'This email can only repeat week one. The app builds week two from what you actually logged: heavier where you were strong, held where you were not. That is the difference between a plan and a program.' },
+  { title: 'Nobody is watching this inbox', text: 'In the app your week is visible: sessions done, sessions missed, the streak. Members in the community post theirs. It is harder to skip a day when it shows.' },
+];
+
 export function dripEmailHtml(opts: {
   brand: EmailBrand;
   appUrl: string;
@@ -772,6 +788,7 @@ export function dripEmailHtml(opts: {
   const base = appUrl.replace(/\/$/, '');
   const isLast = dayNumber >= totalDays;
   const weeksDone = Math.max(1, Math.round(totalDays / 7));
+  const joinUrl = `${base}/onboarding?programId=${encodeURIComponent(program.id)}`;
   const rows = session.isRest ? '' : session.exercises.map((e) => `
     <tr>
       <td style="padding:10px 0;border-bottom:1px solid #EEEEEE;font-size:14px;color:#111111;">
@@ -781,21 +798,41 @@ export function dripEmailHtml(opts: {
         ${e.sets} × ${escapeHtml(String(e.reps))}${e.restSeconds ? `<br><span style="font-size:12px;color:#666666;">rest ${e.restSeconds}s</span>` : ''}
       </td>
     </tr>`).join('');
+
+  // Rest days get the "app counts this" line; training days rotate the rest.
+  const trainingLines = DRIP_APP_LINES.filter((_, i) => i !== 1);
+  const appLine = session.isRest ? DRIP_APP_LINES[1] : trainingLines[(dayNumber - 1) % trainingLines.length];
+  const appBlock = `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;">
+      <tr><td style="padding:14px 16px;background:#F5F5F5;border-left:3px solid #F5A623;">
+        <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#888888;">${escapeHtml(appLine.title)}</p>
+        <p style="margin:0;font-size:14px;line-height:1.5;color:#333333;">${escapeHtml(appLine.text)}</p>
+      </td></tr>
+    </table>`;
+
+  const intro = dayNumber === 1
+    ? `<p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#333333;">This is the real week one of ${escapeHtml(program.name)}, not a sample. Do it as written and write your numbers down. On day ${totalDays} you will know where you stand.</p>`
+    : '';
+
   const body = `
-    <p style="margin:0 0 6px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#888888;">Day ${dayNumber} of ${totalDays} · ${escapeHtml(program.name)}</p>
-    <h1 style="margin:0 0 14px;font-size:22px;line-height:1.25;color:#111111;">${escapeHtml(session.isRest ? 'Rest day.' : session.label || 'Training day')}</h1>
+    <p style="margin:0 0 6px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#888888;">Assessment · day ${dayNumber} of ${totalDays} · ${escapeHtml(program.name)}</p>
+    <h1 style="margin:0 0 14px;font-size:22px;line-height:1.25;color:#111111;">${escapeHtml(session.isRest ? 'Rest day. It still counts.' : session.label || 'Training day')}</h1>
+    ${intro}
     ${session.isRest
-      ? `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">Nothing to do today, on purpose. The program builds in rest because that is when the work from yesterday turns into strength. Walk, eat, sleep. Tomorrow's session is already on its way.</p>`
+      ? `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">Nothing to lift today, on purpose. The program schedules rest because that is when yesterday's work becomes strength. Walk, eat, sleep. Tomorrow is already on its way.</p>`
       : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 4px;">${rows}</table>
-         <p style="margin:12px 0 0;font-size:13px;line-height:1.5;color:#666666;">Warm up for five minutes first. Rest as written. If a weight is not given, pick one that makes the last two reps hard and clean.</p>`}
+         <p style="margin:12px 0 0;font-size:13px;line-height:1.5;color:#666666;">Warm up for five minutes first. Rest as written. If a weight is not given, pick one that makes the last two reps hard and clean. Write down what you did.</p>`}
+    ${appBlock}
     ${isLast
-      ? `<p style="margin:20px 0 0;font-size:15px;line-height:1.55;color:#333333;">You have done ${weeksDone === 1 ? 'a week' : `${weeksDone} weeks`} of a ${program.weeks}-week program. The rest changes every four weeks — that is the part that makes it work. It is set up and waiting.</p>
-         ${button(`Continue ${escapeHtml(program.name)}`, `${base}/onboarding?programId=${encodeURIComponent(program.id)}`)}`
-      : `<p style="margin:20px 0 0;font-size:13px;line-height:1.5;color:#888888;">This is week one of ${program.weeks}. The full program tracks every set, adjusts the loads, and keeps the streak.</p>
-         ${button('See the full program', `${base}/onboarding?programId=${encodeURIComponent(program.id)}`)}`}
+      ? `<h2 style="margin:26px 0 8px;font-size:18px;line-height:1.3;color:#111111;">Where you stand</h2>
+         <p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">You have finished ${weeksDone === 1 ? 'week one' : `${weeksDone} weeks`} of a ${program.weeks}-week program, on paper, with no one tracking it. That is the hardest way to do it, and you did it. Everything from here changes: the loads move with your numbers, the phases change every four weeks, the PT log shows the gap closing. Entry is a dollar. Your place in the program starts exactly where this week left off.</p>
+         ${button(`Start ${escapeHtml(program.name)} for $1`, joinUrl)}
+         <p style="margin:14px 0 0;font-size:13px;line-height:1.5;color:#666666;">Not for you? That is fine. This was the last email unless you asked for the tips.</p>`
+      : `<p style="margin:20px 0 0;font-size:13px;line-height:1.5;color:#888888;">Day ${dayNumber + 1} lands tomorrow morning. Want the app doing this instead of your notebook? Entry is a dollar.</p>
+         ${button(`Start ${escapeHtml(program.name)} for $1`, joinUrl)}`}
     <p style="margin:28px 0 0;font-size:12px;line-height:1.5;color:#888888;">
       You asked for ${totalDays} days of ${escapeHtml(program.name)}. Changed your mind?
       <a href="${escapeHtml(unsubscribeUrl)}" style="color:#888888;">Stop them in one click</a>.
     </p>`;
-  return shell(brand, body, `Day ${dayNumber} of ${totalDays}`);
+  return shell(brand, body, `Assessment day ${dayNumber} of ${totalDays}`);
 }
