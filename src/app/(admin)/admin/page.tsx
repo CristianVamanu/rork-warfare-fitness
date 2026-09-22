@@ -440,6 +440,8 @@ function AdminPageInner() {
   const [membershipLoading, setMembershipLoading] = useState(false);
   const [savingMembership, setSavingMembership] = useState(false);
   const [togglingMember, setTogglingMember] = useState<string | null>(null);
+  // The member an admin is about to cancel; the confirm offers period-end or now.
+  const [cancellingMember, setCancellingMember] = useState<UserData | null>(null);
   const [changingRole, setChangingRole] = useState<string | null>(null);
   const [assigningTrainer, setAssigningTrainer] = useState<string | null>(null);
 
@@ -1611,30 +1613,43 @@ function AdminPageInner() {
     }
   }
 
-  async function handleToggleMember(u: UserData) {
+  type MembershipAction = 'active' | 'none' | 'cancel_at_period_end';
+
+  /**
+   * Grant, keep, cancel at period end, or cancel now — all through the
+   * server, so a member with a real Stripe subscription has that
+   * subscription changed to match. A client-side status flip used to leave
+   * Stripe billing them while the app called them "Free", until the next
+   * webhook flipped them back. lib/adminMembership decides what each action
+   * means; this only shows the result.
+   */
+  async function handleMembershipAction(u: UserData, action: MembershipAction) {
     if (!user) return;
     setTogglingMember(u.id);
-    const currentStatus = (u as UserData & { membership?: { status?: string } }).membership?.status ?? 'none';
-    const newStatus = currentStatus === 'active' ? 'none' : 'active';
     try {
-      // Goes through the server (not the client-side setUserMembership
-      // write) so revoking a user with a real Stripe subscription actually
-      // cancels it — otherwise Stripe keeps billing them every cycle while
-      // the app shows them as not a member, and the next subscription
-      // webhook silently flips membership.status back to 'active' anyway.
       const token = await getIdToken(user);
       const res = await fetch('/api/admin/set-membership', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: u.id, status: newStatus }),
+        body: JSON.stringify({ userId: u.id, status: action }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to update membership');
-      toast.success(newStatus === 'active' ? `${u.displayName} is now a member` : `${u.displayName}'s membership revoked`);
-      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, membership: { status: newStatus } } : x));
+      const name = u.displayName || 'Member';
+      const current = (u as UserData & { membership?: { stripeSubscriptionId?: string } }).membership ?? {};
+      if (action === 'cancel_at_period_end') {
+        toast.success(`${name}'s membership ends at the close of their billing period`);
+        setUsers(prev => prev.map(x => x.id === u.id ? { ...x, membership: { ...current, status: 'active', cancelAtPeriodEnd: true } } : x));
+      } else if (action === 'none') {
+        toast.success(`${name}'s membership cancelled`);
+        setUsers(prev => prev.map(x => x.id === u.id ? { ...x, membership: { status: 'none' } } : x));
+      } else {
+        toast.success(data.action === 'keep' ? `${name} keeps their membership` : `${name} is now a member`);
+        setUsers(prev => prev.map(x => x.id === u.id ? { ...x, membership: { ...current, status: 'active', cancelAtPeriodEnd: false } } : x));
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update membership');
-    } finally { setTogglingMember(null); }
+    } finally { setTogglingMember(null); setCancellingMember(null); }
   }
 
   async function handleSetRole(u: UserData, role: 'user' | 'trainer') {
@@ -3842,20 +3857,47 @@ function AdminPageInner() {
                           {currentPlanName && <p className="text-xs text-accent mt-0.5">📋 {currentPlanName}</p>}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          {isMember ? <Badge variant="success">Member</Badge> : <Badge variant="muted">Free</Badge>}
-                          {membership.enabled && (
-                            <button
-                              onClick={() => handleToggleMember(u)}
-                              disabled={togglingMember === u.id}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                isMember
-                                  ? 'bg-danger/10 text-danger hover:bg-danger/20'
-                                  : 'bg-accent-muted text-accent hover:bg-accent/20'
-                              }`}
-                            >
-                              {togglingMember === u.id ? '…' : isMember ? 'Revoke' : 'Grant'}
-                            </button>
-                          )}
+                          {(() => {
+                            const ending = isMember && (u as UserData & { membership?: { cancelAtPeriodEnd?: boolean } }).membership?.cancelAtPeriodEnd === true;
+                            const busy = togglingMember === u.id;
+                            return (
+                              <>
+                                {isMember
+                                  ? <Badge variant={ending ? 'info' : 'success'}>{ending ? 'Ending' : 'Member'}</Badge>
+                                  : <Badge variant="muted">Free</Badge>}
+                                {membership.enabled && (
+                                  isMember ? (
+                                    ending ? (
+                                      // A pending cancellation: the one useful action is to undo it.
+                                      <button
+                                        onClick={() => handleMembershipAction(u, 'active')}
+                                        disabled={busy}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-muted text-accent hover:bg-accent/20 transition-colors"
+                                      >
+                                        {busy ? '…' : 'Keep'}
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => setCancellingMember(u)}
+                                        disabled={busy}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-danger/10 text-danger hover:bg-danger/20 transition-colors"
+                                      >
+                                        {busy ? '…' : 'Cancel…'}
+                                      </button>
+                                    )
+                                  ) : (
+                                    <button
+                                      onClick={() => handleMembershipAction(u, 'active')}
+                                      disabled={busy}
+                                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-muted text-accent hover:bg-accent/20 transition-colors"
+                                    >
+                                      {busy ? '…' : 'Grant'}
+                                    </button>
+                                  )
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
                       {(membershipPlans.filter(p => p.active).length > 0 || coachingPlans.filter(p => p.active).length > 0) && (
@@ -4235,6 +4277,52 @@ function AdminPageInner() {
       )}
 
       {/* Reject application modal */}
+      {/* Cancelling a membership is a billing action, so it is never one
+          tap. The two options say exactly what happens to the member and
+          to their money; the graceful one comes first and is recommended. */}
+      <Modal open={!!cancellingMember} onClose={() => setCancellingMember(null)} title={`Cancel ${cancellingMember?.displayName || 'this member'}'s membership`}>
+        {cancellingMember && (() => {
+          const hasStripe = !!(cancellingMember as UserData & { membership?: { stripeSubscriptionId?: string } }).membership?.stripeSubscriptionId;
+          const busy = togglingMember === cancellingMember.id;
+          return (
+            <div className="space-y-3">
+              {hasStripe ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => handleMembershipAction(cancellingMember, 'cancel_at_period_end')}
+                  className="w-full text-left rounded-xl border border-accent/40 bg-accent/10 p-4 hover:bg-accent/15 transition-colors disabled:opacity-50"
+                >
+                  <p className="text-sm font-bold text-white">At the end of their billing period <span className="text-accent">· recommended</span></p>
+                  <p className="text-xs text-text-secondary mt-1 leading-relaxed">
+                    Stripe stops renewing. They keep access until the period they have already paid for runs out, then it ends on its own. Nothing to refund.
+                  </p>
+                </button>
+              ) : (
+                <p className="text-xs text-text-tertiary leading-relaxed">
+                  This membership was granted by an admin — there is no billing period, so it can only be cancelled now.
+                </p>
+              )}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => handleMembershipAction(cancellingMember, 'none')}
+                className="w-full text-left rounded-xl border border-danger/40 bg-danger/10 p-4 hover:bg-danger/15 transition-colors disabled:opacity-50"
+              >
+                <p className="text-sm font-bold text-white">Now</p>
+                <p className="text-xs text-text-secondary mt-1 leading-relaxed">
+                  {hasStripe
+                    ? 'The Stripe subscription is cancelled immediately and access ends today. Any unused days are not refunded automatically — do that in Stripe if you owe them one.'
+                    : 'Access ends today.'}
+                </p>
+              </button>
+              <button type="button" onClick={() => setCancellingMember(null)} className="w-full text-center text-xs text-text-tertiary hover:text-white py-2">
+                Never mind
+              </button>
+            </div>
+          );
+        })()}
+      </Modal>
       <Modal open={!!rejectingApp} onClose={() => setRejectingApp(null)} title={`Reject ${rejectingApp?.userName ?? ''}'s Application`}>
         <div className="space-y-4">
           <div className="flex flex-col gap-1.5">
