@@ -1009,41 +1009,55 @@ export default function LandingPage({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedProgram(p); }
                 }}
-                className="rounded-2xl border border-white/8 bg-surface hover:border-accent/30 hover:shadow-glow-accent transition-all overflow-hidden flex flex-col cursor-pointer text-left wf-rise focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                className="relative overflow-hidden rounded-2xl border border-white/10 bg-surface hover:border-accent/40 hover:shadow-glow-accent transition-all flex flex-col cursor-pointer text-left p-5 wf-rise focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                 style={{ animationDelay: `${(i % 6) * 0.05}s` }}
               >
-                {/* Fixed-aspect image slot, same size for every card — a
-                    themed gradient + icon fallback when no admin image is
-                    set yet, so the grid never looks unfinished. */}
-                <div className="w-full aspect-square relative bg-surface-elevated flex-shrink-0">
-                  {p.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.imageUrl} alt={p.name} className="w-full h-full object-contain p-2" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Dumbbell className="w-10 h-10 text-accent/40" />
-                    </div>
-                  )}
-                  <div className="absolute top-2.5 left-2.5">
-                    <span className="px-2 py-1 rounded-lg bg-black/60 backdrop-blur-sm text-[10px] font-bold text-white uppercase tracking-wide">
-                      {p.level}
-                    </span>
+                {/* Same surface as the free-plan card: ember wash, dot grid,
+                    eyebrow, square image in the corner, then three equal
+                    stat boxes. The old full-bleed image slot made every
+                    card as tall as its picture; this keeps the picture a
+                    fixed thumbnail so rows line up whatever the image. */}
+                <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
+                <div aria-hidden className="wf-dots pointer-events-none absolute inset-0" />
+                <div className="relative flex flex-col flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="wf-readout text-[10px] font-bold text-accent">{GOAL_LABEL[p.goal] ?? p.goal}</p>
+                    {/* Stylized program badge — not a real unit insignia, see
+                        PROGRAM_BADGE comment above. */}
+                    {badge && (
+                      <span className="w-7 h-7 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center flex-shrink-0">
+                        <badge.icon className={`w-3.5 h-3.5 ${badge.color}`} />
+                      </span>
+                    )}
                   </div>
-                  {/* Stylized program badge — not a real unit insignia, see
-                      PROGRAM_BADGE comment above. */}
-                  {badge && (
-                    <div className="absolute top-2.5 right-2.5 w-8 h-8 rounded-lg bg-black/60 backdrop-blur-sm flex items-center justify-center">
-                      <badge.icon className={`w-4 h-4 ${badge.color}`} />
+                  <div className="flex items-start gap-4 mt-2">
+                    <div className="w-16 h-16 rounded-xl border border-white/10 bg-surface-elevated overflow-hidden flex-shrink-0 flex items-center justify-center">
+                      {p.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <Dumbbell className="w-6 h-6 text-accent/40" />
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="p-4 flex flex-col flex-1">
-                  <h3 className="text-sm font-bold text-white">{p.name}</h3>
-                  <p className="text-xs text-text-secondary mt-1.5 leading-relaxed line-clamp-2 flex-1">{p.description}</p>
-                  <div className="flex items-center gap-3 mt-3 text-[11px] text-text-tertiary">
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {p.weeks}wk</span>
-                    <span className="flex items-center gap-1"><BarChart3 className="w-3 h-3" /> {p.daysPerWeek}d/wk</span>
-                    <span>{GOAL_LABEL[p.goal] ?? p.goal}</span>
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-black text-white leading-tight">{p.name}</h3>
+                      <p className="text-[12px] text-text-tertiary mt-1">
+                        {p.weeks} weeks · {p.daysPerWeek} days a week · {p.level.charAt(0).toUpperCase() + p.level.slice(1)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[13px] text-text-secondary leading-relaxed mt-3 line-clamp-4">{p.description}</p>
+                  <div className="grid grid-cols-3 gap-2 mt-4">
+                    {[
+                      ['Duration', `${p.weeks} weeks, ${p.weeks >= 8 ? 'phased' : 'one block'}`],
+                      ['Sessions', `${p.daysPerWeek} a week, rest days kept`],
+                      ['Level', `${p.level.charAt(0).toUpperCase() + p.level.slice(1)}, ${p.targetGender === 'anyone' || !p.targetGender ? 'anyone' : p.targetGender}`],
+                    ].map(([t, sub]) => (
+                      <div key={t} className="rounded-xl border border-white/10 bg-black/25 p-3 flex flex-col">
+                        <p className="text-[12px] font-bold text-white leading-tight">{t}</p>
+                        <p className="text-[11px] text-text-tertiary leading-snug mt-1">{sub}</p>
+                      </div>
+                    ))}
                   </div>
                   {/* Straight to onboarding with the chosen program attached
                       (see onboarding/page.tsx's `programId` handling) — this
