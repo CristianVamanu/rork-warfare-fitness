@@ -32,6 +32,7 @@ export function FreePlanClient({
   const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [showOthers, setShowOthers] = useState(false);
+  const [showFull, setShowFull] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -163,7 +164,13 @@ export function FreePlanClient({
               </p>
             </div>
           </div>
-          <p className="text-[13px] text-text-secondary leading-relaxed mt-3 line-clamp-4">{program.description}</p>
+          <p className={`text-[13px] text-text-secondary leading-relaxed mt-3 whitespace-pre-line ${showFull ? '' : 'line-clamp-4'}`}>{program.description}</p>
+          {program.description.length > 220 && (
+            <button type="button" onClick={() => setShowFull((v) => !v)} aria-expanded={showFull} className="mt-1.5 text-[12px] font-semibold text-accent hover:brightness-110 inline-flex items-center gap-1">
+              {showFull ? 'Show less' : 'Read the full description'}
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFull ? 'rotate-180' : ''}`} />
+            </button>
+          )}
           <div className="grid grid-cols-3 gap-2 mt-4">
             {[
               ['Real sessions', 'Sets, reps, rest — the actual week one'],
