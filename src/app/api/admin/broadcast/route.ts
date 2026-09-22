@@ -23,6 +23,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { verifyAdmin } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { isBroadcastAudience } from '@/lib/broadcast';
+import { isSitePath } from '@/lib/emailSequences';
 
 export async function POST(req: NextRequest) {
   const check = await verifyAdmin(req);
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
   if (!isBroadcastAudience(audience)) return NextResponse.json({ error: 'Unknown audience' }, { status: 400 });
   if (!s || !b) return NextResponse.json({ error: 'Subject and body are required' }, { status: 400 });
   if (s.length > 200 || b.length > 5000) return NextResponse.json({ error: 'Subject max 200 characters, body max 5000' }, { status: 400 });
-  const path = typeof ctaPath === 'string' && ctaPath.startsWith('/') ? ctaPath : '/dashboard';
+  const path = isSitePath(ctaPath) ? ctaPath : '/dashboard';
   const label = typeof ctaLabel === 'string' && ctaLabel.trim() ? ctaLabel.trim().slice(0, 60) : 'Open the app';
 
   try {

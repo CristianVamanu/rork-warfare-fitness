@@ -117,11 +117,15 @@ export async function GET(req: NextRequest) {
     if (snap.exists) cursor = snap;
   }
 
-  // Read forward until a page's worth matches the filter, or the end.
+  // Read forward until a page's worth matches the filter, then one more
+  // match: the extra is what says a Next page exists. Without it the last
+  // page, when it fills exactly, offered a Next that fetched nothing.
   const items: LeadRow[] = [];
   let last: QueryDocumentSnapshot | null = null;
+  let pageEndId: string | null = null;
+  let hasMore = false;
   let done = false;
-  for (let guard = 0; guard < 40 && items.length < limit && !done; guard++) {
+  for (let guard = 0; guard < 40 && !hasMore && !done; guard++) {
     let page = base.limit(200);
     const start = last ?? cursor;
     if (start) page = page.startAfter(start);
@@ -129,11 +133,17 @@ export async function GET(req: NextRequest) {
     for (const d of snap.docs) {
       last = d;
       const row = toRow(d.id, d.data());
-      if (row.email && matches(row, source, consent)) items.push(row);
-      if (items.length >= limit) break;
+      if (!row.email || !matches(row, source, consent)) continue;
+      if (items.length < limit) {
+        items.push(row);
+        if (items.length === limit) pageEndId = d.id;
+      } else {
+        hasMore = true;
+        break;
+      }
     }
     if (snap.size < 200) done = true;
   }
-  const nextAfter = items.length >= limit && last ? last.id : null;
+  const nextAfter = hasMore ? pageEndId : null;
   return NextResponse.json({ items, nextAfter });
 }

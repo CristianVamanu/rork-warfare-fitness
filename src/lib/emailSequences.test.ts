@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SEQUENCES, dueStep, daysSince, sequenceToggles, resolveSequences } from './emailSequences';
+import { SEQUENCES, dueStep, daysSince, sequenceToggles, resolveSequences, isSitePath } from './emailSequences';
 import { unsubscribeToken, verifyUnsubscribeToken, unsubscribeUrl } from './emailUnsubscribe';
 
 const seq = SEQUENCES.winBack; // days 3, 7, 14
@@ -129,5 +129,17 @@ describe('admin overrides', () => {
   it('a sequence switch in overrides beats the settings toggle', () => {
     expect(resolveSequences({ winBack: { enabled: false } }, { leadTips: true, onboardingAbandon: true, winBack: true }).winBack.enabled).toBe(false);
     expect(resolveSequences({}, { leadTips: true, onboardingAbandon: true, winBack: false }).winBack.enabled).toBe(false);
+  });
+});
+
+describe('isSitePath', () => {
+  it('accepts a path on this site and rejects protocol-relative and absolute URLs', () => {
+    expect(isSitePath('/dashboard')).toBe(true);
+    expect(isSitePath('/programs/x?ref=1')).toBe(true);
+    expect(isSitePath('//evil.example/x')).toBe(false);
+    expect(isSitePath('/\\evil.example')).toBe(false);
+    expect(isSitePath('https://evil.example')).toBe(false);
+    expect(isSitePath('dashboard')).toBe(false);
+    expect(isSitePath(undefined)).toBe(false);
   });
 });

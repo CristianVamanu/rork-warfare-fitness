@@ -10,8 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import {
-  SEQUENCES, resolveSequences,
-  type SequenceKey, type SequenceOverrides, type StepOverride,
+  SEQUENCES, resolveSequences, sequenceToggles, SEQUENCE_DEFAULTS,
+  type SequenceKey, type SequenceOverrides, type StepOverride, type SequenceToggles,
 } from '@/lib/emailSequences';
 import { getAllPrograms, setSystemConfig, getSystemConfig } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
@@ -50,11 +50,16 @@ export function EmailsPanel() {
   const [saving, setSaving] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // The sequence-level switches live in system/config, and the cron reads
+  // them before the overrides. Without them here a sequence switched off
+  // in config showed as on in this panel while never sending.
+  const [toggles, setToggles] = useState<SequenceToggles>(SEQUENCE_DEFAULTS);
 
   useEffect(() => {
     (async () => {
       try {
-        const [o, s] = await Promise.all([getDoc(OVERRIDES_REF()), getDoc(STATS_REF())]);
+        const [o, s, cfg] = await Promise.all([getDoc(OVERRIDES_REF()), getDoc(STATS_REF()), getSystemConfig().catch(() => null)]);
+        setToggles(sequenceToggles(cfg as { emailSequences?: Partial<SequenceToggles> } | null));
         const ov = (o.exists() ? o.data() : {}) as SequenceOverrides;
         setOverrides(ov);
         const d = emptyDraft();
@@ -69,7 +74,7 @@ export function EmailsPanel() {
     })();
   }, []);
 
-  const resolved = resolveSequences(overrides);
+  const resolved = resolveSequences(overrides, toggles);
 
   function setStep(seq: SequenceKey, step: string, patch: StepOverride) {
     setDraft((d) => ({ ...d, [seq]: { ...d[seq], [step]: { ...(d[seq][step] ?? {}), ...patch } } }));

@@ -157,6 +157,15 @@ export interface SequenceToggles { leadTips: boolean; onboardingAbandon: boolean
 /** All on by default; the admin turns individual sequences off in Settings. */
 export const SEQUENCE_DEFAULTS: SequenceToggles = { leadTips: true, onboardingAbandon: true, winBack: true };
 
+/**
+ * A path on this site: one leading slash, not two. `//host/x` is a
+ * protocol-relative URL and would turn an email button into an external
+ * link; `/\\host` is the same trick for some parsers.
+ */
+export function isSitePath(p: unknown): p is string {
+  return typeof p === 'string' && /^\/(?![\/\\])/.test(p);
+}
+
 export function sequenceToggles(cfg: { emailSequences?: Partial<SequenceToggles> } | null | undefined): SequenceToggles {
   return { ...SEQUENCE_DEFAULTS, ...(cfg?.emailSequences ?? {}) };
 }
@@ -235,7 +244,7 @@ export function resolveSequences(overrides: SequenceOverrides | null | undefined
         subject: text(o.subject, st.subject),
         heading: text(o.heading, st.heading),
         paragraphs,
-        cta: { label: text(o.ctaLabel, st.cta.label), path: text(o.ctaPath, st.cta.path).startsWith('/') ? text(o.ctaPath, st.cta.path) : st.cta.path },
+        cta: { label: text(o.ctaLabel, st.cta.label), path: isSitePath(text(o.ctaPath, st.cta.path)) ? text(o.ctaPath, st.cta.path) : st.cta.path },
       };
     }).filter((st) => st.enabled).sort((a, b) => a.day - b.day);
     out[def.key] = { key: def.key, label: def.label, description: def.description, enabled, steps };

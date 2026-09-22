@@ -744,6 +744,15 @@ export async function POST(req: NextRequest) {
               });
               if (ok) sentHere++;
             });
+            // A page with recipients and zero successes is the provider
+            // being down, not a page delivered. Leave the cursor where it
+            // is and stop; the next run retries the same page. Advancing
+            // here would mark those people sent when nobody was.
+            if (unique.length > 0 && sentHere === 0) {
+              console.error(`[notifications/process] broadcast ${bdoc.id}: 0 of ${unique.length} sent on this page, will retry next run`);
+              await bdoc.ref.update({ lastError: 'provider returned no successes', lastErrorAt: FieldValue.serverTimestamp() });
+              break;
+            }
             cursor = page.empty ? cursor : page.docs[page.docs.length - 1].id;
             finished = page.size < PAGE;
             await bdoc.ref.update({
