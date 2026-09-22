@@ -473,11 +473,32 @@ function BroadcastCard() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed');
-      toast.success('Queued — it goes out on the next hourly run');
       setSubject(''); setBody(''); setCtaLabel(''); setCtaPath(''); setConfirm(false);
       loadPast();
+      // Queued; now start it. The first batch goes inside this request, the
+      // hourly run finishes anything left.
+      await sendNow(data.id as string, token);
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed'); }
     finally { setSending(false); }
+  }
+
+  const [kicking, setKicking] = useState<string | null>(null);
+  async function sendNow(id: string, tokenIn?: string) {
+    if (!user) return;
+    setKicking(id);
+    try {
+      const token = tokenIn ?? await getIdToken(user);
+      const res = await fetch('/api/admin/broadcast/send-now', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(data.finished ? `Sent to ${data.sent}` : `${data.sent} sent so far — the hourly run finishes the rest`);
+      loadPast();
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed'); }
+    finally { setKicking(null); }
   }
 
   const ready = subject.trim().length > 0 && body.trim().length > 0;
@@ -487,7 +508,7 @@ function BroadcastCard() {
       <div>
         <p className="text-sm font-bold text-white flex items-center gap-2"><Megaphone className="w-4 h-4 text-accent" /> Send to everyone</p>
         <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">
-          Announce a program, a change, an offer. Goes out on the next hourly run with a one-click unsubscribe, never to anyone who has opted out.
+          Announce a program, a change, an offer. Starts sending the moment you confirm, with a one-click unsubscribe, never to anyone who has opted out. Admins are skipped, so it will not land in your own inbox.
         </p>
       </div>
       <label className="text-[11px] text-text-tertiary block">
@@ -525,7 +546,15 @@ function BroadcastCard() {
           {past.map((p) => (
             <div key={p.id} className="flex items-center justify-between gap-3 text-xs">
               <span className="text-white truncate">{p.subject}</span>
-              <span className="text-text-tertiary flex-shrink-0 tabular-nums">{AUDIENCE_LABELS[p.audience as BroadcastAudience] ?? p.audience} · {p.status} · {p.sentCount ?? 0} sent</span>
+              <span className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-text-tertiary tabular-nums">{AUDIENCE_LABELS[p.audience as BroadcastAudience] ?? p.audience} · {p.status} · {p.sentCount ?? 0} sent</span>
+                {(p.status === 'queued' || p.status === 'sending') && (
+                  <button type="button" onClick={() => sendNow(p.id)} disabled={kicking === p.id}
+                    className="text-[11px] font-semibold text-accent hover:brightness-110 disabled:opacity-50">
+                    {kicking === p.id ? 'Sending…' : 'Send now'}
+                  </button>
+                )}
+              </span>
             </div>
           ))}
         </div>
