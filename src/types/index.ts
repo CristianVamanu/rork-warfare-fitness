@@ -366,6 +366,8 @@ export interface SystemConfig {
   pwaInstallBannerEnabled?: boolean; // admin can disable the install banner
   /** Marketing email sequences, each switchable by the admin. Missing = on. */
   emailSequences?: { leadTips?: boolean; onboardingAbandon?: boolean; winBack?: boolean };
+  /** The free-plan lead magnet: which program drips, for how long, and the page copy. */
+  freePlan?: { enabled?: boolean; programId?: string; programName?: string; days?: number; headline?: string; subheadline?: string };
   vapidPublicKey?: string; // stored in Firestore so client can subscribe
   landingPage?: LandingPageConfig;
   barcodeScanDailyLimit?: number; // default 20 if unset

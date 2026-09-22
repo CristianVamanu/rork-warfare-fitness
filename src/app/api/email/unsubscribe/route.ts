@@ -52,7 +52,9 @@ async function handle(req: NextRequest) {
     if (scope === 'lead') {
       const snap = await db.collection('landingLeads').where('email', '==', email).get();
       const batch = db.batch();
-      snap.docs.forEach((d) => batch.update(d.ref, { marketingOptIn: false, unsubscribedAt: FieldValue.serverTimestamp() }));
+      // Stops the free-plan drip as well: a person who says stop is not
+      // made to explain which emails they meant.
+      snap.docs.forEach((d) => batch.update(d.ref, { marketingOptIn: false, dripActive: false, unsubscribedAt: FieldValue.serverTimestamp() }));
       if (!snap.empty) await batch.commit();
     } else {
       const snap = await db.collection('users').where('email', '==', email).limit(1).get();

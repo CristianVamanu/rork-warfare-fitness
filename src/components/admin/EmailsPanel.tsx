@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { doc, getDoc, setDoc, deleteField } from 'firebase/firestore';
+import { useCallback, useEffect, useState } from 'react';
+import { doc, getDoc, setDoc, deleteField, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { getIdToken } from 'firebase/auth';
 import toast from 'react-hot-toast';
-import { Mail, ChevronDown, RotateCcw, Send, Check } from 'lucide-react';
+import { Mail, ChevronDown, RotateCcw, Send, Check, Megaphone, Gift, ExternalLink } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -13,6 +13,10 @@ import {
   SEQUENCES, resolveSequences,
   type SequenceKey, type SequenceOverrides, type StepOverride,
 } from '@/lib/emailSequences';
+import { getAllPrograms, setSystemConfig, getSystemConfig } from '@/lib/firestore';
+import { MOCK_PROGRAMS } from '@/lib/programs';
+import { freePlanConfig, FREE_PLAN_DAY_OPTIONS, FREE_PLAN_DEFAULTS, type FreePlanConfig } from '@/lib/freePlan';
+import { BROADCAST_AUDIENCES, AUDIENCE_LABELS, type BroadcastAudience } from '@/lib/broadcast';
 
 /**
  * Every automated email, editable in place.
@@ -149,6 +153,9 @@ export function EmailsPanel() {
         </p>
       </Card>
 
+      <FreePlanCard counts={counts} />
+      <BroadcastCard />
+
       {(Object.keys(SEQUENCES) as SequenceKey[]).map((seq) => {
         const def = SEQUENCES[seq];
         const r = resolved[seq];
@@ -252,5 +259,189 @@ function Field({ label, value, placeholder, onChange }: { label: string; value: 
       <input type="text" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full bg-surface border border-white/10 rounded-lg px-2.5 py-2 text-sm text-white placeholder:text-text-tertiary/60 focus:outline-none focus:border-accent/50" />
     </label>
+  );
+}
+
+/**
+ * The free-plan lead magnet: which program drips, for how long, and the
+ * two lines on the page. Off means /free-plan is a 404, so nothing can be
+ * advertised before it is set up.
+ */
+function FreePlanCard({ counts }: { counts: Record<string, number> }) {
+  const [form, setForm] = useState<FreePlanConfig>({ ...FREE_PLAN_DEFAULTS, programId: '', programName: '' });
+  const [programs, setPrograms] = useState<{ id: string; name: string }[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [cfg, progs] = await Promise.all([getSystemConfig().catch(() => null), getAllPrograms().catch(() => [])]);
+        setForm(freePlanConfig(cfg as { freePlan?: Record<string, unknown> } | null));
+        const live = (progs as { id: string; name?: string; isPublic?: boolean }[]).filter((p) => p.isPublic !== false && p.name);
+        setPrograms((live.length ? live : MOCK_PROGRAMS).map((p) => ({ id: p.id, name: p.name as string })));
+      } finally { setLoaded(true); }
+    })();
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const name = programs.find((p) => p.id === form.programId)?.name ?? form.programName;
+      await setSystemConfig({ freePlan: { ...form, programName: name } });
+      toast.success(form.enabled && form.programId ? 'Free plan is live at /free-plan' : 'Saved — free plan is off');
+    } catch { toast.error('Save failed'); }
+    finally { setSaving(false); }
+  }
+
+  const dripTotal = Object.entries(counts).filter(([k]) => k.startsWith('drip.')).reduce((a, [, n]) => a + n, 0);
+
+  return (
+    <Card className="p-4 lg:p-5 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-white flex items-center gap-2"><Gift className="w-4 h-4 text-accent" /> Free plan funnel</p>
+          <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">
+            A visitor leaves an email on <span className="text-white">/free-plan</span> and gets one real session a day from the program you pick, then a pitch for the rest. {dripTotal ? `${dripTotal} session emails sent so far.` : ''}
+          </p>
+        </div>
+        <button
+          onClick={() => setForm((f) => ({ ...f, enabled: !f.enabled }))}
+          aria-pressed={form.enabled}
+          className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${form.enabled ? 'bg-accent' : 'bg-surface-elevated'}`}
+        >
+          <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${form.enabled ? 'left-6' : 'left-1'}`} />
+        </button>
+      </div>
+      {loaded && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label className="text-[11px] text-text-tertiary">
+              Program to drip
+              <select value={form.programId} onChange={(e) => setForm((f) => ({ ...f, programId: e.target.value }))}
+                className="mt-1 w-full bg-surface border border-white/10 rounded-lg px-2.5 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                <option value="">Choose a program…</option>
+                {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </label>
+            <label className="text-[11px] text-text-tertiary">
+              How many days
+              <div className="mt-1 flex gap-2">
+                {FREE_PLAN_DAY_OPTIONS.map((d) => (
+                  <button key={d} type="button" aria-pressed={form.days === d} onClick={() => setForm((f) => ({ ...f, days: d }))}
+                    className={`flex-1 min-h-[38px] rounded-lg border text-[13px] font-semibold ${form.days === d ? 'border-accent bg-accent/15 text-white' : 'border-white/10 bg-surface text-text-secondary'}`}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </label>
+          </div>
+          <Field label="Headline" value={form.headline} placeholder={FREE_PLAN_DEFAULTS.headline} onChange={(v) => setForm((f) => ({ ...f, headline: v }))} />
+          <Field label="Line under it" value={form.subheadline} placeholder={FREE_PLAN_DEFAULTS.subheadline} onChange={(v) => setForm((f) => ({ ...f, subheadline: v }))} />
+          <div className="flex items-center justify-end gap-2">
+            <a href="/free-plan" target="_blank" rel="noreferrer" className="text-xs text-text-tertiary hover:text-white inline-flex items-center gap-1 px-2 py-2">
+              Open the page <ExternalLink className="w-3 h-3" />
+            </a>
+            <Button size="sm" onClick={save} loading={saving} disabled={form.enabled && !form.programId}>
+              <Check className="w-3.5 h-3.5" /> Save
+            </Button>
+          </div>
+          {form.enabled && !form.programId && <p className="text-[11px] text-yellow-400">Pick a program before switching it on.</p>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** One message to an audience. Queued; the hourly cron sends it a page at a time. */
+function BroadcastCard() {
+  const { user } = useAuth();
+  const [audience, setAudience] = useState<BroadcastAudience>('members');
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [ctaLabel, setCtaLabel] = useState('');
+  const [ctaPath, setCtaPath] = useState('');
+  const [confirm, setConfirm] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [past, setPast] = useState<{ id: string; subject: string; audience: string; status: string; sentCount: number }[]>([]);
+
+  const loadPast = useCallback(async () => {
+    try {
+      const snap = await getDocs(query(collection(db, 'broadcasts'), orderBy('createdAt', 'desc'), limit(8)));
+      setPast(snap.docs.map((d) => ({ id: d.id, ...(d.data() as { subject: string; audience: string; status: string; sentCount: number }) })));
+    } catch { /* first use: nothing yet */ }
+  }, []);
+  useEffect(() => { loadPast(); }, [loadPast]);
+
+  async function send() {
+    if (!user) return;
+    setSending(true);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/broadcast', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audience, subject, body, ctaLabel, ctaPath }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success('Queued — it goes out on the next hourly run');
+      setSubject(''); setBody(''); setCtaLabel(''); setCtaPath(''); setConfirm(false);
+      loadPast();
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed'); }
+    finally { setSending(false); }
+  }
+
+  const ready = subject.trim().length > 0 && body.trim().length > 0;
+
+  return (
+    <Card className="p-4 lg:p-5 space-y-3">
+      <div>
+        <p className="text-sm font-bold text-white flex items-center gap-2"><Megaphone className="w-4 h-4 text-accent" /> Send to everyone</p>
+        <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">
+          Announce a program, a change, an offer. Goes out on the next hourly run with a one-click unsubscribe, never to anyone who has opted out.
+        </p>
+      </div>
+      <label className="text-[11px] text-text-tertiary block">
+        Audience
+        <select value={audience} onChange={(e) => setAudience(e.target.value as BroadcastAudience)}
+          className="mt-1 w-full bg-surface border border-white/10 rounded-lg px-2.5 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+          {BROADCAST_AUDIENCES.map((a) => <option key={a} value={a}>{AUDIENCE_LABELS[a]}</option>)}
+        </select>
+      </label>
+      <Field label="Subject" value={subject} placeholder="New program: Ironclad" onChange={setSubject} />
+      <label className="block text-[11px] text-text-tertiary">
+        Body (one paragraph per line)
+        <textarea rows={5} value={body} onChange={(e) => setBody(e.target.value)} placeholder="What it is, who it is for, one line on why now."
+          className="mt-1 w-full bg-surface border border-white/10 rounded-lg px-2.5 py-2 text-sm text-white placeholder:text-text-tertiary/60 focus:outline-none focus:border-accent/50" />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Button text (optional)" value={ctaLabel} placeholder="Open the app" onChange={setCtaLabel} />
+        <Field label="Button link (on this site)" value={ctaPath} placeholder="/training" onChange={setCtaPath} />
+      </div>
+      {confirm ? (
+        <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-white">Send &ldquo;{subject.trim()}&rdquo; to <span className="font-bold">{AUDIENCE_LABELS[audience].toLowerCase()}</span>? This cannot be recalled.</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setConfirm(false)} className="text-xs text-text-tertiary hover:text-white px-2 py-2">Cancel</button>
+            <Button size="sm" variant="danger" onClick={send} loading={sending}><Send className="w-3.5 h-3.5" /> Yes, send</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => setConfirm(true)} disabled={!ready}><Send className="w-3.5 h-3.5" /> Send…</Button>
+        </div>
+      )}
+      {past.length > 0 && (
+        <div className="pt-2 border-t border-white/10 space-y-1">
+          {past.map((p) => (
+            <div key={p.id} className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-white truncate">{p.subject}</span>
+              <span className="text-text-tertiary flex-shrink-0 tabular-nums">{AUDIENCE_LABELS[p.audience as BroadcastAudience] ?? p.audience} · {p.status} · {p.sentCount ?? 0} sent</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }

@@ -13,7 +13,10 @@ import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
-import { sendEmail, trialEndingEmailHtml, checkoutRecoveryEmailHtml, marketingEmailHtml } from '@/lib/email';
+import { sendEmail, trialEndingEmailHtml, checkoutRecoveryEmailHtml, marketingEmailHtml, dripEmailHtml } from '@/lib/email';
+import { dripDayFor, dueDripDay, sessionSubject } from '@/lib/freePlan';
+import { userInAudience, type BroadcastAudience } from '@/lib/broadcast';
+import { MOCK_PROGRAMS } from '@/lib/programs';
 import { sequenceToggles, resolveSequences, dueStep, daysSince, type SequenceOverrides } from '@/lib/emailSequences';
 import { unsubscribeUrl, unsubscribeSecret } from '@/lib/emailUnsubscribe';
 import { checkoutRecoveryStep, checkoutRecoverySubject } from '@/lib/checkoutRecovery';
@@ -655,6 +658,103 @@ export async function POST(req: NextRequest) {
         }
       } catch (err) {
         console.error('[notifications/process] lead sequence failed:', err instanceof Error ? err.message : err);
+      }
+    }
+
+    // ── Free-plan drip: one session a day to each running lead ─────────────
+    if (unsubSecret) {
+      try {
+        const leads = await db.collection('landingLeads').where('dripActive', '==', true).limit(500).get();
+        const programCache = new Map<string, Program | null>();
+        const loadProgram = async (id: string): Promise<Program | null> => {
+          if (programCache.has(id)) return programCache.get(id)!;
+          const snap = await db.collection('programs').doc(id).get();
+          const p = (snap.exists ? { id: snap.id, ...snap.data() } : MOCK_PROGRAMS.find((m) => m.id === id) ?? null) as Program | null;
+          programCache.set(id, p);
+          return p;
+        };
+        for (const d of leads.docs) {
+          const lead = d.data() as { email?: string; programId?: string; dripDays?: number; createdAt?: unknown; drip?: Record<string, unknown> };
+          const createdMs = toMs(lead.createdAt);
+          if (!lead.email || !lead.programId || createdMs === null) { await d.ref.update({ dripActive: false }); continue; }
+          const total = Number(lead.dripDays) || 7;
+          const dayN = dueDripDay(daysSince(createdMs, Date.now()), lead.drip, total);
+          if (!dayN) continue;
+          const program = await loadProgram(lead.programId);
+          const dd = program ? dripDayFor(program, dayN) : null;
+          if (!program || !dd) { await d.ref.update({ dripActive: false, dripStoppedReason: 'program-unavailable' }); continue; }
+          const unsub = unsubscribeUrl(appUrl, unsubSecret, lead.email, 'lead');
+          const ok = await sendEmail({
+            to: lead.email,
+            subject: sessionSubject(program.name, dayN, total, dd.day),
+            unsubscribeUrl: unsub,
+            html: dripEmailHtml({ brand, appUrl, program, dayNumber: dayN, totalDays: total, session: dd.day, unsubscribeUrl: unsub }),
+          });
+          if (ok) {
+            const isLast = dayN >= total;
+            await d.ref.update({ [`drip.d${dayN}`]: FieldValue.serverTimestamp(), ...(isLast ? { dripActive: false, dripDoneAt: FieldValue.serverTimestamp() } : {}) });
+            await recordSend('drip', `d${dayN}`, lead.email, { leadId: d.id });
+            sent.push(`drip:d${dayN}:${d.id}`);
+          }
+        }
+      } catch (err) {
+        console.error('[notifications/process] drip failed:', err instanceof Error ? err.message : err);
+      }
+    }
+
+    // ── Broadcasts: queued by the admin, sent here a page at a time ─────────
+    // Resumable by cursor, so a crash mid-way continues rather than
+    // re-sending the first half; bounded by time, so one huge broadcast
+    // spans runs instead of stalling the hour.
+    if (unsubSecret) {
+      const started = Date.now();
+      const BUDGET_MS = 240_000;
+      const PAGE = 200;
+      try {
+        const queued = await db.collection('broadcasts').where('status', 'in', ['queued', 'sending']).limit(3).get();
+        for (const bdoc of queued.docs) {
+          const b = bdoc.data() as { audience: BroadcastAudience; subject: string; body: string; ctaLabel: string; ctaPath: string; cursor?: string | null };
+          if (bdoc.data().status === 'queued') await bdoc.ref.update({ status: 'sending', startedAt: FieldValue.serverTimestamp() });
+          const paragraphs = b.body.split(/\n{2,}|\n/).map((p) => p.trim()).filter(Boolean);
+          let cursor: string | null = b.cursor ?? null;
+          let finished = false;
+          while (!finished && Date.now() - started < BUDGET_MS) {
+            const col = b.audience === 'leads' ? 'landingLeads' : 'users';
+            let q = db.collection(col).orderBy('__name__').limit(PAGE);
+            if (cursor) q = q.startAfter(cursor);
+            const page = await q.get();
+            const targets: { to: string; scope: 'user' | 'lead' }[] = [];
+            for (const doc of page.docs) {
+              const data = doc.data();
+              if (b.audience === 'leads') {
+                if (data.marketingOptIn === true && typeof data.email === 'string') targets.push({ to: data.email, scope: 'lead' });
+              } else if (userInAudience(data as Parameters<typeof userInAudience>[0], b.audience)) {
+                targets.push({ to: data.email as string, scope: 'user' });
+              }
+            }
+            // The same lead can hold several rows (test + free plan); one email.
+            const seen = new Set<string>();
+            const unique = targets.filter((t) => (seen.has(t.to) ? false : (seen.add(t.to), true)));
+            let sentHere = 0;
+            await mapWithConcurrency(unique, 5, async (t) => {
+              const unsub = unsubscribeUrl(appUrl, unsubSecret, t.to, t.scope);
+              const ok = await sendEmail({
+                to: t.to, subject: b.subject, unsubscribeUrl: unsub,
+                html: marketingEmailHtml({ brand, appUrl, heading: b.subject, paragraphs, cta: { label: b.ctaLabel, path: b.ctaPath }, unsubscribeUrl: unsub }),
+              });
+              if (ok) sentHere++;
+            });
+            cursor = page.empty ? cursor : page.docs[page.docs.length - 1].id;
+            finished = page.size < PAGE;
+            await bdoc.ref.update({
+              cursor, sentCount: FieldValue.increment(sentHere), skippedCount: FieldValue.increment(page.size - unique.length),
+              ...(finished ? { status: 'done', finishedAt: FieldValue.serverTimestamp() } : {}),
+            });
+            if (sentHere) sent.push(`broadcast:${bdoc.id}:+${sentHere}`);
+          }
+        }
+      } catch (err) {
+        console.error('[notifications/process] broadcast failed:', err instanceof Error ? err.message : err);
       }
     }
 
