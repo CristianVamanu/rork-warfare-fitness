@@ -10,8 +10,6 @@ import { PublicFooter } from '@/components/public/PublicFooter';
 import { TacticalBackdrop } from '@/components/public/TacticalBackdrop';
 import { Reveal } from '@/components/public/Reveal';
 import { ProgramCard } from '@/components/public/ProgramCard';
-import { getSystemConfig } from '@/lib/firestore';
-import { freePlanConfig, findOffer, offerPath } from '@/lib/freePlan';
 
 export const revalidate = 3600;
 
@@ -80,19 +78,12 @@ export default async function ProgramPage({
   // sharer, with nothing about the page looking any different to notice it.
   const onboardingHref = `/onboarding?programId=${program.id}${ref ? `&ref=${encodeURIComponent(ref)}` : ''}`;
 
-  const [all, brand, terms, sysCfg] = await Promise.all([
+  const [all, brand, terms] = await Promise.all([
     getPublicPrograms(),
     getPublicBranding(),
     getPublicTrialTerms(),
-    getSystemConfig().catch(() => null),
   ]);
   const m = buildProgramMarketing(program, terms.disclosure);
-  // The free week, when this program is on offer in Admin → Emails. An ad
-  // can land on this page and still catch the visitor who is not ready to
-  // pay: the second path is an email, not a card.
-  const freePlan = freePlanConfig(sysCfg as { freePlan?: Record<string, unknown> } | null);
-  const freeOffer = findOffer(freePlan, program.id);
-  const freeHref = freeOffer ? offerPath(freeOffer) : null;
   const related = all.filter((p) => p.slug !== slug && p.goal === program.goal).slice(0, 3);
 
   // Course + FAQPage structured data. The FAQ block is the cheapest ranking
@@ -188,11 +179,6 @@ export default async function ProgramPage({
                     >
                       Start this program
                     </Link>
-                    {freeHref && (
-                      <Link href={freeHref} className="text-sm font-semibold text-accent hover:brightness-110 underline-offset-4 hover:underline">
-                        Not ready? Get {freePlan.days} days free by email
-                      </Link>
-                    )}
                     <p className="text-xs text-text-tertiary">
                       {terms.disclosure}
                     </p>
@@ -376,13 +362,6 @@ export default async function ProgramPage({
               >
                 Start {m.headline}
               </Link>
-              {freeHref && (
-                <p className="mt-4 text-sm">
-                  <Link href={freeHref} className="font-semibold text-accent hover:underline underline-offset-4">
-                    Or try {freePlan.days} days of it free, one session a morning by email
-                  </Link>
-                </p>
-              )}
             </div>
           </section>
         </Reveal>
