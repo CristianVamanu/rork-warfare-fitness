@@ -402,6 +402,12 @@ function AdminPageInner() {
   // once is what actually makes this page unusable — so the DOM is paged.
   const [clientsPerPage, setClientsPerPage] = useState(50);
   const [clientsPage, setClientsPage] = useState(1);
+  // The Membership tab's Client Access list has its own paging. It rendered
+  // every account at once — fine at eight, a wall at five hundred — and it
+  // is a different task from the Clients tab (granting access, not looking
+  // someone up), so it should not share that tab's page position.
+  const [accessPerPage, setAccessPerPage] = useState(20);
+  const [accessPage, setAccessPage] = useState(1);
   // Defaults to 'clients', so admin accounts are HIDDEN exactly as before.
   // They are reachable through the filter rather than absent from the panel
   // altogether — being unable to see them at all is what let an admin document
@@ -2637,6 +2643,9 @@ function AdminPageInner() {
   // page 9 should land somewhere real, not on an empty page.
   const clientsPageSafe = Math.min(clientsPage, clientsTotalPages);
   const pagedClients = listedUsers.slice((clientsPageSafe - 1) * clientsPerPage, clientsPageSafe * clientsPerPage);
+  const accessTotalPages = Math.max(1, Math.ceil(clients.length / accessPerPage));
+  const accessPageSafe = Math.min(accessPage, accessTotalPages);
+  const pagedAccess = clients.slice((accessPageSafe - 1) * accessPerPage, accessPageSafe * accessPerPage);
   const trainers = users.filter(u => u.role === 'trainer');
 
   // Exports the currently-loaded client list as a CSV — client-side only,
@@ -3834,21 +3843,47 @@ function AdminPageInner() {
 
               {/* Client membership management */}
               <Card className="p-4 lg:p-5 space-y-3">
-                <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Users className="w-4 h-4 text-accent" /> Client Access
-                </h2>
-                <p className="text-xs text-text-secondary">Manually grant membership and assign coaching plans to each client.</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                      <span className="w-7 h-7 rounded-lg bg-gradient-accent text-black flex items-center justify-center flex-shrink-0">
+                        <Users className="w-3.5 h-3.5" />
+                      </span>
+                      Client Access
+                    </h2>
+                    <p className="text-xs text-text-secondary mt-1">Manually grant membership and assign coaching plans to each client.</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="wf-readout text-[10px] font-bold text-text-tertiary hidden sm:inline">
+                      {clients.length}{totalUsers !== null && users.length < totalUsers ? ` of ${totalUsers}` : ''}
+                    </span>
+                    <select
+                      aria-label="Clients per page"
+                      value={accessPerPage}
+                      onChange={(e) => { setAccessPerPage(Number(e.target.value)); setAccessPage(1); }}
+                      className="bg-surface border border-white/10 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-white focus:outline-none focus:border-accent/50"
+                    >
+                      {[20, 40, 60, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
+                    </select>
+                  </div>
+                </div>
                 {clients.length === 0 ? (
                   <p className="text-text-tertiary text-sm text-center py-4">No clients yet.</p>
-                ) : clients.map((u) => {
+                ) : pagedAccess.map((u) => {
                   const mem = (u as UserData & { membership?: { status?: string; planId?: string; planName?: string } }).membership;
                   const isMember = mem?.status === 'active';
                   const currentPlanId = mem?.planId;
                   const currentPlanName = mem?.planName;
                   return (
-                    <div key={u.id} className="py-2 border-t border-white/5 first:border-0 first:pt-0 space-y-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center text-accent text-xs font-bold flex-shrink-0">
+                    <div key={u.id} className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-3 space-y-2">
+                      {/* The same surface as the home workout card and the
+                          program screen, so the admin's list belongs to the
+                          app it manages. Members get the lit corner; free
+                          accounts stay flat, so status reads at a glance. */}
+                      {isMember && <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />}
+                      <div aria-hidden className="wf-dots pointer-events-none absolute inset-0 opacity-60" />
+                      <div className="relative flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black flex-shrink-0 ${isMember ? 'bg-gradient-accent text-black shadow-glow-sm' : 'border border-white/10 bg-surface text-text-secondary'}`}>
                           {u.displayName?.[0]?.toUpperCase() || '?'}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -3998,6 +4033,30 @@ function AdminPageInner() {
                     </div>
                   );
                 })}
+                {accessTotalPages > 1 && (
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    <Button size="sm" variant="ghost" disabled={accessPageSafe <= 1} onClick={() => setAccessPage((p) => Math.max(1, p - 1))}>
+                      Previous
+                    </Button>
+                    <p className="text-xs text-text-secondary tabular-nums">
+                      Page {accessPageSafe} of {accessTotalPages}
+                      <span className="text-text-tertiary">
+                        {' '}· {(accessPageSafe - 1) * accessPerPage + 1}–{Math.min(accessPageSafe * accessPerPage, clients.length)}
+                      </span>
+                    </p>
+                    <Button size="sm" variant="ghost" disabled={accessPageSafe >= accessTotalPages} onClick={() => setAccessPage((p) => Math.min(accessTotalPages, p + 1))}>
+                      Next
+                    </Button>
+                  </div>
+                )}
+                {/* The list is loaded in blocks of USERS_PAGE. Say so, rather
+                    than let a page count that stops at 500 look like the
+                    whole membership. */}
+                {totalUsers !== null && users.length < totalUsers && (
+                  <Button fullWidth variant="secondary" onClick={loadMoreUsers} loading={loadingMoreUsers}>
+                    Load {Math.min(USERS_PAGE, totalUsers - users.length)} more ({users.length} of {totalUsers} loaded)
+                  </Button>
+                )}
               </Card>
             </>
           )}
