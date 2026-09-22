@@ -15,7 +15,7 @@ import {
 } from '@/lib/emailSequences';
 import { getAllPrograms, setSystemConfig, getSystemConfig } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
-import { freePlanConfig, offerCopy, offerPath, FREE_PLAN_DAY_OPTIONS, FREE_PLAN_DEFAULTS, type FreePlanConfig, type FreePlanOffer } from '@/lib/freePlan';
+import { freePlanConfig, offerCopy, offerPath, dripDayFor, FREE_PLAN_DAY_OPTIONS, FREE_PLAN_DEFAULTS, type FreePlanConfig, type FreePlanOffer } from '@/lib/freePlan';
 import { BROADCAST_AUDIENCES, AUDIENCE_LABELS, type BroadcastAudience } from '@/lib/broadcast';
 
 /**
@@ -269,7 +269,7 @@ function Field({ label, value, placeholder, onChange }: { label: string; value: 
  */
 function FreePlanCard({ counts }: { counts: Record<string, number> }) {
   const [form, setForm] = useState<FreePlanConfig>({ ...FREE_PLAN_DEFAULTS, programId: '', programName: '', offers: [] });
-  const [programs, setPrograms] = useState<{ id: string; name: string; goal?: string; recommendedForGoals?: string[] }[]>([]);
+  const [programs, setPrograms] = useState<{ id: string; name: string; goal?: string; recommendedForGoals?: string[]; hasWeekOne: boolean }[]>([]);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
@@ -279,8 +279,14 @@ function FreePlanCard({ counts }: { counts: Record<string, number> }) {
       try {
         const [cfg, progs] = await Promise.all([getSystemConfig().catch(() => null), getAllPrograms().catch(() => [])]);
         setForm(freePlanConfig(cfg as { freePlan?: Record<string, unknown> } | null));
-        const live = (progs as { id: string; name?: string; isPublic?: boolean; goal?: string; recommendedForGoals?: string[] }[]).filter((p) => p.isPublic !== false && p.name);
-        setPrograms((live.length ? live : MOCK_PROGRAMS).map((p) => ({ id: p.id, name: p.name as string, goal: p.goal, recommendedForGoals: p.recommendedForGoals })));
+        type P = { id: string; name?: string; isPublic?: boolean; goal?: string; recommendedForGoals?: string[]; schedule?: unknown[]; phases?: { schedule?: unknown[] }[] };
+        const live = (progs as P[]).filter((p) => p.isPublic !== false && p.name);
+        // The drip sends phase one's sessions. A program with none renders a
+        // page but fails at signup, so it is flagged here, before it is ticked.
+        setPrograms((live.length ? live : (MOCK_PROGRAMS as unknown as P[])).map((p) => ({
+          id: p.id, name: p.name as string, goal: p.goal, recommendedForGoals: p.recommendedForGoals,
+          hasWeekOne: dripDayFor(p as Parameters<typeof dripDayFor>[0], 1) !== null,
+        })));
       } finally { setLoaded(true); }
     })();
   }, []);
@@ -366,6 +372,11 @@ function FreePlanCard({ counts }: { counts: Record<string, number> }) {
                       <button type="button" onClick={() => offer && setOpen(expanded ? null : p.id)} disabled={!offer}
                         className={`flex-1 min-w-0 text-left text-sm font-semibold truncate ${offer ? 'text-white' : 'text-text-tertiary'}`}>
                         {p.name}
+                        {!p.hasWeekOne && (
+                          <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-red-400" title="No sessions in week one: the page renders but signup fails. Add a schedule in the builder.">
+                            No week-one sessions
+                          </span>
+                        )}
                       </button>
                       {offer && (
                         <>
@@ -410,6 +421,14 @@ function FreePlanCard({ counts }: { counts: Record<string, number> }) {
             </Button>
           </div>
           {form.enabled && form.offers.length === 0 && <p className="text-[11px] text-yellow-400">Tick at least one program before switching it on.</p>}
+          {(() => {
+            const broken = form.offers.filter((o) => programs.find((p) => p.id === o.id)?.hasWeekOne === false).map((o) => o.name);
+            return broken.length > 0 ? (
+              <p className="text-[11px] text-red-400">
+                No week-one sessions, signup will fail: {broken.join(', ')}. Add a schedule in the program builder or untick them.
+              </p>
+            ) : null;
+          })()}
           <p className="text-[11px] text-text-tertiary">Links only work after you save. Copy is generated from each program&apos;s goal unless you write your own.</p>
         </div>
       )}
