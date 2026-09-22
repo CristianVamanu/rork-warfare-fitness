@@ -25,7 +25,7 @@ export function FreePlanClient({
   days: number;
   program: { id: string; name: string; description: string; weeks: number; daysPerWeek: number; level: string; imageUrl: string | null };
   /** The other programs on offer, for the picker under the form. */
-  others: { id: string; name: string }[];
+  others: { id: string; name: string; path: string }[];
 }) {
   const [email, setEmail] = useState('');
   const [tips, setTips] = useState(false);
@@ -134,7 +134,7 @@ export function FreePlanClient({
               {others.map((o) => (
                 <Link
                   key={o.id}
-                  href={`/free-plan/${o.id}`}
+                  href={o.path}
                   className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface px-4 py-3 text-sm font-semibold text-white hover:border-accent/50 transition-colors"
                 >
                   <span className="truncate">{o.name}</span>

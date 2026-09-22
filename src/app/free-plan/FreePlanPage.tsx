@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { PublicHeader } from '@/components/landing/PublicHeader';
 import { getSystemConfig } from '@/lib/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
-import { freePlanConfig, findOffer, offerCopy, type FreePlanConfig } from '@/lib/freePlan';
+import { freePlanConfig, findOffer, offerCopy, offerPath, type FreePlanConfig } from '@/lib/freePlan';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { FreePlanClient } from './FreePlanClient';
 import type { Program } from '@/types';
@@ -11,7 +11,7 @@ import type { Program } from '@/types';
 /**
  * One lead-magnet page per program, all from this file.
  *
- * /free-plan shows the admin's default offer; /free-plan/<id> shows that
+ * /free-plan shows the admin's default offer; /free-plan/<slug> shows that
  * program. Same layout, same voice — only the program card and the copy
  * change, so every ad lands on a page that talks about the program the ad
  * talked about. A program that is not on offer is a 404, not a fallback:
@@ -50,7 +50,7 @@ export async function freePlanMetadata(programId?: string): Promise<Metadata> {
   return {
     title: data.copy.headline,
     description: data.copy.subheadline,
-    alternates: { canonical: programId ? `/free-plan/${programId}` : '/free-plan' },
+    alternates: { canonical: programId ? offerPath(data.offer) : '/free-plan' },
     openGraph: {
       title: data.copy.headline,
       description: data.copy.subheadline,
@@ -66,7 +66,7 @@ export async function FreePlanPage({ programId }: { programId?: string }) {
 
   const appName = (cfg?.appName as string) || 'Warfare Fitness';
   const logoUrl = (cfg?.logoUrl as string) || null;
-  const others = plan.offers.filter((o) => o.id !== program.id).map((o) => ({ id: o.id, name: o.name }));
+  const others = plan.offers.filter((o) => o.id !== program.id).map((o) => ({ id: o.id, name: o.name, path: offerPath(o) }));
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">

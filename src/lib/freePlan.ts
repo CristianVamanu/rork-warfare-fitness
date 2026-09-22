@@ -1,4 +1,5 @@
 import type { Program, ProgramDay } from '@/types';
+import { slugify } from '@/lib/slug';
 
 /**
  * The free-plan funnel: a visitor leaves an email, and for N days they get
@@ -84,11 +85,25 @@ export function freePlanConfig(cfg: { freePlan?: Omit<Partial<FreePlanConfig>, '
   };
 }
 
-/** The offer for a program id, or null when it is not on offer. */
-export function findOffer(plan: FreePlanConfig, programId: string | undefined | null): FreePlanOffer | null {
+/**
+ * The offer for a program, or null when it is not on offer.
+ *
+ * Matched by id or by the program's slug (the same slug /programs uses),
+ * so an ad link reads /free-plan/legion-endurance rather than a database
+ * id, and the sales page and the free page share one name per program.
+ */
+export function findOffer(plan: FreePlanConfig, key: string | undefined | null): FreePlanOffer | null {
   if (!plan.enabled) return null;
-  const id = programId || plan.programId;
-  return plan.offers.find((o) => o.id === id) ?? null;
+  const k = key || plan.programId;
+  return plan.offers.find((o) => o.id === k || offerSlug(o) === k) ?? null;
+}
+
+/** The public path for an offer: /free-plan/<slug of the program name>. */
+export function offerSlug(offer: Pick<FreePlanOffer, 'name' | 'id'>): string {
+  return offer.name ? slugify(offer.name) : offer.id;
+}
+export function offerPath(offer: Pick<FreePlanOffer, 'name' | 'id'>): string {
+  return `/free-plan/${offerSlug(offer)}`;
 }
 
 const DAYS_WORD: Record<FreePlanDays, string> = { 7: 'Seven days', 14: 'Two weeks', 30: 'Thirty days' };

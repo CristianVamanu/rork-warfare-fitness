@@ -15,7 +15,7 @@ import {
 } from '@/lib/emailSequences';
 import { getAllPrograms, setSystemConfig, getSystemConfig } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
-import { freePlanConfig, offerCopy, FREE_PLAN_DAY_OPTIONS, FREE_PLAN_DEFAULTS, type FreePlanConfig, type FreePlanOffer } from '@/lib/freePlan';
+import { freePlanConfig, offerCopy, offerPath, FREE_PLAN_DAY_OPTIONS, FREE_PLAN_DEFAULTS, type FreePlanConfig, type FreePlanOffer } from '@/lib/freePlan';
 import { BROADCAST_AUDIENCES, AUDIENCE_LABELS, type BroadcastAudience } from '@/lib/broadcast';
 
 /**
@@ -326,7 +326,7 @@ function FreePlanCard({ counts }: { counts: Record<string, number> }) {
         <div className="min-w-0">
           <p className="text-sm font-bold text-white flex items-center gap-2"><Gift className="w-4 h-4 text-accent" /> Free plan funnel</p>
           <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">
-            Every program you tick gets its own page at <span className="text-white">/free-plan/&lt;id&gt;</span> for ads. <span className="text-white">/free-plan/pick</span> shows them all, for organic posts. A visitor leaves an email and gets one real session a day, then a pitch for the rest. {dripTotal ? `${dripTotal} session emails sent so far.` : ''}
+            Every program you tick gets its own page at <span className="text-white">/free-plan/&lt;program-name&gt;</span> for ads. <span className="text-white">/free-plan/pick</span> shows them all, for organic posts. A visitor leaves an email and gets one real session a day, then a pitch for the rest. {dripTotal ? `${dripTotal} session emails sent so far.` : ''}
           </p>
         </div>
         <button
@@ -373,7 +373,7 @@ function FreePlanCard({ counts }: { counts: Record<string, number> }) {
                             className={`text-[11px] px-2 py-1 rounded-md border ${isDefault ? 'border-accent text-accent' : 'border-white/10 text-text-tertiary hover:text-white'}`}>
                             {isDefault ? 'Default' : 'Make default'}
                           </button>
-                          <button type="button" onClick={() => copyLink(`/free-plan/${p.id}`)} title="Copy this program's page link"
+                          <button type="button" onClick={() => copyLink(offerPath(p))} title="Copy this program's page link"
                             className="text-text-tertiary hover:text-white p-1.5 rounded-md" aria-label={`Copy link for ${p.name}`}>
                             <LinkIcon className="w-3.5 h-3.5" />
                           </button>
@@ -387,7 +387,7 @@ function FreePlanCard({ counts }: { counts: Record<string, number> }) {
                       <div className="px-3 pb-3 space-y-2 bg-black/20">
                         <Field label="Headline (blank = the one shown as placeholder)" value={offer.headline} placeholder={auto.headline} onChange={(v) => editOffer(p.id, { headline: v })} />
                         <Field label="Line under it" value={offer.subheadline} placeholder={auto.subheadline} onChange={(v) => editOffer(p.id, { subheadline: v })} />
-                        <a href={`/free-plan/${p.id}`} target="_blank" rel="noreferrer" className="text-xs text-text-tertiary hover:text-white inline-flex items-center gap-1">
+                        <a href={offerPath(p)} target="_blank" rel="noreferrer" className="text-xs text-text-tertiary hover:text-white inline-flex items-center gap-1">
                           Open this page <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>

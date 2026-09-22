@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { freePlanConfig, findOffer, offerCopy, dripDayFor, dueDripDay, sessionSubject, completionLine, FREE_PLAN_DEFAULTS } from './freePlan';
+import { freePlanConfig, findOffer, offerCopy, offerPath, dripDayFor, dueDripDay, sessionSubject, completionLine, FREE_PLAN_DEFAULTS } from './freePlan';
 import type { ProgramDay } from '@/types';
 
 const d = (label: string, isRest = false): ProgramDay => ({ label, isRest, exercises: [] });
@@ -108,5 +108,15 @@ describe('offerCopy', () => {
   });
   it('lets the admin copy win', () => {
     expect(offerCopy({ headline: 'Mine', subheadline: 'Also mine' }, { name: 'X', goal: 'strength' }, 7)).toEqual({ headline: 'Mine', subheadline: 'Also mine' });
+  });
+});
+
+describe('offer slugs', () => {
+  it('finds an offer by the program slug as well as its id, and builds the path from the name', () => {
+    const plan = freePlanConfig({ freePlan: { enabled: true, offers: [{ id: 'abc123', name: 'Legion Endurance' }] } });
+    expect(offerPath(plan.offers[0])).toBe('/free-plan/legion-endurance');
+    expect(findOffer(plan, 'legion-endurance')?.id).toBe('abc123');
+    expect(findOffer(plan, 'abc123')?.id).toBe('abc123');
+    expect(findOffer(plan, 'legion')).toBeNull();
   });
 });

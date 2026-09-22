@@ -5,7 +5,7 @@ import { ArrowRight } from 'lucide-react';
 import { PublicHeader } from '@/components/landing/PublicHeader';
 import { getSystemConfig } from '@/lib/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
-import { freePlanConfig } from '@/lib/freePlan';
+import { freePlanConfig, offerPath } from '@/lib/freePlan';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import type { Program } from '@/types';
 
@@ -86,7 +86,7 @@ export default async function PickPage() {
             return (
               <li key={p.id}>
                 <Link
-                  href={`/free-plan/${p.id}`}
+                  href={offerPath(p)}
                   className="group relative overflow-hidden flex flex-col h-full rounded-2xl border border-white/10 bg-surface p-4 hover:border-accent/50 transition-colors"
                 >
                   <div aria-hidden className="wf-ember pointer-events-none absolute inset-0 opacity-70" />
