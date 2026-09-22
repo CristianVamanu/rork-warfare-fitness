@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { doc, getDoc, setDoc, deleteField, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { getIdToken } from 'firebase/auth';
 import toast from 'react-hot-toast';
-import { Mail, ChevronDown, RotateCcw, Send, Check, Megaphone, Gift, ExternalLink } from 'lucide-react';
+import { Mail, ChevronDown, RotateCcw, Send, Check, Megaphone, Gift, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -15,7 +15,7 @@ import {
 } from '@/lib/emailSequences';
 import { getAllPrograms, setSystemConfig, getSystemConfig } from '@/lib/firestore';
 import { MOCK_PROGRAMS } from '@/lib/programs';
-import { freePlanConfig, FREE_PLAN_DAY_OPTIONS, FREE_PLAN_DEFAULTS, type FreePlanConfig } from '@/lib/freePlan';
+import { freePlanConfig, offerCopy, FREE_PLAN_DAY_OPTIONS, FREE_PLAN_DEFAULTS, type FreePlanConfig, type FreePlanOffer } from '@/lib/freePlan';
 import { BROADCAST_AUDIENCES, AUDIENCE_LABELS, type BroadcastAudience } from '@/lib/broadcast';
 
 /**
@@ -268,33 +268,57 @@ function Field({ label, value, placeholder, onChange }: { label: string; value: 
  * advertised before it is set up.
  */
 function FreePlanCard({ counts }: { counts: Record<string, number> }) {
-  const [form, setForm] = useState<FreePlanConfig>({ ...FREE_PLAN_DEFAULTS, programId: '', programName: '' });
-  const [programs, setPrograms] = useState<{ id: string; name: string }[]>([]);
+  const [form, setForm] = useState<FreePlanConfig>({ ...FREE_PLAN_DEFAULTS, programId: '', programName: '', offers: [] });
+  const [programs, setPrograms] = useState<{ id: string; name: string; goal?: string; recommendedForGoals?: string[] }[]>([]);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
         const [cfg, progs] = await Promise.all([getSystemConfig().catch(() => null), getAllPrograms().catch(() => [])]);
         setForm(freePlanConfig(cfg as { freePlan?: Record<string, unknown> } | null));
-        const live = (progs as { id: string; name?: string; isPublic?: boolean }[]).filter((p) => p.isPublic !== false && p.name);
-        setPrograms((live.length ? live : MOCK_PROGRAMS).map((p) => ({ id: p.id, name: p.name as string })));
+        const live = (progs as { id: string; name?: string; isPublic?: boolean; goal?: string; recommendedForGoals?: string[] }[]).filter((p) => p.isPublic !== false && p.name);
+        setPrograms((live.length ? live : MOCK_PROGRAMS).map((p) => ({ id: p.id, name: p.name as string, goal: p.goal, recommendedForGoals: p.recommendedForGoals })));
       } finally { setLoaded(true); }
     })();
   }, []);
 
+  const onOffer = (id: string) => form.offers.some((o) => o.id === id);
+
+  function toggleOffer(p: { id: string; name: string }) {
+    setForm((f) => {
+      const offers = onOffer(p.id) ? f.offers.filter((o) => o.id !== p.id) : [...f.offers, { id: p.id, name: p.name, headline: '', subheadline: '' }];
+      const programId = offers.some((o) => o.id === f.programId) ? f.programId : (offers[0]?.id ?? '');
+      return { ...f, offers, programId };
+    });
+  }
+
+  function editOffer(id: string, patch: Partial<FreePlanOffer>) {
+    setForm((f) => ({ ...f, offers: f.offers.map((o) => (o.id === id ? { ...o, ...patch } : o)) }));
+  }
+
   async function save() {
     setSaving(true);
     try {
-      const name = programs.find((p) => p.id === form.programId)?.name ?? form.programName;
-      await setSystemConfig({ freePlan: { ...form, programName: name } });
-      toast.success(form.enabled && form.programId ? 'Free plan is live at /free-plan' : 'Saved — free plan is off');
+      // Names are re-read from the program list so a renamed program shows
+      // its current name in the picker and in emails.
+      const offers = form.offers.map((o) => ({ ...o, name: programs.find((p) => p.id === o.id)?.name ?? o.name }));
+      const def = offers.find((o) => o.id === form.programId);
+      await setSystemConfig({ freePlan: { enabled: form.enabled, days: form.days, programId: def?.id ?? '', programName: def?.name ?? '', offers } });
+      toast.success(form.enabled && offers.length ? `Free plan is live: ${offers.length} program${offers.length === 1 ? '' : 's'} on offer` : 'Saved — free plan is off');
     } catch { toast.error('Save failed'); }
     finally { setSaving(false); }
   }
 
+  function copyLink(path: string) {
+    const url = `${window.location.origin}${path}`;
+    navigator.clipboard?.writeText(url).then(() => toast.success('Link copied')).catch(() => toast(url));
+  }
+
   const dripTotal = Object.entries(counts).filter(([k]) => k.startsWith('drip.')).reduce((a, [, n]) => a + n, 0);
+  const canSave = !form.enabled || form.offers.length > 0;
 
   return (
     <Card className="p-4 lg:p-5 space-y-3">
@@ -302,7 +326,7 @@ function FreePlanCard({ counts }: { counts: Record<string, number> }) {
         <div className="min-w-0">
           <p className="text-sm font-bold text-white flex items-center gap-2"><Gift className="w-4 h-4 text-accent" /> Free plan funnel</p>
           <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">
-            A visitor leaves an email on <span className="text-white">/free-plan</span> and gets one real session a day from the program you pick, then a pitch for the rest. {dripTotal ? `${dripTotal} session emails sent so far.` : ''}
+            Every program you tick gets its own page at <span className="text-white">/free-plan/&lt;id&gt;</span> for ads. <span className="text-white">/free-plan/pick</span> shows them all, for organic posts. A visitor leaves an email and gets one real session a day, then a pitch for the rest. {dripTotal ? `${dripTotal} session emails sent so far.` : ''}
           </p>
         </div>
         <button
@@ -315,38 +339,78 @@ function FreePlanCard({ counts }: { counts: Record<string, number> }) {
       </div>
       {loaded && (
         <div className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <label className="text-[11px] text-text-tertiary">
-              Program to drip
-              <select value={form.programId} onChange={(e) => setForm((f) => ({ ...f, programId: e.target.value }))}
-                className="mt-1 w-full bg-surface border border-white/10 rounded-lg px-2.5 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-                <option value="">Choose a program…</option>
-                {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </label>
-            <label className="text-[11px] text-text-tertiary">
-              How many days
-              <div className="mt-1 flex gap-2">
-                {FREE_PLAN_DAY_OPTIONS.map((d) => (
-                  <button key={d} type="button" aria-pressed={form.days === d} onClick={() => setForm((f) => ({ ...f, days: d }))}
-                    className={`flex-1 min-h-[38px] rounded-lg border text-[13px] font-semibold ${form.days === d ? 'border-accent bg-accent/15 text-white' : 'border-white/10 bg-surface text-text-secondary'}`}>
-                    {d}
-                  </button>
-                ))}
-              </div>
-            </label>
+          <label className="block text-[11px] text-text-tertiary">
+            How many days (same for every program)
+            <div className="mt-1 flex gap-2 max-w-xs">
+              {FREE_PLAN_DAY_OPTIONS.map((d) => (
+                <button key={d} type="button" aria-pressed={form.days === d} onClick={() => setForm((f) => ({ ...f, days: d }))}
+                  className={`flex-1 min-h-[38px] rounded-lg border text-[13px] font-semibold ${form.days === d ? 'border-accent bg-accent/15 text-white' : 'border-white/10 bg-surface text-text-secondary'}`}>
+                  {d}
+                </button>
+              ))}
+            </div>
+          </label>
+
+          <div>
+            <p className="text-[11px] text-text-tertiary mb-1">Programs on offer — tick to give it a page, star the one the bare /free-plan link shows</p>
+            <ul className="divide-y divide-white/5 rounded-xl border border-white/10 overflow-hidden">
+              {programs.map((p) => {
+                const offer = form.offers.find((o) => o.id === p.id);
+                const auto = offerCopy({ headline: '', subheadline: '' }, p, form.days);
+                const isDefault = form.programId === p.id;
+                const expanded = open === p.id;
+                return (
+                  <li key={p.id} className="bg-surface">
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <input type="checkbox" checked={Boolean(offer)} onChange={() => toggleOffer(p)} className="w-4 h-4 accent-[var(--accent)] flex-shrink-0" aria-label={`Offer ${p.name}`} />
+                      <button type="button" onClick={() => offer && setOpen(expanded ? null : p.id)} disabled={!offer}
+                        className={`flex-1 min-w-0 text-left text-sm font-semibold truncate ${offer ? 'text-white' : 'text-text-tertiary'}`}>
+                        {p.name}
+                      </button>
+                      {offer && (
+                        <>
+                          <button type="button" onClick={() => setForm((f) => ({ ...f, programId: p.id }))} aria-pressed={isDefault} title="Show this one on /free-plan"
+                            className={`text-[11px] px-2 py-1 rounded-md border ${isDefault ? 'border-accent text-accent' : 'border-white/10 text-text-tertiary hover:text-white'}`}>
+                            {isDefault ? 'Default' : 'Make default'}
+                          </button>
+                          <button type="button" onClick={() => copyLink(`/free-plan/${p.id}`)} title="Copy this program's page link"
+                            className="text-text-tertiary hover:text-white p-1.5 rounded-md" aria-label={`Copy link for ${p.name}`}>
+                            <LinkIcon className="w-3.5 h-3.5" />
+                          </button>
+                          <button type="button" onClick={() => setOpen(expanded ? null : p.id)} aria-expanded={expanded} className="text-text-tertiary hover:text-white p-1.5 rounded-md" aria-label="Edit copy">
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {offer && expanded && (
+                      <div className="px-3 pb-3 space-y-2 bg-black/20">
+                        <Field label="Headline (blank = the one shown as placeholder)" value={offer.headline} placeholder={auto.headline} onChange={(v) => editOffer(p.id, { headline: v })} />
+                        <Field label="Line under it" value={offer.subheadline} placeholder={auto.subheadline} onChange={(v) => editOffer(p.id, { subheadline: v })} />
+                        <a href={`/free-plan/${p.id}`} target="_blank" rel="noreferrer" className="text-xs text-text-tertiary hover:text-white inline-flex items-center gap-1">
+                          Open this page <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-          <Field label="Headline" value={form.headline} placeholder={FREE_PLAN_DEFAULTS.headline} onChange={(v) => setForm((f) => ({ ...f, headline: v }))} />
-          <Field label="Line under it" value={form.subheadline} placeholder={FREE_PLAN_DEFAULTS.subheadline} onChange={(v) => setForm((f) => ({ ...f, subheadline: v }))} />
-          <div className="flex items-center justify-end gap-2">
-            <a href="/free-plan" target="_blank" rel="noreferrer" className="text-xs text-text-tertiary hover:text-white inline-flex items-center gap-1 px-2 py-2">
-              Open the page <ExternalLink className="w-3 h-3" />
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button type="button" onClick={() => copyLink('/free-plan/pick')} className="text-xs text-text-tertiary hover:text-white inline-flex items-center gap-1 px-2 py-2">
+              <LinkIcon className="w-3 h-3" /> Copy chooser link
+            </button>
+            <a href="/free-plan/pick" target="_blank" rel="noreferrer" className="text-xs text-text-tertiary hover:text-white inline-flex items-center gap-1 px-2 py-2">
+              Open chooser <ExternalLink className="w-3 h-3" />
             </a>
-            <Button size="sm" onClick={save} loading={saving} disabled={form.enabled && !form.programId}>
+            <Button size="sm" onClick={save} loading={saving} disabled={!canSave}>
               <Check className="w-3.5 h-3.5" /> Save
             </Button>
           </div>
-          {form.enabled && !form.programId && <p className="text-[11px] text-yellow-400">Pick a program before switching it on.</p>}
+          {form.enabled && form.offers.length === 0 && <p className="text-[11px] text-yellow-400">Tick at least one program before switching it on.</p>}
+          <p className="text-[11px] text-text-tertiary">Links only work after you save. Copy is generated from each program&apos;s goal unless you write your own.</p>
         </div>
       )}
     </Card>

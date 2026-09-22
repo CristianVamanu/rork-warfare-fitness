@@ -18,34 +18,108 @@ import type { Program, ProgramDay } from '@/types';
 export const FREE_PLAN_DAY_OPTIONS = [7, 14, 30] as const;
 export type FreePlanDays = typeof FREE_PLAN_DAY_OPTIONS[number];
 
-export interface FreePlanConfig {
-  enabled: boolean;
-  programId: string;
-  programName: string;
-  days: FreePlanDays;
+/** One program on offer: its own page at /free-plan/<id>, its own copy. */
+export interface FreePlanOffer {
+  id: string;
+  name: string;
+  /** Blank means "use the copy derived from the program". */
   headline: string;
   subheadline: string;
 }
 
-export const FREE_PLAN_DEFAULTS: Omit<FreePlanConfig, 'programId' | 'programName'> = {
+export interface FreePlanConfig {
+  enabled: boolean;
+  /** The program /free-plan itself shows. Always one of `offers`. */
+  programId: string;
+  programName: string;
+  days: FreePlanDays;
+  offers: FreePlanOffer[];
+  /** Legacy single-offer copy; kept as the default offer's copy on read. */
+  headline: string;
+  subheadline: string;
+}
+
+export const FREE_PLAN_DEFAULTS: Omit<FreePlanConfig, 'programId' | 'programName' | 'offers'> = {
   enabled: false,
   days: 7,
-  headline: 'Seven days of real selection prep. Free.',
-  subheadline: 'One session in your inbox every morning, taken straight from the program. No account. Decide at the end of the week.',
+  headline: '',
+  subheadline: '',
 };
 
-/** Reads system/config.freePlan with every field made safe. */
-export function freePlanConfig(cfg: { freePlan?: Partial<FreePlanConfig> } | null | undefined): FreePlanConfig {
+/**
+ * Reads system/config.freePlan with every field made safe.
+ *
+ * Two shapes are accepted. The first version stored one program with one
+ * headline; that is read as a single offer so nothing already switched on
+ * goes dark. The current shape stores a list of offers, each program with
+ * its own page, and which one the bare /free-plan URL shows.
+ */
+export function freePlanConfig(cfg: { freePlan?: Omit<Partial<FreePlanConfig>, 'offers'> & { offers?: Partial<FreePlanOffer>[] | unknown } } | null | undefined): FreePlanConfig {
   const f = cfg?.freePlan ?? {};
   const days = (FREE_PLAN_DAY_OPTIONS as readonly number[]).includes(Number(f.days)) ? (Number(f.days) as FreePlanDays) : FREE_PLAN_DEFAULTS.days;
-  const text = (v: unknown, fallback: string) => (typeof v === 'string' && v.trim() ? v.trim() : fallback);
+  const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const rawOffers = Array.isArray(f.offers) ? f.offers as Partial<FreePlanOffer>[] : [];
+  const seen = new Set<string>();
+  const offers: FreePlanOffer[] = [];
+  for (const o of rawOffers) {
+    const id = text(o?.id);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    offers.push({ id, name: text(o?.name), headline: text(o?.headline), subheadline: text(o?.subheadline) });
+  }
+  const legacyId = text(f.programId);
+  if (offers.length === 0 && legacyId) {
+    offers.push({ id: legacyId, name: text(f.programName), headline: text(f.headline), subheadline: text(f.subheadline) });
+  }
+  const programId = offers.some((o) => o.id === legacyId) ? legacyId : (offers[0]?.id ?? '');
+  const def = offers.find((o) => o.id === programId);
   return {
-    enabled: f.enabled === true && typeof f.programId === 'string' && f.programId.length > 0,
-    programId: typeof f.programId === 'string' ? f.programId : '',
-    programName: typeof f.programName === 'string' ? f.programName : '',
+    enabled: f.enabled === true && offers.length > 0,
+    programId,
+    programName: def?.name ?? '',
     days,
-    headline: text(f.headline, FREE_PLAN_DEFAULTS.headline),
-    subheadline: text(f.subheadline, FREE_PLAN_DEFAULTS.subheadline),
+    offers,
+    headline: def?.headline ?? '',
+    subheadline: def?.subheadline ?? '',
+  };
+}
+
+/** The offer for a program id, or null when it is not on offer. */
+export function findOffer(plan: FreePlanConfig, programId: string | undefined | null): FreePlanOffer | null {
+  if (!plan.enabled) return null;
+  const id = programId || plan.programId;
+  return plan.offers.find((o) => o.id === id) ?? null;
+}
+
+const DAYS_WORD: Record<FreePlanDays, string> = { 7: 'Seven days', 14: 'Two weeks', 30: 'Thirty days' };
+const END_WORD: Record<FreePlanDays, string> = { 7: 'the week', 14: 'the fortnight', 30: 'the month' };
+
+const GOAL_LINE: Record<string, string> = {
+  strength: 'real strength work',
+  hypertrophy: 'real muscle-building',
+  endurance: 'real conditioning',
+  'weight-loss': 'real fat-loss training',
+  general: 'real training',
+};
+
+/**
+ * The copy a program's page gets when the admin has not written any.
+ *
+ * Every page reads as the same offer in the same voice; only the noun
+ * changes, and the noun comes from the program's goal — a strength
+ * program is not sold as selection prep. The admin's own words, when
+ * given, win outright.
+ */
+export function offerCopy(
+  offer: Pick<FreePlanOffer, 'headline' | 'subheadline'>,
+  program: { name: string; goal?: string; recommendedForGoals?: string[] },
+  days: FreePlanDays,
+): { headline: string; subheadline: string } {
+  const military = program.recommendedForGoals?.includes('military-prep');
+  const noun = military ? 'real selection prep' : (GOAL_LINE[program.goal ?? ''] ?? GOAL_LINE.general);
+  return {
+    headline: offer.headline || `${DAYS_WORD[days]} of ${noun}. Free.`,
+    subheadline: offer.subheadline || `One session in your inbox every morning, taken straight from ${program.name}. No account. Decide at the end of ${END_WORD[days]}.`,
   };
 }
 

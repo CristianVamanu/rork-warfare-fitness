@@ -367,7 +367,18 @@ export interface SystemConfig {
   /** Marketing email sequences, each switchable by the admin. Missing = on. */
   emailSequences?: { leadTips?: boolean; onboardingAbandon?: boolean; winBack?: boolean };
   /** The free-plan lead magnet: which program drips, for how long, and the page copy. */
-  freePlan?: { enabled?: boolean; programId?: string; programName?: string; days?: number; headline?: string; subheadline?: string };
+  freePlan?: {
+    enabled?: boolean;
+    /** Program the bare /free-plan URL shows; must be one of `offers`. */
+    programId?: string;
+    programName?: string;
+    days?: number;
+    /** Every program on offer, each with its own /free-plan/<id> page. */
+    offers?: { id: string; name: string; headline?: string; subheadline?: string }[];
+    /** Legacy single-offer copy; read as the default offer's when `offers` is absent. */
+    headline?: string;
+    subheadline?: string;
+  };
   vapidPublicKey?: string; // stored in Firestore so client can subscribe
   landingPage?: LandingPageConfig;
   barcodeScanDailyLimit?: number; // default 20 if unset

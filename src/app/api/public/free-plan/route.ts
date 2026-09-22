@@ -22,7 +22,7 @@ import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { rateLimit, clientIp } from '@/lib/rateLimit';
 import { sendEmail, dripEmailHtml } from '@/lib/email';
-import { freePlanConfig, dripDayFor, sessionSubject } from '@/lib/freePlan';
+import { freePlanConfig, findOffer, dripDayFor, sessionSubject } from '@/lib/freePlan';
 import { unsubscribeUrl, unsubscribeSecret } from '@/lib/emailUnsubscribe';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import type { Program } from '@/types';
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const limited = await rateLimit({ scope: 'free-plan', key: clientIp(req), windowMs: 15 * 60 * 1000, max: 5 });
     if (!limited.allowed) return NextResponse.json({ ok: false }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
 
-    const body = await req.json().catch(() => ({})) as { email?: string; marketingOptIn?: boolean };
+    const body = await req.json().catch(() => ({})) as { email?: string; marketingOptIn?: boolean; programId?: string };
     const email = String(body.email ?? '').trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 320) return NextResponse.json({ ok: false, reason: 'Invalid email' }, { status: 400 });
 
@@ -43,13 +43,16 @@ export async function POST(req: NextRequest) {
     const cfgSnap = await db.doc('system/config').get();
     const cfg = cfgSnap.data() ?? {};
     const plan = freePlanConfig(cfg as { freePlan?: Record<string, unknown> });
-    if (!plan.enabled) return NextResponse.json({ ok: false, reason: 'Not available' }, { status: 404 });
+    // The program must be one the admin put on offer — a request cannot
+    // name any program in the database and get its first week for free.
+    const offer = findOffer(plan, typeof body.programId === 'string' ? body.programId : undefined);
+    if (!offer) return NextResponse.json({ ok: false, reason: 'Not available' }, { status: 404 });
 
     const secret = unsubscribeSecret();
     if (!secret) return NextResponse.json({ ok: false, reason: 'Not available' }, { status: 503 });
 
-    const progSnap = await db.collection('programs').doc(plan.programId).get();
-    const program = (progSnap.exists ? { id: progSnap.id, ...progSnap.data() } : MOCK_PROGRAMS.find((p) => p.id === plan.programId)) as Program | undefined;
+    const progSnap = await db.collection('programs').doc(offer.id).get();
+    const program = (progSnap.exists ? { id: progSnap.id, ...progSnap.data() } : MOCK_PROGRAMS.find((p) => p.id === offer.id)) as Program | undefined;
     const first = program ? dripDayFor(program, 1) : null;
     if (!program || !first) return NextResponse.json({ ok: false, reason: 'Not available' }, { status: 404 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { freePlanConfig, dripDayFor, dueDripDay, sessionSubject, completionLine, FREE_PLAN_DEFAULTS } from './freePlan';
+import { freePlanConfig, findOffer, offerCopy, dripDayFor, dueDripDay, sessionSubject, completionLine, FREE_PLAN_DEFAULTS } from './freePlan';
 import type { ProgramDay } from '@/types';
 
 const d = (label: string, isRest = false): ProgramDay => ({ label, isRest, exercises: [] });
@@ -69,5 +69,44 @@ describe('wording', () => {
   it('describes the free portion in weeks against the whole program', () => {
     expect(completionLine(7, 12)).toMatch(/^You have done a week of a 12-week program/);
     expect(completionLine(14, 13)).toMatch(/^You have done 2 weeks of a 13-week program/);
+  });
+});
+
+describe('freePlanConfig offers', () => {
+  it('reads the legacy single-program shape as one offer', () => {
+    const plan = freePlanConfig({ freePlan: { enabled: true, programId: 'a', programName: 'A', headline: 'H', subheadline: 'S' } });
+    expect(plan.enabled).toBe(true);
+    expect(plan.offers).toEqual([{ id: 'a', name: 'A', headline: 'H', subheadline: 'S' }]);
+    expect(plan.programId).toBe('a');
+    expect(plan.headline).toBe('H');
+  });
+
+  it('dedupes offers, drops blanks, and falls back to the first when the default is not on offer', () => {
+    const plan = freePlanConfig({ freePlan: { enabled: true, programId: 'zzz', offers: [{ id: 'a', name: 'A' }, { id: 'a', name: 'dup' }, { id: '', name: 'x' }, { id: 'b', name: 'B' }] } });
+    expect(plan.offers.map((o) => o.id)).toEqual(['a', 'b']);
+    expect(plan.programId).toBe('a');
+    expect(findOffer(plan, 'b')?.name).toBe('B');
+    expect(findOffer(plan, 'nope')).toBeNull();
+    expect(findOffer(plan, undefined)?.id).toBe('a');
+  });
+
+  it('is off with no offers even when enabled is set', () => {
+    const plan = freePlanConfig({ freePlan: { enabled: true, offers: [] } });
+    expect(plan.enabled).toBe(false);
+    expect(findOffer(plan, 'a')).toBeNull();
+  });
+});
+
+describe('offerCopy', () => {
+  const blank = { headline: '', subheadline: '' };
+  it('derives the noun from the goal and the length from the days', () => {
+    expect(offerCopy(blank, { name: 'Alpha Bulk', goal: 'hypertrophy' }, 7).headline).toBe('Seven days of real muscle-building. Free.');
+    expect(offerCopy(blank, { name: 'X', goal: 'strength' }, 14).headline).toBe('Two weeks of real strength work. Free.');
+    expect(offerCopy(blank, { name: 'X', goal: 'endurance', recommendedForGoals: ['military-prep'] }, 30).headline).toBe('Thirty days of real selection prep. Free.');
+    expect(offerCopy(blank, { name: 'Burn Ops', goal: 'weight-loss' }, 7).subheadline).toContain('straight from Burn Ops');
+    expect(offerCopy(blank, { name: 'X', goal: 'general' }, 30).subheadline).toContain('end of the month');
+  });
+  it('lets the admin copy win', () => {
+    expect(offerCopy({ headline: 'Mine', subheadline: 'Also mine' }, { name: 'X', goal: 'strength' }, 7)).toEqual({ headline: 'Mine', subheadline: 'Also mine' });
   });
 });

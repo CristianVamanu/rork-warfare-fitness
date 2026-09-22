@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, Check, Mail } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, Check, ChevronDown, Mail } from 'lucide-react';
 
 /**
  * The form half of /free-plan.
@@ -17,17 +18,20 @@ import { ArrowRight, Check, Mail } from 'lucide-react';
  * lands on the product, not a page that looks rented.
  */
 export function FreePlanClient({
-  headline, subheadline, days, program,
+  headline, subheadline, days, program, others,
 }: {
   headline: string;
   subheadline: string;
   days: number;
-  program: { name: string; description: string; weeks: number; daysPerWeek: number; level: string; imageUrl: string | null };
+  program: { id: string; name: string; description: string; weeks: number; daysPerWeek: number; level: string; imageUrl: string | null };
+  /** The other programs on offer, for the picker under the form. */
+  others: { id: string; name: string }[];
 }) {
   const [email, setEmail] = useState('');
   const [tips, setTips] = useState(false);
   const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [showOthers, setShowOthers] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,7 +44,7 @@ export function FreePlanClient({
       const res = await fetch('/api/public/free-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: addr, marketingOptIn: tips }),
+        body: JSON.stringify({ email: addr, marketingOptIn: tips, programId: program.id }),
       });
       if (res.status === 429) throw new Error('Too many tries — give it a few minutes.');
       const data = await res.json().catch(() => ({}));
@@ -110,6 +114,35 @@ export function FreePlanClient({
             {days} emails, one a day, then nothing unless you tick the box. Unsubscribe in any of them.
           </p>
         </form>
+      )}
+
+      {/* The other offers, kept small: one decision on this page, and this is not it. */}
+      {others.length > 0 && state !== 'done' && (
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={() => setShowOthers((v) => !v)}
+            aria-expanded={showOthers}
+            className="w-full text-[12px] text-text-tertiary hover:text-white inline-flex items-center justify-center gap-1.5 py-2"
+          >
+            Not the program you wanted? See the others
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showOthers ? 'rotate-180' : ''}`} />
+          </button>
+          {showOthers && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 wf-rise">
+              {others.map((o) => (
+                <Link
+                  key={o.id}
+                  href={`/free-plan/${o.id}`}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface px-4 py-3 text-sm font-semibold text-white hover:border-accent/50 transition-colors"
+                >
+                  <span className="truncate">{o.name}</span>
+                  <ArrowRight className="w-4 h-4 text-accent flex-shrink-0" />
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* What they are about to receive — the real program, not a mockup. */}
