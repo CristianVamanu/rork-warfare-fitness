@@ -2,14 +2,12 @@ import Link from 'next/link';
 import { Anchor, Mountain, Compass, Shield, Swords, Footprints, Waves, LifeBuoy, Dumbbell } from 'lucide-react';
 
 /**
- * A program card, matching the landing page's treatment exactly.
+ * A program card, matching the landing page and the free-plan page exactly.
  *
- * The image handling is the part that matters and the part I got wrong first
- * time: these covers are badge and emblem artwork, not photographs. The
- * landing page renders them `aspect-square object-contain` with padding for
- * that reason. Cropping them into a 16:9 `object-cover` strip — which is what
- * a photographic cover would want — slices the top and bottom off every badge
- * and looks broken, because it is.
+ * The artwork is square badge work, and it is shown as a square thumbnail
+ * in the corner rather than a full-width banner: a thumbnail the same size
+ * on every card is what keeps a row of cards the same height whatever the
+ * image, and it leaves the room for the three stat boxes underneath.
  */
 
 const PROGRAM_BADGE: Record<string, { icon: React.ElementType; color: string }> = {
@@ -55,109 +53,54 @@ export interface ProgramCardData {
  */
 export function ProgramCard({ p, wide = false }: { p: ProgramCardData; wide?: boolean }) {
   const badge = PROGRAM_BADGE[p.id];
+  const level = p.level.charAt(0).toUpperCase() + p.level.slice(1);
+  const stats: [string, string][] = [
+    ['Duration', `${p.weeks} weeks, ${p.weeks >= 8 ? 'phased' : 'one block'}`],
+    ['Sessions', `${p.daysPerWeek} a week, rest days kept`],
+    ['Total', `${p.weeks * p.daysPerWeek} workouts, ${level.toLowerCase()}`],
+  ];
 
-  if (wide) {
-    return (
-      <Link
-        href={`/programs/${p.slug}`}
-        className="group relative flex flex-col sm:flex-row h-full rounded-2xl border border-white/8 bg-surface overflow-hidden transition-all duration-300 hover:border-accent/40 hover:-translate-y-1 hover:shadow-[0_18px_50px_-12px_rgba(245,166,35,0.28)]"
-      >
-        <div className="relative w-full sm:w-44 lg:w-52 aspect-square shrink-0 bg-surface-elevated overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(245,166,35,0.13),transparent_65%)]" />
-          {p.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={p.imageUrl}
-              alt={p.name}
-              loading="lazy"
-              className="relative w-full h-full object-contain p-3 transition-transform duration-500 group-hover:scale-[1.06]"
-            />
-          ) : (
-            <div className="relative w-full h-full flex items-center justify-center">
-              <Dumbbell className="w-12 h-12 text-accent/30" />
-            </div>
-          )}
-          <span className="absolute top-2.5 left-2.5 px-2 py-1 rounded-lg bg-black/65 backdrop-blur-sm text-[10px] font-bold text-white uppercase tracking-wide">
-            {p.level}
-          </span>
-          {badge && (
-            <div className="absolute top-2.5 right-2.5 w-8 h-8 rounded-lg bg-black/65 backdrop-blur-sm flex items-center justify-center">
-              <badge.icon className={`w-4 h-4 ${badge.color}`} />
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col flex-1 p-5 sm:p-6 min-w-0">
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-accent">
-            {GOAL_LABEL[p.goal] ?? p.goal}
-          </span>
-          <h3 className="text-lg sm:text-xl font-black text-white mt-1.5 leading-snug group-hover:text-accent transition-colors">
-            {p.name}
-          </h3>
-          <p className="text-sm text-text-secondary mt-2.5 leading-relaxed line-clamp-3 flex-1">
-            {p.description}
-          </p>
-          <div className="flex items-center gap-3 mt-5 pt-3.5 border-t border-white/8 text-[11px] text-text-tertiary">
-            <span>{p.weeks}wk</span>
-            <span className="w-px h-3 bg-white/10" />
-            <span>{p.daysPerWeek}d/wk</span>
-            <span className="w-px h-3 bg-white/10" />
-            <span className="text-accent font-bold">{p.weeks * p.daysPerWeek} sessions</span>
-          </div>
-        </div>
-      </Link>
-    );
-  }
-
+  // One surface for both layouts — the free-plan card: ember wash, dot
+  // grid, goal eyebrow, square thumbnail in the corner, three equal stat
+  // boxes. `wide` only changes how much room the description gets.
   return (
     <Link
       href={`/programs/${p.slug}`}
-      className="group relative flex flex-col h-full rounded-2xl border border-white/8 bg-surface overflow-hidden transition-all duration-300 hover:border-accent/40 hover:-translate-y-1 hover:shadow-[0_18px_50px_-12px_rgba(245,166,35,0.28)]"
+      className="group relative overflow-hidden flex flex-col h-full rounded-2xl border border-white/10 bg-surface p-5 transition-all duration-300 hover:border-accent/40 hover:-translate-y-1 hover:shadow-[0_18px_50px_-12px_rgba(245,166,35,0.28)]"
     >
-      <div className="relative w-full aspect-square bg-surface-elevated shrink-0 overflow-hidden">
-        {/* A faint radial behind the artwork so a transparent PNG has depth
-            instead of floating on flat grey. */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(245,166,35,0.13),transparent_65%)]" />
-        {p.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={p.imageUrl}
-            alt={p.name}
-            loading="lazy"
-            className="relative w-full h-full object-contain p-3 transition-transform duration-500 group-hover:scale-[1.06]"
-          />
-        ) : (
-          <div className="relative w-full h-full flex items-center justify-center">
-            <Dumbbell className="w-12 h-12 text-accent/30" />
+      <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
+      <div aria-hidden className="wf-dots pointer-events-none absolute inset-0" />
+      <div className="relative flex flex-col flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="wf-readout text-[10px] font-bold text-accent">{GOAL_LABEL[p.goal] ?? p.goal}</span>
+          {badge && (
+            <span className="w-7 h-7 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center flex-shrink-0">
+              <badge.icon className={`w-3.5 h-3.5 ${badge.color}`} />
+            </span>
+          )}
+        </div>
+        <div className="flex items-start gap-4 mt-2">
+          <div className={`${wide ? 'w-20 h-20' : 'w-16 h-16'} rounded-xl border border-white/10 bg-surface-elevated overflow-hidden flex-shrink-0 flex items-center justify-center`}>
+            {p.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.06]" />
+            ) : (
+              <Dumbbell className="w-6 h-6 text-accent/40" />
+            )}
           </div>
-        )}
-
-        <span className="absolute top-2.5 left-2.5 px-2 py-1 rounded-lg bg-black/65 backdrop-blur-sm text-[10px] font-bold text-white uppercase tracking-wide">
-          {p.level}
-        </span>
-        {badge && (
-          <div className="absolute top-2.5 right-2.5 w-8 h-8 rounded-lg bg-black/65 backdrop-blur-sm flex items-center justify-center">
-            <badge.icon className={`w-4 h-4 ${badge.color}`} />
+          <div className="min-w-0">
+            <h3 className={`${wide ? 'text-xl' : 'text-lg'} font-black text-white leading-tight group-hover:text-accent transition-colors`}>{p.name}</h3>
+            <p className="text-[12px] text-text-tertiary mt-1">{p.weeks} weeks · {p.daysPerWeek} days a week · {level}</p>
           </div>
-        )}
-      </div>
-
-      <div className="flex flex-col flex-1 p-5">
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-accent">
-          {GOAL_LABEL[p.goal] ?? p.goal}
-        </span>
-        <h3 className="text-base font-black text-white mt-1.5 leading-snug group-hover:text-accent transition-colors">
-          {p.name}
-        </h3>
-        <p className="text-xs text-text-secondary mt-2 line-clamp-3 leading-relaxed flex-1">
-          {p.description}
-        </p>
-        <div className="flex items-center gap-3 mt-4 pt-3.5 border-t border-white/8 text-[11px] text-text-tertiary">
-          <span>{p.weeks}wk</span>
-          <span className="w-px h-3 bg-white/10" />
-          <span>{p.daysPerWeek}d/wk</span>
-          <span className="w-px h-3 bg-white/10" />
-          <span className="text-accent font-bold">{p.weeks * p.daysPerWeek} sessions</span>
+        </div>
+        <p className={`text-[13px] text-text-secondary leading-relaxed mt-3 flex-1 ${wide ? 'line-clamp-6' : 'line-clamp-4'}`}>{p.description}</p>
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {stats.map(([t, sub]) => (
+            <div key={t} className="rounded-xl border border-white/10 bg-black/25 p-3">
+              <p className="text-[12px] font-bold text-white leading-tight">{t}</p>
+              <p className="text-[11px] text-text-tertiary leading-snug mt-1">{sub}</p>
+            </div>
+          ))}
         </div>
       </div>
     </Link>

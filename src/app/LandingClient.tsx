@@ -1127,23 +1127,35 @@ export default function LandingPage({
       <Modal open={!!selectedProgram} onClose={() => setSelectedProgram(null)} title={selectedProgram?.name ?? ''}>
         {selectedProgram && (
           <div className="space-y-4">
-            {selectedProgram.imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={selectedProgram.imageUrl} alt={selectedProgram.name} className="w-full aspect-square object-contain bg-black/20 rounded-xl p-3" />
-            )}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2 py-1 rounded-lg bg-white/8 text-[10px] font-bold text-white uppercase tracking-wide">
-                {selectedProgram.level}
-              </span>
-              <span className="px-2 py-1 rounded-lg bg-white/8 text-[10px] font-bold text-text-secondary uppercase tracking-wide">
-                {GOAL_LABEL[selectedProgram.goal] ?? selectedProgram.goal}
-              </span>
+            <div className="flex items-start gap-4">
+              <div className="w-20 h-20 rounded-xl border border-white/10 bg-surface-elevated overflow-hidden flex-shrink-0 flex items-center justify-center">
+                {selectedProgram.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={selectedProgram.imageUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <Dumbbell className="w-7 h-7 text-accent/40" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="wf-readout text-[10px] font-bold text-accent">{GOAL_LABEL[selectedProgram.goal] ?? selectedProgram.goal}</p>
+                <p className="text-[12px] text-text-tertiary mt-1">
+                  {selectedProgram.weeks} weeks · {selectedProgram.daysPerWeek} days a week · {selectedProgram.level.charAt(0).toUpperCase() + selectedProgram.level.slice(1)}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                ['Duration', `${selectedProgram.weeks} weeks`],
+                ['Sessions', `${selectedProgram.daysPerWeek} a week`],
+                ['Total', `${selectedProgram.weeks * selectedProgram.daysPerWeek} workouts`],
+              ].map(([t, sub]) => (
+                <div key={t} className="rounded-xl border border-white/10 bg-black/25 p-3">
+                  <p className="text-[12px] font-bold text-white leading-tight">{t}</p>
+                  <p className="text-[11px] text-text-tertiary leading-snug mt-1">{sub}</p>
+                </div>
+              ))}
             </div>
             <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">{selectedProgram.description}</p>
-            <div className="flex items-center gap-4 text-xs text-text-tertiary">
-              <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {selectedProgram.weeks} weeks</span>
-              <span className="flex items-center gap-1.5"><BarChart3 className="w-3.5 h-3.5" /> {selectedProgram.daysPerWeek} days/week</span>
-            </div>
             <Link href={`/onboarding?programId=${selectedProgram.id}`} className="block pt-2">
               <Button fullWidth>Enroll Now <ArrowRight className="w-4 h-4" /></Button>
             </Link>

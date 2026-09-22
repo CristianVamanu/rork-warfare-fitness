@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,16 @@ export function Modal({ open, onClose, title, children, className, footer, dismi
   // reported live. Read the latest onClose through a ref instead.
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // Rendered into document.body, not where the caller sits. `position:
+  // fixed` is measured against the nearest ancestor with a transform or
+  // filter, and the landing page has those (reveal animations, the
+  // backdrop). Opened from inside one, the panel was fixed to that
+  // ancestor instead of the screen: its header, with the close button,
+  // started above the visible area and only appeared once the page was
+  // pinched out. The body has no transform, so from there fixed means
+  // the viewport, which is what a dialog needs.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (open) {
@@ -106,7 +117,8 @@ export function Modal({ open, onClose, title, children, className, footer, dismi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  return (
+  if (!mounted) return null;
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -177,6 +189,7 @@ export function Modal({ open, onClose, title, children, className, footer, dismi
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
