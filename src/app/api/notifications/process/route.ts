@@ -13,7 +13,9 @@ import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
-import { sendEmail, trialEndingEmailHtml, checkoutRecoveryEmailHtml } from '@/lib/email';
+import { sendEmail, trialEndingEmailHtml, checkoutRecoveryEmailHtml, marketingEmailHtml } from '@/lib/email';
+import { SEQUENCES, sequenceToggles, dueStep, daysSince } from '@/lib/emailSequences';
+import { unsubscribeUrl, unsubscribeSecret } from '@/lib/emailUnsubscribe';
 import { checkoutRecoveryStep, checkoutRecoverySubject } from '@/lib/checkoutRecovery';
 import { checkoutPagePath, parseCheckoutParams } from '@/lib/checkoutMode';
 import { timingSafeEqualString } from '@/lib/crypto';
@@ -137,6 +139,34 @@ export async function POST(req: NextRequest) {
     // email header gets the real logo for no extra read.
     const brand = { name: appName, logoUrl: (systemCfgSnap.data()?.logoUrl as string) || null };
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
+
+    // Marketing sequences. Each is switchable by the admin, and none can
+    // send unless an unsubscribe link can be signed — no secret, no
+    // marketing mail, by design. See lib/emailSequences.
+    const seqToggles = sequenceToggles(systemCfgSnap.data() as { emailSequences?: Record<string, boolean> } | undefined);
+    const unsubSecret = unsubscribeSecret();
+    const toMs = (v: unknown): number | null => {
+      const t = v as { toMillis?: () => number } | undefined;
+      return t && typeof t.toMillis === 'function' ? t.toMillis() : null;
+    };
+    /** One funnel email to a member, stamped so it never repeats. */
+    const sendSequenceStep = async (
+      u: Record<string, unknown>, seqKey: 'onboardingAbandon' | 'winBack', stepKey: string,
+      step: { subject: string; heading: string; paragraphs: string[]; cta: { label: string; path: string } },
+      extraStamp: Record<string, unknown> = {},
+    ) => {
+      const email = u.email as string | undefined;
+      if (!email || !unsubSecret) return;
+      const unsub = unsubscribeUrl(appUrl, unsubSecret, email, 'user');
+      const ok = await sendEmail({
+        to: email, subject: step.subject, unsubscribeUrl: unsub,
+        html: marketingEmailHtml({ brand, appUrl, heading: step.heading, paragraphs: step.paragraphs, cta: step.cta, unsubscribeUrl: unsub, name: (u.displayName as string | undefined)?.split(' ')[0] }),
+      });
+      if (ok) {
+        await db.collection('users').doc(u.id as string).update({ [`emailSeq.${seqKey}.${stepKey}`]: FieldValue.serverTimestamp(), ...extraStamp });
+        sent.push(`${seqKey}:${stepKey}:${u.id}`);
+      }
+    };
 
     // Users are streamed in pages rather than loaded all at once.
     //
@@ -532,6 +562,42 @@ export async function POST(req: NextRequest) {
             }
           }
         }
+
+        // ── Funnel: account with no first workout / member gone quiet ──────
+        // Both gated on marketing consent (missing = allowed; any unsubscribe
+        // link or the Settings toggle sets it false) and on the admin switch.
+        const marketingOk = (u as { emailPrefs?: { marketing?: boolean } }).emailPrefs?.marketing !== false;
+        if (marketingOk && unsubSecret && u.email) {
+          const seqState = ((u as { emailSeq?: Record<string, Record<string, unknown>> }).emailSeq) ?? {};
+          const totalWorkouts = Number((u as { statsCache?: { totalWorkouts?: number } }).statsCache?.totalWorkouts ?? 0);
+          const createdMs = toMs(u.createdAt);
+          const lastActiveMs = toMs(u.lastActive) ?? createdMs;
+
+          if (seqToggles.onboardingAbandon && totalWorkouts === 0 && createdMs !== null) {
+            const step = dueStep(SEQUENCES.onboardingAbandon, daysSince(createdMs, Date.now()), seqState.onboardingAbandon);
+            if (step) await sendSequenceStep(u, 'onboardingAbandon', step.key, step);
+          }
+
+          // Win-back is anchored to the last activity. When they come back,
+          // lastActive moves, the anchor no longer matches, and the stamps
+          // reset — so a member who lapses twice is nudged gently twice,
+          // not silently never again.
+          const isMember = (u as { membership?: { status?: string } }).membership?.status === 'active';
+          if (seqToggles.winBack && isMember && totalWorkouts > 0 && lastActiveMs !== null) {
+            const wb = (seqState.winBack ?? {}) as Record<string, unknown> & { anchor?: number };
+            const fresh = wb.anchor === lastActiveMs ? wb : {};
+            const step = dueStep(SEQUENCES.winBack, daysSince(lastActiveMs, Date.now()), fresh);
+            if (step) {
+              // A reset replaces the whole map first, in its own write: one
+              // update() may not touch both `emailSeq.winBack` and a child
+              // path beneath it. The stamp then lands as a sibling write.
+              if (wb.anchor !== lastActiveMs) {
+                await db.collection('users').doc(u.id as string).update({ 'emailSeq.winBack': { anchor: lastActiveMs } });
+              }
+              await sendSequenceStep(u, 'winBack', step.key, step);
+            }
+          }
+        }
       } catch (err) {
         // Non-fatal per-user — one bad doc/user shouldn't abort the whole batch
         usersFailed++;
@@ -539,6 +605,42 @@ export async function POST(req: NextRequest) {
         console.error(`[notifications/process] Failed for user ${u.id}:`, err);
       }
       });
+    }
+
+    // ── Funnel: standards-test leads who ticked "send me tips" ─────────────
+    // Leads are not users: consent lives on the lead row (marketingOptIn,
+    // with a timestamp, because "prove they opted in" is the whole question
+    // if it is ever asked) and any unsubscribe link flips it false.
+    if (seqToggles.leadTips && unsubSecret) {
+      try {
+        const leads = await db.collection('landingLeads').where('marketingOptIn', '==', true).limit(500).get();
+        for (const d of leads.docs) {
+          const lead = d.data() as { email?: string; source?: string; createdAt?: unknown; emailSeq?: Record<string, unknown> };
+          if (lead.source !== 'standards' || !lead.email) continue;
+          const createdMs = toMs(lead.createdAt);
+          if (createdMs === null) continue;
+          const step = dueStep(SEQUENCES.leadTips, daysSince(createdMs, Date.now()), lead.emailSeq);
+          if (!step) continue;
+          // Converted since? Then the member sequences own them; stop here
+          // and stamp the whole sequence done so this lookup never repeats.
+          const asUser = await db.collection('users').where('email', '==', lead.email).limit(1).get();
+          if (!asUser.empty) {
+            await d.ref.update({ emailSeq: Object.fromEntries(SEQUENCES.leadTips.steps.map((s) => [s.key, 'converted'])) });
+            continue;
+          }
+          const unsub = unsubscribeUrl(appUrl, unsubSecret, lead.email, 'lead');
+          const ok = await sendEmail({
+            to: lead.email, subject: step.subject, unsubscribeUrl: unsub,
+            html: marketingEmailHtml({ brand, appUrl, heading: step.heading, paragraphs: step.paragraphs, cta: step.cta, unsubscribeUrl: unsub }),
+          });
+          if (ok) {
+            await d.ref.update({ [`emailSeq.${step.key}`]: FieldValue.serverTimestamp() });
+            sent.push(`leadTips:${step.key}:${d.id}`);
+          }
+        }
+      } catch (err) {
+        console.error('[notifications/process] lead sequence failed:', err instanceof Error ? err.message : err);
+      }
     }
 
     // A run where most users errored is a broken system, not a quiet hour, and

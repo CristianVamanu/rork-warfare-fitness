@@ -55,6 +55,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
+import { SEQUENCES, SEQUENCE_DEFAULTS, sequenceToggles } from '@/lib/emailSequences';
 import toast from 'react-hot-toast';
 import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, SupportTicket, SupportTicketStatus } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
@@ -425,7 +426,7 @@ function AdminPageInner() {
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
   const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
   const [orgAiUsage, setOrgAiUsage] = useState<{ used: number; limit: number; byFeature: Record<string, number>; date: string } | null>(null);
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, aiOrgDailyLimit: DEFAULT_ORG_DAILY_LIMIT });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, emailSequences: { ...SEQUENCE_DEFAULTS }, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, aiOrgDailyLimit: DEFAULT_ORG_DAILY_LIMIT });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
@@ -631,6 +632,7 @@ function AdminPageInner() {
           logoUrl: cfg.logoUrl || '',
           faviconUrl: cfg.faviconUrl || '',
           pwaInstallBannerEnabled: cfg.pwaInstallBannerEnabled !== false as unknown,
+          emailSequences: sequenceToggles(cfg as { emailSequences?: Partial<typeof SEQUENCE_DEFAULTS> }),
           vapidPublicKey: cfg.vapidPublicKey || '',
           barcodeScanDailyLimit: Number(cfg.barcodeScanDailyLimit) || 20,
           foodAnalysisDailyLimit: Number(cfg.foodAnalysisDailyLimit) || 20,
@@ -5110,6 +5112,25 @@ function AdminPageInner() {
                   <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.pwaInstallBannerEnabled ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
+              {/* The email funnel, one switch per sequence. Copy and timing
+                  are fixed in lib/emailSequences; this is on/off. Every
+                  email carries a one-click unsubscribe, and nothing sends
+                  to anyone who has used one. */}
+              {(Object.values(SEQUENCES)).map((seq) => (
+                <div key={seq.key} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white">Email: {seq.label}</p>
+                    <p className="text-xs text-text-secondary mt-0.5">{seq.description} Days {seq.steps.map((s) => s.day).join(', ')}.</p>
+                  </div>
+                  <button
+                    onClick={() => setSettingsForm(s => ({ ...s, emailSequences: { ...s.emailSequences, [seq.key]: !s.emailSequences[seq.key] } }))}
+                    aria-pressed={settingsForm.emailSequences[seq.key]}
+                    className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${settingsForm.emailSequences[seq.key] ? 'bg-accent' : 'bg-surface-elevated'}`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.emailSequences[seq.key] ? 'left-6' : 'left-1'}`} />
+                  </button>
+                </div>
+              ))}
               {/* Three columns only once there's room for them. On a phone
                   these were three ~100px cells whose labels wrapped to
                   different line counts ("Barcode Scans / Day" over two lines,

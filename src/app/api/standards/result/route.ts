@@ -25,6 +25,7 @@ import { getSystemConfig } from '@/lib/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { rateLimit, clientIp } from '@/lib/rateLimit';
 import { standardFor } from '@/lib/ptStandards';
+import { unsubscribeUrl, unsubscribeSecret } from '@/lib/emailUnsubscribe';
 
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_PER_WINDOW = 5;
@@ -98,13 +99,19 @@ export async function POST(req: NextRequest) {
         ? `You're ${weakest.yours} against ${weakest.target} on ${weakest.label.toLowerCase()}`
         : `Your ${standard.label} result`;
 
+    // The checkbox promised "stop them in one click". This is that click —
+    // present only when they ticked it, and only when a link can be signed.
+    const secret = unsubscribeSecret();
+    const unsub = body.marketingOptIn === true && secret ? unsubscribeUrl(appUrl, secret, email, 'lead') : undefined;
     await sendEmail({
       to: email,
       subject,
       html: standardsResultEmailHtml({
         standardTitle: standard.resultTitle,
         results, weakest, passedAll, brand, appUrl,
+        unsubscribeUrl: unsub,
       }),
+      unsubscribeUrl: unsub,
     });
 
     return NextResponse.json({ ok: true });

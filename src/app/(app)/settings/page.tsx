@@ -398,6 +398,37 @@ export default function SettingsPage() {
           </div>
         ) : null}
 
+        {/* Marketing email — the member's own switch, beside the push one.
+            Missing means allowed (they consented at signup); any unsubscribe
+            link in any email sets the same flag false. */}
+        <div className="wf-rise">
+          <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Email</h2>
+          <Card className="flex items-center gap-3 px-4 py-3.5">
+            <div className="p-2 bg-surface-elevated rounded-lg">
+              <Bell className={`w-4 h-4 ${profile?.emailPrefs?.marketing !== false ? 'text-accent' : 'text-text-secondary'}`} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-white">Training tips &amp; reminders</p>
+              <p className="text-xs text-text-secondary">Receipts and account notices always arrive. This is just the rest.</p>
+            </div>
+            <button
+              onClick={async () => {
+                if (!user) return;
+                const next = profile?.emailPrefs?.marketing === false;
+                try {
+                  await updateUserDoc(user.uid, { 'emailPrefs.marketing': next, 'emailPrefs.updatedAt': new Date() } as Record<string, unknown>);
+                  await refreshProfile();
+                  toast.success(next ? 'Email reminders on' : 'Email reminders off');
+                } catch { toast.error('Could not update'); }
+              }}
+              aria-pressed={profile?.emailPrefs?.marketing !== false}
+              className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${profile?.emailPrefs?.marketing !== false ? 'bg-accent' : 'bg-surface-elevated'}`}
+            >
+              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${profile?.emailPrefs?.marketing !== false ? 'left-6' : 'left-1'}`} />
+            </button>
+          </Card>
+        </div>
+
         {/* Privacy & Data — self-service GDPR export/delete */}
         <div className="wf-rise">
           <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Privacy &amp; Data</h2>

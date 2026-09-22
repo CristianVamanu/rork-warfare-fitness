@@ -75,7 +75,18 @@ function isRetryable(err: unknown): boolean {
   return status === undefined;
 }
 
-export async function sendEmail(opts: { to: string; subject: string; html: string }): Promise<boolean> {
+export async function sendEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  /**
+   * Present on every MARKETING email. Adds the List-Unsubscribe headers
+   * (RFC 2369 / 8058) so Gmail and Apple Mail show their own one-click
+   * Unsubscribe next to the sender — the difference between an unsubscribe
+   * and a spam report. Transactional mail leaves it out.
+   */
+  unsubscribeUrl?: string;
+}): Promise<boolean> {
   if (!opts.to) return false;
   const client = await getResendClient();
   if (!client) {
@@ -92,7 +103,15 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
   let lastErr: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      await client.emails.send({ from, to: opts.to, subject: opts.subject, html: opts.html });
+      await client.emails.send({
+        from, to: opts.to, subject: opts.subject, html: opts.html,
+        ...(opts.unsubscribeUrl ? {
+          headers: {
+            'List-Unsubscribe': `<${opts.unsubscribeUrl}>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          },
+        } : {}),
+      });
       return true;
     } catch (err) {
       lastErr = err;
@@ -696,4 +715,32 @@ export function standardsResultEmailHtml(opts: {
       </p>
     ` : ''}
   `, preheader);
+}
+
+/**
+ * The one template every funnel email uses: a heading, a few short
+ * paragraphs, one button, and an unsubscribe line that is always there.
+ * Plain on purpose — these go to people who did not convert, and hype is
+ * what they already walked away from.
+ */
+export function marketingEmailHtml(opts: {
+  brand: EmailBrand;
+  appUrl: string;
+  heading: string;
+  paragraphs: string[];
+  cta: { label: string; path: string };
+  unsubscribeUrl: string;
+  name?: string;
+}): string {
+  const { brand, appUrl, heading, paragraphs, cta, unsubscribeUrl, name } = opts;
+  const body = `
+    <h1 style="margin:0 0 14px;font-size:22px;line-height:1.25;color:#111111;">${escapeHtml(heading)}</h1>
+    ${name ? `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">${escapeHtml(name)},</p>` : ''}
+    ${paragraphs.map((p) => `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">${escapeHtml(p)}</p>`).join('')}
+    ${button(cta.label, `${appUrl.replace(/\/$/, '')}${cta.path}`)}
+    <p style="margin:28px 0 0;font-size:12px;line-height:1.5;color:#888888;">
+      You are getting this because you asked for it. Changed your mind?
+      <a href="${escapeHtml(unsubscribeUrl)}" style="color:#888888;">Unsubscribe in one click</a>.
+    </p>`;
+  return shell(brand, body, heading);
 }

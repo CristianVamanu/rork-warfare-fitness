@@ -222,6 +222,10 @@ export interface UserProfile {
   trainerId?: string;        // uid of the owning trainer / tenant
   createdAt: unknown;
   lastActive: unknown;
+  /** Marketing consent. Missing = allowed; the member turns it off in Settings or via any unsubscribe link. */
+  emailPrefs?: { marketing?: boolean; updatedAt?: unknown };
+  /** Which funnel steps have been sent, so none sends twice. */
+  emailSeq?: { onboardingAbandon?: Record<string, unknown>; winBack?: Record<string, unknown> & { anchor?: number } };
   lastLoginAt?: unknown;
   goals?: UserGoals;
   /** Program changes spent against PROGRAM_SWITCH_ALLOWANCE. */
@@ -360,6 +364,8 @@ export interface SystemConfig {
   videoGreetingUrl?: string;
   logoUrl?: string;
   pwaInstallBannerEnabled?: boolean; // admin can disable the install banner
+  /** Marketing email sequences, each switchable by the admin. Missing = on. */
+  emailSequences?: { leadTips?: boolean; onboardingAbandon?: boolean; winBack?: boolean };
   vapidPublicKey?: string; // stored in Firestore so client can subscribe
   landingPage?: LandingPageConfig;
   barcodeScanDailyLimit?: number; // default 20 if unset
