@@ -142,6 +142,19 @@ export function InstallAppStrip() {
             />
           )}
 
+          {platform === 'ios-other' && (
+            <Steps
+              intro={`On iPhone the reliable way to install is from Safari. ${inAppName ?? 'This browser'} often hides the option or does not have it.`}
+              steps={[
+                { icon: Copy, text: <>Copy the link below</> },
+                { icon: ExternalLink, text: <>Open <b className="text-white">Safari</b> and paste it in the address bar</> },
+                { icon: Share, text: <>Tap <b className="text-white">Share</b>, then <b className="text-white">Add to Home Screen</b>, then <b className="text-white">Add</b></> },
+              ]}
+              action={<button type="button" onClick={copyLink} className="w-full min-h-[48px] rounded-xl bg-gradient-accent text-black font-bold text-sm flex items-center justify-center gap-2"><Copy className="w-4 h-4" /> Copy the link</button>}
+              footnote={`On newer iPhones ${inAppName ?? 'this browser'} can also do it: tap the Share icon in the address bar and look for Add to Home Screen. If it is not there, use Safari.`}
+            />
+          )}
+
           {platform === 'ios' && (
             <Steps
               intro="On iPhone and iPad, in Safari:"
@@ -150,7 +163,6 @@ export function InstallAppStrip() {
                 { icon: SquarePlus, text: <>Scroll down and tap <b className="text-white">Add to Home Screen</b></> },
                 { icon: Check, text: <>Tap <b className="text-white">Add</b> in the top corner, then open it from your home screen</> },
               ]}
-              footnote="Using Chrome on iPhone? The Share button is at the top right of the address bar; the rest is the same."
             />
           )}
 

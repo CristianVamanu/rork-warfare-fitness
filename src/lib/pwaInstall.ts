@@ -16,7 +16,7 @@ export interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-export type InstallPlatform = 'installed' | 'in-app' | 'ios' | 'android' | 'desktop';
+export type InstallPlatform = 'installed' | 'in-app' | 'ios' | 'ios-other' | 'android' | 'desktop';
 
 let deferred: BeforeInstallPromptEvent | null = null;
 let installedNow = false;
@@ -94,7 +94,16 @@ export function detectPlatform(): { platform: InstallPlatform; inAppName: string
   if (isStandalone()) return { platform: 'installed', inAppName: null };
   const inApp = detectInAppBrowser(navigator.userAgent);
   if (inApp) return { platform: 'in-app', inAppName: inApp };
-  if (detectIos()) return { platform: 'ios', inAppName: null };
+  if (detectIos()) {
+    // Chrome, Firefox and Edge on iPhone. Newer versions can add to the home
+    // screen from their Share menu, but it is hidden and older iOS cannot,
+    // so these visitors are sent to Safari, which always works.
+    const other = /CriOS/i.test(navigator.userAgent) ? 'Chrome'
+      : /FxiOS/i.test(navigator.userAgent) ? 'Firefox'
+      : /EdgiOS/i.test(navigator.userAgent) ? 'Edge' : null;
+    if (other) return { platform: 'ios-other', inAppName: other };
+    return { platform: 'ios', inAppName: null };
+  }
   if (/android/i.test(navigator.userAgent)) return { platform: 'android', inAppName: null };
   return { platform: 'desktop', inAppName: null };
 }
