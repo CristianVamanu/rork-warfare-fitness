@@ -35,6 +35,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const r = await runBroadcasts({ db, brand, appUrl, unsubSecret, budgetMs: 75_000, onlyId: id });
+    if (r.reason === 'not-found') return NextResponse.json({ error: 'That broadcast no longer exists' }, { status: 404 });
+    if (r.reason === 'already-done') return NextResponse.json({ error: 'That broadcast has already been sent' }, { status: 409 });
+    if (r.reason === 'busy') return NextResponse.json({ error: 'It is already sending. Check back in a minute.' }, { status: 409 });
     return NextResponse.json({ ok: true, sent: r.sent, finished: r.finished });
   } catch (err) {
     console.error('[admin/broadcast/send-now]', err);

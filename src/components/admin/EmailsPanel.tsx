@@ -451,12 +451,12 @@ function BroadcastCard() {
   const [ctaPath, setCtaPath] = useState('');
   const [confirm, setConfirm] = useState(false);
   const [sending, setSending] = useState(false);
-  const [past, setPast] = useState<{ id: string; subject: string; audience: string; status: string; sentCount: number }[]>([]);
+  const [past, setPast] = useState<{ id: string; subject: string; audience: string; status: string; sentCount: number; failedCount?: number }[]>([]);
 
   const loadPast = useCallback(async () => {
     try {
       const snap = await getDocs(query(collection(db, 'broadcasts'), orderBy('createdAt', 'desc'), limit(8)));
-      setPast(snap.docs.map((d) => ({ id: d.id, ...(d.data() as { subject: string; audience: string; status: string; sentCount: number }) })));
+      setPast(snap.docs.map((d) => ({ id: d.id, ...(d.data() as { subject: string; audience: string; status: string; sentCount: number; failedCount?: number }) })));
     } catch { /* first use: nothing yet */ }
   }, []);
   useEffect(() => { loadPast(); }, [loadPast]);
@@ -547,7 +547,7 @@ function BroadcastCard() {
             <div key={p.id} className="flex items-center justify-between gap-3 text-xs">
               <span className="text-white truncate">{p.subject}</span>
               <span className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-text-tertiary tabular-nums">{AUDIENCE_LABELS[p.audience as BroadcastAudience] ?? p.audience} · {p.status} · {p.sentCount ?? 0} sent</span>
+                <span className="text-text-tertiary tabular-nums">{AUDIENCE_LABELS[p.audience as BroadcastAudience] ?? p.audience} · {p.status} · {p.sentCount ?? 0} sent{(p.failedCount ?? 0) > 0 ? <span className="text-red-400"> · {p.failedCount} failed</span> : null}</span>
                 {(p.status === 'queued' || p.status === 'sending') && (
                   <button type="button" onClick={() => sendNow(p.id)} disabled={kicking === p.id}
                     className="text-[11px] font-semibold text-accent hover:brightness-110 disabled:opacity-50">

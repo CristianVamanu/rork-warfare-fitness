@@ -144,6 +144,9 @@ export async function GET(req: NextRequest) {
     }
     if (snap.size < 200) done = true;
   }
-  const nextAfter = hasMore ? pageEndId : null;
+  // hasMore is the normal signal. If the read guard ran out before the end
+  // of the collection was seen, hand back a cursor anyway so a very large
+  // filtered list keeps paging instead of quietly ending here.
+  const nextAfter = hasMore ? pageEndId : (done ? null : (pageEndId ?? last?.id ?? null));
   return NextResponse.json({ items, nextAfter });
 }
