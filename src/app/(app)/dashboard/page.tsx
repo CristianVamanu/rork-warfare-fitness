@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
+import { InstallAppStrip } from '@/components/app/InstallAppStrip';
 import { motion } from 'framer-motion';
 import { Moon, Flame, Crosshair, Wind, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, ClipboardCheck, Droplets, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -349,6 +350,8 @@ export default function DashboardPage() {
       <div className="relative">
       <Header />
       <div className="px-4 py-4 space-y-3.5">
+        {/* Browser-only: disappears once opened from the home screen. */}
+        <InstallAppStrip />
         {/* Streak Urgency Banner */}
         {streakAtRisk && (
           <div className="flex items-center gap-3 p-3 bg-amber-400/10 border border-amber-400/30 rounded-2xl wf-rise">
