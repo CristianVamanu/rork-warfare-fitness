@@ -691,6 +691,11 @@ export async function getUserWorkouts(userId: string, limitCount = 10): Promise<
 }
 
 async function fetchUserWorkouts(userId: string, limitCount: number) {
+  // A fetch for someone who is no longer the signed-in user can only be
+  // refused: the token is gone. It happens on sign-out, when a dashboard
+  // effect fires with the previous uid, and it was logging a denied query
+  // plus a second denied legacy query on every logout. Nothing to fetch.
+  if (auth.currentUser?.uid !== userId) return [];
   // 1. Try events (primary)
   try {
     const snap = await safeGetEvents(userId, 'WORKOUT_COMPLETED', undefined, undefined, limitCount);
