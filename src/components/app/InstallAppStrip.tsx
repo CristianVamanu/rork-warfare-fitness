@@ -148,7 +148,7 @@ export function InstallAppStrip() {
               steps={[
                 { icon: Copy, text: <>Copy the link below</> },
                 { icon: ExternalLink, text: <>Open <b className="text-white">Safari</b> and paste it in the address bar</> },
-                { icon: Share, text: <>Tap <b className="text-white">Share</b>, then <b className="text-white">Add to Home Screen</b>, then <b className="text-white">Add</b></> },
+                { icon: Share, text: <>Tap <b className="text-white">Share</b>, then <b className="text-white">Add to Home Screen</b>. Keep <b className="text-white">Open as Web App</b> on, then tap <b className="text-white">Add</b></> },
               ]}
               action={<button type="button" onClick={copyLink} className="w-full min-h-[48px] rounded-xl bg-gradient-accent text-black font-bold text-sm flex items-center justify-center gap-2"><Copy className="w-4 h-4" /> Copy the link</button>}
               footnote={`On newer iPhones ${inAppName ?? 'this browser'} can also do it: tap the Share icon in the address bar and look for Add to Home Screen. If it is not there, use Safari.`}
@@ -161,7 +161,7 @@ export function InstallAppStrip() {
               steps={[
                 { icon: Share, text: <>Tap <b className="text-white">Share</b>, the square with the arrow, at the bottom of the screen</> },
                 { icon: SquarePlus, text: <>Scroll down and tap <b className="text-white">Add to Home Screen</b></> },
-                { icon: Check, text: <>Tap <b className="text-white">Add</b> in the top corner, then open it from your home screen</> },
+                { icon: Check, text: <>Check <b className="text-white">Open as Web App</b> is switched on, tap <b className="text-white">Add</b>, then open it from your home screen</> },
               ]}
             />
           )}
