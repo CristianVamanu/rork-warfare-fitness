@@ -50,9 +50,15 @@ export async function generateMetadata(): Promise<Metadata> {
     // No explicit `manifest` field — Next's file convention auto-serves
     // src/app/manifest.ts at /manifest.webmanifest and links it for us.
     appleWebApp: {
+      capable: true,
       statusBarStyle: 'black-translucent',
       title: name,
     },
+    // Next renders `capable` as the standard mobile-web-app-capable tag
+    // only. Safari on iPhone still reads the Apple-prefixed one to decide
+    // whether a home-screen icon opens full screen or as a browser view
+    // with an address bar and a close button. Emit both.
+    other: { 'apple-mobile-web-app-capable': 'yes' },
     // A dedicated favicon (small, square — admin-uploaded separately from
     // the main logo, which is often a large banner-style image that turns
     // into an unrecognizable blob shrunk to 16x16px) is preferred for the
