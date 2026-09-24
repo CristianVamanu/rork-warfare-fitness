@@ -433,7 +433,7 @@ function AdminPageInner() {
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
   const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
   const [orgAiUsage, setOrgAiUsage] = useState<{ used: number; limit: number; byFeature: Record<string, number>; date: string } | null>(null);
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, emailSequences: { ...SEQUENCE_DEFAULTS }, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, aiOrgDailyLimit: DEFAULT_ORG_DAILY_LIMIT, onboardingCopy: { whyPrice: '', offerStack: [] as { title: string; body: string }[] } });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, emailSequences: { ...SEQUENCE_DEFAULTS }, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, communityUploadsDailyLimit: 20, aiOrgDailyLimit: DEFAULT_ORG_DAILY_LIMIT, onboardingCopy: { whyPrice: '', offerStack: [] as { title: string; body: string }[] } });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
@@ -651,6 +651,7 @@ function AdminPageInner() {
           // default applies, so that is what the field should say.
           aiOrgDailyLimit: Number(cfg.aiOrgDailyLimit) || DEFAULT_ORG_DAILY_LIMIT,
           mealIdeasDailyLimit: Number(cfg.mealIdeasDailyLimit) || 15,
+          communityUploadsDailyLimit: Number(cfg.communityUploadsDailyLimit) || 20,
           // Blank means "use the built-in copy"; only the admin's own words are stored.
           onboardingCopy: (() => {
             const oc = (c as { onboardingCopy?: { whyPrice?: unknown; offerStack?: unknown } }).onboardingCopy;
@@ -5268,7 +5269,7 @@ function AdminPageInner() {
                   inputs sitting at three different heights. items-end keeps
                   the inputs on one baseline at sm+ even if a label still
                   wraps at some width. */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
                 <div>
                   <label className="text-xs text-text-secondary mb-1 block">Barcode Scans / Day</label>
                   <input
@@ -5299,8 +5300,18 @@ function AdminPageInner() {
                     className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
                   />
                 </div>
+                <div>
+                  <label className="text-xs text-text-secondary mb-1 block">Community Uploads / Day</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={settingsForm.communityUploadsDailyLimit}
+                    onChange={e => setSettingsForm(s => ({ ...s, communityUploadsDailyLimit: parseInt(e.target.value) || 20 }))}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
+                  />
+                </div>
               </div>
-              <p className="text-xs text-text-tertiary -mt-2">Per-user daily caps to prevent abuse of paid API usage (OpenAI, OpenFoodFacts).</p>
+              <p className="text-xs text-text-tertiary -mt-2">Per-member daily caps. The first three protect paid API usage (OpenAI, OpenFoodFacts); the last is photos and clips posted to the community, all channels combined. Text posts are never capped.</p>
               {/* Per-user caps bound what any ONE person can spend. This bounds
                   the total, which is the only place a bad day costs real money. */}
               <div className="pt-3 mt-1 border-t border-white/8">

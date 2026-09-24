@@ -18,9 +18,12 @@ import { rateLimit } from '@/lib/rateLimit';
 import { getR2Client, r2PublicUrl } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
 import { SUPPORT_MAX_BYTES } from '@/lib/supportLimits';
+import { getAdminApp } from '@/lib/firebase-admin';
+import { resolveConfiguredDailyLimit } from '@/lib/usageLimit';
 
 const ALLOWED_ROOTS = ['prPosts', 'progressPhotos', 'community', 'support', 'avatars'];
-const COMMUNITY_UPLOADS_PER_DAY = 20;
+/** Default when the admin has not set one (Admin → Settings → Community Uploads / Day). */
+const DEFAULT_COMMUNITY_UPLOADS_PER_DAY = 20;
 
 // Per-root size ceilings. A support attachment is a screenshot or, more often
 // than the old 20MB ceiling allowed for, a screen recording of a bug being
@@ -88,10 +91,14 @@ export async function POST(req: NextRequest) {
     // fewer than a feed can be flooded with. Counts against the account, so
     // it applies to admins too — the number is set with that in mind.
     if (safeRoot === 'community') {
-      const daily = await rateLimit({ scope: 'uploads-community-day', key: check.uid, windowMs: 24 * 60 * 60_000, max: COMMUNITY_UPLOADS_PER_DAY });
+      const app = getAdminApp();
+      const perDay = app
+        ? await resolveConfiguredDailyLimit(app, 'communityUploadsDailyLimit', DEFAULT_COMMUNITY_UPLOADS_PER_DAY).catch(() => DEFAULT_COMMUNITY_UPLOADS_PER_DAY)
+        : DEFAULT_COMMUNITY_UPLOADS_PER_DAY;
+      const daily = await rateLimit({ scope: 'uploads-community-day', key: check.uid, windowMs: 24 * 60 * 60_000, max: perDay });
       if (!daily.allowed) {
         return NextResponse.json(
-          { error: `That's the most photos and clips one account can post in a day (${COMMUNITY_UPLOADS_PER_DAY}). Try again tomorrow.`, retryAfter: daily.retryAfterSeconds },
+          { error: `That's the most photos and clips one account can post in a day (${perDay}). Try again tomorrow.`, retryAfter: daily.retryAfterSeconds },
           { status: 429 },
         );
       }
