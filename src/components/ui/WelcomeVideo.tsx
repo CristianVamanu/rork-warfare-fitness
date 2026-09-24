@@ -44,19 +44,29 @@ export function WelcomeVideo() {
   // video months into their membership.
   const alreadySeen = !!profile?.welcomeVideoSeenAt;
 
+  // The URL is fetched as soon as someone is signed in and has not seen the
+  // video, not only once they are entitled. Membership lands from the Stripe
+  // webhook a moment after checkout; waiting until then and only then
+  // reading config put a full Firestore round trip between "paid" and the
+  // modal. getSystemConfig is cached, so this costs nothing extra.
   useEffect(() => {
-    if (checked || !user || !entitled || alreadySeen || isStaff) return;
+    if (checked || !user || alreadySeen || isStaff) return;
     setChecked(true);
     getSystemConfig()
       .then((cfg) => {
         const v = cfg?.videoGreetingUrl as string | undefined;
-        if (v) { setUrl(v); setOpen(true); }
+        if (v) setUrl(v);
       })
       // A config read that times out (it has a 3s bound) must not mark the
       // video as seen — leave it for the next page load rather than burning
       // the one chance to show it.
       .catch(() => setChecked(false));
-  }, [user, entitled, alreadySeen, isStaff, checked]);
+  }, [user, alreadySeen, isStaff, checked]);
+
+  // Opens the instant entitlement arrives, with the URL already in hand.
+  useEffect(() => {
+    if (url && entitled && !alreadySeen && !isStaff) setOpen(true);
+  }, [url, entitled, alreadySeen, isStaff]);
 
   const dismiss = useCallback(async () => {
     setOpen(false);
@@ -89,6 +99,9 @@ export function WelcomeVideo() {
             // can hear. Let them press play.
             <video
               src={url}
+              // The first frame is fetched while the modal animates in, so
+              // the player is not a black box for the first second.
+              preload="metadata"
               controls
               playsInline
               webkit-playsinline="true"
