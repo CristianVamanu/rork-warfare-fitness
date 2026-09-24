@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
-import { FieldValue, FieldPath } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { resolveAccountEmail } from '@/lib/accountEmail';
 import { sendEmail, paymentFailedEmailHtml, trialChargeReminderEmailHtml } from '@/lib/email';
@@ -16,27 +16,9 @@ function getAdminDb() {
   return getDb(app);
 }
 
-// current_period_end moved off the top-level Subscription object onto its
-// line items in API versions from late 2024 onward — check both.
-function subscriptionPeriodEnd(sub: Stripe.Subscription): Date | undefined {
-  const periodEnd = sub.current_period_end
-    ?? (sub.items?.data?.[0] as { current_period_end?: number } | undefined)?.current_period_end;
-  return periodEnd ? new Date(periodEnd * 1000) : undefined;
-}
+import { setSubscriptionStatus as writeSubscriptionStatus, subscriptionPeriodEnd, fieldFromMetadata, type SubscriptionField } from '@/lib/stripeMembership';
 
-// 'membership' (a regular subscription plan) and 'coaching' (the 1:1
-// add-on tier) are tracked in SEPARATE Firestore fields — a user can hold
-// both simultaneously, as two independent Stripe subscriptions. They used
-// to share one field, so buying the second while already holding the
-// first silently overwrote the first's tracked subscription ID, making it
-// un-cancelable through the app (and un-cancelable by account deletion,
-// leaving it billing a deleted account's card forever).
-type SubscriptionField = 'membership' | 'coaching';
-
-function fieldFromMetadata(metadata: Stripe.Metadata | null | undefined): SubscriptionField {
-  return metadata?.kind === 'coaching' ? 'coaching' : 'membership';
-}
-
+/** Same writer the checkout return route uses; see lib/stripeMembership. */
 async function setSubscriptionStatus(
   userId: string,
   field: SubscriptionField,
@@ -47,86 +29,11 @@ async function setSubscriptionStatus(
   subscriptionId?: string,
   cancelAtPeriodEnd?: boolean,
   markTrialUsed?: boolean,
-  /** `event.created` of the Stripe event being applied — drives the ordering guard below. */
   eventCreated?: number,
 ) {
   const db = getAdminDb();
   if (!db) { console.error('[Stripe webhook] Admin DB not available'); return; }
-  // set(merge) rather than update(): update() throws NOT_FOUND if the user
-  // doc is gone (deleted account with a live subscription), which turned a
-  // dead-letter case into three days of pointless Stripe retries.
-  // A NESTED OBJECT, not dotted keys. update() reads "membership.status" as a
-  // path into a map; set() does not — it writes a top-level field whose NAME
-  // contains a dot. So this used to leave `membership.status: "active"` sitting
-  // beside an absent `membership`, and every reader (hasActiveSubscription,
-  // the billing portal button, the paywall) saw a user with no subscription
-  // at all. Live symptom: a member entered card details, Stripe charged them,
-  // the webhook logged success — and they were locked out with no way to
-  // manage the billing they'd just started.
-  //
-  // set(merge) deep-merges maps, so omitted keys inside this object are
-  // preserved exactly as the dotted form intended. The set/merge choice
-  // itself stays: update() throws NOT_FOUND when the user doc is gone
-  // (deleted account, live subscription), which turned a dead-letter case
-  // into three days of pointless Stripe retries.
-  const record: Record<string, unknown> = {
-    status,
-    updatedAt: FieldValue.serverTimestamp(),
-    ...(expiresAt ? { expiresAt } : {}),
-    ...(planId ? { planId, planName: planName ?? '' } : {}),
-    ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
-    ...(cancelAtPeriodEnd !== undefined ? { cancelAtPeriodEnd } : {}),
-  };
-  // Ordering guard. Stripe does not guarantee delivery order, and the ledger
-  // above only dedupes replays of the SAME event id. Without this, a delayed
-  // retry of an older `customer.subscription.updated (active)` arriving after
-  // `customer.subscription.deleted` silently re-granted access — and the
-  // nightly reconciler that should have caught it was itself a no-op (see
-  // reconcile-subscriptions/route.ts). Each record remembers the `created`
-  // time of the last event applied to it; anything older is discarded.
-  // Done in a transaction so two deliveries racing can't both pass the check.
-  const userRef = db.collection('users').doc(userId);
-  const applied = await db.runTransaction(async (tx) => {
-    const snap = await tx.get(userRef);
-    const prev = (snap.data()?.[field] as { lastEventCreated?: number } | undefined)?.lastEventCreated;
-    if (eventCreated && prev && eventCreated < prev) return false;
-    tx.set(userRef, {
-      // trialUsedAt is the ONLY thing stopping cancel-and-resubscribe from
-      // earning a fresh discounted trial every cycle (see plan-checkout's
-      // alreadyUsedTrial). It used to be a separate fire-and-forget write with
-      // `.catch(() => {})`, so if it failed the error was swallowed, the
-      // webhook still answered 200, Stripe never retried, and the guard was
-      // silently absent for that account forever. Folded into this same write
-      // so it is atomic with the grant and a failure earns a retry.
-      ...(markTrialUsed ? { trialUsedAt: FieldValue.serverTimestamp() } : {}),
-      [field]: { ...record, ...(eventCreated ? { lastEventCreated: eventCreated } : {}) },
-    }, { merge: true });
-    return true;
-  });
-  if (!applied) {
-    console.warn(`[Stripe webhook] Discarded out-of-order event (created ${eventCreated}) for ${userId}/${field} — a newer one was already applied`);
-    return;
-  }
-
-  // Best-effort removal of the bogus dotted fields the old shape wrote. They
-  // are inert once the real map exists, but leaving a field literally named
-  // "membership.status" next to a real `membership` map is exactly the sort
-  // of thing that misleads whoever debugs this account next. A single-segment
-  // FieldPath is how you address a name that itself contains a dot.
-  try {
-    await db.collection('users').doc(userId).update(
-      new FieldPath(`${field}.status`), FieldValue.delete(),
-      new FieldPath(`${field}.updatedAt`), FieldValue.delete(),
-      new FieldPath(`${field}.expiresAt`), FieldValue.delete(),
-      new FieldPath(`${field}.planId`), FieldValue.delete(),
-      new FieldPath(`${field}.planName`), FieldValue.delete(),
-      new FieldPath(`${field}.stripeSubscriptionId`), FieldValue.delete(),
-      new FieldPath(`${field}.cancelAtPeriodEnd`), FieldValue.delete(),
-    );
-  } catch {
-    // Doc missing, or nothing to clean. Never fail the grant over tidying.
-  }
-  console.log(`[Stripe webhook] User ${userId} ${field} → ${status}${planId ? ` (plan: ${planId})` : ''}`);
+  await writeSubscriptionStatus(db, userId, field, status, expiresAt, planId, planName, subscriptionId, cancelAtPeriodEnd, markTrialUsed, eventCreated, 'Stripe webhook');
 }
 
 export async function POST(req: NextRequest) {

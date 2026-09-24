@@ -153,7 +153,9 @@ export function RevealOffer(p: RevealOfferProps) {
         <Sparkles className="w-3 h-3" /> Matched to how you train
       </p>
       <h1 className="text-[28px] sm:text-4xl font-black text-white tracking-tight leading-[1.08] text-center mt-3 text-balance">
-        {first ? `${first}, you're a ` : "You're a "}<span className="wf-lit">{label}</span> athlete.
+        {showing && p.match
+          ? <>{first ? `${first}, you're ` : "You're "}{/^[aeiou]/i.test(p.match.name) ? 'an' : 'a'} <span className="wf-lit">{p.match.name}</span> athlete.</>
+          : <>{first ? `${first}, you're a ` : "You're a "}<span className="wf-lit">{label}</span> athlete.</>}
       </h1>
 
       {/* The match card. */}

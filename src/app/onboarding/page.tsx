@@ -1394,18 +1394,7 @@ function StepIntelBreak({ trainingFor, goal }: { trainingFor: TrainingFor | null
         </div>
       </div>
       <p className="text-[11px] text-text-tertiary leading-relaxed mt-3">{b.note}</p>
-      <div className="mt-6 space-y-2">
-        {[
-          ['Your answers set the start point', 'The program starts where you actually are, not at week one of someone else\'s plan.'],
-          ['Phased blocks force adaptation', 'Each block builds on the last: strength, engine, durability, in the order the goal demands.'],
-          ['The loads move with your logs', 'Every set is one tap. Next week\'s weight is decided from this week\'s, by the app, not by guesswork.'],
-        ].map(([t, d], i) => (
-          <div key={t} className="flex items-start gap-3 rounded-xl border border-white/10 bg-black/25 p-3">
-            <span className="w-7 h-7 rounded-lg border border-accent/50 text-accent text-xs font-black flex items-center justify-center flex-shrink-0">{i + 1}</span>
-            <div><p className="text-sm font-bold text-white leading-tight">{t}</p><p className="text-[12px] text-text-secondary leading-relaxed mt-0.5">{d}</p></div>
-          </div>
-        ))}
-      </div>
+      <p className="text-sm text-text-secondary leading-relaxed mt-5">Your program is built to close the gap between where you are and numbers like these. Two more questions and it is yours.</p>
     </div>
   );
 }
@@ -1442,7 +1431,7 @@ function StepEmail({ name, onName, email, onEmail, matchState }: {
           : <><CheckCircle className="w-3 h-3" /> Almost there</>}
       </p>
       <h1 className="text-2xl font-black text-white mt-2">Your program is ready.</h1>
-      <p className="text-text-secondary text-sm mb-5 mt-1">Where should we send it?</p>
+      <p className="text-text-secondary text-sm mb-5 mt-1">Your name and email to keep it. You set a password on the next screen.</p>
       <div className="space-y-3">
         <input
           type="text" value={name} onChange={(e) => onName(e.target.value)} placeholder="Full name" autoComplete="name"
@@ -1453,7 +1442,7 @@ function StepEmail({ name, onName, email, onEmail, matchState }: {
           className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3.5 text-white text-base placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
         />
       </div>
-      <p className="text-xs text-text-tertiary mt-4 text-center leading-relaxed">Your program and your login when you start. No spam, no games.</p>
+      <p className="text-xs text-text-tertiary mt-4 text-center leading-relaxed">No spam. Unsubscribe from anything in one click.</p>
     </div>
   );
 }

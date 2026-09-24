@@ -25,7 +25,7 @@ import { ADMIN_TAB_BY_ID, adminGroups } from '@/components/admin/nav';
 import { StatTile, Panel, Pill, KV, Segmented } from '@/components/admin/ui';
 import { getIdToken } from 'firebase/auth';
 import { DEFAULT_ORG_DAILY_LIMIT } from '@/lib/orgAiLimit';
-import { DEFAULT_WHY_PRICE, DEFAULT_OFFER_STACK, revealCopy } from '@/lib/onboardingIntake';
+import { DEFAULT_WHY_PRICE, DEFAULT_OFFER_STACK, revealCopy, intakeAnswerLabel } from '@/lib/onboardingIntake';
 import { GATED_FEATURES, pruneFeatureAccess } from '@/lib/gatedFeatures';
 import { uploadVideo, deleteVideo, resolveStorageProvider, DEFAULT_STORAGE_PROVIDER, type StorageProvider } from '@/lib/uploadVideo';
 import { storageHostOf, storageHostLabel } from '@/lib/storageHost';
@@ -209,6 +209,10 @@ interface UserData {
   trainingDays?: number;
   equipment?: string;
   limitations?: string;
+  trainingFor?: string;
+  occupation?: string;
+  blocker?: string;
+  priority?: string;
   sex?: string;
   age?: number;
   heightCm?: number;
@@ -6063,10 +6067,14 @@ function AdminPageInner() {
             <Card className="p-4 space-y-2">
               <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wide">Onboarding</h3>
               <div className="grid grid-cols-2 gap-y-1.5 text-xs">
+                <span className="text-text-tertiary">Training for</span><span className="text-white">{intakeAnswerLabel('trainingFor', profileDetailUser.trainingFor) ?? '—'}</span>
                 <span className="text-text-tertiary">Goal</span><span className="text-white">{profileDetailUser.fitnessGoal || '—'}</span>
+                <span className="text-text-tertiary">Occupation</span><span className="text-white">{intakeAnswerLabel('occupation', profileDetailUser.occupation) ?? '—'}</span>
                 <span className="text-text-tertiary">Experience</span><span className="text-white">{profileDetailUser.experience || '—'}</span>
                 <span className="text-text-tertiary">Training Days</span><span className="text-white">{profileDetailUser.trainingDays ?? '—'}</span>
                 <span className="text-text-tertiary">Equipment</span><span className="text-white">{profileDetailUser.equipment || '—'}</span>
+                <span className="text-text-tertiary">Biggest blocker</span><span className="text-white">{intakeAnswerLabel('blocker', profileDetailUser.blocker) ?? '—'}</span>
+                <span className="text-text-tertiary">Priority</span><span className="text-white">{intakeAnswerLabel('priority', profileDetailUser.priority) ?? '—'}</span>
                 <span className="text-text-tertiary">Sex</span><span className="text-white">{profileDetailUser.sex || '—'}</span>
                 <span className="text-text-tertiary">Age</span><span className="text-white">{profileDetailUser.age ?? '—'}</span>
                 <span className="text-text-tertiary">Height</span><span className="text-white">{profileDetailUser.heightCm ? `${profileDetailUser.heightCm} cm` : '—'}</span>

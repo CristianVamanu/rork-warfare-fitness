@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   intelBreakFor, athleteLabel, firstName, whyThisFits, offerWords, revealCopy, intakePercent,
-  isTrainingFor, isBlocker, DEFAULT_OFFER_STACK, DEFAULT_WHY_PRICE,
+  isTrainingFor, isBlocker, intakeAnswerLabel, DEFAULT_OFFER_STACK, DEFAULT_WHY_PRICE,
 } from './onboardingIntake';
 
 describe('intel break', () => {
@@ -80,6 +80,12 @@ describe('admin copy and misc', () => {
     expect(intakePercent(0, 12)).toBeGreaterThanOrEqual(5);
     expect(intakePercent(11, 12)).toBeLessThanOrEqual(95);
     expect(intakePercent(5, 12)).toBeGreaterThan(intakePercent(2, 12));
+  });
+  it('labels stored intake answers for the admin card, dash-able when unknown', () => {
+    expect(intakeAnswerLabel('trainingFor', 'selection')).toBe('A selection course');
+    expect(intakeAnswerLabel('blocker', 'no-time')).toBe('Shift work, no time');
+    expect(intakeAnswerLabel('priority', undefined)).toBeNull();
+    expect(intakeAnswerLabel('occupation', 'astronaut')).toBeNull();
   });
   it('type guards reject junk', () => {
     expect(isTrainingFor('selection')).toBe(true);

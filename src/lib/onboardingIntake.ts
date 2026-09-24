@@ -81,6 +81,16 @@ export const isBlocker = (v: unknown): v is Blocker => typeof v === 'string' && 
 export const isPriority = (v: unknown): v is Priority => typeof v === 'string' && PRIORITY_VALUES.has(v as Priority);
 
 /**
+ * The human label for a stored intake answer, for the admin client card.
+ * Unknown or missing values come back as null so the caller can show a dash.
+ */
+export function intakeAnswerLabel(field: 'trainingFor' | 'occupation' | 'blocker' | 'priority', value: unknown): string | null {
+  const list: readonly Choice<string>[] =
+    field === 'trainingFor' ? TRAINING_FOR : field === 'occupation' ? OCCUPATIONS : field === 'blocker' ? BLOCKERS : PRIORITIES;
+  return list.find((c) => c.value === value)?.label ?? null;
+}
+
+/**
  * The break screen between questions: a published standard, not a
  * testimonial. Real numbers from the same table the standards test scores
  * against, so this screen can never quote a figure the test disagrees with.
@@ -105,7 +115,7 @@ export function intelBreakFor(trainingFor: TrainingFor | null, goal: FitnessGoal
   if (s?.events.plankSeconds) rows.push({ label: 'Plank', value: `${Math.floor(s.events.plankSeconds / 60)}:${String(s.events.plankSeconds % 60).padStart(2, '0')}` });
   if (s?.events.runMinutes && s.runLabel) rows.push({ label: s.runLabel, value: formatMinutes(s.events.runMinutes) });
   return {
-    eyebrow: 'While your answers process',
+    eyebrow: 'The standard',
     title: s ? `${s.label}. The floor to be allowed to start.` : 'Real standards. Real numbers.',
     rows,
     note: s?.source ?? 'Published entry standards. Inspired by, not affiliated with, any armed force.',

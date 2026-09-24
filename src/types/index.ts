@@ -224,6 +224,10 @@ export interface UserProfile {
   fitnessGoal?: FitnessGoal;
   experience?: ExperienceLevel;
   limitations?: string;
+  trainingFor?: OnboardingData['trainingFor'];
+  occupation?: OnboardingData['occupation'];
+  blocker?: OnboardingData['blocker'];
+  priority?: OnboardingData['priority'];
   // Only present on accounts that answered these during onboarding, back
   // when the health screening lived there — it's collected on the 1:1
   // coaching application form now, and prefilled from here when present.
