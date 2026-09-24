@@ -331,7 +331,9 @@ function OnboardingPageInner() {
   );
   const TOTAL_STEPS = STEPS.length;
   const stepId: StepId = STEPS[Math.min(step, TOTAL_STEPS - 1)];
-  const EMAIL_STEP = STEPS_ANON.indexOf('email');
+  // From the live STEPS, not STEPS_ANON: the 'you' step is dropped when sex
+  // and age arrived prefilled, which shifts every later index down by one.
+  const EMAIL_STEP = Math.max(0, STEPS.indexOf('email'));
 
   // Second half of the draft clamp above. An already-signed-in visitor has
   // fewer steps (no analysing or email step), so a restored draft sitting on

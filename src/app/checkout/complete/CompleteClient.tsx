@@ -16,8 +16,10 @@ import { rememberCheckoutIntent } from '@/lib/checkoutMode';
  * with the same ?subscribed=1 the hosted flow used, so the "payment
  * received" toast and the live paywall lift behave identically.
  *
- * Membership itself is granted by the webhook, not here; this page only
- * decides between "into the app" and "that didn't go through".
+ * The status lookup this page calls also grants membership when Stripe says
+ * the session is complete and paid (see /api/stripe/checkout-session), so
+ * the dashboard is already unlocked by the time this redirects. The webhook
+ * remains the durable source of truth behind it.
  */
 export function CompleteClient() {
   const router = useRouter();
