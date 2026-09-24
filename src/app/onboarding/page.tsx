@@ -1231,7 +1231,7 @@ function OnboardingPageInner() {
             {stepId === 'equipment' && (
               <StepEquipment selected={equipment} onSelect={(v) => selectAndAdvance(step, () => setEquipment(v))} />
             )}
-            {stepId === 'break' && <StepIntelBreak trainingFor={trainingFor} goal={goal} />}
+            {stepId === 'break' && <StepIntelBreak trainingFor={trainingFor} goal={goal} experience={experience} trainingDays={trainingDays} equipment={equipment} />}
             {stepId === 'blocker' && (
               <StepChoice
                 title="What's actually stopped you before?"
@@ -1376,8 +1376,11 @@ function StepChoice<T extends string>({ title, sub, choices, selected, onSelect 
  * The break between questions: a published standard, not a testimonial.
  * Real numbers from the same table the standards test scores against.
  */
-function StepIntelBreak({ trainingFor, goal }: { trainingFor: TrainingFor | null; goal: FitnessGoal | null }) {
-  const b = intelBreakFor(trainingFor, goal);
+function StepIntelBreak(a: {
+  trainingFor: TrainingFor | null; goal: FitnessGoal | null; experience: ExperienceLevel | null;
+  trainingDays: number | null; equipment: EquipmentType | null;
+}) {
+  const b = intelBreakFor(a);
   return (
     <div>
       <p className="wf-readout text-[10px] font-bold text-accent">{b.eyebrow}</p>
@@ -1386,15 +1389,15 @@ function StepIntelBreak({ trainingFor, goal }: { trainingFor: TrainingFor | null
         <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
         <div className="relative divide-y divide-white/8">
           {b.rows.map((r) => (
-            <div key={r.label} className="flex items-baseline justify-between py-3">
-              <span className="text-sm text-text-secondary">{r.label}</span>
-              <span className="text-2xl font-black text-white tabular-nums">{r.value}</span>
+            <div key={r.label} className="py-3">
+              <p className="wf-readout text-[10px] font-bold text-text-tertiary">{r.label}</p>
+              <p className="text-base font-black text-white mt-0.5">{r.value}</p>
+              <p className="text-xs text-text-secondary leading-relaxed mt-1">{r.why}</p>
             </div>
           ))}
         </div>
       </div>
-      <p className="text-[11px] text-text-tertiary leading-relaxed mt-3">{b.note}</p>
-      <p className="text-sm text-text-secondary leading-relaxed mt-5">Your program is built to close the gap between where you are and numbers like these. Two more questions and it is yours.</p>
+      <p className="text-sm text-text-secondary leading-relaxed mt-4">{b.note}</p>
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import type { FitnessGoal, ExperienceLevel, EquipmentType } from '@/types';
-import { standardFor, formatMinutes } from '@/lib/ptStandards';
 
 /**
  * The intake: the questions around the matcher, and the words on the reveal.
@@ -91,34 +90,81 @@ export function intakeAnswerLabel(field: 'trainingFor' | 'occupation' | 'blocker
 }
 
 /**
- * The break screen between questions: a published standard, not a
- * testimonial. Real numbers from the same table the standards test scores
- * against, so this screen can never quote a figure the test disagrees with.
+ * The break screen between questions: the program taking shape from the
+ * six answers already given. Each row is one answer turned into a decision
+ * about the training (what the sessions are built around, how the load
+ * moves, what the week looks like, what kit it assumes) plus an honest
+ * expectation for the first weeks. Nothing here feeds the matcher; it is a
+ * read-back, so it can never promise a program the matcher will not hand
+ * over.
  */
 export interface IntelBreak {
   eyebrow: string;
   title: string;
-  rows: { label: string; value: string }[];
+  rows: { label: string; value: string; why: string }[];
+  /** What the next questions still decide. */
   note: string;
 }
 
-export function intelBreakFor(trainingFor: TrainingFor | null, goal: FitnessGoal | null): IntelBreak {
-  const id = trainingFor === 'selection' || goal === 'military-prep' ? 'ranger'
-    : trainingFor === 'first-responder' ? 'army-aft'
-    : trainingFor === 'comeback' ? 'commando-pjfa'
-    : 'recon';
-  const s = standardFor(id);
-  const rows: { label: string; value: string }[] = [];
-  if (s?.events.pullups) rows.push({ label: 'Pull-ups', value: String(s.events.pullups) });
-  if (s?.events.pushups) rows.push({ label: 'Push-ups', value: String(s.events.pushups) });
-  if (s?.events.situps) rows.push({ label: 'Sit-ups', value: String(s.events.situps) });
-  if (s?.events.plankSeconds) rows.push({ label: 'Plank', value: `${Math.floor(s.events.plankSeconds / 60)}:${String(s.events.plankSeconds % 60).padStart(2, '0')}` });
-  if (s?.events.runMinutes && s.runLabel) rows.push({ label: s.runLabel, value: formatMinutes(s.events.runMinutes) });
+export function intelBreakFor(a: {
+  trainingFor: TrainingFor | null;
+  goal: FitnessGoal | null;
+  experience: ExperienceLevel | null;
+  trainingDays: number | null;
+  equipment: EquipmentType | null;
+}): IntelBreak {
+  const rows: IntelBreak['rows'] = [];
+
+  const focus: Record<FitnessGoal, [string, string]> = {
+    'lose-fat': ['Conditioning-led, strength kept', 'Fat comes off in a deficit. The lifting stays so what comes off is fat, not muscle.'],
+    'build-muscle': ['Hypertrophy blocks', 'Higher volume, controlled tempo, progressive load. Size follows tonnage over weeks.'],
+    'strength': ['Heavy compounds first', 'Squat, press, pull and carry at the top of every session, accessories after.'],
+    'recomposition': ['Strength plus engine', 'Lift heavy enough to hold muscle, condition hard enough to strip fat. Both, every week.'],
+    'military-prep': ['Test events trained directly', 'Push-ups, pull-ups, sit-ups, runs and rucks are on the program, not left to chance.'],
+  };
+  if (a.goal) rows.push({ label: 'Built around', value: focus[a.goal][0], why: focus[a.goal][1] });
+  else if (a.trainingFor === 'selection' || a.trainingFor === 'active-duty') rows.push({ label: 'Built around', value: 'Test events trained directly', why: 'The scored events are on the program, not left to chance.' });
+
+  const prog: Record<ExperienceLevel, [string, string]> = {
+    beginner: ['Technique first, then load every week', 'A new lifter progresses fast. The program adds weight or reps weekly while the form is bedded in.'],
+    intermediate: ['Planned waves, no plateaus', 'Volume and intensity move in blocks, so the stall you have hit does not repeat.'],
+    advanced: ['Periodised blocks', 'Accumulate, intensify, deload. Structured progression instead of another hard week.'],
+  };
+  if (a.experience) rows.push({ label: 'Progression', value: prog[a.experience][0], why: prog[a.experience][1] });
+
+  if (a.trainingDays) {
+    const d = a.trainingDays;
+    const week = d <= 3 ? 'Three full-body sessions'
+      : d === 4 ? 'Four sessions, upper and lower split'
+      : d === 5 ? 'Five sessions, lifting and conditioning days'
+      : 'Six sessions, one full rest day';
+    const why = d <= 3 ? 'Every session hits everything. Recovery days between do the growing.'
+      : d === 4 ? 'Each pattern trained twice a week, which is where the research puts the sweet spot.'
+      : 'Enough days to separate hard lifting from conditioning, so neither is done tired.';
+    rows.push({ label: 'Your week', value: week, why });
+  }
+
+  const kit: Record<EquipmentType, [string, string]> = {
+    'full-gym': ['Barbell and machines used', 'Loading is precise and progression is measurable in load.'],
+    'home': ['Dumbbells, kettlebell, bands', 'Home kit is enough when the program is written for it. No substitutions on day one.'],
+    'minimal': ['Bodyweight and a pull-up bar', 'Progress comes from density, tempo and harder variations, not from a rack you do not have.'],
+  };
+  if (a.equipment) rows.push({ label: 'Kit assumed', value: kit[a.equipment][0], why: kit[a.equipment][1] });
+
+  const expect: Record<FitnessGoal, string> = {
+    'lose-fat': 'Half to one percent of bodyweight a week is the sustainable rate. Faster than that costs muscle.',
+    'build-muscle': 'Strength climbs within two weeks. Visible size takes six to eight. Both are logged so you see it.',
+    'strength': 'Beginners add to the bar most weeks. Past that, expect steady monthly PRs, not daily ones.',
+    'recomposition': 'The scale moves slowly by design. Measurements, photos and lifts tell the real story.',
+    'military-prep': 'Push-up and run scores move first, usually inside four weeks. Pull-ups take the longest.',
+  };
+  if (a.goal) rows.push({ label: 'First weeks', value: 'What to expect', why: expect[a.goal] });
+
   return {
-    eyebrow: 'The standard',
-    title: s ? `${s.label}. The floor to be allowed to start.` : 'Real standards. Real numbers.',
+    eyebrow: 'Taking shape',
+    title: rows.length >= 3 ? 'Here is how your program is being built.' : 'Here is what we know so far.',
     rows,
-    note: s?.source ?? 'Published entry standards. Inspired by, not affiliated with, any armed force.',
+    note: 'Three questions left. What stopped you before and what you would prioritise shape how the program is coached. Your body stats fix the exact match and set your nutrition targets.',
   };
 }
 

@@ -5,17 +5,25 @@ import {
 } from './onboardingIntake';
 
 describe('intel break', () => {
-  it('quotes the Ranger entry standard for selection candidates, with a run row', () => {
-    const b = intelBreakFor('selection', null);
-    expect(b.title).toMatch(/Ranger/);
-    expect(b.rows.find((r) => r.label === 'Push-ups')?.value).toBe('53');
-    expect(b.rows.find((r) => /run/i.test(r.label))?.value).toBe('14:30');
-    expect(b.note.length).toBeGreaterThan(10);
+  it('turns the six answers into five decisions with a reason each', () => {
+    const b = intelBreakFor({ trainingFor: 'hybrid', goal: 'lose-fat', experience: 'beginner', trainingDays: 4, equipment: 'minimal' });
+    expect(b.rows.map((r) => r.label)).toEqual(['Built around', 'Progression', 'Your week', 'Kit assumed', 'First weeks']);
+    expect(b.rows[0].value).toMatch(/Conditioning-led/);
+    expect(b.rows[2].value).toMatch(/Four sessions/);
+    expect(b.rows[3].value).toMatch(/Bodyweight/);
+    for (const r of b.rows) expect(r.why.length).toBeGreaterThan(20);
+    expect(b.note).toMatch(/Three questions left/);
   });
-  it('never returns an empty table', () => {
-    for (const tf of [null, 'first-responder', 'comeback', 'hybrid'] as const) {
-      expect(intelBreakFor(tf, null).rows.length).toBeGreaterThan(0);
-    }
+  it('only describes what was answered, and still says something for a selection candidate', () => {
+    const b = intelBreakFor({ trainingFor: 'selection', goal: null, experience: null, trainingDays: null, equipment: null });
+    expect(b.rows).toHaveLength(1);
+    expect(b.rows[0].value).toMatch(/Test events/);
+    expect(b.title).toMatch(/so far/);
+  });
+  it('never claims anything the matcher does not use', () => {
+    const b = intelBreakFor({ trainingFor: null, goal: 'strength', experience: 'advanced', trainingDays: 6, equipment: 'full-gym' });
+    expect(b.note).not.toMatch(/priority (breaks|decides|picks)/i);
+    expect(b.rows[2].value).toMatch(/Six sessions/);
   });
 });
 
