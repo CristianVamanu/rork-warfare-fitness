@@ -159,6 +159,11 @@ wall GET  "/api/stripe/checkout-session?session_id=cs_test_smoke0000" "stripe ch
 wall POST /api/notifications/process   "cron notifications/process"
 wall POST /api/admin/reconcile-subscriptions "cron reconcile-subscriptions"
 wall POST /api/admin/error-digest      "cron error-digest"
+# Billing-changing member routes: must refuse without a token as well.
+wall POST /api/stripe/cancel-subscription   "member cancel-subscription"
+wall POST /api/stripe/create-portal-session "member billing portal"
+wall POST /api/auth/2fa/login-check         "2fa login-check"
+wall POST /api/ai/scan-and-go               "ai scan-and-go"
 
 echo "== public endpoints validate input =="
 # One call, not two: the endpoint allows 5 per 15 minutes per IP, so a
@@ -182,6 +187,20 @@ fetch POST /api/ai/build-my-program '{}'
 # dirties the thing it is testing.
 fetch POST /api/client-error '{}'
 case "$CODE" in 2*) ok "client-error answers without storing anything ($CODE)" ;; 429) ok "client-error rate-limited (429) — the limiter works" ;; *) fail "client-error → HTTP $CODE" ;; esac
+
+echo "== program matcher (the live catalogue answers the quiz) =="
+# A full-gym muscle builder at six days must get a real program back, and
+# the response must carry a name. 404 means the catalogue has no public
+# programs at all; 429 means the limiter fired on a hand re-run.
+fetch POST /api/public/match-program '{"goal":"build-muscle","experience":"intermediate","trainingDays":6,"sex":"male","equipment":"full-gym","age":28}'
+case "$CODE" in
+  200) if body_has '"name":'; then ok "match-program → $(body_grep '"name":"[^"]*"' | head -1)"; else fail "match-program → 200 without a program name"; fi ;;
+  429) ok "match-program rate-limited (429) — the limiter works" ;;
+  404) fail "match-program → 404: no program could be matched — is any program public?" ;;
+  *) fail "match-program → HTTP $CODE" ;;
+esac
+fetch POST /api/public/match-program '{"goal":"lose-fat"}'
+[ "$CODE" = "400" ] || [ "$CODE" = "429" ] && ok "match-program rejects an incomplete quiz ($CODE)" || fail "match-program with missing fields → HTTP $CODE (expected 400)"
 
 echo "== summary =="
 if [ "$FAILS" -gt 0 ]; then

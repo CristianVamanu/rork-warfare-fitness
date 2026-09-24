@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail, landingLeadFollowupEmailHtml } from '@/lib/email';
 import { getSystemConfig } from '@/lib/firestore';
 import { rateLimit, clientIp } from '@/lib/rateLimit';
+import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 
 // Fulfills the exit-intent popup's promise ("we'll send you a link to jump
 // back in") — createLandingLead() only writes the Firestore lead doc, it
@@ -47,6 +48,33 @@ export async function POST(req: NextRequest) {
     // it must be nonced, not host-allowlisted), and frame-src for the
     // challenge iframe. The IP rate limit above is the actual protection
     // this form has today.
+
+    // Only for an address that just left its email on the landing page. The
+    // popup writes the lead (createLandingLead) and then calls this, so a
+    // lead row from the last few minutes is what a real submission looks
+    // like. Without this check the route mailed any address posted to it,
+    // which made it a relay for spam under our sending domain.
+    const app = getAdminApp();
+    if (app) {
+      // Equality on email only, recency checked in memory: an equality plus
+      // a range on another field would need a composite index, and a query
+      // that fails for want of one would silently skip this gate.
+      const raw = body.email.trim();
+      const candidates = Array.from(new Set([raw, raw.toLowerCase()]));
+      const sinceMs = Date.now() - 10 * 60_000;
+      const snap = await getAdminDb(app).collection('landingLeads')
+        .where('email', 'in', candidates)
+        .limit(10)
+        .get()
+        .catch(() => null);
+      const recent = snap?.docs.some((d) => {
+        const at = d.data().createdAt as { toMillis?: () => number } | undefined;
+        return typeof at?.toMillis === 'function' && at.toMillis() >= sinceMs;
+      });
+      if (snap && !recent) {
+        return NextResponse.json({ ok: false, reason: 'No matching signup' }, { status: 404 });
+      }
+    }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
     const cfg = await getSystemConfig().catch(() => null);

@@ -195,7 +195,8 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
       await refundUsage(usageApp, uid, 'scan-and-go', resolveLocalDate(req));
       remaining = await getRemainingUsage(usageApp, uid, 'scan-and-go', DAILY_LIMIT, resolveLocalDate(req));
     }
-    const message = err instanceof Error ? err.message : 'Scan failed';
-    return NextResponse.json({ error: message, remaining }, { status: 500 });
+    // Never the provider's message: it names models and quota state that are
+    // ours, not the member's, and the same route already logged it above.
+    return NextResponse.json({ error: 'Scan failed. Try again in a moment.', remaining }, { status: 500 });
   }
 }

@@ -8,6 +8,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { sendEmail, twoFactorCodeEmailHtml } from '@/lib/email';
+import { rateLimit } from '@/lib/rateLimit';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 
@@ -70,6 +71,17 @@ export async function POST(req: NextRequest) {
     // From here on a code is genuinely required. See the note above
     // setTfaPendingClaim below for why the claim is set where it is —
     // the ordering of these three steps is load-bearing in both directions.
+    //
+    // Bounded per account: every call past this point sends an email, and
+    // nothing else stopped a valid session from mailing itself a code in a
+    // loop. Six in fifteen minutes covers a real "resend" or two.
+    const limit = await rateLimit({ scope: '2fa-code', key: uid, windowMs: 15 * 60_000, max: 6 });
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many codes requested. Wait a few minutes, then try again.', retryAfter: limit.retryAfterSeconds },
+        { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } },
+      );
+    }
     const recipient = (user.twoFactorEmail as string | undefined) || user.email;
     if (!recipient) return NextResponse.json({ error: 'No email on file for this account' }, { status: 400 });
 

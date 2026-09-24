@@ -357,9 +357,12 @@ export async function POST(req: NextRequest) {
         if (piMetadata?.kind === 'program_purchase' && piMetadata.userId && piMetadata.programId) {
           const db = getAdminDb();
           if (db) {
-            await db.collection('users').doc(piMetadata.userId).update({
+            // set(merge), not update(): update() throws NOT_FOUND when the
+            // account is gone, and a refund for a deleted account then cost
+            // three days of Stripe retries. Same fix the grant path carries.
+            await db.collection('users').doc(piMetadata.userId).set({
               purchasedProgramIds: FieldValue.arrayRemove(piMetadata.programId),
-            });
+            }, { merge: true });
             console.log(`[Stripe webhook] Revoked program ${piMetadata.programId} from user ${piMetadata.userId} (${event.type})`);
           }
           break;

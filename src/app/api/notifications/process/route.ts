@@ -221,6 +221,21 @@ export async function POST(req: NextRequest) {
       }));
     }
 
+
+    /** Every document a query matches, in id order, a page at a time. */
+    async function* eachDoc(q: FirebaseFirestore.Query, pageSize = 500): AsyncGenerator<FirebaseFirestore.QueryDocumentSnapshot> {
+      let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+      for (;;) {
+        let page = q.orderBy('__name__').limit(pageSize);
+        if (cursor) page = page.startAfter(cursor);
+        const snap = await page.get();
+        if (snap.empty) return;
+        for (const d of snap.docs) yield d;
+        if (snap.size < pageSize) return;
+        cursor = snap.docs[snap.docs.length - 1];
+      }
+    }
+
     let usersConsidered = 0;
     let usersWithActiveProgram = 0;
     // Per-user failures were counted nowhere and the run reported ok either
@@ -630,8 +645,9 @@ export async function POST(req: NextRequest) {
     // if it is ever asked) and any unsubscribe link flips it false.
     if (SEQ.leadTips.enabled && unsubSecret) {
       try {
-        const leads = await db.collection('landingLeads').where('marketingOptIn', '==', true).limit(500).get();
-        for (const d of leads.docs) {
+        // Paged: the first version read at most 500 leads, so past that
+        // number every later signup silently never received a step.
+        for await (const d of eachDoc(db.collection('landingLeads').where('marketingOptIn', '==', true))) {
           const lead = d.data() as { email?: string; source?: string; createdAt?: unknown; emailSeq?: Record<string, unknown> };
           if (lead.source !== 'standards' || !lead.email) continue;
           const createdMs = toMs(lead.createdAt);
@@ -664,7 +680,7 @@ export async function POST(req: NextRequest) {
     // ── Free-plan drip: one session a day to each running lead ─────────────
     if (unsubSecret) {
       try {
-        const leads = await db.collection('landingLeads').where('dripActive', '==', true).limit(500).get();
+        // Paged, for the same reason as the lead sequence above.
         const programCache = new Map<string, Program | null>();
         const loadProgram = async (id: string): Promise<Program | null> => {
           if (programCache.has(id)) return programCache.get(id)!;
@@ -673,7 +689,7 @@ export async function POST(req: NextRequest) {
           programCache.set(id, p);
           return p;
         };
-        for (const d of leads.docs) {
+        for await (const d of eachDoc(db.collection('landingLeads').where('dripActive', '==', true))) {
           const lead = d.data() as { email?: string; programId?: string; dripDays?: number; createdAt?: unknown; drip?: Record<string, unknown> };
           const createdMs = toMs(lead.createdAt);
           if (!lead.email || !lead.programId || createdMs === null) { await d.ref.update({ dripActive: false }); continue; }
