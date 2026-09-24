@@ -58,6 +58,11 @@ export function ServiceWorkerUpdater() {
       // survives a reload now, but interrupting someone mid-set to announce
       // a deploy is still wrong.
       if (workoutInProgress()) return;
+      // Nor mid-quiz or mid-payment: the toast sat over the back arrow and
+      // the progress counter, and a reload offer is the last thing someone
+      // ten answers into the intake needs. The new bundle applies on their
+      // next navigation anyway.
+      if (/^\/(onboarding|checkout)/.test(window.location.pathname)) return;
       toast(
         (t) => (
           <span className="flex items-center gap-3">

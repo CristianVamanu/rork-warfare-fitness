@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useRef, useEffect, Suspense } from 'react';
+import { useState, useRef, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -59,17 +59,20 @@ const EQUIPMENT: { value: EquipmentType; label: string; sub: string; icon: React
  * equipment, biometrics) are unchanged; the added screens are saved to the
  * profile and used for the reveal copy only.
  */
-type StepId = 'for' | 'goal' | 'occupation' | 'experience' | 'days' | 'equipment' | 'break' | 'blocker' | 'priority' | 'biometrics' | 'analysing' | 'email';
-const STEPS_ANON: StepId[] = ['for', 'goal', 'occupation', 'experience', 'days', 'equipment', 'break', 'blocker', 'priority', 'biometrics', 'analysing', 'email'];
+type StepId = 'for' | 'you' | 'goal' | 'occupation' | 'experience' | 'days' | 'equipment' | 'break' | 'blocker' | 'priority' | 'biometrics' | 'analysing' | 'email';
+const STEPS_ANON: StepId[] = ['for', 'you', 'goal', 'occupation', 'experience', 'days', 'equipment', 'break', 'blocker', 'priority', 'biometrics', 'analysing', 'email'];
 // Already signed in (resuming an unfinished quiz): no email step, and the
 // program is generated from the last screen exactly as before.
-const STEPS_AUTHED: StepId[] = ['for', 'goal', 'occupation', 'experience', 'days', 'equipment', 'break', 'blocker', 'priority', 'biometrics'];
+const STEPS_AUTHED: StepId[] = ['for', 'you', 'goal', 'occupation', 'experience', 'days', 'equipment', 'break', 'blocker', 'priority', 'biometrics'];
 
 // 2 (and 1) deliberately excluded — zero programs in the catalog are built
 // for that few days/week, so offering it just set an expectation the
 // matcher could never actually meet exactly. 3 stays: real programs exist
 // for it (Beginner Full Body, Alpha Bulk).
 const DAYS = [3, 4, 5, 6];
+
+/** Steps that advance on a tap (see selectAndAdvance). */
+const TAP_STEPS = new Set<StepId>(['for', 'goal', 'occupation', 'experience', 'days', 'equipment', 'blocker', 'priority']);
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -318,7 +321,14 @@ function OnboardingPageInner() {
   // own disclaimer explaining that BMI cannot tell muscle from fat, which is
   // a screen admitting it is not worth a screen. The number is now one quiet
   // line on the biometrics step, where it costs no extra tap.
-  const STEPS = needsAccount === false ? STEPS_AUTHED : STEPS_ANON;
+  // Sex and age have their own screen unless both arrived already answered
+  // (landing quick-start box, /register form), in which case asking again
+  // reads as not listening. Biometrics still shows them with a "Not you?".
+  const skipYou = hadPrefilledSex && hadPrefilledAge;
+  const STEPS = useMemo(
+    () => (needsAccount === false ? STEPS_AUTHED : STEPS_ANON).filter((id) => id !== 'you' || !skipYou),
+    [needsAccount, skipYou],
+  );
   const TOTAL_STEPS = STEPS.length;
   const stepId: StepId = STEPS[Math.min(step, TOTAL_STEPS - 1)];
   const EMAIL_STEP = STEPS_ANON.indexOf('email');
@@ -366,7 +376,8 @@ function OnboardingPageInner() {
 
   const canAdvanceById: Record<StepId, boolean> = {
     for: !!trainingFor,
-    goal: !!goal && sexAgeAnswered,
+    you: sexAgeAnswered,
+    goal: !!goal,
     occupation: !!occupation,
     experience: !!experience,
     days: !!trainingDays,
@@ -1196,22 +1207,20 @@ function OnboardingPageInner() {
             {stepId === 'for' && (
               <StepChoice
                 title="What are you training for?"
-                sub="Tap one to start. This shapes how we talk to you, not which program you get — that comes from your answers next."
+                sub="One tap. It sets the standard you are held to."
                 choices={TRAINING_FOR}
                 selected={trainingFor}
                 onSelect={(v) => selectAndAdvance(step, () => setTrainingFor(v))}
               />
             )}
-            {stepId === 'goal' && (
-              <StepGoal
-                // Only auto-advances once sex/age are actually answered —
-                // this step carries those extra fields, so picking a goal
-                // isn't necessarily finishing the step.
-                selected={goal}
-                onSelect={(v) => (sexAgeAnswered ? selectAndAdvance(step, () => setGoal(v)) : setGoal(v))}
+            {stepId === 'you' && (
+              <StepYou
                 sex={sex} onSex={setSex} age={age} onAge={setAge}
                 showSexPicker={!hadPrefilledSex} showAgeInput={!hadPrefilledAge}
               />
+            )}
+            {stepId === 'goal' && (
+              <StepGoal selected={goal} onSelect={(v) => selectAndAdvance(step, () => setGoal(v))} />
             )}
             {stepId === 'occupation' && (
               <StepChoice
@@ -1235,7 +1244,7 @@ function OnboardingPageInner() {
             {stepId === 'blocker' && (
               <StepChoice
                 title="What's actually stopped you before?"
-                sub="Be honest. The program is built around the answer."
+                sub="Be honest. Naming it is how you beat it this time."
                 choices={BLOCKERS}
                 selected={blocker}
                 onSelect={(v) => selectAndAdvance(step, () => setBlocker(v))}
@@ -1312,14 +1321,21 @@ function OnboardingPageInner() {
             See my program <ChevronRight className="w-4 h-4" />
           </Button>
         ) : step < TOTAL_STEPS - 1 ? (
-          <Button
-            fullWidth
-            size="lg"
-            disabled={!canAdvance}
-            onClick={() => go(1)}
-          >
-            {isBreak ? 'Keep going' : 'Continue'} <ChevronRight className="w-4 h-4" />
-          </Button>
+          // Tap-to-advance steps move on by themselves, so a greyed-out
+          // Continue under them was a button that looked tappable and did
+          // nothing. It appears only once there is something to continue with.
+          TAP_STEPS.has(stepId) && !canAdvance ? (
+            <p className="text-center text-sm text-text-tertiary py-3.5">Tap an option to continue</p>
+          ) : (
+            <Button
+              fullWidth
+              size="lg"
+              disabled={!canAdvance}
+              onClick={() => go(1)}
+            >
+              {isBreak ? 'Keep going' : 'Continue'} <ChevronRight className="w-4 h-4" />
+            </Button>
+          )
         ) : (
           <Button
             fullWidth
@@ -1517,56 +1533,60 @@ function OptionTile({
   );
 }
 
-function StepGoal({
-  selected, onSelect, sex, onSex, age, onAge, showSexPicker, showAgeInput,
-}: {
-  selected: FitnessGoal | null; onSelect: (v: FitnessGoal) => void;
+function StepYou({ sex, onSex, age, onAge, showSexPicker, showAgeInput }: {
   sex: BiologicalSex | null; onSex: (v: BiologicalSex) => void;
   age: string; onAge: (v: string) => void;
   showSexPicker: boolean; showAgeInput: boolean;
 }) {
+  // Whichever of sex/age was not already answered on the landing page or
+  // /register is asked here, on its own screen, second. Both feed the
+  // matcher (sex excludes the wrong programs, age the wrong brackets) and
+  // the calorie targets, so they are asked before anything else that does.
   return (
     <div>
-      {/* Asked right here, first, for anyone who didn't already answer it
-          elsewhere — the landing page's quick-start box only asks sex now
-          (age is asked here instead, since it's the less important of the
-          two to front-load), and /register's own form still asks both.
-          Whichever of sex/age wasn't already answered shows here; previously
-          this was asked much later on the "About You" step, and visitors
-          who started from "New here? Create account" on /login never got
-          asked early at all. */}
-      {(showSexPicker || showAgeInput) && (
-        <div className="mb-6 p-4 bg-surface rounded-2xl border border-white/8">
-          <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-3">Quick — before we start</p>
-          {showSexPicker && (
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
-                <button
-                  key={value}
-                  onClick={() => onSex(value)}
-                  className={`p-3 text-center rounded-xl border transition-all ${
-                    sex === value ? 'border-accent bg-accent/10' : 'border-white/8 bg-surface-elevated hover:border-white/20'
-                  }`}
-                >
-                  <Icon className={`w-4 h-4 mx-auto mb-1 ${sex === value ? 'text-accent' : 'text-text-secondary'}`} />
-                  <p className="text-xs font-medium text-white">{label}</p>
-                </button>
-              ))}
-            </div>
-          )}
-          {showAgeInput && (
-            <input
-              type="number"
-              inputMode="numeric"
-              value={age}
-              onChange={(e) => onAge(e.target.value)}
-              placeholder="Your age"
-              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm text-center placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-            />
-          )}
+      <h1 className="text-2xl font-black text-white mb-1">{showSexPicker ? 'Who is training?' : 'How old are you?'}</h1>
+      <p className="text-text-secondary text-sm mb-5">
+        {showSexPicker ? 'Programs and calorie targets differ. Two seconds.' : 'Age sets the recovery and the standard you are measured against.'}
+      </p>
+      {showSexPicker && (
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              onClick={() => onSex(value)}
+              className={`p-5 text-center rounded-2xl border transition-all ${
+                sex === value ? 'border-accent bg-accent/10' : 'border-white/10 bg-surface-elevated hover:border-white/20'
+              }`}
+            >
+              <Icon className={`w-6 h-6 mx-auto mb-2 ${sex === value ? 'text-accent' : 'text-text-secondary'}`} />
+              <p className="text-base font-bold text-white">{label}</p>
+            </button>
+          ))}
         </div>
       )}
+      {showAgeInput && (
+        <>
+          {showSexPicker && <p className="text-xs font-medium text-text-secondary mb-2">Your age</p>}
+          <input
+            type="number"
+            inputMode="numeric"
+            min={13}
+            max={100}
+            value={age}
+            onChange={(e) => onAge(e.target.value)}
+            placeholder="Your age"
+            autoFocus={!showSexPicker}
+            className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3.5 text-white text-lg text-center placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+          />
+        </>
+      )}
+    </div>
+  );
+}
 
+function StepGoal({ selected, onSelect }: { selected: FitnessGoal | null; onSelect: (v: FitnessGoal) => void }) {
+  return (
+    <div>
       <h1 className="text-2xl font-black text-white mb-1">What&apos;s your goal?</h1>
       <p className="text-text-secondary text-sm mb-5">This determines your program structure and intensity.</p>
       {/* Five options. The first is the one the product is named for, so it

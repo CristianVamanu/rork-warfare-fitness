@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   intelBreakFor, athleteLabel, firstName, whyThisFits, offerWords, revealCopy, intakePercent,
-  isTrainingFor, isBlocker, intakeAnswerLabel, DEFAULT_OFFER_STACK, DEFAULT_WHY_PRICE,
+  isTrainingFor, isBlocker, intakeAnswerLabel, shortProgramName, DEFAULT_OFFER_STACK, DEFAULT_WHY_PRICE,
 } from './onboardingIntake';
 
 describe('intel break', () => {
@@ -32,6 +32,12 @@ describe('reveal words', () => {
     expect(athleteLabel('military-prep', 'comeback')).toBe('Selection');
     expect(athleteLabel('recomposition', 'hybrid')).toBe('Hybrid');
     expect(athleteLabel(null, null)).toBe('Recomp');
+  });
+  it('shortens long program names for the headline', () => {
+    expect(shortProgramName('Cali 6: Level Warrior Calisthenics Program')).toBe('Cali 6');
+    expect(shortProgramName('Alpha Bulk')).toBe('Alpha Bulk');
+    expect(shortProgramName('Legion Endurance Program')).toBe('Legion Endurance');
+    expect(shortProgramName('Program')).toBe('Program');
   });
   it('takes the first name and capitalises it', () => {
     expect(firstName('  cristian vamanu ')).toBe('Cristian');

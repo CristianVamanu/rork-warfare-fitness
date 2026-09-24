@@ -168,6 +168,17 @@ export function intelBreakFor(a: {
   };
 }
 
+/**
+ * A program name short enough to sit inside a sentence. "Cali 6: Level
+ * Warrior Calisthenics Program" becomes "Cali 6"; "Alpha Bulk" is untouched.
+ * The full name still shows on the match card underneath.
+ */
+export function shortProgramName(name: string): string {
+  const cut = name.split(/\s[:\u2013\u2014-]\s|:\s/)[0].trim();
+  const stripped = cut.replace(/\s+(program|programme|plan)$/i, '').trim();
+  return stripped || name;
+}
+
 /** The word after "you're a": what the goal says about the person. */
 export function athleteLabel(goal: FitnessGoal | null, trainingFor: TrainingFor | null): string {
   if (goal === 'military-prep') return 'Selection';

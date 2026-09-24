@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Check, ChevronRight, Loader2, Eye, EyeOff, Sparkles, Lock } from 'lucide-react';
 import { getMembershipConfig, getMembershipPlans, getSystemConfig } from '@/lib/firestore';
 import { getPlanBillingPeriods, planHasAnyPrice, getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
-import { offerWords, revealCopy, whyThisFits, athleteLabel, firstName, type OfferWords, type Blocker } from '@/lib/onboardingIntake';
+import { offerWords, revealCopy, whyThisFits, athleteLabel, firstName, shortProgramName, type OfferWords, type Blocker } from '@/lib/onboardingIntake';
 import type { MatchedProgram } from '@/lib/programMatch';
 import type { MembershipConfig, MembershipPlan, FitnessGoal, EquipmentType, ExperienceLevel } from '@/types';
 import type { WeightGoalTimeline } from '@/lib/tdee';
@@ -83,7 +83,7 @@ export function RevealOffer(p: RevealOfferProps) {
   const showing = p.matchState === 'ready' && !!p.match;
   const reasons = p.match ? whyThisFits({
     goal: p.goal, equipment: p.equipment, experience: p.experience, trainingDays: p.trainingDays,
-    blocker: p.blocker, programName: p.match.name, commitment: p.match.marketing?.commitment,
+    blocker: p.blocker, programName: shortProgramName(p.match.name), commitment: p.match.marketing?.commitment,
   }) : [];
   const passwordOk = password.length >= 8;
 
@@ -154,7 +154,7 @@ export function RevealOffer(p: RevealOfferProps) {
       </p>
       <h1 className="text-[28px] sm:text-4xl font-black text-white tracking-tight leading-[1.08] text-center mt-3 text-balance">
         {showing && p.match
-          ? <>{first ? `${first}, you're ` : "You're "}{/^[aeiou]/i.test(p.match.name) ? 'an' : 'a'} <span className="wf-lit">{p.match.name}</span> athlete.</>
+          ? <>{first ? `${first}, you're ` : "You're "}{/^[aeiou]/i.test(shortProgramName(p.match.name)) ? 'an' : 'a'} <span className="wf-lit">{shortProgramName(p.match.name)}</span> athlete.</>
           : <>{first ? `${first}, you're a ` : "You're a "}<span className="wf-lit">{label}</span> athlete.</>}
       </h1>
 
