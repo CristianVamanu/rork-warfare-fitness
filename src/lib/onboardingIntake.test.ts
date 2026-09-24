@@ -9,7 +9,7 @@ describe('intel break', () => {
     const b = intelBreakFor({ trainingFor: 'hybrid', goal: 'lose-fat', experience: 'beginner', trainingDays: 4, equipment: 'minimal' });
     expect(b.rows.map((r) => r.label)).toEqual(['Built around', 'Progression', 'Your week', 'Kit assumed', 'First weeks']);
     expect(b.rows[0].value).toMatch(/Conditioning-led/);
-    expect(b.rows[2].value).toMatch(/Four sessions/);
+    expect(b.rows[2].value).toMatch(/Four days/);
     expect(b.rows[3].value).toMatch(/Bodyweight/);
     for (const r of b.rows) expect(r.why.length).toBeGreaterThan(20);
     expect(b.note).toMatch(/Three questions left/);
@@ -23,7 +23,7 @@ describe('intel break', () => {
   it('never claims anything the matcher does not use', () => {
     const b = intelBreakFor({ trainingFor: null, goal: 'strength', experience: 'advanced', trainingDays: 6, equipment: 'full-gym' });
     expect(b.note).not.toMatch(/priority (breaks|decides|picks)/i);
-    expect(b.rows[2].value).toMatch(/Six sessions/);
+    expect(b.rows[2].value).toMatch(/Six days/);
   });
 });
 

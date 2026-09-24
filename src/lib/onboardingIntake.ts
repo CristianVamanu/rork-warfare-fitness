@@ -134,13 +134,15 @@ export function intelBreakFor(a: {
 
   if (a.trainingDays) {
     const d = a.trainingDays;
-    const week = d <= 3 ? 'Three full-body sessions'
-      : d === 4 ? 'Four sessions, upper and lower split'
-      : d === 5 ? 'Five sessions, lifting and conditioning days'
-      : 'Six sessions, one full rest day';
-    const why = d <= 3 ? 'Every session hits everything. Recovery days between do the growing.'
-      : d === 4 ? 'Each pattern trained twice a week, which is where the research puts the sweet spot.'
-      : 'Enough days to separate hard lifting from conditioning, so neither is done tired.';
+    // Days are a matching input, not a promise about the split: the best-fit
+    // program may train fewer days than offered (one muscle program in a
+    // catalogue, a six-day lifter). Say what the number does, not what the
+    // week will look like.
+    const words = ['', '', '', 'Three', 'Four', 'Five', 'Six'][Math.min(6, Math.max(3, d))];
+    const week = `${words} days on the table`;
+    const why = d <= 3 ? 'Programs that fit three days are full-body by design. Recovery days between do the growing.'
+      : d === 4 ? 'Four is the sweet spot for most programs: each pattern trained twice a week.'
+      : 'Matched to programs built for that volume. If the best fit trains fewer days, the rest days are real rest, not a gap.';
     rows.push({ label: 'Your week', value: week, why });
   }
 
