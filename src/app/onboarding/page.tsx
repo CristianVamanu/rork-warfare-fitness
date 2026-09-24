@@ -1429,11 +1429,11 @@ function StepAnalysing() {
     return () => clearInterval(t);
   }, [lines.length]);
   return (
+    // No progress bar of its own: the quiz header already has one, and two
+    // bars on one screen read as a mistake. A spinner says "working".
     <div className="pt-10 text-center">
-      <div className="h-1 rounded-full bg-white/10 overflow-hidden max-w-xs mx-auto">
-        <div className="h-full bg-gradient-accent rounded-full transition-[width] duration-1000" style={{ width: `${((i + 1) / lines.length) * 100}%` }} />
-      </div>
-      <h1 className="text-2xl font-black text-white mt-6 text-balance">{lines[i]}</h1>
+      <Loader2 className="w-7 h-7 text-accent animate-spin mx-auto" aria-hidden />
+      <h1 className="text-2xl font-black text-white mt-6 text-balance" aria-live="polite">{lines[i]}</h1>
       <p className="text-sm text-text-secondary mt-3">Real programs, matched to what you told us. Nothing generated on the spot.</p>
     </div>
   );
