@@ -57,7 +57,10 @@ export async function POST(req: NextRequest) {
 
     await ref.set({
       message,
-      stack,
+      // null, not undefined: the Admin SDK rejects undefined outright, and a
+      // report with no stack (unhandled rejections often have none) was
+      // being dropped with a log line instead of recorded.
+      stack: stack ?? null,
       kind,
       lastUrl: url ?? null,
       lastUserAgent: clip(req.headers.get('user-agent'), 300) ?? null,
