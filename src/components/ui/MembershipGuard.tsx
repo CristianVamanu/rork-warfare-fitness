@@ -50,11 +50,16 @@ const JUST_PAID_KEY = 'wf:justPaidAt';
  * snapshot follows the cached one within a second or so; this bound only
  * matters offline, where the cached copy is all there will ever be.
  */
-// Short on purpose. This exists only to avoid flashing the paywall at a
-// member whose CACHED profile predates their payment — a sub-second
-// annoyance. Waiting eight seconds to prevent it traded a brief flash for
-// an app that looks like it is relaunching, which is far worse.
-const CACHE_GRACE_MS = 1_200;
+// This exists to avoid flashing the paywall at a member whose CACHED
+// profile predates their payment. It was 1.2 seconds, which covered a warm
+// browser tab and not a cold launch of the installed app: there, Firestore
+// has to reconnect and re-attach the token before the live profile arrives,
+// and on a phone that took two to four seconds — long enough to judge the
+// stale copy, render "Choose a Plan", and then swap to the dashboard when
+// the live copy landed. Five seconds covers the slow launches seen so far.
+// It is a skeleton, not a splash, so the wait reads as loading; and it is
+// skipped entirely offline, where the cached copy is all there will be.
+const CACHE_GRACE_MS = 5_000;
 
 /**
  * Stripe sends a paying member back to /profile?subscribed=1. Nothing read
@@ -82,8 +87,12 @@ export function MembershipGuard({ pathname, children }: Props) {
   const [cacheGraceOver, setCacheGraceOver] = useState(false);
   useEffect(() => {
     if (!profileFromCache) { setCacheGraceOver(false); return; }
+    // Offline there is no live copy coming; judge the cached one now.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) { setCacheGraceOver(true); return; }
     const t = setTimeout(() => setCacheGraceOver(true), CACHE_GRACE_MS);
-    return () => clearTimeout(t);
+    const offline = () => setCacheGraceOver(true);
+    window.addEventListener('offline', offline);
+    return () => { clearTimeout(t); window.removeEventListener('offline', offline); };
   }, [profileFromCache]);
   // Seeded from the last launch, so the guard usually has its answer before
   // the network is even consulted. A fresh read still runs below.
