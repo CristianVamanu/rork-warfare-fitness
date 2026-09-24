@@ -25,6 +25,7 @@ import { ADMIN_TAB_BY_ID, adminGroups } from '@/components/admin/nav';
 import { StatTile, Panel, Pill, KV, Segmented } from '@/components/admin/ui';
 import { getIdToken } from 'firebase/auth';
 import { DEFAULT_ORG_DAILY_LIMIT } from '@/lib/orgAiLimit';
+import { DEFAULT_WHY_PRICE, DEFAULT_OFFER_STACK, revealCopy } from '@/lib/onboardingIntake';
 import { GATED_FEATURES, pruneFeatureAccess } from '@/lib/gatedFeatures';
 import { uploadVideo, deleteVideo, resolveStorageProvider, DEFAULT_STORAGE_PROVIDER, type StorageProvider } from '@/lib/uploadVideo';
 import { storageHostOf, storageHostLabel } from '@/lib/storageHost';
@@ -428,7 +429,7 @@ function AdminPageInner() {
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
   const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
   const [orgAiUsage, setOrgAiUsage] = useState<{ used: number; limit: number; byFeature: Record<string, number>; date: string } | null>(null);
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, emailSequences: { ...SEQUENCE_DEFAULTS }, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, aiOrgDailyLimit: DEFAULT_ORG_DAILY_LIMIT });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, emailSequences: { ...SEQUENCE_DEFAULTS }, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, aiOrgDailyLimit: DEFAULT_ORG_DAILY_LIMIT, onboardingCopy: { whyPrice: '', offerStack: [] as { title: string; body: string }[] } });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
@@ -646,6 +647,19 @@ function AdminPageInner() {
           // default applies, so that is what the field should say.
           aiOrgDailyLimit: Number(cfg.aiOrgDailyLimit) || DEFAULT_ORG_DAILY_LIMIT,
           mealIdeasDailyLimit: Number(cfg.mealIdeasDailyLimit) || 15,
+          // Blank means "use the built-in copy"; only the admin's own words are stored.
+          onboardingCopy: (() => {
+            const oc = (c as { onboardingCopy?: { whyPrice?: unknown; offerStack?: unknown } }).onboardingCopy;
+            return {
+              whyPrice: typeof oc?.whyPrice === 'string' ? oc.whyPrice : '',
+              offerStack: Array.isArray(oc?.offerStack)
+                ? (oc.offerStack as { title?: unknown; body?: unknown }[]).map((r) => ({
+                    title: typeof r?.title === 'string' ? r.title : '',
+                    body: typeof r?.body === 'string' ? r.body : '',
+                  }))
+                : [],
+            };
+          })(),
         });
         setStorageProvider(resolveStorageProvider(cfg.storageProvider));
         setLegalForm({
@@ -2338,7 +2352,15 @@ function AdminPageInner() {
   async function handleSaveSettings() {
     setSavingSettings(true);
     try {
-      await setSystemConfig(settingsForm);
+      await setSystemConfig({
+        ...settingsForm,
+        onboardingCopy: {
+          whyPrice: settingsForm.onboardingCopy.whyPrice.trim(),
+          offerStack: settingsForm.onboardingCopy.offerStack
+            .map((r) => ({ title: String(r?.title ?? '').trim(), body: String(r?.body ?? '').trim() }))
+            .filter((r) => r.title.length > 0),
+        },
+      });
       toast.success('Settings saved');
     } catch { toast.error('Failed to save settings'); }
     finally { setSavingSettings(false); }
@@ -5153,6 +5175,56 @@ function AdminPageInner() {
                     </button>
                   )}
                 </div>
+              </div>
+              {/* The words on the onboarding reveal. Defaults come from
+                  lib/onboardingIntake; anything typed here replaces them. */}
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-white">Onboarding reveal copy</p>
+                  <p className="text-xs text-text-secondary mt-0.5">The &ldquo;Why $1?&rdquo; paragraph and the &ldquo;What you get&rdquo; list on the page after the quiz. Leave blank to use the built-in text.</p>
+                </div>
+                <label className="block text-[11px] text-text-tertiary">
+                  Why the price
+                  <textarea rows={3} value={settingsForm.onboardingCopy.whyPrice} placeholder={DEFAULT_WHY_PRICE}
+                    onChange={(e) => setSettingsForm((f) => ({ ...f, onboardingCopy: { ...f.onboardingCopy, whyPrice: e.target.value } }))}
+                    className="mt-1 w-full bg-surface border border-white/10 rounded-lg px-2.5 py-2 text-sm text-white placeholder:text-text-tertiary/50 focus:outline-none focus:border-accent/50" />
+                </label>
+                <div className="space-y-2">
+                  <p className="text-[11px] text-text-tertiary">What you get (title, then one line). Empty rows are dropped.</p>
+                  {(settingsForm.onboardingCopy.offerStack.length ? settingsForm.onboardingCopy.offerStack : DEFAULT_OFFER_STACK).map((row, i) => {
+                    const editing = settingsForm.onboardingCopy.offerStack.length > 0;
+                    return (
+                      <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-2">
+                        <input value={row.title} placeholder="Title" readOnly={!editing}
+                          onChange={(e) => setSettingsForm((f) => { const st = [...f.onboardingCopy.offerStack]; st[i] = { ...st[i], title: e.target.value }; return { ...f, onboardingCopy: { ...f.onboardingCopy, offerStack: st } }; })}
+                          className={`bg-surface border border-white/10 rounded-lg px-2.5 py-2 text-sm text-white ${editing ? '' : 'opacity-60'}`} />
+                        <input value={row.body} placeholder="One line" readOnly={!editing}
+                          onChange={(e) => setSettingsForm((f) => { const st = [...f.onboardingCopy.offerStack]; st[i] = { ...st[i], body: e.target.value }; return { ...f, onboardingCopy: { ...f.onboardingCopy, offerStack: st } }; })}
+                          className={`bg-surface border border-white/10 rounded-lg px-2.5 py-2 text-sm text-white ${editing ? '' : 'opacity-60'}`} />
+                      </div>
+                    );
+                  })}
+                  <div className="flex gap-3">
+                    {settingsForm.onboardingCopy.offerStack.length === 0 ? (
+                      <button type="button" className="text-xs text-accent hover:underline"
+                        onClick={() => setSettingsForm((f) => ({ ...f, onboardingCopy: { ...f.onboardingCopy, offerStack: DEFAULT_OFFER_STACK.map((r) => ({ ...r })) } }))}>
+                        Edit this list
+                      </button>
+                    ) : (
+                      <>
+                        <button type="button" className="text-xs text-accent hover:underline"
+                          onClick={() => setSettingsForm((f) => ({ ...f, onboardingCopy: { ...f.onboardingCopy, offerStack: [...f.onboardingCopy.offerStack, { title: '', body: '' }] } }))}>
+                          Add a row
+                        </button>
+                        <button type="button" className="text-xs text-text-tertiary hover:text-white"
+                          onClick={() => setSettingsForm((f) => ({ ...f, onboardingCopy: { ...f.onboardingCopy, offerStack: [] } }))}>
+                          Reset to built-in
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <p className="text-[11px] text-text-tertiary">Preview of what members will read: &ldquo;{revealCopy({ onboardingCopy: settingsForm.onboardingCopy }).whyPrice.slice(0, 120)}…&rdquo;</p>
               </div>
               <div className="flex items-center justify-between">
                 <div>

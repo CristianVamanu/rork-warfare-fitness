@@ -111,6 +111,16 @@ export interface OnboardingData {
   sessionMinutes?: 30 | 45 | 60 | 90;
   trainingStyle?: 'free-weights' | 'machines' | 'bodyweight' | 'mixed';
   targetWeightKg?: number;
+  /**
+   * Intake answers that surround the matcher without feeding it: who the
+   * person is training as, what they do, what stopped them before, what
+   * they would prioritise. Used for the reveal copy and email segmenting.
+   * See lib/onboardingIntake.ts. The matcher's inputs are the fields above.
+   */
+  trainingFor?: 'selection' | 'active-duty' | 'first-responder' | 'hybrid' | 'comeback';
+  occupation?: 'military-combat' | 'military-support' | 'police' | 'fire-ems' | 'preparing' | 'civilian' | 'prefer-not';
+  blocker?: 'hopping' | 'falling-off' | 'no-time' | 'injuries' | 'alone';
+  priority?: 'strength' | 'running' | 'size' | 'rucking' | 'swimming';
 }
 
 // Self-serve weight goal, set once at onboarding (mandatory alongside
@@ -385,6 +395,8 @@ export interface SystemConfig {
   foodAnalysisDailyLimit?: number; // default 20 if unset
   mealIdeasDailyLimit?: number; // default 15 if unset
   b2bLandingPage?: B2BLandingConfig;
+  /** Admin-editable copy on the onboarding reveal. Defaults in lib/onboardingIntake. */
+  onboardingCopy?: { whyPrice?: string; offerStack?: { title: string; body: string }[] };
 }
 
 // A separate landing page for the B2B/white-label pitch (trainers, coaches,

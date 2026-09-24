@@ -923,9 +923,14 @@ service cloud.firestore {
       // Exit-intent capture on the logged-out consumer landing page — same
       // reasoning as trainerLeads above: no auth yet at submit time, so this
       // is locked to the exact expected shape instead of a wide-open create.
+      // Two shapes: the bare exit-intent capture, and the quiz's email step
+      // (email + optional name + source 'onboarding'). Still no consent
+      // field: a client must never be able to write marketingOptIn.
       allow create: if request.resource.data.keys().hasAll(['email', 'createdAt'])
-        && request.resource.data.keys().hasOnly(['email', 'createdAt'])
-        && request.resource.data.email is string && request.resource.data.email.size() > 0 && request.resource.data.email.size() <= 320;
+        && request.resource.data.keys().hasOnly(['email', 'createdAt', 'name', 'source'])
+        && request.resource.data.email is string && request.resource.data.email.size() > 0 && request.resource.data.email.size() <= 320
+        && (!('source' in request.resource.data) || request.resource.data.source == 'onboarding')
+        && (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() <= 80));
     }
 
     // ── 1:1 Coaching applications (intake form → admin review) ───────────

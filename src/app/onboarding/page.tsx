@@ -8,13 +8,12 @@ import {
   Flame, Dumbbell, RefreshCw, Zap, Shield,
   ChevronRight, ChevronLeft, Loader2, CheckCircle,
   Home, Building2, Package, User, TrendingDown, TrendingUp, PartyPopper,
-  Eye, EyeOff,
 } from 'lucide-react';
 import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { signUp } from '@/lib/auth';
 import { startPlanCheckout, startCoachingCheckout } from '@/lib/checkout';
-import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, getSystemConfig, resolveProgram } from '@/lib/firestore';
+import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, resolveProgram, createOnboardingLead } from '@/lib/firestore';
 import { trackEvent } from '@/lib/analytics';
 import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
 import { lbsToKg, kgToLbs, cmToFtIn, ftInToCm } from '@/lib/utils';
@@ -26,6 +25,12 @@ import { Card } from '@/components/ui/Card';
 import { Medallion } from '@/components/dashboard/Medallion';
 import { BrandSplash } from '@/components/ui/BrandSplash';
 import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex, MedicalHistoryAnswers } from '@/types';
+import {
+  TRAINING_FOR, OCCUPATIONS, EXPERIENCE_CHOICES, EQUIPMENT_CHOICES, BLOCKERS, PRIORITIES,
+  isTrainingFor, isOccupation, isBlocker, isPriority, intelBreakFor, intakePercent,
+  type TrainingFor, type Occupation, type Blocker, type Priority, type OfferWords,
+} from '@/lib/onboardingIntake';
+import { RevealOffer } from './RevealOffer';
 
 // ─── Step data ────────────────────────────────────────────────────────────────
 
@@ -39,17 +44,26 @@ const GOALS: { value: FitnessGoal; label: string; sub: string; icon: React.Eleme
   { value: 'strength',      label: 'Get Stronger',   sub: 'Maximal strength & power',        icon: Zap },
 ];
 
-const EXPERIENCE: { value: ExperienceLevel; label: string; sub: string }[] = [
-  { value: 'beginner',     label: 'Beginner',     sub: 'Less than 1 year of training' },
-  { value: 'intermediate', label: 'Intermediate', sub: '1–3 years of consistent training' },
-  { value: 'advanced',     label: 'Advanced',     sub: '3+ years, structured periodization' },
-];
+// Same three values the matcher has always scored on; the words are the
+// situations people recognise themselves in (see lib/onboardingIntake).
+const EXPERIENCE: { value: ExperienceLevel; label: string; sub: string }[] = EXPERIENCE_CHOICES;
 
-const EQUIPMENT: { value: EquipmentType; label: string; sub: string; icon: React.ElementType }[] = [
-  { value: 'full-gym',  label: 'Full Gym',         sub: 'Barbells, dumbbells, cables, machines', icon: Building2 },
-  { value: 'home',      label: 'Home Gym',          sub: 'Dumbbells, bands, bodyweight',          icon: Home },
-  { value: 'minimal',   label: 'Minimal Equipment', sub: 'Bodyweight + pull-up bar',              icon: Package },
-];
+const EQUIPMENT_ICON: Record<EquipmentType, React.ElementType> = { 'full-gym': Building2, home: Home, minimal: Package };
+const EQUIPMENT: { value: EquipmentType; label: string; sub: string; icon: React.ElementType }[] =
+  EQUIPMENT_CHOICES.map((c) => ({ ...c, icon: EQUIPMENT_ICON[c.value] }));
+
+/**
+ * The intake, in order. Step numbers are positions in this list, never
+ * literals, so adding or moving a screen cannot silently point a step at
+ * the wrong component. The matcher's inputs (goal, experience, days,
+ * equipment, biometrics) are unchanged; the added screens are saved to the
+ * profile and used for the reveal copy only.
+ */
+type StepId = 'for' | 'goal' | 'occupation' | 'experience' | 'days' | 'equipment' | 'break' | 'blocker' | 'priority' | 'biometrics' | 'analysing' | 'email';
+const STEPS_ANON: StepId[] = ['for', 'goal', 'occupation', 'experience', 'days', 'equipment', 'break', 'blocker', 'priority', 'biometrics', 'analysing', 'email'];
+// Already signed in (resuming an unfinished quiz): no email step, and the
+// program is generated from the last screen exactly as before.
+const STEPS_AUTHED: StepId[] = ['for', 'goal', 'occupation', 'experience', 'days', 'equipment', 'break', 'blocker', 'priority', 'biometrics'];
 
 // 2 (and 1) deliberately excluded — zero programs in the catalog are built
 // for that few days/week, so offering it just set an expectation the
@@ -94,6 +108,10 @@ interface OnboardingDraft {
   medicalHistory: MedicalHistoryAnswers;
   name: string;
   email: string;
+  trainingFor: TrainingFor | null;
+  occupation: Occupation | null;
+  blocker: Blocker | null;
+  priority: Priority | null;
 }
 
 function loadOnboardingDraft(): Partial<OnboardingDraft> {
@@ -126,9 +144,9 @@ function OnboardingPageInner() {
   // that no longer has a matching render block — a blank card under a
   // "Step 9 of 8" counter, with Continue doing nothing. Clamping on restore
   // drops them on the last real step instead. MAX_STEP_INDEX is the highest
-  // index any configuration can reach (ACCOUNT_STEP); the effect below
+  // index any configuration can reach (the email step); the effect below
   // tightens it once needsAccount resolves and the true TOTAL_STEPS is known.
-  const MAX_STEP_INDEX = 6;
+  const MAX_STEP_INDEX = STEPS_ANON.length - 1;
   const [step, setStep] = useState(() =>
     Math.max(0, Math.min(MAX_STEP_INDEX, draft.step ?? 0))
   );
@@ -152,6 +170,27 @@ function OnboardingPageInner() {
   const [name, setName] = useState(draft.name ?? '');
   const [email, setEmail] = useState(draft.email ?? '');
   const [password, setPassword] = useState('');
+  const [trainingFor, setTrainingFor] = useState<TrainingFor | null>(isTrainingFor(draft.trainingFor) ? draft.trainingFor : null);
+  const [occupation, setOccupation] = useState<Occupation | null>(isOccupation(draft.occupation) ? draft.occupation : null);
+  const [blocker, setBlocker] = useState<Blocker | null>(isBlocker(draft.blocker) ? draft.blocker : null);
+  const [priority, setPriority] = useState<Priority | null>(isPriority(draft.priority) ? draft.priority : null);
+  // 'quiz' is the steps; 'reveal' is the match-and-offer page shown after
+  // the email step and before any account exists. A reload lands back on
+  // the email step with every answer intact.
+  const [phase, setPhase] = useState<'quiz' | 'reveal'>('quiz');
+  // What the reveal's button asked for. Read after the account is created
+  // so the person goes straight to the checkout they pressed, not the
+  // dashboard.
+  const pendingCheckoutRef = useRef<{ planId: string; months: 1 | 3 | 6 | 12 } | null>(null);
+  // One account creation at a time: a second press while signUp is in
+  // flight would call signUp again and fail with email-already-in-use for
+  // the account the first press is still creating.
+  const finishingRef = useRef(false);
+  // OnboardingComplete fires once per person, whichever exit they take.
+  const completeTrackedRef = useRef(false);
+  // The email step writes a lead; backing out and pressing again must not
+  // write a second row for the same address.
+  const leadSentForRef = useRef<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'generating' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
@@ -184,11 +223,11 @@ function OnboardingPageInner() {
       const draftToSave: OnboardingDraft = {
         step, goal, experience, trainingDays, equipment, limitations,
         sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory,
-        name, email,
+        name, email, trainingFor, occupation, blocker, priority,
       };
       localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(draftToSave));
     } catch { /* ignore — e.g. private browsing storage quota */ }
-  }, [step, goal, experience, trainingDays, equipment, limitations, sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory, name, email]);
+  }, [step, goal, experience, trainingDays, equipment, limitations, sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory, name, email, trainingFor, occupation, blocker, priority]);
 
   // Pre-fills sex/age from the landing page's quick-start selector (now
   // mandatory there — see LandingClient.tsx). Visitors who didn't come
@@ -279,12 +318,14 @@ function OnboardingPageInner() {
   // own disclaimer explaining that BMI cannot tell muscle from fat, which is
   // a screen admitting it is not worth a screen. The number is now one quiet
   // line on the biometrics step, where it costs no extra tap.
-  const TOTAL_STEPS = needsAccount ? 6 : 5;
-  const ACCOUNT_STEP = 5;
+  const STEPS = needsAccount === false ? STEPS_AUTHED : STEPS_ANON;
+  const TOTAL_STEPS = STEPS.length;
+  const stepId: StepId = STEPS[Math.min(step, TOTAL_STEPS - 1)];
+  const EMAIL_STEP = STEPS_ANON.indexOf('email');
 
   // Second half of the draft clamp above. An already-signed-in visitor has
-  // one fewer step (no account step), so a restored draft sitting exactly on
-  // ACCOUNT_STEP is still out of range for them — but needsAccount is null on
+  // fewer steps (no analysing or email step), so a restored draft sitting on
+  // one of those is out of range for them — but needsAccount is null on
   // first render and only resolves after Firebase reports auth state, so the
   // initializer can't know that yet. Runs once needsAccount is known.
   useEffect(() => {
@@ -320,16 +361,24 @@ function OnboardingPageInner() {
   // lib/tdee.ts and the weight-goal scoring bonus in pickBestProgram).
   const biometricsValid = sexAgeAnswered && heightNum >= 100 && heightNum <= 250
     && weightNum >= 30 && weightNum <= 300 && targetWeightNum >= 30 && targetWeightNum <= 300;
-  const accountValid = name.trim().length >= 2 && /^\S+@\S+\.\S+$/.test(email) && password.length >= 8;
+  const emailValid = name.trim().length >= 2 && /^\S+@\S+\.\S+$/.test(email);
+  const accountValidWith = (pw: string) => emailValid && pw.length >= 8;
 
-  const canAdvance = [
-    !!goal && sexAgeAnswered,
-    !!experience,
-    !!trainingDays,
-    !!equipment,
-    biometricsValid,
-    accountValid, // only reached when needsAccount is true
-  ][step];
+  const canAdvanceById: Record<StepId, boolean> = {
+    for: !!trainingFor,
+    goal: !!goal && sexAgeAnswered,
+    occupation: !!occupation,
+    experience: !!experience,
+    days: !!trainingDays,
+    equipment: !!equipment,
+    break: true,
+    blocker: !!blocker,
+    priority: !!priority,
+    biometrics: biometricsValid,
+    analysing: true,
+    email: emailValid,
+  };
+  const canAdvance = canAdvanceById[stepId];
 
   // One event per step reached. Until this existed the funnel had exactly
   // one signal between landing and dashboard (sign_up), so "where does
@@ -367,8 +416,10 @@ function OnboardingPageInner() {
   const previewKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Only on the account step, and only when there is something to match.
-    if (step !== ACCOUNT_STEP || !needsAccount) return;
+    // From the analysing screen onward, and only when there is something to
+    // match — so the reveal already has its answer when it opens.
+    if (!needsAccount) return;
+    if (stepId !== 'analysing' && stepId !== 'email' && phase !== 'reveal') return;
     if (!goal || !experience || !trainingDays || !equipment) return;
     // Someone who picked a specific program on the landing page already
     // knows what they are getting; re-announcing a different match would be
@@ -420,10 +471,26 @@ function OnboardingPageInner() {
       });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, needsAccount, goal, experience, trainingDays, equipment, sex, biometricsValid, weightNum, targetWeightNum]);
+  }, [stepId, phase, needsAccount, goal, experience, trainingDays, equipment, sex, biometricsValid, weightNum, targetWeightNum]);
+
+  // The analysing screen holds for a few seconds while the match request
+  // above runs, then moves on by itself. It shows what is being done with
+  // the answers; it does not pretend to compute anything it is not.
+  useEffect(() => {
+    if (stepId !== 'analysing') return;
+    const t = setTimeout(() => setStep((s) => (STEPS[s] === 'analysing' ? Math.min(TOTAL_STEPS - 1, s + 1) : s)), 4200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepId]);
 
   function go(delta: number) {
-    setStep((s) => Math.max(0, Math.min(TOTAL_STEPS - 1, s + delta)));
+    setStep((s) => {
+      let next = Math.max(0, Math.min(TOTAL_STEPS - 1, s + delta));
+      // The analysing screen moves itself forward; stepping back onto it
+      // would bounce the person straight to where they came from.
+      if (delta < 0 && STEPS[next] === 'analysing') next = Math.max(0, next - 1);
+      return next;
+    });
   }
 
   // Auto-advance for the single-choice steps (goal, experience, days,
@@ -481,7 +548,18 @@ function OnboardingPageInner() {
     ) ?? MOCK_PROGRAMS[0];
   }
 
-  async function handleFinish() {
+  async function handleFinish(pwOverride?: string) {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
+    try {
+      await handleFinishInner(pwOverride);
+    } finally {
+      finishingRef.current = false;
+    }
+  }
+
+  async function handleFinishInner(pwOverride?: string) {
+    const pw = pwOverride ?? password;
     // These early-return guards used to fail completely silently — no error
     // shown, button just did nothing. If a user hit this state (e.g. left
     // Confirm password empty, which alone makes accountValid false with no
@@ -491,7 +569,7 @@ function OnboardingPageInner() {
       setError('Something went missing earlier in the quiz — please go back and check every step.');
       return;
     }
-    if (needsAccount && !accountValid) {
+    if (needsAccount && !accountValidWith(pw)) {
       setError(
         !name.trim() || name.trim().length < 2 ? 'Enter your name (at least 2 characters).' :
         !/^\S+@\S+\.\S+$/.test(email) ? 'Enter a valid email address.' :
@@ -513,7 +591,7 @@ function OnboardingPageInner() {
       if (createdUserRef.current) {
         activeUser = createdUserRef.current;
       } else if (needsAccount) {
-        activeUser = await signUp(email.trim(), password, name.trim(), weightUnit);
+        activeUser = await signUp(email.trim(), pw, name.trim(), weightUnit);
         createdUserRef.current = activeUser;
         trackEvent('CompleteRegistration');
       } else {
@@ -660,6 +738,10 @@ function OnboardingPageInner() {
         trainingDays,
         equipment,
         ...(limitations.trim() ? { limitations: limitations.trim() } : {}),
+        ...(trainingFor ? { trainingFor } : {}),
+        ...(occupation ? { occupation } : {}),
+        ...(blocker ? { blocker } : {}),
+        ...(priority ? { priority } : {}),
         ...(biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, targetWeightKg: targetWeightNum } : {}),
         ...(Object.keys(cleanedMedicalHistory).length > 0 ? { medicalHistory: cleanedMedicalHistory } : {}),
       };
@@ -743,6 +825,25 @@ function OnboardingPageInner() {
       // handles the video-greeting check and final navigation.
       setStatus('done');
       await refreshProfile();
+      // The reveal's button was an offer with a price. Honour it now that
+      // the account exists: straight to that checkout, program already
+      // enrolled. A failure here falls through to the completion screen
+      // below with the error shown, never a dead end.
+      // A plan or coaching card clicked on the landing page wins over the
+      // reveal's default choice: that is the price the person was shown.
+      const pending = pendingCheckoutRef.current;
+      if (pending || preselectedCoachingPlanId) {
+        if (!completeTrackedRef.current) {
+          completeTrackedRef.current = true;
+          trackEvent('OnboardingComplete', { steps: TOTAL_STEPS, checkout: true });
+        }
+        const err = preselectedCoachingPlanId
+          ? await startCoachingCheckout(activeUser, preselectedCoachingPlanId)
+          : await startPlanCheckout(activeUser, pending!.planId, pending!.months);
+        if (!err) return;
+        pendingCheckoutRef.current = null;
+        setError(err);
+      }
     } catch (err: unknown) {
       console.error('[Onboarding] failed:', err);
       const code = (err as { code?: string })?.code;
@@ -756,7 +857,7 @@ function OnboardingPageInner() {
       // If account creation itself failed, jump back to the account step so
       // the error is visible right next to the field that needs fixing
       // rather than wherever the user happened to be scrolled to.
-      if (code?.startsWith('auth/')) setStep(ACCOUNT_STEP);
+      if (code?.startsWith('auth/')) { setPhase('quiz'); setStep(EMAIL_STEP); }
       setStatus('idle');
     }
   }
@@ -773,7 +874,10 @@ function OnboardingPageInner() {
     // Onboarding is complete here regardless of which exit follows — Stripe
     // checkout, the welcome video, or straight to the dashboard — so this is
     // the one place the event can fire exactly once for everyone.
-    trackEvent('OnboardingComplete', { steps: TOTAL_STEPS });
+    if (!completeTrackedRef.current) {
+      completeTrackedRef.current = true;
+      trackEvent('OnboardingComplete', { steps: TOTAL_STEPS });
+    }
     // Honor whichever pricing card the visitor actually clicked on the
     // landing page — send them straight into that checkout instead of
     // dropping them on the dashboard having forgotten the price they saw.
@@ -994,6 +1098,44 @@ function OnboardingPageInner() {
 
   if (authLoading || needsAccount === null) return <BrandSplash />;
 
+  if (phase === 'reveal' && needsAccount) {
+    return (
+      <div className="relative isolate min-h-screen bg-background overflow-x-hidden">
+        <div aria-hidden className="wf-field" />
+        <div className="relative mx-auto w-full max-w-lg px-4 pt-4">
+          <button
+            onClick={() => { setPhase('quiz'); setError(null); }}
+            disabled={isGenerating}
+            className="p-2 -ml-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors disabled:opacity-40"
+            aria-label="Back to your answers"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+        </div>
+        <RevealOffer
+          name={name}
+          goal={goal} equipment={equipment} experience={experience} trainingDays={trainingDays}
+          blocker={blocker} trainingFor={trainingFor}
+          match={previewProgram} matchState={previewState} options={previewOptions} onPick={setPreviewProgram}
+          timeline={biometricsValid ? estimateWeightGoalTimeline(weightNum, targetWeightNum) : null}
+          weightUnit={weightUnit}
+          busy={isGenerating}
+          error={error}
+          preferredPlanId={preselectedPlanId}
+          onStart={(pw: string, plan: { id: string; months: 1 | 3 | 6 | 12 } | null, offer: OfferWords) => {
+            setPassword(pw);
+            pendingCheckoutRef.current = offer.checkout && plan ? { planId: plan.id, months: plan.months } : null;
+            trackEvent('OnboardingStartPressed', { offer: offer.kind });
+            void handleFinish(pw);
+          }}
+        />
+      </div>
+    );
+  }
+
+  const percent = intakePercent(step, TOTAL_STEPS);
+  const isBreak = stepId === 'break';
+
   return (
     <div className="relative isolate min-h-screen bg-background flex flex-col overflow-hidden">
       {/* Same treatment as the login screen — full-bleed and dimmed rather
@@ -1035,21 +1177,13 @@ function OnboardingPageInner() {
               <ChevronLeft className="w-5 h-5" />
             </button>
           )}
-          <span className="text-xs text-text-secondary">Step {step + 1} of {TOTAL_STEPS}</span>
-          <div className="w-9" />
+          <span className="wf-readout text-[10px] font-bold text-accent">{isBreak ? 'Intel break' : stepId === 'analysing' ? 'Building' : 'The intake'}</span>
+          <span className="wf-readout text-[10px] font-bold text-text-tertiary tabular-nums w-9 text-right">{percent}%</span>
         </div>
-        {/* Segmented — one dash per step, filled solid through the current
-            one — reads as "how far into the mission" at a glance instead of
-            a single continuous bar that doesn't communicate step count. */}
-        <div className="flex gap-1">
-          {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-            <div
-              key={i}
-              className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
-                i < step ? 'bg-accent' : i === step ? 'bg-accent/45' : 'bg-white/10'
-              }`}
-            />
-          ))}
+        {/* One bar with a percentage: "how far into the intake", not "which
+            of N screens". Never reaches 100 before the reveal. */}
+        <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+          <div className="h-full rounded-full bg-gradient-accent transition-[width] duration-500" style={{ width: `${percent}%` }} />
         </div>
       </div>
 
@@ -1059,27 +1193,65 @@ function OnboardingPageInner() {
             the CSS animation. See .wf-step for why this is no longer
             framer-motion. */}
         <div key={step} className="wf-step space-y-4">
-            {step === 0 && (
+            {stepId === 'for' && (
+              <StepChoice
+                title="What are you training for?"
+                sub="Tap one to start. This shapes how we talk to you, not which program you get — that comes from your answers next."
+                choices={TRAINING_FOR}
+                selected={trainingFor}
+                onSelect={(v) => selectAndAdvance(step, () => setTrainingFor(v))}
+              />
+            )}
+            {stepId === 'goal' && (
               <StepGoal
                 // Only auto-advances once sex/age are actually answered —
                 // this step carries those extra fields, so picking a goal
                 // isn't necessarily finishing the step.
                 selected={goal}
-                onSelect={(v) => (sexAgeAnswered ? selectAndAdvance(0, () => setGoal(v)) : setGoal(v))}
+                onSelect={(v) => (sexAgeAnswered ? selectAndAdvance(step, () => setGoal(v)) : setGoal(v))}
                 sex={sex} onSex={setSex} age={age} onAge={setAge}
                 showSexPicker={!hadPrefilledSex} showAgeInput={!hadPrefilledAge}
               />
             )}
-            {step === 1 && (
-              <StepExperience selected={experience} onSelect={(v) => selectAndAdvance(1, () => setExperience(v))} />
+            {stepId === 'occupation' && (
+              <StepChoice
+                title="What's your current occupation?"
+                sub="Your program does not change with this. Your reveal does."
+                choices={OCCUPATIONS}
+                selected={occupation}
+                onSelect={(v) => selectAndAdvance(step, () => setOccupation(v))}
+              />
             )}
-            {step === 2 && (
-              <StepDays selected={trainingDays} onSelect={(v) => selectAndAdvance(2, () => setTrainingDays(v))} />
+            {stepId === 'experience' && (
+              <StepExperience selected={experience} onSelect={(v) => selectAndAdvance(step, () => setExperience(v))} />
             )}
-            {step === 3 && (
-              <StepEquipment selected={equipment} onSelect={(v) => selectAndAdvance(3, () => setEquipment(v))} />
+            {stepId === 'days' && (
+              <StepDays selected={trainingDays} onSelect={(v) => selectAndAdvance(step, () => setTrainingDays(v))} />
             )}
-            {step === 4 && (
+            {stepId === 'equipment' && (
+              <StepEquipment selected={equipment} onSelect={(v) => selectAndAdvance(step, () => setEquipment(v))} />
+            )}
+            {stepId === 'break' && <StepIntelBreak trainingFor={trainingFor} goal={goal} />}
+            {stepId === 'blocker' && (
+              <StepChoice
+                title="What's actually stopped you before?"
+                sub="Be honest. The program is built around the answer."
+                choices={BLOCKERS}
+                selected={blocker}
+                onSelect={(v) => selectAndAdvance(step, () => setBlocker(v))}
+              />
+            )}
+            {stepId === 'priority' && (
+              <StepChoice
+                title="If one thing had to be your priority, what would it be?"
+                sub="Everything gets trained. One thing gets the emphasis."
+                choices={PRIORITIES}
+                selected={priority}
+                onSelect={(v) => selectAndAdvance(step, () => setPriority(v))}
+              />
+            )}
+            {stepId === 'analysing' && <StepAnalysing />}
+            {stepId === 'biometrics' && (
               <StepBiometrics
                 sex={sex} onSex={setSex}
                 age={age} onAge={setAge}
@@ -1091,14 +1263,8 @@ function OnboardingPageInner() {
                 sexAgeAnswered={sexAgeAnswered} onEditSexAge={() => { setSex(null); setAge(''); }}
               />
             )}
-            {step === ACCOUNT_STEP && needsAccount && (
-              <StepAccount
-                name={name} onName={setName}
-                email={email} onEmail={setEmail}
-                password={password} onPassword={setPassword}
-                match={previewProgram} matchState={previewState}
-                options={previewOptions} onPick={setPreviewProgram}
-              />
+            {stepId === 'email' && needsAccount && (
+              <StepEmail name={name} onName={setName} email={email} onEmail={setEmail} matchState={previewState} />
             )}
         </div>
       </div>
@@ -1124,21 +1290,42 @@ function OnboardingPageInner() {
 
       {/* CTA */}
       <div className="px-4 py-6 max-w-lg mx-auto w-full">
-        {step < TOTAL_STEPS - 1 ? (
+        {stepId === 'analysing' ? null : stepId === 'email' ? (
+          <Button
+            fullWidth
+            size="lg"
+            disabled={!canAdvance}
+            onClick={() => {
+              // Captured now, before the reveal and long before a password:
+              // someone who stops at the price is still reachable. Never
+              // blocks the flow.
+              const key = email.trim().toLowerCase();
+              if (leadSentForRef.current !== key) {
+                leadSentForRef.current = key;
+                createOnboardingLead(email, name).catch(() => { leadSentForRef.current = null; });
+              }
+              trackEvent('OnboardingRevealViewed');
+              setError(null);
+              setPhase('reveal');
+            }}
+          >
+            See my program <ChevronRight className="w-4 h-4" />
+          </Button>
+        ) : step < TOTAL_STEPS - 1 ? (
           <Button
             fullWidth
             size="lg"
             disabled={!canAdvance}
             onClick={() => go(1)}
           >
-            Continue <ChevronRight className="w-4 h-4" />
+            {isBreak ? 'Keep going' : 'Continue'} <ChevronRight className="w-4 h-4" />
           </Button>
         ) : (
           <Button
             fullWidth
             size="lg"
             disabled={isGenerating || !canAdvance}
-            onClick={handleFinish}
+            onClick={() => handleFinish()}
           >
             {isGenerating ? (
               <>
@@ -1151,19 +1338,125 @@ function OnboardingPageInner() {
                 {/* "Get My Plan" was a promise about something unseen. Once
                     the match is on the screen above, the button is claiming
                     a named thing, so it says so. */}
-                {!needsAccount ? 'Generate My Program'
-                  : previewState === 'ready' && previewProgram ? 'Create Account & Start'
-                  : 'Create Account & Get My Plan'}
+                Generate My Program
               </>
             )}
           </Button>
         )}
+        <p className="text-[10px] text-text-tertiary leading-relaxed text-center mt-4">
+          Programs are general fitness programs inspired by military training. Not affiliated with, endorsed by, or connected to any armed force or government.
+        </p>
       </div>
     </div>
   );
 }
 
 // ─── Step components ───────────────────────────────────────────────────────────
+
+/** One question, one tap. Used by every added single-choice screen. */
+function StepChoice<T extends string>({ title, sub, choices, selected, onSelect }: {
+  title: string; sub: string;
+  choices: { value: T; label: string; sub: string }[];
+  selected: T | null; onSelect: (v: T) => void;
+}) {
+  return (
+    <div>
+      <h1 className="text-2xl font-black text-white mb-1">{title}</h1>
+      <p className="text-text-secondary text-sm mb-5">{sub}</p>
+      <div className="space-y-3">
+        {choices.map((c) => (
+          <OptionTile key={c.value} label={c.label} sub={c.sub} selected={selected === c.value} onClick={() => onSelect(c.value)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The break between questions: a published standard, not a testimonial.
+ * Real numbers from the same table the standards test scores against.
+ */
+function StepIntelBreak({ trainingFor, goal }: { trainingFor: TrainingFor | null; goal: FitnessGoal | null }) {
+  const b = intelBreakFor(trainingFor, goal);
+  return (
+    <div>
+      <p className="wf-readout text-[10px] font-bold text-accent">{b.eyebrow}</p>
+      <h1 className="text-2xl font-black text-white mt-2 text-balance">{b.title}</h1>
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-surface mt-5 p-4">
+        <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
+        <div className="relative divide-y divide-white/8">
+          {b.rows.map((r) => (
+            <div key={r.label} className="flex items-baseline justify-between py-3">
+              <span className="text-sm text-text-secondary">{r.label}</span>
+              <span className="text-2xl font-black text-white tabular-nums">{r.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="text-[11px] text-text-tertiary leading-relaxed mt-3">{b.note}</p>
+      <div className="mt-6 space-y-2">
+        {[
+          ['Your answers set the start point', 'The program starts where you actually are, not at week one of someone else\'s plan.'],
+          ['Phased blocks force adaptation', 'Each block builds on the last: strength, engine, durability, in the order the goal demands.'],
+          ['The loads move with your logs', 'Every set is one tap. Next week\'s weight is decided from this week\'s, by the app, not by guesswork.'],
+        ].map(([t, d], i) => (
+          <div key={t} className="flex items-start gap-3 rounded-xl border border-white/10 bg-black/25 p-3">
+            <span className="w-7 h-7 rounded-lg border border-accent/50 text-accent text-xs font-black flex items-center justify-center flex-shrink-0">{i + 1}</span>
+            <div><p className="text-sm font-bold text-white leading-tight">{t}</p><p className="text-[12px] text-text-secondary leading-relaxed mt-0.5">{d}</p></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** A few seconds of honest status while the match request runs. */
+function StepAnalysing() {
+  const lines = ['Reading your answers…', 'Matching your goal and level…', 'Checking your equipment and days…', 'Setting nutrition targets…'];
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((n) => Math.min(lines.length - 1, n + 1)), 1000);
+    return () => clearInterval(t);
+  }, [lines.length]);
+  return (
+    <div className="pt-10 text-center">
+      <div className="h-1 rounded-full bg-white/10 overflow-hidden max-w-xs mx-auto">
+        <div className="h-full bg-gradient-accent rounded-full transition-[width] duration-1000" style={{ width: `${((i + 1) / lines.length) * 100}%` }} />
+      </div>
+      <h1 className="text-2xl font-black text-white mt-6 text-balance">{lines[i]}</h1>
+      <p className="text-sm text-text-secondary mt-3">Real programs, matched to what you told us. Nothing generated on the spot.</p>
+    </div>
+  );
+}
+
+/** Name and email. No password here: that is asked on the reveal, once the person has seen what it keeps. */
+function StepEmail({ name, onName, email, onEmail, matchState }: {
+  name: string; onName: (v: string) => void; email: string; onEmail: (v: string) => void;
+  matchState: 'idle' | 'loading' | 'ready' | 'failed';
+}) {
+  return (
+    <div>
+      <p className="wf-readout text-[10px] font-bold text-accent flex items-center gap-1.5">
+        {matchState === 'ready' ? <><CheckCircle className="w-3 h-3" /> Program matched</>
+          : matchState === 'loading' ? <><Loader2 className="w-3 h-3 animate-spin" /> Matching</>
+          : <><CheckCircle className="w-3 h-3" /> Almost there</>}
+      </p>
+      <h1 className="text-2xl font-black text-white mt-2">Your program is ready.</h1>
+      <p className="text-text-secondary text-sm mb-5 mt-1">Where should we send it?</p>
+      <div className="space-y-3">
+        <input
+          type="text" value={name} onChange={(e) => onName(e.target.value)} placeholder="Full name" autoComplete="name"
+          className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3.5 text-white text-base placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+        />
+        <input
+          type="email" value={email} onChange={(e) => onEmail(e.target.value)} placeholder="Email" autoComplete="email" inputMode="email"
+          className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3.5 text-white text-base placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+        />
+      </div>
+      <p className="text-xs text-text-tertiary mt-4 text-center leading-relaxed">Your program and your login when you start. No spam, no games.</p>
+    </div>
+  );
+}
 
 // Shared selection-tile language across Goal/Experience/Equipment — icon
 // badge, bold label, a real checkmark badge instead of a bare icon on
@@ -1730,152 +2023,6 @@ function StepBiometrics({
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function StepAccount({
-  name, onName, email, onEmail, password, onPassword, match, matchState, options, onPick,
-}: {
-  name: string; onName: (v: string) => void;
-  email: string; onEmail: (v: string) => void;
-  password: string; onPassword: (v: string) => void;
-  match: MatchedProgram | null;
-  matchState: 'idle' | 'loading' | 'ready' | 'failed';
-  /** Match first, then runners-up. Empty until the preview answers. */
-  options: MatchedProgram[];
-  onPick: (p: MatchedProgram) => void;
-}) {
-  // One password box, with a reveal — not two. A confirm field exists to
-  // catch a typo you cannot see, which a show/hide button solves without
-  // making a stranger type the same thing twice on a phone keyboard at the
-  // last step of a signup. Getting it wrong was never unrecoverable either:
-  // password reset has always been one tap away.
-  const [reveal, setReveal] = useState(false);
-  const showing = matchState === 'ready' && !!match;
-  return (
-    <div>
-      {/* The match, above the form rather than behind it.
-          The whole point of this screen's new shape: the visitor can see
-          what their six answers earned before being asked for an email. The
-          form below is unchanged — what changed is that it is now asking
-          them to keep something rather than to gamble on something. */}
-      {matchState === 'loading' && (
-        <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4 mb-5 flex items-center gap-3">
-          <Loader2 className="w-4 h-4 text-accent animate-spin flex-shrink-0" />
-          <p className="text-sm text-text-secondary">Matching you to a program…</p>
-        </div>
-      )}
-      {showing && (
-        <div className="rounded-2xl border border-accent/25 bg-accent/[0.06] p-4 mb-5">
-          <p className="text-[10px] font-bold text-accent uppercase tracking-[0.18em]">
-            {options[0] && match.id !== options[0].id ? 'Your pick' : 'Your match'}
-          </p>
-          <p className="text-lg font-black text-white leading-tight mt-1.5">{match.name}</p>
-          {match.marketing?.hook && (
-            <p className="text-[13px] text-text-secondary leading-snug mt-1.5">{match.marketing.hook}</p>
-          )}
-          {/* The commitment line, not the program's raw weeks and days.
-              Those two numbers describe how the program is WRITTEN, which is
-              not what this person signed up for: someone who just answered
-              "3 days" was being shown "6 days / week" directly underneath,
-              which reads as the app not having listened. buildProgramMarketing
-              already phrases this properly against the member's own days —
-              the program advances session by session, not by the calendar,
-              so fewer days simply means more weeks. */}
-          {match.marketing?.commitment && (
-            <p className="text-[11px] text-text-tertiary leading-relaxed mt-3 pt-3 border-t border-white/8">
-              {match.marketing.commitment}
-            </p>
-          )}
-          {/* The runners-up, small, under the match — one tap swaps the
-              selection and the card above re-renders as their pick. The
-              default path is untouched: do nothing, and the match is what
-              you get. This is what makes a wrong match a tap rather than a
-              paywall, without turning the highest-drop-off screen in the
-              product into a menu. The current selection is left out of the
-              row, so the original match reappears here after a swap. */}
-          {options.length > 1 && (
-            <div className="mt-3 pt-3 border-t border-white/8">
-              <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-[0.18em]">Also fits you</p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {options.filter((o) => o.id !== match.id).map((o) => (
-                  <button
-                    key={o.id}
-                    type="button"
-                    onClick={() => onPick(o)}
-                    className="min-h-[40px] px-3 rounded-xl border border-white/10 bg-surface text-[13px] font-semibold text-text-secondary hover:border-accent/40 hover:text-white transition-colors"
-                  >
-                    {o.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Headline follows the match, so it reads as the next step rather
-          than as the start of something. Falls back to the original wording
-          when there is no match to show — a failed preview must never leave
-          this screen referring to a plan that is not on it. */}
-      <h1 className="text-2xl font-black text-white mb-1">
-        {showing ? 'Save your program' : 'Almost there'}
-      </h1>
-      <p className="text-text-secondary text-sm mb-5">
-        {showing
-          ? 'Create your account to keep this plan and start day one.'
-          : 'Create your account to save this plan and get your dashboard.'}
-      </p>
-      <div className="space-y-3">
-        <div>
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => onName(e.target.value)}
-            placeholder="Your name"
-            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => onEmail(e.target.value)}
-            placeholder="you@example.com"
-            className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-text-secondary mb-1.5 block">Password</label>
-          <div className="relative">
-            <input
-              type={reveal ? 'text' : 'password'}
-              value={password}
-              onChange={(e) => onPassword(e.target.value)}
-              placeholder="8+ characters"
-              autoComplete="new-password"
-              className="w-full bg-surface border border-white/10 rounded-xl pl-3 pr-12 py-2.5 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-            />
-            <button
-              type="button"
-              onClick={() => setReveal((v) => !v)}
-              aria-label={reveal ? 'Hide password' : 'Show password'}
-              className="absolute inset-y-0 right-0 px-3 flex items-center text-text-tertiary hover:text-white"
-            >
-              {reveal ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-          </div>
-        </div>
-      </div>
-      <p className="text-xs text-text-tertiary mt-4 text-center">
-        By continuing you agree to our{' '}
-        <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-accent underline">Terms</a>
-        {' '}and{' '}
-        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-accent underline">Privacy Policy</a>.
-      </p>
     </div>
   );
 }

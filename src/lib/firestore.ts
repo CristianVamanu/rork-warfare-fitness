@@ -303,6 +303,21 @@ export async function createLandingLead(email: string) {
 }
 
 /**
+ * The quiz's email step, before any account exists. Captured so a person
+ * who answers everything and stops at the price is still reachable. No
+ * marketing consent is recorded here — none was asked — so these rows are
+ * excluded from every marketing send until the person opts in elsewhere.
+ */
+export async function createOnboardingLead(email: string, name: string) {
+  await addDoc(collection(db, 'landingLeads'), {
+    email: email.trim().toLowerCase(),
+    ...(name.trim() ? { name: name.trim().slice(0, 80) } : {}),
+    source: 'onboarding',
+    createdAt: serverTimestamp(),
+  });
+}
+
+/**
  * Newest first, capped.
  *
  * These three admin lists were unbounded reads of collections that only ever

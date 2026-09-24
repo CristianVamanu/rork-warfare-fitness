@@ -1,10 +1,11 @@
 /** Shared shape for the admin email list — see /api/admin/leads. */
-export type LeadSource = 'landing' | 'standards' | 'free-plan';
+export type LeadSource = 'landing' | 'standards' | 'free-plan' | 'onboarding';
 
 export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
   landing: 'Landing page',
   standards: 'Standards test',
   'free-plan': 'Free plan',
+  onboarding: 'Quiz, no account',
 };
 
 export interface LeadRow {

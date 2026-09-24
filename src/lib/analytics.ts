@@ -51,6 +51,8 @@ const GA_EVENT = {
   MealLogged: 'meal_logged',
   BarcodeScanned: 'barcode_scanned',
   PaywallViewed: 'paywall_viewed',
+  OnboardingRevealViewed: 'onboarding_reveal_viewed',
+  OnboardingStartPressed: 'onboarding_start_pressed',
 } as const;
 
 export type AnalyticsEvent = keyof typeof GA_EVENT;

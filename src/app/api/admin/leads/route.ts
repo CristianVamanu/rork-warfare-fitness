@@ -26,13 +26,13 @@ import { verifyAdmin } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { toCsv } from '@/lib/csv';
 
-const SOURCES: readonly LeadSource[] = ['landing', 'standards', 'free-plan'];
+const SOURCES: readonly LeadSource[] = ['landing', 'standards', 'free-plan', 'onboarding'];
 type Source = LeadSource;
 const CONSENTS = ['opted-in', 'all', 'opted-out'] as const;
 type Consent = typeof CONSENTS[number];
 
 function toRow(id: string, d: DocumentData): LeadRow {
-  const src = d.source === 'standards' || d.source === 'free-plan' ? d.source : 'landing';
+  const src = d.source === 'standards' || d.source === 'free-plan' || d.source === 'onboarding' ? d.source : 'landing';
   const created = (d.createdAt as { toDate?: () => Date } | undefined)?.toDate?.();
   return {
     id,
