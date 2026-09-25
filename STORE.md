@@ -45,8 +45,9 @@ the checkout (Stripe) and the gate.
 
 Provider image links are copied into R2 at import (`shop/<providerProductId>/…`)
 and the product stores the R2 URL. Gelato's preview links are signed and expire
-within hours, which showed as broken-image icons on the shelf. Re-importing
-refreshes any product whose pictures are not yet on R2. Needs the R2 secrets
+within hours, which showed as broken-image icons on the shelf. The hourly store cron (and every deploy, once) re-imports
+the catalogue, so pictures and variants refresh on their own; the Import
+button is only for an immediate refresh. Needs the R2 secrets
 in Admin → Integrations; without them the provider link is kept as-is.
 
 ## How an order moves

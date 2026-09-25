@@ -2,16 +2,18 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Hourly cron (deploy.sh installs it): asks the provider about every open
- * order. Webhooks carry the news first; this is what makes "auto-updates"
- * true even if a webhook was never registered or a delivery was dropped.
- * Secured by CRON_SECRET like the other jobs.
+ * Hourly cron (deploy.sh installs it, and runs it once right after each
+ * deploy): asks the provider about every open order, then refreshes the
+ * product catalogue. Webhooks carry the news first; this is what makes
+ * "auto-updates" true even if a webhook was never registered or a delivery
+ * was dropped — and it is what keeps product pictures and variants current
+ * without anyone pressing Import. Secured by CRON_SECRET like the other jobs.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { timingSafeEqualString } from '@/lib/crypto';
-import { syncOpenOrders } from '@/lib/shop/server';
+import { syncOpenOrders, importProducts, getShopConfig } from '@/lib/shop/server';
 
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -22,8 +24,16 @@ export async function POST(req: NextRequest) {
   const app = getAdminApp();
   if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
   try {
-    const result = await syncOpenOrders(getAdminDb(app));
-    return NextResponse.json({ ok: true, ...result });
+    const db = getAdminDb(app);
+    const orders = await syncOpenOrders(db);
+    // Only once a provider is configured; before that there is nothing to
+    // import and the failure would just be noise in the cron log.
+    let products: Awaited<ReturnType<typeof importProducts>> | { skipped: string } = { skipped: 'no provider configured' };
+    if ((await getShopConfig(db)).provider) {
+      try { products = await importProducts(db); }
+      catch (err) { products = { skipped: err instanceof Error ? err.message : String(err) }; console.error('[shop/sync-orders] product refresh failed:', products.skipped); }
+    }
+    return NextResponse.json({ ok: true, ...orders, products });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[shop/sync-orders]', msg);
