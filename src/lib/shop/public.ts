@@ -16,11 +16,14 @@ export interface ShopListing {
   products: PublicProduct[];
   enabled: boolean;
   tagline: string | null;
+  shippingCents: number;
+  currency: string;
 }
 
 export async function loadShopListing(): Promise<ShopListing> {
   const app = getAdminApp();
-  if (!app) return { products: [], enabled: false, tagline: null };
+  const empty: ShopListing = { products: [], enabled: false, tagline: null, shippingCents: 0, currency: 'USD' };
+  if (!app) return empty;
   try {
     const db = getAdminDb(app);
     const [cfg, snap] = await Promise.all([getShopConfig(db), db.collection('products').where('active', '==', true).get()]);
@@ -28,10 +31,10 @@ export async function loadShopListing(): Promise<ShopListing> {
       .map((d) => ({ ...publicProduct(d.id, d.data() as ShopProduct), sortOrder: (d.data() as ShopProduct).sortOrder ?? 0 }))
       .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
       .map(({ sortOrder: _s, ...p }) => p);
-    return { products, enabled: cfg.enabled !== false, tagline: cfg.tagline ?? null };
+    return { products, enabled: cfg.enabled !== false, tagline: cfg.tagline ?? null, shippingCents: cfg.shippingCents ?? 0, currency: (cfg.currency ?? 'USD').toUpperCase() };
   } catch (err) {
     console.error('[shop] listing failed:', err instanceof Error ? err.message : err);
-    return { products: [], enabled: false, tagline: null };
+    return empty;
   }
 }
 

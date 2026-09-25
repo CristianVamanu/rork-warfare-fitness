@@ -431,12 +431,24 @@ export interface ShopConfig {
   /** Flat shipping charged at checkout, in minor units. 0 = free shipping. */
   shippingCents?: number;
   tagline?: string;
+  /** Retail = provider cost × (1 + markupPercent/100), rounded to .99, for
+   *  products the provider does not price (Gelato). Default 100 (= ×2). */
+  markupPercent?: number;
+  /** Country whose provider cost is used for auto-pricing. Default US. */
+  pricingCountry?: string;
+  /** New imports go on the shelf as soon as they have a price. Default on. */
+  autoActivate?: boolean;
 }
 
 export interface ShopVariant {
   id: string;               // ours, stable
   label: string;            // "M / Black"
   providerVariantId: string; // Printify variant id, or Gelato productUid
+  /** Gelato: the store variant id. Ordering by it means Gelato takes the
+   *  design from the store product, and no print file is needed here. */
+  providerStoreVariantId?: string;
+  /** What the provider charges us for it, in minor units, when known. */
+  costCents?: number;
   priceCents?: number;      // overrides the product price when set
   available: boolean;
   /** Gelato only: the print file the variant is produced from. */
@@ -454,6 +466,9 @@ export interface ShopProduct {
   provider: ShopProvider;
   providerProductId: string;
   variants: ShopVariant[];
+  /** Shelf section: Apparel, Drinkware, Wall art, Bags, Accessories, Gear.
+   *  Guessed from the provider on import, editable in the admin. */
+  category?: string;
   /** "Earned, not given": buying requires a verified challenge finish. */
   earnedOnly?: boolean;
   /** Challenges whose verified finish unlocks it. Empty + earnedOnly = any
@@ -479,6 +494,7 @@ export interface ShopOrderItem {
   image?: string;
   providerProductId: string;
   providerVariantId: string;
+  providerStoreVariantId?: string;
   printFileUrl?: string;
 }
 

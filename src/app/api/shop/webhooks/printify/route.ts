@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { getSecret } from '@/lib/secrets';
 import { printifyStatus } from '@/lib/shop/providers';
-import { applyProviderState } from '@/lib/shop/server';
+import { applyProviderState, importProducts } from '@/lib/shop/server';
 
 export async function POST(req: NextRequest) {
   const raw = await req.text();
@@ -35,6 +35,11 @@ export async function POST(req: NextRequest) {
 
   let evt: { type?: string; resource?: { id?: string; data?: { status?: string; shipment?: { carrier?: string; number?: string; url?: string } } } };
   try { evt = JSON.parse(raw); } catch { return NextResponse.json({ error: 'Bad JSON' }, { status: 400 }); }
+  // product:publish:started / product:deleted — refresh the catalogue.
+  if (typeof evt.type === 'string' && evt.type.startsWith('product:')) {
+    const result = await importProducts(db).catch((err) => ({ error: err instanceof Error ? err.message : String(err) }));
+    return NextResponse.json({ received: true, imported: result });
+  }
   const providerOrderId = evt.resource?.id;
   if (!providerOrderId) return NextResponse.json({ received: true });
 

@@ -156,11 +156,108 @@ export async function syncOpenOrders(db: Firestore): Promise<{ checked: number; 
   return { checked: open.size, changed };
 }
 
+// ── Import ───────────────────────────────────────────────────────────────
+
+/** cost × (1 + markup%), rounded up to the nearest .99. */
+export function retailFromCost(costCents: number, markupPercent: number): number {
+  const raw = costCents * (1 + Math.max(0, markupPercent) / 100);
+  return Math.max(99, Math.ceil(raw / 100) * 100 - 1);
+}
+
+/**
+ * Pulls the provider's catalogue into products/. Idempotent, so it runs
+ * from the admin button and from the provider's product webhooks alike:
+ * publish in Gelato, and the shop has it seconds later.
+ *
+ *   new product      → created, priced (provider retail, else cost×markup),
+ *                      on the shelf if autoActivate and it has a price
+ *   existing product → provider fields refreshed (variants, images when we
+ *                      have none, description when we have none); the
+ *                      admin's own price, slug, gate and shelf flag kept;
+ *                      a product still at price 0 gets the computed one
+ *   gone from provider → left alone (admin removes it), but its variants
+ *                      are marked unavailable so it cannot be bought
+ */
+export async function importProducts(db: Firestore): Promise<{ found: number; created: number; updated: number; unavailable: number }> {
+  const cfg = await getShopConfig(db);
+  const provider = await providerFor(db, cfg);
+  const currency = (cfg.currency ?? 'USD').toUpperCase();
+  const country = (cfg.pricingCountry ?? cfg.shipTo?.[0] ?? 'US').toUpperCase();
+  const markup = typeof cfg.markupPercent === 'number' ? cfg.markupPercent : 100;
+  const autoActivate = cfg.autoActivate !== false;
+
+  const found = await provider.listProducts({ country, currency });
+  const existing = await db.collection('products').where('provider', '==', provider.id).get();
+  const byPid = new Map(existing.docs.map((d) => [(d.data() as ShopProduct).providerProductId, d]));
+  const seen = new Set<string>();
+  let created = 0, updated = 0, unavailable = 0;
+
+  const priceVariants = (variants: ShopProduct['variants']) => variants.map((v) => {
+    if (v.priceCents && v.priceCents > 0) return v;
+    if (typeof v.costCents === 'number' && v.costCents > 0) return { ...v, priceCents: retailFromCost(v.costCents, markup) };
+    return v;
+  });
+  const basePrice = (variants: ShopProduct['variants'], fallback: number) => {
+    const priced = variants.map((v) => v.priceCents ?? 0).filter((n) => n > 0);
+    return priced.length ? Math.min(...priced) : fallback;
+  };
+
+  for (const p of found) {
+    seen.add(p.providerProductId);
+    const cur = byPid.get(p.providerProductId);
+    if (cur) {
+      const c = cur.data() as ShopProduct;
+      // Provider fields are the provider's truth; anything the admin typed
+      // (a price override, a print file) survives the refresh.
+      const variants = priceVariants(p.variants.map((v) => {
+        const mine = (c.variants ?? []).find((x) => x.providerVariantId === v.providerVariantId || (x.providerStoreVariantId && x.providerStoreVariantId === v.providerStoreVariantId));
+        return {
+          ...v,
+          ...(mine?.priceCents !== undefined && mine.priceCents > 0 ? { priceCents: mine.priceCents } : {}),
+          ...(mine?.printFileUrl ? { printFileUrl: mine.printFileUrl } : {}),
+          ...(mine?.available === false ? { available: false } : {}),
+        };
+      }));
+      const priceCents = c.priceCents > 0 ? c.priceCents : basePrice(variants, p.priceCents);
+      await cur.ref.update({
+        variants, priceCents,
+        ...(c.category ? {} : { category: p.category }),
+        images: c.images?.length ? c.images : p.images,
+        ...(c.description ? {} : { description: p.description ?? '' }),
+        ...(!c.active && autoActivate && priceCents > 0 && !c.updatedAt ? { active: true } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      updated += 1;
+    } else {
+      const variants = priceVariants(p.variants);
+      const priceCents = basePrice(variants, p.priceCents);
+      await db.collection('products').add({
+        slug: await uniqueSlug(db, p.name), name: p.name, description: p.description ?? '', images: p.images, category: p.category,
+        priceCents, currency,
+        provider: provider.id, providerProductId: p.providerProductId, variants,
+        earnedOnly: false, unlockedBy: [], active: autoActivate && priceCents > 0, sortOrder: 100,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      created += 1;
+    }
+  }
+  // Products the provider no longer lists cannot be printed; keep the
+  // document (its gate and history) but nothing on it can be bought.
+  for (const d of existing.docs) {
+    const c = d.data() as ShopProduct;
+    if (seen.has(c.providerProductId) || !c.active) continue;
+    await d.ref.update({ active: false, updatedAt: FieldValue.serverTimestamp() });
+    unavailable += 1;
+  }
+  return { found: found.length, created, updated, unavailable };
+}
+
 /** Public shape of a product: everything a storefront needs, nothing else. */
 export function publicProduct(id: string, p: ShopProduct) {
   return {
-    id, slug: p.slug, name: p.name, description: p.description ?? '', images: p.images ?? [],
+    id, slug: p.slug, name: p.name, description: p.description ?? '', images: p.images ?? [], category: p.category ?? 'Gear',
     priceCents: p.priceCents, currency: p.currency, earnedOnly: !!p.earnedOnly, unlockedBy: p.unlockedBy ?? [],
+    createdAt: (p.createdAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0,
     variants: (p.variants ?? []).filter((v) => v.available !== false).map((v) => ({ id: v.id, label: v.label, priceCents: v.priceCents ?? p.priceCents })),
   };
 }

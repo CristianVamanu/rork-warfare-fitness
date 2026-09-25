@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
       productId: snap.id, name: p.name, variantId: v.id, variantLabel: v.label, quantity: qty,
       priceCents: v.priceCents ?? p.priceCents, ...(p.images?.[0] ? { image: p.images[0] } : {}), providerProductId: p.providerProductId, providerVariantId: v.providerVariantId,
       ...(v.printFileUrl ? { printFileUrl: v.printFileUrl } : {}),
+      ...(v.providerStoreVariantId ? { providerStoreVariantId: v.providerStoreVariantId } : {}),
     });
   }
   if (items.some((i) => i.priceCents <= 0)) return NextResponse.json({ error: 'An item has no price yet — try again later' }, { status: 400 });

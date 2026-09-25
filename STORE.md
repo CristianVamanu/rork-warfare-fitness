@@ -14,13 +14,18 @@ the checkout (Stripe) and the gate.
    - Gelato: API key from dashboard.gelato.com → Developer → API keys.
 3. Back in Store → Settings, press **Test connection**. It lists your shops
    (Printify) or stores (Gelato); paste the id in and Save.
-4. **Products**: design them on the provider's site, then Store → Products →
-   **Import from provider**. Imported items start *off the shelf*. For each:
-   set the price (Gelato does not carry a retail price; Printify's is
-   imported), tick "earned, not given" and the challenges that unlock it if
-   it is a reward, then switch it on.
-   - Gelato only: every variant needs a **print file URL** (the design as a
-     PNG/PDF at a public URL) or orders will fail to hand off.
+4. **Products** sync themselves. Publish (or edit, or delete) a product on
+   the provider's site and its webhook (step 5) imports it into the shop:
+   priced and on the shelf, unless you turned "straight on the shelf" off.
+   - Pricing: Printify sends its retail price. Gelato does not, so the
+     shop prices from Gelato's **cost × your markup** (Store → Settings,
+     default 100% = ×2, rounded to .99). A price you type on a product
+     wins over the markup, and survives later imports.
+   - Gelato orders reference your store variant, so the design comes from
+     Gelato. No print files to paste.
+   - **Import from provider** still exists for a first pull or a resync.
+   - "Earned, not given" and the unlocking challenges are set per product
+     (or from the challenge editor's Rewards picker).
 5. **Webhooks**, so status updates land the moment they happen (an hourly
    poll covers anything missed either way):
    - Printify: My profile → Connections → Webhooks → add
@@ -29,8 +34,10 @@ the checkout (Stripe) and the gate.
      `PRINTIFY_WEBHOOK_SECRET`.
    - Gelato: Developer → Webhooks → add
      `https://<your domain>/api/shop/webhooks/gelato` for
-     `order_status_updated` and `order_item_tracking_code_updated`, with a
-     custom header `X-Webhook-Secret: <value>` stored as `GELATO_WEBHOOK_SECRET`.
+     `order_status_updated`, `order_item_tracking_code_updated`,
+     `store_product_created`, `store_product_updated` and
+     `store_product_deleted`, with a custom header
+     `X-Webhook-Secret: <value>` stored as `GELATO_WEBHOOK_SECRET`.
 6. Stripe: the existing webhook already receives `checkout.session.completed`;
    store orders ride on it. Nothing to add.
 
@@ -46,7 +53,7 @@ cart → /api/shop/checkout (reprices from Firestore, enforces the gate)
 Members see their orders under Profile → Shop & orders, or `/shop/orders`.
 Guests get a link with a token in the confirmation email.
 
-If the hand-off to the provider fails (key missing, print file missing,
+If the hand-off to the provider fails (key missing, product unpublished,
 provider down) the order shows **Needs attention** in Admin → Store → Orders
 with the reason. Fix the cause and press **Retry**; an order is never sent
 to the provider twice.

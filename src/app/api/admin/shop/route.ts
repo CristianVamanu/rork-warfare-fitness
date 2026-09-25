@@ -18,8 +18,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { verifyAdmin } from '@/lib/verifyAdmin';
-import { getShopConfig, providerFor, placeProviderOrder, syncOpenOrders, uniqueSlug } from '@/lib/shop/server';
-import type { ShopOrder, ShopOrderStatus, ShopProduct } from '@/types';
+import { providerFor, placeProviderOrder, syncOpenOrders, importProducts } from '@/lib/shop/server';
+import type { ShopOrder, ShopOrderStatus } from '@/types';
 
 const STATUSES: ShopOrderStatus[] = ['pending_payment', 'paid', 'submitted', 'in_production', 'shipped', 'delivered', 'cancelled', 'failed'];
 
@@ -38,35 +38,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(await provider.test());
       }
       case 'import': {
-        const cfg = await getShopConfig(db);
-        const provider = await providerFor(db, cfg);
-        const found = await provider.listProducts();
-        const existing = await db.collection('products').where('provider', '==', provider.id).get();
-        const byPid = new Map(existing.docs.map((d) => [(d.data() as ShopProduct).providerProductId, d]));
-        let created = 0, updated = 0;
-        for (const p of found) {
-          const cur = byPid.get(p.providerProductId);
-          if (cur) {
-            const c = cur.data() as ShopProduct;
-            // Variants are the provider's truth; price and gate are ours.
-            const variants = p.variants.map((v) => {
-              const mine = (c.variants ?? []).find((x) => x.providerVariantId === v.providerVariantId);
-              return { ...v, ...(mine?.priceCents !== undefined ? { priceCents: mine.priceCents } : {}), ...(mine?.printFileUrl ? { printFileUrl: mine.printFileUrl } : {}) };
-            });
-            await cur.ref.update({ variants, images: c.images?.length ? c.images : p.images, ...(c.description ? {} : { description: p.description ?? '' }), updatedAt: FieldValue.serverTimestamp() });
-            updated += 1;
-          } else {
-            await db.collection('products').add({
-              slug: await uniqueSlug(db, p.name), name: p.name, description: p.description ?? '', images: p.images,
-              priceCents: p.priceCents, currency: (cfg.currency ?? p.currency ?? 'USD').toUpperCase(),
-              provider: provider.id, providerProductId: p.providerProductId, variants: p.variants,
-              earnedOnly: false, unlockedBy: [], active: false, sortOrder: 100,
-              createdAt: FieldValue.serverTimestamp(),
-            });
-            created += 1;
-          }
-        }
-        return NextResponse.json({ ok: true, found: found.length, created, updated });
+        return NextResponse.json({ ok: true, ...(await importProducts(db)) });
       }
       case 'orders': {
         const snap = await db.collection('orders').orderBy('createdAt', 'desc').limit(200).get();

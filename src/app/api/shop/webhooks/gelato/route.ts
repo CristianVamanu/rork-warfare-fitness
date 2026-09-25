@@ -17,7 +17,7 @@ import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { getSecret } from '@/lib/secrets';
 import { timingSafeEqualString } from '@/lib/crypto';
 import { gelatoStatus } from '@/lib/shop/providers';
-import { applyProviderState } from '@/lib/shop/server';
+import { applyProviderState, importProducts } from '@/lib/shop/server';
 
 export async function POST(req: NextRequest) {
   const secret = await getSecret('GELATO_WEBHOOK_SECRET').catch(() => '');
@@ -34,6 +34,13 @@ export async function POST(req: NextRequest) {
     trackingCode?: string; trackingUrl?: string; shipmentMethodName?: string;
   } | null;
   if (!evt) return NextResponse.json({ error: 'Bad JSON' }, { status: 400 });
+
+  // Catalogue changes: publish, edit or delete a product in Gelato and the
+  // shop follows without anyone pressing Import.
+  if (typeof evt.event === 'string' && evt.event.startsWith('store_product')) {
+    const result = await importProducts(db).catch((err) => ({ error: err instanceof Error ? err.message : String(err) }));
+    return NextResponse.json({ received: true, imported: result });
+  }
 
   let orderId: string | null = null;
   if (evt.orderReferenceId && (await db.collection('orders').doc(evt.orderReferenceId).get()).exists) orderId = evt.orderReferenceId;

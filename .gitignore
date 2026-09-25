@@ -100,3 +100,4 @@ ui-debug.log
 
 # Generated on the server by scripts/generate-cues.mjs for review.
 cues-for-review.txt
+.preview/

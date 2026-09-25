@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getIdToken, type User } from 'firebase/auth';
 import { collection, doc, getDocs, orderBy, query, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
@@ -60,6 +60,10 @@ async function adminShop<T>(user: User | null, body: Record<string, unknown>): P
 function Settings() {
   const { user } = useAuth();
   const [cfg, setCfg] = useState<ShopConfig | null>(null);
+  // Latest config for save(): the blur that commits a focused field runs
+  // inside save() itself, so the closure's `cfg` is one step behind.
+  const cfgRef = useRef<ShopConfig | null>(null);
+  cfgRef.current = cfg;
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
@@ -70,9 +74,14 @@ function Settings() {
 
   const save = async () => {
     if (!cfg) return;
+    // Fields commit on blur; a tap straight on Save must not lose the one
+    // still focused.
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    await new Promise((r) => setTimeout(r, 0));
+    const latest = cfgRef.current ?? cfg;
     setSaving(true);
     try {
-      await setSystemConfig({ shop: { ...cfg, currency: (cfg.currency || 'USD').toUpperCase(), shipTo: (cfg.shipTo ?? []).map((c) => c.toUpperCase()).filter(Boolean) } });
+      await setSystemConfig({ shop: { ...latest, currency: (latest.currency || 'USD').toUpperCase(), shipTo: (latest.shipTo ?? []).map((c) => c.toUpperCase()).filter(Boolean) } });
       toast.success('Store settings saved');
     } catch { toast.error('Failed to save'); }
     finally { setSaving(false); }
@@ -124,16 +133,37 @@ function Settings() {
           <div>
             <label className={label}>Gelato store id</label>
             <input value={cfg.gelatoStoreId ?? ''} onChange={(e) => set('gelatoStoreId', e.target.value.trim())} placeholder="Test shows your stores" className={inputCls} />
-            <p className="text-[11px] text-text-tertiary mt-1">Gelato orders need a <b>print file URL per variant</b> (set in Products after import). Printify does not.</p>
+            <p className="text-[11px] text-text-tertiary mt-1">Orders reference your Gelato store product, so the design comes from Gelato. Keep the webhook registered (below) and publishing in Gelato updates the shop by itself.</p>
           </div>
         )}
         <div className="grid grid-cols-2 gap-2">
-          <div><label className={label}>Currency</label><input value={cfg.currency ?? 'USD'} onChange={(e) => set('currency', e.target.value.toUpperCase())} maxLength={3} className={inputCls} /></div>
-          <div><label className={label}>Flat shipping ({cfg.currency || 'USD'}, 0 = free)</label><input type="number" min={0} step="0.01" value={((cfg.shippingCents ?? 0) / 100).toFixed(2)} onChange={(e) => set('shippingCents', Math.max(0, Math.round((Number(e.target.value) || 0) * 100)))} className={inputCls} /></div>
+          <div><label className={label}>Currency</label><input defaultValue={cfg.currency ?? 'USD'} onBlur={(e) => set('currency', e.target.value.trim().toUpperCase().slice(0, 3) || 'USD')} maxLength={3} className={inputCls} /></div>
+          <div><label className={label}>Flat shipping ({cfg.currency || 'USD'}, 0 = free)</label><input type="number" min={0} step="0.01" inputMode="decimal" defaultValue={((cfg.shippingCents ?? 0) / 100).toFixed(2)} onBlur={(e) => set('shippingCents', Math.max(0, Math.round((Number(e.target.value) || 0) * 100)))} className={inputCls} /></div>
         </div>
         <div>
           <label className={label}>Ship to (ISO country codes, comma-separated; empty = the default list)</label>
-          <input value={(cfg.shipTo ?? []).join(', ')} onChange={(e) => set('shipTo', e.target.value.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean))} placeholder="US, GB, DE, RO" className={inputCls} />
+          <input defaultValue={(cfg.shipTo ?? []).join(', ')} onBlur={(e) => set('shipTo', e.target.value.split(/[,\s]+/).map((c) => c.trim().toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c)))} placeholder="US, GB, DE, RO" className={inputCls} />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={label}>Markup over provider cost (%)</label>
+            <input type="number" min={0} step={5} inputMode="numeric" defaultValue={cfg.markupPercent ?? 100} onBlur={(e) => set('markupPercent', Math.max(0, Math.round(Number(e.target.value) || 0)))} className={inputCls} />
+            <p className="text-[11px] text-text-tertiary mt-1">100 = sell at twice what Gelato charges you, rounded to .99. Prices you type on a product override this.</p>
+          </div>
+          <div>
+            <label className={label}>Cost country</label>
+            <input defaultValue={cfg.pricingCountry ?? ''} onBlur={(e) => set('pricingCountry', e.target.value.trim().toUpperCase().slice(0, 2))} placeholder={cfg.shipTo?.[0] ?? 'US'} maxLength={2} className={inputCls} />
+            <p className="text-[11px] text-text-tertiary mt-1">Gelato&apos;s cost differs by country; this one sets the shelf price.</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-white">New products go straight on the shelf</p>
+            <p className="text-xs text-text-secondary">Publish in {provider === 'gelato' ? 'Gelato' : 'Printify'} → it appears in /shop, priced. Off = imports wait for you.</p>
+          </div>
+          <button onClick={() => set('autoActivate', cfg.autoActivate === false)} className={`w-11 h-6 rounded-full transition-colors relative ${cfg.autoActivate !== false ? 'bg-accent' : 'bg-surface-elevated'}`}>
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${cfg.autoActivate !== false ? 'left-6' : 'left-1'}`} />
+          </button>
         </div>
         <div>
           <label className={label}>Tagline on /shop (optional)</label>
@@ -234,6 +264,14 @@ function Products() {
             {isOpen && (
               <div className="mt-3 pt-3 border-t border-white/8 space-y-3">
                 <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={label}>Section</label>
+                    <input list="wf-shop-sections" defaultValue={p.category ?? 'Gear'} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== (p.category ?? '')) patch(p, { category: v }); }} className={inputCls} />
+                    <datalist id="wf-shop-sections">{['Apparel', 'Drinkware', 'Wall art', 'Bags', 'Accessories', 'Gear'].map((c) => <option key={c} value={c} />)}</datalist>
+                  </div>
+                  <div><label className={label}>Sort order (lower first)</label><input type="number" defaultValue={p.sortOrder ?? 100} onBlur={(e) => { const v = Math.round(Number(e.target.value) || 100); if (v !== (p.sortOrder ?? 100)) patch(p, { sortOrder: v }); }} className={inputCls} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                   <div><label className={label}>Name</label><input defaultValue={p.name} onBlur={(e) => e.target.value.trim() && e.target.value !== p.name && patch(p, { name: e.target.value.trim() })} className={inputCls} /></div>
                   <div><label className={label}>Price ({p.currency}) — e.g. 29.99</label><input type="number" min={0} step="0.01" defaultValue={(p.priceCents / 100).toFixed(2)} onBlur={(e) => { const v = Math.max(0, Math.round((Number(e.target.value) || 0) * 100)); if (v !== p.priceCents) patch(p, { priceCents: v }); }} className={inputCls} /></div>
                 </div>
@@ -278,13 +316,13 @@ function Products() {
                   </div>
                 )}
                 <div>
-                  <label className={label}>Options {p.provider === 'gelato' ? '— print file URL is required for Gelato' : ''}</label>
+                  <label className={label}>Options{p.provider === 'gelato' ? ' — cost is what Gelato charges you; a print file is only needed for a variant with no store id' : ''}</label>
                   <div className="space-y-1.5">
                     {(p.variants ?? []).map((v) => (
                       <div key={v.id} className="flex items-center gap-2 text-xs">
                         <span className={`flex-1 min-w-0 truncate ${v.available === false ? 'line-through text-text-tertiary' : 'text-white'}`}>{v.label}</span>
-                        <span className="text-text-tertiary tabular-nums">{v.priceCents !== undefined ? money(v.priceCents, p.currency) : '—'}</span>
-                        {p.provider === 'gelato' && (
+                        <span className="text-text-tertiary tabular-nums">{v.priceCents !== undefined ? money(v.priceCents, p.currency) : '—'}{typeof v.costCents === 'number' ? <span className="text-text-tertiary/60"> · cost {money(v.costCents, p.currency)}</span> : null}</span>
+                        {p.provider === 'gelato' && !v.providerStoreVariantId && (
                           <input defaultValue={v.printFileUrl ?? ''} placeholder="https://…/print.png" onBlur={(e) => {
                             const url = e.target.value.trim();
                             if (url === (v.printFileUrl ?? '')) return;

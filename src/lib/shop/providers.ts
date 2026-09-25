@@ -14,14 +14,32 @@
 import { getSecret } from '@/lib/secrets';
 import type { ShopOrder, ShopOrderStatus, ShopProvider, ShopVariant } from '@/types';
 
+/** A shelf section from whatever the provider tells us about the item. */
+export function guessCategory(...hints: (string | undefined)[]): string {
+  const h = hints.filter(Boolean).join(' ').toLowerCase();
+  if (/hoodie|sweat|t-shirt|tee|shirt|tank|apparel|jacket|shorts|legging|jogger|cap\b|hat|beanie|sock/.test(h)) return 'Apparel';
+  if (/mug|bottle|tumbler|drinkware|glass|flask/.test(h)) return 'Drinkware';
+  if (/poster|canvas|frame|wall|print\b|acrylic|metal print/.test(h)) return 'Wall art';
+  if (/tote|bag|backpack|duffel|gym bag|pouch/.test(h)) return 'Bags';
+  if (/phone|case|sticker|mouse|pad|notebook|journal|towel|patch|keychain/.test(h)) return 'Accessories';
+  return 'Gear';
+}
+
 export interface ImportedProduct {
   providerProductId: string;
+  category: string;
   name: string;
   description?: string;
   images: string[];
   priceCents: number;
   currency: string;
   variants: ShopVariant[];
+}
+
+export interface ImportOptions {
+  /** ISO country for provider cost lookups (Gelato prices vary by country). */
+  country: string;
+  currency: string;
 }
 
 export interface ProviderOrderState {
@@ -34,7 +52,7 @@ export interface PodProvider {
   readonly id: ShopProvider;
   /** Throws with a readable message when the key is missing or rejected. */
   test(): Promise<{ ok: true; detail: string }>;
-  listProducts(): Promise<ImportedProduct[]>;
+  listProducts(opts: ImportOptions): Promise<ImportedProduct[]>;
   createOrder(order: ShopOrder): Promise<{ providerOrderId: string; providerStatus: string }>;
   getOrder(providerOrderId: string): Promise<ProviderOrderState>;
 }
@@ -99,7 +117,7 @@ class Printify implements PodProvider {
     return { ok: true as const, detail: `Connected to ${mine.title} (#${mine.id})` };
   }
 
-  async listProducts() {
+  async listProducts(_opts: ImportOptions) {
     if (!this.shopId) throw new ProviderError('Set the Printify shop id first');
     type P = { id: string; title: string; description?: string; images?: { src: string; is_default?: boolean }[]; variants?: { id: number; title: string; price: number; is_enabled: boolean; is_available?: boolean }[]; visible?: boolean };
     const out: ImportedProduct[] = [];
@@ -111,6 +129,7 @@ class Printify implements PodProvider {
         const images = (p.images ?? []).sort((a, b) => Number(!!b.is_default) - Number(!!a.is_default)).map((i) => i.src);
         out.push({
           providerProductId: String(p.id),
+          category: guessCategory(p.title, (p as { tags?: string[] }).tags?.join(' ')),
           name: p.title,
           description: p.description?.replace(/<[^>]+>/g, '').trim() || undefined,
           images,
@@ -159,6 +178,7 @@ class Printify implements PodProvider {
 
 const GELATO_ORDERS = 'https://order.gelatoapis.com/v4';
 const GELATO_STORE = 'https://ecommerce.gelatoapis.com/v1';
+const GELATO_PRODUCT = 'https://product.gelatoapis.com/v3';
 
 const GELATO_STATUS: Record<string, ShopOrderStatus> = {
   created: 'submitted', uploading: 'submitted', passed: 'submitted', pending_approval: 'submitted',
@@ -190,9 +210,22 @@ class Gelato implements PodProvider {
     return { ok: true as const, detail: `Connected to ${mine.name}` };
   }
 
-  async listProducts() {
+  /** What Gelato charges us for one unit of a productUid, in minor units,
+   *  or null when it will not say (unsupported country, unknown uid). */
+  private async costCents(productUid: string, country: string, currency: string): Promise<number | null> {
+    try {
+      type Row = { productUid: string; country: string; quantity: number; price: number; currency: string };
+      const rows = await call<Row[]>(`${GELATO_PRODUCT}/products/${encodeURIComponent(productUid)}/prices?country=${encodeURIComponent(country)}&currency=${encodeURIComponent(currency)}`, { headers: await this.headers(), label: 'Gelato prices' });
+      const one = (Array.isArray(rows) ? rows : []).filter((r) => r.currency === currency).sort((a, b) => a.quantity - b.quantity)[0];
+      return one && Number.isFinite(one.price) ? Math.round(one.price * 100) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async listProducts(opts: ImportOptions) {
     if (!this.storeId) throw new ProviderError('Set the Gelato store id first');
-    type V = { id: string; title: string; productUid: string; variantOptions?: { name: string; value: string }[]; imageUrl?: string; previewUrl?: string; externalPreviewUrl?: string };
+    type V = { id: string; title: string; productUid: string; variantOptions?: { name: string; value: string }[]; imageUrl?: string; previewUrl?: string; externalPreviewUrl?: string; price?: number; retailPrice?: number };
     type P = { id: string; title: string; description?: string; previewUrl?: string; externalPreviewUrl?: string; externalThumbnailUrl?: string; imageUrl?: string; variants?: V[]; productVariantOptions?: unknown };
     const res = await call<{ products?: P[] }>(`${GELATO_STORE}/stores/${this.storeId}/products?limit=100`, { headers: await this.headers(), label: 'Gelato products' });
     const out: ImportedProduct[] = [];
@@ -209,20 +242,32 @@ class Gelato implements PodProvider {
         p.previewUrl, p.externalPreviewUrl, p.externalThumbnailUrl,
         ...variants.flatMap((v) => [v.imageUrl, v.previewUrl, v.externalPreviewUrl]),
       ].filter((u): u is string => typeof u === 'string' && /^https?:\/\//.test(u));
+      // Gelato's store API does not carry the retail price the dashboard
+      // shows (that lives in the connected shop, which here is us). What it
+      // does carry is the cost per productUid, so each variant gets its
+      // cost and the importer prices from the configured markup. A retail
+      // price is used if Gelato ever starts sending one.
+      const costs = await Promise.all(variants.map((v) => this.costCents(v.productUid, opts.country, opts.currency)));
       out.push({
         providerProductId: String(p.id),
+        category: guessCategory(full.title || p.title, variants[0]?.productUid),
         name: full.title || p.title,
         description: full.description?.replace(/<[^>]+>/g, '').trim() || undefined,
         images: Array.from(new Set(images)),
-        // Gelato does not price the retail side; the admin sets it.
         priceCents: 0,
-        currency: 'USD',
-        variants: variants.map((v) => ({
-          id: `gl-${v.id}`,
-          label: v.variantOptions?.map((o) => o.value).join(' / ') || v.title,
-          providerVariantId: v.productUid,
-          available: true,
-        })),
+        currency: opts.currency,
+        variants: variants.map((v, i) => {
+          const retail = typeof v.retailPrice === 'number' ? v.retailPrice : typeof v.price === 'number' ? v.price : null;
+          return {
+            id: `gl-${v.id}`,
+            label: v.variantOptions?.map((o) => o.value).join(' / ') || v.title,
+            providerVariantId: v.productUid,
+            providerStoreVariantId: String(v.id),
+            available: true,
+            ...(retail !== null ? { priceCents: Math.round(retail * 100) } : {}),
+            ...(costs[i] !== null ? { costCents: costs[i] as number } : {}),
+          };
+        }),
       });
     }
     return out;
@@ -230,8 +275,11 @@ class Gelato implements PodProvider {
 
   async createOrder(order: ShopOrder) {
     if (!order.shipping) throw new ProviderError('Order has no shipping address');
-    const missing = order.items.filter((i) => !i.printFileUrl);
-    if (missing.length) throw new ProviderError(`Gelato needs a print file for: ${missing.map((i) => i.name).join(', ')} (set it on the variant in Store → Products)`);
+    // An item ordered by its store variant takes its design from the store
+    // product in Gelato — nothing to upload, nothing to paste. Only an item
+    // with no store variant (a hand-entered productUid) needs a print file.
+    const missing = order.items.filter((i) => !i.providerStoreVariantId && !i.printFileUrl);
+    if (missing.length) throw new ProviderError(`Gelato needs a print file for: ${missing.map((i) => i.name).join(', ')} (or re-import so the variant carries its store id)`);
     const { first, last } = splitName(order.shipping.name);
     const body = {
       orderType: 'order',
@@ -240,9 +288,10 @@ class Gelato implements PodProvider {
       currency: order.currency.toUpperCase(),
       items: order.items.map((i) => ({
         itemReferenceId: `${order.id}-${i.variantId}`,
-        productUid: i.providerVariantId,
         quantity: i.quantity,
-        files: [{ type: 'default', url: i.printFileUrl }],
+        ...(i.providerStoreVariantId
+          ? { storeProductVariantId: i.providerStoreVariantId, ...(i.printFileUrl ? { files: [{ type: 'default', url: i.printFileUrl }] } : {}) }
+          : { productUid: i.providerVariantId, files: [{ type: 'default', url: i.printFileUrl }] }),
       })),
       shipmentMethodUid: 'normal',
       shippingAddress: {
