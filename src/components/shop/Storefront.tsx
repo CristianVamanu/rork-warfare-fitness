@@ -66,7 +66,6 @@ export function Storefront({ products, tagline, shippingCents, currency }: {
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><Truck className="w-3.5 h-3.5 text-accent" /> {shippingCents > 0 ? `Flat ${money(shippingCents, currency)} shipping` : 'Free shipping'}</span>
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><ShieldCheck className="w-3.5 h-3.5 text-accent" /> Printed to order · tracked</span>
         {earnedCount > 0 && <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><Lock className="w-3.5 h-3.5 text-accent" /> {earnedCount} earned-only item{earnedCount === 1 ? '' : 's'}</span>}
-        <Link href="/shop/track" className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap text-accent font-semibold"><PackageSearch className="w-3.5 h-3.5" /> Track an order</Link>
       </div>
 
       {/* Hero */}
@@ -77,6 +76,10 @@ export function Storefront({ products, tagline, shippingCents, currency }: {
             <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-accent">Warfare Fitness · Supply</p>
             <h1 className="text-4xl md:text-6xl font-black leading-[0.95] mt-2">Earned,<br /><span className="text-accent">not given.</span></h1>
             <p className="text-sm md:text-base text-white/70 mt-3 max-w-lg leading-relaxed">{tagline || 'Gear for the ones who put the work in. Some of it you can buy. Some of it you have to prove yourself for first.'}</p>
+            <div className="flex flex-wrap gap-2 mt-4">
+              <a href="#shelf" className="inline-flex items-center gap-2 rounded-xl bg-accent text-black font-bold px-4 py-2.5 text-sm shadow-glow-sm">Shop the shelf</a>
+              <Link href="/shop/track" className="inline-flex items-center gap-2 rounded-xl border border-white/20 text-white font-semibold px-4 py-2.5 text-sm hover:border-accent/60"><PackageSearch className="w-4 h-4 text-accent" /> Track an order</Link>
+            </div>
           </div>
           {featured && (
             <Link href={`/shop/${featured.slug}`} className="group min-w-0 flex items-center gap-3 rounded-2xl border border-white/15 bg-black/40 backdrop-blur p-3 hover:border-accent/50 transition-colors md:w-72">
@@ -95,7 +98,7 @@ export function Storefront({ products, tagline, shippingCents, currency }: {
       </header>
 
       {/* Search + controls, sticky under the nav */}
-      <div className="sticky top-2 z-30 space-y-2">
+      <div id="shelf" className="sticky top-2 z-30 space-y-2 scroll-mt-4">
         <div className="rounded-2xl border border-white/10 backdrop-blur-xl p-2 flex gap-2" style={{ backgroundColor: 'var(--card-glass-bg)' }}>
           <label className="flex-1 flex items-center gap-2 rounded-xl bg-black/40 px-3">
             <Search className="w-4 h-4 text-white/50 flex-shrink-0" />
@@ -105,6 +108,9 @@ export function Storefront({ products, tagline, shippingCents, currency }: {
           <button onClick={() => setFiltersOpen((v) => !v)} className={`inline-flex items-center gap-1.5 rounded-xl px-3 text-sm font-semibold border ${filtersOpen || earnedOnly || sort !== 'featured' ? 'border-accent text-accent' : 'border-white/15 text-white/80'}`} aria-expanded={filtersOpen}>
             <SlidersHorizontal className="w-4 h-4" /> <span className="hidden sm:inline">Filters</span>
           </button>
+          <Link href="/shop/track" className="inline-flex items-center gap-1.5 rounded-xl px-3 text-sm font-semibold bg-accent text-black" aria-label="Track an order">
+            <PackageSearch className="w-4 h-4" /> <span className="hidden sm:inline">Track order</span>
+          </Link>
         </div>
         {filtersOpen && (
           <div className="rounded-2xl border border-white/10 backdrop-blur-xl p-3 flex flex-wrap items-center gap-2" style={{ backgroundColor: 'var(--card-glass-bg)' }}>
