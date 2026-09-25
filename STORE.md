@@ -41,6 +41,14 @@ the checkout (Stripe) and the gate.
 6. Stripe: the existing webhook already receives `checkout.session.completed`;
    store orders ride on it. Nothing to add.
 
+## Product images
+
+Provider image links are copied into R2 at import (`shop/<providerProductId>/…`)
+and the product stores the R2 URL. Gelato's preview links are signed and expire
+within hours, which showed as broken-image icons on the shelf. Re-importing
+refreshes any product whose pictures are not yet on R2. Needs the R2 secrets
+in Admin → Integrations; without them the provider link is kept as-is.
+
 ## How an order moves
 
 ```

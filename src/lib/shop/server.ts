@@ -9,6 +9,7 @@
 import { randomBytes } from 'crypto';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { makeProvider, type PodProvider } from './providers';
+import { isMirrored, mirrorImages } from './images';
 import { sendEmail } from '@/lib/email';
 import type { ShopConfig, ShopOrder, ShopOrderStatus, ShopProduct } from '@/types';
 
@@ -219,10 +220,16 @@ export async function importProducts(db: Firestore): Promise<{ found: number; cr
         };
       }));
       const priceCents = c.priceCents > 0 ? c.priceCents : basePrice(variants, p.priceCents);
+      // Pictures already on our storage are the admin's (or an earlier
+      // mirror) and stay. Anything else is a provider link that may have
+      // expired since the last import — it did, for Gelato — so the
+      // provider's current list is mirrored afresh.
+      const ours = (c.images ?? []).length > 0 && (await Promise.all((c.images ?? []).map(isMirrored))).every(Boolean);
+      const images = ours ? c.images : await mirrorImages(p.images, p.providerProductId);
       await cur.ref.update({
         variants, priceCents,
         ...(c.category ? {} : { category: p.category }),
-        images: c.images?.length ? c.images : p.images,
+        images,
         ...(c.description ? {} : { description: p.description ?? '' }),
         ...(!c.active && autoActivate && priceCents > 0 && !c.updatedAt ? { active: true } : {}),
         updatedAt: FieldValue.serverTimestamp(),
@@ -231,8 +238,9 @@ export async function importProducts(db: Firestore): Promise<{ found: number; cr
     } else {
       const variants = priceVariants(p.variants);
       const priceCents = basePrice(variants, p.priceCents);
+      const images = await mirrorImages(p.images, p.providerProductId);
       await db.collection('products').add({
-        slug: await uniqueSlug(db, p.name), name: p.name, description: p.description ?? '', images: p.images, category: p.category,
+        slug: await uniqueSlug(db, p.name), name: p.name, description: p.description ?? '', images, category: p.category,
         priceCents, currency,
         provider: provider.id, providerProductId: p.providerProductId, variants,
         earnedOnly: false, unlockedBy: [], active: autoActivate && priceCents > 0, sortOrder: 100,
