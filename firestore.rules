@@ -70,7 +70,29 @@ service cloud.firestore {
         // The poster frame for a clip is rendered straight into an <img>, so
         // it carries exactly the risk imageURL does: an arbitrary third-party
         // URL logs the IP of everyone who scrolls past it.
-        && (!('posterURL' in d) || httpsUrl(d.posterURL));
+        && (!('posterURL' in d) || httpsUrl(d.posterURL))
+        && (!('media' in d) || mediaListSane(d.media));
+    }
+    // One carousel item: {url, type, posterURL?}, nothing else.
+    function mediaItemSane(m) {
+      return m is map && m.keys().hasOnly(['url', 'type', 'posterURL'])
+        && httpsUrl(m.url) && m.type in ['image', 'video']
+        && (!('posterURL' in m) || httpsUrl(m.posterURL));
+    }
+    // Rules cannot loop, so the list is bounded to ten and each slot is
+    // checked by index. Ten matches MAX_MEDIA_PER_POST in src/types.
+    function mediaListSane(l) {
+      return l is list && l.size() >= 1 && l.size() <= 10
+        && mediaItemSane(l[0])
+        && (l.size() < 2  || mediaItemSane(l[1]))
+        && (l.size() < 3  || mediaItemSane(l[2]))
+        && (l.size() < 4  || mediaItemSane(l[3]))
+        && (l.size() < 5  || mediaItemSane(l[4]))
+        && (l.size() < 6  || mediaItemSane(l[5]))
+        && (l.size() < 7  || mediaItemSane(l[6]))
+        && (l.size() < 8  || mediaItemSane(l[7]))
+        && (l.size() < 9  || mediaItemSane(l[8]))
+        && (l.size() < 10 || mediaItemSane(l[9]));
     }
     // PR posts: same, for mediaUrl/mediaType.
     function mediaSane(d) {
@@ -773,6 +795,11 @@ service cloud.firestore {
           && request.resource.data.get('userIsAdmin', false) == isAdmin()
           && postBodySane(request.resource.data)
           && !channelMuteActive()
+          // A carousel no longer than the channel allows. The admin panel
+          // enforces the same number in the composer; this is what stops a
+          // direct SDK write from posting ten clips into a one-photo channel.
+          && request.resource.data.get('media', []).size()
+               <= get(/databases/$(database)/documents/channels/$(channelId)).data.get('maxMediaPerPost', 1)
           && (
             isAdmin() ||
             get(/databases/$(database)/documents/channels/$(channelId)).data.get('allowUserPosts', true) == true

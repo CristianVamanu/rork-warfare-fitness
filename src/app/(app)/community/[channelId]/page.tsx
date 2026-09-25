@@ -10,6 +10,7 @@ import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
 import { getIdToken } from 'firebase/auth';
 import { FeedMedia } from '@/components/community/FeedMedia';
+import { FeedCarousel } from '@/components/community/FeedCarousel';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -24,7 +25,8 @@ import { Modal } from '@/components/ui/Modal';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { PaywallGate } from '@/components/ui/PaywallGate';
-import type { Channel, ChannelPost } from '@/types';
+import type { Channel, ChannelPost, PostMedia } from '@/types';
+import { MAX_MEDIA_PER_POST } from '@/types';
 
 /**
  * Whether a post's attachment is a clip.
@@ -36,6 +38,14 @@ import type { Channel, ChannelPost } from '@/types';
 function mediaKindOf(post: { imageURL?: string; mediaType?: 'image' | 'video' }): 'image' | 'video' {
   if (post.mediaType) return post.mediaType;
   return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(post.imageURL ?? '') ? 'video' : 'image';
+}
+
+/** Every attachment on a post, in order. Posts written before carousels
+ *  have only imageURL; they become a one-item list. */
+function mediaOf(post: ChannelPost): PostMedia[] {
+  if (post.media?.length) return post.media;
+  if (!post.imageURL) return [];
+  return [{ url: post.imageURL, type: mediaKindOf(post), ...(post.posterURL ? { posterURL: post.posterURL } : {}) }];
 }
 
 
@@ -378,14 +388,7 @@ function PostCard({
           {!!post.editedAt && <span className="ml-1.5 text-[10px] text-text-tertiary align-middle">edited</span>}
         </p>
       )}
-      {post.imageURL && (
-        <FeedMedia
-          url={post.imageURL}
-          kind={mediaKindOf(post)}
-          poster={post.posterURL}
-          alt={mediaKindOf(post) === 'video' ? 'Clip attached to this post' : 'Photo attached to this post'}
-        />
-      )}
+      <FeedCarousel items={mediaOf(post)} />
       <div className="flex items-center gap-4 mt-4">
         <button
           onClick={() => onLike(post)}
@@ -482,10 +485,13 @@ export default function ChannelPage() {
   // 0–100 while a file is in flight. A spinner says "busy"; a number says
   // "not stuck", which after a 100MB clip is the thing people need to know.
   const [uploadPct, setUploadPct] = useState<number | null>(null);
-  const [pendingImageURL, setPendingImageURL] = useState<string | null>(null);
-  const [pendingMediaType, setPendingMediaType] = useState<'image' | 'video'>('image');
-  const [pendingPosterURL, setPendingPosterURL] = useState<string | null>(null);
-  const pendingClipRef = useRef<string | null>(null);
+  // Attachments waiting on the send button, in the order they will show.
+  // One entry per upload; the channel's maxMediaPerPost bounds the length.
+  const [pending, setPending] = useState<PostMedia[]>([]);
+  // Live mirror of `pending` for the poster grab, which finishes long after
+  // the upload and must not attach a frame to a clip that was removed.
+  const pendingRef = useRef<PostMedia[]>([]);
+  pendingRef.current = pending;
   const [slowModeBlocked, setSlowModeBlocked] = useState<Date | null>(null);
   // The post the reply belongs to, plus (optionally) the reply being answered.
   // Threading is capped at two levels: answering a nested reply targets its
@@ -606,85 +612,40 @@ export default function ChannelPage() {
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
+  const maxMedia = Math.min(MAX_MEDIA_PER_POST, Math.max(1, channel?.maxMediaPerPost ?? 1));
+
   async function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-    const isVideo = file.type.startsWith('video/');
-    if (isVideo && !(channel?.photoUploadEnabled && channel?.videoUploadEnabled)) {
-      toast.error('Clips are not allowed in this channel');
+    const picked = Array.from(e.target.files ?? []);
+    if (picked.length === 0 || !user) return;
+    // Room left in the carousel. The picker is `multiple` only when the
+    // channel allows more than one, but a second pick after a first is
+    // still possible, so the cap is applied here, on the total.
+    const room = maxMedia - pendingRef.current.length;
+    if (room <= 0) {
+      toast.error(maxMedia === 1 ? 'One attachment per post here' : `Up to ${maxMedia} per post in this channel`);
       return;
     }
-    const cap = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
-    if (file.size > cap) {
-      toast.error(isVideo ? 'Clip must be under 100 MB — try a shorter one' : 'Image must be under 20 MB');
-      return;
+    if (picked.length > room) toast.error(`Only ${room} more fit — first ${room} taken`);
+    const files = picked.slice(0, room);
+    const clipsAllowed = !!(channel?.photoUploadEnabled && channel?.videoUploadEnabled);
+    for (const file of files) {
+      const isVideo = file.type.startsWith('video/');
+      if (isVideo && !clipsAllowed) { toast.error('Clips are not allowed in this channel'); return; }
+      if (file.size > (isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES)) {
+        toast.error(isVideo ? 'Clip must be under 100 MB — try a shorter one' : 'Image must be under 20 MB');
+        return;
+      }
     }
     setUploadingImage(true);
     try {
-      const toUpload = isVideo ? file : await compressImage(file);
       const cfg = await getSystemConfig().catch(() => null);
       const provider = resolveStorageProvider(cfg?.storageProvider);
-      setUploadPct(0);
-      const url = await uploadUserContent(provider, user, toUpload, 'community', (pct) => setUploadPct(Math.round(pct)));
-
-      // The clip is ready the moment IT has uploaded. Nothing below may hold
-      // the spinner: the upload used to await the poster grab, and on iPhone
-      // that grab can hang indefinitely, so a clip that had uploaded perfectly
-      // showed as "still uploading" until the person gave up.
-      pendingClipRef.current = url;
-      setPendingImageURL(url);
-      setPendingPosterURL(null);
-      setPendingMediaType(isVideo ? 'video' : 'image');
-      toast.success(isVideo ? 'Clip ready — tap send to post' : 'Image ready — tap send to post');
-
-      // The poster, in the background, attached only if it lands in time.
-      //
-      // preload="metadata" alone leaves a black rectangle until the viewer
-      // presses play — iOS Safari paints nothing before then — so a feed of
-      // clips reads as a column of broken boxes.
-      //
-      // The server takes the frame now, with ffmpeg. The browser used to be
-      // the only thing that could, and it fails silently on exactly the clips
-      // nobody checks: a codec this device cannot decode, a tab backgrounded
-      // mid-grab, a slow phone that hit the timeout. The uploader never
-      // notices, because they know what is in their own clip; everyone else
-      // gets the black rectangle.
-      //
-      // The browser attempt stays as the fallback for when the server cannot:
-      // no ffmpeg on the host, both grab slots busy, the request failing. Two
-      // ways to get a frame, neither of which can hold up the upload.
-      if (isVideo) {
-        void (async () => {
-          try {
-            let posterUrl: string | null = null;
-
-            try {
-              const token = await getIdToken(user);
-              const res = await fetch('/api/media/poster', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-                body: JSON.stringify({ videoUrl: url }),
-              });
-              if (res.ok) posterUrl = ((await res.json()) as { posterUrl?: string | null }).posterUrl ?? null;
-            } catch { /* fall through to the browser's own attempt */ }
-
-            if (!posterUrl) {
-              const frame = await extractVideoThumbnail(file);
-              if (frame) {
-                const posterFile = new File([frame], 'poster.jpg', { type: 'image/jpeg' });
-                posterUrl = await uploadUserContent(provider, user, posterFile, 'community');
-              }
-            }
-
-            // Only if this clip is still the pending one. If it was cleared
-            // or replaced while the frame was being grabbed, a poster for it
-            // must not attach to whatever is pending now.
-            if (posterUrl && pendingClipRef.current === url) setPendingPosterURL(posterUrl);
-          } catch { /* posterless is a worse thumbnail, not a failed upload */ }
-        })();
-      }
+      // One at a time, in the order picked, so the carousel comes out in
+      // the order the person chose and the progress ring means one file.
+      for (const file of files) await uploadOne(file, provider);
+      toast.success(files.length > 1 ? `${files.length} ready — tap send to post` : (files[0].type.startsWith('video/') ? 'Clip ready — tap send to post' : 'Image ready — tap send to post'));
     } catch {
-      toast.error(isVideo ? 'Failed to upload clip' : 'Failed to upload image');
+      toast.error('Failed to upload');
     } finally {
       setUploadingImage(false);
       setUploadPct(null);
@@ -692,8 +653,70 @@ export default function ChannelPage() {
     }
   }
 
+  async function uploadOne(file: File, provider: ReturnType<typeof resolveStorageProvider>) {
+    if (!user) return;
+    const isVideo = file.type.startsWith('video/');
+    const toUpload = isVideo ? file : await compressImage(file);
+    setUploadPct(0);
+    const url = await uploadUserContent(provider, user, toUpload, 'community', (pct) => setUploadPct(Math.round(pct)));
+
+    // The clip is ready the moment IT has uploaded. Nothing below may hold
+    // the spinner: the upload used to await the poster grab, and on iPhone
+    // that grab can hang indefinitely, so a clip that had uploaded perfectly
+    // showed as "still uploading" until the person gave up.
+    setPending((prev) => [...prev, { url, type: isVideo ? 'video' : 'image' }]);
+
+    // The poster, in the background, attached only if it lands in time.
+    //
+    // preload="metadata" alone leaves a black rectangle until the viewer
+    // presses play — iOS Safari paints nothing before then — so a feed of
+    // clips reads as a column of broken boxes.
+    //
+    // The server takes the frame now, with ffmpeg. The browser used to be
+    // the only thing that could, and it fails silently on exactly the clips
+    // nobody checks: a codec this device cannot decode, a tab backgrounded
+    // mid-grab, a slow phone that hit the timeout. The uploader never
+    // notices, because they know what is in their own clip; everyone else
+    // gets the black rectangle.
+    //
+    // The browser attempt stays as the fallback for when the server cannot:
+    // no ffmpeg on the host, both grab slots busy, the request failing. Two
+    // ways to get a frame, neither of which can hold up the upload.
+    if (isVideo) {
+      void (async () => {
+        try {
+          let posterUrl: string | null = null;
+
+          try {
+            const token = await getIdToken(user);
+            const res = await fetch('/api/media/poster', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+              body: JSON.stringify({ videoUrl: url }),
+            });
+            if (res.ok) posterUrl = ((await res.json()) as { posterUrl?: string | null }).posterUrl ?? null;
+          } catch { /* fall through to the browser's own attempt */ }
+
+          if (!posterUrl) {
+            const frame = await extractVideoThumbnail(file);
+            if (frame) {
+              const posterFile = new File([frame], 'poster.jpg', { type: 'image/jpeg' });
+              posterUrl = await uploadUserContent(provider, user, posterFile, 'community');
+            }
+          }
+
+          // Only if this clip is still pending. If it was removed while the
+          // frame was being grabbed, the poster has nothing to attach to.
+          if (posterUrl && pendingRef.current.some((m) => m.url === url)) {
+            setPending((prev) => prev.map((m) => (m.url === url ? { ...m, posterURL: posterUrl! } : m)));
+          }
+        } catch { /* posterless is a worse thumbnail, not a failed upload */ }
+      })();
+    }
+  }
+
   async function handlePost() {
-    if (!user || !profile || (!text.trim() && !pendingImageURL) || !channelId) return;
+    if (!user || !profile || (!text.trim() && pending.length === 0) || !channelId) return;
     if (slowModeBlocked && slowModeBlocked > new Date()) {
       toast.error(`Slow mode active. You can post again on ${slowModeBlocked.toLocaleDateString()}`);
       return;
@@ -710,13 +733,15 @@ export default function ChannelPage() {
         // userIsAdmin:true here would just get the whole write rejected.
         ...(profile.role === 'admin' ? { userIsAdmin: true } : {}),
         content: text.trim(),
-        ...(pendingImageURL ? { imageURL: pendingImageURL, mediaType: pendingMediaType } : {}),
-        ...(pendingPosterURL ? { posterURL: pendingPosterURL } : {}),
+        // imageURL/mediaType/posterURL stay as a copy of the first item so
+        // the pinned preview, older clients and every post written before
+        // carousels keep reading the same fields. `media` is the full list.
+        ...(pending[0] ? { imageURL: pending[0].url, mediaType: pending[0].type } : {}),
+        ...(pending[0]?.posterURL ? { posterURL: pending[0].posterURL } : {}),
+        ...(pending.length > 0 ? { media: pending } : {}),
       });
       setText('');
-      setPendingImageURL(null);
-      setPendingPosterURL(null);
-      pendingClipRef.current = null;
+      setPending([]);
       if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
       // No follow-up getChannelPosts()/setPosts() here — the live
       // subscribeChannelPosts listener already picks up this post as soon
@@ -861,7 +886,7 @@ export default function ChannelPage() {
   const muteUntilMs = (profile?.channelMute?.until as { toMillis?: () => number } | null | undefined)?.toMillis?.();
   const isMuted = !!profile?.channelMute && (muteUntilMs === undefined || muteUntilMs === null || muteUntilMs > Date.now());
   const isBlocked = isMuted || (!!slowModeBlocked && slowModeBlocked > new Date());
-  const canSend = (text.trim().length > 0 || !!pendingImageURL) && !isBlocked;
+  const canSend = (text.trim().length > 0 || pending.length > 0) && !isBlocked;
   const pinnedPost = channel.pinnedPostId ? posts.find(p => p.id === channel.pinnedPostId) : null;
 
   // Height of the compose box (approx) so the post list doesn't hide behind it
@@ -947,6 +972,9 @@ export default function ChannelPage() {
                 {pinnedPost.imageURL && (
                   <FeedMedia url={pinnedPost.imageURL} kind={mediaKindOf(pinnedPost)} poster={pinnedPost.posterURL} alt="Media attached to the pinned post" compact className="mt-2" />
                 )}
+                {mediaOf(pinnedPost).length > 1 && (
+                  <p className="text-[11px] text-text-tertiary mt-1">+{mediaOf(pinnedPost).length - 1} more</p>
+                )}
               </div>
             </div>
           )}
@@ -1029,20 +1057,31 @@ export default function ChannelPage() {
           )}
           {/* Attachment preview — a clip gets a real player rather than an
               <img> pointed at an .mp4, which renders as a broken thumbnail. */}
-          {pendingImageURL && (
-            <div className="relative inline-block">
-              {pendingMediaType === 'video' ? (
-                <video src={pendingImageURL} muted playsInline preload="metadata" className="h-16 rounded-lg" />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={pendingImageURL} alt="preview" className="h-16 rounded-lg object-cover" />
+          {pending.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto py-1 pr-1" style={{ scrollbarWidth: 'none' }}>
+              {pending.map((m, i) => (
+                <div key={m.url} className="relative flex-shrink-0 mt-1.5">
+                  {m.type === 'video' ? (
+                    <video src={m.url} poster={m.posterURL} muted playsInline preload="metadata" className="h-16 w-16 rounded-lg object-cover bg-black" />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={m.url} alt={`preview ${i + 1}`} className="h-16 w-16 rounded-lg object-cover" />
+                  )}
+                  {pending.length > 1 && (
+                    <span className="absolute bottom-1 left-1 px-1 rounded bg-black/60 text-[10px] font-semibold text-white tabular-nums">{i + 1}</span>
+                  )}
+                  <button
+                    onClick={() => setPending((prev) => prev.filter((x) => x.url !== m.url))}
+                    aria-label={`Remove attachment ${i + 1}`}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-danger rounded-full flex items-center justify-center"
+                  >
+                    <X className="w-3 h-3 text-white" />
+                  </button>
+                </div>
+              ))}
+              {maxMedia > 1 && (
+                <span className="self-center text-[11px] text-text-tertiary tabular-nums flex-shrink-0">{pending.length}/{maxMedia}</span>
               )}
-              <button
-                onClick={() => { setPendingImageURL(null); setPendingPosterURL(null); pendingClipRef.current = null; setPendingMediaType('image'); }}
-                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-danger rounded-full flex items-center justify-center"
-              >
-                <X className="w-3 h-3 text-white" />
-              </button>
             </div>
           )}
           <div className="flex gap-2 items-end">
@@ -1051,14 +1090,15 @@ export default function ChannelPage() {
               ref={fileInputRef}
               type="file"
               accept={channel.photoUploadEnabled && channel.videoUploadEnabled ? 'image/*,video/*' : 'image/*'}
+              multiple={maxMedia > 1}
               className="hidden"
               onChange={handleImagePick}
             />
             {channel.photoUploadEnabled && !isBlocked && (
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingImage}
-                aria-label={uploadingImage && uploadPct !== null ? `Uploading, ${uploadPct} percent` : 'Attach a photo or clip'}
+                disabled={uploadingImage || pending.length >= maxMedia}
+                aria-label={uploadingImage && uploadPct !== null ? `Uploading, ${uploadPct} percent` : maxMedia > 1 ? `Attach up to ${maxMedia} photos or clips` : 'Attach a photo or clip'}
                 className="relative p-2 rounded-xl bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors flex-shrink-0 disabled:opacity-100 overflow-hidden"
                 style={uploadingImage && uploadPct !== null
                   // The button itself becomes the progress ring: an accent arc

@@ -68,7 +68,7 @@ export async function PATCH(req: NextRequest) {
     // editable fields. Allowlisted to what the channel edit UI actually
     // sends, matching how the create (POST) route above already scopes
     // its own writes.
-    const EDITABLE_FIELDS = ['name', 'description', 'emoji', 'photoUploadEnabled', 'slowModeDays', 'allowUserPosts'] as const;
+    const EDITABLE_FIELDS = ['name', 'description', 'emoji', 'photoUploadEnabled', 'videoUploadEnabled', 'maxMediaPerPost', 'slowModeDays', 'allowUserPosts'] as const;
     const update: Record<string, unknown> = {};
     for (const key of EDITABLE_FIELDS) {
       if (data[key] !== undefined) update[key] = data[key];

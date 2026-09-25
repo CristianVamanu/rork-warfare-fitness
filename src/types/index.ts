@@ -559,10 +559,26 @@ export interface Channel {
   // signed up for. Channels that want evidence (a PT test, a form check)
   // turn it on deliberately.
   videoUploadEnabled?: boolean;
+  // How many photos/clips one post may carry, as a swipeable carousel.
+  // Absent means 1, which is what every channel did before carousels
+  // existed. Capped at MAX_MEDIA_PER_POST; the rules enforce the same cap.
+  maxMediaPerPost?: number;
   slowModeDays: 0 | 7 | 21 | 30;
   allowUserPosts: boolean; // false = announcement-only channel, admin/trainer posts only
   postCount: number;
   createdAt: unknown;
+}
+
+/** Hard ceiling on carousel length, whatever a channel is set to. Ten is
+ *  Instagram's number and also the number of slots the rules check. */
+export const MAX_MEDIA_PER_POST = 10;
+
+/** One photo or clip in a post's carousel. */
+export interface PostMedia {
+  url: string;
+  type: 'image' | 'video';
+  /** Still frame for a clip; see ChannelPost.posterURL. */
+  posterURL?: string;
 }
 
 export interface ChannelPost {
@@ -585,6 +601,10 @@ export interface ChannelPost {
   /** Still frame for a clip, captured in the browser at upload time so the
    *  feed shows the video instead of a black rectangle before playback. */
   posterURL?: string;
+  /** The full carousel, in order. imageURL/mediaType/posterURL above are
+   *  always a copy of media[0], so everything that only knows about a single
+   *  attachment (pinned previews, older clients) keeps working unchanged. */
+  media?: PostMedia[];
   /** Set when a reply has been edited by its author — shown as a small
    *  "edited" marker so a rewritten reply is never passed off as original. */
   editedAt?: unknown;

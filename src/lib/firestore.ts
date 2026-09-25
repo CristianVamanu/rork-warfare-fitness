@@ -2477,7 +2477,7 @@ export async function saveNotificationConfig(data: Partial<NotificationConfig>) 
 // ---------------------------------------------------------------------------
 // Community channels
 // ---------------------------------------------------------------------------
-import type { Channel, ChannelPost } from '@/types';
+import type { Channel, ChannelPost, PostMedia } from '@/types';
 
 // Channel list rarely changes, but both the community list page and every
 // channel detail page re-fetch it on every visit. Cache the raw (unfiltered)
@@ -2614,10 +2614,15 @@ export function subscribeChannelPosts(
 
 export async function createChannelPost(channelId: string, data: {
   userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean;
-  content: string; imageURL?: string; mediaType?: 'image' | 'video';
+  content: string; imageURL?: string; mediaType?: 'image' | 'video'; posterURL?: string;
+  media?: PostMedia[];
 }): Promise<string> {
+  // undefined is not a Firestore value: a carousel item with no poster
+  // would fail the whole write.
+  const media = data.media?.map((m) => Object.fromEntries(Object.entries(m).filter(([, v]) => v !== undefined)) as PostMedia);
   const ref = await addDoc(collection(db, 'channels', channelId, 'posts'), {
     ...data,
+    ...(media ? { media } : {}),
     channelId,
     likes: [],
     replyCount: 0,

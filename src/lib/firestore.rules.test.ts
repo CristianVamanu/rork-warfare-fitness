@@ -741,6 +741,28 @@ describe('channel replies — editable and deletable', () => {
     }));
   });
 
+  it('bounds a carousel to the channel\'s maxMediaPerPost and checks every item', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'channels', 'one'), { name: 'General', allowUserPosts: true });
+      await setDoc(doc(db, 'channels', 'five'), { name: 'Challenges', allowUserPosts: true, maxMediaPerPost: 5 });
+    });
+    const db = asAlice();
+    const img = (n: number) => ({ url: `https://cdn.example.com/${n}.jpg`, type: 'image' });
+    const post = (media: unknown[]) => ({ userId: ALICE, content: 'carousel', media });
+    // No setting means one item, the way every channel behaved before.
+    await assertSucceeds(setDoc(doc(db, 'channels', 'one', 'posts', 'a'), post([img(1)])));
+    await assertFails(setDoc(doc(db, 'channels', 'one', 'posts', 'b'), post([img(1), img(2)])));
+    // Five allowed: five is fine, six is not.
+    await assertSucceeds(setDoc(doc(db, 'channels', 'five', 'posts', 'c'), post([1, 2, 3, 4, 5].map(img))));
+    await assertFails(setDoc(doc(db, 'channels', 'five', 'posts', 'd'), post([1, 2, 3, 4, 5, 6].map(img))));
+    // A bad item anywhere in the list, not just first, fails the write.
+    await assertFails(setDoc(doc(db, 'channels', 'five', 'posts', 'e'), post([img(1), img(2), { url: 'javascript:alert(1)', type: 'image' }])));
+    await assertFails(setDoc(doc(db, 'channels', 'five', 'posts', 'f'), post([img(1), { url: 'https://cdn.example.com/x.gif', type: 'gif' }])));
+    await assertFails(setDoc(doc(db, 'channels', 'five', 'posts', 'g'), post([{ ...img(1), extra: 'nope' }])));
+    // An empty list is not "no media"; leave the field off instead.
+    await assertFails(setDoc(doc(db, 'channels', 'five', 'posts', 'h'), post([])));
+  });
+
   it('the author can fix their own reply', async () => {
     await seedThread();
     await assertSucceeds(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1', 'replies', 'r1'), {

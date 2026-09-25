@@ -61,6 +61,7 @@ import { Modal } from '@/components/ui/Modal';
 import { SEQUENCES, SEQUENCE_DEFAULTS, sequenceToggles } from '@/lib/emailSequences';
 import toast from 'react-hot-toast';
 import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, SupportTicket, SupportTicketStatus } from '@/types';
+import { MAX_MEDIA_PER_POST } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
 import { getPlanBillingPeriods, getYouTubeEmbedUrl } from '@/lib/utils';
 
@@ -576,7 +577,7 @@ function AdminPageInner() {
   // ── Community channels state ───────────────────────────────────────────────
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
-  const [channelForm, setChannelForm] = useState({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, slowModeDays: 0 as 0|7|21|30, allowUserPosts: true });
+  const [channelForm, setChannelForm] = useState({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, maxMediaPerPost: 1, slowModeDays: 0 as 0|7|21|30, allowUserPosts: true });
   const [savingChannel, setSavingChannel] = useState(false);
   const [showChannelForm, setShowChannelForm] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
@@ -1770,6 +1771,10 @@ function AdminPageInner() {
         // an earlier "on" in the form and saved a channel the list showed
         // as photos-off that still accepted video.
         videoUploadEnabled: channelForm.photoUploadEnabled && channelForm.videoUploadEnabled,
+        // Same dependency: a carousel is several uploads, so it means nothing
+        // with uploads off. Clamped so a stale form can never save more than
+        // the rules will accept.
+        maxMediaPerPost: channelForm.photoUploadEnabled ? Math.min(MAX_MEDIA_PER_POST, Math.max(1, channelForm.maxMediaPerPost)) : 1,
         slowModeDays: channelForm.slowModeDays,
         allowUserPosts: channelForm.allowUserPosts,
         createdBy: user.uid,
@@ -1792,7 +1797,7 @@ function AdminPageInner() {
       }
       setShowChannelForm(false);
       setEditingChannel(null);
-      setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, slowModeDays: 0, allowUserPosts: true });
+      setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, maxMediaPerPost: 1, slowModeDays: 0, allowUserPosts: true });
       await loadChannels();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to save channel';
@@ -1822,6 +1827,7 @@ function AdminPageInner() {
       emoji: ch.emoji ?? '',
       photoUploadEnabled: ch.photoUploadEnabled,
       videoUploadEnabled: ch.videoUploadEnabled ?? false,
+      maxMediaPerPost: ch.maxMediaPerPost ?? 1,
       slowModeDays: ch.slowModeDays,
       allowUserPosts: ch.allowUserPosts ?? true,
     });
@@ -1900,6 +1906,33 @@ function AdminPageInner() {
           >
             <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${channelForm.videoUploadEnabled && channelForm.photoUploadEnabled ? 'left-6' : 'left-1'}`} />
           </button>
+        </div>
+        {/* Carousel length. 1 is a single attachment, exactly what channels
+            did before; anything above turns the attach button into a
+            multi-picker and the post into a swipeable carousel. */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <div>
+              <p className="text-sm font-medium text-white">Media Per Post</p>
+              <p className="text-xs text-text-secondary">
+                {channelForm.photoUploadEnabled
+                  ? (channelForm.maxMediaPerPost > 1 ? `Up to ${channelForm.maxMediaPerPost} photos or clips, swiped as a carousel` : 'One photo or clip per post')
+                  : 'Turn photo upload on first'}
+              </p>
+            </div>
+            <span className="text-lg font-bold text-accent tabular-nums w-8 text-right">{channelForm.photoUploadEnabled ? channelForm.maxMediaPerPost : 1}</span>
+          </div>
+          <input
+            type="range"
+            min={1}
+            max={MAX_MEDIA_PER_POST}
+            step={1}
+            disabled={!channelForm.photoUploadEnabled}
+            value={channelForm.photoUploadEnabled ? channelForm.maxMediaPerPost : 1}
+            onChange={e => setChannelForm(f => ({ ...f, maxMediaPerPost: Number(e.target.value) }))}
+            className="w-full accent-[rgb(var(--accent-rgb))] disabled:opacity-40"
+            aria-label="Media per post"
+          />
         </div>
         <div className="flex items-center justify-between">
           <div>
@@ -3264,7 +3297,7 @@ function AdminPageInner() {
 
           <div className="flex items-center justify-between">
             <p className="text-text-secondary text-sm">{channels.length} channel{channels.length !== 1 ? 's' : ''}</p>
-            <Button size="sm" onClick={() => { setEditingChannel(null); setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, slowModeDays: 0, allowUserPosts: true }); setShowChannelForm(true); }}>
+            <Button size="sm" onClick={() => { setEditingChannel(null); setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, maxMediaPerPost: 1, slowModeDays: 0, allowUserPosts: true }); setShowChannelForm(true); }}>
               <Plus className="w-4 h-4" /> New Channel
             </Button>
           </div>
@@ -3300,6 +3333,7 @@ function AdminPageInner() {
                         {ch.slowModeDays > 0 && <span>Slow: {ch.slowModeDays}d</span>}
                         {ch.photoUploadEnabled && <span>📷 photos on</span>}
                         {ch.videoUploadEnabled && <span>🎬 clips on</span>}
+                        {(ch.maxMediaPerPost ?? 1) > 1 && <span>🖼 carousel ×{ch.maxMediaPerPost}</span>}
                         {ch.allowUserPosts === false && <span className="text-yellow-400">📢 announcement-only</span>}
                       </div>
                     </div>
