@@ -77,7 +77,7 @@ export function FeedMedia({
   // and never downloads a clip nobody is looking at. Pinned previews
   // (compact) stay still. The play() promise is allowed to reject: a browser
   // that refuses autoplay simply leaves the poster and the play glyph.
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
   const [progress, setProgress] = useState(0);
@@ -215,7 +215,14 @@ export function FeedMedia({
           </span>
         </div>
         <video
-          ref={videoRef}
+          ref={(el) => {
+            videoRef.current = el;
+            // React sets `muted` as a property, not an attribute, and iOS
+            // decides whether muted autoplay is allowed by looking at the
+            // attribute. Without it the first clip in a page sits on its
+            // play glyph until tapped.
+            if (el) { el.defaultMuted = true; el.setAttribute('muted', ''); }
+          }}
           src={src}
           poster={poster}
           playsInline
@@ -234,6 +241,10 @@ export function FeedMedia({
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
             if (v.videoWidth && v.videoHeight) setRatio(v.videoWidth / v.videoHeight);
+            // No stored poster: seek a hair in so Safari decodes and paints
+            // a frame. The #t=0.1 fragment on the src does this on some
+            // versions and not others; an explicit seek does it on all.
+            if (!poster && v.paused && v.currentTime === 0) { try { v.currentTime = 0.1; } catch { /* not seekable yet */ } }
           }}
           // Fetches dimensions and a first frame without pulling the whole
           // clip — a feed of autoloading videos is somebody's data allowance.

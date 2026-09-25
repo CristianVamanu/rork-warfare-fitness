@@ -911,7 +911,12 @@ function OnboardingPageInner() {
     // plan selected returns from Stripe to /profile and never came back to
     // this screen — the one place it played was the one place paying members
     // skipped. Onboarding just hands over to the app now.
-    router.replace('/dashboard');
+    // A shared link (a challenge, later a product) brings someone here with
+    // ?next=; once they have an account they should land on the thing they
+    // were sent, not on a dashboard they have to search from. Relative
+    // paths only — an absolute URL here would be an open redirect.
+    const next = searchParams.get('next');
+    router.replace(next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard');
   }
 
   const isGenerating = status === 'generating' || status === 'saving';

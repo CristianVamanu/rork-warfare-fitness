@@ -55,7 +55,8 @@ export default function RegisterPage() {
       // an empty dashboard with no program, no goals, nothing — sex/age
       // ride along as query params exactly like the landing page's
       // quick-start box, so onboarding doesn't ask for them a second time.
-      router.replace(`/onboarding?sex=${data.sex}&age=${data.age}`);
+      const next = new URLSearchParams(window.location.search).get('next');
+      router.replace(`/onboarding?sex=${data.sex}&age=${data.age}${next && next.startsWith('/') && !next.startsWith('//') ? `&next=${encodeURIComponent(next)}` : ''}`);
     } catch (err: unknown) {
       const e = err as Error & { code?: string };
       console.error('[Register] Sign-up FAILED:', {

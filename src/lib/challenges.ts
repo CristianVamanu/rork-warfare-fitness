@@ -14,8 +14,8 @@ import {
   query, orderBy, limit, onSnapshot, serverTimestamp, increment,
   arrayUnion, arrayRemove, deleteField, type UpdateData, type DocumentData,
 } from 'firebase/firestore';
-import { db } from './firebase';
-import { sendNotification } from './firestore';
+import { getIdToken } from 'firebase/auth';
+import { db, auth } from './firebase';
 import type { Challenge, ChallengeEntry, ChallengePost, ChallengeResultType, PostMedia } from '@/types';
 
 /** Firestore rejects `undefined` values; every write below strips them. */
@@ -200,33 +200,61 @@ export async function deleteChallenge(id: string) {
   await deleteDoc(doc(db, 'challenges', id));
 }
 
+async function adminPost<T>(path: string, body: unknown): Promise<T> {
+  const current = auth.currentUser;
+  if (!current) throw new Error('Not signed in');
+  const token = await getIdToken(current);
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `Request failed (${res.status})`);
+  return data as T;
+}
+
 /** Verify or reject a submission. Verifying is what counts as finishing
- *  the challenge: the badge, the board and the store gate all read it. */
+ *  the challenge: XP, the badge, the board and the store gate all read
+ *  it — so it runs on the server (api/admin/challenges/review), where the
+ *  member's XP can be written and the push sent in the same breath. */
 export async function reviewChallengeEntry(
   challenge: Pick<Challenge, 'id' | 'title'>,
   entry: Pick<ChallengeEntry, 'userId' | 'status'>,
   status: 'verified' | 'rejected',
   note?: string,
-) {
-  await updateDoc(doc(db, 'challenges', challenge.id, 'entries', entry.userId), clean({
-    status,
-    reviewedAt: serverTimestamp(),
-    reviewNote: note?.trim() || undefined,
+): Promise<{ xpDelta: number; newAchievements: string[] }> {
+  return adminPost('/api/admin/challenges/review', { challengeId: challenge.id, userId: entry.userId, status, note });
+}
+
+/** "New challenge" push to every device, once per challenge. */
+export async function announceChallenge(challengeId: string): Promise<{ sent?: number; alreadyAnnounced?: boolean }> {
+  return adminPost('/api/admin/challenges/announce', { challengeId });
+}
+
+/** Grabs a still for every clip that has none, so a carousel never opens
+ *  on a black frame (iOS paints nothing for a video before play). Waits a
+ *  bounded time per clip; a clip that still has no poster saves without
+ *  one rather than blocking the save. */
+export async function ensurePosters(media: PostMedia[]): Promise<PostMedia[]> {
+  const current = auth.currentUser;
+  if (!current) return media;
+  const token = await getIdToken(current);
+  return Promise.all(media.map(async (m) => {
+    if (m.type !== 'video' || m.posterURL) return m;
+    try {
+      const res = await fetch('/api/media/poster', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ videoUrl: m.url }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      const posterURL = res.ok ? ((await res.json()) as { posterUrl?: string | null }).posterUrl : null;
+      return posterURL ? { ...m, posterURL } : m;
+    } catch {
+      return m;
+    }
   }));
-  // Keep the finisher count honest across re-reviews: verified→rejected
-  // takes one back, rejected→verified adds one.
-  const delta = (status === 'verified' ? 1 : 0) - (entry.status === 'verified' ? 1 : 0);
-  if (delta !== 0) await updateDoc(doc(db, 'challenges', challenge.id), { verifiedCount: increment(delta) }).catch(() => {});
-  await sendNotification({
-    userId: entry.userId,
-    type: status === 'verified' ? 'challenge_verified' : 'challenge_rejected',
-    title: status === 'verified' ? `${challenge.title}: verified` : `${challenge.title}: not verified`,
-    body: status === 'verified'
-      ? 'Your result is confirmed. It counts, and it is on the board.'
-      : (note?.trim() || 'Your proof did not show the full challenge. Have another go and submit again.'),
-    actionLabel: 'Open challenge',
-    actionUrl: `/community/challenges/${challenge.id}`,
-  }).catch(() => {});
 }
 
 /** Lets a rejected entrant try again: back to 'entered' so Submit reopens. */

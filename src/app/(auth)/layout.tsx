@@ -23,7 +23,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (!loading && user && !allowSignedIn) {
-      router.replace('/dashboard');
+      // window.location rather than useSearchParams: this is a layout, and
+      // the hook would force a Suspense boundary around every auth page.
+      const next = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('next') : null;
+      router.replace(next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard');
     }
   }, [user, loading, router, allowSignedIn]);
 

@@ -107,18 +107,21 @@ export function DailyTip() {
   if (!tip) return null;
 
   return (
-    <Card glass className="p-3.5 flex items-start gap-3.5">
-      <div className="w-11 h-11 rounded-2xl bg-accent-muted flex items-center justify-center flex-shrink-0">
-        <Lightbulb className="w-5 h-5 text-accent" />
-      </div>
-      <div className="min-w-0">
+    // Same anatomy as the Calories and Water cards beside it: a small icon
+    // and the label on one row, the content under them, everything against
+    // the card's left padding. The icon used to be a big tile down the side
+    // with the text indented past it, so the brief was the one card whose
+    // text started forty pixels further in than every other card's.
+    <Card glass className="p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Lightbulb className="w-4 h-4 text-accent" />
         <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Today&apos;s brief</span>
-        {/* No line clamp. Length is controlled at the source — the route asks
-            for one sentence and rejects a cached tip longer than that — and
-            clamping here truncated mid-word with an ellipsis, which looks
-            broken rather than brief. */}
-        <p className="text-sm text-white mt-0.5 leading-relaxed">{tip}</p>
       </div>
+      {/* No line clamp. Length is controlled at the source — the route asks
+          for one sentence and rejects a cached tip longer than that — and
+          clamping here truncated mid-word with an ellipsis, which looks
+          broken rather than brief. */}
+      <p className="text-sm text-white leading-relaxed">{tip}</p>
     </Card>
   );
 }

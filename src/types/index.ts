@@ -285,6 +285,8 @@ export interface UserProfile {
   celebratedPrograms?: string[];
   assignedNutritionPlan?: NutritionPlan;
   achievements?: string[];
+  /** Server-written only (api/admin/challenges/review). */
+  challengeBadges?: ChallengeBadge[];
   questsCompleted?: string[];
   prBan?: { until: unknown /* Timestamp | null; null = indefinite */; bannedAt: unknown };
   /** Admin-set. Muted members can read and like in channels but not post or reply. */
@@ -616,12 +618,26 @@ export interface Challenge {
   entryCount: number;
   submissionCount: number;
   verifiedCount: number;
+  /** XP a verified finisher receives. Set per challenge by the admin;
+   *  DEFAULT_CHALLENGE_XP when absent. Awarded server-side on verification. */
+  xpReward?: number;
   /** Store products this challenge unlocks — Phase 3 reads it; the editor
    *  can already set it so nothing needs migrating later. */
   rewardProductIds?: string[];
   createdBy: string;
   createdAt: unknown;
   updatedAt?: unknown;
+}
+
+export const DEFAULT_CHALLENGE_XP = 100;
+
+/** One verified finish, stamped on users/{uid}.challengeBadges by the
+ *  review route. The profile shows these as a strip. */
+export interface ChallengeBadge {
+  challengeId: string;
+  title: string;
+  result?: string;
+  earnedAt: unknown;
 }
 
 export type ChallengeEntryStatus = 'entered' | 'submitted' | 'verified' | 'rejected';
@@ -646,6 +662,8 @@ export interface ChallengeEntry {
   submittedAt?: unknown;
   reviewedAt?: unknown;
   reviewNote?: string;
+  /** Set by the reminder cron so nobody is nagged twice. */
+  remindedAt?: unknown;
 }
 
 /** challenges/{id}/posts — the challenge feed. Same shape as a channel post

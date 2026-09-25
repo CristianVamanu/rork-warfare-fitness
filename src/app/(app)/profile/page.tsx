@@ -682,6 +682,29 @@ export default function ProfilePage() {
           </Link>
         </motion.div>
 
+        {/* Challenge badges — one per verified finish, newest first. Only
+            present once there is at least one, so a new member's profile
+            is not a row of empty slots. */}
+        {(profile?.challengeBadges?.length ?? 0) > 0 && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
+            <Card className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-medium text-white">Challenges finished</p>
+                <Link href="/community/challenges" className="text-xs text-accent font-semibold">See all</Link>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                {[...(profile?.challengeBadges ?? [])].reverse().map((b) => (
+                  <Link key={b.challengeId} href={`/community/challenges/${b.challengeId}`} className="flex-shrink-0 w-32 rounded-xl border border-accent/30 px-3 py-2.5" style={{ background: 'linear-gradient(135deg, rgba(var(--accent-rgb) / 0.18), rgba(var(--accent-rgb) / 0.03))' }}>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Verified</p>
+                    <p className="text-xs font-bold text-white mt-0.5 line-clamp-2 leading-snug">{b.title}</p>
+                    {b.result && <p className="text-[11px] text-text-secondary tabular-nums mt-1">{b.result}</p>}
+                  </Link>
+                ))}
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
         {/* Achievements */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.17 }}>
           <Link href="/achievements">

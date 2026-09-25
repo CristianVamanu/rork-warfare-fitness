@@ -6,10 +6,16 @@ export interface AchievementDef {
   icon: string;
   title: string;
   desc: string;
-  category: 'workouts' | 'streak' | 'power' | 'time' | 'nutrition';
+  category: 'workouts' | 'streak' | 'power' | 'time' | 'nutrition' | 'challenges';
 }
 
 export const ACHIEVEMENT_DEFS: AchievementDef[] = [
+  // Challenges — awarded by the review route when a result is verified,
+  // never by the client check below (isEarned has no challenge params).
+  { id: 'challenge_1',    icon: '🎖️', title: 'Proven',            desc: 'First verified challenge',        category: 'challenges' },
+  { id: 'challenge_5',    icon: '🏹', title: 'Battle-Tested',     desc: '5 verified challenges',           category: 'challenges' },
+  { id: 'challenge_10',   icon: '⚔️', title: 'Veteran',           desc: '10 verified challenges',          category: 'challenges' },
+  { id: 'challenge_25',   icon: '🛡️', title: 'Warfare Elite',     desc: '25 verified challenges',          category: 'challenges' },
   // Workout milestones — first one stays an easy onboarding win, the rest
   // scaled up meaningfully so they mean something and give long-term goals.
   { id: 'first_workout',  icon: '💪', title: 'Day One',           desc: 'Complete your first workout',     category: 'workouts' },

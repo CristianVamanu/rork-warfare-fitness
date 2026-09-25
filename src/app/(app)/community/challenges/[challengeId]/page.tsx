@@ -15,6 +15,8 @@ import { Modal } from '@/components/ui/Modal';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import { FeedCarousel } from '@/components/community/FeedCarousel';
 import { MediaPicker } from '@/components/community/MediaPicker';
+import { ShareChallengeButton } from '@/components/community/ShareChallengeButton';
+import { DEFAULT_CHALLENGE_XP } from '@/types';
 import { RESULT_TYPES, DIFFICULTY, timeline, bucket, betterFirst, toDate } from '@/components/community/challengeFormat';
 import {
   subscribeChallenge, subscribeMyEntry, subscribeEntries, subscribeChallengePosts,
@@ -122,6 +124,7 @@ export default function ChallengePage() {
             <div className="flex items-center gap-0.5" title={diff.label} aria-label={diff.label}>
               {[1, 2, 3].map((n) => <span key={n} className={`w-1.5 h-3 rounded-sm ${n <= diff.bars ? 'bg-accent' : 'bg-white/20'}`} />)}
             </div>
+            <ShareChallengeButton challengeId={challenge.id} title={challenge.title} entered={!!entry} variant="icon" />
           </div>
         </div>
 
@@ -152,7 +155,10 @@ export default function ChallengePage() {
                 <p className="text-sm text-white/90 whitespace-pre-wrap leading-relaxed">{challenge.rules}</p>
               </div>
             )}
-            <p className="text-[11px] text-text-tertiary">Result: {rt.label.toLowerCase()} · {rt.hint}. Every result is checked by an admin before it counts.</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] text-text-tertiary">Result: {rt.label.toLowerCase()} · {rt.hint}. Checked by an admin before it counts.</p>
+              <span className="flex-shrink-0 px-2.5 py-1 rounded-full border border-accent/40 text-accent text-xs font-black tabular-nums">+{challenge.xpReward ?? DEFAULT_CHALLENGE_XP} XP</span>
+            </div>
           </Card>
 
           {/* Enter / submit / status */}
@@ -164,6 +170,19 @@ export default function ChallengePage() {
             onEnter={onEnter}
             onSubmit={() => setShowSubmit(true)}
           />
+
+          {/* Bringing someone in is the retention move: a challenge done
+              with a partner is one you actually finish. Shown once entered,
+              so it reads as "your turn to recruit", not as an ad. */}
+          {entry && (
+            <Card className="p-4 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white">Don&apos;t suffer alone.</p>
+                <p className="text-xs text-text-secondary mt-0.5">Send this to the one who says it&apos;s easy. They join through your link.</p>
+              </div>
+              <ShareChallengeButton challengeId={challenge.id} title={challenge.title} entered className="flex-shrink-0" />
+            </Card>
+          )}
 
           {/* Feed / board */}
           <div className="flex gap-2" role="tablist">

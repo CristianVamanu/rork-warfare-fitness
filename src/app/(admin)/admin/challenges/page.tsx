@@ -16,8 +16,9 @@ import { FeedCarousel } from '@/components/community/FeedCarousel';
 import { RESULT_TYPES, DIFFICULTY, bucket, toDate } from '@/components/community/challengeFormat';
 import {
   getChallenges, createChallenge, updateChallenge, deleteChallenge,
-  subscribeEntries, reviewChallengeEntry, reopenEntry, type ChallengeInput,
+  subscribeEntries, reviewChallengeEntry, reopenEntry, announceChallenge, ensurePosters, type ChallengeInput,
 } from '@/lib/challenges';
+import { DEFAULT_CHALLENGE_XP } from '@/types';
 import { Timestamp } from 'firebase/firestore';
 import type { Challenge, ChallengeEntry, ChallengeDifficulty, ChallengeResultType, ChallengeStatus, PostMedia } from '@/types';
 
@@ -29,11 +30,12 @@ type Form = {
   loadoutMen: string; loadoutWomen: string;
   resultType: ChallengeResultType; resultLabel: string;
   status: ChallengeStatus; startsAt: string; endsAt: string;
+  xpReward: string;
 };
 const EMPTY: Form = {
   title: '', brief: '', rules: '', category: '', difficulty: 'hard', media: [],
   loadoutMen: '', loadoutWomen: '', resultType: 'time', resultLabel: '',
-  status: 'draft', startsAt: '', endsAt: '',
+  status: 'draft', startsAt: '', endsAt: '', xpReward: String(DEFAULT_CHALLENGE_XP),
 };
 
 function toInput(d: unknown): string {
@@ -60,8 +62,18 @@ export default function AdminChallengesPage() {
     try { await deleteChallenge(c.id); toast.success('Deleted'); load(); } catch { toast.error('Failed to delete'); }
   };
   const setStatus = async (c: Challenge, status: ChallengeStatus) => {
-    try { await updateChallenge(c.id, { status }); toast.success(status === 'live' ? 'Live — members can enter' : status === 'closed' ? 'Closed' : 'Back to draft'); load(); }
-    catch { toast.error('Failed to update'); }
+    try {
+      await updateChallenge(c.id, { status });
+      if (status === 'live') {
+        // Everyone's phone, once. announcedAt on the server makes a second
+        // Set live silent.
+        const r = await announceChallenge(c.id).catch(() => null);
+        toast.success(r?.alreadyAnnounced ? 'Live again — already announced, no second push' : `Live — pushed to ${r?.sent ?? 0} device${r?.sent === 1 ? '' : 's'}`);
+      } else {
+        toast.success(status === 'closed' ? 'Closed' : 'Back to draft');
+      }
+      load();
+    } catch { toast.error('Failed to update'); }
   };
 
   return (
@@ -143,6 +155,7 @@ function Editor({ challenge, uid, onClose, onSaved }: { challenge: Challenge | n
     loadoutMen: challenge.loadoutMen ?? '', loadoutWomen: challenge.loadoutWomen ?? '',
     resultType: challenge.resultType, resultLabel: challenge.resultLabel ?? '',
     status: challenge.status, startsAt: toInput(challenge.startsAt), endsAt: toInput(challenge.endsAt),
+    xpReward: String(challenge.xpReward ?? DEFAULT_CHALLENGE_XP),
   } : EMPTY);
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }));
@@ -152,17 +165,25 @@ function Editor({ challenge, uid, onClose, onSaved }: { challenge: Challenge | n
     if (!ok) return;
     setSaving(true);
     try {
+      // Clips saved without a still open on a black frame on iPhone. The
+      // picker grabs one in the background, but an admin who uploads six
+      // slides and taps Create straight away beats it — so wait here.
+      const media = await ensurePosters(f.media);
+      const xp = Math.max(0, Math.min(5000, Math.round(Number(f.xpReward)) || 0));
       const input: ChallengeInput = {
         title: f.title.trim(), brief: f.brief.trim(),
         rules: f.rules.trim() || undefined, category: f.category.trim() || undefined,
-        difficulty: f.difficulty, media: f.media,
+        difficulty: f.difficulty, media, xpReward: xp,
         loadoutMen: f.loadoutMen.trim() || undefined, loadoutWomen: f.loadoutWomen.trim() || undefined,
         resultType: f.resultType, resultLabel: f.resultLabel.trim() || undefined,
         status: f.status, startsAt: fromInput(f.startsAt), endsAt: fromInput(f.endsAt),
       };
+      let id = challenge?.id;
       if (challenge) await updateChallenge(challenge.id, input);
-      else await createChallenge(input, uid);
-      toast.success(challenge ? 'Saved' : f.status === 'live' ? 'Created and live' : 'Created as a draft');
+      else id = await createChallenge(input, uid);
+      // Created straight into live: the push goes out now, same as Set live.
+      if (!challenge && f.status === 'live' && id) await announceChallenge(id).catch(() => null);
+      toast.success(challenge ? 'Saved' : f.status === 'live' ? 'Created and live — everyone pushed' : 'Created as a draft');
       onSaved();
     } catch (err) {
       console.error('[admin/challenges] save failed', err);
@@ -211,6 +232,13 @@ function Editor({ challenge, uid, onClose, onSaved }: { challenge: Challenge | n
           </div>
           <input value={f.resultLabel} onChange={(e) => set('resultLabel', e.target.value)} placeholder="Label over the input, e.g. Time to rung 20 (optional)" className={`${inputCls} mt-2`} />
         </div>
+        <div>
+          <label className={label}>XP for a verified finish</label>
+          <div className="flex items-center gap-2">
+            <input type="number" min={0} max={5000} step={10} value={f.xpReward} onChange={(e) => set('xpReward', e.target.value)} className={`${inputCls} w-32`} />
+            <span className="text-xs text-text-tertiary">A workout is roughly 200–800 XP. {DEFAULT_CHALLENGE_XP} is the default; a brutal one can pay more.</span>
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <div><label className={label}>Starts (optional)</label><input type="datetime-local" value={f.startsAt} onChange={(e) => set('startsAt', e.target.value)} className={inputCls} /></div>
           <div><label className={label}>Ends (optional)</label><input type="datetime-local" value={f.endsAt} onChange={(e) => set('endsAt', e.target.value)} className={inputCls} /></div>
@@ -246,8 +274,11 @@ function Review({ challenge, onClose }: { challenge: Challenge; onClose: () => v
     setBusy(e.id);
     try { await fn(); toast.success(msg); } catch (err) { console.error(err); toast.error('Action failed'); } finally { setBusy(null); }
   };
-  const verify = (e: ChallengeEntry) => act(e, () => reviewChallengeEntry(challenge, e, 'verified'), `${e.displayName} verified`);
-  const reject = (e: ChallengeEntry) => { setNoteFor(null); act(e, () => reviewChallengeEntry(challenge, e, 'rejected', note), `${e.displayName} rejected`); setNote(''); };
+  const verify = (e: ChallengeEntry) => act(e, async () => {
+    const r = await reviewChallengeEntry(challenge, e, 'verified');
+    if (r.xpDelta > 0) toast.success(`+${r.xpDelta} XP${r.newAchievements.length ? ` · ${r.newAchievements.length} achievement${r.newAchievements.length > 1 ? 's' : ''}` : ''}`);
+  }, `${e.displayName} verified`);
+  const reject = (e: ChallengeEntry) => { setNoteFor(null); act(e, async () => { await reviewChallengeEntry(challenge, e, 'rejected', note); }, `${e.displayName} rejected`); setNote(''); };
   const reopen = (e: ChallengeEntry) => act(e, () => reopenEntry(challenge.id, e.userId), `${e.displayName} can submit again`);
 
   return (
