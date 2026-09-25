@@ -67,6 +67,7 @@ function Settings() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [raw, setRaw] = useState<string | null>(null);
   const appUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
   useEffect(() => { getSystemConfig().then((c) => setCfg(c?.shop ?? {})).catch(() => setCfg({})); }, []);
@@ -174,6 +175,12 @@ function Settings() {
           <Button variant="secondary" onClick={test} loading={testing} disabled={!provider}><Plug className="w-4 h-4" /> Test connection</Button>
         </div>
         {testResult && <p className="text-xs text-text-secondary whitespace-pre-wrap">{testResult}</p>}
+        <div className="pt-2 border-t border-white/8">
+          <button onClick={async () => { setRaw('…'); try { const r = await adminShop<{ raw: unknown }>(user, { action: 'raw' }); setRaw(JSON.stringify(r.raw, null, 2)); } catch (err) { setRaw(err instanceof Error ? err.message : 'Failed'); } }} className="text-xs text-accent font-semibold">
+            Show what the provider sends for one product (raw)
+          </button>
+          {raw && <pre className="mt-2 max-h-80 overflow-auto rounded-lg bg-black/40 p-2 text-[10px] leading-snug text-text-secondary whitespace-pre-wrap break-all">{raw}</pre>}
+        </div>
       </Card>
 
       <Card className="p-4 lg:p-5 space-y-2">

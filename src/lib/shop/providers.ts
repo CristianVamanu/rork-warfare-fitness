@@ -52,6 +52,9 @@ export interface PodProvider {
   readonly id: ShopProvider;
   /** Throws with a readable message when the key is missing or rejected. */
   test(): Promise<{ ok: true; detail: string }>;
+  /** The provider's own JSON for the first product, untouched — for
+   *  checking what fields it actually sends (prices, images). */
+  rawFirstProduct(): Promise<unknown>;
   listProducts(opts: ImportOptions): Promise<ImportedProduct[]>;
   createOrder(order: ShopOrder): Promise<{ providerOrderId: string; providerStatus: string }>;
   getOrder(providerOrderId: string): Promise<ProviderOrderState>;
@@ -115,6 +118,11 @@ class Printify implements PodProvider {
     const mine = shops.find((s) => String(s.id) === String(this.shopId));
     if (!mine) throw new ProviderError(`Shop ${this.shopId} not found on this token. Available: ${shops.map((s) => `${s.title} (#${s.id})`).join(', ')}`);
     return { ok: true as const, detail: `Connected to ${mine.title} (#${mine.id})` };
+  }
+
+  async rawFirstProduct() {
+    const res = await call<{ data: unknown[] }>(`${PRINTIFY}/shops/${this.shopId}/products.json?limit=1&page=1`, { headers: await this.headers(), label: 'Printify products' });
+    return res.data?.[0] ?? null;
   }
 
   async listProducts(_opts: ImportOptions) {
@@ -221,6 +229,15 @@ class Gelato implements PodProvider {
     } catch {
       return null;
     }
+  }
+
+  async rawFirstProduct() {
+    if (!this.storeId) throw new ProviderError('Set the Gelato store id first');
+    const list = await call<{ products?: { id: string }[] }>(`${GELATO_STORE}/stores/${this.storeId}/products?limit=1`, { headers: await this.headers(), label: 'Gelato products' });
+    const first = list.products?.[0];
+    if (!first) return { list, note: 'store has no products' };
+    const product = await call<unknown>(`${GELATO_STORE}/stores/${this.storeId}/products/${first.id}`, { headers: await this.headers(), label: 'Gelato product' });
+    return { listEntry: first, product };
   }
 
   async listProducts(opts: ImportOptions) {

@@ -37,6 +37,10 @@ export async function POST(req: NextRequest) {
         const provider = await providerFor(db);
         return NextResponse.json(await provider.test());
       }
+      case 'raw': {
+        const provider = await providerFor(db);
+        return NextResponse.json({ ok: true, raw: await provider.rawFirstProduct() });
+      }
       case 'import': {
         return NextResponse.json({ ok: true, ...(await importProducts(db)) });
       }
