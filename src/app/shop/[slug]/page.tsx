@@ -3,26 +3,19 @@ import { notFound } from 'next/navigation';
 import { ShopShell } from '@/components/shop/ShopShell';
 import { ProductDetail } from '@/components/shop/ProductDetail';
 import type { PublicProduct } from '@/lib/shop/server';
+import { loadShopProduct } from '@/lib/shop/public';
+import { loadPublicChallenge } from '@/lib/challengesPublic';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? '';
+export const revalidate = 60;
 
 async function load(slug: string): Promise<{ product: PublicProduct | null; challenges: { id: string; title: string }[] }> {
-  try {
-    const res = await fetch(`${APP_URL}/api/public/shop/products?slug=${encodeURIComponent(slug)}`, { next: { revalidate: 60 } });
-    if (!res.ok) return { product: null, challenges: [] };
-    const { product } = (await res.json()) as { product: PublicProduct | null };
-    // Names of the challenges that unlock it, for "Finish X to unlock".
-    const challenges = product?.earnedOnly && product.unlockedBy.length
-      ? (await Promise.all(product.unlockedBy.slice(0, 5).map(async (id) => {
-          const r = await fetch(`${APP_URL}/api/public/challenge?id=${encodeURIComponent(id)}`, { next: { revalidate: 300 } }).catch(() => null);
-          const d = r && r.ok ? ((await r.json()) as { challenge?: { id: string; title: string } | null }).challenge : null;
-          return d ? { id: d.id, title: d.title } : null;
-        }))).filter((c): c is { id: string; title: string } => !!c)
-      : [];
-    return { product, challenges };
-  } catch {
-    return { product: null, challenges: [] };
-  }
+  const product = await loadShopProduct(slug);
+  // Names of the challenges that unlock it, for "Finish X to unlock".
+  const challenges = product?.earnedOnly && product.unlockedBy.length
+    ? (await Promise.all(product.unlockedBy.slice(0, 5).map((id) => loadPublicChallenge(id))))
+        .filter((c): c is NonNullable<typeof c> => !!c).map((c) => ({ id: c.id, title: c.title }))
+    : [];
+  return { product, challenges };
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {

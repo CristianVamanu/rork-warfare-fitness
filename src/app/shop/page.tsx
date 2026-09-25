@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { ShopShell } from '@/components/shop/ShopShell';
 import { ProductGrid } from '@/components/shop/ProductGrid';
-import type { PublicProduct } from '@/lib/shop/server';
+import { loadShopListing } from '@/lib/shop/public';
 
 export const metadata: Metadata = {
   title: 'Shop — Warfare Fitness',
@@ -9,17 +9,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/shop' },
 };
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? '';
-
-async function load(): Promise<{ products: PublicProduct[]; enabled: boolean; tagline: string | null }> {
-  try {
-    const res = await fetch(`${APP_URL}/api/public/shop/products`, { next: { revalidate: 60 } });
-    if (!res.ok) return { products: [], enabled: false, tagline: null };
-    return (await res.json()) as { products: PublicProduct[]; enabled: boolean; tagline: string | null };
-  } catch {
-    return { products: [], enabled: false, tagline: null };
-  }
-}
+export const revalidate = 60;
 
 /**
  * The storefront. Public: anyone can browse and buy the open items; the
@@ -27,7 +17,7 @@ async function load(): Promise<{ products: PublicProduct[]; enabled: boolean; ta
  * marketing — "earned, not given" is the whole point of the store.
  */
 export default async function ShopPage() {
-  const { products, enabled, tagline } = await load();
+  const { products, enabled, tagline } = await loadShopListing();
   const earned = products.filter((p) => p.earnedOnly);
   const open = products.filter((p) => !p.earnedOnly);
   return (

@@ -83,23 +83,33 @@ export function FeedMedia({
   const [progress, setProgress] = useState(0);
   const [scrubbing, setScrubbing] = useState(false);
   const resumeAfterScrubRef = useRef(false);
+  // Whether the clip is the thing on screen right now. The observer sets
+  // it; canplay reads it. The first clip on a page is observed before its
+  // metadata has arrived, and play() on a video with nothing loaded
+  // rejects and was never retried — so the cover slide of a carousel sat
+  // on its play glyph while the second slide, swiped to later, played fine.
+  const inViewRef = useRef(false);
+  const tryPlay = (el: HTMLVideoElement) => {
+    el.muted = !feedUnmuted;
+    setMuted(el.muted);
+    el.play().catch(() => {
+      el.muted = true;
+      setMuted(true);
+      el.play().catch(() => {});
+    });
+  };
   useEffect(() => {
     const el = videoRef.current;
     if (!el || kind !== 'video' || compact) return;
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+        inViewRef.current = entry.isIntersecting && entry.intersectionRatio >= 0.6;
+        if (inViewRef.current) {
           // Once someone has unmuted one clip, the next ones come in with
           // sound too, the way Instagram remembers it. If the browser
           // refuses unmuted autoplay it falls back to muted rather than
           // to nothing.
-          el.muted = !feedUnmuted;
-          setMuted(el.muted);
-          el.play().catch(() => {
-            el.muted = true;
-            setMuted(true);
-            el.play().catch(() => {});
-          });
+          tryPlay(el);
         } else {
           el.pause();
         }
@@ -108,6 +118,7 @@ export function FeedMedia({
     );
     io.observe(el);
     return () => { io.disconnect(); el.pause(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, compact]);
 
   // The frame is the media's exact shape. No crop, no bars — the only way to
@@ -234,6 +245,9 @@ export function FeedMedia({
           loop
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
+          // The retry: the clip is now playable and, if it is still the one
+          // on screen, it starts. Harmless when the observer already did it.
+          onCanPlay={(e) => { const v = e.currentTarget; if (inViewRef.current && v.paused && !scrubbing) tryPlay(v); }}
           onTimeUpdate={(e) => {
             const v = e.currentTarget;
             if (v.duration && !scrubbing) setProgress(v.currentTime / v.duration);

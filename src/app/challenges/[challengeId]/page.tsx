@@ -7,7 +7,7 @@ import { PublicNav } from '@/components/public/PublicNav';
 import { PublicFooter } from '@/components/public/PublicFooter';
 import { TacticalBackdrop } from '@/components/public/TacticalBackdrop';
 import { ChallengeJoinCTA } from '@/components/community/ChallengeJoinCTA';
-import type { PublicChallenge } from '@/app/api/public/challenge/route';
+import { loadPublicChallenge, loadReferrerName } from '@/lib/challengesPublic';
 
 /**
  * The page a shared challenge link lands on. Public, so a friend with no
@@ -18,17 +18,9 @@ import type { PublicChallenge } from '@/app/api/public/challenge/route';
  * ?ref= so the sharer is credited exactly as a shared program credits them.
  */
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? '';
+export const revalidate = 60;
 
-async function getChallenge(id: string): Promise<PublicChallenge | null> {
-  try {
-    const res = await fetch(`${APP_URL}/api/public/challenge?id=${encodeURIComponent(id)}`, { next: { revalidate: 60 } });
-    if (!res.ok) return null;
-    return ((await res.json()) as { challenge: PublicChallenge | null }).challenge;
-  } catch {
-    return null;
-  }
-}
+const getChallenge = loadPublicChallenge;
 
 export async function generateMetadata({ params }: { params: Promise<{ challengeId: string }> }): Promise<Metadata> {
   const { challengeId } = await params;
@@ -54,10 +46,7 @@ export default async function PublicChallengePage({ params, searchParams }: {
   const c = await getChallenge(challengeId);
   if (!c) notFound();
 
-  const referrerName = ref
-    ? await fetch(`${APP_URL}/api/public/referrer?code=${encodeURIComponent(ref)}`, { next: { revalidate: 300 } })
-        .then((r) => r.json()).then((d) => d.referrerName as string | null).catch(() => null)
-    : null;
+  const referrerName = await loadReferrerName(ref);
 
   const [programs, brand] = await Promise.all([getPublicPrograms().catch(() => []), getPublicBranding()]);
   const cover = c.cover;

@@ -16,6 +16,9 @@ import {
 } from 'firebase/firestore';
 import { getIdToken } from 'firebase/auth';
 import { db, auth } from './firebase';
+import { getSystemConfig } from './firestore';
+import { extractVideoThumbnail } from './videoThumbnail';
+import { uploadUserContent, resolveStorageProvider } from './uploadVideo';
 import type { Challenge, ChallengeEntry, ChallengePost, ChallengeResultType, PostMedia } from '@/types';
 
 /** Firestore rejects `undefined` values; every write below strips them. */
@@ -249,7 +252,20 @@ export async function ensurePosters(media: PostMedia[]): Promise<PostMedia[]> {
         body: JSON.stringify({ videoUrl: m.url }),
         signal: AbortSignal.timeout(20_000),
       });
-      const posterURL = res.ok ? ((await res.json()) as { posterUrl?: string | null }).posterUrl : null;
+      let posterURL = res.ok ? ((await res.json()) as { posterUrl?: string | null }).posterUrl ?? null : null;
+      // The server could not (no ffmpeg on the host, clip it cannot open):
+      // pull the clip back into the browser and grab a frame there, the
+      // way the picker does at upload time.
+      if (!posterURL) {
+        const blob = await fetch(m.url, { signal: AbortSignal.timeout(30_000) }).then((r) => (r.ok ? r.blob() : null)).catch(() => null);
+        if (blob) {
+          const frame = await extractVideoThumbnail(new File([blob], 'clip.mp4', { type: blob.type || 'video/mp4' }));
+          if (frame) {
+            const cfg = await getSystemConfig().catch(() => null);
+            posterURL = await uploadUserContent(resolveStorageProvider(cfg?.storageProvider), current, new File([frame], 'poster.jpg', { type: 'image/jpeg' }), 'community');
+          }
+        }
+      }
       return posterURL ? { ...m, posterURL } : m;
     } catch {
       return m;

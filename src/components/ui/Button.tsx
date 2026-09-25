@@ -54,8 +54,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         style={variant === 'primary' ? { color: 'var(--btn-primary-text, #000)' } :
                variant === 'secondary' ? { color: 'var(--foreground)' } :
                variant === 'ghost' ? { color: 'var(--text-secondary)' } : undefined}
+        aria-busy={loading || undefined}
         className={cn(
-          'inline-flex items-center justify-center gap-2 font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-accent/40',
+          'relative inline-flex items-center justify-center gap-2 font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-accent/40',
           variantClasses[variant],
           sizeClasses[size],
           fullWidth && 'w-full',
@@ -64,8 +65,18 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         {...(props as React.ComponentPropsWithoutRef<typeof motion.button>)}
       >
-        {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-        {children}
+        {/* The spinner sits over the label rather than beside it. Beside it,
+            the label jumped sideways the moment loading started, and on iOS
+            the old and new positions were both painted for a frame or two —
+            seen as a doubled "Save" with a spinner through it. Keeping the
+            label in place (invisible) means the button's size and layout
+            never change; only what is painted does. */}
+        {loading && (
+          <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+            <Loader2 className="w-4 h-4 animate-spin" />
+          </span>
+        )}
+        <span className={cn('inline-flex items-center justify-center gap-2', loading && 'invisible')}>{children}</span>
       </motion.button>
     );
   }
