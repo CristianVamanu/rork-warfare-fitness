@@ -194,7 +194,7 @@ cd /root/rork-warfare-fitness
 crontab -l
 ```
 
-You should see four entries, all calling **localhost**, not your public domain
+You should see five entries, all calling **localhost**, not your public domain
 (going out through Cloudflare and back adds failure points, and Cloudflare cuts
 origin requests off at ~100s — long enough to break a growing backup export):
 
@@ -204,6 +204,7 @@ origin requests off at ~100s — long enough to break a growing backup export):
 | 03:22 | `/api/admin/backup` — nightly full Firestore export |
 | 04:17 | `/api/admin/reconcile-subscriptions` — Stripe safety net |
 | 08:05 | `/api/admin/error-digest` — daily unresolved-error email |
+| 09:15 | `/api/challenges/remind` — nudges challenge entrants who have not submitted, 48h before close |
 
 If `crontab -l` is empty, `deploy.sh` will have said
 `skipped — CRON_SECRET or NEXT_PUBLIC_APP_URL not set` — fix `.env` and re-run.
