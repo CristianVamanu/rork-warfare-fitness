@@ -581,6 +581,90 @@ export interface PostMedia {
   posterURL?: string;
 }
 
+// ── Challenges ─────────────────────────────────────────────────────────────
+// A challenge is its own space: brief + carousel at the top, an Enter button,
+// and a feed only entrants can post to. Kept apart from channels so twenty
+// challenges do not become twenty threads tangled through general chat.
+
+export type ChallengeStatus = 'draft' | 'live' | 'closed';
+/** What a submission's result is. Drives the input, the unit and how the
+ *  board sorts: time ascending, everything else descending. */
+export type ChallengeResultType = 'time' | 'reps' | 'load' | 'distance' | 'done';
+export type ChallengeDifficulty = 'standard' | 'hard' | 'brutal';
+
+export interface Challenge {
+  id: string;
+  title: string;
+  /** One or two lines under the title, the hook. */
+  brief: string;
+  /** The full rules, shown under the carousel. Plain text, newlines kept. */
+  rules?: string;
+  category?: string;
+  difficulty: ChallengeDifficulty;
+  /** The carousel, same shape as a post's. */
+  media: PostMedia[];
+  loadoutMen?: string;
+  loadoutWomen?: string;
+  resultType: ChallengeResultType;
+  /** Label over the result input, e.g. "Time to rung 20". */
+  resultLabel?: string;
+  status: ChallengeStatus;
+  startsAt?: unknown;
+  endsAt?: unknown;
+  /** Counters bumped by members under narrow rules (exactly +1), so the
+   *  card can say "38 entered · 12 finished" without a count query. */
+  entryCount: number;
+  submissionCount: number;
+  verifiedCount: number;
+  /** Store products this challenge unlocks — Phase 3 reads it; the editor
+   *  can already set it so nothing needs migrating later. */
+  rewardProductIds?: string[];
+  createdBy: string;
+  createdAt: unknown;
+  updatedAt?: unknown;
+}
+
+export type ChallengeEntryStatus = 'entered' | 'submitted' | 'verified' | 'rejected';
+
+/** challenges/{id}/entries/{uid} — one per member, keyed by uid so entering
+ *  twice is a no-op and the rules can check membership with one exists(). */
+export interface ChallengeEntry {
+  id: string;
+  challengeId: string;
+  userId: string;
+  displayName: string;
+  photoURL?: string;
+  status: ChallengeEntryStatus;
+  /** Result as typed ("14:32", "18 rungs"), for display. */
+  result?: string;
+  /** Result as a number in the challenge's unit (seconds, reps, kg, m) so
+   *  the board can sort. */
+  resultValue?: number;
+  proof?: PostMedia[];
+  note?: string;
+  enteredAt: unknown;
+  submittedAt?: unknown;
+  reviewedAt?: unknown;
+  reviewNote?: string;
+}
+
+/** challenges/{id}/posts — the challenge feed. Same shape as a channel post
+ *  so FeedCarousel and the like/delete flows carry over; a submission is a
+ *  post with `submission` set, which the feed renders as a result card. */
+export interface ChallengePost {
+  id: string;
+  challengeId: string;
+  userId: string;
+  userDisplayName: string;
+  userPhotoURL?: string;
+  userIsAdmin?: boolean;
+  content: string;
+  media?: PostMedia[];
+  submission?: { result: string; resultValue?: number };
+  likes: string[];
+  createdAt: unknown;
+}
+
 export interface ChannelPost {
   id: string;
   channelId: string;
@@ -800,7 +884,8 @@ export interface Post {
 
 export type NotificationType =
   | 'manual' | 'auto_missed_workout' | 'auto_streak' | 'auto_milestone' | 'ai_motivation'
-  | 'coaching_approved' | 'coaching_rejected' | 'pr_approved' | 'pr_rejected' | 'goal_assigned' | 'nutrition_plan' | 'message';
+  | 'coaching_approved' | 'coaching_rejected' | 'pr_approved' | 'pr_rejected' | 'goal_assigned' | 'nutrition_plan' | 'message'
+  | 'challenge_verified' | 'challenge_rejected' | 'challenge_live';
 
 export interface AppNotification {
   id: string;

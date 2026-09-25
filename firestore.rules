@@ -1047,6 +1047,93 @@ service cloud.firestore {
       allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
     }
 
+    // ── Challenges ────────────────────────────────────────────────────────
+    // challenges/{id}: admin-authored brief + carousel. Members read what is
+    // not a draft and may bump exactly one counter by exactly one, matching
+    // the write they just made (an entry, a submission). Everything else on
+    // the document is admin-only.
+    match /challenges/{challengeId} {
+      allow read: if isAuthed() && notTfaPending()
+        && (isAdmin() || resource.data.get('status', 'draft') != 'draft');
+      allow create, delete: if isAdmin();
+      allow update: if isAuthed() && notTfaPending() && (
+        isAdmin() ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['entryCount'])
+          && request.resource.data.entryCount == resource.data.get('entryCount', 0) + 1) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['submissionCount'])
+          && request.resource.data.submissionCount == resource.data.get('submissionCount', 0) + 1)
+      );
+
+      function challengeLive() {
+        return get(/databases/$(database)/documents/challenges/$(challengeId)).data.get('status', 'draft') == 'live';
+      }
+      function isEntrant() {
+        return exists(/databases/$(database)/documents/challenges/$(challengeId)/entries/$(uid()));
+      }
+      // A submission: result text bounded, optional numeric value, proof a
+      // sane carousel, note bounded.
+      function submissionSane(d) {
+        return d.result is string && d.result.size() > 0 && d.result.size() <= 80
+          && (!('resultValue' in d) || d.resultValue is number)
+          && (!('proof' in d) || mediaListSane(d.proof))
+          && (!('note' in d) || (d.note is string && d.note.size() <= 2000));
+      }
+
+      // entries/{uid}: the document IS the membership. Keyed by uid so a
+      // member can only ever have one, and only write their own.
+      match /entries/{entryId} {
+        allow read: if isAuthed() && notTfaPending();
+        // Entering: own uid, status 'entered', while the challenge is live.
+        allow create: if isAuthed() && notTfaPending()
+          && entryId == uid()
+          && request.resource.data.userId == uid()
+          && request.resource.data.challengeId == challengeId
+          && request.resource.data.status == 'entered'
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() <= 80
+          && challengeLive();
+        allow update: if isAuthed() && notTfaPending() && (
+          isAdmin() ||
+          // Submitting: entered → submitted, once, with a sane result; the
+          // identity fields stay as they were.
+          (entryId == uid()
+            && resource.data.status == 'entered'
+            && request.resource.data.status == 'submitted'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'result', 'resultValue', 'proof', 'note', 'submittedAt'])
+            && submissionSane(request.resource.data)
+            && challengeLive())
+        );
+        allow delete: if isAdmin();
+      }
+
+      // posts: the challenge feed. Read by anyone signed in, written only by
+      // entrants, liked by anyone (exact own-uid delta), deleted by the
+      // author or an admin. Same body bounds as channel posts.
+      match /posts/{postId} {
+        allow read: if isAuthed() && notTfaPending();
+        allow create: if isAuthed() && notTfaPending()
+          && request.resource.data.userId == uid()
+          && request.resource.data.challengeId == challengeId
+          && request.resource.data.get('userIsAdmin', false) == isAdmin()
+          && postBodySane(request.resource.data)
+          && (!('submission' in request.resource.data)
+              || (request.resource.data.submission.result is string
+                  && request.resource.data.submission.result.size() <= 80))
+          && !channelMuteActive()
+          && (isAdmin() || isEntrant());
+        allow update: if isAuthed() && notTfaPending()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+          && (
+            (request.resource.data.likes == resource.data.get('likes', []).concat([uid()])
+              && !(uid() in resource.data.get('likes', []))) ||
+            (request.resource.data.likes == resource.data.get('likes', []).removeAll([uid()])
+              && (uid() in resource.data.get('likes', [])))
+          );
+        allow delete: if isAuthed() && (resource.data.userId == uid() || isAdmin());
+      }
+    }
+
     // ── Client goals (trainer/admin sets, client checks in on progress) ───
     match /goals/{goalId} {
       allow read: if isAuthed() && (resource.data.userId == uid() || isAdminOrOwnTrainer(resource.data.userId)) && notTfaPending();

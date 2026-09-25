@@ -39,7 +39,7 @@ export const GATED_FEATURES: readonly GatedFeature[] = [
   // the cost does not scale with members, only with days.
   { id: 'ai-tip', label: 'Daily Tip', desc: "The day's tip at the top of the dashboard" },
   { id: 'premium-programs', label: 'Premium Training Plans', desc: 'Switching to any program other than their own assigned one' },
-  { id: 'community', label: 'Community', desc: 'Channels — browsing and posting' },
+  { id: 'community', label: 'Community', desc: 'Channels and Challenges — browsing, entering and posting' },
   { id: 'pr-wall', label: 'PR Wall', desc: 'Personal-record posts feed' },
   { id: 'quests', label: 'Quests', desc: 'Quest tracking' },
   { id: 'achievements', label: 'Achievements', desc: 'The achievement badge wall' },

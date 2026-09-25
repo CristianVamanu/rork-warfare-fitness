@@ -16,10 +16,11 @@ import Link from 'next/link';
  * and paywall gate — the PR Wall's upload form, moderation state and feed
  * subscription have no business mounting when someone is reading channels.
  */
-export function CommunityTabs({ active }: { active: 'channels' | 'prs' }) {
+export function CommunityTabs({ active }: { active: 'channels' | 'prs' | 'challenges' }) {
   const tabs = [
     { key: 'channels', href: '/community', label: 'Channels' },
     { key: 'prs', href: '/community/prs', label: 'PR wall' },
+    { key: 'challenges', href: '/community/challenges', label: 'Challenges' },
   ] as const;
 
   return (

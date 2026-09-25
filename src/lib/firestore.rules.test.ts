@@ -715,6 +715,80 @@ describe('support tickets', () => {
   });
 });
 
+describe('challenges', () => {
+  const live = { title: 'The 20 Ladder', brief: 'x', status: 'live', entryCount: 0, submissionCount: 0, verifiedCount: 0, media: [], resultType: 'time', difficulty: 'hard' };
+  const entry = (uid: string) => ({ challengeId: 'ch1', userId: uid, displayName: 'Alice', status: 'entered', enteredAt: new Date() });
+  const img = { url: 'https://cdn.example.com/p.jpg', type: 'image' };
+
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'challenges', 'ch1'), live);
+      await setDoc(doc(db, 'challenges', 'draft1'), { ...live, status: 'draft' });
+      await setDoc(doc(db, 'challenges', 'closed1'), { ...live, status: 'closed' });
+    });
+  });
+
+  it('members read live and closed, not drafts; only admins write the brief', async () => {
+    await assertSucceeds(getDoc(doc(asAlice(), 'challenges', 'ch1')));
+    await assertSucceeds(getDoc(doc(asAlice(), 'challenges', 'closed1')));
+    await assertFails(getDoc(doc(asAlice(), 'challenges', 'draft1')));
+    await assertSucceeds(getDoc(doc(asAdmin(), 'challenges', 'draft1')));
+    await assertFails(setDoc(doc(asAlice(), 'challenges', 'ch2'), live));
+    await assertFails(updateDoc(doc(asAlice(), 'challenges', 'ch1'), { title: 'Hijacked' }));
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'challenges', 'ch1'), { title: 'Renamed' }));
+  });
+
+  it('entering: own uid as the doc id, status entered, only while live', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), 'challenges', 'ch1', 'entries', ALICE), entry(ALICE)));
+    // Under someone else's uid, or claiming a status past "entered".
+    await assertFails(setDoc(doc(asAlice(), 'challenges', 'ch1', 'entries', BOB), entry(ALICE)));
+    await assertFails(setDoc(doc(asBob(), 'challenges', 'ch1', 'entries', BOB), { ...entry(BOB), status: 'verified' }));
+    // Closed and draft do not accept entries.
+    await assertFails(setDoc(doc(asBob(), 'challenges', 'closed1', 'entries', BOB), { ...entry(BOB), challengeId: 'closed1' }));
+    await assertFails(setDoc(doc(asBob(), 'challenges', 'draft1', 'entries', BOB), { ...entry(BOB), challengeId: 'draft1' }));
+  });
+
+  it('members bump entryCount and submissionCount by exactly one, nothing else', async () => {
+    await assertSucceeds(updateDoc(doc(asAlice(), 'challenges', 'ch1'), { entryCount: 1 }));
+    await assertFails(updateDoc(doc(asAlice(), 'challenges', 'ch1'), { entryCount: 5 }));
+    await assertFails(updateDoc(doc(asAlice(), 'challenges', 'ch1'), { verifiedCount: 1 }));
+    await assertFails(updateDoc(doc(asAlice(), 'challenges', 'ch1'), { entryCount: 2, title: 'x' }));
+  });
+
+  it('submitting: entered → submitted once with a bounded result and sane proof; verifying is admin-only', async () => {
+    await seed(async (db) => { await setDoc(doc(db, 'challenges', 'ch1', 'entries', ALICE), entry(ALICE)); });
+    const db = asAlice();
+    const ref = doc(db, 'challenges', 'ch1', 'entries', ALICE);
+    await assertFails(updateDoc(ref, { status: 'verified' }));
+    await assertFails(updateDoc(ref, { status: 'submitted', result: 'a'.repeat(200), submittedAt: new Date() }));
+    await assertFails(updateDoc(ref, { status: 'submitted', result: '14:32', proof: [{ url: 'javascript:alert(1)', type: 'image' }], submittedAt: new Date() }));
+    await assertSucceeds(updateDoc(ref, { status: 'submitted', result: '14:32', resultValue: 872, proof: [img], submittedAt: new Date() }));
+    // Second submission is refused: it is no longer 'entered'.
+    await assertFails(updateDoc(ref, { status: 'submitted', result: '13:00', submittedAt: new Date() }));
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'challenges', 'ch1', 'entries', ALICE), { status: 'verified', reviewedAt: new Date() }));
+  });
+
+  it('feed: only entrants post, anyone likes their own uid, author or admin deletes', async () => {
+    await seed(async (db) => { await setDoc(doc(db, 'challenges', 'ch1', 'entries', ALICE), entry(ALICE)); });
+    const post = (uid: string) => ({ challengeId: 'ch1', userId: uid, userDisplayName: 'x', content: 'let’s go', likes: [], createdAt: new Date() });
+    await assertSucceeds(setDoc(doc(asAlice(), 'challenges', 'ch1', 'posts', 'p1'), post(ALICE)));
+    // Bob has not entered.
+    await assertFails(setDoc(doc(asBob(), 'challenges', 'ch1', 'posts', 'p2'), post(BOB)));
+    // Admins may post without entering.
+    await assertSucceeds(setDoc(doc(asAdmin(), 'challenges', 'ch1', 'posts', 'p3'), { ...post(ADMIN), userIsAdmin: true }));
+    // A submission card carries a bounded result.
+    await assertFails(setDoc(doc(asAlice(), 'challenges', 'ch1', 'posts', 'p4'), { ...post(ALICE), submission: { result: 'a'.repeat(200) } }));
+    await assertSucceeds(setDoc(doc(asAlice(), 'challenges', 'ch1', 'posts', 'p5'), { ...post(ALICE), submission: { result: '14:32' }, media: [img] }));
+    // Likes: Bob may like without entering, exactly his own uid.
+    await assertSucceeds(updateDoc(doc(asBob(), 'challenges', 'ch1', 'posts', 'p1'), { likes: [BOB] }));
+    await assertFails(updateDoc(doc(asBob(), 'challenges', 'ch1', 'posts', 'p1'), { likes: [BOB, ALICE] }));
+    await assertFails(updateDoc(doc(asBob(), 'challenges', 'ch1', 'posts', 'p1'), { content: 'edited' }));
+    await assertFails(deleteDoc(doc(asBob(), 'challenges', 'ch1', 'posts', 'p1')));
+    await assertSucceeds(deleteDoc(doc(asAlice(), 'challenges', 'ch1', 'posts', 'p1')));
+    await assertSucceeds(deleteDoc(doc(asAdmin(), 'challenges', 'ch1', 'posts', 'p5')));
+  });
+});
+
 describe('channel replies — editable and deletable', () => {
   /**
    * Replies were write-once (allow update, delete: if false), so a typo stood
