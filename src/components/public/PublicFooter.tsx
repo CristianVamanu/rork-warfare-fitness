@@ -10,6 +10,7 @@ export function PublicFooter({ appName = 'Warfare Fitness' }: { appName?: string
         </p>
         <div className="flex items-center gap-5">
           <Link href="/programs" className="text-xs text-text-tertiary hover:text-white transition-colors">Programs</Link>
+          <Link href="/shop" className="text-xs text-text-tertiary hover:text-white transition-colors">Shop</Link>
           <Link href="/trainers" className="text-xs text-text-tertiary hover:text-white transition-colors">For Trainers</Link>
           <Link href="/privacy" className="text-xs text-text-tertiary hover:text-white transition-colors">Privacy</Link>
           <Link href="/terms" className="text-xs text-text-tertiary hover:text-white transition-colors">Terms</Link>

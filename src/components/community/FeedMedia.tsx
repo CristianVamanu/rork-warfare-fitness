@@ -256,9 +256,13 @@ export function FeedMedia({
             const v = e.currentTarget;
             if (v.videoWidth && v.videoHeight) setRatio(v.videoWidth / v.videoHeight);
             // No stored poster: seek a hair in so Safari decodes and paints
-            // a frame. The #t=0.1 fragment on the src does this on some
-            // versions and not others; an explicit seek does it on all.
-            if (!poster && v.paused && v.currentTime === 0) { try { v.currentTime = 0.1; } catch { /* not seekable yet */ } }
+            // a frame. Only when the clip is NOT the one on screen — for the
+            // one that is, the observer has already called play(), and on
+            // iOS a seek landing in the middle of play-up leaves the element
+            // stuck: no frame, no playing event, play glyph forever. That was
+            // the cover slide of every carousel; the slides swiped to later
+            // had their metadata (and this seek) long before their play().
+            if (!poster && v.paused && v.currentTime === 0 && !inViewRef.current) { try { v.currentTime = 0.1; } catch { /* not seekable yet */ } }
           }}
           // Fetches dimensions and a first frame without pulling the whole
           // clip — a feed of autoloading videos is somebody's data allowance.
