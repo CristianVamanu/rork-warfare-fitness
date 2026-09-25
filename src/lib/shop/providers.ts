@@ -254,10 +254,16 @@ class Gelato implements PodProvider {
       // Gelato names the preview differently depending on how the product
       // was made (designed in Gelato, pushed from a connected store, or a
       // template), so every field it has ever used is tried, product first.
+      // The named fields carry one preview. The gallery (every mockup the
+      // product shows in the Gelato dashboard) sits in nested arrays such
+      // as productImages[].fileUrl, and the shape has moved between API
+      // versions, so the whole payload is walked for image URLs: product
+      // level first, then per variant, order preserved, duplicates dropped.
       const images = [
         full.previewUrl, full.externalPreviewUrl, full.externalThumbnailUrl, full.imageUrl,
+        ...harvestImageUrls(full, ['variants']),
         p.previewUrl, p.externalPreviewUrl, p.externalThumbnailUrl,
-        ...variants.flatMap((v) => [v.imageUrl, v.previewUrl, v.externalPreviewUrl]),
+        ...variants.flatMap((v) => [v.imageUrl, v.previewUrl, v.externalPreviewUrl, ...harvestImageUrls(v)]),
       ].filter((u): u is string => typeof u === 'string' && /^https?:\/\//.test(u));
       // Gelato's store API does not carry the retail price the dashboard
       // shows (that lives in the connected shop, which here is us). What it
@@ -335,4 +341,35 @@ class Gelato implements PodProvider {
 
 export function makeProvider(id: ShopProvider, cfg: { printifyShopId?: string; gelatoStoreId?: string }): PodProvider {
   return id === 'gelato' ? new Gelato(cfg.gelatoStoreId ?? '') : new Printify(cfg.printifyShopId ?? '');
+}
+
+
+const IMAGE_KEY = /image|preview|thumbnail|mockup|fileurl|photo/i;
+const IMAGE_URL = /^https?:\/\/.+?(\.(png|jpe?g|webp|gif)(\?|$)|\/(image|preview|mockup|thumbnail)s?\/|storage\.googleapis\.com|gelato)/i;
+
+/**
+ * Every plausible image URL in a provider payload, in document order.
+ * A string counts when it sits under an image-ish key or looks like an
+ * image file; `skip` names top-level keys to leave alone (variants are
+ * walked separately so their pictures come after the product's own).
+ * Print files are excluded: those are the artwork, not a mockup.
+ */
+export function harvestImageUrls(node: unknown, skip: string[] = []): string[] {
+  const out: string[] = [];
+  const walk = (v: unknown, key: string, depth: number) => {
+    if (depth > 6 || v == null) return;
+    if (typeof v === 'string') {
+      if (/^https?:\/\//.test(v) && (IMAGE_KEY.test(key) || IMAGE_URL.test(v)) && !/printfile|print_file|artwork/i.test(key)) out.push(v);
+      return;
+    }
+    if (Array.isArray(v)) { v.forEach((x) => walk(x, key, depth + 1)); return; }
+    if (typeof v === 'object') {
+      for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+        if (depth === 0 && skip.includes(k)) continue;
+        walk(x, k, depth + 1);
+      }
+    }
+  };
+  walk(node, '', 0);
+  return Array.from(new Set(out));
 }
