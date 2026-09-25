@@ -13,6 +13,7 @@ import {
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
+import { StorePanel } from '@/components/admin/StorePanel';
 import { PromoCodesPanel } from '@/components/admin/PromoCodesPanel';
 import { EmailsPanel } from '@/components/admin/EmailsPanel';
 import { Mail as MailIcon } from 'lucide-react';
@@ -79,7 +80,7 @@ function SupportStatusPill({ status }: { status: SupportTicketStatus }) {
   );
 }
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'emails' | 'errors' | 'settings' | 'restore';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'emails' | 'errors' | 'settings' | 'restore' | 'store';
 
 // Shared by both plan editors (CoachingPlan's Tool Access and
 // MembershipPlan's Tool Access) — feature ids here must match what
@@ -129,6 +130,14 @@ const SECRET_GROUPS: { title: string; service: string; keys: { key: string; labe
     title: 'Push Notifications (VAPID)', service: 'vapid', keys: [
       { key: 'NEXT_PUBLIC_VAPID_PUBLIC_KEY', label: 'Public Key', placeholder: '' },
       { key: 'VAPID_PRIVATE_KEY', label: 'Private Key', placeholder: '' },
+    ],
+  },
+  {
+    title: 'Print-on-demand (store)', service: 'pod', keys: [
+      { key: 'PRINTIFY_API_KEY', label: 'Printify API token', placeholder: 'eyJ...' },
+      { key: 'PRINTIFY_WEBHOOK_SECRET', label: 'Printify webhook secret', placeholder: 'the secret you set on the webhook' },
+      { key: 'GELATO_API_KEY', label: 'Gelato API key', placeholder: '' },
+      { key: 'GELATO_WEBHOOK_SECRET', label: 'Gelato webhook secret', placeholder: 'sent as X-Webhook-Secret' },
     ],
   },
   {
@@ -264,7 +273,7 @@ function AdminPageInner() {
   const { user, profile, tenant } = useAuth();
   const [tab, setTab] = useState<Tab>(() => {
     const t = searchParams.get('tab');
-    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'support', 'community', 'notifications', 'membership', 'coaching', 'library', 'analytics', 'integrations', 'leads', 'errors', 'settings', 'restore'];
+    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'support', 'community', 'notifications', 'membership', 'coaching', 'library', 'analytics', 'integrations', 'leads', 'errors', 'settings', 'restore', 'store'];
     return (valid as string[]).includes(t ?? '') ? (t as Tab) : 'overview';
   });
 
@@ -2820,6 +2829,7 @@ function AdminPageInner() {
     <div className="space-y-5 max-w-[1180px]">
       {/* ── Restore ──────────────────────────────────────────────────────────── */}
       {tab === 'restore' && <RestorePanel />}
+      {tab === 'store' && <StorePanel />}
 
       {/* ── Overview ─────────────────────────────────────────────────────────── */}
       {tab === 'overview' && (

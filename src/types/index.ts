@@ -405,6 +405,109 @@ export interface SystemConfig {
   b2bLandingPage?: B2BLandingConfig;
   /** Admin-editable copy on the onboarding reveal. Defaults in lib/onboardingIntake. */
   onboardingCopy?: { whyPrice?: string; offerStack?: { title: string; body: string }[] };
+  /** The store. Keys live in secrets; this is the non-secret half. */
+  shop?: ShopConfig;
+}
+
+// ── Store ──────────────────────────────────────────────────────────────────
+// Products are printed and shipped by a print-on-demand provider; the app
+// owns the storefront, the checkout (Stripe) and the "earned, not given"
+// gate. Orders are placed with the provider from the Stripe webhook and
+// their status flows back through the provider's webhook plus an hourly
+// poll, so the member's order page is never waiting on a human.
+
+export type ShopProvider = 'printify' | 'gelato';
+
+export interface ShopConfig {
+  enabled?: boolean;
+  provider?: ShopProvider;
+  /** Printify: the shop to order through (GET /v1/shops.json). */
+  printifyShopId?: string;
+  /** Gelato: the e-commerce store whose products are imported. */
+  gelatoStoreId?: string;
+  currency?: string; // ISO 4217, default USD
+  /** ISO 3166-1 alpha-2, the countries Stripe may collect a shipping address for. */
+  shipTo?: string[];
+  /** Flat shipping charged at checkout, in minor units. 0 = free shipping. */
+  shippingCents?: number;
+  tagline?: string;
+}
+
+export interface ShopVariant {
+  id: string;               // ours, stable
+  label: string;            // "M / Black"
+  providerVariantId: string; // Printify variant id, or Gelato productUid
+  priceCents?: number;      // overrides the product price when set
+  available: boolean;
+  /** Gelato only: the print file the variant is produced from. */
+  printFileUrl?: string;
+}
+
+export interface ShopProduct {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string;
+  images: string[];
+  priceCents: number;
+  currency: string;
+  provider: ShopProvider;
+  providerProductId: string;
+  variants: ShopVariant[];
+  /** "Earned, not given": buying requires a verified challenge finish. */
+  earnedOnly?: boolean;
+  /** Challenges whose verified finish unlocks it. Empty + earnedOnly = any
+   *  verified challenge. Written from both the product editor and the
+   *  challenge editor's Rewards picker. */
+  unlockedBy?: string[];
+  active: boolean;
+  sortOrder?: number;
+  createdAt: unknown;
+  updatedAt?: unknown;
+}
+
+export type ShopOrderStatus =
+  | 'pending_payment' | 'paid' | 'submitted' | 'in_production' | 'shipped' | 'delivered' | 'cancelled' | 'failed';
+
+export interface ShopOrderItem {
+  productId: string;
+  name: string;
+  variantId: string;
+  variantLabel: string;
+  quantity: number;
+  priceCents: number;
+  image?: string;
+  providerProductId: string;
+  providerVariantId: string;
+  printFileUrl?: string;
+}
+
+export interface ShopOrder {
+  id: string;
+  userId: string | null;
+  email: string;
+  items: ShopOrderItem[];
+  subtotalCents: number;
+  shippingCents: number;
+  totalCents: number;
+  currency: string;
+  status: ShopOrderStatus;
+  provider: ShopProvider;
+  providerOrderId?: string;
+  providerStatus?: string;
+  shipping?: {
+    name: string; line1: string; line2?: string; city: string; state?: string; postalCode: string; country: string; phone?: string;
+  };
+  tracking?: { carrier?: string; number?: string; url?: string };
+  stripeSessionId?: string;
+  stripePaymentIntent?: string;
+  /** Guest orders are opened with ?t= this; members read their own by uid. */
+  accessToken: string;
+  error?: string;
+  createdAt: unknown;
+  updatedAt?: unknown;
+  paidAt?: unknown;
+  shippedAt?: unknown;
 }
 
 // A separate landing page for the B2B/white-label pitch (trainers, coaches,

@@ -348,12 +348,16 @@ if [ -n "$ENV_FILE" ]; then
     # run over a two-day window nags nobody twice. 09:15 UTC — late enough
     # that it lands as a morning push across Europe, not a 4am one.
     REMIND_CMD="curl -fsS --max-time 120 -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${INTERNAL_URL%/}/api/challenges/remind\" >/dev/null 2>&1 ${CRON_MARKER}"
-    ( crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" || true ; echo "0 * * * * ${CRON_CMD}" ; echo "17 4 * * * ${RECONCILE_CMD}" ; echo "22 3 * * * ${BACKUP_CMD}" ; echo "5 8 * * * ${DIGEST_CMD}" ; echo "15 9 * * * ${REMIND_CMD}" ) | crontab -
+    # Store orders: ask the print provider about every open order. Its
+    # webhooks carry the news first; this is the net under them.
+    SHOP_SYNC_CMD="curl -fsS --max-time 300 -X POST -H \"Authorization: Bearer ${APP_CRON_SECRET}\" \"${INTERNAL_URL%/}/api/shop/sync-orders\" >/dev/null 2>&1 ${CRON_MARKER}"
+    ( crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" || true ; echo "0 * * * * ${CRON_CMD}" ; echo "17 4 * * * ${RECONCILE_CMD}" ; echo "22 3 * * * ${BACKUP_CMD}" ; echo "5 8 * * * ${DIGEST_CMD}" ; echo "15 9 * * * ${REMIND_CMD}" ; echo "37 * * * * ${SHOP_SYNC_CMD}" ) | crontab -
     echo "    cron installed: hourly POST to /api/notifications/process"
     echo "    cron installed: daily POST to /api/admin/reconcile-subscriptions"
     echo "    cron installed: nightly POST to /api/admin/backup (03:22 UTC)"
     echo "    cron installed: daily POST to /api/admin/error-digest (08:05 UTC)"
     echo "    cron installed: daily POST to /api/challenges/remind (09:15 UTC)"
+    echo "    cron installed: hourly POST to /api/shop/sync-orders (:37)"
   else
     echo "    skipped — CRON_SECRET or NEXT_PUBLIC_APP_URL not set in $ENV_FILE"
   fi

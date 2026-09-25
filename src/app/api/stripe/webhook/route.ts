@@ -8,6 +8,7 @@ import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { resolveAccountEmail } from '@/lib/accountEmail';
 import { sendEmail, paymentFailedEmailHtml, trialChargeReminderEmailHtml } from '@/lib/email';
 import { describeUpcomingCharge, trialReminderSubject } from '@/lib/trialReminder';
+import { placeProviderOrder } from '@/lib/shop/server';
 import type Stripe from 'stripe';
 
 function getAdminDb() {
@@ -93,6 +94,47 @@ export async function POST(req: NextRequest) {
       // ── User subscribes successfully ────────────────────────────────────
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        // A store order. Guests can buy, so this runs before the userId
+        // guard below. The order document already exists (created by
+        // /api/shop/checkout as pending_payment); this marks it paid with
+        // the address Stripe collected and hands it to the print provider.
+        if (session.metadata?.kind === 'shop_order') {
+          const orderId = session.metadata.orderId;
+          const db = getAdminDb();
+          if (orderId && db && session.payment_status === 'paid') {
+            const ref = db.collection('orders').doc(orderId);
+            const cur = (await ref.get()).data();
+            if (cur && cur.status === 'pending_payment') {
+              const addr = session.shipping_details?.address ?? session.customer_details?.address;
+              const name = session.shipping_details?.name ?? session.customer_details?.name ?? '';
+              await ref.update({
+                status: 'paid',
+                email: session.customer_details?.email ?? cur.email ?? '',
+                stripePaymentIntent: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null,
+                ...(addr ? { shipping: {
+                  name, line1: addr.line1 ?? '', ...(addr.line2 ? { line2: addr.line2 } : {}), city: addr.city ?? '',
+                  ...(addr.state ? { state: addr.state } : {}), postalCode: addr.postal_code ?? '', country: addr.country ?? '',
+                  ...(session.customer_details?.phone ? { phone: session.customer_details.phone } : {}),
+                } } : {}),
+                paidAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+              });
+              const placed = await placeProviderOrder(db, orderId);
+              console.log(`[Stripe webhook] shop order ${orderId} paid → ${placed.status}${placed.providerOrderId ? ` (${placed.providerOrderId})` : ''}`);
+              const email = session.customer_details?.email;
+              if (email) {
+                const link = `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/shop/orders/${orderId}?t=${cur.accessToken}`;
+                await sendEmail({
+                  to: email,
+                  subject: 'Order received — Warfare Fitness',
+                  html: `<p>Got it. Your order is going to production and you will get another email when it ships.</p><p><a href="${link}">See your order</a></p>`,
+                }).catch(() => {});
+              }
+            }
+          }
+          break;
+        }
+
         const userId = session.metadata?.userId;
         if (!userId) { console.warn('[Stripe webhook] checkout.session.completed: no userId in metadata'); break; }
 

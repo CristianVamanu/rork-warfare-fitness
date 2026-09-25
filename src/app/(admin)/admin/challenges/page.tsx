@@ -19,7 +19,8 @@ import {
   subscribeEntries, reviewChallengeEntry, reopenEntry, announceChallenge, ensurePosters, type ChallengeInput,
 } from '@/lib/challenges';
 import { DEFAULT_CHALLENGE_XP } from '@/types';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, collection, getDocs, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import type { Challenge, ChallengeEntry, ChallengeDifficulty, ChallengeResultType, ChallengeStatus, PostMedia } from '@/types';
 
 const CAROUSEL_MAX = 10;
@@ -243,6 +244,7 @@ function Editor({ challenge, uid, onClose, onSaved }: { challenge: Challenge | n
           <div><label className={label}>Starts (optional)</label><input type="datetime-local" value={f.startsAt} onChange={(e) => set('startsAt', e.target.value)} className={inputCls} /></div>
           <div><label className={label}>Ends (optional)</label><input type="datetime-local" value={f.endsAt} onChange={(e) => set('endsAt', e.target.value)} className={inputCls} /></div>
         </div>
+        {challenge && <Rewards challengeId={challenge.id} />}
         <div>
           <label className={label}>Status</label>
           <div className="flex gap-2">
@@ -325,5 +327,47 @@ function Review({ challenge, onClose }: { challenge: Challenge; onClose: () => v
         </div>
       )}
     </Modal>
+  );
+}
+
+/**
+ * Which store products a verified finish here unlocks. The product is the
+ * source of truth (products/{id}.unlockedBy); this is the other door to
+ * the same field, so the admin can set the reward from the challenge they
+ * are writing without going to the store panel. New challenges get it
+ * after their first save, since the id does not exist before that.
+ */
+function Rewards({ challengeId }: { challengeId: string }) {
+  const [products, setProducts] = useState<{ id: string; name: string; earnedOnly?: boolean; unlockedBy?: string[] }[] | null>(null);
+  useEffect(() => {
+    getDocs(collection(db, 'products')).then((snap) => setProducts(snap.docs.map((d) => ({ id: d.id, ...(d.data() as { name: string; earnedOnly?: boolean; unlockedBy?: string[] }) })))).catch(() => setProducts([]));
+  }, []);
+  const toggle = async (p: { id: string; unlockedBy?: string[] }) => {
+    const on = (p.unlockedBy ?? []).includes(challengeId);
+    setProducts((list) => list?.map((x) => (x.id === p.id ? { ...x, earnedOnly: true, unlockedBy: on ? (x.unlockedBy ?? []).filter((id) => id !== challengeId) : [...(x.unlockedBy ?? []), challengeId] } : x)) ?? null);
+    try {
+      await updateDoc(doc(db, 'products', p.id), { unlockedBy: on ? arrayRemove(challengeId) : arrayUnion(challengeId), ...(on ? {} : { earnedOnly: true }), updatedAt: serverTimestamp() });
+    } catch { toast.error('Failed to save reward'); }
+  };
+  if (!products) return null;
+  return (
+    <div>
+      <label className="text-xs text-text-secondary mb-1.5 block">Rewards — store items a verified finish unlocks</label>
+      {products.length === 0 ? (
+        <p className="text-[11px] text-text-tertiary">No products yet. Import some under Store → Products.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {products.map((p) => {
+            const on = (p.unlockedBy ?? []).includes(challengeId);
+            return (
+              <button key={p.id} type="button" onClick={() => toggle(p)} className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border ${on ? 'bg-accent text-black border-accent' : 'border-white/15 text-text-secondary'}`}>
+                {on ? '✓ ' : ''}{p.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <p className="text-[11px] text-text-tertiary mt-1.5">Ticking one marks it &quot;earned, not given&quot; in the store.</p>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import {
   Activity, Dumbbell, Users, MessageSquare, LifeBuoy, Bell, CreditCard,
-  UserCheck, Video, TrendingUp, Key, Mail, Send, Settings, RotateCcw, AlertTriangle,
+  UserCheck, Video, TrendingUp, Key, Mail, Send, Settings, RotateCcw, AlertTriangle, ShoppingBag,
 } from 'lucide-react';
 import type { AdminTabGroup } from './AdminShell';
 
@@ -19,7 +19,7 @@ import type { AdminTabGroup } from './AdminShell';
 export type AdminTabId =
   | 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community'
   | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics'
-  | 'integrations' | 'leads' | 'emails' | 'errors' | 'settings' | 'restore';
+  | 'integrations' | 'leads' | 'emails' | 'errors' | 'settings' | 'restore' | 'store';
 
 export const ADMIN_TABS: { id: AdminTabId; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: Activity },
@@ -31,6 +31,7 @@ export const ADMIN_TABS: { id: AdminTabId; label: string; icon: React.ElementTyp
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'membership', label: 'Membership', icon: CreditCard },
   { id: 'coaching', label: 'Coaching Apps', icon: UserCheck },
+  { id: 'store', label: 'Store', icon: ShoppingBag },
   { id: 'library', label: 'Library', icon: Video },
   { id: 'analytics', label: 'Analytics', icon: TrendingUp },
   { id: 'integrations', label: 'Integrations', icon: Key },
@@ -50,7 +51,7 @@ export const ADMIN_TAB_BY_ID = Object.fromEntries(
 /** Grouped by what the admin is doing. Order within a group is unchanged. */
 export const ADMIN_GROUP_IDS: { label: string; ids: AdminTabId[] }[] = [
   { label: 'Operate', ids: ['overview', 'clients', 'messages', 'support', 'community', 'notifications'] },
-  { label: 'Product', ids: ['programs', 'library', 'membership', 'coaching'] },
+  { label: 'Product', ids: ['programs', 'library', 'membership', 'coaching', 'store'] },
   { label: 'Growth', ids: ['analytics', 'leads', 'emails'] },
   { label: 'System', ids: ['integrations', 'errors', 'settings', 'restore'] },
 ];

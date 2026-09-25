@@ -30,6 +30,13 @@ export const SECRET_KEYS = [
   'CLOUDFLARE_ZONE_ID',
   'RESEND_API_KEY',
   'RESEND_FROM_EMAIL',
+  // Print-on-demand. One of the two is in use at a time (system/config.shop
+  // .provider); both can be stored so switching is a dropdown, not a
+  // re-entry. The webhook secrets verify inbound status updates.
+  'PRINTIFY_API_KEY',
+  'PRINTIFY_WEBHOOK_SECRET',
+  'GELATO_API_KEY',
+  'GELATO_WEBHOOK_SECRET',
 ] as const;
 
 export type SecretKey = typeof SECRET_KEYS[number];

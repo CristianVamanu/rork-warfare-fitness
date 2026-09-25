@@ -106,6 +106,9 @@ export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness' }: Pr
             )}
           </div>
 
+          <Link href="/shop" className="text-sm font-medium text-text-secondary hover:text-white transition-colors">
+            Shop
+          </Link>
           <Link href="/trainers" className="text-sm font-medium text-text-secondary hover:text-white transition-colors">
             For Trainers
           </Link>
@@ -137,6 +140,7 @@ export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness' }: Pr
               {p.name}
             </Link>
           ))}
+          <Link href="/shop" className="text-sm font-medium text-text-secondary py-2.5">Shop</Link>
           <Link href="/trainers" className="text-sm font-medium text-text-secondary py-2.5">For Trainers</Link>
           <Link href="/login" className="text-sm font-bold text-accent py-2.5">Sign In</Link>
         </div>
