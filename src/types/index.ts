@@ -461,6 +461,9 @@ export interface ShopProduct {
   name: string;
   description?: string;
   images: string[];
+  /** Set when the admin edits the picture list by hand; imports then
+   *  leave the pictures alone instead of replacing them with the provider's. */
+  imagesCustom?: boolean;
   priceCents: number;
   currency: string;
   provider: ShopProvider;

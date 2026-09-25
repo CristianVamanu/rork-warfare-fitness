@@ -104,13 +104,18 @@ export async function POST(req: NextRequest) {
           const db = getAdminDb();
           if (orderId && db && session.payment_status === 'paid') {
             const ref = db.collection('orders').doc(orderId);
-            const cur = (await ref.get()).data();
-            if (cur && cur.status === 'pending_payment') {
-              const addr = session.shipping_details?.address ?? session.customer_details?.address;
-              const name = session.shipping_details?.name ?? session.customer_details?.name ?? '';
-              await ref.update({
+            const addr = session.shipping_details?.address ?? session.customer_details?.address;
+            const name = session.shipping_details?.name ?? session.customer_details?.name ?? '';
+            // Claimed in a transaction: Stripe retries a slow delivery while
+            // the first is still talking to the print provider, and two
+            // deliveries that both read "pending_payment" used to place the
+            // order with the provider twice.
+            const cur = await db.runTransaction(async (tx) => {
+              const d = (await tx.get(ref)).data();
+              if (!d || d.status !== 'pending_payment') return null;
+              tx.update(ref, {
                 status: 'paid',
-                email: session.customer_details?.email ?? cur.email ?? '',
+                email: session.customer_details?.email ?? d.email ?? '',
                 stripePaymentIntent: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null,
                 ...(addr ? { shipping: {
                   name, line1: addr.line1 ?? '', ...(addr.line2 ? { line2: addr.line2 } : {}), city: addr.city ?? '',
@@ -119,6 +124,9 @@ export async function POST(req: NextRequest) {
                 } } : {}),
                 paidAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
               });
+              return d;
+            });
+            if (cur) {
               const placed = await placeProviderOrder(db, orderId);
               console.log(`[Stripe webhook] shop order ${orderId} paid → ${placed.status}${placed.providerOrderId ? ` (${placed.providerOrderId})` : ''}`);
               const email = session.customer_details?.email;

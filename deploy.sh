@@ -360,7 +360,7 @@ if [ -n "$ENV_FILE" ]; then
     echo "    cron installed: hourly POST to /api/shop/sync-orders (:37)"
     # And once now, in the background: the store's products and pictures are
     # refreshed the moment a deploy lands rather than at the next :37.
-    ( sleep 20 ; curl -fsS --max-time 300 -X POST -H "Authorization: Bearer ${APP_CRON_SECRET}" "${INTERNAL_URL%/}/api/shop/sync-orders" >/dev/null 2>&1 || true ) &
+    nohup setsid bash -c "sleep 20; curl -fsS --max-time 600 -X POST -H 'Authorization: Bearer ${APP_CRON_SECRET}' '${INTERNAL_URL%/}/api/shop/sync-orders' >/dev/null 2>&1" >/dev/null 2>&1 < /dev/null &
     echo "    store refresh queued (runs 20s after the restart)"
   else
     echo "    skipped — CRON_SECRET or NEXT_PUBLIC_APP_URL not set in $ENV_FILE"

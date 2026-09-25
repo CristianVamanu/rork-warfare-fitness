@@ -79,13 +79,24 @@ export async function placeProviderOrder(db: Firestore, orderId: string): Promis
   if (!snap.exists) throw new Error('Order not found');
   if (order.providerOrderId) return order;
   if (order.status !== 'paid' && order.status !== 'failed') throw new Error(`Order is ${order.status}, not paid`);
+  // Only one caller talks to the provider for a given order: the webhook,
+  // an admin Retry and the hourly sync can overlap, and each would place
+  // its own copy. A short lease on the order document decides who goes.
+  const claimed = await db.runTransaction(async (tx) => {
+    const d = (await tx.get(ref)).data() as (ShopOrder & { placingUntil?: number }) | undefined;
+    if (!d || d.providerOrderId) return false;
+    if (d.placingUntil && d.placingUntil > Date.now()) return false;
+    tx.update(ref, { placingUntil: Date.now() + 5 * 60_000 });
+    return true;
+  });
+  if (!claimed) return order;
 
   try {
     const provider = await providerFor(db);
     const placed = await provider.createOrder(order);
     await ref.update({
       status: 'submitted', providerOrderId: placed.providerOrderId, providerStatus: placed.providerStatus,
-      provider: provider.id, error: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp(),
+      provider: provider.id, error: FieldValue.delete(), placingUntil: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp(),
     });
     return { ...order, status: 'submitted', providerOrderId: placed.providerOrderId, providerStatus: placed.providerStatus };
   } catch (err) {
@@ -94,7 +105,7 @@ export async function placeProviderOrder(db: Firestore, orderId: string): Promis
     // 'failed' puts it at the top of the admin list with the reason, and
     // Retry calls this again once the cause (usually a key or a missing
     // print file) is fixed.
-    await ref.update({ status: 'failed', error: msg.slice(0, 500), updatedAt: FieldValue.serverTimestamp() });
+    await ref.update({ status: 'failed', error: msg.slice(0, 500), placingUntil: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() });
     console.error(`[shop] provider order failed for ${orderId}:`, msg);
     return { ...order, status: 'failed', error: msg };
   }
@@ -179,7 +190,45 @@ export function retailFromCost(costCents: number, markupPercent: number): number
  *   gone from provider → left alone (admin removes it), but its variants
  *                      are marked unavailable so it cannot be bought
  */
-export async function importProducts(db: Firestore): Promise<{ found: number; created: number; updated: number; unavailable: number }> {
+type ImportResult = { found: number; created: number; updated: number; unavailable: number };
+
+/**
+ * One import at a time across both pm2 workers. Gelato sends a burst of
+ * store_product events when a product is published, and retries slow
+ * deliveries; overlapping imports each saw "no product yet" and created
+ * duplicates. A Firestore lease serialises them: a caller that finds the
+ * lease held marks a re-run and returns, and the holder imports once more
+ * before letting go, so a product published mid-import is never missed.
+ */
+export async function importProducts(db: Firestore): Promise<ImportResult | { queued: true }> {
+  const lockRef = db.collection('system').doc('shopImportLock');
+  const LEASE_MS = 10 * 60_000;
+  const got = await db.runTransaction(async (tx) => {
+    const cur = (await tx.get(lockRef)).data() as { until?: number } | undefined;
+    if (cur?.until && cur.until > Date.now()) { tx.set(lockRef, { rerun: true }, { merge: true }); return false; }
+    tx.set(lockRef, { until: Date.now() + LEASE_MS, rerun: false });
+    return true;
+  });
+  if (!got) return { queued: true };
+  try {
+    let result = await importProductsOnce(db);
+    for (let i = 0; i < 3; i++) {
+      const again = await db.runTransaction(async (tx) => {
+        const cur = (await tx.get(lockRef)).data() as { rerun?: boolean } | undefined;
+        if (!cur?.rerun) return false;
+        tx.set(lockRef, { until: Date.now() + LEASE_MS, rerun: false });
+        return true;
+      });
+      if (!again) break;
+      result = await importProductsOnce(db);
+    }
+    return result;
+  } finally {
+    await lockRef.set({ until: 0, rerun: false }).catch(() => {});
+  }
+}
+
+async function importProductsOnce(db: Firestore): Promise<ImportResult> {
   const cfg = await getShopConfig(db);
   const provider = await providerFor(db, cfg);
   const currency = (cfg.currency ?? 'USD').toUpperCase();
@@ -224,7 +273,7 @@ export async function importProducts(db: Firestore): Promise<{ found: number; cr
       // mirror) and stay. Anything else is a provider link that may have
       // expired since the last import — it did, for Gelato — so the
       // provider's current list is mirrored afresh.
-      const ours = (c.images ?? []).length > 0 && (await Promise.all((c.images ?? []).map(isMirrored))).every(Boolean);
+      const ours = (c.images ?? []).length > 0 && (c.imagesCustom || (await Promise.all((c.images ?? []).map(isMirrored))).every(Boolean));
       const images = ours ? c.images : await mirrorImages(p.images, p.providerProductId);
       await cur.ref.update({
         variants, priceCents,
@@ -239,13 +288,17 @@ export async function importProducts(db: Firestore): Promise<{ found: number; cr
       const variants = priceVariants(p.variants);
       const priceCents = basePrice(variants, p.priceCents);
       const images = await mirrorImages(p.images, p.providerProductId);
-      await db.collection('products').add({
+      // Deterministic id + create(): if two imports race on the same new
+      // product, the second create fails instead of adding a duplicate.
+      const newRef = db.collection('products').doc(`${provider.id}-${p.providerProductId}`.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 120));
+      const createdOk = await newRef.create({
         slug: await uniqueSlug(db, p.name), name: p.name, description: p.description ?? '', images, category: p.category,
         priceCents, currency,
         provider: provider.id, providerProductId: p.providerProductId, variants,
         earnedOnly: false, unlockedBy: [], active: autoActivate && priceCents > 0, sortOrder: 100,
         createdAt: FieldValue.serverTimestamp(),
-      });
+      }).then(() => true, () => false);
+      if (!createdOk) continue;
       created += 1;
     }
   }

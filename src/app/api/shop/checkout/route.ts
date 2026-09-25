@@ -91,6 +91,11 @@ export async function POST(req: NextRequest) {
     const stripe = await getStripe();
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
+      // Cards (incl. Apple/Google Pay) only, like the other one-off
+      // checkouts. A delayed method (bank debit) completes the session as
+      // "unpaid" and settles later on an event this store does not handle,
+      // so the customer would pay and the order would never reach the printer.
+      payment_method_types: ['card'],
       line_items: [
         ...items.map((i) => ({
           quantity: i.quantity,

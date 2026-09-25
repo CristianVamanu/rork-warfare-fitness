@@ -286,7 +286,7 @@ function Products() {
                 <div>
                   <label className={label}>Image URLs — one per line, first is the cover</label>
                   <textarea defaultValue={(p.images ?? []).join('\n')} rows={3} placeholder={'https://…/front.png\nhttps://…/back.png'}
-                    onBlur={(e) => { const images = e.target.value.split('\n').map((s) => s.trim()).filter((s) => /^https?:\/\//.test(s)); if (images.join('|') !== (p.images ?? []).join('|')) patch(p, { images }); }}
+                    onBlur={(e) => { const images = e.target.value.split('\n').map((s) => s.trim()).filter((s) => /^https?:\/\//.test(s)); if (images.join('|') !== (p.images ?? []).join('|')) patch(p, { images, imagesCustom: images.length > 0 }); }}
                     className={`${inputCls} resize-none font-mono text-xs`} />
                   {p.images?.length ? (
                     <div className="flex gap-1.5 mt-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
