@@ -23,11 +23,11 @@ export async function ShopShell({ children }: { children: React.ReactNode }) {
       <div className="relative">
         <TacticalBackdrop className="h-[640px]" />
         <div className="relative z-10">
-          <PublicNav programs={navPrograms} logoUrl={brand.logoUrl} appName={brand.appName} />
+          <PublicNav programs={navPrograms} logoUrl={brand.logoUrl} appName={brand.appName} shopOpen={brand.shopOpen} />
           <main className="max-w-6xl mx-auto px-4 pt-6 pb-24">{children}</main>
         </div>
       </div>
-      <PublicFooter appName={brand.appName} />
+      <PublicFooter appName={brand.appName} shopOpen={brand.shopOpen} />
       <CartButton />
     </div>
   );

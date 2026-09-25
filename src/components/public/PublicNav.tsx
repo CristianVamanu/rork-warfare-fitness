@@ -23,9 +23,11 @@ interface Props {
   /** Admin-configured branding, passed from the server so it renders on first paint. */
   logoUrl?: string | null;
   appName?: string;
+  /** False hides the Shop link (Admin → Store → Store open is off). */
+  shopOpen?: boolean;
 }
 
-export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness' }: Props) {
+export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness', shopOpen = true }: Props) {
   const [open, setOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   // The program list used to spill out under "All Programs" on the phone,
@@ -110,9 +112,11 @@ export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness' }: Pr
             )}
           </div>
 
-          <Link href="/shop" className="text-sm font-medium text-text-secondary hover:text-white transition-colors">
-            Shop
-          </Link>
+          {shopOpen && (
+            <Link href="/shop" className="text-sm font-medium text-text-secondary hover:text-white transition-colors">
+              Shop
+            </Link>
+          )}
           <Link href="/trainers" className="text-sm font-medium text-text-secondary hover:text-white transition-colors">
             For Trainers
           </Link>
@@ -152,7 +156,7 @@ export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness' }: Pr
               ))}
             </div>
           )}
-          <Link href="/shop" className="text-sm font-medium text-text-secondary py-2.5">Shop</Link>
+          {shopOpen && <Link href="/shop" className="text-sm font-medium text-text-secondary py-2.5">Shop</Link>}
           <Link href="/trainers" className="text-sm font-medium text-text-secondary py-2.5">For Trainers</Link>
           <Link href="/login" className="text-sm font-bold text-accent py-2.5">Sign In</Link>
         </div>

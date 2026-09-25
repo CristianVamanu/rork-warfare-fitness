@@ -125,6 +125,7 @@ export default async function ProgramPage({
             programs={all.map((p) => ({ name: p.name, slug: p.slug }))}
             logoUrl={brand.logoUrl}
             appName={brand.appName}
+            shopOpen={brand.shopOpen}
           />
 
           <header className="max-w-5xl mx-auto px-5 pt-8 pb-14 sm:pt-10 sm:pb-20">
@@ -384,7 +385,7 @@ export default async function ProgramPage({
         </section>
       )}
 
-      <PublicFooter appName={brand.appName} />
+      <PublicFooter appName={brand.appName} shopOpen={brand.shopOpen} />
     </div>
   );
 }

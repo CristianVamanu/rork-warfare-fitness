@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 /** Shared footer for the public pages — mirrors the landing page's own. */
-export function PublicFooter({ appName = 'Warfare Fitness' }: { appName?: string }) {
+export function PublicFooter({ appName = 'Warfare Fitness', shopOpen = true }: { appName?: string; shopOpen?: boolean }) {
   return (
     <footer className="border-t border-white/8 mt-10">
       <div className="max-w-5xl mx-auto px-5 py-8 flex flex-wrap items-center justify-between gap-4">
@@ -10,7 +10,7 @@ export function PublicFooter({ appName = 'Warfare Fitness' }: { appName?: string
         </p>
         <div className="flex items-center gap-5">
           <Link href="/programs" className="text-xs text-text-tertiary hover:text-white transition-colors">Programs</Link>
-          <Link href="/shop" className="text-xs text-text-tertiary hover:text-white transition-colors">Shop</Link>
+          {shopOpen && <Link href="/shop" className="text-xs text-text-tertiary hover:text-white transition-colors">Shop</Link>}
           <Link href="/shop/track" className="text-xs text-text-tertiary hover:text-white transition-colors">Track order</Link>
           <Link href="/trainers" className="text-xs text-text-tertiary hover:text-white transition-colors">For Trainers</Link>
           <Link href="/privacy" className="text-xs text-text-tertiary hover:text-white transition-colors">Privacy</Link>

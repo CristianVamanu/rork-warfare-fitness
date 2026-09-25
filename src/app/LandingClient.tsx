@@ -211,13 +211,17 @@ export default function LandingPage({
   initialLanding,
   initialMembership,
   initialMembershipPlans,
+  shopOpen = true,
 }: {
   initialAppName: string;
   initialLogoUrl: string | null;
   initialLanding: LandingPageConfig;
   initialMembership: MembershipConfig | null;
   initialMembershipPlans: MembershipPlan[];
+  /** Admin → Store → Store open. Off drops Shop from the menu. */
+  shopOpen?: boolean;
 }) {
+  const navLinks = shopOpen ? NAV_LINKS : NAV_LINKS.filter((l) => l.href !== '/shop');
   const { user, loading } = useAuth();
   const router = useRouter();
   // Seeded from a server-side fetch of the same admin-configured Firestore
@@ -483,7 +487,7 @@ export default function LandingPage({
 
           {/* Desktop links */}
           <div className="hidden sm:flex items-center gap-6">
-            {NAV_LINKS.map((link) => (
+            {navLinks.map((link) => (
               <a key={link.href} href={link.href} className="text-sm font-medium text-text-secondary hover:text-white transition-colors">
                 {link.label}
               </a>
@@ -512,7 +516,7 @@ export default function LandingPage({
             className="sm:hidden overflow-hidden"
           >
             <div className="flex flex-col gap-1 mt-4 pb-2 border-t border-white/8 pt-4">
-              {NAV_LINKS.map((link) => (
+              {navLinks.map((link) => (
                 <a
                   key={link.href}
                   href={link.href}

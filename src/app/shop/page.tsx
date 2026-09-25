@@ -9,7 +9,10 @@ export const metadata: Metadata = {
   alternates: { canonical: '/shop' },
 };
 
-export const revalidate = 60;
+// Read on every request: the admin's "Store open" toggle has to take
+// effect on the next load, and a 60s revalidate window left the shelf up
+// (and the Shop link in the menu) for a minute after the store was closed.
+export const dynamic = 'force-dynamic';
 
 /**
  * The storefront. Public: anyone can browse and buy the open items; the
@@ -20,12 +23,12 @@ export default async function ShopPage() {
   const { products, enabled, tagline, shippingCents, currency } = await loadShopListing();
   return (
     <ShopShell>
-      {!enabled && products.length === 0 ? (
+      {!enabled ? (
         <div className="py-10">
           <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-accent">Warfare Fitness · Supply</p>
           <h1 className="text-4xl md:text-6xl font-black leading-[0.95] mt-2">Earned,<br /><span className="text-accent">not given.</span></h1>
           <div className="mt-8 rounded-3xl border border-white/10 p-12 text-center" style={{ backgroundColor: 'var(--card-glass-bg)' }}>
-            <p className="text-lg font-bold">The store opens soon</p>
+            <p className="text-lg font-bold">The store is closed right now</p>
             <p className="text-sm text-white/60 mt-1">Follow along in the app. The first drop will be announced there.</p>
           </div>
         </div>

@@ -63,7 +63,7 @@ export default async function PublicChallengePage({ params, searchParams }: {
       <div className="relative">
         <TacticalBackdrop className="h-[640px]" />
         <div className="relative z-10">
-          <PublicNav programs={navPrograms} logoUrl={brand.logoUrl} appName={brand.appName} />
+          <PublicNav programs={navPrograms} logoUrl={brand.logoUrl} appName={brand.appName} shopOpen={brand.shopOpen} />
           <main className="max-w-lg mx-auto px-4 pt-6 pb-20">
             <div className="rounded-3xl overflow-hidden border border-white/10 bg-black shadow-2xl">
               <div className="relative aspect-[4/5] bg-black">
@@ -103,7 +103,7 @@ export default async function PublicChallengePage({ params, searchParams }: {
           </main>
         </div>
       </div>
-      <PublicFooter appName={brand.appName} />
+      <PublicFooter appName={brand.appName} shopOpen={brand.shopOpen} />
     </div>
   );
 }
