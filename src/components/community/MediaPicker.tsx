@@ -75,8 +75,8 @@ export function MediaPicker({ value, onChange, max = 1, allowVideo = true, folde
         onChange(next);
         if (isVideo) void grabPoster(file, url, provider);
       }
-    } catch {
-      toast.error('Upload failed — try again');
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : 'Upload failed — try again', { duration: 7000 });
     } finally {
       setBusy(false);
       setPct(null);

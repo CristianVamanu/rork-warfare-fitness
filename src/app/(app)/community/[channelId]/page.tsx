@@ -644,8 +644,8 @@ export default function ChannelPage() {
       // the order the person chose and the progress ring means one file.
       for (const file of files) await uploadOne(file, provider);
       toast.success(files.length > 1 ? `${files.length} ready — tap send to post` : (files[0].type.startsWith('video/') ? 'Clip ready — tap send to post' : 'Image ready — tap send to post'));
-    } catch {
-      toast.error('Failed to upload');
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : 'Failed to upload', { duration: 7000 });
     } finally {
       setUploadingImage(false);
       setUploadPct(null);

@@ -18,7 +18,7 @@ import { rateLimit } from '@/lib/rateLimit';
 import { getR2Client, r2PublicUrl } from '@/lib/r2';
 import { getSecret } from '@/lib/secrets';
 import { SUPPORT_MAX_BYTES } from '@/lib/supportLimits';
-import { getAdminApp } from '@/lib/firebase-admin';
+import { getAdminDb, getAdminApp } from '@/lib/firebase-admin';
 import { resolveConfiguredDailyLimit } from '@/lib/usageLimit';
 
 const ALLOWED_ROOTS = ['prPosts', 'progressPhotos', 'community', 'support', 'avatars'];
@@ -88,14 +88,25 @@ export async function POST(req: NextRequest) {
     // Community media has its own daily ceiling on top of the hourly one
     // above. The hourly limit stops a loop; this stops a person. Twenty
     // photos and clips a day is more than any genuine member posts and far
-    // fewer than a feed can be flooded with. Counts against the account, so
-    // it applies to admins too — the number is set with that in mind.
+    // fewer than a feed can be flooded with.
+    //
+    // Admins are exempt. The cap used to count against them too, and the
+    // day the challenges shipped the admin uploaded a six-slide carousel a
+    // few times over (plus a poster frame per clip) and every upload in the
+    // app — theirs and the community's from their account — refused with
+    // "Failed to upload" until midnight. An admin publishing content is not
+    // the flood this guards against; the hourly limit above still applies.
     if (safeRoot === 'community') {
       const app = getAdminApp();
-      const perDay = app
+      const role = app
+        ? await getAdminDb(app).collection('users').doc(check.uid).get().then((s) => s.data()?.role as string | undefined).catch(() => undefined)
+        : undefined;
+      const perDay = role === 'admin' ? Number.POSITIVE_INFINITY : app
         ? await resolveConfiguredDailyLimit(app, 'communityUploadsDailyLimit', DEFAULT_COMMUNITY_UPLOADS_PER_DAY).catch(() => DEFAULT_COMMUNITY_UPLOADS_PER_DAY)
         : DEFAULT_COMMUNITY_UPLOADS_PER_DAY;
-      const daily = await rateLimit({ scope: 'uploads-community-day', key: check.uid, windowMs: 24 * 60 * 60_000, max: perDay });
+      const daily = Number.isFinite(perDay)
+        ? await rateLimit({ scope: 'uploads-community-day', key: check.uid, windowMs: 24 * 60 * 60_000, max: perDay })
+        : { allowed: true as const, retryAfterSeconds: 0 };
       if (!daily.allowed) {
         return NextResponse.json(
           { error: `That's the most photos and clips one account can post in a day (${perDay}). Try again tomorrow.`, retryAfter: daily.retryAfterSeconds },
