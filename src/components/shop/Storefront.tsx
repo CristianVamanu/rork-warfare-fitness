@@ -57,7 +57,8 @@ export function Storefront({ products, tagline, shippingCents, currency }: {
   }, [products, category, earnedOnly, q, sort]);
 
   const earnedCount = products.filter((p) => p.earnedOnly).length;
-  const featured = products.filter((p) => p.earnedOnly).slice(0, 1)[0] ?? products[0];
+  // The admin's pick; failing that the first earned item, then the first item.
+  const featured = products.find((p) => p.featured) ?? products.find((p) => p.earnedOnly) ?? products[0];
 
   return (
     <div className="space-y-6">

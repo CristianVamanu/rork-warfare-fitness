@@ -469,6 +469,9 @@ export interface ShopProduct {
   /** Shelf section: Apparel, Drinkware, Wall art, Bags, Accessories, Gear.
    *  Guessed from the provider on import, editable in the admin. */
   category?: string;
+  /** Shown in the shop's hero card. One at a time; the admin toggle
+   *  clears it on the others. */
+  featured?: boolean;
   /** "Earned, not given": buying requires a verified challenge finish. */
   earnedOnly?: boolean;
   /** Challenges whose verified finish unlocks it. Empty + earnedOnly = any

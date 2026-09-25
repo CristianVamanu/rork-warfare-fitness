@@ -256,7 +256,7 @@ export async function importProducts(db: Firestore): Promise<{ found: number; cr
 export function publicProduct(id: string, p: ShopProduct) {
   return {
     id, slug: p.slug, name: p.name, description: p.description ?? '', images: p.images ?? [], category: p.category ?? 'Gear',
-    priceCents: p.priceCents, currency: p.currency, earnedOnly: !!p.earnedOnly, unlockedBy: p.unlockedBy ?? [],
+    priceCents: p.priceCents, currency: p.currency, earnedOnly: !!p.earnedOnly, unlockedBy: p.unlockedBy ?? [], featured: !!p.featured,
     createdAt: (p.createdAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0,
     variants: (p.variants ?? []).filter((v) => v.available !== false).map((v) => ({ id: v.id, label: v.label, priceCents: v.priceCents ?? p.priceCents })),
   };

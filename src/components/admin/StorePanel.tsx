@@ -259,6 +259,7 @@ function Products() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-bold text-white truncate">{p.name}</p>
                   {p.earnedOnly && <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-accent"><Lock className="w-3 h-3" /> earned</span>}
+                  {p.featured && <span className="text-[10px] font-bold uppercase tracking-wider text-accent">★ featured</span>}
                   {!p.active && <span className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">off shelf</span>}
                 </div>
                 <p className="text-xs text-text-tertiary">{p.provider} · {p.variants?.length ?? 0} option{p.variants?.length === 1 ? '' : 's'} · {p.priceCents > 0 ? money(p.priceCents, p.currency) : <span className="text-amber-300">no price</span>}</p>
@@ -298,6 +299,22 @@ function Products() {
                 <div>
                   <label className={label}>Slug (/shop/…)</label>
                   <input defaultValue={p.slug} onBlur={(e) => { const v = e.target.value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, ''); if (v && v !== p.slug) patch(p, { slug: v }); }} className={inputCls} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-white">Featured in the shop hero</p>
+                    <p className="text-xs text-text-secondary">One product at a time. Switching it on here switches it off elsewhere.</p>
+                  </div>
+                  <button onClick={async () => {
+                    const on = !p.featured;
+                    setItems((list) => list?.map((x) => ({ ...x, featured: x.id === p.id ? on : false })) ?? null);
+                    try {
+                      await Promise.all((items ?? []).filter((x) => x.featured && x.id !== p.id).map((x) => updateDoc(doc(db, 'products', x.id), { featured: false, updatedAt: serverTimestamp() })));
+                      await updateDoc(doc(db, 'products', p.id), { featured: on, updatedAt: serverTimestamp() });
+                    } catch { toast.error('Failed to save'); await load(); }
+                  }} className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${p.featured ? 'bg-accent' : 'bg-surface-elevated'}`}>
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${p.featured ? 'left-6' : 'left-1'}`} />
+                  </button>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
