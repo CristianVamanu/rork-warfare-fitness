@@ -9,7 +9,7 @@ import {
   Copy, SkipForward, Plus, Minus, Dumbbell, Zap, Play, Pause, RotateCcw, Info, Lock, Crown,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { resolveProgram, getLastExercisePerformance, getMembershipConfig } from '@/lib/firestore';
+import { resolveProgram, getLastExercisePerformance, getMembershipConfig, getExerciseVideos } from '@/lib/firestore';
 import { getProgramDayForDow } from '@/lib/programs';
 import { getProgramDayLimit } from '@/lib/membership';
 import { completeWorkout } from '@/lib/actions';
@@ -1180,7 +1180,20 @@ function SetRow({
 // Short (~5s), muted clips from the exercise library are small enough to
 // autoplay inline without the buffering issues a full-screen modal player had.
 
-function ExerciseInfoButton({ videoUrl, tip, name }: { videoUrl?: string; tip?: string; name: string }) {
+/**
+ * The little demo clip beside the exercise name.
+ *
+ * It used to sit black for a few seconds on every exercise: a bare <video>
+ * over a black box shows nothing until the first frame is decoded, and the
+ * element remounts (key=videoUrl) each time the workout moves on, so the
+ * wait came back on every exercise. It also asked for CORS
+ * (crossOrigin="anonymous") — playback never needed it, and against a
+ * cached non-CORS copy at the CDN the request is refused outright, which is
+ * the same failure the community carousel had. Now: the library's still for
+ * that video is the poster, so the frame is there from the first paint, and
+ * the clip plays over it when it is ready.
+ */
+function ExerciseInfoButton({ videoUrl, poster, tip, name }: { videoUrl?: string; poster?: string; tip?: string; name: string }) {
   const [expanded, setExpanded] = useState(false);
   // Exercises without a demo video always show the "i" button — even with
   // no tip text, tapping it still confirms there's nothing more to show
@@ -1193,7 +1206,7 @@ function ExerciseInfoButton({ videoUrl, tip, name }: { videoUrl?: string; tip?: 
       <button
         onClick={() => setExpanded(true)}
         className={videoUrl
-          ? 'w-11 h-11 rounded-xl overflow-hidden bg-black flex-shrink-0 relative'
+          ? 'w-11 h-11 rounded-xl overflow-hidden bg-surface-elevated flex-shrink-0 relative'
           : 'flex items-center justify-center w-7 h-7 rounded-full bg-white/10 hover:bg-accent/20 transition-colors text-accent flex-shrink-0'}
         aria-label={videoUrl ? `${name} demo` : 'How to perform'}
       >
@@ -1210,7 +1223,7 @@ function ExerciseInfoButton({ videoUrl, tip, name }: { videoUrl?: string; tip?: 
               autoPlay
               playsInline
               preload="auto"
-              crossOrigin="anonymous"
+              poster={poster}
               className="w-full h-full object-cover"
             />
           )
@@ -1232,7 +1245,7 @@ function ExerciseInfoButton({ videoUrl, tip, name }: { videoUrl?: string; tip?: 
                 loop
                 autoPlay
                 playsInline
-                crossOrigin="anonymous"
+                poster={poster}
                 className="w-full rounded-2xl bg-black"
               />
             )}
@@ -1612,6 +1625,21 @@ function WorkoutSessionPageInner() {
   // ── Derived state ───────────────────────────────────────────────────────
 
   const currentEx = exStates[currentExIdx];
+
+  // Library stills keyed by video URL, for the demo clip's poster. One read
+  // per session; the workout's exercises only carry the video URL, the
+  // thumbnail lives on the library entry.
+  const [posters, setPosters] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let alive = true;
+    getExerciseVideos().then((lib) => {
+      if (!alive) return;
+      const map: Record<string, string> = {};
+      for (const v of lib) if (v.videoUrl && v.thumbnailUrl) map[v.videoUrl] = v.thumbnailUrl;
+      setPosters(map);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const totalSets = exStates.reduce((s, e) => s + e.targetSets, 0);
   const completedSets = exStates.reduce(
@@ -1996,7 +2024,7 @@ function WorkoutSessionPageInner() {
                     {currentEx.videoUrl ? 'Tap the clip for the demo and form cue' : 'Tap ⓘ for the form cue'}
                   </p>
                 </div>
-                <ExerciseInfoButton videoUrl={currentEx.videoUrl} tip={currentEx.notes} name={currentEx.name} />
+                <ExerciseInfoButton videoUrl={currentEx.videoUrl} poster={currentEx.videoUrl ? posters[currentEx.videoUrl] : undefined} tip={currentEx.notes} name={currentEx.name} />
               </div>
 
               {/* Set rows */}
