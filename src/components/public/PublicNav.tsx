@@ -112,6 +112,9 @@ export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness', shop
             )}
           </div>
 
+          <Link href="/challenges" className="text-sm font-medium text-text-secondary hover:text-white transition-colors">
+            Challenges
+          </Link>
           {shopOpen && (
             <Link href="/shop" className="text-sm font-medium text-text-secondary hover:text-white transition-colors">
               Shop
@@ -156,6 +159,7 @@ export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness', shop
               ))}
             </div>
           )}
+          <Link href="/challenges" className="text-sm font-medium text-text-secondary py-2.5">Challenges</Link>
           {shopOpen && <Link href="/shop" className="text-sm font-medium text-text-secondary py-2.5">Shop</Link>}
           <Link href="/trainers" className="text-sm font-medium text-text-secondary py-2.5">For Trainers</Link>
           <Link href="/login" className="text-sm font-bold text-accent py-2.5">Sign In</Link>

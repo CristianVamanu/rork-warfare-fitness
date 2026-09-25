@@ -110,6 +110,7 @@ const NAV_LINKS = [
   // One entry, not eleven. The individual unit pages hang off /standards and
   // are reached from that page or from search, never from the menu.
   { href: '/standards', label: 'Standards' },
+  { href: '/challenges', label: 'Challenges' },
   { href: '/shop', label: 'Shop' },
   { href: '/download', label: 'Download App' },
   { href: '/trainers', label: 'For Trainers' },
