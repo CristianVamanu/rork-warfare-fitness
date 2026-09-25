@@ -104,6 +104,7 @@ page /trainers                                'Own your app'
 # The store is public and server-renders its shelf (or its "opens soon"
 # card before a provider is set up); either way the headline is hard-coded.
 page /shop                                    'not given'
+page /shop/cart                               '<title>'
 page /privacy                                 'Privacy'
 page /terms                                   'Terms'
 # Spinner-on-the-server pages: the assertion is that the document builds and

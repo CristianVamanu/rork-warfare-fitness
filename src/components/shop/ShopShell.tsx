@@ -13,12 +13,17 @@ import { CartButton } from './CartButton';
  */
 export async function ShopShell({ children }: { children: React.ReactNode }) {
   const [programs, brand] = await Promise.all([getPublicPrograms().catch(() => []), getPublicBranding()]);
+  // Only what the nav renders. The full program documents carry Firestore
+  // Timestamps, which cannot cross into a client component: /shop was a
+  // 500 ("Only plain objects... can be passed to Client Components") on
+  // exactly that, while the prerendered programs pages never hit it.
+  const navPrograms = programs.map((p) => ({ name: p.name, slug: p.slug }));
   return (
     <div className="min-h-screen bg-background text-white">
       <div className="relative">
         <TacticalBackdrop className="h-[640px]" />
         <div className="relative z-10">
-          <PublicNav programs={programs} logoUrl={brand.logoUrl} appName={brand.appName} />
+          <PublicNav programs={navPrograms} logoUrl={brand.logoUrl} appName={brand.appName} />
           <main className="max-w-6xl mx-auto px-4 pt-6 pb-24">{children}</main>
         </div>
       </div>

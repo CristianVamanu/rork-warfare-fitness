@@ -49,6 +49,11 @@ export default async function PublicChallengePage({ params, searchParams }: {
   const referrerName = await loadReferrerName(ref);
 
   const [programs, brand] = await Promise.all([getPublicPrograms().catch(() => []), getPublicBranding()]);
+  // Only what the nav renders. The full program documents carry Firestore
+  // Timestamps, which cannot cross into a client component: /shop was a
+  // 500 ("Only plain objects... can be passed to Client Components") on
+  // exactly that, while the prerendered programs pages never hit it.
+  const navPrograms = programs.map((p) => ({ name: p.name, slug: p.slug }));
   const cover = c.cover;
   const coverImg = cover ? (cover.type === 'video' ? cover.posterURL : cover.url) : null;
   const days = c.endsAt ? Math.ceil((new Date(c.endsAt).getTime() - Date.now()) / 86400000) : null;
@@ -58,7 +63,7 @@ export default async function PublicChallengePage({ params, searchParams }: {
       <div className="relative">
         <TacticalBackdrop className="h-[640px]" />
         <div className="relative z-10">
-          <PublicNav programs={programs} logoUrl={brand.logoUrl} appName={brand.appName} />
+          <PublicNav programs={navPrograms} logoUrl={brand.logoUrl} appName={brand.appName} />
           <main className="max-w-lg mx-auto px-4 pt-6 pb-20">
             <div className="rounded-3xl overflow-hidden border border-white/10 bg-black shadow-2xl">
               <div className="relative aspect-[4/5] bg-black">
