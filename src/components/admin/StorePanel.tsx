@@ -111,7 +111,7 @@ function Settings() {
             <p className="text-sm font-bold text-white">Store open</p>
             <p className="text-xs text-text-secondary">Off = /shop shows &quot;opens soon&quot; and checkout refuses.</p>
           </div>
-          <button onClick={() => set('enabled', cfg.enabled === false)} className={`w-11 h-6 rounded-full transition-colors relative ${cfg.enabled !== false ? 'bg-accent' : 'bg-surface-elevated'}`}>
+          <button onClick={() => set('enabled', cfg.enabled === false)} className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ml-3 ${cfg.enabled !== false ? 'bg-accent' : 'bg-surface-elevated'}`}>
             <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${cfg.enabled !== false ? 'left-6' : 'left-1'}`} />
           </button>
         </div>
@@ -162,7 +162,7 @@ function Settings() {
             <p className="text-sm font-medium text-white">New products go straight on the shelf</p>
             <p className="text-xs text-text-secondary">Publish in {provider === 'gelato' ? 'Gelato' : 'Printify'} → it appears in /shop, priced. Off = imports wait for you.</p>
           </div>
-          <button onClick={() => set('autoActivate', cfg.autoActivate === false)} className={`w-11 h-6 rounded-full transition-colors relative ${cfg.autoActivate !== false ? 'bg-accent' : 'bg-surface-elevated'}`}>
+          <button onClick={() => set('autoActivate', cfg.autoActivate === false)} className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ml-3 ${cfg.autoActivate !== false ? 'bg-accent' : 'bg-surface-elevated'}`}>
             <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${cfg.autoActivate !== false ? 'left-6' : 'left-1'}`} />
           </button>
         </div>
