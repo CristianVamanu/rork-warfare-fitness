@@ -60,7 +60,10 @@ export function OrderView({ orderId }: { orderId: string }) {
       <div className="max-w-lg mx-auto text-center py-16">
         <p className="text-2xl font-black">Order not found</p>
         <p className="text-sm text-white/60 mt-1">{user ? 'This order is not on your account.' : 'Open the link from your confirmation email, or log in.'}</p>
-        {!user && <Link href={`/login?next=${encodeURIComponent(`/shop/orders/${orderId}`)}`} className="inline-flex items-center gap-2 mt-6 rounded-2xl bg-accent text-black font-bold px-5 py-3">Log in</Link>}
+        <div className="flex flex-col sm:flex-row gap-2 justify-center mt-6">
+          {!user && <Link href={`/login?next=${encodeURIComponent(`/shop/orders/${orderId}`)}`} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-accent text-black font-bold px-5 py-3">Log in</Link>}
+          <Link href="/shop/track" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-accent/40 text-accent font-bold px-5 py-3">Track by order number</Link>
+        </div>
       </div>
     );
   }
@@ -76,7 +79,8 @@ export function OrderView({ orderId }: { orderId: string }) {
       )}
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl font-black">Order {order.id.slice(0, 8).toUpperCase()}</h1>
+          <h1 className="text-2xl font-black">Order #{order.id.slice(0, 8).toUpperCase()}</h1>
+          <p className="text-[11px] text-white/40 mt-0.5">Keep this number to track it at /shop/track</p>
           <p className="text-xs text-white/50 mt-0.5">{order.createdAt ? new Date(order.createdAt).toLocaleString() : ''}</p>
         </div>
         <StatusPill status={order.status} />

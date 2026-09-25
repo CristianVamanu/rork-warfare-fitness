@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
                 await sendEmail({
                   to: email,
                   subject: 'Order received — Warfare Fitness',
-                  html: `<p>Got it. Your order is going to production and you will get another email when it ships.</p><p><a href="${link}">See your order</a></p>`,
+                  html: `<p>Got it. Order <b>#${orderId.slice(0, 8).toUpperCase()}</b> is going to production and you will get another email when it ships.</p><p><a href="${link}">See your order</a> — or track it any time at <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/shop/track">warfarefitness.com/shop/track</a> with that number and this email.</p>`,
                 }).catch(() => {});
               }
             }

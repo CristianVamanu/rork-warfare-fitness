@@ -64,7 +64,11 @@ export function useCart(): CartLine[] {
   return lines;
 }
 
+/** Fixed en-US formatting: the server renders the page, the phone hydrates
+ *  it, and they must agree to the character or React throws the HTML away
+ *  and re-renders — on a slow connection that is a page that looks loaded
+ *  and does not respond. */
 export function money(cents: number, currency = 'USD'): string {
-  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(cents / 100); }
+  try { return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100); }
   catch { return `${(cents / 100).toFixed(2)} ${currency}`; }
 }

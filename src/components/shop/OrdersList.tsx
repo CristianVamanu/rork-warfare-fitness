@@ -37,8 +37,11 @@ export function OrdersList() {
     return (
       <div className="max-w-lg mx-auto text-center py-16">
         <p className="text-2xl font-black">Your orders</p>
-        <p className="text-sm text-white/60 mt-1">Log in to see them. Guest orders are in the email you got at checkout.</p>
-        <Link href={`/login?next=${encodeURIComponent('/shop/orders')}`} className="inline-flex items-center gap-2 mt-6 rounded-2xl bg-accent text-black font-bold px-5 py-3">Log in</Link>
+        <p className="text-sm text-white/60 mt-1">Log in to see them, or track one with its order number and your email.</p>
+        <div className="flex flex-col sm:flex-row gap-2 justify-center mt-6">
+          <Link href={`/login?next=${encodeURIComponent('/shop/orders')}`} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-accent text-black font-bold px-5 py-3">Log in</Link>
+          <Link href="/shop/track" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-accent/40 text-accent font-bold px-5 py-3">Track an order</Link>
+        </div>
       </div>
     );
   }

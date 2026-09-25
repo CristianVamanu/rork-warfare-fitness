@@ -105,6 +105,7 @@ page /trainers                                'Own your app'
 # card before a provider is set up); either way the headline is hard-coded.
 page /shop                                    'not given'
 page /shop/cart                               '<title>'
+page /shop/track                              'Track your order'
 page /privacy                                 'Privacy'
 page /terms                                   'Terms'
 # Spinner-on-the-server pages: the assertion is that the document builds and
@@ -186,6 +187,9 @@ case "$CODE" in
   429) ok "shop/checkout rate-limited (429)" ;;
   *) fail "shop/checkout → $CODE for an empty cart (expected 400)" ;;
 esac
+# Order tracking needs both halves and refuses a bad pair without leaking.
+fetch POST /api/shop/track '{"orderNumber":"ZZZZZZZZ","email":"nobody@example.com"}'
+case "$CODE" in 404) ok "shop/track: unknown order → 404" ;; 429) ok "shop/track rate-limited (429)" ;; *) fail "shop/track → $CODE for an unknown order (expected 404)" ;; esac
 # Provider webhooks: unsigned deliveries must be refused.
 fetch POST /api/shop/webhooks/printify '{"type":"order:updated"}'
 case "$CODE" in 401|503) ok "printify webhook refuses an unsigned delivery ($CODE)" ;; *) fail "printify webhook → $CODE unsigned (expected 401)" ;; esac

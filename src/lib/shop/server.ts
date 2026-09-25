@@ -127,7 +127,7 @@ export async function applyProviderState(db: Firestore, orderId: string, state: 
     await sendEmail({
       to: cur.email,
       subject: 'Your Warfare Fitness order has shipped',
-      html: `<p>It's on the way.</p>${tracking?.url ? `<p><a href="${tracking.url}">Track your parcel</a>${tracking.number ? ` — ${tracking.number}` : ''}</p>` : ''}<p><a href="${link}">Order details</a></p>`,
+      html: `<p>Order <b>#${orderId.slice(0, 8).toUpperCase()}</b> is on the way.</p>${tracking?.url ? `<p><a href="${tracking.url}">Track your parcel with the carrier</a>${tracking.number ? ` — ${tracking.number}` : ''}</p>` : ''}<p><a href="${link}">Order details</a></p>`,
     }).catch(() => {});
   }
 }

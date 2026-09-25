@@ -28,6 +28,10 @@ interface Props {
 export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness' }: Props) {
   const [open, setOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // The program list used to spill out under "All Programs" on the phone,
+  // thirteen rows before Shop and Sign In were even visible. Folded now:
+  // the row is a disclosure, tapping it reveals the programs.
+  const [mobilePrograms, setMobilePrograms] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click and on Escape — a dropdown that can only be closed
@@ -129,17 +133,25 @@ export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness' }: Pr
       {mobileOpen && (
         <div className="sm:hidden flex flex-col gap-1 mt-4 pb-2 border-t border-white/8 pt-4">
           <Link href="/" className="text-sm font-medium text-text-secondary py-2.5">Home</Link>
-          <Link href="/programs" className="text-sm font-bold text-accent py-2.5">All Programs</Link>
-          {programs.map((p) => (
-            <Link
-              key={p.slug}
-              href={`/programs/${p.slug}`}
-              onClick={() => setMobileOpen(false)}
-              className="text-sm text-text-secondary py-2 pl-3 border-l border-white/8"
-            >
-              {p.name}
-            </Link>
-          ))}
+          <button
+            type="button"
+            onClick={() => setMobilePrograms((v) => !v)}
+            aria-expanded={mobilePrograms}
+            className="flex items-center justify-between text-sm font-bold text-accent py-2.5 text-left"
+          >
+            All Programs
+            <ChevronDown className={`w-4 h-4 transition-transform ${mobilePrograms ? 'rotate-180' : ''}`} />
+          </button>
+          {mobilePrograms && (
+            <div className="flex flex-col gap-1 pl-3 border-l border-white/8 mb-1">
+              <Link href="/programs" onClick={() => setMobileOpen(false)} className="text-sm text-white py-2">Browse all programs →</Link>
+              {programs.map((p) => (
+                <Link key={p.slug} href={`/programs/${p.slug}`} onClick={() => setMobileOpen(false)} className="text-sm text-text-secondary py-2">
+                  {p.name}
+                </Link>
+              ))}
+            </div>
+          )}
           <Link href="/shop" className="text-sm font-medium text-text-secondary py-2.5">Shop</Link>
           <Link href="/trainers" className="text-sm font-medium text-text-secondary py-2.5">For Trainers</Link>
           <Link href="/login" className="text-sm font-bold text-accent py-2.5">Sign In</Link>

@@ -2,7 +2,7 @@
 
 import { useDeferredValue, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Search, X, Lock, ShoppingBag, Check, SlidersHorizontal, Truck, ShieldCheck, Flame, ArrowRight } from 'lucide-react';
+import { Search, X, Lock, ShoppingBag, Check, SlidersHorizontal, Truck, ShieldCheck, Flame, ArrowRight, PackageSearch } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { addToCart, money } from '@/lib/shop/cart';
 import type { PublicProduct } from '@/lib/shop/server';
@@ -66,6 +66,7 @@ export function Storefront({ products, tagline, shippingCents, currency }: {
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><Truck className="w-3.5 h-3.5 text-accent" /> {shippingCents > 0 ? `Flat ${money(shippingCents, currency)} shipping` : 'Free shipping'}</span>
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><ShieldCheck className="w-3.5 h-3.5 text-accent" /> Printed to order · tracked</span>
         {earnedCount > 0 && <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><Lock className="w-3.5 h-3.5 text-accent" /> {earnedCount} earned-only item{earnedCount === 1 ? '' : 's'}</span>}
+        <Link href="/shop/track" className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap text-accent font-semibold"><PackageSearch className="w-3.5 h-3.5" /> Track an order</Link>
       </div>
 
       {/* Hero */}
