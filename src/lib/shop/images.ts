@@ -1,4 +1,3 @@
-import 'server-only';
 import { createHash } from 'crypto';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getR2Client, r2PublicUrl } from '@/lib/r2';
