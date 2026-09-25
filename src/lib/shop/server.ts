@@ -93,6 +93,9 @@ export async function placeProviderOrder(db: Firestore, orderId: string): Promis
 
   try {
     const provider = await providerFor(db);
+    // The item ids in the order belong to the provider it was bought under.
+    // Switching providers in Settings must not send Gelato ids to Printify.
+    if (order.provider && order.provider !== provider.id) throw new Error(`Order was placed for ${order.provider}; the store is now set to ${provider.id}. Switch back to retry it.`);
     const placed = await provider.createOrder(order);
     await ref.update({
       status: 'submitted', providerOrderId: placed.providerOrderId, providerStatus: placed.providerStatus,
@@ -120,7 +123,12 @@ export async function applyProviderState(db: Firestore, orderId: string, state: 
   const cur = snap.data() as ShopOrder;
   const patch: Record<string, unknown> = {};
   if (state.providerStatus && state.providerStatus !== cur.providerStatus) patch.providerStatus = state.providerStatus;
-  if (state.status !== cur.status && cur.status !== 'cancelled') {
+  // Provider events can arrive out of order (an item-level "in production"
+  // after the parcel's "shipped"); the order never moves backwards, only
+  // forwards, or sideways into cancelled/failed.
+  const RANK: Partial<Record<ShopOrderStatus, number>> = { paid: 1, submitted: 2, in_production: 3, shipped: 4, delivered: 5 };
+  const forwards = (RANK[state.status] ?? 0) > (RANK[cur.status] ?? 0) || state.status === 'cancelled' || state.status === 'failed';
+  if (state.status !== cur.status && cur.status !== 'cancelled' && forwards) {
     patch.status = state.status;
     if (state.status === 'shipped' && !cur.shippedAt) patch.shippedAt = FieldValue.serverTimestamp();
   }
@@ -166,6 +174,23 @@ export async function syncOpenOrders(db: Firestore): Promise<{ checked: number; 
     }
   }
   return { checked: open.size, changed };
+}
+
+/** Abandoned checkouts: a pending_payment order older than a day whose
+ *  Stripe session has long expired. Deleted so the collection does not
+ *  fill with carts nobody paid for. */
+export async function expirePendingOrders(db: Firestore): Promise<number> {
+  // One equality filter only: status + createdAt together would need a
+  // composite index that is not deployed, and a query that throws inside
+  // the cron would silently never clean anything.
+  const cutoff = Date.now() - 24 * 3600_000;
+  const snap = await db.collection('orders').where('status', '==', 'pending_payment').limit(500).get();
+  let removed = 0;
+  for (const d of snap.docs) {
+    const created = (d.data().createdAt as { toMillis?: () => number } | undefined)?.toMillis?.();
+    if (created !== undefined && created < cutoff) { await d.ref.delete(); removed += 1; }
+  }
+  return removed;
 }
 
 // ── Import ───────────────────────────────────────────────────────────────
@@ -259,16 +284,23 @@ async function importProductsOnce(db: Firestore): Promise<ImportResult> {
       const c = cur.data() as ShopProduct;
       // Provider fields are the provider's truth; anything the admin typed
       // (a price override, a print file) survives the refresh.
-      const variants = priceVariants(p.variants.map((v) => {
+      // Pricing: a price the admin typed (priceCustom) is the product's
+      // price for every option. Otherwise every option is re-priced from
+      // the provider's current cost and the current markup, so changing the
+      // markup in Settings, or Gelato changing its cost, reaches the shelf
+      // on the next import.
+      const merged = p.variants.map((v) => {
         const mine = (c.variants ?? []).find((x) => x.providerVariantId === v.providerVariantId || (x.providerStoreVariantId && x.providerStoreVariantId === v.providerStoreVariantId));
         return {
           ...v,
-          ...(mine?.priceCents !== undefined && mine.priceCents > 0 ? { priceCents: mine.priceCents } : {}),
           ...(mine?.printFileUrl ? { printFileUrl: mine.printFileUrl } : {}),
           ...(mine?.available === false ? { available: false } : {}),
         };
-      }));
-      const priceCents = c.priceCents > 0 ? c.priceCents : basePrice(variants, p.priceCents);
+      });
+      const variants = c.priceCustom
+        ? merged.map(({ priceCents: _drop, ...v }) => v)
+        : priceVariants(merged);
+      const priceCents = c.priceCustom && c.priceCents > 0 ? c.priceCents : basePrice(variants, c.priceCents > 0 ? c.priceCents : p.priceCents);
       // Pictures already on our storage are the admin's (or an earlier
       // mirror) and stay. Anything else is a provider link that may have
       // expired since the last import — it did, for Gelato — so the

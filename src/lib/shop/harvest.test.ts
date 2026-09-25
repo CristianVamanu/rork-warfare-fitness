@@ -12,4 +12,7 @@ describe('harvestImageUrls', () => {
     expect(harvestImageUrls(p, ['variants'])).toEqual(['https://x/a.png', 'https://storage.googleapis.com/g/b?X-Goog=1', 'https://x/c.jpg']);
     expect(harvestImageUrls(p.variants[0])).toEqual(['https://x/v.png']);
   });
+  it('does not treat a Gelato page or API link as a picture', () => {
+    expect(harvestImageUrls({ editorUrl: 'https://dashboard.gelato.com/design/123', apiUrl: 'https://order.gelatoapis.com/v4/orders/1' })).toEqual([]);
+  });
 });

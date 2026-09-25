@@ -149,7 +149,7 @@ function Settings() {
           <div>
             <label className={label}>Markup over provider cost (%)</label>
             <input type="number" min={0} step={5} inputMode="numeric" defaultValue={cfg.markupPercent ?? 100} onBlur={(e) => set('markupPercent', Math.max(0, Math.round(Number(e.target.value) || 0)))} className={inputCls} />
-            <p className="text-[11px] text-text-tertiary mt-1">100 = sell at twice what Gelato charges you, rounded to .99. Prices you type on a product override this.</p>
+            <p className="text-[11px] text-text-tertiary mt-1">100 = sell at twice what Gelato charges you, rounded to .99. Applied on every import. A price you type on a product overrides it for that product (type 0 to go back to automatic).</p>
           </div>
           <div>
             <label className={label}>Cost country</label>
@@ -195,7 +195,7 @@ function Settings() {
           <div>
             <p className="font-semibold text-white">Gelato</p>
             <code className="block bg-black/40 rounded-lg px-2 py-1.5 mt-1 break-all">{appUrl}/api/shop/webhooks/gelato</code>
-            <p className="text-text-tertiary mt-1">Events: order_status_updated, order_item_tracking_code_updated. Add header <code>X-Webhook-Secret</code> with the value stored as GELATO_WEBHOOK_SECRET.</p>
+            <p className="text-text-tertiary mt-1">Tick every event: order_status_updated, order_item_tracking_code_updated, order_item_status_updated, store_product_created, store_product_updated, store_product_deleted. Add header <code>X-Webhook-Secret</code> with the value stored as GELATO_WEBHOOK_SECRET.</p>
           </div>
         </div>
       </Card>
@@ -219,8 +219,9 @@ function Products() {
   const doImport = async () => {
     setImporting(true);
     try {
-      const r = await adminShop<{ found: number; created: number; updated: number }>(user, { action: 'import' });
-      toast.success(`${r.found} found · ${r.created} new · ${r.updated} refreshed. New ones start off the shelf.`);
+      const r = await adminShop<{ found?: number; created?: number; updated?: number; queued?: boolean }>(user, { action: 'import' });
+      if (r.queued) toast.success('An import is already running — it will pick up your changes when it finishes.');
+      else toast.success(`${r.found} found · ${r.created} new · ${r.updated} refreshed.`);
       await load();
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Import failed', { duration: 8000 }); }
     finally { setImporting(false); }
@@ -281,7 +282,7 @@ function Products() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div><label className={label}>Name</label><input defaultValue={p.name} onBlur={(e) => e.target.value.trim() && e.target.value !== p.name && patch(p, { name: e.target.value.trim() })} className={inputCls} /></div>
-                  <div><label className={label}>Price ({p.currency}) — e.g. 29.99</label><input type="number" min={0} step="0.01" defaultValue={(p.priceCents / 100).toFixed(2)} onBlur={(e) => { const v = Math.max(0, Math.round((Number(e.target.value) || 0) * 100)); if (v !== p.priceCents) patch(p, { priceCents: v }); }} className={inputCls} /></div>
+                  <div><label className={label}>Price ({p.currency}) — e.g. 29.99</label><input type="number" min={0} step="0.01" defaultValue={(p.priceCents / 100).toFixed(2)} onBlur={(e) => { const v = Math.max(0, Math.round((Number(e.target.value) || 0) * 100)); if (v !== p.priceCents) patch(p, v > 0 ? { priceCents: v, priceCustom: true } : { priceCents: 0, priceCustom: false }); }} className={inputCls} /></div>
                 </div>
                 <div>
                   <label className={label}>Image URLs — one per line, first is the cover</label>
@@ -298,7 +299,12 @@ function Products() {
                 <div><label className={label}>Description</label><textarea defaultValue={p.description ?? ''} rows={3} onBlur={(e) => e.target.value !== (p.description ?? '') && patch(p, { description: e.target.value })} className={`${inputCls} resize-none`} /></div>
                 <div>
                   <label className={label}>Slug (/shop/…)</label>
-                  <input defaultValue={p.slug} onBlur={(e) => { const v = e.target.value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, ''); if (v && v !== p.slug) patch(p, { slug: v }); }} className={inputCls} />
+                  <input defaultValue={p.slug} onBlur={(e) => {
+                    const v = e.target.value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '');
+                    if (!v || v === p.slug) return;
+                    if ((items ?? []).some((x) => x.id !== p.id && x.slug === v)) { toast.error('Another product already uses that slug'); e.target.value = p.slug; return; }
+                    patch(p, { slug: v });
+                  }} className={inputCls} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>

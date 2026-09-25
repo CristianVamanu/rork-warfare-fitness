@@ -47,7 +47,7 @@ function stableId(url: string): string {
   return createHash('sha1').update(path).digest('hex').slice(0, 20);
 }
 
-export async function mirrorImage(url: string, folder: string): Promise<string> {
+export async function mirrorImage(url: string, folder: string): Promise<string | null> {
   const base = await ourHost();
   if (!base || url.startsWith(`${base}/`)) return url;
   const [client, bucket] = await Promise.all([getR2Client(), getSecret('R2_BUCKET_NAME').catch(() => '')]);
@@ -56,7 +56,12 @@ export async function mirrorImage(url: string, folder: string): Promise<string> 
     const res = await fetch(url, { signal: AbortSignal.timeout(15_000), headers: { Accept: 'image/*' } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const contentType = (res.headers.get('content-type') ?? '').split(';')[0].trim();
-    if (!contentType.startsWith('image/')) throw new Error(`not an image (${contentType || 'no type'})`);
+    if (!contentType.startsWith('image/')) {
+      // A link the harvester mistook for a picture (a design page, a JSON
+      // endpoint). Dropping it beats a broken tile on the shelf.
+      console.warn('[shop] not an image, dropped:', url.slice(0, 120), contentType || 'no type');
+      return null;
+    }
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length === 0 || buf.length > MAX_BYTES) throw new Error(`size ${buf.length}`);
     const key = `shop/${folder}/${stableId(url)}.${extFor(contentType, url)}`;
@@ -78,7 +83,8 @@ export async function mirrorImages(urls: string[], folder: string): Promise<stri
   const out: string[] = [];
   for (const u of urls.slice(0, 12)) {
     if (!u || !/^https?:\/\//.test(u)) continue;
-    out.push(await mirrorImage(u, folder));
+    const m = await mirrorImage(u, folder);
+    if (m) out.push(m);
   }
   return Array.from(new Set(out));
 }

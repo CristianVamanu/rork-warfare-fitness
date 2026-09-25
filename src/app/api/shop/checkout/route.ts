@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
       shipping_address_collection: { allowed_countries: (cfg.shipTo?.length ? cfg.shipTo : DEFAULT_SHIP_TO) as never },
       phone_number_collection: { enabled: true },
       ...(uid ? {} : { customer_creation: 'always' as const }),
-      ...(body?.email && !uid ? { customer_email: body.email } : {}),
+      ...(body?.email && !uid && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email.trim()) ? { customer_email: body.email.trim() } : {}),
       allow_promotion_codes: true,
       metadata: { kind: 'shop_order', orderId: orderRef.id, ...(uid ? { userId: uid } : {}) },
       payment_intent_data: { metadata: { kind: 'shop_order', orderId: orderRef.id } },

@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
               if (!d || d.status !== 'pending_payment') return null;
               tx.update(ref, {
                 status: 'paid',
-                email: session.customer_details?.email ?? d.email ?? '',
+                email: (session.customer_details?.email ?? d.email ?? '').trim().toLowerCase(),
                 stripePaymentIntent: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null,
                 ...(addr ? { shipping: {
                   name, line1: addr.line1 ?? '', ...(addr.line2 ? { line2: addr.line2 } : {}), city: addr.city ?? '',

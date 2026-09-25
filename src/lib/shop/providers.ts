@@ -244,9 +244,16 @@ class Gelato implements PodProvider {
     if (!this.storeId) throw new ProviderError('Set the Gelato store id first');
     type V = { id: string; title: string; productUid: string; variantOptions?: { name: string; value: string }[]; imageUrl?: string; previewUrl?: string; externalPreviewUrl?: string; price?: number; retailPrice?: number };
     type P = { id: string; title: string; description?: string; previewUrl?: string; externalPreviewUrl?: string; externalThumbnailUrl?: string; imageUrl?: string; variants?: V[]; productVariantOptions?: unknown };
-    const res = await call<{ products?: P[] }>(`${GELATO_STORE}/stores/${this.storeId}/products?limit=100`, { headers: await this.headers(), label: 'Gelato products' });
+    // Paged: the list endpoint caps at 100 and a store grows past that.
+    const listed: P[] = [];
+    for (let offset = 0; offset < 2000; offset += 100) {
+      const res = await call<{ products?: P[] }>(`${GELATO_STORE}/stores/${this.storeId}/products?limit=100&offset=${offset}`, { headers: await this.headers(), label: 'Gelato products' });
+      const page = res.products ?? [];
+      listed.push(...page);
+      if (page.length < 100) break;
+    }
     const out: ImportedProduct[] = [];
-    for (const p of res.products ?? []) {
+    for (const p of listed) {
       // The list endpoint is shallow; variants come from the product endpoint.
       const full = await call<P>(`${GELATO_STORE}/stores/${this.storeId}/products/${p.id}`, { headers: await this.headers(), label: 'Gelato product' }).catch(() => p);
       const variants = (full.variants ?? []).filter((v) => v.productUid);
@@ -345,7 +352,7 @@ export function makeProvider(id: ShopProvider, cfg: { printifyShopId?: string; g
 
 
 const IMAGE_KEY = /image|preview|thumbnail|mockup|fileurl|photo/i;
-const IMAGE_URL = /^https?:\/\/.+?(\.(png|jpe?g|webp|gif)(\?|$)|\/(image|preview|mockup|thumbnail)s?\/|storage\.googleapis\.com|gelato)/i;
+const IMAGE_URL = /^https?:\/\/.+?(\.(png|jpe?g|webp|gif)(\?|$)|\/(image|preview|mockup|thumbnail)s?\/|storage\.googleapis\.com)/i;
 
 /**
  * Every plausible image URL in a provider payload, in document order.
