@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     if (p.provider !== cfg.provider) return NextResponse.json({ error: `${p.name} is not available with the current print provider` }, { status: 400 });
     items.push({
       productId: snap.id, name: p.name, variantId: v.id, variantLabel: v.label, quantity: qty,
-      priceCents: v.priceCents ?? p.priceCents, image: p.images?.[0], providerProductId: p.providerProductId, providerVariantId: v.providerVariantId,
+      priceCents: v.priceCents ?? p.priceCents, ...(p.images?.[0] ? { image: p.images[0] } : {}), providerProductId: p.providerProductId, providerVariantId: v.providerVariantId,
       ...(v.printFileUrl ? { printFileUrl: v.printFileUrl } : {}),
     });
   }

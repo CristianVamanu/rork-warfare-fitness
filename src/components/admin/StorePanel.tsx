@@ -129,7 +129,7 @@ function Settings() {
         )}
         <div className="grid grid-cols-2 gap-2">
           <div><label className={label}>Currency</label><input value={cfg.currency ?? 'USD'} onChange={(e) => set('currency', e.target.value.toUpperCase())} maxLength={3} className={inputCls} /></div>
-          <div><label className={label}>Flat shipping (minor units, 0 = free)</label><input type="number" min={0} value={cfg.shippingCents ?? 0} onChange={(e) => set('shippingCents', Math.max(0, Math.round(Number(e.target.value) || 0)))} className={inputCls} /></div>
+          <div><label className={label}>Flat shipping ({cfg.currency || 'USD'}, 0 = free)</label><input type="number" min={0} step="0.01" value={((cfg.shippingCents ?? 0) / 100).toFixed(2)} onChange={(e) => set('shippingCents', Math.max(0, Math.round((Number(e.target.value) || 0) * 100)))} className={inputCls} /></div>
         </div>
         <div>
           <label className={label}>Ship to (ISO country codes, comma-separated; empty = the default list)</label>
@@ -235,7 +235,19 @@ function Products() {
               <div className="mt-3 pt-3 border-t border-white/8 space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div><label className={label}>Name</label><input defaultValue={p.name} onBlur={(e) => e.target.value.trim() && e.target.value !== p.name && patch(p, { name: e.target.value.trim() })} className={inputCls} /></div>
-                  <div><label className={label}>Price ({p.currency}, minor units)</label><input type="number" min={0} defaultValue={p.priceCents} onBlur={(e) => { const v = Math.max(0, Math.round(Number(e.target.value) || 0)); if (v !== p.priceCents) patch(p, { priceCents: v }); }} className={inputCls} /></div>
+                  <div><label className={label}>Price ({p.currency}) — e.g. 29.99</label><input type="number" min={0} step="0.01" defaultValue={(p.priceCents / 100).toFixed(2)} onBlur={(e) => { const v = Math.max(0, Math.round((Number(e.target.value) || 0) * 100)); if (v !== p.priceCents) patch(p, { priceCents: v }); }} className={inputCls} /></div>
+                </div>
+                <div>
+                  <label className={label}>Image URLs — one per line, first is the cover</label>
+                  <textarea defaultValue={(p.images ?? []).join('\n')} rows={3} placeholder={'https://…/front.png\nhttps://…/back.png'}
+                    onBlur={(e) => { const images = e.target.value.split('\n').map((s) => s.trim()).filter((s) => /^https?:\/\//.test(s)); if (images.join('|') !== (p.images ?? []).join('|')) patch(p, { images }); }}
+                    className={`${inputCls} resize-none font-mono text-xs`} />
+                  {p.images?.length ? (
+                    <div className="flex gap-1.5 mt-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {p.images.map((src, i) => <img key={src + i} src={src} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0 bg-black/40" />)}
+                    </div>
+                  ) : <p className="text-[11px] text-amber-300 mt-1">No image — the shop shows a placeholder. Paste the mockup URL from Gelato (right-click the preview → copy image address).</p>}
                 </div>
                 <div><label className={label}>Description</label><textarea defaultValue={p.description ?? ''} rows={3} onBlur={(e) => e.target.value !== (p.description ?? '') && patch(p, { description: e.target.value })} className={`${inputCls} resize-none`} /></div>
                 <div>

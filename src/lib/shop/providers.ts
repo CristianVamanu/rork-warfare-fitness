@@ -192,8 +192,8 @@ class Gelato implements PodProvider {
 
   async listProducts() {
     if (!this.storeId) throw new ProviderError('Set the Gelato store id first');
-    type V = { id: string; title: string; productUid: string; variantOptions?: { name: string; value: string }[]; imageUrl?: string };
-    type P = { id: string; title: string; description?: string; previewUrl?: string; variants?: V[]; productVariantOptions?: unknown };
+    type V = { id: string; title: string; productUid: string; variantOptions?: { name: string; value: string }[]; imageUrl?: string; previewUrl?: string; externalPreviewUrl?: string };
+    type P = { id: string; title: string; description?: string; previewUrl?: string; externalPreviewUrl?: string; externalThumbnailUrl?: string; imageUrl?: string; variants?: V[]; productVariantOptions?: unknown };
     const res = await call<{ products?: P[] }>(`${GELATO_STORE}/stores/${this.storeId}/products?limit=100`, { headers: await this.headers(), label: 'Gelato products' });
     const out: ImportedProduct[] = [];
     for (const p of res.products ?? []) {
@@ -201,7 +201,14 @@ class Gelato implements PodProvider {
       const full = await call<P>(`${GELATO_STORE}/stores/${this.storeId}/products/${p.id}`, { headers: await this.headers(), label: 'Gelato product' }).catch(() => p);
       const variants = (full.variants ?? []).filter((v) => v.productUid);
       if (variants.length === 0) continue;
-      const images = [full.previewUrl, ...variants.map((v) => v.imageUrl)].filter((u): u is string => !!u);
+      // Gelato names the preview differently depending on how the product
+      // was made (designed in Gelato, pushed from a connected store, or a
+      // template), so every field it has ever used is tried, product first.
+      const images = [
+        full.previewUrl, full.externalPreviewUrl, full.externalThumbnailUrl, full.imageUrl,
+        p.previewUrl, p.externalPreviewUrl, p.externalThumbnailUrl,
+        ...variants.flatMap((v) => [v.imageUrl, v.previewUrl, v.externalPreviewUrl]),
+      ].filter((u): u is string => typeof u === 'string' && /^https?:\/\//.test(u));
       out.push({
         providerProductId: String(p.id),
         name: full.title || p.title,
