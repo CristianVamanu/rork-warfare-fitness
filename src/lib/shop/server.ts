@@ -43,10 +43,19 @@ export async function uniqueSlug(db: Firestore, name: string, exceptId?: string)
 
 // ── The gate ─────────────────────────────────────────────────────────────
 
-/** Challenge ids this member has a verified finish in. */
+/**
+ * Challenge ids this member has a verified finish in.
+ *
+ * Read from users/{uid}.challengeBadges, which the review route stamps on
+ * every verification (and removes on a reversal), rather than a collection
+ * group query over entries: that query needs a composite index that is not
+ * deployed, and a gate that throws FAILED_PRECONDITION is a gate that
+ * refuses everyone. One document read, no index, same answer.
+ */
 export async function verifiedChallengeIds(db: Firestore, uid: string): Promise<string[]> {
-  const snap = await db.collectionGroup('entries').where('userId', '==', uid).where('status', '==', 'verified').get();
-  return snap.docs.map((d) => d.ref.parent.parent?.id).filter((x): x is string => !!x);
+  const snap = await db.collection('users').doc(uid).get();
+  const badges = snap.data()?.challengeBadges;
+  return Array.isArray(badges) ? badges.map((b: { challengeId?: string }) => b?.challengeId).filter((x): x is string => typeof x === 'string') : [];
 }
 
 export function isUnlocked(product: Pick<ShopProduct, 'earnedOnly' | 'unlockedBy'>, verified: string[]): boolean {

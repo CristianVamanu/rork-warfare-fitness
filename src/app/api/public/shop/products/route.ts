@@ -10,12 +10,15 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
+import { rateLimit, clientIp } from '@/lib/rateLimit';
 import { getShopConfig, publicProduct } from '@/lib/shop/server';
 import type { ShopProduct } from '@/types';
 
 const CACHE = 'public, max-age=30, s-maxage=120, stale-while-revalidate=600';
 
 export async function GET(req: NextRequest) {
+  const limit = await rateLimit({ scope: 'public-shop', key: clientIp(req), windowMs: 60_000, max: 120 });
+  if (!limit.allowed) return NextResponse.json({ products: [] }, { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } });
   const app = getAdminApp();
   if (!app) return NextResponse.json({ products: [], enabled: false }, { status: 500 });
   const db = getAdminDb(app);
