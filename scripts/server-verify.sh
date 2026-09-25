@@ -52,6 +52,9 @@ for job in notifications/process admin/reconcile-subscriptions admin/backup admi
 done
 if printf '%s' "$CT" | grep "reconcile" | grep -q -- "--max-time"; then ok "reconcile cron has --max-time"; else warn "reconcile cron has no --max-time (deploy.sh rewrites it on the next deploy)"; fi
 
+echo "== media =="
+if [ -x node_modules/ffmpeg-static/ffmpeg ]; then ok "ffmpeg: bundled (node_modules/ffmpeg-static)"; elif command -v ffmpeg >/dev/null 2>&1; then ok "ffmpeg: system ($(command -v ffmpeg))"; else fail "ffmpeg: none — clip posters cannot be generated"; fi
+
 echo "== box =="
 SWAP=$(free -m | awk '/Swap:/{print $2}')
 [ "${SWAP:-0}" -gt 0 ] && ok "swap ${SWAP}MB" || warn "no swap configured"

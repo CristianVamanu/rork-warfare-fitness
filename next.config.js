@@ -467,7 +467,7 @@ const nextConfig = {
   // serverComponentsExternalPackages). The old key is now silently ignored
   // with a build warning — which would have re-bundled pdf-parse and broken
   // document extraction at runtime without any build failure.
-  serverExternalPackages: ['firebase-admin', 'pdf-parse'],
+  serverExternalPackages: ['firebase-admin', 'pdf-parse', 'ffmpeg-static'],
 };
 
 // Sentry was removed. Its browserTracingIntegration ships a vendored copy of

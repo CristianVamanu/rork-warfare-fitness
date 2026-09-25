@@ -267,7 +267,26 @@ export function FeedMedia({
           // Fetches dimensions and a first frame without pulling the whole
           // clip — a feed of autoloading videos is somebody's data allowance.
           preload="metadata"
-          crossOrigin="anonymous"
+          // No crossOrigin. Playback does not need CORS, and asking for it
+          // made Safari refuse any clip whose cached response lacked the
+          // Access-Control-Allow-Origin header. Cloudflare caches headers
+          // with the body, so a clip first fetched by a plain <video>
+          // (the admin editor's thumbnail) was cached without the header
+          // and every CORS fetch of it afterwards — the feed player — was
+          // blocked: no frame, no error visible, play glyph forever. The
+          // cover slide of a carousel, always, because that was the one
+          // the editor had shown first.
+          onError={(e) => {
+            const v = e.currentTarget;
+            const code = v.error?.code;
+            console.warn('[FeedMedia] clip failed to load', { code, message: v.error?.message, src: url });
+            try {
+              void fetch('/api/client-error', {
+                method: 'POST', headers: { 'content-type': 'application/json' }, keepalive: true,
+                body: JSON.stringify({ message: `Clip failed to load (MediaError ${code ?? '?'}): ${v.error?.message ?? ''}`, url: window.location.href, stack: url }),
+              });
+            } catch { /* telemetry only */ }
+          }}
           className={`relative w-full h-full ${box} object-cover`}
         />
 

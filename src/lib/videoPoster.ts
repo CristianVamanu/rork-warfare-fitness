@@ -1,5 +1,21 @@
 import { execFile } from 'child_process';
+import { existsSync } from 'fs';
 import { getSecret } from '@/lib/secrets';
+
+/**
+ * Which ffmpeg to run. The app bundles one (ffmpeg-static) so a poster never
+ * depends on what happens to be installed on the box: the production server
+ * had no system ffmpeg, every grab answered "no poster" without a word, and
+ * every clip's cover was left to the phone to decode. System ffmpeg is the
+ * fallback for a platform the static build does not cover.
+ */
+function ffmpegBinary(): string {
+  try {
+    const p = require('ffmpeg-static') as string | null;
+    if (p && existsSync(p)) return p;
+  } catch { /* not installed; fall through */ }
+  return 'ffmpeg';
+}
 
 /**
  * Server-side poster frames, via ffmpeg.
@@ -72,7 +88,7 @@ export function isOwnBucketUrl(url: string, publicBase: string): boolean {
 function runFfmpeg(args: string[]): Promise<Buffer | null> {
   return new Promise((resolve) => {
     execFile(
-      'ffmpeg',
+      ffmpegBinary(),
       args,
       { timeout: TIMEOUT_MS, maxBuffer: MAX_OUTPUT_BYTES, encoding: 'buffer', windowsHide: true },
       (err, stdout) => {
