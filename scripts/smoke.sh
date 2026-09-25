@@ -101,6 +101,9 @@ page /standards                               'Could you pass'
 page /standards/royal-marines-entry-test      'Royal Marines'
 page /standards/usmc-pft                      'PFT'
 page /trainers                                'Own your app'
+# The store is public and server-renders its shelf (or its "opens soon"
+# card before a provider is set up); either way the headline is hard-coded.
+page /shop                                    'not given'
 page /privacy                                 'Privacy'
 page /terms                                   'Terms'
 # Spinner-on-the-server pages: the assertion is that the document builds and
@@ -159,6 +162,11 @@ wall GET  "/api/stripe/checkout-session?session_id=cs_test_smoke0000" "stripe ch
 wall POST /api/notifications/process   "cron notifications/process"
 wall POST /api/admin/reconcile-subscriptions "cron reconcile-subscriptions"
 wall POST /api/admin/error-digest      "cron error-digest"
+wall POST /api/challenges/remind       "cron challenges/remind"
+wall POST /api/shop/sync-orders        "cron shop/sync-orders"
+wall POST /api/admin/shop              "admin store"
+wall POST /api/admin/challenges/review "admin challenge review"
+wall GET  /api/shop/unlocks            "member shop unlocks"
 # Billing-changing member routes: must refuse without a token as well.
 wall POST /api/stripe/cancel-subscription   "member cancel-subscription"
 wall POST /api/stripe/create-portal-session "member billing portal"
@@ -169,6 +177,19 @@ echo "== public endpoints validate input =="
 # One call, not two: the endpoint allows 5 per 15 minutes per IP, so a
 # couple of hand re-runs would otherwise exhaust it and fail a healthy build.
 # 429 is accepted because it also proves the request was refused.
+# Store checkout with nothing in it: refused before Stripe is ever touched.
+fetch POST /api/shop/checkout '{"items":[]}'
+case "$CODE" in
+  400) ok "shop/checkout rejects an empty cart (400)" ;;
+  503) ok "shop/checkout refuses while the store is closed (503)" ;;
+  429) ok "shop/checkout rate-limited (429)" ;;
+  *) fail "shop/checkout → $CODE for an empty cart (expected 400)" ;;
+esac
+# Provider webhooks: unsigned deliveries must be refused.
+fetch POST /api/shop/webhooks/printify '{"type":"order:updated"}'
+case "$CODE" in 401|503) ok "printify webhook refuses an unsigned delivery ($CODE)" ;; *) fail "printify webhook → $CODE unsigned (expected 401)" ;; esac
+fetch POST /api/shop/webhooks/gelato '{"event":"order_status_updated"}'
+case "$CODE" in 401|503) ok "gelato webhook refuses without the secret ($CODE)" ;; *) fail "gelato webhook → $CODE without secret (expected 401)" ;; esac
 fetch POST /api/standards/result '{"email":"not-an-email"}'
 case "$CODE" in
   400) ok "standards/result rejects a bad email (400)" ;;
