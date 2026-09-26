@@ -1,4 +1,6 @@
 'use client';
+
+import { kgToLbs } from '@/lib/utils';
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -201,7 +203,7 @@ export default function WorkoutHistoryPage() {
               </div>
               <div className="p-2.5 bg-surface-elevated rounded-xl">
                 <Dumbbell className="w-4 h-4 text-purple-400 mx-auto mb-1" />
-                <p className="text-sm font-bold text-white">{detailWorkout.totalWeightLifted ?? 0}{weightUnit}</p>
+                <p className="text-sm font-bold text-white">{Math.round(weightUnit === 'lbs' ? kgToLbs(detailWorkout.totalWeightLifted ?? 0) : (detailWorkout.totalWeightLifted ?? 0)).toLocaleString('en-US')} {weightUnit}</p>
                 <p className="text-[10px] text-text-tertiary">lifted</p>
               </div>
             </div>

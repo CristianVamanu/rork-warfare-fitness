@@ -18,7 +18,7 @@ import { compressImage } from '@/lib/imageCompress';
 import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
 import { getSystemConfig } from '@/lib/firestore';
 import { isInFreeTrial, freeTrialEndsAt } from '@/lib/membership';
-import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods } from '@/lib/utils';
+import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods, kgToLbs } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -296,6 +296,11 @@ export default function ProfilePage() {
     : null;
 
   const weightUnit = (profile?.weightUnit as 'kg' | 'lbs') ?? 'kg';
+  // stats.totalWeightLifted is stored in kg (the session logger converts a
+  // lbs entry before saving). Shown in the member's unit: switching kg→lbs
+  // used to relabel the same number.
+  const totalLiftedKg = profile?.stats?.totalWeightLifted ?? 0;
+  const totalLiftedShown = Math.round(weightUnit === 'lbs' ? kgToLbs(totalLiftedKg) : totalLiftedKg).toLocaleString('en-US');
   const trialDays = (membershipConfig as (MembershipConfig & { trialDays?: number }) | null)?.trialDays ?? 0;
   const paidTrialEnabled = !!membershipConfig?.paidTrialEnabled;
   const discountPercent = getActiveDiscountPercent(membershipConfig);
@@ -309,7 +314,7 @@ export default function ProfilePage() {
     // Was `currentWeightKg ?? totalWeightLifted` — i.e. it showed the user's
     // BODY weight under a "total lifted" label for anyone who'd ever logged a
     // weigh-in, contradicting the badge above that reads totalWeightLifted.
-    { icon: Trophy, label: `Total ${weightUnit}`, value: (profile?.stats?.totalWeightLifted ?? 0).toLocaleString(), color: 'text-yellow-400' },
+    { icon: Trophy, label: `Total ${weightUnit}`, value: totalLiftedShown, color: 'text-yellow-400' },
   ];
 
   // Show membership to all non-admin/trainer users, and also to admin so they can see what users see
@@ -365,7 +370,7 @@ export default function ProfilePage() {
                 {profile?.role || 'user'}
               </Badge>
               <Badge variant="muted">Lvl {powerLevel}</Badge>
-              <Badge variant="muted">{(profile?.stats?.totalWeightLifted ?? 0).toLocaleString()}kg lifted</Badge>
+              <Badge variant="muted">{totalLiftedShown} {weightUnit} lifted</Badge>
               {(isActive || inTrial) && (
                 <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />{inTrial && !isActive ? 'Trial' : 'Member'}</Badge>
               )}
