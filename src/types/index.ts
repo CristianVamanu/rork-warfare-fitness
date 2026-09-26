@@ -578,6 +578,10 @@ export interface Channel {
   // admin can stamp each idea with a status. Absent means a normal chat
   // channel, which is what every channel was before boards existed.
   kind?: ChannelKind;
+  // Admin-set position in the list, 0 first. Channels without one sort
+  // after the ordered ones, alphabetically, which is how the list always
+  // read before ordering existed.
+  sortOrder?: number;
   postCount: number;
   createdAt: unknown;
 }

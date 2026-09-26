@@ -2546,7 +2546,26 @@ export async function getChannels(trainerId?: string): Promise<Channel[]> {
   const all = await fetchAllChannels();
   return all
     .filter((c) => !trainerId || c.trainerId === trainerId || !c.trainerId)
-    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    .sort(compareChannels);
+}
+
+/** Admin order first, then the rest by name. */
+export function compareChannels(a: Pick<Channel, 'name' | 'sortOrder'>, b: Pick<Channel, 'name' | 'sortOrder'>): number {
+  const oa = typeof a.sortOrder === 'number' ? a.sortOrder : Number.POSITIVE_INFINITY;
+  const ob = typeof b.sortOrder === 'number' ? b.sortOrder : Number.POSITIVE_INFINITY;
+  if (oa !== ob) return oa - ob;
+  return String(a.name).localeCompare(String(b.name));
+}
+
+/**
+ * Saves the admin's order: every id in the list gets its index as
+ * sortOrder, in one batch, so a half-applied reorder cannot happen.
+ */
+export async function saveChannelOrder(ids: string[]) {
+  const batch = writeBatch(db);
+  ids.forEach((id, i) => batch.update(doc(db, 'channels', id), { sortOrder: i }));
+  await batch.commit();
+  invalidateChannelsCache();
 }
 
 export async function createChannel(data: Omit<Channel, 'id' | 'postCount' | 'createdAt'>) {

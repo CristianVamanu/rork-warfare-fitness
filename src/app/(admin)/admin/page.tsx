@@ -8,7 +8,7 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, ChevronRight, Ban, UserCheck, MicOff, Mic,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
-  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail, Star, Lightbulb,
+  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail, Star, Lightbulb, ArrowUp, ArrowDown, ArrowUpToLine,
 } from 'lucide-react';
 import { IdeasPanel } from '@/components/admin/IdeasPanel';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
@@ -39,7 +39,7 @@ import {
   subscribeAdminConversations, getOrCreateConversation, subscribeMessages, sendMessage, markConversationRead, deleteConversation,
   getMembershipConfig, saveMembershipConfig,
   sendNotification, sendNotificationToAll, getNotificationConfig, saveNotificationConfig,
-  getChannels, channelScopeFor, createChannel, updateChannel, deleteChannel,
+  getChannels, channelScopeFor, createChannel, updateChannel, deleteChannel, saveChannelOrder,
   getCoachingPlans, saveCoachingPlans, assignCoachingPlan, revokeCoachingPlan,
   getMembershipPlans, saveMembershipPlans,
   getExerciseVideos, saveExerciseVideo, deleteExerciseVideo, updateExerciseVideoThumbnail,
@@ -1824,6 +1824,28 @@ function AdminPageInner() {
     }
   }
 
+  // Reorder the list as shown and persist every position. The whole list
+  // is written each time so a channel with no order yet (created before
+  // ordering existed) gets one the first time anything moves.
+  const [savingOrder, setSavingOrder] = useState(false);
+  async function moveChannel(ch: Channel, to: 'up' | 'down' | 'top') {
+    const from = channels.findIndex((c) => c.id === ch.id);
+    if (from < 0) return;
+    const target = to === 'top' ? 0 : to === 'up' ? from - 1 : from + 1;
+    if (target < 0 || target >= channels.length || target === from) return;
+    const next = [...channels];
+    next.splice(from, 1);
+    next.splice(target, 0, ch);
+    const before = channels;
+    setChannels(next.map((c, i) => ({ ...c, sortOrder: i })));
+    setSavingOrder(true);
+    try { await saveChannelOrder(next.map((c) => c.id)); }
+    catch (err) {
+      setChannels(before);
+      toast.error(err instanceof Error ? err.message : 'Could not save the order');
+    } finally { setSavingOrder(false); }
+  }
+
   function startEditChannel(ch: Channel) {
     setEditingChannel(ch);
     setChannelForm({
@@ -3336,7 +3358,7 @@ function AdminPageInner() {
           {channels.some((c) => c.kind === 'ideas') && <IdeasPanel channels={channels} />}
 
           <div className="flex items-center justify-between">
-            <p className="text-text-secondary text-sm">{channels.length} channel{channels.length !== 1 ? 's' : ''}</p>
+            <p className="text-text-secondary text-sm">{channels.length} channel{channels.length !== 1 ? 's' : ''} · shown to members in this order</p>
             <Button size="sm" onClick={() => { setEditingChannel(null); setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, maxMediaPerPost: 1, slowModeDays: 0, allowUserPosts: true, kind: 'chat' }); setShowChannelForm(true); }}>
               <Plus className="w-4 h-4" /> New Channel
             </Button>
@@ -3378,7 +3400,18 @@ function AdminPageInner() {
                         {ch.kind === 'ideas' && <span className="text-accent">💡 ideas board</span>}
                       </div>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-0.5 items-center">
+                      {/* Order as members see it. Top puts a channel first
+                          (Start Here, a live challenge, the ideas board). */}
+                      <button onClick={() => moveChannel(ch, 'top')} disabled={savingOrder || channels[0]?.id === ch.id} aria-label="Move to top" title="Move to top" className="p-2 rounded-lg hover:bg-white/5 text-text-tertiary hover:text-accent transition-colors disabled:opacity-25">
+                        <ArrowUpToLine className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => moveChannel(ch, 'up')} disabled={savingOrder || channels[0]?.id === ch.id} aria-label="Move up" title="Move up" className="p-2 rounded-lg hover:bg-white/5 text-text-tertiary hover:text-white transition-colors disabled:opacity-25">
+                        <ArrowUp className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => moveChannel(ch, 'down')} disabled={savingOrder || channels[channels.length - 1]?.id === ch.id} aria-label="Move down" title="Move down" className="p-2 rounded-lg hover:bg-white/5 text-text-tertiary hover:text-white transition-colors disabled:opacity-25">
+                        <ArrowDown className="w-4 h-4" />
+                      </button>
                       <button onClick={() => startEditChannel(ch)} className="p-2 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
                         <Edit2 className="w-4 h-4" />
                       </button>
