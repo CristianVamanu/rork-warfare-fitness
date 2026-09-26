@@ -17,6 +17,8 @@ import { trackEvent } from '@/lib/analytics';
 import { compressImage } from '@/lib/imageCompress';
 import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
 import { getSystemConfig } from '@/lib/firestore';
+import { EquipmentGrid } from '@/components/ui/EquipmentGrid';
+import { toggleEquipment, equipmentTier, equipmentLabel, isEquipmentItem, type EquipmentItem } from '@/lib/equipment';
 import { isInFreeTrial, freeTrialEndsAt } from '@/lib/membership';
 import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods, kgToLbs } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -671,6 +673,13 @@ export default function ProfilePage() {
           <ReferralCard />
         </motion.div>
 
+        {/* Your equipment: what the session screen checks each exercise
+            against. Members from before the picker have nothing set, and
+            the card says so instead of guessing. */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.158 }}>
+          <EquipmentCard />
+        </motion.div>
+
         {/* Progress Hub */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
           <Link href="/progress">
@@ -941,5 +950,53 @@ export default function ProfilePage() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+
+function EquipmentCard() {
+  const { user, profile, refreshProfile } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const current: EquipmentItem[] = Array.isArray(profile?.equipmentItems) ? (profile.equipmentItems as unknown[]).filter(isEquipmentItem) : [];
+  const [draft, setDraft] = useState<EquipmentItem[]>(current);
+  const openEditor = () => { setDraft(current); setOpen(true); };
+  const save = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const tier = equipmentTier(draft);
+      await updateUserDoc(user.uid, { equipmentItems: draft, ...(tier ? { equipment: tier } : {}) });
+      await refreshProfile();
+      toast.success('Equipment saved');
+      setOpen(false);
+    } catch { toast.error('Could not save'); }
+    finally { setSaving(false); }
+  };
+  return (
+    <>
+      <button onClick={openEditor} className="w-full text-left">
+        <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+          <div className="p-2 bg-accent-muted rounded-lg">
+            <Dumbbell className="w-4 h-4 text-accent" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white">Your equipment</p>
+            <p className="text-xs text-text-secondary truncate">
+              {current.length === 0 ? 'Not set. Tell the app what you have and it flags what a session needs.' : current.map(equipmentLabel).join(', ')}
+            </p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-text-tertiary" />
+        </Card>
+      </button>
+      <Modal open={open} onClose={() => setOpen(false)} title="Your equipment">
+        <p className="text-sm text-text-secondary mb-4">Choose all that apply. Sessions flag anything you don&apos;t have and offer a swap.</p>
+        <EquipmentGrid compact selected={draft} onToggle={(i) => setDraft((d) => toggleEquipment(d, i))} />
+        <div className="flex gap-2 mt-5">
+          <Button variant="secondary" fullWidth onClick={() => setOpen(false)}>Cancel</Button>
+          <Button fullWidth onClick={save} loading={saving} disabled={draft.length === 0}>Save</Button>
+        </div>
+      </Modal>
+    </>
   );
 }

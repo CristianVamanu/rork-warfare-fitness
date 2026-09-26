@@ -15,7 +15,8 @@ import { signUp } from '@/lib/auth';
 import { startPlanCheckout, startCoachingCheckout } from '@/lib/checkout';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, resolveProgram } from '@/lib/firestore';
 import { sessionCampaign } from '@/lib/funnel';
-import { EQUIPMENT_ITEMS, toggleEquipment, equipmentTier, isEquipmentItem, type EquipmentItem } from '@/lib/equipment';
+import { toggleEquipment, equipmentTier, isEquipmentItem, type EquipmentItem } from '@/lib/equipment';
+import { EquipmentGrid } from '@/components/ui/EquipmentGrid';
 import { trackEvent } from '@/lib/analytics';
 import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
 import { lbsToKg, kgToLbs, cmToFtIn, ftInToCm } from '@/lib/utils';
@@ -1694,32 +1695,7 @@ function StepEquipment({ selected, onToggle }: { selected: EquipmentItem[]; onTo
     <div>
       <h1 className="text-2xl font-black text-white mb-1 text-center">What equipment do you have?</h1>
       <p className="text-text-secondary text-sm mb-5 text-center">Choose all that apply. Your program only uses what you have.</p>
-      <div className="grid grid-cols-2 gap-3">
-        {EQUIPMENT_ITEMS.map(({ id, label }) => {
-          const on = selected.includes(id);
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onToggle(id)}
-              aria-pressed={on}
-              className={`text-left rounded-2xl border overflow-hidden transition-all ${on ? 'border-accent shadow-[0_0_0_1px_rgba(245,166,35,0.25)]' : 'border-white/8 hover:border-white/20'}`}
-              style={{ backgroundColor: 'var(--card-glass-bg)' }}
-            >
-              <div className="aspect-square p-5 flex items-center justify-center" style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 55%, rgba(var(--accent-rgb) / 0.10), transparent 75%)' }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/equipment/${id}.webp`} alt="" className="max-w-full max-h-full object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.6)]" loading="lazy" />
-              </div>
-              <div className="flex items-center justify-between gap-2 px-3.5 py-3 border-t border-white/8">
-                <span className="text-sm font-semibold text-white leading-tight">{label}</span>
-                <span className={`w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${on ? 'bg-accent border-accent' : 'border-white/30'}`}>
-                  {on && <CheckCircle className="w-4 h-4 text-black" strokeWidth={3} />}
-                </span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+      <EquipmentGrid selected={selected} onToggle={onToggle} />
       <p className="text-[11px] text-text-tertiary mt-4 text-center">Bodyweight only clears the rest.</p>
     </div>
   );

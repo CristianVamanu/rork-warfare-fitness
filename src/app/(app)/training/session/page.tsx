@@ -24,6 +24,9 @@ import { useDoubleTap } from '@/lib/useDoubleTap';
 import { PlateCalculatorButton } from '@/components/workout/PlateCalculator';
 import type { Exercise, Program } from '@/types';
 import { parseDistance, type DistanceUnit } from '@/lib/distance';
+import { isEquipmentItem, type EquipmentItem } from '@/lib/equipment';
+import { needsFor, missingFor, swapFor, ownedFor, type KitMode } from '@/lib/equipmentNeeds';
+import { KitNeeds, KitModeSwitch } from '@/components/workout/KitNeeds';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -67,6 +70,8 @@ interface ExState {
   notes?: string;
   rpe?: number;
   videoUrl?: string;
+  /** Set when the member swapped this in for a movement they lacked kit for. */
+  swappedFrom?: string;
 }
 
 // Parses a distance target out of a reps string like "5 miles", "3km",
@@ -1630,16 +1635,45 @@ function WorkoutSessionPageInner() {
   // per session; the workout's exercises only carry the video URL, the
   // thumbnail lives on the library entry.
   const [posters, setPosters] = useState<Record<string, string>>({});
+  // Library entries by lower-cased name: equipment tags the admin set, and
+  // the clip for a swapped-in movement when the library has one.
+  const [libByName, setLibByName] = useState<Record<string, { equipment?: string[]; videoUrl?: string }>>({});
   useEffect(() => {
     let alive = true;
     getExerciseVideos().then((lib) => {
       if (!alive) return;
       const map: Record<string, string> = {};
-      for (const v of lib) if (v.videoUrl && v.thumbnailUrl) map[v.videoUrl] = v.thumbnailUrl;
+      const byName: Record<string, { equipment?: string[]; videoUrl?: string }> = {};
+      for (const v of lib) {
+        if (v.videoUrl && v.thumbnailUrl) map[v.videoUrl] = v.thumbnailUrl;
+        byName[v.name.trim().toLowerCase()] = { equipment: v.equipment, videoUrl: v.videoUrl };
+        for (const a of v.aliases ?? []) byName[a.trim().toLowerCase()] ??= { equipment: v.equipment, videoUrl: v.videoUrl };
+      }
       setPosters(map);
+      setLibByName(byName);
     }).catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  // "Where are you today?": the member's own kit by default, overridable
+  // for the session (a hotel day, a drop-in gym). Remembered per tab only.
+  const myKit: EquipmentItem[] = Array.isArray(profile?.equipmentItems) ? (profile.equipmentItems as unknown[]).filter(isEquipmentItem) : [];
+  const [kitMode, setKitMode] = useState<KitMode>(() => {
+    try { const v = sessionStorage.getItem('wf.kitMode'); return v === 'gym' || v === 'bodyweight' ? v : 'mine'; } catch { return 'mine'; }
+  });
+  const changeKitMode = (m: KitMode) => { setKitMode(m); try { sessionStorage.setItem('wf.kitMode', m); } catch { /* ignore */ } };
+  const owned = ownedFor(kitMode, myKit);
+  const libTags = (name: string) => libByName[name.trim().toLowerCase()]?.equipment;
+  const swapExercise = (idx: number) => {
+    setExStates((prev) => prev.map((ex, i) => {
+      if (i !== idx) return ex;
+      const alt = swapFor(ex.name, owned, libTags(ex.name));
+      if (!alt) return ex;
+      const lib = libByName[alt.name.toLowerCase()];
+      return { ...ex, name: alt.name, swappedFrom: ex.swappedFrom ?? ex.name, videoUrl: lib?.videoUrl, notes: undefined };
+    }));
+    toast.success('Swapped for today');
+  };
 
   const totalSets = exStates.reduce((s, e) => s + e.targetSets, 0);
   const completedSets = exStates.reduce(
@@ -1869,6 +1903,7 @@ function WorkoutSessionPageInner() {
       const duration = Math.min(Math.round((Date.now() - startTime) / 60000) || 1, 300);
       const logs = exStates.map((ex) => ({
         name: ex.name,
+        ...(ex.swappedFrom ? { swappedFrom: ex.swappedFrom } : {}),
         sets: ex.sets.map((s) => ({
           weight: s.weight,
           reps: s.reps,
@@ -1982,6 +2017,13 @@ function WorkoutSessionPageInner() {
       {/* ── Body ──────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto pb-40">
         <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-3">
+          {/* Kit for today: who has what decides which exercises get an amber
+              "you don't have this" and a swap. */}
+          {!currentEx.isDistance && (
+            <div className="px-1 -mb-1">
+              <KitModeSwitch mode={kitMode} onChange={changeKitMode} hasOwnKit={myKit.length > 0} />
+            </div>
+          )}
           {/* Exercise title card */}
           <AnimatePresence mode="wait">
             <motion.div
@@ -2023,6 +2065,15 @@ function WorkoutSessionPageInner() {
                   <p className="text-[10px] text-text-tertiary mt-1">
                     {currentEx.videoUrl ? 'Tap the clip for the demo and form cue' : 'Tap ⓘ for the form cue'}
                   </p>
+                  {!currentEx.isDistance && !currentEx.isHiit && (
+                    <KitNeeds
+                      needs={needsFor(currentEx.name, libTags(currentEx.name))}
+                      owned={owned}
+                      swap={swapFor(currentEx.name, owned, libTags(currentEx.name))}
+                      onSwap={() => swapExercise(currentExIdx)}
+                      swappedFrom={currentEx.swappedFrom}
+                    />
+                  )}
                 </div>
                 <ExerciseInfoButton videoUrl={currentEx.videoUrl} poster={currentEx.videoUrl ? posters[currentEx.videoUrl] : undefined} tip={currentEx.notes} name={currentEx.name} />
               </div>

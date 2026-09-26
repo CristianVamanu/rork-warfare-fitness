@@ -16,6 +16,9 @@ import { getProgramDayLimit, hasActiveSubscription } from '@/lib/membership';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import { useAuth } from '@/contexts/AuthContext';
+import { isEquipmentItem, equipmentLabel } from '@/lib/equipment';
+import { dayNeeds, missingFor } from '@/lib/equipmentNeeds';
+import { AlertTriangle } from 'lucide-react';
 import { useLocalDate } from '@/hooks/useLocalDate';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -498,6 +501,23 @@ export default function ProgramDetailPage() {
                     Recovery day. Skip it to move on to {nextSession?.nextTraining ? stripWeekdayPrefix(nextSession.nextTraining.day.label) : 'the next session'}.
                   </p>
                 )}
+                {!isRestToday && todayDay.exercises.length > 0 && (() => {
+                  const needs = dayNeeds(todayDay.exercises);
+                  const mine = Array.isArray(profile?.equipmentItems) ? (profile.equipmentItems as unknown[]).filter(isEquipmentItem) : [];
+                  const missing = missingFor(needs, mine);
+                  return (
+                    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] uppercase tracking-wider text-text-tertiary mr-0.5">Kit</span>
+                      {needs.length === 0 && <span className="text-[11px] text-text-secondary">None, bodyweight session</span>}
+                      {needs.map((n) => (
+                        <span key={n} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${missing.includes(n) ? 'border-amber-400/50 text-amber-300 bg-amber-400/10' : 'border-white/10 text-text-secondary'}`}>
+                          {missing.includes(n) && <AlertTriangle className="w-3 h-3" />}{equipmentLabel(n)}
+                        </span>
+                      ))}
+                      {missing.length > 0 && <span className="text-[11px] text-amber-300/80">swaps offered in the session</span>}
+                    </div>
+                  );
+                })()}
                 {!isRestToday && todayDay.exercises.length > 0 && (
                   <div className="mt-1 rounded-xl border border-white/8 bg-black/20 divide-y divide-white/6">
                     {todayDay.exercises.map((ex, i) => (

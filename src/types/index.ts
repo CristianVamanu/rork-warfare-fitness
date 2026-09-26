@@ -227,6 +227,8 @@ export interface UserProfile {
   // fields on the document, just not previously reflected in this type.
   fitnessGoal?: FitnessGoal;
   experience?: ExperienceLevel;
+  /** Individual equipment items ticked in onboarding or on the profile. See lib/equipment. */
+  equipmentItems?: string[];
   limitations?: string;
   trainingFor?: OnboardingData['trainingFor'];
   occupation?: OnboardingData['occupation'];
