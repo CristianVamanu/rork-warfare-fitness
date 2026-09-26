@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Camera, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy, Smartphone, ShoppingBag } from 'lucide-react';
+import { Edit2, Camera, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy, Smartphone } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -676,23 +676,6 @@ export default function ProfilePage() {
               <div className="flex-1">
                 <p className="text-sm font-medium text-white">Progress Hub</p>
                 <p className="text-xs text-text-secondary">Level, weight trend, weekly activity</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-text-tertiary" />
-            </Card>
-          </Link>
-        </motion.div>
-
-        {/* The store and the member's orders. Public pages, but reachable from
-            here so a member never has to remember the URL. */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.155 }}>
-          <Link href="/shop/orders">
-            <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
-              <div className="p-2 bg-accent-muted rounded-lg">
-                <ShoppingBag className="w-4 h-4 text-accent" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-white">Shop &amp; orders</p>
-                <p className="text-xs text-text-secondary">Gear, some of it earned. Track what you ordered.</p>
               </div>
               <ChevronRight className="w-4 h-4 text-text-tertiary" />
             </Card>

@@ -101,11 +101,9 @@ const RECON_SAMPLE = {
   ],
 };
 
-// Nine links plus Sign In wrapped the desktop header onto two lines. The
-// header now carries the five destinations a visitor actually chooses
-// between; Home is the logo, and Download/Terms/Privacy sit in the phone
-// menu and the footer.
-const HEADER_LINKS = ['/programs', '/standards', '/challenges', '/shop', '/trainers'];
+// Terms and Privacy are footer links, not header ones; with them out the
+// row fits on one line at desktop widths.
+const HEADER_LINKS = ['/', '/programs', '/standards', '/challenges', '/download', '/trainers'];
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
   // Points at the real, indexable pages rather than an anchor on this one.
@@ -116,7 +114,6 @@ const NAV_LINKS = [
   // are reached from that page or from search, never from the menu.
   { href: '/standards', label: 'Standards' },
   { href: '/challenges', label: 'Challenges' },
-  { href: '/shop', label: 'Shop' },
   { href: '/download', label: 'Download App' },
   { href: '/trainers', label: 'For Trainers' },
   { href: '/terms', label: 'Terms' },
@@ -217,17 +214,14 @@ export default function LandingPage({
   initialLanding,
   initialMembership,
   initialMembershipPlans,
-  shopOpen = true,
 }: {
   initialAppName: string;
   initialLogoUrl: string | null;
   initialLanding: LandingPageConfig;
   initialMembership: MembershipConfig | null;
   initialMembershipPlans: MembershipPlan[];
-  /** Admin → Store → Store open. Off drops Shop from the menu. */
-  shopOpen?: boolean;
 }) {
-  const navLinks = shopOpen ? NAV_LINKS : NAV_LINKS.filter((l) => l.href !== '/shop');
+  const navLinks = NAV_LINKS;
   const headerLinks = navLinks.filter((l) => HEADER_LINKS.includes(l.href));
   const { user, loading } = useAuth();
   const router = useRouter();

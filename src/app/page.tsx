@@ -28,7 +28,6 @@ export default async function Page() {
   ]);
   const initialAppName = (cfg?.appName as string) || 'Warfare Fitness';
   const initialLogoUrl = (cfg?.logoUrl as string) || null;
-  const shopOpen = (cfg?.shop as { enabled?: boolean } | undefined)?.enabled !== false;
   const initialLanding: LandingPageConfig = cfg?.landingPage
     ? { ...DEFAULT_LANDING_CONFIG, ...(cfg.landingPage as LandingPageConfig) }
     : DEFAULT_LANDING_CONFIG;
@@ -37,7 +36,6 @@ export default async function Page() {
     <LandingPage
       initialAppName={initialAppName}
       initialLogoUrl={initialLogoUrl}
-      shopOpen={shopOpen}
       initialLanding={initialLanding}
       initialMembership={membershipConfig}
       initialMembershipPlans={membershipPlansRaw}

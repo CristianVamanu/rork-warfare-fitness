@@ -90,7 +90,7 @@ export default async function ProgramsIndexPage() {
       <div className="relative">
         <TacticalBackdrop className="h-[520px]" />
         <div className="relative z-10">
-          <PublicNav programs={navPrograms} logoUrl={brand.logoUrl} appName={brand.appName} shopOpen={brand.shopOpen} />
+          <PublicNav programs={navPrograms} logoUrl={brand.logoUrl} appName={brand.appName} />
 
           <header className="max-w-6xl mx-auto px-5 pt-12 pb-16 sm:pt-20 sm:pb-24">
             <Reveal>
@@ -232,7 +232,7 @@ export default async function ProgramsIndexPage() {
         </Reveal>
       </main>
 
-      <PublicFooter appName={brand.appName} shopOpen={brand.shopOpen} />
+      <PublicFooter appName={brand.appName} />
     </div>
   );
 }

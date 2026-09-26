@@ -98,11 +98,6 @@ vi.mock('firebase-admin/firestore', () => ({
   FieldPath: class { constructor(public path: string) {} },
 }));
 
-const placed: string[] = [];
-vi.mock('@/lib/shop/server', () => ({
-  placeProviderOrder: async (_db: unknown, id: string) => { placed.push(id); return { status: 'submitted', providerOrderId: 'g1' }; },
-}));
-
 // Imported after the mocks are registered.
 const { POST } = await import('./route');
 
@@ -211,25 +206,6 @@ describe('checkout.session.completed', () => {
 });
 
 // ── Subscription lifecycle ──────────────────────────────────────────────────
-
-describe('shop order paid', () => {
-  const shopEvt = () => ({
-    id: 'evt_s', type: 'checkout.session.completed',
-    data: { object: { mode: 'payment', payment_status: 'paid', payment_intent: 'pi_1', metadata: { kind: 'shop_order', orderId: 'o1' },
-      customer_details: { email: 'buyer@x.co', name: 'B', address: { line1: '1 St', city: 'C', postal_code: '1', country: 'US' } } } },
-  });
-
-  it('marks the order paid and places it with the provider once, even when Stripe delivers twice', async () => {
-    placed.length = 0;
-    db.docs.set('orders/o1', { status: 'pending_payment', accessToken: 'tok', email: '' });
-    expect((await POST(req(shopEvt()))).status).toBe(200);
-    expect((await POST(req(shopEvt()))).status).toBe(200);
-    expect(db.docs.get('orders/o1')?.status).toBe('paid');
-    expect(db.docs.get('orders/o1')?.email).toBe('buyer@x.co');
-    expect(placed).toEqual(['o1']);
-    expect(sentEmails.filter((m) => m.to === 'buyer@x.co')).toHaveLength(1);
-  });
-});
 
 describe('customer.subscription.updated', () => {
   const evt = (status: string, over: Record<string, unknown> = {}) => ({

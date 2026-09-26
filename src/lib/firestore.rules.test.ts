@@ -874,30 +874,3 @@ describe('channel replies — editable and deletable', () => {
   });
 });
 
-describe('store', () => {
-  beforeEach(async () => {
-    await seed(async (db) => {
-      await setDoc(doc(db, 'products', 'hoodie'), { name: 'Hoodie', active: true, earnedOnly: true, unlockedBy: [] });
-      await setDoc(doc(db, 'products', 'draft'), { name: 'Draft', active: false });
-      await setDoc(doc(db, 'orders', 'o1'), { userId: ALICE, status: 'paid', accessToken: 'x' });
-      await setDoc(doc(db, 'orders', 'o2'), { userId: null, status: 'paid', accessToken: 'y' });
-    });
-  });
-
-  it('products: members read active ones, only admins write', async () => {
-    await assertSucceeds(getDoc(doc(asAlice(), 'products', 'hoodie')));
-    await assertFails(getDoc(doc(asAlice(), 'products', 'draft')));
-    await assertSucceeds(getDoc(doc(asAdmin(), 'products', 'draft')));
-    await assertFails(updateDoc(doc(asAlice(), 'products', 'hoodie'), { earnedOnly: false }));
-    await assertFails(updateDoc(doc(asAlice(), 'products', 'hoodie'), { priceCents: 1 }));
-    await assertSucceeds(updateDoc(doc(asAdmin(), 'products', 'hoodie'), { unlockedBy: ['ch1'] }));
-  });
-
-  it('orders: a member reads only their own, nobody writes from the client', async () => {
-    await assertSucceeds(getDoc(doc(asAlice(), 'orders', 'o1')));
-    await assertFails(getDoc(doc(asBob(), 'orders', 'o1')));
-    await assertFails(getDoc(doc(asAlice(), 'orders', 'o2')));
-    await assertFails(updateDoc(doc(asAlice(), 'orders', 'o1'), { status: 'delivered' }));
-    await assertFails(setDoc(doc(asAlice(), 'orders', 'o3'), { userId: ALICE, status: 'paid', totalCents: 0 }));
-  });
-});

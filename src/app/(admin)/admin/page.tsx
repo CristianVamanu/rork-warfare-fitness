@@ -13,7 +13,6 @@ import {
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
-import { StorePanel } from '@/components/admin/StorePanel';
 import { PromoCodesPanel } from '@/components/admin/PromoCodesPanel';
 import { EmailsPanel } from '@/components/admin/EmailsPanel';
 import { Mail as MailIcon } from 'lucide-react';
@@ -130,14 +129,6 @@ const SECRET_GROUPS: { title: string; service: string; keys: { key: string; labe
     title: 'Push Notifications (VAPID)', service: 'vapid', keys: [
       { key: 'NEXT_PUBLIC_VAPID_PUBLIC_KEY', label: 'Public Key', placeholder: '' },
       { key: 'VAPID_PRIVATE_KEY', label: 'Private Key', placeholder: '' },
-    ],
-  },
-  {
-    title: 'Print-on-demand (store)', service: 'pod', keys: [
-      { key: 'PRINTIFY_API_KEY', label: 'Printify API token', placeholder: 'eyJ...' },
-      { key: 'PRINTIFY_WEBHOOK_SECRET', label: 'Printify webhook secret', placeholder: 'the secret you set on the webhook' },
-      { key: 'GELATO_API_KEY', label: 'Gelato API key', placeholder: '' },
-      { key: 'GELATO_WEBHOOK_SECRET', label: 'Gelato webhook secret', placeholder: 'sent as X-Webhook-Secret' },
     ],
   },
   {
@@ -2829,7 +2820,6 @@ function AdminPageInner() {
     <div className="space-y-5 max-w-[1180px]">
       {/* ── Restore ──────────────────────────────────────────────────────────── */}
       {tab === 'restore' && <RestorePanel />}
-      {tab === 'store' && <StorePanel />}
 
       {/* ── Overview ─────────────────────────────────────────────────────────── */}
       {tab === 'overview' && (

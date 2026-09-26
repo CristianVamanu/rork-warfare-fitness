@@ -11,7 +11,7 @@ import type { MembershipConfig, MembershipPlan } from '@/types';
  * pages are statically revalidated, so they read through the admin credentials
  * the rest of the server already uses.
  */
-export interface PublicBranding { appName: string; logoUrl: string | null; /** Admin → Store → "Store open". Off hides every Shop link and closes /shop. */ shopOpen: boolean }
+export interface PublicBranding { appName: string; logoUrl: string | null }
 
 // Short cache: the admin flips "Store open" and expects the menu to follow
 // on the next load, not a minute later.
@@ -19,7 +19,7 @@ let cache: { at: number; value: PublicBranding } | null = null;
 
 export async function getPublicBranding(): Promise<PublicBranding> {
   if (cache && Date.now() - cache.at < 10_000) return cache.value;
-  const fallback: PublicBranding = { appName: 'Warfare Fitness', logoUrl: null, shopOpen: false };
+  const fallback: PublicBranding = { appName: 'Warfare Fitness', logoUrl: null };
   try {
     const app = getAdminApp();
     if (!app) return fallback;
@@ -27,7 +27,6 @@ export async function getPublicBranding(): Promise<PublicBranding> {
     const value = {
       appName: (snap.data()?.appName as string) || fallback.appName,
       logoUrl: (snap.data()?.logoUrl as string) || null,
-      shopOpen: (snap.data()?.shop as { enabled?: boolean } | undefined)?.enabled !== false,
     };
     cache = { at: Date.now(), value };
     return value;

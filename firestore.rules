@@ -1134,21 +1134,6 @@ service cloud.firestore {
       }
     }
 
-    // ── Store ─────────────────────────────────────────────────────────────
-    // Products are edited by admins (the store panel and the challenge
-    // editor's Rewards picker write here directly); the storefront reads
-    // them through /api/public/shop, so no member read is needed, but the
-    // in-app pages may read active ones. Orders are server-written only —
-    // a member may read their own, and that is all.
-    match /products/{productId} {
-      allow read: if isAdmin() || (isAuthed() && resource.data.get('active', false) == true);
-      allow create, update, delete: if isAdmin();
-    }
-    match /orders/{orderId} {
-      allow read: if isAuthed() && notTfaPending() && resource.data.get('userId', '') == uid();
-      allow write: if false;
-    }
-
     // ── Client goals (trainer/admin sets, client checks in on progress) ───
     match /goals/{goalId} {
       allow read: if isAuthed() && (resource.data.userId == uid() || isAdminOrOwnTrainer(resource.data.userId)) && notTfaPending();

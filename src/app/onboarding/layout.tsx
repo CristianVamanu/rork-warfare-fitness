@@ -24,7 +24,7 @@ export default async function OnboardingLayout({ children }: { children: React.R
         programs={programs.map((p) => ({ name: p.name, slug: p.slug }))}
         logoUrl={brand.logoUrl}
         appName={brand.appName}
-        shopOpen={brand.shopOpen}
+       
       />
       {children}
     </>

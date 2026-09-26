@@ -47,7 +47,7 @@ else fail "pm2 not found"; fi
 
 echo "== cron =="
 CT=$(crontab -l 2>/dev/null)
-for job in notifications/process admin/reconcile-subscriptions admin/backup admin/error-digest challenges/remind shop/sync-orders; do
+for job in notifications/process admin/reconcile-subscriptions admin/backup admin/error-digest challenges/remind; do
   if printf '%s' "$CT" | grep -q "$job"; then ok "cron: $job"; else fail "cron missing: $job"; fi
 done
 if printf '%s' "$CT" | grep "reconcile" | grep -q -- "--max-time"; then ok "reconcile cron has --max-time"; else warn "reconcile cron has no --max-time (deploy.sh rewrites it on the next deploy)"; fi

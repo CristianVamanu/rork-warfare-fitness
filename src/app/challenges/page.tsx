@@ -34,13 +34,13 @@ export default async function ChallengesIndex() {
       <div className="relative">
         <TacticalBackdrop className="h-[640px]" />
         <div className="relative z-10">
-          <PublicNav programs={navPrograms} logoUrl={brand.logoUrl} appName={brand.appName} shopOpen={brand.shopOpen} />
+          <PublicNav programs={navPrograms} logoUrl={brand.logoUrl} appName={brand.appName} />
           <main className="max-w-5xl mx-auto px-5 pt-6 pb-20">
             <header className="mb-8">
               <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-accent">Warfare Fitness · Challenges</p>
               <h1 className="text-4xl md:text-6xl font-black leading-[0.95] mt-2">Prove it.<br /><span className="text-accent">Then wear it.</span></h1>
               <p className="text-base text-white/70 mt-4 max-w-xl leading-relaxed">
-                Enter a challenge, post your result with proof, and an admin checks it before it counts. Finishers earn XP, a badge, and access to the earned rack in the shop.
+                Enter a challenge, post your result with proof, and an admin checks it before it counts. Finishers earn XP and a badge on their profile.
               </p>
             </header>
 
@@ -59,7 +59,7 @@ export default async function ChallengesIndex() {
           </main>
         </div>
       </div>
-      <PublicFooter appName={brand.appName} shopOpen={brand.shopOpen} />
+      <PublicFooter appName={brand.appName} />
     </div>
   );
 }
