@@ -10,7 +10,7 @@ import { loadPublicChallenges, type PublicChallenge } from '@/lib/challengesPubl
 
 export const metadata: Metadata = {
   title: 'Challenges — Warfare Fitness',
-  description: 'Open challenges from the Warfare Fitness community. Enter, post your result, get it verified, earn the badge.',
+  description: 'Open challenges from Warfare Fitness. Pick one, do the work, post your proof. Every result is checked before it counts.',
   alternates: { canonical: '/challenges' },
 };
 
@@ -38,22 +38,22 @@ export default async function ChallengesIndex() {
           <main className="max-w-5xl mx-auto px-5 pt-6 pb-20">
             <header className="mb-8">
               <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-accent">Warfare Fitness · Challenges</p>
-              <h1 className="text-4xl md:text-6xl font-black leading-[0.95] mt-2">Prove it.<br /><span className="text-accent">Then wear it.</span></h1>
+              <h1 className="text-4xl md:text-6xl font-black leading-[0.95] mt-2">Talk is free.<br /><span className="text-accent">Proof is earned.</span></h1>
               <p className="text-base text-white/70 mt-4 max-w-xl leading-relaxed">
-                Enter a challenge, post your result with proof, and an admin checks it before it counts. Finishers earn XP and a badge on their profile.
+                Pick a challenge. Do the work. Post your proof. A human checks every result before it counts, so the board is the truth and the badge means you did it. No filters, no shortcuts, no participation trophies.
               </p>
             </header>
 
             {items.length === 0 ? (
               <div className="rounded-3xl border border-white/10 p-12 text-center" style={{ backgroundColor: 'var(--card-glass-bg)' }}>
-                <p className="text-lg font-bold">No challenges yet</p>
-                <p className="text-sm text-white/60 mt-1">The first one drops in the app. Join and you will be told the moment it goes live.</p>
-                <Link href="/onboarding" className="inline-flex items-center gap-2 mt-6 rounded-2xl bg-accent text-black font-bold px-5 py-3">Join Warfare Fitness <ChevronRight className="w-4 h-4" /></Link>
+                <p className="text-lg font-bold">The next one is loading.</p>
+                <p className="text-sm text-white/60 mt-1">Challenges go live inside the app first. Be in it when the next one drops.</p>
+                <Link href="/onboarding" className="inline-flex items-center gap-2 mt-6 rounded-2xl bg-accent text-black font-bold px-5 py-3">Get in <ChevronRight className="w-4 h-4" /></Link>
               </div>
             ) : (
               <>
-                {live.length > 0 && <Section title="Live now" items={live} />}
-                {closed.length > 0 && <Section title="Closed" items={closed} muted />}
+                {live.length > 0 && <Section title="Open now" items={live} />}
+                {closed.length > 0 && <Section title="Done and dusted" items={closed} muted />}
               </>
             )}
           </main>
