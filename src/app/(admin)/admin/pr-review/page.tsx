@@ -12,6 +12,7 @@ import {
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
+import { FeedMedia } from '@/components/community/FeedMedia';
 import toast from 'react-hot-toast';
 import type { PRPost } from '@/types';
 
@@ -95,7 +96,7 @@ export default function PRReviewPage() {
         ) : (
           <div className="space-y-3">
             {shown.map((post, i) => (
-              <motion.div key={post.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
+              <div key={post.id} className="wf-rise" style={{ animationDelay: `${i * 0.03}s` }}>
                 <Card className="p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0 text-xs font-bold text-accent">
@@ -120,14 +121,10 @@ export default function PRReviewPage() {
                   </div>
 
                   {post.mediaUrl && (
-                    <div className="rounded-xl overflow-hidden mb-3 bg-black">
-                      {post.mediaType === 'video' ? (
-                        <video src={post.mediaUrl} controls className="w-full max-h-72" />
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={post.mediaUrl} alt={post.exerciseName} className="w-full max-h-72 object-cover" />
-                      )}
-                    </div>
+                    // Shown whole, not cropped — the reviewer is verifying the
+                    // number on the bar/screen, which is exactly what a cover
+                    // crop of a tall phone photo cuts off.
+                    <FeedMedia url={post.mediaUrl} kind={post.mediaType === 'video' ? 'video' : 'image'} alt={post.exerciseName} className="mb-3" />
                   )}
                   {!post.mediaUrl && (
                     <p className="text-xs text-text-tertiary italic mb-3">No photo/video attached — verify with care.</p>
@@ -189,7 +186,7 @@ export default function PRReviewPage() {
                     </div>
                   </div>
                 </Card>
-              </motion.div>
+              </div>
             ))}
           </div>
         )}

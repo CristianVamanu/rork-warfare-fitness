@@ -8,6 +8,7 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 
 // ─── Breathing methods ──────────────────────────────────────────────────────
 // Each phase drives both the visual guide's scale target and its duration —
@@ -27,6 +28,40 @@ interface BreathingMethod {
   pattern: string;
   description: string;
   phases: Phase[];
+  /**
+   * Shown before the session starts, for methods where that matters.
+   *
+   * Only one method has ever needed this, and it needs it badly: the Wim
+   * Hof cycle deliberately drives CO2 down and people do faint doing it.
+   * The other five are ordinary paced breathing at a normal rate.
+   */
+  safety?: string;
+}
+
+/**
+ * One round of the Wim Hof method, as an explicit phase list.
+ *
+ * Thirty full breaths — in fully, let the exhale fall out rather than
+ * forcing it — then an exhale-hold retention, then one recovery breath held
+ * for fifteen seconds. The session loop repeats the phase list, so rounds
+ * come for free; a round runs about three and a half minutes, which makes
+ * the ten-minute session roughly three rounds.
+ *
+ * The retention is fixed at 60 seconds rather than "as long as you can".
+ * A guided timer cannot tell when someone is struggling, and the method's
+ * own instruction is to hold only as long as it stays comfortable — so it
+ * is a floor to breathe again at, not a target to beat. The copy says so.
+ */
+function wimHofRound(): Phase[] {
+  const phases: Phase[] = [];
+  for (let i = 0; i < 30; i++) {
+    phases.push({ type: 'inhale', seconds: 2 });
+    phases.push({ type: 'exhale', seconds: 2 });
+  }
+  phases.push({ type: 'hold-out', seconds: 60 });
+  phases.push({ type: 'inhale', seconds: 2 });
+  phases.push({ type: 'hold-in', seconds: 15 });
+  return phases;
 }
 
 const METHODS: BreathingMethod[] = [
@@ -83,6 +118,16 @@ const METHODS: BreathingMethod[] = [
       { type: 'hold-in', seconds: 2 },
       { type: 'exhale', seconds: 6 },
     ],
+  },
+  {
+    id: 'wim-hof',
+    name: 'Wim Hof Method',
+    pattern: '30 breaths → hold → recover',
+    description:
+      'Thirty deep breaths, then hold on the empty lungs, then one recovery breath held for fifteen seconds. Breathe in fully and let the exhale fall out — do not force it. A round takes about three and a quarter minutes, so five minutes is one full round and ten minutes is three.',
+    safety:
+      'Sit or lie down before you start, and stay there for the whole session. Never do this in or near water, in a bath or shower, while driving, or standing up — this pattern can make you light-headed and people do faint doing it. That is the reason for the position, not a formality. Come out of the hold and breathe normally the moment it stops being comfortable; the timer is a ceiling, not a target. Skip this method if you are pregnant, or have epilepsy, a heart condition, or high blood pressure, unless a doctor has told you otherwise.',
+    phases: wimHofRound(),
   },
 ];
 
@@ -230,9 +275,10 @@ export default function BreathingPage() {
   return (
     <div>
       {step !== 'session' && <Header title="Breathing" showBack />}
+      <PaywallGate feature="breathing" noTaste>
 
       {step === 'method' && (
-        <div className="px-4 py-4 space-y-3 max-w-lg mx-auto">
+        <div className="px-4 py-4 space-y-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
           <p className="text-text-secondary text-sm mb-2">Pick a technique to relax and reset.</p>
           {METHODS.map((m) => (
             <motion.button
@@ -260,10 +306,29 @@ export default function BreathingPage() {
       )}
 
       {step === 'duration' && method && (
-        <div className="px-4 py-4 max-w-lg mx-auto">
+        <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
           <button onClick={() => setStep('method')} className="text-xs text-text-secondary mb-4">← Choose a different method</button>
           <h2 className="text-xl font-black text-white mb-1">{method.name}</h2>
-          <p className="text-text-secondary text-sm mb-6">How long do you want to practice?</p>
+          <p className="text-text-secondary text-sm mb-4">How long do you want to practice?</p>
+
+          {/* Placed here rather than on the method card, because this is the
+              last screen before the session actually starts — a warning one
+              tap earlier is a warning that can be scrolled past and
+              forgotten. Not dismissible, and not behind a "got it" button
+              either: a checkbox people tap reflexively is worse than text
+              they have to read on the way to the thing they came for. */}
+          {method.safety && (
+            <div className="flex items-start gap-3 p-4 mb-6 rounded-2xl bg-amber-400/[0.08] border border-amber-400/30">
+              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-amber-400 mb-1.5">
+                  Read before you start
+                </p>
+                <p className="text-sm text-text-secondary leading-relaxed">{method.safety}</p>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             {DURATIONS.map((d) => (
               <button key={d.minutes} onClick={() => startSession(method, d.minutes)}>
@@ -279,7 +344,7 @@ export default function BreathingPage() {
 
       {step === 'session' && method && (
         <div className="min-h-screen bg-background flex flex-col items-center justify-between py-8 px-4">
-          <div className="w-full max-w-lg flex items-center justify-between">
+          <div className="w-full max-w-lg md:max-w-2xl lg:max-w-4xl flex items-center justify-between">
             <button onClick={requestQuit} className="p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/8 transition-colors" aria-label="End session">
               <X className="w-5 h-5" />
             </button>
@@ -348,7 +413,7 @@ export default function BreathingPage() {
 
       {step === 'complete' && (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 text-center">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-sm w-full">
+          <div className="max-w-sm w-full wf-rise">
             <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-5">
               <CheckCircle className="w-8 h-8 text-accent" />
             </div>
@@ -359,9 +424,10 @@ export default function BreathingPage() {
             <Button fullWidth size="lg" onClick={() => { setStep('method'); setMethod(null); }}>
               Done
             </Button>
-          </motion.div>
+          </div>
         </div>
       )}
+      </PaywallGate>
     </div>
   );
 }

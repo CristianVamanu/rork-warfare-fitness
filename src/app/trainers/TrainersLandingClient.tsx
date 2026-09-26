@@ -318,6 +318,7 @@ function InlineHeroVideo({ src, posterUrl }: { src: string; posterUrl?: string }
         muted
         playsInline
         controls
+        crossOrigin="anonymous"
         className="block max-h-[560px] max-w-full w-auto h-auto mx-auto"
       />
     </div>

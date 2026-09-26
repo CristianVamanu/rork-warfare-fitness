@@ -1,27 +1,32 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Sparkles, ChevronLeft, Plus, Trash2, ChevronUp, ChevronDown, Save,
-  Users, CheckCircle, Loader2, Moon, Dumbbell, AlertCircle, Video, Search, X, Play, Upload,
+  Sparkles, Plus, Trash2, ChevronUp, ChevronDown, Save,
+  Users, CheckCircle, Loader2, Moon, Dumbbell, AlertCircle, Video, Search, X, Play, Upload, FileText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   getProgram, createProgram, updateProgram, upsertProgram, getAllUsers, enrollInProgram,
   matchExercisesToVideos, getExerciseVideos, getSystemConfig, saveExerciseVideo,
 } from '@/lib/firestore';
-import { getMockProgram } from '@/lib/programs';
-import { uploadVideo, type StorageProvider } from '@/lib/uploadVideo';
+import { getMockProgram, absoluteDayNumber, phaseDayOccurrences } from '@/lib/programs';
+import { parseDistance } from '@/lib/distance';
+import { uploadVideo, resolveStorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
+import type { AgeBracket, FitnessGoal } from '@/types';
+import { ONBOARDING_GOALS, AGE_BRACKETS } from '@/lib/onboardingGoals';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { AdminShell } from '@/components/admin/AdminShell';
+import { adminGroups } from '@/components/admin/nav';
 import type { Program, ExerciseVideo } from '@/types';
 import { stripUndefinedDeep } from '@/lib/utils';
 
@@ -74,6 +79,10 @@ interface BProg {
   daysPerWeek: number;
   visibility: 'public' | 'coaching';
   targetGender: 'male' | 'female' | 'anyone';
+  suitableEquipment: ('minimal' | 'home' | 'full-gym')[];
+  priorityPick: boolean;
+  recommendedForGoals: FitnessGoal[];
+  ageBrackets: AgeBracket[];
   imageUrl: string;
   schedule: BDay[];
   phases: BPhase[];
@@ -81,7 +90,13 @@ interface BProg {
 
 interface UserRow { id: string; displayName?: string; email?: string; role?: string; activeProgram?: { programName?: string } }
 
-const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// Day slots are labelled by their position in the WHOLE program, not by
+// weekday. Weekday names were wrong twice over: the athlete never sees them
+// (the training screen numbers days absolutely, and stripWeekdayPrefix strips
+// weekday names out of labels), and they made every phase look like it
+// restarted the program at Monday — Phase 3 of a 13-week block opened on
+// "Mon" exactly like Phase 1. See absoluteDayNumber in lib/programs.ts.
+const SLOTS = [0, 1, 2, 3, 4, 5, 6];
 const MUSCLE_GROUPS = ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Glutes', 'Core', 'Cardio', 'Full Body', 'Other'];
 
 // Program data (seed programs + some admin-created ones) stores muscleGroup
@@ -119,7 +134,7 @@ function blankEx(): BEx {
 function emptyProg(): BProg {
   return {
     name: '', description: '', level: 'intermediate', goal: 'hypertrophy',
-    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', imageUrl: '',
+    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', suitableEquipment: [], priorityPick: false, recommendedForGoals: [], ageBrackets: [], imageUrl: '',
     schedule: [blankDay('Push Day'), blankDay('Pull Day'), blankDay('Legs'), restDay(), blankDay('Upper Body'), restDay(), restDay()],
     phases: [],
   };
@@ -182,6 +197,13 @@ function BuilderInner() {
   const [activeDay, setActiveDay] = useState(0);
   const [activePhase, setActivePhase] = useState(0);
   const [expandedEx, setExpandedEx] = useState<string | null>(null);
+  // Explicit per-exercise Timed/Distance mode for cardio exercises — can't
+  // be derived purely from whether `reps` currently parses as a distance,
+  // because an empty/in-progress distance string ("", "5") doesn't parse
+  // either, which made the toggle look broken: clicking "Distance" cleared
+  // reps to '' expecting the view to switch, but '' isn't a valid distance
+  // so the derived mode silently stayed "Timed" and nothing appeared to happen.
+  const [cardioModeOverride, setCardioModeOverride] = useState<Record<string, 'timed' | 'distance'>>({});
 
   // Every day-editing helper below reads/writes through these two functions
   // instead of touching prog.schedule directly, so the exact same editor UI
@@ -190,6 +212,22 @@ function BuilderInner() {
   const activeSchedule: BDay[] = prog.phases.length > 0
     ? (prog.phases[activePhase]?.schedule ?? [])
     : prog.schedule;
+
+  // Where the day slots on screen sit in the whole program.
+  //
+  // With no phases there is one template repeating for every week, so it
+  // starts at week 1 and runs to prog.weeks. With phases, the active phase's
+  // own week range decides — which is what stops Phase 2 from opening at
+  // "day 1" again. startWeek is admin-editable and these recompute from it,
+  // so dragging a phase from week 5 to week 6 renumbers its days immediately.
+  const phaseStartWeek = prog.phases.length > 0 ? (prog.phases[activePhase]?.startWeek ?? 1) : 1;
+  const phaseEndWeek = prog.phases.length > 0
+    ? (prog.phases[activePhase]?.endWeek ?? phaseStartWeek)
+    : Math.max(1, prog.weeks);
+  const slotLen = activeSchedule.length || 7;
+  const dayNumberFor = (slot: number) => absoluteDayNumber(phaseStartWeek, slot, slotLen);
+  /** Every absolute day this one slot covers — a phase spanning 3 weeks repeats it 3 times. */
+  const dayRepeatsFor = (slot: number) => phaseDayOccurrences(phaseStartWeek, phaseEndWeek, slot, slotLen);
 
   function setActiveSchedule(updater: (schedule: BDay[]) => BDay[]) {
     setProg((s) => {
@@ -255,6 +293,9 @@ function BuilderInner() {
 
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiDoc, setAiDoc] = useState<{ name: string; text: string; truncated: boolean } | null>(null);
+  const [aiDocExtracting, setAiDocExtracting] = useState(false);
+  const aiDocInputRef = useRef<HTMLInputElement>(null);
   const [aiGenerated, setAiGenerated] = useState(false);
 
   const [saving, setSaving] = useState(false);
@@ -268,7 +309,7 @@ function BuilderInner() {
     setUploadingImage(true);
     try {
       const cfg = await getSystemConfig().catch(() => null);
-      const provider = ((cfg?.storageProvider as StorageProvider) || 'firebase');
+      const provider = resolveStorageProvider(cfg?.storageProvider);
       const url = await uploadVideo(provider, user, file, 'programImages');
       setProg((s) => ({ ...s, imageUrl: url }));
       toast.success('Cover image uploaded');
@@ -303,11 +344,22 @@ function BuilderInner() {
   interface LoadedProgram {
     name: string; description: string; level: BProg['level']; goal: BProg['goal'];
     weeks: number; daysPerWeek: number; visibility?: string; targetGender?: BProg['targetGender']; imageUrl?: string;
+    suitableEquipment?: BProg['suitableEquipment']; priorityPick?: boolean;
+    recommendedForGoals?: FitnessGoal[];
+    ageBrackets?: AgeBracket[];
     schedule?: BDay[];
     phases?: { id: string; label: string; startWeek: number; endWeek: number; schedule: BDay[] }[];
   }
 
   useEffect(() => {
+    // Navigating between programs in the builder reuses this same component
+    // instance (only `programId` changes) rather than remounting — without
+    // this, an AI prompt/uploaded document attached while generating one
+    // program would silently persist and get sent along with the next,
+    // unrelated program's generation.
+    setAiPrompt('');
+    setAiDoc(null);
+    setAiGenerated(false);
     if (!programId) return;
     getProgram(programId)
       .then((p) => {
@@ -364,6 +416,10 @@ function BuilderInner() {
           daysPerWeek: program.daysPerWeek,
           visibility: (program.visibility as 'public' | 'coaching') ?? 'public',
           targetGender: program.targetGender ?? 'anyone',
+          suitableEquipment: program.suitableEquipment ?? [],
+          priorityPick: program.priorityPick === true,
+          recommendedForGoals: program.recommendedForGoals ?? [],
+          ageBrackets: program.ageBrackets ?? [],
           imageUrl: program.imageUrl ?? '',
           schedule,
           phases,
@@ -409,25 +465,125 @@ function BuilderInner() {
       .catch(() => {});
   }, []);
 
+  async function handleAiDocUpload(file: File) {
+    if (!user) return;
+    setAiDocExtracting(true);
+    try {
+      const token = await getIdToken(user);
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/ai/extract-document', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to read file');
+      setAiDoc({ name: file.name, text: data.text, truncated: data.truncated });
+      if (data.truncated) toast(`Only the first part of "${file.name}" was used (it's a long document) — the program will still be based on it.`, { icon: '📄' });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to read file');
+    } finally {
+      setAiDocExtracting(false);
+      if (aiDocInputRef.current) aiDocInputRef.current.value = '';
+    }
+  }
+
   async function generateWithAI() {
     if (!aiPrompt.trim() || !user) return;
     setAiLoading(true);
+    // A multi-phase program can genuinely take a while to generate — but
+    // without a cap, a dropped/stalled connection just spins forever with
+    // no feedback ("generating... nothing happens"). This needs to be an
+    // IDLE timeout (reset every time a chunk actually arrives), not a flat
+    // total-duration one — a flat 100s cutoff was exactly why longer
+    // prompts kept failing while short ones worked: the stream was still
+    // healthy and making progress, just past 100s of *total* elapsed time.
+    const controller = new AbortController();
+    let idleTimeoutId: ReturnType<typeof setTimeout> = setTimeout(() => {}, 0);
+    const IDLE_TIMEOUT_MS = 45_000;
+    const resetIdleTimeout = () => {
+      clearTimeout(idleTimeoutId);
+      idleTimeoutId = setTimeout(() => controller.abort(), IDLE_TIMEOUT_MS);
+    };
+    resetIdleTimeout();
     try {
       const token = await getIdToken(user);
       const res = await fetch('/api/ai/generate-program', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ prompt: aiPrompt }),
+        body: JSON.stringify({ prompt: aiPrompt, documentText: aiDoc?.text }),
+        signal: controller.signal,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
+      // The route streams its response — bytes keep flowing to the client
+      // the whole time OpenAI is generating, which defeats an idle-timeout
+      // proxy/gateway that would otherwise kill a long-held silent request
+      // and hand back an HTML error page instead of real JSON. Everything
+      // before the __RESULT__ marker is just keep-alive filler; the actual
+      // payload is the JSON after it.
+      if (!res.body) throw new Error('No response body');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let raw = '';
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        resetIdleTimeout(); // still receiving bytes — not actually stuck
+        raw += decoder.decode(value, { stream: true });
+      }
+      const marker = raw.indexOf('__RESULT__');
+      const payload = marker === -1 ? raw : raw.slice(marker + '__RESULT__'.length);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let data: { program?: any; error?: string };
+      try {
+        data = JSON.parse(payload);
+      } catch {
+        throw new Error('Server returned an unexpected response — the connection may have dropped before generation finished. Try a shorter prompt or fewer weeks.');
+      }
+      if (data.error) throw new Error(data.error);
+      if (!data.program) throw new Error('No program returned');
 
       const p = data.program;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawPhases: any[] = Array.isArray(p.phases) ? p.phases : [];
 
-      // Collect all exercise names and match to library videos
-      const allExNames: string[] = (p.schedule ?? [])
-        .flatMap((d: BDay) => (d.exercises ?? []).map((e: BEx) => e.name).filter(Boolean));
+      // Collect exercise names across every phase's schedule (or the flat
+      // schedule if the model didn't return phases) and match them all to
+      // library videos in one batch.
+      const allSchedulesRaw: BDay[][] = rawPhases.length > 0
+        ? rawPhases.map((ph) => ph.schedule ?? [])
+        : [p.schedule ?? []];
+      const allExNames: string[] = allSchedulesRaw
+        .flatMap((s) => s.flatMap((d: BDay) => (d.exercises ?? []).map((e: BEx) => e.name).filter(Boolean)));
       const videoMap = allExNames.length > 0 ? await matchExercisesToVideos(allExNames).catch(() => ({})) : {};
+
+      const normalizeSchedule = (rawSchedule: BDay[]): BDay[] => (rawSchedule || []).map((d: BDay) => ({
+        label: d.label || (d.isRest ? 'Rest' : 'Training Day'),
+        isRest: !!d.isRest,
+        dayNote: d.dayNote || '',
+        exercises: (d.exercises || []).map((e: BEx) => ({
+          id: Math.random().toString(36).slice(2),
+          name: e.name || '',
+          muscleGroup: normalizeMuscleGroup(e.muscleGroup),
+          sets: Number(e.sets) || 3,
+          reps: String(e.reps || '8-12'),
+          rpe: Number(e.rpe) || 8,
+          restSeconds: Number(e.restSeconds) || 90,
+          notes: e.notes || '',
+          isCardio: !!e.isCardio,
+          cardioDurationSeconds: (e as BEx).cardioDurationSeconds,
+          videoUrl: (videoMap as Record<string, string>)[e.name] ?? '',
+        })),
+      }));
+
+      const phases: BPhase[] = rawPhases.map((ph, i) => ({
+        id: Math.random().toString(36).slice(2),
+        label: ph.label || `Phase ${i + 1}`,
+        startWeek: Number(ph.startWeek) || 1,
+        endWeek: Number(ph.endWeek) || p.weeks || 8,
+        schedule: normalizeSchedule(ph.schedule),
+      }));
 
       setProg({
         name: p.name || '',
@@ -437,35 +593,26 @@ function BuilderInner() {
         weeks: p.weeks || 8,
         daysPerWeek: p.daysPerWeek || 4,
         visibility: 'public',
+        suitableEquipment: p.suitableEquipment ?? [],
+        priorityPick: p.priorityPick === true,
+        recommendedForGoals: [],
+        ageBrackets: [],
         targetGender: (p.targetGender === 'male' || p.targetGender === 'female') ? p.targetGender : 'anyone',
         imageUrl: '',
-        schedule: (p.schedule || []).map((d: BDay) => ({
-          label: d.label || (d.isRest ? 'Rest' : 'Training Day'),
-          isRest: !!d.isRest,
-          dayNote: d.dayNote || '',
-          exercises: (d.exercises || []).map((e: BEx) => ({
-            id: Math.random().toString(36).slice(2),
-            name: e.name || '',
-            muscleGroup: normalizeMuscleGroup(e.muscleGroup),
-            sets: Number(e.sets) || 3,
-            reps: String(e.reps || '8-12'),
-            rpe: Number(e.rpe) || 8,
-            restSeconds: Number(e.restSeconds) || 90,
-            notes: e.notes || '',
-            isCardio: !!e.isCardio,
-            cardioDurationSeconds: (e as BEx).cardioDurationSeconds,
-            videoUrl: (videoMap as Record<string, string>)[e.name] ?? '',
-          })),
-        })),
-        phases: [],
+        schedule: phases.length > 0 ? phases[0].schedule : normalizeSchedule(p.schedule),
+        phases,
       });
       setAiGenerated(true);
       setActiveDay(0);
       setActivePhase(0);
       toast.success('Program generated! Review and edit before saving.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'AI generation failed');
+      const isTimeout = err instanceof DOMException && err.name === 'AbortError';
+      toast.error(isTimeout
+        ? 'Generation timed out — try a shorter/simpler prompt, or fewer weeks.'
+        : (err instanceof Error ? err.message : 'AI generation failed'));
     } finally {
+      clearTimeout(idleTimeoutId);
       setAiLoading(false);
     }
   }
@@ -514,6 +661,15 @@ function BuilderInner() {
       const unique = exercises.filter((e, i, arr) => arr.findIndex(x => x.name === e.name) === i);
       const data = stripUndefinedDeep({
         ...prog,
+        // Written as-is, EMPTY ARRAYS included. This used to store
+        // `undefined` for nothing-ticked, on the theory that an empty list
+        // would make the program unreachable — but the matcher treats [] as
+        // "not set" (`?.length`), and updateProgram strips undefined before
+        // writing, so unticking every chip and saving silently kept the old
+        // list. [] is both clearable and harmless.
+        suitableEquipment: prog.suitableEquipment,
+        recommendedForGoals: prog.recommendedForGoals,
+        ageBrackets: prog.ageBrackets,
         schedule: prog.phases.length > 0 ? prog.phases[0].schedule : prog.schedule,
         isPublic: publish || prog.visibility === 'public',
         exercises: unique.map(e => ({ ...e, reps: e.reps })),
@@ -634,7 +790,7 @@ function BuilderInner() {
     setNewVideoUploadProgress(0);
     try {
       const cfg = await getSystemConfig().catch(() => null);
-      const provider = ((cfg?.storageProvider as StorageProvider) || 'firebase');
+      const provider = resolveStorageProvider(cfg?.storageProvider);
       const videoUrl = await uploadVideo(provider, user, file, 'exerciseLibrary', setNewVideoUploadProgress);
       const thumbBlob = await extractVideoThumbnail(file).catch(() => null);
       let thumbnailUrl: string | undefined;
@@ -677,16 +833,17 @@ function BuilderInner() {
   const day = activeSchedule[activeDay];
 
   return (
-    <div className="space-y-5 pb-10">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="p-2 rounded-xl hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-black text-white">{programId ? 'Edit Program' : 'Program Builder'}</h1>
-          <p className="text-xs text-text-secondary">{savedId ? (prog.visibility === 'coaching' ? 'Coaching program (private)' : 'Public program') : 'Unsaved draft'}</p>
-        </div>
+    <AdminShell
+      groups={adminGroups()}
+      active={'programs' as const}
+      onSelect={(id) => router.push(`/admin?tab=${id}`)}
+      title={programId ? 'Edit Program' : 'Program Builder'}
+      subtitle={savedId ? (prog.visibility === 'coaching' ? 'Coaching program (private)' : 'Public program') : 'Unsaved draft'}
+    >
+    {/* Capped to the same measure as the rest of the admin. A form field
+        stretched across a wide monitor is harder to fill in, not easier. */}
+    <div className="space-y-5 pb-10 max-w-[1180px]">
+      <div className="flex items-center gap-3 justify-end">
         <div className="flex gap-2">
           <Button size="sm" variant="secondary" onClick={() => handleSave(false)} loading={saving}>
             <Save className="w-3.5 h-3.5" /> Save
@@ -705,7 +862,7 @@ function BuilderInner() {
           {aiGenerated && <Badge variant="accent">Generated</Badge>}
         </div>
         <p className="text-xs text-text-secondary mb-3">
-          Describe the program and AI will build a complete weekly schedule with exercises, sets, reps, RPE, and rest times. You can edit everything after.
+          Describe the program and AI will build a complete weekly schedule with exercises, sets, reps, RPE, and rest times. You can edit everything after. Optionally attach a real program (PDF or .txt) and the AI will base the structure and exercises closely on it instead of inventing generic ones.
         </p>
         <div className="space-y-2">
           <textarea
@@ -715,6 +872,35 @@ function BuilderInner() {
             rows={3}
             className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50 resize-none"
           />
+          <input
+            ref={aiDocInputRef}
+            type="file"
+            accept=".pdf,.txt,application/pdf,text/plain"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleAiDocUpload(f); }}
+          />
+          {aiDoc ? (
+            <div className="flex items-center gap-2 px-3 py-2 bg-background border border-white/10 rounded-xl">
+              <FileText className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+              <span className="text-xs text-white truncate flex-1">{aiDoc.name}</span>
+              {aiDoc.truncated && <span className="text-[10px] text-amber-400 flex-shrink-0">truncated</span>}
+              <button
+                onClick={() => setAiDoc(null)}
+                className="text-text-tertiary hover:text-white transition-colors flex-shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => aiDocInputRef.current?.click()}
+              disabled={aiDocExtracting}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 border border-dashed border-white/15 rounded-xl text-xs text-text-secondary hover:text-white hover:border-white/25 transition-colors disabled:opacity-50"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              {aiDocExtracting ? 'Reading document…' : 'Attach a document (optional)'}
+            </button>
+          )}
           <Button
             fullWidth
             onClick={generateWithAI}
@@ -813,6 +999,140 @@ function BuilderInner() {
               <option value="male">Male</option>
               <option value="female">Female</option>
             </select>
+          </div>
+          {/* col-span-2 at EVERY width, not sm and up: the parent grid is
+              two columns on a phone too, so a half-width cell squeezed
+              three option cards into about 150px and wrapped every label
+              onto four lines. */}
+          {/* The routing table. "Suitable for" below says who CAN do this
+              program; this says who should be SENT here — the goal the
+              member picked in onboarding, named directly rather than
+              inferred from the program's own category label. */}
+          <div className="col-span-2">
+            <label className="text-xs text-text-secondary mb-1.5 block">Recommend for these goals</label>
+            <div className="flex flex-wrap gap-2">
+              {ONBOARDING_GOALS.map(({ v, label }) => {
+                const on = prog.recommendedForGoals.includes(v);
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setProg(s => ({
+                      ...s,
+                      recommendedForGoals: on
+                        ? s.recommendedForGoals.filter(x => x !== v)
+                        : [...s.recommendedForGoals, v],
+                    }))}
+                    className={`min-h-[44px] px-3 rounded-xl border text-[13px] font-semibold transition-colors ${
+                      on
+                        ? 'border-accent bg-accent/15 text-white'
+                        : 'border-white/10 bg-surface text-text-secondary hover:border-white/25'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-text-tertiary mt-1.5 leading-relaxed">
+              {prog.recommendedForGoals.length
+                ? 'Members who pick one of these in onboarding are sent here ahead of programs that only match by category.'
+                : 'Nothing picked \u2014 onboarding matches this program by its Goal field above.'}
+              {' '}Equipment and gender still apply: a member is never sent a program they cannot do.
+            </p>
+          </div>
+          {/* Who CAN get it, by age — an exclusion like equipment, not a
+              preference. Empty means any age. */}
+          <div className="col-span-2">
+            <label className="text-xs text-text-secondary mb-1.5 block">Ages</label>
+            <div className="flex flex-wrap gap-2">
+              {AGE_BRACKETS.map(({ v, label }) => {
+                const on = prog.ageBrackets.includes(v);
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setProg(s => ({
+                      ...s,
+                      ageBrackets: on ? s.ageBrackets.filter(x => x !== v) : [...s.ageBrackets, v],
+                    }))}
+                    className={`min-h-[44px] px-3 rounded-xl border text-[13px] font-semibold transition-colors ${
+                      on
+                        ? 'border-accent bg-accent/15 text-white'
+                        : 'border-white/10 bg-surface text-text-secondary hover:border-white/25'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-text-tertiary mt-1.5 leading-relaxed">
+              {prog.ageBrackets.length
+                ? 'Only members in these brackets are matched to this program. Someone who did not give an age can still reach it.'
+                : 'Nothing picked — any age.'}
+            </p>
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs text-text-secondary mb-1.5 block">Suitable for</label>
+            {/* Chips rather than stacked cards. Three tall cards with a
+                description each cost a whole screen of vertical space on a
+                phone for what is one three-way choice; the examples move to
+                a single line underneath, where they are read once. */}
+            <div className="flex gap-2">
+              {([
+                { v: 'minimal', label: 'Minimal' },
+                { v: 'home', label: 'Home gym' },
+                { v: 'full-gym', label: 'Full gym' },
+              ] as const).map(({ v, label }) => {
+                const on = prog.suitableEquipment.includes(v);
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setProg(s => ({
+                      ...s,
+                      suitableEquipment: on
+                        ? s.suitableEquipment.filter(x => x !== v)
+                        : [...s.suitableEquipment, v],
+                    }))}
+                    className={`flex-1 min-h-[44px] px-2 rounded-xl border text-[13px] font-semibold transition-colors ${
+                      on
+                        ? 'border-accent bg-accent/15 text-white'
+                        : 'border-white/10 bg-surface text-text-secondary hover:border-white/25'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-text-tertiary mt-1.5 leading-relaxed">
+              {prog.suitableEquipment.length
+                ? 'Only members who answered one of these are matched to this program.'
+                : 'Nothing picked — the app will guess from the exercise names.'}
+              {' '}Minimal is bodyweight and a pull-up bar, Home adds dumbbells, kettlebells and bands, Full gym adds barbells, machines and cables.
+            </p>
+          </div>
+          <div className="col-span-2">
+            <label className="flex items-start gap-3 p-3 rounded-xl border border-white/10 bg-surface cursor-pointer">
+              <input
+                type="checkbox"
+                checked={prog.priorityPick}
+                onChange={e => setProg(s => ({ ...s, priorityPick: e.target.checked }))}
+                className="mt-0.5 w-4 h-4 accent-[var(--accent)] flex-shrink-0"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-white">Priority pick for this goal</span>
+                <span className="block text-[11px] text-text-tertiary mt-0.5 leading-relaxed">
+                  When several programs suit a member equally, send them here. Only applies within this
+                  program&apos;s own goal.
+                </span>
+              </span>
+            </label>
           </div>
           <div>
             <label className="text-xs text-text-secondary mb-1 block">Duration (weeks)</label>
@@ -932,13 +1252,13 @@ function BuilderInner() {
 
         {/* Day tabs */}
         <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
-          {DOW.map((d, i) => {
+          {SLOTS.map((i) => {
             const isRest = activeSchedule[i]?.isRest;
             return (
               <button
-                key={d}
+                key={i}
                 onClick={() => setActiveDay(i)}
-                className={`flex flex-col items-center gap-0.5 px-2.5 py-2 rounded-xl min-w-[44px] transition-all ${
+                className={`flex flex-col items-center gap-0.5 px-2.5 py-2 rounded-xl min-w-[52px] transition-all ${
                   activeDay === i
                     ? 'bg-accent text-black'
                     : isRest
@@ -946,7 +1266,8 @@ function BuilderInner() {
                     : 'bg-surface-elevated text-white border border-white/10 hover:border-accent/30'
                 }`}
               >
-                <span className="text-xs font-bold">{d}</span>
+                <span className="text-[9px] uppercase tracking-wide opacity-60 leading-none">Day</span>
+                <span className="text-xs font-bold leading-none">{dayNumberFor(i)}</span>
                 {isRest ? <Moon className="w-3 h-3" /> : <Dumbbell className="w-3 h-3" />}
               </button>
             );
@@ -956,6 +1277,26 @@ function BuilderInner() {
         {/* Active day editor */}
         <div className="space-y-3">
           {/* Day header */}
+          {/* Which day of the whole program this slot is, and — because a
+              phase's 7-day template repeats across its week range — every
+              other day it also is. Editing "Day 29" on a phase covering weeks
+              5-7 edits days 29, 36 and 43 of the athlete's program; without
+              saying so, an admin reasonably assumes they changed one day. */}
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-sm font-bold text-white">
+              {prog.phases.length > 0 && prog.phases[activePhase]?.label
+                ? `${prog.phases[activePhase]?.label} · `
+                : ''}
+              Day {dayNumberFor(activeDay)}
+            </span>
+            {dayRepeatsFor(activeDay).length > 1 && (
+              <span className="text-[11px] text-text-tertiary">
+                repeats weeks {phaseStartWeek}–{phaseEndWeek} — also day
+                {dayRepeatsFor(activeDay).length > 2 ? 's' : ''}{' '}
+                {dayRepeatsFor(activeDay).slice(1).join(', ')}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <input
               value={day.isRest ? 'Rest Day' : day.label}
@@ -1062,21 +1403,87 @@ function BuilderInner() {
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] text-text-tertiary mb-1 block">Sets</label>
+                            <label className="text-[10px] text-text-tertiary mb-1 block">{ex.isCardio && !ex.isHiit ? 'Sets (interval reps)' : 'Sets'}</label>
                             <Input
                               type="number"
                               value={ex.sets}
                               onChange={e => updateEx(activeDay, ex.id, { sets: Math.max(1, Number(e.target.value)) })}
                               min={1} max={20}
                             />
+                            {ex.isCardio && !ex.isHiit && ex.sets > 1 && (
+                              <p className="text-[10px] text-text-tertiary mt-1">
+                                E.g. 8 sets + 400m target + 90s rest = &quot;8x400m&quot; interval repeats, resting between each.
+                              </p>
+                            )}
                           </div>
                           {ex.isCardio && !ex.isHiit ? (
-                            <div>
-                              <label className="text-[10px] text-text-tertiary mb-1 block">Duration</label>
-                              <CardioDurationInput
-                                valueSeconds={ex.cardioDurationSeconds ?? (typeof ex.reps === 'number' ? ex.reps * 60 : (parseInt(String(ex.reps), 10) || 30) * 60)}
-                                onChange={sec => updateEx(activeDay, ex.id, { cardioDurationSeconds: sec })}
-                              />
+                            <div className="col-span-2">
+                              {/* Time and distance are mutually exclusive — a rep is timed OR
+                                  distance-tracked, never both. Showing both inputs at once
+                                  (the old version) was genuinely confusing: nothing said which
+                                  one actually controlled what happens in the workout. This mode
+                                  toggle shows exactly one, and switching modes clears the other
+                                  so there's no stale/conflicting value left behind. */}
+                              {(() => {
+                                // Default the mode from whatever's already saved (a program
+                                // loaded from Firestore has real data, no override needed yet);
+                                // once the admin explicitly clicks a mode button, that choice
+                                // wins regardless of what `reps` currently contains.
+                                const distanceMode = cardioModeOverride[ex.id] === 'distance'
+                                  || (cardioModeOverride[ex.id] === undefined && !!parseDistance(ex.reps));
+                                return (
+                                  <>
+                                    <div className="flex gap-1.5 mb-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCardioModeOverride(prev => ({ ...prev, [ex.id]: 'timed' }));
+                                          if (parseDistance(ex.reps)) updateEx(activeDay, ex.id, { reps: '8' });
+                                        }}
+                                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${!distanceMode ? 'bg-accent text-white' : 'bg-surface border border-white/10 text-text-secondary'}`}
+                                      >
+                                        Timed
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCardioModeOverride(prev => ({ ...prev, [ex.id]: 'distance' }));
+                                          if (parseDistance(ex.reps)) return;
+                                          updateEx(activeDay, ex.id, { reps: '' });
+                                        }}
+                                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${distanceMode ? 'bg-accent text-white' : 'bg-surface border border-white/10 text-text-secondary'}`}
+                                      >
+                                        Distance
+                                      </button>
+                                    </div>
+                                    {!distanceMode ? (
+                                      <div>
+                                        <label className="text-[10px] text-text-tertiary mb-1 block">Duration (per rep)</label>
+                                        <CardioDurationInput
+                                          valueSeconds={ex.cardioDurationSeconds ?? 60}
+                                          onChange={sec => updateEx(activeDay, ex.id, { cardioDurationSeconds: sec })}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        <label className="text-[10px] text-text-tertiary mb-1 block">Target Distance (per rep)</label>
+                                        <Input
+                                          // The session player parses this straight out of the
+                                          // `reps` field and, when found, swaps the plain
+                                          // countdown timer for a stopwatch + pace tracker.
+                                          value={ex.reps}
+                                          onChange={e => updateEx(activeDay, ex.id, { reps: e.target.value })}
+                                          placeholder="e.g. 500m, 5km, 1 mile"
+                                          autoFocus
+                                        />
+                                        {String(ex.reps).trim() && !parseDistance(ex.reps) && (
+                                          <p className="text-[10px] text-amber-400 mt-1">⚠ Not recognized yet — needs a unit, e.g. &quot;500m&quot;, &quot;5km&quot;, &quot;1 mile&quot;.</p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
                           ) : !ex.isHiit ? (
                             <div>
@@ -1187,7 +1594,37 @@ function BuilderInner() {
                             <label className="text-[10px] text-text-tertiary mb-1 block">Demo Video</label>
                             {ex.videoUrl ? (
                               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-white/10">
-                                <Video className="w-4 h-4 text-accent flex-shrink-0" />
+                                {(() => {
+                                  const libEntry = videoLibrary.find(v => v.videoUrl === ex.videoUrl);
+                                  const isPreviewing = previewingId === ex.id;
+                                  return (
+                                    <button
+                                      onClick={() => setPreviewingId(isPreviewing ? null : ex.id)}
+                                      className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 relative flex items-center justify-center ${libEntry?.thumbnailUrl || isPreviewing ? 'bg-black' : 'bg-surface-elevated border border-white/10'}`}
+                                      title="Preview"
+                                    >
+                                      {isPreviewing ? (
+                                        <video
+                                          key={ex.videoUrl}
+                                          src={ex.videoUrl}
+                                          muted
+                                          loop
+                                          autoPlay
+                                          playsInline
+                                          crossOrigin="anonymous"
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <>
+                                          {libEntry?.thumbnailUrl && (
+                                            <img src={libEntry.thumbnailUrl} alt={ex.name} className="absolute inset-0 w-full h-full object-cover" />
+                                          )}
+                                          <Play className={`w-4 h-4 relative z-10 ${libEntry?.thumbnailUrl ? 'text-white' : 'text-text-tertiary'}`} />
+                                        </>
+                                      )}
+                                    </button>
+                                  );
+                                })()}
                                 <span className="text-xs text-text-secondary truncate flex-1">Video attached</span>
                                 <button
                                   onClick={() => openVideoPicker(ex.id)}
@@ -1232,20 +1669,21 @@ function BuilderInner() {
       {/* Week overview summary */}
       <Card className="p-4">
         <h2 className="text-sm font-bold text-white mb-3">
-          Week Overview{prog.phases.length > 0 ? ` — ${prog.phases[activePhase]?.label}` : ''}
+          Days {dayNumberFor(0)}–{dayNumberFor(SLOTS.length - 1)}
+          {prog.phases.length > 0 ? ` — ${prog.phases[activePhase]?.label}` : ''}
         </h2>
         <div className="grid grid-cols-7 gap-1">
-          {DOW.map((d, i) => {
+          {SLOTS.map((i) => {
             const s = activeSchedule[i];
             return (
               <button
-                key={d}
+                key={i}
                 onClick={() => setActiveDay(i)}
                 className={`flex flex-col items-center gap-1 p-2 rounded-lg text-[10px] transition-colors ${
                   activeDay === i ? 'bg-accent text-black' : s?.isRest ? 'bg-surface-elevated text-text-tertiary' : 'bg-surface-elevated text-white hover:bg-white/10'
                 }`}
               >
-                <span className="font-bold">{d}</span>
+                <span className="font-bold">Day {dayNumberFor(i)}</span>
                 {s?.isRest ? (
                   <Moon className="w-3 h-3" />
                 ) : (
@@ -1370,7 +1808,7 @@ function BuilderInner() {
                 >
                   <button
                     onClick={() => setPreviewingId(previewingId === v.id ? null : v.id)}
-                    className="w-14 h-14 rounded-lg overflow-hidden bg-black flex-shrink-0 relative flex items-center justify-center"
+                    className={`w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 relative flex items-center justify-center ${v.thumbnailUrl || previewingId === v.id ? 'bg-black' : 'bg-surface-elevated border border-white/10'}`}
                     title="Preview"
                   >
                     {previewingId === v.id ? (
@@ -1381,6 +1819,7 @@ function BuilderInner() {
                         loop
                         autoPlay
                         playsInline
+                        crossOrigin="anonymous"
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -1388,7 +1827,7 @@ function BuilderInner() {
                         {v.thumbnailUrl && (
                           <img src={v.thumbnailUrl} alt={v.name} className="absolute inset-0 w-full h-full object-cover" />
                         )}
-                        <Play className="w-5 h-5 text-white relative z-10" />
+                        <Play className={`w-5 h-5 relative z-10 ${v.thumbnailUrl ? 'text-white' : 'text-text-tertiary'}`} />
                       </>
                     )}
                   </button>
@@ -1417,6 +1856,7 @@ function BuilderInner() {
         </div>
       </Modal>
     </div>
+    </AdminShell>
   );
 }
 

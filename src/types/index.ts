@@ -72,16 +72,40 @@ export interface ActiveProgram {
   lastCompletedDayIndex?: number;  // absolute day index (0-based) of the last non-repeated day completed
 }
 
-export type FitnessGoal = 'lose-fat' | 'build-muscle' | 'recomposition' | 'strength';
+// Saved position for a program the user isn't currently active on — same
+// fields as ActiveProgram minus programId (that's the map key) since it's
+// otherwise the exact same shape mirrored to/from `activeProgram` on switch.
+export interface ProgramProgressSnapshot {
+  programName: string;
+  enrolledAt: unknown;
+  programStartDate?: string;
+  completedWorkouts: number;
+  totalWorkouts: number;
+  lastCompletedDayIndex?: number;
+}
+
+/**
+ * 'military-prep' maps to the `endurance` program goal. Without it the four
+ * selection programs — the brand's namesake — could not be reached from the
+ * quiz at all: none of the other goals maps to endurance, so in a simulation
+ * of every onboarding answer they were assigned zero times.
+ */
+export type FitnessGoal = 'military-prep' | 'lose-fat' | 'build-muscle' | 'recomposition' | 'strength';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 export type EquipmentType = 'home' | 'full-gym' | 'minimal';
 export type BiologicalSex = 'male' | 'female';
+/** Program matching buckets for a member's age. See lib/ageBracket. */
+export type AgeBracket = '18-29' | '30-39' | '40-49' | '50-plus';
 
 export interface OnboardingData {
   fitnessGoal: FitnessGoal;
   experience: ExperienceLevel;
   trainingDays: number;
   equipment: EquipmentType;
+  /** The individual items ticked in the quiz's equipment picker. The tier
+   *  above is derived from it for the matcher. Empty/missing = unknown
+   *  (members who answered before the picker existed). See lib/equipment. */
+  equipmentItems?: string[];
   limitations?: string;
   sex?: BiologicalSex;
   age?: number;
@@ -91,14 +115,25 @@ export interface OnboardingData {
   sessionMinutes?: 30 | 45 | 60 | 90;
   trainingStyle?: 'free-weights' | 'machines' | 'bodyweight' | 'mixed';
   targetWeightKg?: number;
+  /**
+   * Intake answers that surround the matcher without feeding it: who the
+   * person is training as, what they do, what stopped them before, what
+   * they would prioritise. Used for the reveal copy and email segmenting.
+   * See lib/onboardingIntake.ts. The matcher's inputs are the fields above.
+   */
+  trainingFor?: 'selection' | 'active-duty' | 'first-responder' | 'hybrid' | 'comeback';
+  occupation?: 'military-combat' | 'military-support' | 'police' | 'fire-ems' | 'preparing' | 'civilian' | 'prefer-not';
+  blocker?: 'hopping' | 'falling-off' | 'no-time' | 'injuries' | 'alone';
+  priority?: 'strength' | 'running' | 'size' | 'rucking' | 'swimming';
 }
 
 // Self-serve weight goal, set once at onboarding (mandatory alongside
 // current weight) and read by the dashboard/goals page to show ongoing
 // progress toward it. Separate from ClientGoal (goals/{goalId} collection)
 // deliberately — that collection is coach/admin-authored only per
-// firestore.rules (`allow create: if isStaff()`), and this one needs to be
-// self-serve at signup, before any coach relationship necessarily exists.
+// firestore.rules (`allow create: if isAdminOrOwnTrainer(...)`), and this
+// one needs to be self-serve at signup, before any coach relationship
+// necessarily exists.
 export interface WeightGoal {
   startWeightKg: number;
   targetWeightKg: number;
@@ -177,6 +212,13 @@ export interface ProgressPhoto {
 
 export interface UserProfile {
   id: string;
+  /**
+   * Set the first time the member is shown the welcome video, so it plays
+   * once per ACCOUNT rather than once per browser. Absent on anyone who
+   * predates the feature — those are backfilled at deploy so an existing
+   * member is not greeted months into their membership.
+   */
+  welcomeVideoSeenAt?: unknown;
   displayName: string;
   email: string;
   photoURL: string | null;
@@ -185,15 +227,53 @@ export interface UserProfile {
   // fields on the document, just not previously reflected in this type.
   fitnessGoal?: FitnessGoal;
   experience?: ExperienceLevel;
+  /** Individual equipment items ticked in onboarding or on the profile. See lib/equipment. */
+  equipmentItems?: string[];
   limitations?: string;
+  trainingFor?: OnboardingData['trainingFor'];
+  occupation?: OnboardingData['occupation'];
+  blocker?: OnboardingData['blocker'];
+  priority?: OnboardingData['priority'];
+  // Only present on accounts that answered these during onboarding, back
+  // when the health screening lived there — it's collected on the 1:1
+  // coaching application form now, and prefilled from here when present.
+  medicalHistory?: MedicalHistoryAnswers;
   role: 'user' | 'trainer' | 'admin';
   trainerId?: string;        // uid of the owning trainer / tenant
   createdAt: unknown;
   lastActive: unknown;
+  /** Marketing consent. Missing = allowed; the member turns it off in Settings or via any unsubscribe link. */
+  emailPrefs?: { marketing?: boolean; updatedAt?: unknown };
+  /** Which funnel steps have been sent, so none sends twice. */
+  emailSeq?: { onboardingAbandon?: Record<string, unknown>; winBack?: Record<string, unknown> & { anchor?: number } };
   lastLoginAt?: unknown;
   goals?: UserGoals;
+  /** Program changes spent against PROGRAM_SWITCH_ALLOWANCE. */
+  programSwitchesUsed?: number;
   statsCache?: StatsCache;  // derived — computed by events engine
+  // One freeze grants automatically every 7 days and absorbs a single missed
+  // day without breaking the streak — spent (available -> false) the moment
+  // it actually saves a gap, not just for holding one.
+  streakFreeze?: { available: boolean; lastGrantedAt: unknown; lastUsedAt?: unknown };
+  // Taste-then-paywall: a non-member gets exactly one real, successful use of
+  // each locked AI tool before the paywall shows on subsequent visits —
+  // people convert far better after they've already seen the tool work for
+  // them. Keyed by the same feature id PaywallGate/MembershipConfig use
+  // ('barcode' | 'nutrition-ai' | 'meal-planner'). Set true only after an
+  // actual successful result, not just for opening the page.
+  aiTaste?: Record<string, boolean>;
   activeProgram?: ActiveProgram;
+  // Per-program progress snapshots, keyed by programId — every program the
+  // user has ever enrolled in keeps its own saved position here, so
+  // switching `activeProgram` to a different program never has to destroy
+  // progress the way overwriting a single global pointer used to. Whichever
+  // program is currently active is mirrored into `activeProgram` above (so
+  // every existing screen that reads `profile.activeProgram.*` keeps
+  // working unchanged) — this map is the actual source of truth for a
+  // program's progress once the user has switched away from it at least
+  // once. A program the user has never switched away from yet may not have
+  // an entry here at all; its live progress is simply `activeProgram`.
+  programProgress?: Record<string, ProgramProgressSnapshot>;
   onboardingComplete?: boolean;
   onboarding?: OnboardingData;
   // One-time flag — the streak flame's "ignition" welcome animation on the
@@ -201,21 +281,74 @@ export interface UserProfile {
   // in Firestore (not localStorage) so it's a true once-ever moment across
   // every device, not just the one they onboarded on.
   flameIgnited?: boolean;
+  /**
+   * Programs this member has already seen the completion moment for.
+   *
+   * A list, not a boolean: finishing a second program should celebrate
+   * again. Written with arrayUnion so two devices finishing together
+   * cannot clobber each other's entry.
+   */
+  celebratedPrograms?: string[];
   assignedNutritionPlan?: NutritionPlan;
   achievements?: string[];
+  /** Server-written only (api/admin/challenges/review). */
+  challengeBadges?: ChallengeBadge[];
   questsCompleted?: string[];
   prBan?: { until: unknown /* Timestamp | null; null = indefinite */; bannedAt: unknown };
+  /** Admin-set. Muted members can read and like in channels but not post or reply. */
+  channelMute?: { until: unknown /* Timestamp | null; null = until cleared */; mutedAt: unknown };
+  // Set once, server-side only (Stripe webhook), the first time this
+  // account actually uses a trial (free or paid) via Stripe checkout — see
+  // api/stripe/plan-checkout's alreadyUsedTrial check. Never client-writable
+  // (see firestore.rules' self-update blocklist).
+  trialUsedAt?: unknown;
+  /** Server-written by api/stripe/plan-checkout when a Stripe session is
+   *  created; read by the hourly job for the abandoned-checkout email. */
+  checkoutIntent?: {
+    planId: string; planName: string; months: number;
+    amountLabel: string; trialLabel: string | null; startedAt: unknown;
+  };
+  checkoutRecoveryEmailSentAt?: unknown;
+  checkoutRecoveryFollowupSentAt?: unknown;
   xp?: number;
   powerLevel?: number;
   currentWeightKg?: number;
   weightGoal?: WeightGoal;
   purchasedProgramIds?: string[];
   banned?: boolean;
+  // Email-code 2FA, opt-in via Settings. twoFactorPendingSince is set the
+  // moment a code is issued at login and cleared on successful verification
+  // — (app)/layout.tsx redirects to /verify-2fa whenever it's set, so a
+  // user can't navigate past the code screen just by hitting back/a
+  // bookmark while a login is mid-verification.
+  twoFactorEnabled?: boolean;
+  twoFactorPendingSince?: unknown;
+  // Where codes actually get sent — falls back to the account's login email
+  // when unset. Exists because a login email isn't always a real inbox
+  // (e.g. a domain configured for the app but never hooked up to receive
+  // mail); this lets 2FA codes go somewhere that's actually monitored.
+  twoFactorEmail?: string;
   membership?: {
     status: 'active' | 'none';
     expiresAt?: unknown;
     grantedBy?: string;
-    planId?: string;    // coaching plan ID if on a specific plan
+    planId?: string;
+    planName?: string;
+    stripeSubscriptionId?: string;
+    cancelAtPeriodEnd?: boolean;
+  };
+  // Separate from `membership` — a user can hold both an active membership
+  // plan AND an active 1:1 coaching plan simultaneously (coaching is a paid
+  // add-on tier, not a replacement). They're two independent Stripe
+  // subscriptions; tracking them in one shared field meant buying the
+  // second one silently overwrote the first's subscription ID, making it
+  // impossible to cancel through the app and — worse — un-cancelable by
+  // account deletion too, leaving an orphaned subscription still billing
+  // a deleted account's card indefinitely.
+  coaching?: {
+    status: 'active' | 'none';
+    expiresAt?: unknown;
+    planId?: string;
     planName?: string;
     stripeSubscriptionId?: string;
     cancelAtPeriodEnd?: boolean;
@@ -253,12 +386,31 @@ export interface SystemConfig {
   videoGreetingUrl?: string;
   logoUrl?: string;
   pwaInstallBannerEnabled?: boolean; // admin can disable the install banner
+  /** Marketing email sequences, each switchable by the admin. Missing = on. */
+  emailSequences?: { leadTips?: boolean; onboardingAbandon?: boolean; winBack?: boolean };
+  /** The free-plan lead magnet: which program drips, for how long, and the page copy. */
+  freePlan?: {
+    enabled?: boolean;
+    /** Program the bare /free-plan URL shows; must be one of `offers`. */
+    programId?: string;
+    programName?: string;
+    days?: number;
+    /** Every program on offer, each with its own /free-plan/<id> page. */
+    offers?: { id: string; name: string; headline?: string; subheadline?: string }[];
+    /** Legacy single-offer copy; read as the default offer's when `offers` is absent. */
+    headline?: string;
+    subheadline?: string;
+  };
   vapidPublicKey?: string; // stored in Firestore so client can subscribe
   landingPage?: LandingPageConfig;
   barcodeScanDailyLimit?: number; // default 20 if unset
   foodAnalysisDailyLimit?: number; // default 20 if unset
   mealIdeasDailyLimit?: number; // default 15 if unset
+  /** Photos and clips one member may upload to the community per day. Default 20. */
+  communityUploadsDailyLimit?: number;
   b2bLandingPage?: B2BLandingConfig;
+  /** Admin-editable copy on the onboarding reveal. Defaults in lib/onboardingIntake. */
+  onboardingCopy?: { whyPrice?: string; offerStack?: { title: string; body: string }[] };
 }
 
 // A separate landing page for the B2B/white-label pitch (trainers, coaches,
@@ -314,9 +466,48 @@ export interface TrainerLead {
   createdAt: unknown;
 }
 
+// A visitor's email captured by the exit-intent modal on the consumer
+// landing page — before they abandon the quiz/checkout, not a submitted
+// application like TrainerLead. Purely for a later "come back and finish"
+// nudge email; reviewed manually in the admin panel same as trainerLeads.
+export interface LandingLead {
+  id: string;
+  email: string;
+  createdAt: unknown;
+}
+
 export interface LandingFeature {
   title: string;
   desc: string;
+  // Optional plan name shown as a small tag on the feature card, for
+  // anything that is NOT included in the entry-level plan — barcode
+  // scanning, for one, is a higher-tier feature. The landing page sells
+  // every feature in one grid, so without this an entry-plan buyer pays
+  // expecting a feature they are gated out of the moment they sign in,
+  // which is a refund request and a support ticket rather than a sale.
+  // Free text on purpose: it is matched to whatever the plans are actually
+  // called in the admin panel, and plan names are admin-editable.
+  tierNote?: string;
+}
+
+export interface StackComparisonRow {
+  /** The app a member would otherwise pay for, e.g. "MyFitnessPal Premium". */
+  name: string;
+  /** What that app is being paid for — the thing we also do. */
+  replaces: string;
+  /** That vendor's listed price per month, in `currency`. */
+  pricePerMonth: number;
+  /** ISO code, e.g. 'USD'. Rows may differ; the section handles that. */
+  currency: string;
+}
+
+export interface StackComparison {
+  enabled?: boolean;        // default true when rows exist
+  heading?: string;
+  subheading?: string;
+  rows: StackComparisonRow[];
+  /** "Vendor list prices as of September 2026" — shown under the table. */
+  asOf?: string;
 }
 
 export interface LandingPageConfig {
@@ -332,7 +523,7 @@ export interface LandingPageConfig {
   quoteAuthor: string;
   finalCtaHeadline: string;
   finalCtaSubtext: string;
-  showPublicLeaderboard?: boolean; // opt-in — shows top athletes (name, level, streak only) on the logged-out landing page
+  programsToShow?: number; // how many programs to display in the landing page's Programs section — unset/0 means show all
   // Empty by default and hidden until an admin adds real ones — inventing
   // fake customer quotes and presenting them as genuine is deceptive
   // marketing regardless of which app it's on, so this only ever shows
@@ -342,6 +533,23 @@ export interface LandingPageConfig {
   heroDemoVideoUrl?: string; // optional product-demo video shown in the hero as a "Watch Demo" player
   heroDemoPosterUrl?: string; // poster frame for the demo video, shown before play + while it loads
   screenshotUrls?: string[]; // real in-app screenshots shown in a "See It In Action" gallery on the landing page
+  // Empty by default and hidden until an admin adds real ones — same
+  // never-fabricate rule as testimonials above, just for member transformation
+  // photos instead of quotes.
+  transformationPhotos?: { imageUrl: string; caption?: string }[];
+  /**
+   * "What it replaces" — the separate paid apps a member would otherwise
+   * stack, each with the price that vendor actually lists, totalled next
+   * to our lowest monthly price.
+   *
+   * Every row carries its own currency. The total is only shown when all
+   * rows share one, and the "you save" line only when that currency is the
+   * one our plans are priced in — adding £ to $ and calling it a saving is
+   * exactly the kind of number that gets a comparison page reported.
+   * Prices here are claims about other companies, so they are admin-edited
+   * with a visible "as of" date rather than baked into a build.
+   */
+  stackComparison?: StackComparison;
 }
 
 export interface Channel {
@@ -353,9 +561,145 @@ export interface Channel {
   pinnedPostId?: string;
   trainerId?: string;
   photoUploadEnabled: boolean;
+  // Clips are opt-in per channel and default OFF. A photo costs a moderator
+  // two seconds to check; a 30-second clip costs thirty and cannot be
+  // skimmed, so a busy channel with video on is a moderation load nobody
+  // signed up for. Channels that want evidence (a PT test, a form check)
+  // turn it on deliberately.
+  videoUploadEnabled?: boolean;
+  // How many photos/clips one post may carry, as a swipeable carousel.
+  // Absent means 1, which is what every channel did before carousels
+  // existed. Capped at MAX_MEDIA_PER_POST; the rules enforce the same cap.
+  maxMediaPerPost?: number;
   slowModeDays: 0 | 7 | 21 | 30;
   allowUserPosts: boolean; // false = announcement-only channel, admin/trainer posts only
+  // 'ideas' turns the channel into a feature-request board: every post is a
+  // suggestion, the heart becomes an upvote, the feed sorts by votes and the
+  // admin can stamp each idea with a status. Absent means a normal chat
+  // channel, which is what every channel was before boards existed.
+  kind?: ChannelKind;
   postCount: number;
+  createdAt: unknown;
+}
+
+export type ChannelKind = 'chat' | 'ideas';
+
+/** Where an idea stands. Set by the admin only; absent means "open". */
+export type IdeaStatus = 'planned' | 'building' | 'shipped' | 'declined';
+export const IDEA_STATUSES: readonly IdeaStatus[] = ['planned', 'building', 'shipped', 'declined'];
+export const IDEA_STATUS_LABEL: Record<IdeaStatus, string> = {
+  planned: 'Planned',
+  building: 'Building',
+  shipped: 'Shipped',
+  declined: 'Not now',
+};
+
+/** Hard ceiling on carousel length, whatever a channel is set to. Ten is
+ *  Instagram's number and also the number of slots the rules check. */
+export const MAX_MEDIA_PER_POST = 10;
+
+/** One photo or clip in a post's carousel. */
+export interface PostMedia {
+  url: string;
+  type: 'image' | 'video';
+  /** Still frame for a clip; see ChannelPost.posterURL. */
+  posterURL?: string;
+}
+
+// ── Challenges ─────────────────────────────────────────────────────────────
+// A challenge is its own space: brief + carousel at the top, an Enter button,
+// and a feed only entrants can post to. Kept apart from channels so twenty
+// challenges do not become twenty threads tangled through general chat.
+
+export type ChallengeStatus = 'draft' | 'live' | 'closed';
+/** What a submission's result is. Drives the input, the unit and how the
+ *  board sorts: time ascending, everything else descending. */
+export type ChallengeResultType = 'time' | 'reps' | 'load' | 'distance' | 'done';
+export type ChallengeDifficulty = 'standard' | 'hard' | 'brutal';
+
+export interface Challenge {
+  id: string;
+  title: string;
+  /** One or two lines under the title, the hook. */
+  brief: string;
+  /** The full rules, shown under the carousel. Plain text, newlines kept. */
+  rules?: string;
+  category?: string;
+  difficulty: ChallengeDifficulty;
+  /** The carousel, same shape as a post's. */
+  media: PostMedia[];
+  loadoutMen?: string;
+  loadoutWomen?: string;
+  resultType: ChallengeResultType;
+  /** Label over the result input, e.g. "Time to rung 20". */
+  resultLabel?: string;
+  status: ChallengeStatus;
+  startsAt?: unknown;
+  endsAt?: unknown;
+  /** Counters bumped by members under narrow rules (exactly +1), so the
+   *  card can say "38 entered · 12 finished" without a count query. */
+  entryCount: number;
+  submissionCount: number;
+  verifiedCount: number;
+  /** XP a verified finisher receives. Set per challenge by the admin;
+   *  DEFAULT_CHALLENGE_XP when absent. Awarded server-side on verification. */
+  xpReward?: number;
+  createdBy: string;
+  createdAt: unknown;
+  updatedAt?: unknown;
+}
+
+export const DEFAULT_CHALLENGE_XP = 100;
+
+/** One verified finish, stamped on users/{uid}.challengeBadges by the
+ *  review route. The profile shows these as a strip. */
+export interface ChallengeBadge {
+  challengeId: string;
+  title: string;
+  result?: string;
+  earnedAt: unknown;
+}
+
+export type ChallengeEntryStatus = 'entered' | 'submitted' | 'verified' | 'rejected';
+
+/** challenges/{id}/entries/{uid} — one per member, keyed by uid so entering
+ *  twice is a no-op and the rules can check membership with one exists(). */
+export interface ChallengeEntry {
+  id: string;
+  challengeId: string;
+  userId: string;
+  displayName: string;
+  photoURL?: string;
+  status: ChallengeEntryStatus;
+  /** Result as typed ("14:32", "18 rungs"), for display. */
+  result?: string;
+  /** Result as a number in the challenge's unit (seconds, reps, kg, m) so
+   *  the board can sort. */
+  resultValue?: number;
+  proof?: PostMedia[];
+  note?: string;
+  enteredAt: unknown;
+  submittedAt?: unknown;
+  reviewedAt?: unknown;
+  reviewNote?: string;
+  /** Set by the reminder cron so nobody is nagged twice. */
+  remindedAt?: unknown;
+}
+
+/** challenges/{id}/posts — the challenge feed. Same shape as a channel post
+ *  so FeedCarousel and the like/delete flows carry over; a submission is a
+ *  post with `submission` set, which the feed renders as a result card. */
+export interface ChallengePost {
+  id: string;
+  challengeId: string;
+  userId: string;
+  userDisplayName: string;
+  userPhotoURL?: string;
+  userIsAdmin?: boolean;
+  content: string;
+  media?: PostMedia[];
+  submission?: { result: string; resultValue?: number };
+  likes: string[];
   createdAt: unknown;
 }
 
@@ -365,12 +709,40 @@ export interface ChannelPost {
   userId: string;
   userDisplayName: string;
   userPhotoURL?: string;
+  // Denormalized at write time (like userDisplayName) rather than looked up
+  // per-render — a regular member can't read the admin's users/{uid} doc
+  // anyway (see firestore.rules), so this is the only way the badge could
+  // render for anyone but the admin's own client.
+  userIsAdmin?: boolean;
   content: string;
+  /** URL of the attached photo OR clip — named imageURL for the posts that
+   *  already exist with that field. mediaType says which it is. */
   imageURL?: string;
+  /** Absent on every post written before clips existed: treat as an image. */
+  mediaType?: 'image' | 'video';
+  /** Still frame for a clip, captured in the browser at upload time so the
+   *  feed shows the video instead of a black rectangle before playback. */
+  posterURL?: string;
+  /** The full carousel, in order. imageURL/mediaType/posterURL above are
+   *  always a copy of media[0], so everything that only knows about a single
+   *  attachment (pinned previews, older clients) keeps working unchanged. */
+  media?: PostMedia[];
+  /** Set when a reply has been edited by its author — shown as a small
+   *  "edited" marker so a rewritten reply is never passed off as original. */
+  editedAt?: unknown;
   likes: string[];
   replyCount: number;
   replyTo?: string | null;
+  // Set when this reply answers ANOTHER reply rather than the post itself.
+  // Threads are capped at two visible levels (post -> reply -> reply), the
+  // same shape Facebook uses: a reply to a nested reply is stored against
+  // the same top-level parent so a thread can never run away sideways on a
+  // phone. Absent on top-level replies and on posts.
+  parentReplyId?: string | null;
   pinned?: boolean;
+  /** Ideas boards only: where the admin says this suggestion stands. In an
+   *  ideas channel `likes` doubles as the vote list, one uid per vote. */
+  status?: IdeaStatus;
   createdAt: unknown;
 }
 
@@ -413,6 +785,60 @@ export interface Program {
   isPremium?: boolean; // requires active membership to access
   price?: number;      // one-time USD price for individual purchase (alternative to membership gate)
   targetGender?: 'male' | 'female' | 'anyone'; // display label; defaults to 'anyone' if unset
+  /**
+   * Exactly which equipment answers this program is offered to.
+   *
+   * The admin ticks Minimal / Home / Full gym in the builder; a member is
+   * matched only if their own answer is in this list. Explicit and total —
+   * it can say "home only, never give this to gym members", which a single
+   * minimum-kit setting cannot.
+   *
+   * When absent the matcher falls back to inferring a tier from exercise
+   * NAMES and offering the program to that tier and above. That inference
+   * is fragile — one "Rowing Machine" or a bare "Romanian Deadlift" reads
+   * as a full gym — which is why setting this explicitly is preferred.
+   */
+  suitableEquipment?: ('minimal' | 'home' | 'full-gym')[];
+  /** Superseded by suitableEquipment; still honoured by the tier inference. */
+  equipmentTier?: 'minimal' | 'home' | 'full-gym';
+  /**
+   * Admin's thumb on the scale — the preferred pick for its goal.
+   *
+   * Onboarding scores programs on goal, level, days and equipment, and when
+   * several tie the winner is effectively arbitrary. This lets a human say
+   * which one should win: "for weight loss, send people here." Applies
+   * within the program's own goal, not across goals.
+   */
+  priorityPick?: boolean;
+  /**
+   * The admin's own routing table: the onboarding goals this program should
+   * be offered for, named directly.
+   *
+   * `goal` above is a category label ('hypertrophy', 'endurance') and the
+   * matcher maps the five onboarding answers onto it. That mapping is a
+   * guess made once, in code, and it is why "Selection Prep" quietly means
+   * "anything tagged endurance" — an admin who wants their two selection
+   * programs shown to people who picked Selection Prep has no way to say so.
+   *
+   * Listing an answer here says it outright: this program is a recommended
+   * answer to that question. It scores above the category match, so an
+   * explicit choice beats an inferred one, and it works ACROSS categories —
+   * a program tagged 'strength' can be the recommendation for Build Muscle
+   * if that is what the admin wants.
+   *
+   * Empty or missing means nothing changes: the category mapping decides,
+   * exactly as before.
+   */
+  recommendedForGoals?: FitnessGoal[];
+  /**
+   * Who CAN be offered this program, by age. Same kind of rule as
+   * suitableEquipment — a fact about the member, applied as an exclusion
+   * before scoring — so a program written for people over fifty is never
+   * handed to a 25-year-old, and gets a small edge for a 60-year-old over
+   * an otherwise equal general program. Empty or missing means any age.
+   * A member who did not give an age is never excluded by this.
+   */
+  ageBrackets?: AgeBracket[];
   imageUrl?: string; // cover image shown on the landing page & program lists
 }
 
@@ -422,6 +848,18 @@ export interface Exercise {
   sets: number;
   reps: number | string;
   restSeconds: number;
+  /**
+   * How hard the set should feel, 6-10 (Rate of Perceived Exertion).
+   *
+   * The admin builder has always had an RPE slider, the AI generator prompt
+   * has always asked for one, and both wrote it into the program document —
+   * but it was never on this type and the workout screen never showed it, so
+   * every member saw "4 sets x 8 reps" with no indication of whether that
+   * meant comfortable or close to failure. For strength work that is the most
+   * important instruction on the page, and it was being collected and thrown
+   * away at the last step.
+   */
+  rpe?: number;
   notes?: string;
   muscleGroup?: string;
   isCardio?: boolean;
@@ -487,7 +925,8 @@ export interface Post {
 
 export type NotificationType =
   | 'manual' | 'auto_missed_workout' | 'auto_streak' | 'auto_milestone' | 'ai_motivation'
-  | 'coaching_approved' | 'coaching_rejected' | 'pr_approved' | 'pr_rejected' | 'goal_assigned';
+  | 'coaching_approved' | 'coaching_rejected' | 'pr_approved' | 'pr_rejected' | 'goal_assigned' | 'nutrition_plan' | 'message'
+  | 'challenge_verified' | 'challenge_rejected' | 'challenge_live';
 
 export interface AppNotification {
   id: string;
@@ -554,6 +993,10 @@ export interface PtTestResult {
   // other than 'generic' is a unit id matched against UNIT_STANDARDS in
   // the PT Test page (not a fixed union — new units don't need a type change).
   standard?: 'generic' | string;
+  /** Plank hold in seconds, for standards that test it (USMC PFT). */
+  plankSeconds?: number;
+  /** 20m multi-stage shuttle level, for standards that test it. */
+  beepLevel?: number;
   pullups?: number;
   standardPassed?: boolean;
 }
@@ -572,6 +1015,9 @@ export interface CoachingApplication {
   experience: string;
   injuries: string;
   availability: string;
+  // Health screening / lifestyle habits answers, collected on the coaching
+  // application form (they used to be mandatory onboarding steps).
+  medicalHistory?: MedicalHistoryAnswers;
   status: CoachingApplicationStatus;
   createdAt: unknown;
   reviewedAt?: unknown;
@@ -638,9 +1084,39 @@ export interface MembershipConfig {
   lockedFeatures?: string[];
   lockedProgramIds?: string[];
   fullLock: boolean; // lock entire app for non-members/non-trial users
-  trialDays: 0 | 7 | 14 | 30; // free trial length; grants full access to every feature regardless of plan
+  trialDays: 0 | 7 | 14 | 30; // trial length; grants full access to every feature regardless of plan
   discountPercent?: number;   // 1-100, applied to new checkouts while active
   discountExpiresAt?: string; // ISO datetime; discount inactive after this
+  // MadMuscles-style paid trial: charge trialPriceCents immediately at
+  // checkout instead of granting `trialDays` of free no-card access. When
+  // this is on, the createdAt-based free-trial bypass (inTrial in
+  // useFeatureAccess.ts/MembershipGuard.tsx, trialActive() in
+  // firestore.rules) is disabled entirely — access is only ever granted
+  // via an actual Stripe subscription (which itself starts in Stripe's
+  // own 'trialing' status for `trialDays`, already treated as active
+  // access by the webhook). Requires fullLock so the paywall/checkout
+  // actually gets shown to someone with no subscription yet — enforced by
+  // the admin UI, not just documented here.
+  paidTrialEnabled?: boolean;
+  trialPriceCents?: number; // e.g. 100 = $1.00, charged once at checkout
+  // Card-up-front trial: the member goes through Stripe Checkout on day 0,
+  // hands over a card, and gets `trialDays` free via Stripe's own
+  // trial_period_days. Nothing is charged until the trial ends, and then it
+  // bills automatically.
+  //
+  // The point is WHO decides on day 8. The createdAt-anchored free trial
+  // (isInFreeTrial) grants access with no Stripe subscription at all, so
+  // when it lapses the member hits a paywall and has to actively choose to
+  // subscribe — an opt-IN at the exact moment the product stopped working.
+  // With a card up front, day 8 is passive: they do nothing and become a
+  // customer. Same 7 free days either way; very different conversion.
+  //
+  // Like paidTrialEnabled, this disables the createdAt-based free window
+  // entirely — access comes only from a real Stripe subscription, which
+  // starts in 'trialing' and is already treated as active by the webhook.
+  // Mutually exclusive with paidTrialEnabled (which charges immediately);
+  // paidTrialEnabled wins if both are somehow set.
+  cardUpFrontTrial?: boolean;
 }
 
 export interface MembershipPlan {
@@ -659,6 +1135,15 @@ export interface MembershipPlan {
   price12mo?: number;
   currency: string; // e.g. 'USD'
   features: string[]; // bullet points shown on the pricing card
+  // Which plan gets the "Most Popular" badge on the landing page and the
+  // in-app paywalls. Previously not a real field at all — every pricing
+  // card just badged whichever plan happened to be array index 0, with no
+  // way for an admin to actually choose which one that was short of
+  // deleting and recreating plans in a different order. At most one plan
+  // should have this true at a time (enforced by the admin toggle, not by
+  // this type) — if none do, callers fall back to index 0 so existing
+  // installs keep behaving exactly as before.
+  mostPopular?: boolean;
   // Which gated tools this plan unlocks — 'barcode' | 'nutrition-ai' |
   // 'meal-planner' | 'premium-programs'. Empty = every feature (the
   // default — a plan only restricts once an admin explicitly picks a
@@ -689,6 +1174,38 @@ export interface Message {
   content: string;
   isFromAdmin: boolean;
   createdAt: unknown;
+  // Support attachments only (coach DMs don't currently offer uploads).
+  // Optional throughout, so every message written before this existed still
+  // parses as a valid Message.
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
+}
+
+// ── Support tickets ────────────────────────────────────────────────────────
+// Deliberately a separate collection from `conversations` rather than a flag
+// on it. A conversation is a staff-initiated coach DM that no member may ever
+// create (see firestore.rules); a support ticket is the exact opposite — the
+// member opens it, and it carries a lifecycle (pending → ongoing → resolved)
+// that a DM has no concept of. Folding the two together would have meant
+// loosening the conversations create rule for everyone, which is the one rule
+// standing between this app and member-to-member messaging.
+export type SupportTicketStatus = 'pending' | 'ongoing' | 'resolved';
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  userDisplayName: string;
+  userEmail: string;
+  subject: string;
+  status: SupportTicketStatus;
+  lastMessage: string;
+  lastMessageAt: unknown;
+  createdAt: unknown;
+  unreadByUser: boolean;
+  unreadByAdmin: boolean;
+  resolvedAt?: unknown;
+  resolvedBy?: string;
 }
 
 export interface NutritionAnalysis {

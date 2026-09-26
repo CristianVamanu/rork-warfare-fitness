@@ -1,42 +1,135 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Dumbbell, Play, Clock, Target, ChevronRight, Moon, Crown, CheckCircle2, RotateCcw, Camera, ArrowRight } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Moon, Dumbbell, Play, ChevronRight, Crown, CheckCircle2, RotateCcw, Lock, Flame, Mountain, Activity, MousePointerClick, X as XIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getPrograms, resolveProgram, getHiddenMockIds, getUserCustomPrograms } from '@/lib/firestore';
-import { MOCK_PROGRAMS, stripWeekdayPrefix, getProgramDayForDow, getNextSession } from '@/lib/programs';
+import { getPrograms, resolveProgram, peekResolvedProgram, getDeletedMockIds, getSystemConfig, getUserCustomPrograms, skipRestDay, peekProgramList, selectPublicPrograms, selectCustomPrograms } from '@/lib/firestore';
+import { MOCK_PROGRAMS, stripWeekdayPrefix, getNextSession, getLastTrainingSlotIndex, getProgramDayProgress } from '@/lib/programs';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLocalDate } from '@/hooks/useLocalDate';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { ProgressBar } from '@/components/ui/ProgressBar';
+import { Ring } from '@/components/dashboard/Ring';
+import { ShareProgramButton } from '@/components/training/ShareProgramButton';
+import { removeQueryParam } from '@/lib/queryParam';
 import type { Program } from '@/types';
 
-const goalColors: Record<string, string> = {
-  strength: 'accent',
-  hypertrophy: 'info',
-  endurance: 'success',
-  'weight-loss': 'danger',
-  general: 'muted',
+const GOAL_ICON: Record<string, React.ElementType> = {
+  strength: Dumbbell, hypertrophy: Flame, endurance: Mountain, 'weight-loss': Flame, general: Activity,
 };
+const GOAL_LABEL: Record<string, string> = {
+  strength: 'Strength', hypertrophy: 'Muscle', endurance: 'Selection', 'weight-loss': 'Fat loss', general: 'General',
+};
+const levelTone: Record<string, 'ok' | 'accent' | 'danger'> = { beginner: 'ok', intermediate: 'accent', advanced: 'danger' };
 
-const levelColors: Record<string, string> = {
-  beginner: 'success',
-  intermediate: 'accent',
-  advanced: 'danger',
-};
+// One card for every program in either list — same anatomy for built-in,
+// admin-published and self-built programs, so the list reads as one set.
+//
+// MODULE scope, not inside TrainingPage. Declared inside the page it was a
+// brand-new component type on every render, so React threw away every row
+// and mounted a fresh one each time any state changed — and each fresh
+// mount replayed the fade-in below. With five async loads landing at
+// different moments (list, custom list, active program, profile snapshots,
+// the date hook), the whole list faded in over and over: the flicker.
+function ProgramRow({ prog, isActive, saved, locked, index }: {
+  prog: Program; isActive: boolean; saved?: { completedWorkouts: number }; locked?: boolean; index: number;
+}) {
+  const GoalIcon = GOAL_ICON[prog.goal] ?? Dumbbell;
+  const gender = (prog as { targetGender?: string }).targetGender;
+  const premium = (prog as { isPremium?: boolean }).isPremium;
+  return (
+    <div className="wf-rise" style={{ animationDelay: `${Math.min(index, 6) * 0.04}s` }}>
+      <Link href={`/training/${prog.id}`} className="block">
+        <Card glass className={`relative overflow-hidden p-4 flex gap-3.5 card-float ${isActive ? 'border-accent/40 shadow-glow-sm' : ''}`}>
+          {/* Ember edge-light on the active program only. Green is
+              reserved for trained sessions everywhere else in the app, so
+              a paused program does not get a green wash just for
+              existing. */}
+          {isActive && (
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{ background: 'radial-gradient(120% 140% at 0% 50%, rgb(var(--accent-rgb) / 0.18) 0%, transparent 60%)' }}
+            />
+          )}
+          <span
+            className="relative w-12 h-12 rounded-2xl flex items-center justify-center text-accent flex-shrink-0 border border-accent/25"
+            style={{ background: 'linear-gradient(135deg, rgba(var(--accent-rgb) / 0.32), rgba(var(--accent-rgb) / 0.06))' }}
+          >
+            <GoalIcon className="w-6 h-6" strokeWidth={2} />
+          </span>
+          <div className="relative flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">
+                  {GOAL_LABEL[prog.goal] ?? prog.goal}{gender && gender !== 'anyone' ? ` · ${gender}` : ''}
+                </p>
+                <h3 className="text-[15px] font-extrabold text-white leading-tight mt-0.5 truncate">{prog.name}</h3>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0 mt-1" />
+            </div>
+            <p className="text-xs text-text-secondary mt-1.5 line-clamp-2 leading-relaxed">{prog.description}</p>
+            <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+              <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">{prog.weeks} wk</span>
+              <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">{prog.daysPerWeek} d/wk</span>
+              <Badge variant={levelTone[prog.level] === 'ok' ? 'success' : levelTone[prog.level] === 'danger' ? 'danger' : 'accent'}>{prog.level}</Badge>
+              {isActive && <Badge variant="success">Active</Badge>}
+              {!isActive && saved && saved.completedWorkouts > 0 && <Badge variant="muted">Continue · {saved.completedWorkouts} done</Badge>}
+              {locked
+                ? <Badge variant="accent"><Lock className="w-3 h-3 inline mr-0.5" />Upgrade to unlock</Badge>
+                : premium && !isActive && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
+            </div>
+          </div>
+        </Card>
+      </Link>
+    </div>
+  );
+}
 
 export default function TrainingPage() {
   const { user, profile } = useAuth();
+  // One read for the whole list — useFeatureAccess can't be called per
+  // program inside the map, since hooks cannot run in a loop.
+  const { otherProgramsLocked: programsLockedByPlan, switchesLeft } = useFeatureAccess();
   const router = useRouter();
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [customPrograms, setCustomPrograms] = useState<Program[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  /**
+   * Arrived here by tapping "Switch Program" on a program page.
+   *
+   * That button used to push to /training and stop — dropping someone on a
+   * list of cards with nothing saying that tapping one IS the switch. It
+   * read as a button that did nothing but change screens.
+   *
+   * Read off window rather than useSearchParams so this needs no Suspense
+   * boundary; it is a hint, and a hint that appears a tick after paint is
+   * fine. Cleared from the URL on dismissal so a refresh or a back-and-
+   * forward does not keep re-announcing it.
+   */
+  const [switchHint, setSwitchHint] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('switch') === '1') setSwitchHint(true);
+  }, []);
+  const dismissSwitchHint = () => {
+    setSwitchHint(false);
+    // Only the hint's own flag — rewriting to a bare '/training' threw away
+    // every other parameter on the URL with it.
+    removeQueryParam('switch');
+  };
+
+  // Paint the last list this device saw before the network answers. The
+  // fresh list replaces it a moment later; usually it is identical.
+  const remembered = useMemo(() => (user ? peekProgramList(user.uid) : null), [user]);
+  const [programs, setPrograms] = useState<Program[]>(() => (remembered ? selectPublicPrograms(remembered) as Program[] : []));
+  const [customPrograms, setCustomPrograms] = useState<Program[]>(() => (remembered && user ? selectCustomPrograms(remembered, user.uid) as unknown as Program[] : []));
+  const [loading, setLoading] = useState(remembered === null);
   const [filter, setFilter] = useState<string>('all');
 
   const activeProgram = profile?.activeProgram;
@@ -44,50 +137,122 @@ export default function TrainingPage() {
   // ── Single source of truth for "which day is the user on" — mirrors
   // dashboard and training/[id]. lastCompletedDayIndex is authoritative;
   // programStartDate is never used for display/navigation.
-  const localDateStr = new Date().toLocaleDateString('sv-SE');
+  // Reactive — flips at local midnight / on foreground, so the rest-day card
+  // below is recomputed instead of frozen at whatever day the page first
+  // rendered on.
+  const localDateStr = useLocalDate();
   const completedWorkouts = activeProgram?.completedWorkouts ?? 0;
   const lastCompleted = activeProgram?.lastCompletedDayIndex !== undefined
     ? activeProgram.lastCompletedDayIndex
     : (completedWorkouts > 0 ? completedWorkouts - 1 : -1);
   const workedOutToday = completedWorkouts > 0 && profile?.statsCache?.lastWorkoutDate === localDateStr;
 
-  const [resolvedActive, setResolvedActive] = useState<Program | null>(null);
-  const pct = activeProgram
-    ? Math.round((activeProgram.completedWorkouts / activeProgram.totalWorkouts) * 100)
-    : 0;
-
+  const [resolvedActive, setResolvedActive] = useState<Program | null>(
+    () => peekResolvedProgram(profile?.activeProgram?.programId),
+  );
+  // Whether the resolve has FINISHED — distinct from whether it found
+  // anything. The card below keys on the activeProgram pointer stored on the
+  // user doc, which outlives the program it points at: a program that has
+  // since been deleted (or a built-in removed from the seed data) leaves a
+  // member enrolled in something that no longer resolves, and they'd get a
+  // card with no sessions and no way out of it.
+  const [activeResolved, setActiveResolved] = useState(false);
+  // Saved (non-active) per-program progress, keyed by programId — powers
+  // the "Continue — Week X • Day Y" line on programs other than the
+  // currently active one, so switching away and back is visibly
+  // non-destructive right from this browse list.
+  //
+  // Read straight off the profile the auth context already streams — this
+  // used to re-fetch the same user document, which arrived a beat after
+  // everything else and re-rendered every row a second time.
+  const savedProgressMap = useMemo(() => {
+    const nonActive: Record<string, { completedWorkouts: number }> = {};
+    for (const [pid, p] of Object.entries(profile?.programProgress ?? {})) {
+      if (pid !== activeProgram?.programId) nonActive[pid] = { completedWorkouts: p.completedWorkouts ?? 0 };
+    }
+    return nonActive;
+  }, [profile?.programProgress, activeProgram?.programId]);
   // Shared resolver (Firestore-first, seed fallback) — this used to prefer
   // the built-in seed copy over the admin's saved Firestore edits, the
   // exact opposite precedence of the program detail page, which is how two
   // screens ended up disagreeing about the same program's schedule.
+  //
+  // Keyed on the program ID, not the activeProgram object. That object is a
+  // fresh identity on every profile snapshot — every completed set, every
+  // metadata tick — so keying on it re-fetched the full program document
+  // and flipped the card through its loading state each time.
+  const activeProgramId = activeProgram?.programId;
   useEffect(() => {
-    if (!activeProgram) { setResolvedActive(null); return; }
-    resolveProgram(activeProgram.programId)
-      .then(setResolvedActive)
-      .catch(() => setResolvedActive(null));
-  }, [activeProgram]);
+    if (!activeProgramId) { setResolvedActive(null); return; }
+    setActiveResolved(false);
+    let alive = true;
+    resolveProgram(activeProgramId)
+      .then((p) => { if (alive) { setResolvedActive(p); setActiveResolved(true); } })
+      .catch(() => { if (alive) { setResolvedActive(null); setActiveResolved(true); } });
+    return () => { alive = false; };
+  }, [activeProgramId]);
 
   // getNextSession skips stale rest slots (deadlock fix) — same shared
-  // logic as the dashboard card and program detail page.
-  const nextSession = resolvedActive && activeProgram && !workedOutToday
-    ? getNextSession(resolvedActive, lastCompleted, profile?.statsCache?.lastWorkoutDate)
+  // logic as the dashboard card and program detail page. Always points at
+  // the next not-yet-completed day regardless of workedOutToday — training
+  // twice in one day is allowed, not blocked until the calendar date rolls
+  // over (see training/[id]/page.tsx for the full rationale).
+  const nextSession = resolvedActive && activeProgram
+    ? getNextSession(resolvedActive, lastCompleted, profile?.statsCache?.lastWorkoutDate, localDateStr)
     : null;
-  const nextAbsIdx = activeProgram
-    ? (workedOutToday ? lastCompleted : (nextSession?.index ?? lastCompleted + 1))
-    : 0;
-  const todayDay = workedOutToday
-    ? (resolvedActive ? getProgramDayForDow(resolvedActive, lastCompleted) : null)
-    : (nextSession?.day ?? null);
-  const isRestToday = !workedOutToday && (nextSession?.isRestToday ?? false);
+  const nextAbsIdx = activeProgram ? (nextSession?.index ?? lastCompleted + 1) : 0;
+  const todayDay = nextSession?.day ?? null;
+  const isRestToday = nextSession?.isRestToday ?? false;
+  const repeatIdx = resolvedActive ? getLastTrainingSlotIndex(resolvedActive, lastCompleted) : null;
+  // Progress in DAYS, rest days included — "Day 9 of 84". See
+  // getProgramDayProgress for why sessions stopped being the headline.
+  const dayProgress = activeProgram ? getProgramDayProgress(resolvedActive, activeProgram, nextAbsIdx) : null;
+  const pct = dayProgress?.pct ?? 0;
+  const programFinished = dayProgress?.finished ?? false;
+  const [skippingRest, setSkippingRest] = useState(false);
+  const handleSkipRest = async () => {
+    if (!user || !activeProgram?.programId || !nextSession?.isRestToday) return;
+    setSkippingRest(true);
+    try {
+      const res = await skipRestDay(user.uid, activeProgram.programId, nextSession.index);
+      if (!res.ok) {
+        toast.error(
+          res.reason === 'locked'
+            ? 'Your trial covers a limited number of days — upgrade to keep going.'
+            : res.reason === 'not-a-rest-day'
+            ? 'That session is a workout, not a rest day.'
+            : 'Could not skip the rest day. Try again.'
+        );
+      }
+    } catch { toast.error('Could not skip the rest day. Try again.'); }
+    finally { setSkippingRest(false); }
+  };
 
   useEffect(() => {
-    Promise.all([getPrograms(), getHiddenMockIds().catch(() => [] as string[])])
-      .then(([firestoreProgs, hiddenIds]) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const fp = firestoreProgs as any as Program[];
+    // deletedMocks was missing here. This list filtered hidden built-ins and
+    // ignored permanently deleted ones entirely — it only looked correct
+    // because "Delete forever" was reachable only for already-hidden
+    // programs, so every deleted id happened to also be a hidden id. That is
+    // a coincidence of one screen's flow, not a guarantee, and the moment it
+    // stopped holding, deleted programs would have reappeared for every user
+    // while the admin panel insisted they were gone. The landing page's
+    // /api/public/programs already filtered both.
+    Promise.all([
+      getPrograms(),
+      getDeletedMockIds().catch(() => [] as string[]),
+      getSystemConfig().catch(() => null),
+    ])
+      .then(([firestoreProgs, deletedIds, cfg]) => {
+        const fp = firestoreProgs as unknown as Program[];
         const fpIds = new Set(fp.map((p) => p.id));
-        const hidden = new Set(hiddenIds);
-        const mocks = MOCK_PROGRAMS.filter((m) => !fpIds.has(m.id) && !hidden.has(m.id));
+        // Once the built-ins have been imported into the database, the
+        // bundled copies are not a source of programs any more — the admin
+        // panel is. Merging them back in would resurrect anything deleted
+        // since, which is the whole thing the import exists to end.
+        const suppressed = new Set(deletedIds);
+        const mocks = cfg?.builtinsImported
+          ? []
+          : MOCK_PROGRAMS.filter((m) => !fpIds.has(m.id) && !suppressed.has(m.id));
         setPrograms([...fp, ...mocks as Program[]]);
       })
       .catch(() => setPrograms(MOCK_PROGRAMS))
@@ -107,223 +272,251 @@ export default function TrainingPage() {
   }, [user]);
 
   const filtered = filter === 'all' ? programs : programs.filter((p) => p.goal === filter || p.level === filter);
+  // Show a handful, not the whole catalogue. This is a browsing improvement
+  // rather than a loading one — the list arrives in a single request and the
+  // cards carry no images, so nothing is deferred by showing fewer. What it
+  // does buy is a screen you can take in at a glance instead of a long scroll
+  // past every program to reach the filters you actually wanted.
+  const PROGRAMS_PAGE = 4;
+  const [visibleCount, setVisibleCount] = useState(PROGRAMS_PAGE);
+  const visible = filtered.slice(0, visibleCount);
+  const remaining = filtered.length - visible.length;
+
+  // Changing the filter re-shows the first page — otherwise picking a filter
+  // after "Load more" leaves an expanded count applied to a different, often
+  // much shorter list, and the button vanishes for no visible reason.
+  useEffect(() => { setVisibleCount(PROGRAMS_PAGE); }, [filter]);
 
   return (
-    <div>
+    <div className="relative">
+      <div className="relative">
       <Header title="Training" />
-      <div className="px-4 py-4 space-y-5">
-        {/* Scan & Go — not tied to any program, so it's always available
-            regardless of what's active below */}
-        <Link href="/training/scan-go">
-          <Card className="p-4 flex items-center gap-3 border-accent/20 bg-gradient-to-r from-accent-muted/40 to-transparent hover:from-accent-muted/60 transition-colors">
-            <div className="w-11 h-11 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
-              <Camera className="w-5 h-5 text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">Scan & Go</p>
-              <p className="text-xs text-text-secondary">Photograph any gym, get today's workout built around it</p>
-            </div>
-            <ArrowRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-          </Card>
-        </Link>
-
-        {/* Active Program Hero */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-          <h2 className="text-sm font-medium text-text-secondary mb-2">ACTIVE PROGRAM</h2>
-          {activeProgram ? (
-            <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-surface to-surface-elevated">
-              <div className="absolute right-0 bottom-0 opacity-5 pointer-events-none">
-                <Dumbbell className="w-32 h-32 text-accent" />
+      <div className="px-4 py-4 space-y-4">
+        {/* Active program */}
+        <div className="wf-rise">
+          {activeProgram && activeResolved && !resolvedActive ? (
+            <Card glass className="p-5">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">Active program</p>
+              <h3 className="text-lg font-extrabold text-white mt-1">This program has been removed</h3>
+              <p className="text-text-secondary text-sm mt-1">Your progress is safe. Pick another program below to carry on.</p>
+            </Card>
+          ) : activeProgram ? (
+            <Card glass className="relative overflow-hidden p-5 border-accent/40 shadow-[0_0_44px_-10px_rgba(245,166,35,0.5)]">
+              {/* Ember wash + hairline grid — the home hero's surface, so the
+                  active program is unmistakably the live object on this tab
+                  and the browse list below reads as the library. */}
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background: [
+                    'radial-gradient(110% 120% at 100% 0%, rgb(var(--accent-rgb) / 0.24) 0%, transparent 55%)',
+                    'linear-gradient(rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px)',
+                    'linear-gradient(90deg, rgb(var(--accent-rgb) / 0.06) 1px, transparent 1px)',
+                  ].join(','),
+                  backgroundSize: '100% 100%, 22px 22px, 22px 22px',
+                }}
+              />
+              <div className="relative">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" /> Active program
+                  </p>
+                  <h3 className="text-[22px] font-black text-white leading-tight mt-1 truncate">{activeProgram.programName}</h3>
+                  {todayDay && (
+                    <p className="text-text-secondary text-sm mt-1">
+                      {isRestToday ? 'Rest day — recover, or skip it below' : `Next: ${stripWeekdayPrefix(todayDay.label)}`}
+                    </p>
+                  )}
+                </div>
+                <Ring value={pct / 100} size={64} stroke={6}>
+                  <span className="text-[15px] font-black text-white tabular-nums">{pct}<span className="text-[10px] font-bold text-text-secondary">%</span></span>
+                </Ring>
               </div>
-              <Badge variant="accent" className="mb-3">
-                {activeProgram.completedWorkouts}/{activeProgram.totalWorkouts} sessions
-              </Badge>
-              <h3 className="text-xl font-black text-white">{activeProgram.programName}</h3>
-              {todayDay && (
-                <p className="text-text-secondary text-sm mt-1">
-                  {workedOutToday
-                    ? `Completed: ${stripWeekdayPrefix(todayDay.label)}`
-                    : `Today: ${isRestToday ? '😴 Rest Day' : stripWeekdayPrefix(todayDay.label)}`}
-                </p>
-              )}
+              <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+                <Badge variant="accent">{programFinished ? '🎉 Program complete' : `Day ${dayProgress?.dayNumber ?? 1} of ${dayProgress?.totalDays ?? activeProgram.totalWorkouts}`}</Badge>
+                {!programFinished && (
+                  <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">
+                    {activeProgram.completedWorkouts} session{activeProgram.completedWorkouts !== 1 ? 's' : ''} done
+                  </span>
+                )}
+                {workedOutToday && (
+                  <Badge variant="success"><CheckCircle2 className="w-3 h-3 inline mr-0.5" />Day {Math.max(1, completedWorkouts)} done today</Badge>
+                )}
+              </div>
               <div className="mt-4 space-y-2">
-                <div className="flex justify-between text-xs text-text-secondary">
-                  <span>Progress</span>
-                  <span>{pct}%</span>
-                </div>
-                <ProgressBar value={activeProgram.completedWorkouts} max={activeProgram.totalWorkouts} color="accent" size="sm" />
-              </div>
-              {/* Three-way state, matching the dashboard card and program
-                  detail page exactly — this previously only branched on
-                  rest day, so it still said "Start Today's Workout" after
-                  the session was already done, contradicting both other
-                  screens. */}
-              {workedOutToday && (
-                <div className="mt-4 p-3 bg-success/10 border border-success/30 rounded-xl flex items-center gap-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-white">Day {Math.max(1, completedWorkouts)} Complete!</p>
-                    <p className="text-xs text-text-secondary">Come back tomorrow for Day {completedWorkouts + 1}</p>
-                  </div>
-                </div>
-              )}
-              <div className="flex gap-2 mt-4 flex-wrap">
-                {workedOutToday ? (
-                  <Button size="sm" variant="ghost" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                    <RotateCcw className="w-4 h-4" /> Repeat Today
-                  </Button>
-                ) : todayDay && !isRestToday ? (
-                  <Button size="sm" onClick={() => {
-                    router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`);
-                  }}>
-                    <Play className="w-4 h-4" /> Start Today&apos;s Workout
+                {todayDay && (isRestToday ? (
+                  <Button
+                    fullWidth
+                    variant="secondary"
+                    loading={skippingRest}
+                    onClick={handleSkipRest}
+                    /* Same two-line treatment as the dashboard's card, and for
+                       the same reason: the session name is long enough to wrap,
+                       and a wrapped label strands the icon at the far edge.
+                       h-auto lets the second line grow the button. */
+                    className="h-auto"
+                  >
+                    <span className="flex flex-col items-center gap-0.5 leading-tight">
+                      <span className="flex items-center gap-2">
+                        <Moon className="w-4 h-4 flex-shrink-0" /> Skip rest day
+                      </span>
+                      {nextSession?.nextTraining && (
+                        <span className="text-[12px] font-semibold opacity-70 text-center">
+                          {stripWeekdayPrefix(nextSession.nextTraining.day.label)}
+                        </span>
+                      )}
+                    </span>
                   </Button>
                 ) : (
-                  <div className="flex items-center gap-2 text-sm text-text-secondary">
-                    <Moon className="w-4 h-4" /> Rest day — recover well
-                  </div>
-                )}
-                <Button size="sm" variant="secondary" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
-                  View Program
-                </Button>
+                  <Button fullWidth onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
+                    <Play className="w-4 h-4" /> {workedOutToday ? 'Start another session' : 'Start session'}
+                  </Button>
+                ))}
+                {/* Three possible buttons (Repeat is conditional), so the grid
+                    column count matches how many are actually present —
+                    fixing it at 2 left Share alone on its own row whenever
+                    Repeat was hidden. */}
+                <div className={`grid gap-2 ${workedOutToday && repeatIdx !== null ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {workedOutToday && repeatIdx !== null && (
+                    <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${repeatIdx}`)}>
+                      <RotateCcw className="w-4 h-4" /> Repeat
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" className="justify-center" onClick={() => router.push(`/training/${activeProgram.programId}`)}>
+                    View program
+                  </Button>
+                  <ShareProgramButton programId={activeProgram.programId} programName={activeProgram.programName} />
+                </div>
+              </div>
               </div>
             </Card>
           ) : (
-            <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-surface to-surface-elevated">
-              <div className="absolute right-0 bottom-0 opacity-5 pointer-events-none">
-                <Dumbbell className="w-32 h-32 text-accent" />
-              </div>
-              <p className="text-text-secondary text-sm mb-2">No active program</p>
-              <h3 className="text-lg font-bold text-white">Choose a program below</h3>
-              <p className="text-text-secondary text-sm mt-1">Select a program to track your progress</p>
+            <Card glass className="p-5">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">No active program</p>
+              <h3 className="text-lg font-extrabold text-white mt-1">Pick your fight.</h3>
+              <p className="text-text-secondary text-sm mt-1">Choose a program below and your first session is written before you get to the gym.</p>
             </Card>
           )}
-        </motion.div>
+        </div>
 
-        {/* My Built Programs — personal programs, kept visible even after
-            switching to a different one, so nothing built here is ever
-            actually lost, just not currently active. */}
+        {/* My Built Programs */}
         {customPrograms.length > 0 && (
           <div>
-            <h2 className="text-base font-bold text-white mb-3">My Built Programs</h2>
-            <div className="space-y-3">
-              {customPrograms.map((prog, i) => {
-                const isActive = activeProgram?.programId === prog.id;
-                return (
-                  <motion.div
-                    key={prog.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                    <Link href={`/training/${prog.id}`}>
-                      <Card className={`p-4 hover:border-accent/30 transition-colors ${isActive ? 'border-accent/40' : ''}`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex gap-2 mb-2 flex-wrap">
-                              <Badge variant={(goalColors[prog.goal] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
-                                {prog.goal}
-                              </Badge>
-                              <Badge variant={(levelColors[prog.level] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
-                                {prog.level}
-                              </Badge>
-                              {isActive && <Badge variant="success">Active</Badge>}
-                            </div>
-                            <h3 className="font-bold text-white">{prog.name}</h3>
-                            <p className="text-xs text-text-secondary mt-1 line-clamp-2">{prog.description}</p>
-                            <div className="flex items-center gap-4 mt-2">
-                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                                <Clock className="w-3 h-3" />{prog.weeks}w
-                              </span>
-                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                                <Target className="w-3 h-3" />{prog.daysPerWeek}d/week
-                              </span>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-text-tertiary mt-1 flex-shrink-0" />
-                        </div>
-                      </Card>
-                    </Link>
-                  </motion.div>
-                );
-              })}
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary px-0.5 mb-2">My built programs</p>
+            <div className="space-y-2.5">
+              {customPrograms.map((prog, i) => (
+                <ProgramRow key={prog.id} prog={prog} index={i} isActive={activeProgram?.programId === prog.id} saved={savedProgressMap[prog.id]} />
+              ))}
             </div>
           </div>
         )}
 
         {/* Filters */}
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
-          {['all', 'strength', 'hypertrophy', 'weight-loss', 'beginner', 'intermediate', 'advanced'].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                filter === f
-                  ? 'bg-accent text-black'
-                  : 'bg-surface-elevated border border-white/10 text-text-secondary'
-              }`}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1).replace('-', ' ')}
-            </button>
-          ))}
+        {/* Free-standing chips, no track around them: the lit one is the
+            filter, the rest sit quietly on glass. */}
+        <div className="-mx-4 px-4 overflow-x-auto">
+          <div className="flex gap-2 w-max pb-0.5">
+            {['all', 'strength', 'hypertrophy', 'weight-loss', 'beginner', 'intermediate', 'advanced'].map((f) => {
+              const on = filter === f;
+              return (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  aria-pressed={on}
+                  className={`h-9 px-4 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                    on
+                      ? 'bg-accent text-black shadow-glow-sm'
+                      : 'text-text-secondary hover:text-white backdrop-blur-xl'
+                  }`}
+                  style={on ? undefined : { backgroundColor: 'var(--card-glass-bg)', border: '1px solid var(--card-glass-border)' }}
+                >
+                  {f === 'all' ? 'All' : f === 'weight-loss' ? 'Fat loss' : f === 'hypertrophy' ? 'Muscle' : f.charAt(0).toUpperCase() + f.slice(1)}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Programs Grid */}
+        {/* Programs */}
         <div>
-          <h2 className="text-base font-bold text-white mb-3">Browse Programs</h2>
+          {/* Shown only to someone who came here to switch. Deliberately a
+              panel rather than a toast: a toast is gone in four seconds,
+              and this has to still be on screen while they read down a
+              list of twelve programs deciding. */}
+          {switchHint && (
+            <div className="relative overflow-hidden rounded-2xl border border-accent/30 bg-accent/[0.07] p-4 mb-3 wf-rise">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 opacity-60"
+                style={{
+                  backgroundImage:
+                    'radial-gradient(80% 60% at 100% 0%, rgb(var(--accent-rgb) / 0.12), transparent 60%),' +
+                    'linear-gradient(rgb(var(--accent-rgb) / 0.05) 1px, transparent 1px),' +
+                    'linear-gradient(90deg, rgb(var(--accent-rgb) / 0.05) 1px, transparent 1px)',
+                  backgroundSize: '100% 100%, 22px 22px, 22px 22px',
+                }}
+              />
+              <div className="relative flex items-start gap-3">
+                <span className="w-8 h-8 rounded-xl bg-accent/15 flex items-center justify-center flex-shrink-0">
+                  <MousePointerClick className="w-4 h-4 text-accent" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="wf-readout text-[10px] font-bold text-accent">Switching program</p>
+                  <p className="text-sm text-white font-semibold mt-1 leading-snug">
+                    Pick any program below to switch to it.
+                  </p>
+                  <p className="text-[11px] text-text-secondary mt-1 leading-relaxed">
+                    Your current progress is saved under its own program — come back to it any time and
+                    carry on exactly where you stopped.
+                  </p>
+                </div>
+                <button
+                  onClick={dismissSwitchHint}
+                  aria-label="Dismiss"
+                  className="p-1 -m-1 text-text-tertiary hover:text-white transition-colors flex-shrink-0"
+                >
+                  <XIcon className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between px-0.5 mb-2">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">Programs</p>
+              {/* The standing affordance, for everyone — not just people who
+                  arrived via the switch button. The rows always were
+                  tappable; nothing on screen ever said so. */}
+              <p className="text-[11px] text-text-tertiary mt-0.5">Tap any one to switch — progress is kept per program.</p>
+            </div>
+            {!loading && <p className="text-[11px] text-text-tertiary tabular-nums flex-shrink-0 ml-3">{filtered.length} available</p>}
+          </div>
           {loading ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
             </div>
           ) : (
-            <div className="space-y-3">
-              {filtered.map((prog, i) => {
+            <div className="space-y-2.5">
+              {visible.map((prog, i) => {
                 const isActive = activeProgram?.programId === prog.id;
-                return (
-                  <motion.div
-                    key={prog.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                    <Link href={`/training/${prog.id}`}>
-                      <Card className={`p-4 hover:border-accent/30 transition-colors ${isActive ? 'border-accent/40' : ''}`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex gap-2 mb-2 flex-wrap">
-                              <Badge variant={(goalColors[prog.goal] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
-                                {prog.goal}
-                              </Badge>
-                              <Badge variant={(levelColors[prog.level] || 'muted') as 'accent' | 'success' | 'danger' | 'info' | 'muted' | 'default'}>
-                                {prog.level}
-                              </Badge>
-                              {isActive && <Badge variant="success">Active</Badge>}
-                              {(prog as { isPremium?: boolean }).isPremium && <Badge variant="info"><Crown className="w-3 h-3 inline mr-0.5" />Premium</Badge>}
-                              {(prog as { targetGender?: string }).targetGender && (prog as { targetGender?: string }).targetGender !== 'anyone' && (
-                                <Badge variant="muted">{(prog as { targetGender?: string }).targetGender}</Badge>
-                              )}
-                            </div>
-                            <h3 className="font-bold text-white">{prog.name}</h3>
-                            <p className="text-xs text-text-secondary mt-1 line-clamp-2">{prog.description}</p>
-                            <div className="flex items-center gap-4 mt-2">
-                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                                <Clock className="w-3 h-3" />{prog.weeks}w
-                              </span>
-                              <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                                <Target className="w-3 h-3" />{prog.daysPerWeek}d/week
-                              </span>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-text-tertiary mt-1 flex-shrink-0" />
-                        </div>
-                      </Card>
-                    </Link>
-                  </motion.div>
-                );
+                // Locked programs stay in the list, badged, with their real
+                // description — hiding them hides the reason to upgrade.
+                // A padlock only once the switch allowance is spent. Until
+                // then every program is reachable, at the cost of a switch,
+                // and a lock icon on something you can open is a lie.
+                const isLockedByPlan = programsLockedByPlan && switchesLeft === 0 && !isActive;
+                return <ProgramRow key={prog.id} prog={prog} index={i} isActive={isActive} saved={savedProgressMap[prog.id]} locked={isLockedByPlan} />;
               })}
+              {remaining > 0 && (
+                <Button fullWidth variant="secondary" onClick={() => setVisibleCount((n) => n + PROGRAMS_PAGE)}>
+                  Load more ({remaining})
+                </Button>
+              )}
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

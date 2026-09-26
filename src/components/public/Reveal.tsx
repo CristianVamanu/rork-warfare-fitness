@@ -1,0 +1,93 @@
+'use client';
+
+/**
+ * Fade-and-rise on scroll for the public pages.
+ *
+ * Deliberately NOT framer-motion. These pages exist to rank, and adding ~37KB
+ * gzipped of animation library to get a fade-in would cost more in load time
+ * than the effect is worth — the same reasoning that kept three.js out of the
+ * WebGL backdrop. This is an IntersectionObserver and a CSS transition: about
+ * a kilobyte, and indistinguishable on screen.
+ *
+ * The content renders visible-by-default in the markup and is only hidden once
+ * the observer attaches, so anyone with JavaScript disabled — and every
+ * crawler that does not run it — sees the full page rather than a blank one.
+ * A reveal animation that can hide content from search would defeat the point
+ * of these pages entirely.
+ */
+
+import { useEffect, useRef, useState } from 'react';
+
+export function Reveal({ children, delay = 0, className = '' }: {
+  children: React.ReactNode;
+  delay?: number;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(false);
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    // Respect the OS setting: show it, skip the movement entirely.
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setShown(true);
+      return;
+    }
+    // No IntersectionObserver (very old browser) — just show everything.
+    if (typeof IntersectionObserver === 'undefined') {
+      setShown(true);
+      return;
+    }
+
+    setArmed(true);
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setShown(true);
+          io.disconnect(); // once only — re-animating on scroll-back reads as broken
+        }
+      },
+      // Was '-60px' on every side, which means an element only counts as
+      // visible once it is 60px INSIDE the viewport on all four edges. A
+      // block taller than the screen never satisfies that on a phone, and
+      // iOS's collapsing toolbar resizes the viewport mid-scroll without
+      // always re-running the observer — either way the block stays at
+      // opacity 0 while still taking up its full height, which is a heading
+      // and a paragraph rendered as a tall blank gap. Only the bottom edge
+      // is inset now, so an element counts the moment it enters the screen.
+      { rootMargin: '0px 0px -10% 0px', threshold: 0 },
+    );
+    io.observe(el);
+
+    // Nothing on a marketing page may depend on an animation firing. If the
+    // observer has not reported within a second — a missed callback, a
+    // background tab that never scrolls, a viewport resize race — the
+    // content is shown anyway. Worst case someone misses a fade.
+    const failSafe = window.setTimeout(() => setShown(true), 1000);
+
+    return () => { io.disconnect(); window.clearTimeout(failSafe); };
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={
+        armed
+          ? {
+              opacity: shown ? 1 : 0,
+              transform: shown ? 'none' : 'translateY(24px)',
+              // Capped: staggering a long list by index means the last card
+              // waits seconds, which reads as a slow page, not an effect.
+              transition: `opacity .5s cubic-bezier(.16,1,.3,1) ${Math.min(delay, 0.3)}s, transform .5s cubic-bezier(.16,1,.3,1) ${Math.min(delay, 0.3)}s`,
+            }
+          : undefined
+      }
+    >
+      {children}
+    </div>
+  );
+}

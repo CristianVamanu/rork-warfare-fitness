@@ -6,7 +6,19 @@ import { Lock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
-import { ACHIEVEMENT_DEFS, type AchievementDef } from '@/lib/achievements';
+import { PaywallGate } from '@/components/ui/PaywallGate';
+import { ACHIEVEMENT_DEFS, achievementProgress, achievementRemaining, type AchievementDef } from '@/lib/achievements';
+
+// Singular/plural unit per achievement category, for "2 workouts away" /
+// "1 day away" style near-miss copy.
+const UNIT_LABEL: Record<AchievementDef['category'], [string, string]> = {
+  workouts: ['workout', 'workouts'],
+  streak: ['day', 'days'],
+  power: ['power level', 'power levels'],
+  time: ['', ''],
+  nutrition: ['meal', 'meals'],
+  challenges: ['challenge', 'challenges'],
+};
 
 const CATEGORY_LABELS: Record<AchievementDef['category'], string> = {
   workouts: 'Workout Milestones',
@@ -14,18 +26,29 @@ const CATEGORY_LABELS: Record<AchievementDef['category'], string> = {
   power: 'Power Level',
   time: 'Time of Day',
   nutrition: 'Nutrition',
+  challenges: 'Challenges',
 };
 
 export default function AchievementsPage() {
   const { profile } = useAuth();
   const earned = new Set(profile?.achievements ?? []);
 
+  const statParams = {
+    totalWorkouts: profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0,
+    streak: profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0,
+    powerLevel: profile?.powerLevel ?? profile?.stats?.powerLevel ?? 0,
+    totalMealsLogged: profile?.stats?.totalMealsLogged ?? 0,
+  };
+
   const categories = Array.from(new Set(ACHIEVEMENT_DEFS.map((d) => d.category)));
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen pb-24">
       <Header title="Achievements" showBack />
-      <div className="px-4 pt-4 max-w-lg mx-auto space-y-5">
+      {/* See the habits page for why noTaste is set on gates with no
+          consumeAiTaste callback. */}
+      <PaywallGate feature="achievements" noTaste>
+      <div className="px-4 pt-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-5">
         <Card className="p-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-white">Your Collection</p>
@@ -44,13 +67,15 @@ export default function AchievementsPage() {
             <div className="grid grid-cols-2 gap-2.5">
               {ACHIEVEMENT_DEFS.filter((d) => d.category === cat).map((def, i) => {
                 const unlocked = earned.has(def.id);
+                // Near-miss copy — only for numeric-target achievements that
+                // are genuinely close (70%+), so it reads as "almost there"
+                // rather than cluttering every locked card in the grid.
+                const progress = unlocked ? null : achievementProgress(def.id, statParams);
+                const remaining = unlocked ? null : achievementRemaining(def.id, statParams);
+                const showNearMiss = !unlocked && progress !== null && progress >= 0.7 && remaining !== null;
+                const [singular, plural] = UNIT_LABEL[def.category];
                 return (
-                  <motion.div
-                    key={def.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                  >
+                  <div key={def.id} className="wf-rise" style={{ animationDelay: `${i * 0.03}s` }}>
                     <Card className={`p-3.5 text-center ${unlocked ? 'border-accent/30 bg-accent/5' : 'opacity-50'}`}>
                       <div className="relative w-10 h-10 mx-auto mb-2 flex items-center justify-center">
                         {unlocked ? (
@@ -63,14 +88,20 @@ export default function AchievementsPage() {
                       </div>
                       <p className="text-xs font-bold text-white">{def.title}</p>
                       <p className="text-[10px] text-text-secondary mt-0.5 leading-snug">{def.desc}</p>
+                      {showNearMiss && (
+                        <p className="text-[10px] font-bold text-accent mt-1">
+                          {remaining} {remaining === 1 ? singular : plural} away
+                        </p>
+                      )}
                     </Card>
-                  </motion.div>
+                  </div>
                 );
               })}
             </div>
           </div>
         ))}
       </div>
+      </PaywallGate>
     </div>
   );
 }
