@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SEQUENCES, dueStep, daysSince, sequenceToggles, resolveSequences, isSitePath } from './emailSequences';
+import { SEQUENCES, dueStep, daysSince, elapsedDays, sequenceToggles, resolveSequences, isSitePath } from './emailSequences';
 import { unsubscribeToken, verifyUnsubscribeToken, unsubscribeUrl } from './emailUnsubscribe';
 
 const seq = SEQUENCES.winBack; // days 3, 7, 14
@@ -46,6 +46,17 @@ describe('which step is due', () => {
   });
 });
 
+describe('quiz abandon', () => {
+  const q = SEQUENCES.quizAbandon;
+  it('sends the first email after an hour, not a day', () => {
+    const hour = 60 * 60 * 1000;
+    expect(dueStep(q, elapsedDays(0, 30 * 60 * 1000), {})).toBeNull();
+    expect(dueStep(q, elapsedDays(0, 61 * 60 * 1000), {})?.key).toBe('h1');
+    expect(dueStep(q, elapsedDays(0, 2 * hour), { h1: 1 })).toBeNull();
+    expect(dueStep(q, elapsedDays(0, 25 * hour), { h1: 1 })?.key).toBe('d1');
+  });
+});
+
 describe('days since', () => {
   it('floors whole days', () => {
     const day = 24 * 60 * 60 * 1000;
@@ -56,7 +67,7 @@ describe('days since', () => {
 
 describe('admin toggles', () => {
   it('default to on and honour an explicit off', () => {
-    expect(sequenceToggles(null)).toEqual({ leadTips: true, onboardingAbandon: true, winBack: true });
+    expect(sequenceToggles(null)).toEqual({ leadTips: true, quizAbandon: true, onboardingAbandon: true, winBack: true });
     expect(sequenceToggles({ emailSequences: { winBack: false } }).winBack).toBe(false);
     expect(sequenceToggles({ emailSequences: { winBack: false } }).leadTips).toBe(true);
   });
@@ -127,8 +138,8 @@ describe('admin overrides', () => {
   });
 
   it('a sequence switch in overrides beats the settings toggle', () => {
-    expect(resolveSequences({ winBack: { enabled: false } }, { leadTips: true, onboardingAbandon: true, winBack: true }).winBack.enabled).toBe(false);
-    expect(resolveSequences({}, { leadTips: true, onboardingAbandon: true, winBack: false }).winBack.enabled).toBe(false);
+    expect(resolveSequences({ winBack: { enabled: false } }, { leadTips: true, quizAbandon: true, onboardingAbandon: true, winBack: true }).winBack.enabled).toBe(false);
+    expect(resolveSequences({}, { leadTips: true, quizAbandon: true, onboardingAbandon: true, winBack: false }).winBack.enabled).toBe(false);
   });
 });
 

@@ -17,7 +17,7 @@ import { sendEmail, trialEndingEmailHtml, checkoutRecoveryEmailHtml, marketingEm
 import { dripDayFor, dueDripDay, sessionSubject } from '@/lib/freePlan';
 import { runBroadcasts } from '@/lib/broadcastSender';
 import { MOCK_PROGRAMS } from '@/lib/programs';
-import { sequenceToggles, resolveSequences, dueStep, daysSince, type SequenceOverrides } from '@/lib/emailSequences';
+import { sequenceToggles, resolveSequences, dueStep, daysSince, type SequenceOverrides, elapsedDays } from '@/lib/emailSequences';
 import { unsubscribeUrl, unsubscribeSecret } from '@/lib/emailUnsubscribe';
 import { checkoutRecoveryStep, checkoutRecoverySubject } from '@/lib/checkoutRecovery';
 import { checkoutPagePath, parseCheckoutParams } from '@/lib/checkoutMode';
@@ -674,6 +674,40 @@ export async function POST(req: NextRequest) {
         }
       } catch (err) {
         console.error('[notifications/process] lead sequence failed:', err instanceof Error ? err.message : err);
+      }
+    }
+
+    // ── Funnel: quiz finished, email left with consent, no account ────────
+    // The highest-intent leads there are: thirteen answers in, stopped at
+    // the price. Same consent and unsubscribe rules as the standards leads;
+    // the first step goes out within the hour, so this runs hourly.
+    if (SEQ.quizAbandon.enabled && unsubSecret) {
+      try {
+        for await (const d of eachDoc(db.collection('landingLeads').where('marketingOptIn', '==', true))) {
+          const lead = d.data() as { email?: string; source?: string; createdAt?: unknown; emailSeq?: Record<string, unknown> };
+          if (lead.source !== 'onboarding' || !lead.email) continue;
+          const createdMs = toMs(lead.createdAt);
+          if (createdMs === null) continue;
+          const step = dueStep(SEQ.quizAbandon, elapsedDays(createdMs, Date.now()), lead.emailSeq);
+          if (!step) continue;
+          const asUser = await db.collection('users').where('email', '==', lead.email).limit(1).get();
+          if (!asUser.empty) {
+            await d.ref.update({ emailSeq: Object.fromEntries(SEQ.quizAbandon.steps.map((s) => [s.key, 'converted'])) });
+            continue;
+          }
+          const unsub = unsubscribeUrl(appUrl, unsubSecret, lead.email, 'lead');
+          const ok = await sendEmail({
+            to: lead.email, subject: step.subject, unsubscribeUrl: unsub,
+            html: marketingEmailHtml({ brand, appUrl, heading: step.heading, paragraphs: step.paragraphs, cta: step.cta, unsubscribeUrl: unsub }),
+          });
+          if (ok) {
+            await d.ref.update({ [`emailSeq.${step.key}`]: FieldValue.serverTimestamp() });
+            await recordSend('quizAbandon', step.key, lead.email, { leadId: d.id });
+            sent.push(`quizAbandon:${step.key}:${d.id}`);
+          }
+        }
+      } catch (err) {
+        console.error('[notifications/process] quiz-abandon sequence failed:', err instanceof Error ? err.message : err);
       }
     }
 

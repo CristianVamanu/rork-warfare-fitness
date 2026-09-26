@@ -18,6 +18,8 @@
  * event volume.
  */
 
+import { funnelHit, type FunnelStep } from '@/lib/funnel';
+
 declare global {
   interface Window {
     fbq?: (...args: unknown[]) => void;
@@ -60,6 +62,13 @@ export type AnalyticsEvent = keyof typeof GA_EVENT;
 export function trackEvent(name: AnalyticsEvent, params?: Record<string, unknown>) {
   try {
     if (typeof window === 'undefined') return;
+    // The site's own funnel counter: anonymous daily tallies, no cookie, so
+    // it counts the visitors who reject cookies and the days before any
+    // pixel is configured. See lib/funnel.
+    const fs: FunnelStep | null = name === 'OnboardingStep' && typeof params?.step === 'number' ? `q${params.step}` as FunnelStep
+      : name === 'OnboardingRevealViewed' ? 'reveal' : name === 'OnboardingStartPressed' ? 'start'
+      : name === 'CompleteRegistration' ? 'account' : name === 'Purchase' ? 'paid' : name === 'Lead' ? 'lead' : null;
+    if (fs) funnelHit(fs);
     const meta = META_EVENT[name];
     if (meta) window.fbq?.('track', meta, params);
     window.gtag?.('event', GA_EVENT[name], params);

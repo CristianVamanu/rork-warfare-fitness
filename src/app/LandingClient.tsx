@@ -18,6 +18,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSystemConfig, getMembershipConfig, getCoachingPlans, getMembershipPlans, createLandingLead } from '@/lib/firestore';
 import { trackEvent } from '@/lib/analytics';
+import { funnelHit } from '@/lib/funnel';
 import { BrandSplash } from '@/components/ui/BrandSplash';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -225,6 +226,8 @@ export default function LandingPage({
   const headerLinks = navLinks.filter((l) => HEADER_LINKS.includes(l.href));
   const { user, loading } = useAuth();
   const router = useRouter();
+  // Top of the funnel: one count per browser session, cookie-free.
+  useEffect(() => { funnelHit('visit'); }, []);
   // Seeded from a server-side fetch of the same admin-configured Firestore
   // doc this effect below re-fetches — so the very first paint already
   // shows the real headline instead of DEFAULT_LANDING_CONFIG's copy

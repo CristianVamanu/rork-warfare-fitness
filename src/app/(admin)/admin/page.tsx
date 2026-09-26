@@ -18,6 +18,7 @@ import { EmailsPanel } from '@/components/admin/EmailsPanel';
 import { Mail as MailIcon } from 'lucide-react';
 import { DailyBriefPanel } from '@/components/admin/DailyBriefPanel';
 import { LeadsPanel } from '@/components/admin/LeadsPanel';
+import { FunnelPanel } from '@/components/admin/FunnelPanel';
 import { ErrorsPanel } from '@/components/admin/ErrorsPanel';
 import { downloadCsv } from '@/lib/csv';
 import { AdminShell } from '@/components/admin/AdminShell';
@@ -79,7 +80,7 @@ function SupportStatusPill({ status }: { status: SupportTicketStatus }) {
   );
 }
 
-type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'emails' | 'errors' | 'settings' | 'restore' | 'store';
+type Tab = 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community' | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics' | 'integrations' | 'leads' | 'emails' | 'errors' | 'settings' | 'restore' | 'funnel';
 
 // Shared by both plan editors (CoachingPlan's Tool Access and
 // MembershipPlan's Tool Access) — feature ids here must match what
@@ -264,7 +265,7 @@ function AdminPageInner() {
   const { user, profile, tenant } = useAuth();
   const [tab, setTab] = useState<Tab>(() => {
     const t = searchParams.get('tab');
-    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'support', 'community', 'notifications', 'membership', 'coaching', 'library', 'analytics', 'integrations', 'leads', 'errors', 'settings', 'restore', 'store'];
+    const valid: Tab[] = ['overview', 'programs', 'clients', 'messages', 'support', 'community', 'notifications', 'membership', 'coaching', 'library', 'analytics', 'integrations', 'leads', 'errors', 'settings', 'restore', 'funnel', 'emails'];
     return (valid as string[]).includes(t ?? '') ? (t as Tab) : 'overview';
   });
 
@@ -5116,6 +5117,7 @@ function AdminPageInner() {
 
       {/* ── Leads ─────────────────────────────────────────────────────────────── */}
       {tab === 'leads' && <LeadsPanel />}
+      {tab === 'funnel' && <FunnelPanel />}
       {tab === 'emails' && <EmailsPanel />}
 
       {/* ── Errors ─────────────────────────────────────────── */}
@@ -5298,7 +5300,7 @@ function AdminPageInner() {
                 <div key={seq.key} className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-white">Email: {seq.label}</p>
-                    <p className="text-xs text-text-secondary mt-0.5">{seq.description} Days {seq.steps.map((s) => s.day).join(', ')}.</p>
+                    <p className="text-xs text-text-secondary mt-0.5">{seq.description} Sends at {seq.steps.map((s) => (s.hours !== undefined ? `${s.hours}h` : `day ${s.day}`)).join(', ')}.</p>
                   </div>
                   <button
                     onClick={() => setSettingsForm(s => ({ ...s, emailSequences: { ...s.emailSequences, [seq.key]: !s.emailSequences[seq.key] } }))}

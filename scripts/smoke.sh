@@ -151,6 +151,7 @@ wall() {
     *) warn "$what → $CODE (expected 401/403)" ;;
   esac
 }
+wall GET  /api/admin/funnel            "admin funnel"
 wall GET  /api/admin/errors            "admin errors list"
 wall POST /api/admin/errors            "admin errors resolve"
 wall POST /api/admin/run-notifications "admin run-notifications"
@@ -171,6 +172,10 @@ echo "== public endpoints validate input =="
 # One call, not two: the endpoint allows 5 per 15 minutes per IP, so a
 # couple of hand re-runs would otherwise exhaust it and fail a healthy build.
 # 429 is accepted because it also proves the request was refused.
+fetch POST /api/funnel '{"step":"nope"}'
+case "$CODE" in 400) ok "funnel rejects an unknown step (400)" ;; 429) ok "funnel rate-limited (429)" ;; *) fail "funnel → $CODE for an unknown step (expected 400)" ;; esac
+fetch POST /api/onboarding/lead '{"email":"nope"}'
+case "$CODE" in 400) ok "onboarding/lead rejects a bad email (400)" ;; 429) ok "onboarding/lead rate-limited (429)" ;; *) fail "onboarding/lead → $CODE for a bad email (expected 400)" ;; esac
 fetch POST /api/standards/result '{"email":"not-an-email"}'
 case "$CODE" in
   400) ok "standards/result rejects a bad email (400)" ;;

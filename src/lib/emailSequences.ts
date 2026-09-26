@@ -20,12 +20,15 @@
  * rule without either.
  */
 
-export type SequenceKey = 'leadTips' | 'onboardingAbandon' | 'winBack';
+export type SequenceKey = 'leadTips' | 'quizAbandon' | 'onboardingAbandon' | 'winBack';
 
 export interface SequenceStep {
   key: string;
   /** Whole days after the trigger before this step may send. */
   day: number;
+  /** Hours instead of days, for a step that must go out the same day
+   *  (the first quiz-abandon email). When set, `day` is display only. */
+  hours?: number;
   subject: string;
   heading: string;
   paragraphs: string[];
@@ -78,6 +81,43 @@ export const SEQUENCES: Record<SequenceKey, SequenceDef> = {
           'Either way, we will not email you about this again.',
         ],
         cta: { label: 'Set up your program', path: '/onboarding' },
+      },
+    ],
+  },
+  quizAbandon: {
+    key: 'quizAbandon',
+    label: 'Quiz finished, no signup',
+    description: 'For visitors who answered the quiz, left an email with consent, and stopped at the price. One hour, one day, three days.',
+    steps: [
+      {
+        key: 'h1', day: 0, hours: 1,
+        subject: 'Your program is built. It is waiting.',
+        heading: 'You did the hard part.',
+        paragraphs: [
+          'Thirteen answers, one matched program, day one already written. It is sitting there with your name on it.',
+          'The first week costs a dollar. If it is not for you, cancel in the app and that is all you paid.',
+        ],
+        cta: { label: 'See my program', path: '/onboarding' },
+      },
+      {
+        key: 'd1', day: 1,
+        subject: 'What stopped you yesterday?',
+        heading: 'Most people stop at the same place.',
+        paragraphs: [
+          'Right at the price. Which is fair: you have been sold plans before that turned out to be a PDF and a wish.',
+          'This is not that. Every session is written out before you start, the app tells you what to lift, and a human checks challenge results. A dollar for a week to see it for yourself.',
+        ],
+        cta: { label: 'Start for $1', path: '/onboarding' },
+      },
+      {
+        key: 'd3', day: 3,
+        subject: 'Last one about your program',
+        heading: 'We will leave it here.',
+        paragraphs: [
+          'Your matched program stays on file. When you are ready, it takes two minutes to pick up where you left off.',
+          'This is the last email about it. The rest is up to you.',
+        ],
+        cta: { label: 'Pick it back up', path: '/onboarding' },
       },
     ],
   },
@@ -152,10 +192,10 @@ export const SEQUENCES: Record<SequenceKey, SequenceDef> = {
   },
 };
 
-export interface SequenceToggles { leadTips: boolean; onboardingAbandon: boolean; winBack: boolean }
+export interface SequenceToggles { leadTips: boolean; quizAbandon: boolean; onboardingAbandon: boolean; winBack: boolean }
 
 /** All on by default; the admin turns individual sequences off in Settings. */
-export const SEQUENCE_DEFAULTS: SequenceToggles = { leadTips: true, onboardingAbandon: true, winBack: true };
+export const SEQUENCE_DEFAULTS: SequenceToggles = { leadTips: true, quizAbandon: true, onboardingAbandon: true, winBack: true };
 
 /**
  * A path on this site: one leading slash, not two. `//host/x` is a
@@ -181,9 +221,15 @@ export function dueStep(seq: SequenceDef, daysSinceTrigger: number, sentKeys: Re
   if (!Number.isFinite(daysSinceTrigger) || daysSinceTrigger < 0) return null;
   for (const step of seq.steps) {
     if (sentKeys?.[step.key]) continue;
-    return daysSinceTrigger >= step.day ? step : null;
+    const need = step.hours !== undefined ? step.hours / 24 : step.day;
+    return daysSinceTrigger >= need ? step : null;
   }
   return null;
+}
+
+/** Days between two instants, fractional, for sequences with an hour step. */
+export function elapsedDays(thenMs: number, nowMs: number): number {
+  return (nowMs - thenMs) / (24 * 60 * 60 * 1000);
 }
 
 /** Whole days between two instants, floored. */

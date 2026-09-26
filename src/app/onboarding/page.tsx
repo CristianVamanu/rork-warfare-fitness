@@ -13,7 +13,8 @@ import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { signUp } from '@/lib/auth';
 import { startPlanCheckout, startCoachingCheckout } from '@/lib/checkout';
-import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, resolveProgram, createOnboardingLead } from '@/lib/firestore';
+import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, resolveProgram } from '@/lib/firestore';
+import { sessionCampaign } from '@/lib/funnel';
 import { trackEvent } from '@/lib/analytics';
 import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
 import { lbsToKg, kgToLbs, cmToFtIn, ftInToCm } from '@/lib/utils';
@@ -297,6 +298,9 @@ function OnboardingPageInner() {
   // rendering the real quiz body until this has a value, so there's no
   // visible flash defaulting to the wrong step count either).
   const [needsAccount, setNeedsAccount] = useState<boolean | null>(null);
+  // Consent for the quiz-abandon emails. Ticked by default and one tap to
+  // untick; recorded server-side with its timestamp (see /api/onboarding/lead).
+  const [marketingOptIn, setMarketingOptIn] = useState(true);
   useEffect(() => {
     if (!authLoading && needsAccount === null) setNeedsAccount(!user);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1280,7 +1284,7 @@ function OnboardingPageInner() {
               />
             )}
             {stepId === 'email' && needsAccount && (
-              <StepEmail name={name} onName={setName} email={email} onEmail={setEmail} matchState={previewState} />
+              <StepEmail name={name} onName={setName} email={email} onEmail={setEmail} matchState={previewState} optIn={marketingOptIn} onOptIn={setMarketingOptIn} />
             )}
         </div>
       </div>
@@ -1318,7 +1322,10 @@ function OnboardingPageInner() {
               const key = email.trim().toLowerCase();
               if (leadSentForRef.current !== key) {
                 leadSentForRef.current = key;
-                createOnboardingLead(email, name).catch(() => { leadSentForRef.current = null; });
+                fetch('/api/onboarding/lead', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+                  body: JSON.stringify({ email, name, optIn: marketingOptIn, campaign: sessionCampaign() }),
+                }).catch(() => { leadSentForRef.current = null; });
               }
               trackEvent('OnboardingRevealViewed');
               setError(null);
@@ -1445,9 +1452,10 @@ function StepAnalysing() {
 }
 
 /** Name and email. No password here: that is asked on the reveal, once the person has seen what it keeps. */
-function StepEmail({ name, onName, email, onEmail, matchState }: {
+function StepEmail({ name, onName, email, onEmail, matchState, optIn, onOptIn }: {
   name: string; onName: (v: string) => void; email: string; onEmail: (v: string) => void;
   matchState: 'idle' | 'loading' | 'ready' | 'failed';
+  optIn: boolean; onOptIn: (v: boolean) => void;
 }) {
   return (
     <div>
@@ -1468,7 +1476,11 @@ function StepEmail({ name, onName, email, onEmail, matchState }: {
           className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3.5 text-white text-base placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
         />
       </div>
-      <p className="text-xs text-text-tertiary mt-4 text-center leading-relaxed">No spam. Unsubscribe from anything in one click.</p>
+      <label className="flex items-start gap-3 mt-4 cursor-pointer">
+        <input id="onboarding-marketing-opt-in" type="checkbox" checked={optIn} onChange={(e) => onOptIn(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[var(--accent)] flex-shrink-0" />
+        <span className="text-xs text-text-secondary leading-relaxed">Email me about my program and training tips. A few emails, one-click unsubscribe on every one.</span>
+      </label>
+      <p className="text-xs text-text-tertiary mt-3 text-center leading-relaxed">No spam. Unsubscribe from anything in one click.</p>
     </div>
   );
 }

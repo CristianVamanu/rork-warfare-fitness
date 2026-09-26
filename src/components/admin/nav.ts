@@ -1,6 +1,6 @@
 import {
   Activity, Dumbbell, Users, MessageSquare, LifeBuoy, Bell, CreditCard,
-  UserCheck, Video, TrendingUp, Key, Mail, Send, Settings, RotateCcw, AlertTriangle,
+  UserCheck, Video, TrendingUp, Key, Mail, Send, Settings, RotateCcw, AlertTriangle, Filter,
 } from 'lucide-react';
 import type { AdminTabGroup } from './AdminShell';
 
@@ -19,7 +19,7 @@ import type { AdminTabGroup } from './AdminShell';
 export type AdminTabId =
   | 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community'
   | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics'
-  | 'integrations' | 'leads' | 'emails' | 'errors' | 'settings' | 'restore' | 'store';
+  | 'integrations' | 'leads' | 'emails' | 'errors' | 'settings' | 'restore' | 'funnel';
 
 export const ADMIN_TABS: { id: AdminTabId; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: Activity },
@@ -33,6 +33,7 @@ export const ADMIN_TABS: { id: AdminTabId; label: string; icon: React.ElementTyp
   { id: 'coaching', label: 'Coaching Apps', icon: UserCheck },
   { id: 'library', label: 'Library', icon: Video },
   { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+  { id: 'funnel', label: 'Funnel', icon: Filter },
   { id: 'integrations', label: 'Integrations', icon: Key },
   { id: 'leads', label: 'Leads', icon: Mail },
   { id: 'emails', label: 'Emails', icon: Send },
@@ -51,7 +52,7 @@ export const ADMIN_TAB_BY_ID = Object.fromEntries(
 export const ADMIN_GROUP_IDS: { label: string; ids: AdminTabId[] }[] = [
   { label: 'Operate', ids: ['overview', 'clients', 'messages', 'support', 'community', 'notifications'] },
   { label: 'Product', ids: ['programs', 'library', 'membership', 'coaching'] },
-  { label: 'Growth', ids: ['analytics', 'leads', 'emails'] },
+  { label: 'Growth', ids: ['analytics', 'funnel', 'leads', 'emails'] },
   { label: 'System', ids: ['integrations', 'errors', 'settings', 'restore'] },
 ];
 
