@@ -101,6 +101,11 @@ const RECON_SAMPLE = {
   ],
 };
 
+// Nine links plus Sign In wrapped the desktop header onto two lines. The
+// header now carries the five destinations a visitor actually chooses
+// between; Home is the logo, and Download/Terms/Privacy sit in the phone
+// menu and the footer.
+const HEADER_LINKS = ['/programs', '/standards', '/challenges', '/shop', '/trainers'];
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
   // Points at the real, indexable pages rather than an anchor on this one.
@@ -223,6 +228,7 @@ export default function LandingPage({
   shopOpen?: boolean;
 }) {
   const navLinks = shopOpen ? NAV_LINKS : NAV_LINKS.filter((l) => l.href !== '/shop');
+  const headerLinks = navLinks.filter((l) => HEADER_LINKS.includes(l.href));
   const { user, loading } = useAuth();
   const router = useRouter();
   // Seeded from a server-side fetch of the same admin-configured Firestore
@@ -475,33 +481,34 @@ export default function LandingPage({
       {/* Nav */}
       <nav className="relative max-w-5xl mx-auto px-5 py-5">
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className={`w-[4.5rem] h-[4.5rem] rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0 ${logoUrl ? '' : 'bg-accent'}`}>
+          <Link href="/" className="flex items-center gap-2.5 shrink-0">
+            <div className={`w-14 h-14 md:w-[4.5rem] md:h-[4.5rem] rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0 ${logoUrl ? '' : 'bg-accent'}`}>
               {logoUrl ? (
                 <Image src={logoUrl} alt={appName} width={72} height={72} className="w-full h-full object-cover" onError={() => setLogoUrl(null)} />
               ) : (
                 <span className="text-xl font-black text-black">{appName[0]}</span>
               )}
             </div>
-            <span className="text-base font-black text-white tracking-tight">{appName}</span>
+            <span className="text-base font-black text-white tracking-tight whitespace-nowrap">{appName}</span>
           </Link>
 
-          {/* Desktop links */}
-          <div className="hidden sm:flex items-center gap-6">
-            {navLinks.map((link) => (
-              <a key={link.href} href={link.href} className="text-sm font-medium text-text-secondary hover:text-white transition-colors">
+          {/* Desktop links: md and up, so a tablet in portrait gets the menu
+              button rather than a squeezed row. */}
+          <div className="hidden md:flex items-center gap-7">
+            {headerLinks.map((link) => (
+              <a key={link.href} href={link.href} className="text-sm font-medium text-text-secondary hover:text-white transition-colors whitespace-nowrap">
                 {link.label}
               </a>
             ))}
-            <Link href="/login" className="text-sm font-medium text-white hover:text-accent transition-colors">
+            <Link href="/login" className="inline-flex items-center rounded-xl bg-accent text-black text-sm font-bold px-4 py-2 whitespace-nowrap hover:brightness-110 transition">
               Sign In
             </Link>
           </div>
 
-          {/* Mobile hamburger */}
+          {/* Menu button below md */}
           <button
             onClick={() => setMobileMenuOpen((v) => !v)}
-            className="sm:hidden p-2 -mr-2 text-text-secondary hover:text-white transition-colors"
+            className="md:hidden p-2 -mr-2 text-text-secondary hover:text-white transition-colors"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <XIcon className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -514,7 +521,7 @@ export default function LandingPage({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="sm:hidden overflow-hidden"
+            className="md:hidden overflow-hidden"
           >
             <div className="flex flex-col gap-1 mt-4 pb-2 border-t border-white/8 pt-4">
               {navLinks.map((link) => (
@@ -1458,6 +1465,8 @@ export default function LandingPage({
       <footer className="max-w-5xl mx-auto px-5 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/8">
         <p className="text-xs text-text-tertiary">&copy; {new Date().getFullYear()} {appName}. All rights reserved.</p>
         <div className="flex items-center gap-4">
+          <Link href="/download" className="text-xs text-text-tertiary hover:text-white transition-colors">Download App</Link>
+          <Link href="/trainers" className="text-xs text-text-tertiary hover:text-white transition-colors">For Trainers</Link>
           <Link href="/privacy" className="text-xs text-text-tertiary hover:text-white transition-colors">Privacy</Link>
           <Link href="/terms" className="text-xs text-text-tertiary hover:text-white transition-colors">Terms</Link>
         </div>
