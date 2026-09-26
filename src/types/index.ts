@@ -573,9 +573,26 @@ export interface Channel {
   maxMediaPerPost?: number;
   slowModeDays: 0 | 7 | 21 | 30;
   allowUserPosts: boolean; // false = announcement-only channel, admin/trainer posts only
+  // 'ideas' turns the channel into a feature-request board: every post is a
+  // suggestion, the heart becomes an upvote, the feed sorts by votes and the
+  // admin can stamp each idea with a status. Absent means a normal chat
+  // channel, which is what every channel was before boards existed.
+  kind?: ChannelKind;
   postCount: number;
   createdAt: unknown;
 }
+
+export type ChannelKind = 'chat' | 'ideas';
+
+/** Where an idea stands. Set by the admin only; absent means "open". */
+export type IdeaStatus = 'planned' | 'building' | 'shipped' | 'declined';
+export const IDEA_STATUSES: readonly IdeaStatus[] = ['planned', 'building', 'shipped', 'declined'];
+export const IDEA_STATUS_LABEL: Record<IdeaStatus, string> = {
+  planned: 'Planned',
+  building: 'Building',
+  shipped: 'Shipped',
+  declined: 'Not now',
+};
 
 /** Hard ceiling on carousel length, whatever a channel is set to. Ten is
  *  Instagram's number and also the number of slots the rules check. */
@@ -723,6 +740,9 @@ export interface ChannelPost {
   // phone. Absent on top-level replies and on posts.
   parentReplyId?: string | null;
   pinned?: boolean;
+  /** Ideas boards only: where the admin says this suggestion stands. In an
+   *  ideas channel `likes` doubles as the vote list, one uid per vote. */
+  status?: IdeaStatus;
   createdAt: unknown;
 }
 

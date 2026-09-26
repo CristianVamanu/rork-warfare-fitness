@@ -8,8 +8,9 @@ import {
   Users, Dumbbell, Activity, Settings, Shield, CreditCard, CheckCircle, AlertTriangle,
   MessageSquare, Send, ChevronLeft, ChevronRight, Ban, UserCheck, MicOff, Mic,
   Key, ExternalLink, Sparkles, Bell, Zap, Flame, Trophy, RefreshCw, Plus, Edit2, Trash2, TrendingUp,
-  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail, Star,
+  Video, Upload, X as XIcon, Play, Apple, Wand2, Rocket, User, Download, Target, Search, Mail, Star, Lightbulb,
 } from 'lucide-react';
+import { IdeasPanel } from '@/components/admin/IdeasPanel';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
@@ -61,7 +62,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import { SEQUENCES, SEQUENCE_DEFAULTS, sequenceToggles } from '@/lib/emailSequences';
 import toast from 'react-hot-toast';
-import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, SupportTicket, SupportTicketStatus } from '@/types';
+import type { Conversation, Message, MembershipConfig, MembershipPlan, NotificationConfig, Channel, ChannelKind, CoachingPlan, ExerciseVideo, NutritionPlan, CoachingApplication, LandingPageConfig, MedicalHistoryAnswers, ProgressPhoto, ClientGoal, GoalCategory, B2BLandingConfig, SupportTicket, SupportTicketStatus } from '@/types';
 import { MAX_MEDIA_PER_POST } from '@/types';
 import { DEFAULT_LANDING_CONFIG, DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
 import { getPlanBillingPeriods, getYouTubeEmbedUrl } from '@/lib/utils';
@@ -578,7 +579,7 @@ function AdminPageInner() {
   // ── Community channels state ───────────────────────────────────────────────
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
-  const [channelForm, setChannelForm] = useState({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, maxMediaPerPost: 1, slowModeDays: 0 as 0|7|21|30, allowUserPosts: true });
+  const [channelForm, setChannelForm] = useState({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, maxMediaPerPost: 1, slowModeDays: 0 as 0|7|21|30, allowUserPosts: true, kind: 'chat' as ChannelKind });
   const [savingChannel, setSavingChannel] = useState(false);
   const [showChannelForm, setShowChannelForm] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
@@ -1778,6 +1779,9 @@ function AdminPageInner() {
         maxMediaPerPost: channelForm.photoUploadEnabled ? Math.min(MAX_MEDIA_PER_POST, Math.max(1, channelForm.maxMediaPerPost)) : 1,
         slowModeDays: channelForm.slowModeDays,
         allowUserPosts: channelForm.allowUserPosts,
+        // Stored explicitly both ways so switching a board back to chat
+        // actually clears it (updateChannel drops undefined).
+        kind: channelForm.kind,
         createdBy: user.uid,
         // Only a TRAINER's channel is scoped to a roster. An admin's channel
         // is the platform's — Start Here, announcements — and must reach
@@ -1798,7 +1802,7 @@ function AdminPageInner() {
       }
       setShowChannelForm(false);
       setEditingChannel(null);
-      setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, maxMediaPerPost: 1, slowModeDays: 0, allowUserPosts: true });
+      setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, maxMediaPerPost: 1, slowModeDays: 0, allowUserPosts: true, kind: 'chat' });
       await loadChannels();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to save channel';
@@ -1831,6 +1835,7 @@ function AdminPageInner() {
       maxMediaPerPost: ch.maxMediaPerPost ?? 1,
       slowModeDays: ch.slowModeDays,
       allowUserPosts: ch.allowUserPosts ?? true,
+      kind: ch.kind ?? 'chat',
     });
     setShowChannelForm(true);
   }
@@ -1860,6 +1865,25 @@ function AdminPageInner() {
           placeholder="Description (optional)"
           className="w-full bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
         />
+        {/* What the channel is FOR. A chat channel is a feed; an ideas board
+            turns every post into a suggestion members vote on and you stamp
+            with a status. Same posts, same moderation, same mute. */}
+        <div>
+          <label className="text-xs text-text-secondary mb-1.5 block">Channel type</label>
+          <div className="grid grid-cols-2 gap-2">
+            {([['chat', 'Chat', 'A normal feed. Posts, photos, replies.'], ['ideas', 'Ideas board', 'Members suggest features and upvote. You mark Planned, Building, Shipped.']] as const).map(([k, label, hint]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setChannelForm(f => ({ ...f, kind: k }))}
+                className={`text-left rounded-xl border px-3 py-2.5 transition-colors ${channelForm.kind === k ? 'border-accent bg-accent/10' : 'border-white/10 bg-surface hover:border-white/20'}`}
+              >
+                <p className="text-sm font-semibold text-white flex items-center gap-1.5">{k === 'ideas' && <Lightbulb className="w-3.5 h-3.5 text-accent" />}{label}</p>
+                <p className="text-[11px] text-text-secondary mt-0.5 leading-snug">{hint}</p>
+              </button>
+            ))}
+          </div>
+        </div>
         <div>
           <label className="text-xs text-text-secondary mb-1.5 block">Slow Mode</label>
           <div className="flex gap-2">
@@ -3309,9 +3333,11 @@ function AdminPageInner() {
             <ChevronRight className="w-4 h-4 text-text-tertiary" />
           </Card>
 
+          {channels.some((c) => c.kind === 'ideas') && <IdeasPanel channels={channels} />}
+
           <div className="flex items-center justify-between">
             <p className="text-text-secondary text-sm">{channels.length} channel{channels.length !== 1 ? 's' : ''}</p>
-            <Button size="sm" onClick={() => { setEditingChannel(null); setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, maxMediaPerPost: 1, slowModeDays: 0, allowUserPosts: true }); setShowChannelForm(true); }}>
+            <Button size="sm" onClick={() => { setEditingChannel(null); setChannelForm({ name: '', description: '', emoji: '', photoUploadEnabled: true, videoUploadEnabled: false, maxMediaPerPost: 1, slowModeDays: 0, allowUserPosts: true, kind: 'chat' }); setShowChannelForm(true); }}>
               <Plus className="w-4 h-4" /> New Channel
             </Button>
           </div>
@@ -3349,6 +3375,7 @@ function AdminPageInner() {
                         {ch.videoUploadEnabled && <span>🎬 clips on</span>}
                         {(ch.maxMediaPerPost ?? 1) > 1 && <span>🖼 carousel ×{ch.maxMediaPerPost}</span>}
                         {ch.allowUserPosts === false && <span className="text-yellow-400">📢 announcement-only</span>}
+                        {ch.kind === 'ideas' && <span className="text-accent">💡 ideas board</span>}
                       </div>
                     </div>
                     <div className="flex gap-1">

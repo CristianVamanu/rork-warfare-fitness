@@ -795,6 +795,9 @@ service cloud.firestore {
           && request.resource.data.get('userIsAdmin', false) == isAdmin()
           && postBodySane(request.resource.data)
           && !channelMuteActive()
+          // On an ideas board the status is the admin's verdict. A member
+          // must not be able to file a suggestion pre-stamped "Shipped".
+          && (!('status' in request.resource.data) || isAdmin())
           // A carousel no longer than the channel allows. The admin panel
           // enforces the same number in the composer; this is what stops a
           // direct SDK write from posting ten clips into a one-photo channel.
@@ -844,7 +847,13 @@ service cloud.firestore {
           // is the only kind anyone pins.
           (isAdmin()
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinned'])
-            && request.resource.data.pinned is bool)
+            && request.resource.data.pinned is bool) ||
+          // An admin marking an idea Planned / Building / Shipped / Not now,
+          // or clearing it back to open. Nobody else, and nothing else.
+          (isAdmin()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+            && (!('status' in request.resource.data)
+              || request.resource.data.status in ['planned', 'building', 'shipped', 'declined']))
         );
         // The author may remove their own post, not just an admin. The
         // overflow menu has always offered Delete to the author (canDelete =

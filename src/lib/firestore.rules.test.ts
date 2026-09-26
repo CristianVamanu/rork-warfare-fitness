@@ -6,7 +6,7 @@ import {
   assertFails,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, writeBatch, serverTimestamp, type Firestore } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, writeBatch, serverTimestamp, type Firestore } from 'firebase/firestore';
 
 /**
  * Firestore rules, exercised against the real rules engine in the emulator.
@@ -504,6 +504,20 @@ describe('channels', () => {
     await assertSucceeds(updateDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1'), { likes: [BOB] }));
     // Never on someone else's behalf.
     await assertFails(updateDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1'), { likes: [ALICE] }));
+  });
+
+  it('lets only an admin set an idea\'s status, to a known value', async () => {
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'channels', 'c1', 'posts', 'p1'), { status: 'planned' }));
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'channels', 'c1', 'posts', 'p1'), { status: deleteField() }));
+    await assertFails(updateDoc(doc(asAdmin(), 'channels', 'c1', 'posts', 'p1'), { status: 'whatever' }));
+    // The author cannot stamp their own idea, alone or beside a text edit.
+    await assertFails(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1'), { status: 'shipped' }));
+    await assertFails(updateDoc(doc(asAlice(), 'channels', 'c1', 'posts', 'p1'), { content: 'edited', status: 'shipped' }));
+    await assertFails(updateDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p1'), { status: 'shipped' }));
+    // Nor file a new one already marked.
+    await assertFails(setDoc(doc(asBob(), 'channels', 'c1', 'posts', 'p9'), {
+      userId: BOB, content: 'dark mode', likes: [], replyCount: 0, createdAt: new Date(), status: 'shipped',
+    }));
   });
 
   it('allows a genuine reply, including a threaded one', async () => {

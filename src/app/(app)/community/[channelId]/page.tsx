@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown, Megaphone, Pencil } from 'lucide-react';
+import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown, Megaphone, Pencil, ArrowBigUp, Lightbulb, Tag } from 'lucide-react';
 import { compressImage } from '@/lib/imageCompress';
 import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
@@ -16,7 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   getChannels, subscribeChannelPosts, createChannelPost, deleteChannelPost, deleteReply, updateReply, updateChannelPost,
   likeChannelPost, getPostReplies, createReply, getUserLastPostInChannel,
-  pinChannelPost, unpinChannelPost, getSystemConfig, channelScopeFor,
+  pinChannelPost, unpinChannelPost, getSystemConfig, channelScopeFor, setIdeaStatus,
 } from '@/lib/firestore';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -25,8 +25,9 @@ import { Modal } from '@/components/ui/Modal';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { PaywallGate } from '@/components/ui/PaywallGate';
-import type { Channel, ChannelPost, PostMedia } from '@/types';
-import { MAX_MEDIA_PER_POST } from '@/types';
+import type { Channel, ChannelPost, PostMedia, IdeaStatus } from '@/types';
+import { MAX_MEDIA_PER_POST, IDEA_STATUSES, IDEA_STATUS_LABEL } from '@/types';
+import { IdeaStatusBadge } from '@/components/community/IdeaStatusBadge';
 
 /**
  * Whether a post's attachment is a clip.
@@ -48,6 +49,10 @@ function mediaOf(post: ChannelPost): PostMedia[] {
   return [{ url: post.imageURL, type: mediaKindOf(post), ...(post.posterURL ? { posterURL: post.posterURL } : {}) }];
 }
 
+
+function millis(ts: unknown): number {
+  return (ts as { toMillis?: () => number })?.toMillis?.() ?? 0;
+}
 
 function toDate(ts: unknown): Date | null {
   if (!ts) return null;
@@ -188,8 +193,8 @@ function ReplyRow({ reply, nested = false, onReply, canEdit, canDelete, onEdit, 
 }
 
 function PostCard({
-  post, userId, isAdmin, channelId, pinnedPostId,
-  onLike, onReply, onDelete, onDeleteReply, onPin,
+  post, userId, isAdmin, channelId, pinnedPostId, ideas = false,
+  onLike, onReply, onDelete, onDeleteReply, onPin, onStatus,
   replyRefreshToken,
 }: {
   post: ChannelPost;
@@ -197,7 +202,10 @@ function PostCard({
   isAdmin: boolean;
   channelId: string;
   pinnedPostId?: string;
+  /** Ideas board: the heart is an upvote and the admin can set a status. */
+  ideas?: boolean;
   onLike: (post: ChannelPost) => void;
+  onStatus?: (post: ChannelPost, status: IdeaStatus | null) => void;
   onReply: (post: ChannelPost, parentReply?: ChannelPost) => void;
   onDelete: (post: ChannelPost) => void;
   onDeleteReply: (post: ChannelPost, reply: ChannelPost) => void;
@@ -304,6 +312,7 @@ function PostCard({
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-bold text-white">{post.userDisplayName}</p>
             {post.userIsAdmin && <Badge variant="danger">Admin</Badge>}
+            {ideas && <IdeaStatusBadge status={post.status} />}
           </div>
           <p className="text-xs text-text-tertiary" title={fullTimestamp(post.createdAt)}>{timeAgo(post.createdAt)}</p>
         </div>
@@ -329,6 +338,25 @@ function PostCard({
                         <Pin className="w-3.5 h-3.5" />
                         {isPinned ? 'Unpin' : 'Pin to top'}
                       </button>
+                    )}
+                    {/* The admin's verdict on an idea. One row per state plus
+                        "Open" to take it back; the current one is highlighted. */}
+                    {isAdmin && ideas && onStatus && (
+                      <div className="border-t border-white/8 py-1">
+                        <p className="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-wider text-text-tertiary flex items-center gap-1"><Tag className="w-3 h-3" /> Status</p>
+                        {([null, ...IDEA_STATUSES] as (IdeaStatus | null)[]).map((s) => {
+                          const current = (post.status ?? null) === s;
+                          return (
+                            <button
+                              key={s ?? 'open'}
+                              onClick={() => { setShowMenu(false); if (!current) onStatus(post, s); }}
+                              className={`w-full text-left px-3 py-1.5 text-sm transition-colors hover:bg-white/8 ${current ? 'text-accent font-semibold' : 'text-text-secondary hover:text-white'}`}
+                            >
+                              {s ? IDEA_STATUS_LABEL[s] : 'Open'}
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
                     {canEdit && (
                       <button
@@ -390,13 +418,24 @@ function PostCard({
       )}
       <FeedCarousel items={mediaOf(post)} />
       <div className="flex items-center gap-4 mt-4">
-        <button
-          onClick={() => onLike(post)}
-          className={`flex items-center gap-1.5 text-xs transition-colors ${liked ? 'text-danger' : 'text-text-secondary hover:text-danger'}`}
-        >
-          <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />
-          {post.likes.length}
-        </button>
+        {ideas ? (
+          <button
+            onClick={() => onLike(post)}
+            aria-pressed={liked}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 -ml-1 rounded-lg text-xs font-bold transition-colors ${liked ? 'bg-accent text-black' : 'bg-white/6 text-text-secondary hover:text-white hover:bg-white/10'}`}
+          >
+            <ArrowBigUp className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />
+            {post.likes.length} {post.likes.length === 1 ? 'vote' : 'votes'}
+          </button>
+        ) : (
+          <button
+            onClick={() => onLike(post)}
+            className={`flex items-center gap-1.5 text-xs transition-colors ${liked ? 'text-danger' : 'text-text-secondary hover:text-danger'}`}
+          >
+            <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />
+            {post.likes.length}
+          </button>
+        )}
         <button
           onClick={handleShowReplies}
           className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-white transition-colors"
@@ -506,6 +545,7 @@ export default function ChannelPage() {
   const [sendingReply, setSendingReply] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [ideaSort, setIdeaSort] = useState<'top' | 'new'>('top');
   const resumedRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -828,6 +868,13 @@ export default function ChannelPage() {
     } catch { toast.error('Failed to update pin'); }
   }
 
+  async function handleStatus(post: ChannelPost, status: IdeaStatus | null) {
+    try {
+      await setIdeaStatus(channelId, post.id, status);
+      toast.success(status ? `Marked ${IDEA_STATUS_LABEL[status]}` : 'Back to open');
+    } catch { toast.error('Could not update the status'); }
+  }
+
   async function handleReply() {
     if (!user || !profile || !replyTarget || !replyText.trim()) return;
     setSendingReply(true);
@@ -888,6 +935,19 @@ export default function ChannelPage() {
   const isBlocked = isMuted || (!!slowModeBlocked && slowModeBlocked > new Date());
   const canSend = (text.trim().length > 0 || pending.length > 0) && !isBlocked;
   const pinnedPost = channel.pinnedPostId ? posts.find(p => p.id === channel.pinnedPostId) : null;
+  const ideas = channel.kind === 'ideas';
+  // A board is read by votes, not by clock: the thing most members want
+  // sits at the top, shipped and declined ideas drop to the bottom so the
+  // list stays about what is still on the table. "New" is there for the
+  // person who wants to see what came in since yesterday.
+  const RANK: Record<string, number> = { shipped: 1, declined: 2 };
+  const shownPosts = !ideas ? posts : [...posts].sort((a, b) => {
+    if (ideaSort === 'new') return millis(b.createdAt) - millis(a.createdAt);
+    const ra = RANK[a.status ?? ''] ?? 0, rb = RANK[b.status ?? ''] ?? 0;
+    if (ra !== rb) return ra - rb;
+    if (b.likes.length !== a.likes.length) return b.likes.length - a.likes.length;
+    return millis(b.createdAt) - millis(a.createdAt);
+  });
 
   // Height of the compose box (approx) so the post list doesn't hide behind it
   const COMPOSE_HEIGHT = channel.photoUploadEnabled ? 68 : 60;
@@ -917,6 +977,11 @@ export default function ChannelPage() {
                   <Clock className="w-3 h-3" /> {channel.slowModeDays}-day slow mode
                 </p>
               )}
+              {ideas && channel.slowModeDays === 0 && (
+                <p className="text-xs text-text-tertiary flex items-center gap-1">
+                  <Lightbulb className="w-3 h-3" /> Suggest a feature, vote on the rest
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -937,7 +1002,26 @@ export default function ChannelPage() {
           {/* Small print, not a button: the way down for anyone who came for
               the conversation rather than the pinned post. Deliberately quiet
               so it does not compete with the thing the channel opens on. */}
-          {posts.length > 0 && (
+          {ideas && (
+            <div className="rounded-2xl border border-accent/25 bg-accent/5 px-4 py-3 flex items-start gap-2.5">
+              <Lightbulb className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="text-white font-bold">How this board works</p>
+                <p className="text-text-secondary text-xs mt-0.5 leading-relaxed">Post one idea per message. Upvote the ones you want. The most wanted rise to the top, and each idea gets marked Planned, Building or Shipped as it moves.</p>
+              </div>
+            </div>
+          )}
+          {ideas && posts.length > 0 && (
+            <div className="flex items-center gap-1.5 px-1">
+              {(['top', 'new'] as const).map((s) => (
+                <button key={s} type="button" onClick={() => setIdeaSort(s)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${ideaSort === s ? 'bg-accent text-black' : 'bg-white/6 text-text-secondary'}`}>
+                  {s === 'top' ? 'Most wanted' : 'Newest'}
+                </button>
+              ))}
+              <span className="ml-auto text-[11px] text-text-tertiary tabular-nums">{posts.length} {posts.length === 1 ? 'idea' : 'ideas'}</span>
+            </div>
+          )}
+          {!ideas && posts.length > 0 && (
             <div className="flex items-center justify-between px-1">
               <p className="text-[11px] text-text-tertiary">From the start</p>
               <button
@@ -981,11 +1065,11 @@ export default function ChannelPage() {
 
           {posts.length === 0 ? (
             <Card className="p-10 text-center">
-              <p className="text-2xl mb-2">💬</p>
-              <p className="text-white font-bold">No posts yet</p>
-              <p className="text-text-secondary text-sm mt-1">Be the first to post!</p>
+              <p className="text-2xl mb-2">{ideas ? '💡' : '💬'}</p>
+              <p className="text-white font-bold">{ideas ? 'No ideas yet' : 'No posts yet'}</p>
+              <p className="text-text-secondary text-sm mt-1">{ideas ? 'What would make this app better for you? Say it below.' : 'Be the first to post!'}</p>
             </Card>
-          ) : posts.map((post, i) => (
+          ) : shownPosts.map((post, i) => (
             // id and data-post-id are not decoration: the scroll handler
             // above finds the topmost visible post with
             // querySelectorAll('[data-post-id]') and stores it as this
@@ -1006,6 +1090,8 @@ export default function ChannelPage() {
                 isAdmin={isAdmin}
                 channelId={channelId}
                 pinnedPostId={channel.pinnedPostId}
+                ideas={ideas}
+                onStatus={handleStatus}
                 onLike={handleLike}
                 onReply={(p, parent) => setReplyTarget({ post: p, parent })}
                 replyRefreshToken={replyRefreshTokens[post.id] ?? 0}
@@ -1021,7 +1107,7 @@ export default function ChannelPage() {
 
       {/* ── Jump to latest FAB ── */}
       <AnimatePresence>
-        {showJumpToLatest && (
+        {showJumpToLatest && !ideas && (
           <motion.button
             initial={{ opacity: 0, scale: 0.8, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1119,7 +1205,7 @@ export default function ChannelPage() {
               ref={textareaRef}
               value={text}
               onChange={e => setText(e.target.value)}
-              placeholder={isMuted ? 'Muted' : isBlocked ? 'Slow mode active…' : 'Share something…'}
+              placeholder={isMuted ? 'Muted' : isBlocked ? 'Slow mode active…' : ideas ? 'Suggest a feature…' : 'Share something…'}
               disabled={isBlocked}
               rows={1}
               className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent/50 disabled:opacity-40"

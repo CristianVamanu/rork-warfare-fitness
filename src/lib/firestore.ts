@@ -2477,7 +2477,7 @@ export async function saveNotificationConfig(data: Partial<NotificationConfig>) 
 // ---------------------------------------------------------------------------
 // Community channels
 // ---------------------------------------------------------------------------
-import type { Channel, ChannelPost, PostMedia } from '@/types';
+import type { Channel, ChannelPost, PostMedia, IdeaStatus } from '@/types';
 
 // Channel list rarely changes, but both the community list page and every
 // channel detail page re-fetch it on every visit. Cache the raw (unfiltered)
@@ -2752,6 +2752,29 @@ export async function pinChannelPost(channelId: string, postId: string) {
   await updateDoc(doc(db, 'channels', channelId), { pinnedPostId: postId });
   await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { pinned: true });
   invalidateChannelsCache();
+}
+
+/**
+ * Ideas boards: the admin's verdict on a suggestion. `null` clears it back
+ * to open. Admin-only in firestore.rules; the whole field, nothing else.
+ */
+export async function setIdeaStatus(channelId: string, postId: string, status: IdeaStatus | null) {
+  await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { status: status ?? deleteField() });
+}
+
+/**
+ * Every post across the ideas boards, most voted first — the admin's
+ * "what do members want" list. Reads each board's posts once; there are
+ * one or two boards, not hundreds.
+ */
+export async function getTopIdeas(max = 20): Promise<(ChannelPost & { channelName: string })[]> {
+  const boards = (await fetchAllChannels()).filter((c) => c.kind === 'ideas');
+  const all: (ChannelPost & { channelName: string })[] = [];
+  for (const b of boards) {
+    const snap = await getDocs(query(collection(db, 'channels', b.id, 'posts'), orderBy('createdAt', 'desc'), limit(200)));
+    for (const d of snap.docs) all.push({ id: d.id, channelId: b.id, channelName: b.name, ...d.data() } as ChannelPost & { channelName: string });
+  }
+  return all.sort((a, b) => (b.likes?.length ?? 0) - (a.likes?.length ?? 0)).slice(0, max);
 }
 
 export async function unpinChannelPost(channelId: string, postId: string) {

@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status });
 
     const body = await req.json() as Record<string, unknown>;
-    const { name, description, emoji, photoUploadEnabled, slowModeDays, trainerId } = body;
+    const { name, description, emoji, photoUploadEnabled, slowModeDays, trainerId, kind } = body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ error: 'name is required' }, { status: 400 });
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       trainerId: trainerId || result.uid,
       photoUploadEnabled: photoUploadEnabled !== false,
       slowModeDays: slowModeDays ?? 0,
+      ...(kind === 'ideas' ? { kind: 'ideas' } : {}),
       postCount: 0,
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -68,7 +69,7 @@ export async function PATCH(req: NextRequest) {
     // editable fields. Allowlisted to what the channel edit UI actually
     // sends, matching how the create (POST) route above already scopes
     // its own writes.
-    const EDITABLE_FIELDS = ['name', 'description', 'emoji', 'photoUploadEnabled', 'videoUploadEnabled', 'maxMediaPerPost', 'slowModeDays', 'allowUserPosts'] as const;
+    const EDITABLE_FIELDS = ['name', 'description', 'emoji', 'photoUploadEnabled', 'videoUploadEnabled', 'maxMediaPerPost', 'slowModeDays', 'allowUserPosts', 'kind'] as const;
     const update: Record<string, unknown> = {};
     for (const key of EDITABLE_FIELDS) {
       if (data[key] !== undefined) update[key] = data[key];

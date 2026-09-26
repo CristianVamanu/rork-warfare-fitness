@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Hash, ChevronRight, Users, Clock } from 'lucide-react';
+import { Hash, ChevronRight, Users, Clock, Lightbulb } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getChannels, channelScopeFor } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
@@ -67,7 +67,7 @@ export default function CommunityPage() {
                             {ch.description && <p className="text-xs text-text-secondary line-clamp-2 mt-0.5 leading-relaxed">{ch.description}</p>}
                             <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                               <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary tabular-nums">
-                                <Users className="w-3 h-3 mr-1" /> {Math.max(0, ch.postCount)} posts
+                                <Users className="w-3 h-3 mr-1" /> {Math.max(0, ch.postCount)} {ch.kind === 'ideas' ? 'ideas' : 'posts'}
                               </span>
                               {ch.slowModeDays > 0 && (
                                 <span className="inline-flex items-center h-6 px-2 rounded-full bg-white/6 text-[11px] font-semibold text-text-secondary">
@@ -76,6 +76,9 @@ export default function CommunityPage() {
                               )}
                               {ch.allowUserPosts === false && (
                                 <span className="inline-flex items-center h-6 px-2 rounded-full bg-accent-muted text-[11px] font-semibold text-accent">Announcements</span>
+                              )}
+                              {ch.kind === 'ideas' && (
+                                <span className="inline-flex items-center h-6 px-2 rounded-full bg-accent-muted text-[11px] font-semibold text-accent"><Lightbulb className="w-3 h-3 mr-1" /> Vote on ideas</span>
                               )}
                             </div>
                           </div>
