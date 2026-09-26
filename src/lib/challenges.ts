@@ -218,7 +218,7 @@ async function adminPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 /** Verify or reject a submission. Verifying is what counts as finishing
- *  the challenge: XP, the badge, the board and the store gate all read
+ *  the challenge: XP, the badge and the board all read
  *  it — so it runs on the server (api/admin/challenges/review), where the
  *  member's XP can be written and the push sent in the same breath. */
 export async function reviewChallengeEntry(

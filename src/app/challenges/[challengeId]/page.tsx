@@ -50,7 +50,7 @@ export default async function PublicChallengePage({ params, searchParams }: {
 
   const [programs, brand] = await Promise.all([getPublicPrograms().catch(() => []), getPublicBranding()]);
   // Only what the nav renders. The full program documents carry Firestore
-  // Timestamps, which cannot cross into a client component: a store page was
+  // Timestamps, which cannot cross into a client component: a public page was
   // 500 ("Only plain objects... can be passed to Client Components") on
   // exactly that, while the prerendered programs pages never hit it.
   const navPrograms = programs.map((p) => ({ name: p.name, slug: p.slug }));
