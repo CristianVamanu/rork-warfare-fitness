@@ -514,7 +514,7 @@ export default function ProgramDetailPage() {
                           {missing.includes(n) && <AlertTriangle className="w-3 h-3" />}{equipmentLabel(n)}
                         </span>
                       ))}
-                      {missing.length > 0 && <span className="text-[11px] text-amber-300/80">swaps offered in the session</span>}
+                      {missing.length > 0 && <span className="text-[11px] text-amber-300/80">not in your equipment</span>}
                     </div>
                   );
                 })()}

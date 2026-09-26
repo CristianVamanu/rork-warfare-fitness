@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { inferNeeds, libraryNeeds, missingFor, swapFor, dayNeeds, ownedFor } from './equipmentNeeds';
+import { inferNeeds, libraryNeeds, missingFor, dayNeeds } from './equipmentNeeds';
 
 describe('what an exercise needs', () => {
   it('reads the implement from the name', () => {
@@ -30,27 +30,12 @@ describe('what an exercise needs', () => {
   });
 });
 
-describe('missing and swaps', () => {
+describe('missing', () => {
   it('never warns when the equipment is unknown', () => {
     expect(missingFor(['barbell'], [])).toEqual([]);
-    expect(swapFor('Barbell Bench Press', [])).toBeNull();
+    expect(missingFor(['barbell', 'bench'], ['bench'])).toEqual(['barbell']);
   });
-  it('finds the closest movement the member can do', () => {
-    expect(swapFor('Barbell Bench Press', ['dumbbells', 'bench'])?.name).toBe('Dumbbell Bench Press');
-    expect(swapFor('Barbell Bench Press', ['dumbbells'])?.name).toBe('Dumbbell Floor Press');
-    expect(swapFor('Barbell Bench Press', ['bodyweight'])?.name).toBe('Push-Up');
-    expect(swapFor('Lat Pulldown', ['pull-up-bar', 'bands'])?.name).toBe('Pull-Up');
-    expect(swapFor('Lat Pulldown', ['bands'])?.name).toBe('Band Lat Pulldown');
-    expect(swapFor('Back Squat', ['kettlebells'])?.name).toBe('Kettlebell Goblet Squat');
-  });
-  it('leaves an exercise alone when it already fits', () => {
-    expect(swapFor('Barbell Bench Press', ['barbell', 'bench', 'squat-rack'])).toBeNull();
-    expect(swapFor('Push-Up', ['bodyweight'])).toBeNull();
-  });
-  it('sums a day and resolves the kit mode', () => {
+  it('sums a day', () => {
     expect(dayNeeds([{ name: 'Back Squat' }, { name: 'Pull-Up' }, { name: 'Plank' }]).sort()).toEqual(['barbell', 'pull-up-bar', 'squat-rack']);
-    expect(ownedFor('bodyweight', ['barbell'])).toEqual(['bodyweight']);
-    expect(ownedFor('gym', [])).toContain('cable');
-    expect(ownedFor('mine', ['bands'])).toEqual(['bands']);
   });
 });

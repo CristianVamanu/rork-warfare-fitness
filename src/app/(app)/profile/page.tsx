@@ -990,7 +990,7 @@ function EquipmentCard() {
         </Card>
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title="Your equipment">
-        <p className="text-sm text-text-secondary mb-4">Choose all that apply. Sessions flag anything you don&apos;t have and offer a swap.</p>
+        <p className="text-sm text-text-secondary mb-4">Choose all that apply. Programs show the kit each session needs.</p>
         <EquipmentGrid compact selected={draft} onToggle={(i) => setDraft((d) => toggleEquipment(d, i))} />
         <div className="flex gap-2 mt-5">
           <Button variant="secondary" fullWidth onClick={() => setOpen(false)}>Cancel</Button>
