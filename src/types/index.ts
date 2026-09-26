@@ -102,6 +102,10 @@ export interface OnboardingData {
   experience: ExperienceLevel;
   trainingDays: number;
   equipment: EquipmentType;
+  /** The individual items ticked in the quiz's equipment picker. The tier
+   *  above is derived from it for the matcher. Empty/missing = unknown
+   *  (members who answered before the picker existed). See lib/equipment. */
+  equipmentItems?: string[];
   limitations?: string;
   sex?: BiologicalSex;
   age?: number;

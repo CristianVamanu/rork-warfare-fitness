@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Flame, Dumbbell, RefreshCw, Zap, Shield,
   ChevronRight, ChevronLeft, Loader2, CheckCircle,
-  Home, Building2, Package, User, TrendingDown, TrendingUp, PartyPopper,
+  User, TrendingDown, TrendingUp, PartyPopper,
 } from 'lucide-react';
 import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +15,7 @@ import { signUp } from '@/lib/auth';
 import { startPlanCheckout, startCoachingCheckout } from '@/lib/checkout';
 import { saveOnboardingData, enrollInProgram, updateUserGoals, updateUserDoc, resolveProgram } from '@/lib/firestore';
 import { sessionCampaign } from '@/lib/funnel';
+import { EQUIPMENT_ITEMS, toggleEquipment, equipmentTier, isEquipmentItem, type EquipmentItem } from '@/lib/equipment';
 import { trackEvent } from '@/lib/analytics';
 import { estimateNutritionTargets, calculateBmi, estimateWeightGoalTimeline, type NutritionTargets, type WeightGoalTimeline } from '@/lib/tdee';
 import { lbsToKg, kgToLbs, cmToFtIn, ftInToCm } from '@/lib/utils';
@@ -27,7 +28,7 @@ import { Medallion } from '@/components/dashboard/Medallion';
 import { BrandSplash } from '@/components/ui/BrandSplash';
 import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex, MedicalHistoryAnswers } from '@/types';
 import {
-  TRAINING_FOR, OCCUPATIONS, EXPERIENCE_CHOICES, EQUIPMENT_CHOICES, BLOCKERS, PRIORITIES,
+  TRAINING_FOR, OCCUPATIONS, EXPERIENCE_CHOICES, BLOCKERS, PRIORITIES,
   isTrainingFor, isOccupation, isBlocker, isPriority, intelBreakFor, intakePercent,
   type TrainingFor, type Occupation, type Blocker, type Priority, type OfferWords,
 } from '@/lib/onboardingIntake';
@@ -49,9 +50,6 @@ const GOALS: { value: FitnessGoal; label: string; sub: string; icon: React.Eleme
 // situations people recognise themselves in (see lib/onboardingIntake).
 const EXPERIENCE: { value: ExperienceLevel; label: string; sub: string }[] = EXPERIENCE_CHOICES;
 
-const EQUIPMENT_ICON: Record<EquipmentType, React.ElementType> = { 'full-gym': Building2, home: Home, minimal: Package };
-const EQUIPMENT: { value: EquipmentType; label: string; sub: string; icon: React.ElementType }[] =
-  EQUIPMENT_CHOICES.map((c) => ({ ...c, icon: EQUIPMENT_ICON[c.value] }));
 
 /**
  * The intake, in order. Step numbers are positions in this list, never
@@ -73,7 +71,7 @@ const STEPS_AUTHED: StepId[] = ['for', 'you', 'goal', 'occupation', 'experience'
 const DAYS = [3, 4, 5, 6];
 
 /** Steps that advance on a tap (see selectAndAdvance). */
-const TAP_STEPS = new Set<StepId>(['for', 'goal', 'occupation', 'experience', 'days', 'equipment', 'blocker', 'priority']);
+const TAP_STEPS = new Set<StepId>(['for', 'goal', 'occupation', 'experience', 'days', 'blocker', 'priority']);
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -101,6 +99,7 @@ interface OnboardingDraft {
   experience: ExperienceLevel | null;
   trainingDays: number | null;
   equipment: EquipmentType | null;
+  equipmentItems: EquipmentItem[];
   limitations: string;
   sex: BiologicalSex | null;
   age: string;
@@ -158,6 +157,16 @@ function OnboardingPageInner() {
   const [experience, setExperience] = useState<ExperienceLevel | null>(draft.experience ?? null);
   const [trainingDays, setTrainingDays] = useState<number | null>(draft.trainingDays ?? null);
   const [equipment, setEquipment] = useState<EquipmentType | null>(draft.equipment ?? null);
+  // The ten-item picker. `equipment` (the tier) is derived from it and is
+  // what the matcher and every existing consumer keep reading.
+  const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>(Array.isArray(draft.equipmentItems) ? draft.equipmentItems.filter(isEquipmentItem) : []);
+  const pickEquipment = (item: EquipmentItem) => {
+    setEquipmentItems((cur) => {
+      const next = toggleEquipment(cur, item);
+      setEquipment(equipmentTier(next));
+      return next;
+    });
+  };
   // Read-only now that the "Any limitations?" step is gone — nothing in this
   // flow sets it any more. Kept (rather than deleted) so a draft saved before
   // that step was removed still carries its answer through to the profile
@@ -225,13 +234,13 @@ function OnboardingPageInner() {
   useEffect(() => {
     try {
       const draftToSave: OnboardingDraft = {
-        step, goal, experience, trainingDays, equipment, limitations,
+        step, goal, experience, trainingDays, equipment, equipmentItems, limitations,
         sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory,
         name, email, trainingFor, occupation, blocker, priority,
       };
       localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(draftToSave));
     } catch { /* ignore — e.g. private browsing storage quota */ }
-  }, [step, goal, experience, trainingDays, equipment, limitations, sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory, name, email, trainingFor, occupation, blocker, priority]);
+  }, [step, goal, experience, trainingDays, equipment, equipmentItems, limitations, sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory, name, email, trainingFor, occupation, blocker, priority]);
 
   // Pre-fills sex/age from the landing page's quick-start selector (now
   // mandatory there — see LandingClient.tsx). Visitors who didn't come
@@ -754,6 +763,7 @@ function OnboardingPageInner() {
         experience,
         trainingDays,
         equipment,
+        ...(equipmentItems.length ? { equipmentItems } : {}),
         ...(limitations.trim() ? { limitations: limitations.trim() } : {}),
         ...(trainingFor ? { trainingFor } : {}),
         ...(occupation ? { occupation } : {}),
@@ -1249,7 +1259,7 @@ function OnboardingPageInner() {
               <StepDays selected={trainingDays} onSelect={(v) => selectAndAdvance(step, () => setTrainingDays(v))} />
             )}
             {stepId === 'equipment' && (
-              <StepEquipment selected={equipment} onSelect={(v) => selectAndAdvance(step, () => setEquipment(v))} />
+              <StepEquipment selected={equipmentItems} onToggle={pickEquipment} />
             )}
             {stepId === 'break' && <StepIntelBreak trainingFor={trainingFor} goal={goal} experience={experience} trainingDays={trainingDays} equipment={equipment} />}
             {stepId === 'blocker' && (
@@ -1679,23 +1689,38 @@ function StepDays({ selected, onSelect }: { selected: number | null; onSelect: (
   );
 }
 
-function StepEquipment({ selected, onSelect }: { selected: EquipmentType | null; onSelect: (v: EquipmentType) => void }) {
+function StepEquipment({ selected, onToggle }: { selected: EquipmentItem[]; onToggle: (v: EquipmentItem) => void }) {
   return (
     <div>
-      <h1 className="text-2xl font-black text-white mb-1">Equipment access</h1>
-      <p className="text-text-secondary text-sm mb-5">Your program will only use what you have available.</p>
-      <div className="space-y-3">
-        {EQUIPMENT.map(({ value, label, sub, icon: Icon }) => (
-          <OptionTile
-            key={value}
-            icon={Icon}
-            label={label}
-            sub={sub}
-            selected={selected === value}
-            onClick={() => onSelect(value)}
-          />
-        ))}
+      <h1 className="text-2xl font-black text-white mb-1 text-center">What equipment do you have?</h1>
+      <p className="text-text-secondary text-sm mb-5 text-center">Choose all that apply. Your program only uses what you have.</p>
+      <div className="grid grid-cols-2 gap-3">
+        {EQUIPMENT_ITEMS.map(({ id, label }) => {
+          const on = selected.includes(id);
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onToggle(id)}
+              aria-pressed={on}
+              className={`text-left rounded-2xl border overflow-hidden transition-all ${on ? 'border-accent shadow-[0_0_0_1px_rgba(245,166,35,0.25)]' : 'border-white/8 hover:border-white/20'}`}
+              style={{ backgroundColor: 'var(--card-glass-bg)' }}
+            >
+              <div className="aspect-square p-5 flex items-center justify-center" style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 55%, rgba(var(--accent-rgb) / 0.10), transparent 75%)' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/equipment/${id}.webp`} alt="" className="max-w-full max-h-full object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.6)]" loading="lazy" />
+              </div>
+              <div className="flex items-center justify-between gap-2 px-3.5 py-3 border-t border-white/8">
+                <span className="text-sm font-semibold text-white leading-tight">{label}</span>
+                <span className={`w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${on ? 'bg-accent border-accent' : 'border-white/30'}`}>
+                  {on && <CheckCircle className="w-4 h-4 text-black" strokeWidth={3} />}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </div>
+      <p className="text-[11px] text-text-tertiary mt-4 text-center">Bodyweight only clears the rest.</p>
     </div>
   );
 }
