@@ -121,6 +121,14 @@ export async function deleteUserCompletely(app: App, db: Firestore, uid: string)
           await stripe.subscriptions.cancel(subId);
           console.log(`[accountDeletion] Cancelled Stripe subscription ${subId} for user ${uid}`);
         } catch (err) {
+          // "No such subscription" is the outcome we wanted: it is already
+          // gone from Stripe (deleted in the dashboard, or a test-mode id
+          // under live keys). Nothing can bill this card, so it is not an
+          // orphan and not an error.
+          if ((err as { code?: string })?.code === 'resource_missing') {
+            console.log(`[accountDeletion] ${subId} for ${uid} no longer exists in Stripe — nothing to cancel`);
+            continue;
+          }
           console.error(`[accountDeletion] Could not cancel ${subId} for ${uid}:`, err);
           // A console line is not a record. Deletion continues either way (a
           // GDPR erasure must not be blocked by Stripe being down), so without
