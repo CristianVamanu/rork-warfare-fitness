@@ -113,7 +113,7 @@ export function middleware(request: NextRequest) {
     // from OUR page (session setup, 3DS, fraud signals, telemetry).
     // Requests made inside Stripe's iframe are governed by Stripe's own
     // policy, not this one.
-    "connect-src 'self' https://*.googleapis.com https://apis.google.com https://www.google.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://js.stripe.com https://api.stripe.com https://checkout.stripe.com https://hooks.stripe.com https://m.stripe.network https://m.stripe.com https://r.stripe.com https://q.stripe.com",
+    "connect-src 'self' https://*.googleapis.com https://apis.google.com https://www.google.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://connect.facebook.net https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://js.stripe.com https://api.stripe.com https://checkout.stripe.com https://hooks.stripe.com https://m.stripe.network https://m.stripe.com https://r.stripe.com https://q.stripe.com",
     // Firebase Auth opens a hidden same-project iframe at
     // <project>.firebaseapp.com/__/auth/iframe as part of its normal init
     // (session persistence / cross-tab auth-state sync) — this fires even

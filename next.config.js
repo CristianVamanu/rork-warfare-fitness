@@ -161,6 +161,23 @@ const withPWA = require('next-pwa')({
         plugins: [{ handlerDidError: async () => new Response('', { status: 204 }) }],
       },
     },
+    // Meta Pixel: its loader script (connect.facebook.net) and its beacon
+    // (www.facebook.com/tr). Same reasoning as the analytics rule above, and
+    // the reason it exists: without it the pixel fell through to the
+    // cross-origin catch-all, the service worker re-fetched fbevents.js
+    // itself, and that fetch is governed by connect-src, which did not list
+    // connect.facebook.net. The script died with net::ERR_FAILED in every
+    // browser that had the service worker installed, so the pixel never
+    // loaded for returning visitors, and Events Manager saw nothing at all.
+    {
+      urlPattern: ({ url }) =>
+        url.hostname === 'connect.facebook.net' ||
+        url.hostname === 'www.facebook.com',
+      handler: 'NetworkOnly',
+      options: {
+        plugins: [{ handlerDidError: async () => new Response('', { status: 204 }) }],
+      },
+    },
     // Firestore traffic must never be served from cache — without this,
     // next-pwa's bundled cross-origin catch-all (NetworkFirst, 1 hour
     // cache) can serve a stale Firestore read for up to an hour after an
