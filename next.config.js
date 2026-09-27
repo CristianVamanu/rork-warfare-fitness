@@ -158,7 +158,7 @@ const withPWA = require('next-pwa')({
         url.hostname.endsWith('.analytics.google.com'),
       handler: 'NetworkOnly',
       options: {
-        plugins: [{ handlerDidError: async () => new Response('', { status: 204 }) }],
+        plugins: [{ handlerDidError: async () => new Response(null, { status: 204 }) }],
       },
     },
     // Meta Pixel: its loader script (connect.facebook.net) and its beacon
@@ -175,7 +175,7 @@ const withPWA = require('next-pwa')({
         url.hostname === 'www.facebook.com',
       handler: 'NetworkOnly',
       options: {
-        plugins: [{ handlerDidError: async () => new Response('', { status: 204 }) }],
+        plugins: [{ handlerDidError: async () => new Response(null, { status: 204 }) }],
       },
     },
     // Firestore traffic must never be served from cache — without this,
@@ -205,7 +205,7 @@ const withPWA = require('next-pwa')({
       urlPattern: ({ url }) => url.hostname === 'apis.google.com',
       handler: 'NetworkOnly',
       options: {
-        plugins: [{ handlerDidError: async () => new Response('', { status: 204 }) }],
+        plugins: [{ handlerDidError: async () => new Response(null, { status: 204 }) }],
       },
     },
     // Firestore's connectivity probe (www.google.com/images/cleardot.gif) and
@@ -220,7 +220,7 @@ const withPWA = require('next-pwa')({
         url.hostname === 'www.google.com' || url.hostname === 'firestore.googleapis.com',
       handler: 'NetworkOnly',
       options: {
-        plugins: [{ handlerDidError: async () => new Response('', { status: 204 }) }],
+        plugins: [{ handlerDidError: async () => new Response(null, { status: 204 }) }],
       },
     },
     // next-pwa's bundled defaults match video files with /\.(?:mp4)$/ —
