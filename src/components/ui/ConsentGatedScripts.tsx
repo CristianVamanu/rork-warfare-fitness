@@ -31,7 +31,12 @@ export function ConsentGatedScripts({ nonce }: { nonce?: string }) {
 
   if (!accepted) return null;
 
-  const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+  // The Warfare Fitness pixel from Meta Events Manager. A pixel ID is public
+  // (it sits in every page's source), so the live one is the default and the
+  // env var exists to point a staging build at a different pixel, or to
+  // switch the pixel off entirely with NEXT_PUBLIC_META_PIXEL_ID=off.
+  const envPixel = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+  const metaPixelId = envPixel === 'off' ? '' : (envPixel || '2488600018281880');
   const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
   return (

@@ -47,7 +47,7 @@ export function middleware(request: NextRequest) {
     // checkout (/checkout). Loaded by a nonce'd bundle, so strict-dynamic
     // already trusts it; the explicit hosts are the fallback for browsers
     // and webviews without strict-dynamic, same as the two above.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://digimetrix.ai https://www.googletagmanager.com https://js.stripe.com https://checkout.stripe.com`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://digimetrix.ai https://www.googletagmanager.com https://connect.facebook.net https://js.stripe.com https://checkout.stripe.com`,
     // A prior attempt scoped unsafe-inline to style-src-attr only, on the
     // assumption this app never injects raw <style> blocks — that was
     // wrong. Framer Motion (AnimatePresence/layout animations) and the
