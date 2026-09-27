@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Ring } from '@/components/dashboard/Ring';
 import { ShareProgramButton } from '@/components/training/ShareProgramButton';
+import { SessionPreview } from '@/components/training/SessionPreview';
 import { removeQueryParam } from '@/lib/queryParam';
 import type { Program } from '@/types';
 
@@ -344,6 +345,13 @@ export default function TrainingPage() {
                   <Badge variant="success"><CheckCircle2 className="w-3 h-3 inline mr-0.5" />Day {Math.max(1, completedWorkouts)} done today</Badge>
                 )}
               </div>
+              {/* The session itself, not just its name: the same kit strip and
+                  exercise list the home card and the program page show. */}
+              {todayDay && !isRestToday && !programFinished && (
+                <div className="mt-4">
+                  <SessionPreview exercises={todayDay.exercises} />
+                </div>
+              )}
               <div className="mt-4 space-y-2">
                 {todayDay && (isRestToday ? (
                   <Button
