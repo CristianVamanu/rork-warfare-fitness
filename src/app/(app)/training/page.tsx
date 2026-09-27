@@ -324,10 +324,8 @@ export default function TrainingPage() {
                     <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" /> Active program
                   </p>
                   <h3 className="text-[22px] font-black text-white leading-tight mt-1 truncate">{activeProgram.programName}</h3>
-                  {todayDay && (
-                    <p className="text-text-secondary text-sm mt-1">
-                      {isRestToday ? 'Rest day — recover, or skip it below' : `Next: ${stripWeekdayPrefix(todayDay.label)}`}
-                    </p>
+                  {todayDay && isRestToday && (
+                    <p className="text-text-secondary text-sm mt-1">Rest day — recover, or skip it below</p>
                   )}
                 </div>
                 <Ring value={pct / 100} size={64} stroke={6}>
@@ -349,6 +347,22 @@ export default function TrainingPage() {
                   exercise list the home card and the program page show. */}
               {todayDay && !isRestToday && !programFinished && (
                 <div className="mt-4">
+                  {/* Same header as the program page's Next Workout card:
+                      icon, "Up next · Day N", the session name, Start. */}
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center bg-gradient-accent text-black shadow-glow-sm">
+                        <Dumbbell className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent/90">Up next · Day {nextAbsIdx + 1}</p>
+                        <p className="text-sm font-bold text-white leading-snug truncate">{stripWeekdayPrefix(todayDay.label)}</p>
+                      </div>
+                    </div>
+                    <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
+                      <Play className="w-4 h-4" /> {workedOutToday ? 'Again' : 'Start'}
+                    </Button>
+                  </div>
                   <SessionPreview exercises={todayDay.exercises} />
                 </div>
               )}
@@ -376,11 +390,7 @@ export default function TrainingPage() {
                       )}
                     </span>
                   </Button>
-                ) : (
-                  <Button fullWidth onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
-                    <Play className="w-4 h-4" /> {workedOutToday ? 'Start another session' : 'Start session'}
-                  </Button>
-                ))}
+                ) : null)}
                 {/* Three possible buttons (Repeat is conditional), so the grid
                     column count matches how many are actually present —
                     fixing it at 2 left Share alone on its own row whenever
