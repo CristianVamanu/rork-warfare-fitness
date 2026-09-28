@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight, Sparkles, Pencil } from 'lucide-react';
+import { Plus, Camera, Barcode, Flame, Beef, Wheat, Droplets, Trash2, Settings, X, Check, ChevronLeft, ChevronRight, Sparkles, Pencil, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTodayMeals, getTodayWaterLogs, deleteWaterLog, deleteMeal, updateUserGoals, getMealsForDate } from '@/lib/firestore';
@@ -19,6 +19,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import { AiDisclaimer } from '@/components/ui/AiDisclaimer';
+import { TechField, TechBackdrop, techInputClass } from '@/components/ui/TechField';
 import type { Meal, UserGoals } from '@/types';
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
@@ -378,7 +379,7 @@ function NutritionPageInner() {
                 <Droplets className="w-5 h-5 text-blue-400" strokeWidth={2} />
               </Ring>
               <div className="flex-1 min-w-0">
-                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Water</span>
+                <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-[0.24em]">Hydration</span>
                 <p className="text-[22px] font-black text-white leading-none tabular-nums mt-0.5">
                   {(waterMl / 1000).toFixed(2)}<span className="text-sm font-bold text-text-secondary">L</span>
                   <span className="text-[12px] font-medium text-text-tertiary"> of {goals.water / 1000}L</span>
@@ -396,7 +397,7 @@ function NutritionPageInner() {
                   <button
                     key={ml}
                     onClick={() => addWater(ml)}
-                    className="h-10 rounded-xl text-xs font-bold text-blue-300 bg-blue-400/10 border border-blue-400/15 hover:bg-blue-400/20 transition-colors tabular-nums"
+                    className="h-10 rounded-xl text-xs font-bold text-blue-200 bg-blue-400/10 border border-blue-400/20 hover:bg-blue-400/20 hover:border-blue-300/40 hover:shadow-[0_0_18px_rgba(96,165,250,0.25)] active:scale-[0.97] transition-all tabular-nums"
                   >
                     +{ml >= 1000 ? `${ml / 1000}L` : `${ml}ml`}
                   </button>
@@ -404,17 +405,21 @@ function NutritionPageInner() {
               </div>
             )}
             {isToday && (
-              <div className="flex gap-2 mt-2">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder="Custom amount in ml"
-                  value={customWaterMl}
-                  onChange={(e) => setCustomWaterMl(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCustomWater()}
-                  className="flex-1 h-10 bg-surface-elevated text-white text-sm px-3 rounded-xl border border-white/10 focus:outline-none focus:border-blue-400 placeholder:text-text-tertiary tabular-nums"
-                />
-                <button onClick={handleCustomWater} aria-label="Add custom amount" className="w-10 h-10 rounded-xl bg-blue-400/20 text-blue-300 flex items-center justify-center hover:bg-blue-400/30 transition-colors">
+              <div className="flex gap-2 mt-2 items-stretch">
+                <label className="flex-1 flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 focus-within:border-blue-400/60 focus-within:shadow-[0_0_0_1px_rgba(96,165,250,0.35),0_0_20px_rgba(96,165,250,0.15)] transition-all">
+                  <span className="text-[10px] font-semibold tracking-[0.24em] text-text-tertiary uppercase">Custom</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={customWaterMl}
+                    onChange={(e) => setCustomWaterMl(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleCustomWater()}
+                    className="flex-1 min-w-0 h-10 bg-transparent text-white text-sm text-right outline-none placeholder:text-text-tertiary/60 tabular-nums"
+                  />
+                  <span className="text-[11px] font-bold text-text-tertiary">ml</span>
+                </label>
+                <button onClick={handleCustomWater} aria-label="Add custom amount" className="w-10 rounded-xl bg-blue-400/15 border border-blue-400/25 text-blue-200 flex items-center justify-center hover:bg-blue-400/25 hover:shadow-[0_0_18px_rgba(96,165,250,0.3)] active:scale-95 transition-all">
                   <Plus className="w-4 h-4" />
                 </button>
               </div>
@@ -440,16 +445,17 @@ function NutritionPageInner() {
         {isToday && (
           <div className="grid grid-cols-3 gap-2.5">
             {[
-              { href: '/nutrition/analyze', icon: Camera, label: 'Photo scan', tone: 'bg-green-400/15 text-green-300' },
-              { href: '/nutrition/barcode', icon: Barcode, label: 'Barcode', tone: 'bg-purple-400/15 text-purple-300' },
-              { href: '/nutrition/meal-planner', icon: Sparkles, label: 'Meal ideas', tone: 'bg-accent-muted text-accent' },
-            ].map(({ href, icon: Icon, label, tone }) => (
+              { href: '/nutrition/analyze', icon: Camera, label: 'Photo scan', sub: 'AI', tone: 'bg-green-400/15 text-green-300 border-green-400/25 shadow-[0_0_20px_rgba(74,222,128,0.18)]' },
+              { href: '/nutrition/barcode', icon: Barcode, label: 'Barcode', sub: 'Scan', tone: 'bg-purple-400/15 text-purple-300 border-purple-400/25 shadow-[0_0_20px_rgba(192,132,252,0.18)]' },
+              { href: '/nutrition/meal-planner', icon: Sparkles, label: 'Meal ideas', sub: 'AI', tone: 'bg-accent/15 text-accent border-accent/30 shadow-[0_0_20px_rgb(var(--accent-rgb)/0.22)]' },
+            ].map(({ href, icon: Icon, label, sub, tone }) => (
               <Link key={href} href={href} className="block">
-                <Card glass className="h-[84px] flex flex-col items-center justify-center gap-2 card-float">
-                  <span className={`w-10 h-10 rounded-2xl flex items-center justify-center ${tone}`}>
+                <Card glass className="relative h-[92px] flex flex-col items-center justify-center gap-2 card-float overflow-hidden">
+                  <span className="absolute top-2 right-2.5 text-[9px] font-semibold tracking-[0.22em] text-text-tertiary uppercase">{sub}</span>
+                  <span className={`w-10 h-10 rounded-2xl border flex items-center justify-center ${tone}`}>
                     <Icon className="w-5 h-5" strokeWidth={1.75} />
                   </span>
-                  <span className="text-[10px] font-semibold text-text-secondary">{label}</span>
+                  <span className="text-[11px] font-semibold text-white">{label}</span>
                 </Card>
               </Link>
             ))}
@@ -466,9 +472,10 @@ function NutritionPageInner() {
           <div className="space-y-4">
             {MEAL_TYPES.map((type) => (
               <div key={type} className="wf-rise">
-                <div className="flex items-center justify-between px-0.5 mb-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">{type}</p>
-                  <span className="text-[11px] text-text-tertiary tabular-nums">
+                <div className="flex items-center gap-3 px-0.5 mb-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-tertiary">{type}</p>
+                  <span className="flex-1 h-px bg-gradient-to-r from-white/10 to-transparent" />
+                  <span className={`text-[11px] font-bold tabular-nums px-2 py-0.5 rounded-md border ${mealsByType[type].length ? 'text-accent border-accent/25 bg-accent/10' : 'text-text-tertiary border-white/8'}`}>
                     {mealsByType[type].reduce((s, m) => s + (m.calories || 0), 0)} kcal
                   </span>
                 </div>
@@ -476,26 +483,30 @@ function NutritionPageInner() {
                   <div className="grid grid-cols-2 gap-2">
                     {isToday && (
                       <Link href={`/nutrition/analyze?mealType=${type}`}>
-                        <Card glass className="p-3 flex items-center gap-2 text-text-secondary hover:border-accent/30 transition-colors cursor-pointer">
-                          <Camera className="w-4 h-4" strokeWidth={1.75} />
+                        <div className="h-12 rounded-xl border border-dashed border-white/15 bg-black/20 px-3 flex items-center gap-2.5 text-text-secondary hover:border-green-400/40 hover:text-white hover:shadow-[0_0_18px_rgba(74,222,128,0.12)] transition-all cursor-pointer">
+                          <span className="w-7 h-7 rounded-lg bg-green-400/12 text-green-300 flex items-center justify-center"><Camera className="w-3.5 h-3.5" strokeWidth={1.75} /></span>
                           <span className="text-xs font-semibold">Photo scan</span>
-                        </Card>
+                        </div>
                       </Link>
                     )}
                     <button onClick={() => openManualAdd(type)} className={isToday ? '' : 'col-span-2'}>
-                      <Card glass className="p-3 flex items-center gap-2 text-text-secondary hover:border-accent/30 transition-colors cursor-pointer">
-                        <Plus className="w-4 h-4" strokeWidth={1.75} />
+                      <div className="h-12 rounded-xl border border-dashed border-white/15 bg-black/20 px-3 flex items-center gap-2.5 text-text-secondary hover:border-accent/40 hover:text-white hover:shadow-[0_0_18px_rgb(var(--accent-rgb)/0.14)] transition-all cursor-pointer">
+                        <span className="w-7 h-7 rounded-lg bg-accent/12 text-accent flex items-center justify-center"><Plus className="w-3.5 h-3.5" strokeWidth={2} /></span>
                         <span className="text-xs font-semibold">Add manually</span>
-                      </Card>
+                      </div>
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {mealsByType[type].map((meal) => (
-                      <Card glass key={meal.id} className="p-3 flex items-center justify-between gap-3">
+                      <Card glass key={meal.id} className="p-3 flex items-center justify-between gap-3 border-l-2 border-l-accent/60">
                         <button onClick={() => openManualEdit(meal)} className="text-left flex-1 min-w-0">
                           <p className="text-sm font-semibold text-white truncate">{meal.name}</p>
-                          <p className="text-[11px] text-text-tertiary tabular-nums">{meal.protein}g P · {meal.carbs}g C · {meal.fat}g F</p>
+                          <p className="mt-1 flex items-center gap-1.5 text-[10px] font-bold tabular-nums">
+                            <span className="px-1.5 py-0.5 rounded-md bg-red-400/10 text-red-300">P {meal.protein}</span>
+                            <span className="px-1.5 py-0.5 rounded-md bg-accent/10 text-accent">C {meal.carbs}</span>
+                            <span className="px-1.5 py-0.5 rounded-md bg-orange-400/10 text-orange-300">F {meal.fat}</span>
+                          </p>
                         </button>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           <Badge variant="muted">{meal.calories} kcal</Badge>
@@ -509,10 +520,10 @@ function NutritionPageInner() {
                       </Card>
                     ))}
                     <button onClick={() => openManualAdd(type)} className="w-full">
-                      <Card glass className="p-2.5 flex items-center justify-center gap-1.5 text-text-tertiary hover:border-accent/30 transition-colors cursor-pointer">
+                      <div className="h-10 rounded-xl border border-dashed border-white/12 flex items-center justify-center gap-1.5 text-text-tertiary hover:border-accent/40 hover:text-white transition-all cursor-pointer">
                         <Plus className="w-3.5 h-3.5" />
                         <span className="text-xs font-semibold">Add another {type}</span>
-                      </Card>
+                      </div>
                     </button>
                   </div>
                 )}
@@ -525,51 +536,99 @@ function NutritionPageInner() {
       {/* Manual meal entry / edit — works for the currently selected date,
           including past days, unlike the AI scanner/barcode/planner tools
           above which only ever log against "now". */}
-      <Modal open={!!manualEntry} onClose={() => setManualEntry(null)} title={manualEntry?.editingId ? 'Edit Meal' : `Add ${manualEntry?.mealType ?? ''}`}>
-        {manualEntry && (
-          <div className="space-y-4 p-4">
-            <div>
-              <label className="text-xs text-text-secondary block mb-1.5">Meal name</label>
-              <input
-                type="text"
-                value={manualEntry.name}
-                onChange={(e) => setManualEntry((m) => m && { ...m, name: e.target.value })}
-                placeholder="e.g. Grilled chicken & rice"
-                className="w-full bg-surface-elevated text-white px-3 py-2.5 rounded-xl border border-white/10 focus:outline-none focus:border-accent text-sm"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {([
-                { key: 'calories', label: 'Calories (kcal)' },
-                { key: 'protein', label: 'Protein (g)' },
-                { key: 'carbs', label: 'Carbs (g)' },
-                { key: 'fat', label: 'Fat (g)' },
-              ] as const).map(({ key, label }) => (
-                <div key={key}>
-                  <label className="text-xs text-text-secondary block mb-1.5">{label}</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={manualEntry[key]}
-                    onChange={(e) => setManualEntry((m) => m && { ...m, [key]: e.target.value })}
-                    className="w-full bg-surface-elevated text-white px-3 py-2.5 rounded-xl border border-white/10 focus:outline-none focus:border-accent text-sm"
-                  />
-                </div>
-              ))}
-            </div>
-            {!isToday && (
-              <p className="text-xs text-text-tertiary">Logging for {formatDate(selectedDate)}</p>
-            )}
-            <div className="flex gap-3 pt-2">
-              <Button variant="secondary" fullWidth onClick={() => setManualEntry(null)}>
-                <X className="w-4 h-4" /> Cancel
-              </Button>
-              <Button fullWidth loading={savingManualEntry} disabled={!manualEntry.name.trim()} onClick={saveManualEntry}>
-                <Check className="w-4 h-4" /> Save
-              </Button>
-            </div>
+      <Modal
+        open={!!manualEntry}
+        onClose={() => setManualEntry(null)}
+        className="max-w-md"
+        footer={manualEntry && (
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => setManualEntry(null)}>
+              <X className="w-4 h-4" /> Cancel
+            </Button>
+            <Button className="flex-1" loading={savingManualEntry} disabled={!manualEntry.name.trim()} onClick={saveManualEntry}>
+              <Zap className="w-4 h-4" /> {manualEntry.editingId ? 'Save changes' : 'Log it'}
+            </Button>
           </div>
         )}
+      >
+        {manualEntry && (() => {
+          const n = (v: string) => Math.max(0, Number(v) || 0);
+          const fromMacros = Math.round(n(manualEntry.protein) * 4 + n(manualEntry.carbs) * 4 + n(manualEntry.fat) * 9);
+          const kcal = n(manualEntry.calories);
+          return (
+            <div className="-m-5 p-5 relative overflow-hidden rounded-2xl">
+              <TechBackdrop />
+              <div className="relative space-y-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl border border-accent/30 bg-accent/10 flex items-center justify-center shadow-[0_0_24px_rgb(var(--accent-rgb)/0.25)]">
+                    <Flame className="w-5 h-5 text-accent" strokeWidth={1.75} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-semibold tracking-[0.28em] text-accent/90 uppercase">{manualEntry.editingId ? 'Edit entry' : `Log ${manualEntry.mealType}`}</p>
+                    <p className="text-base font-black text-white leading-tight">{isToday ? 'Today' : formatDate(selectedDate)}</p>
+                  </div>
+                </div>
+
+                <TechField label="Meal">
+                  <input
+                    type="text"
+                    value={manualEntry.name}
+                    onChange={(e) => setManualEntry((m) => m && { ...m, name: e.target.value })}
+                    placeholder="Grilled chicken & rice"
+                    maxLength={80}
+                    autoFocus={!manualEntry.editingId}
+                    className={`${techInputClass} text-[15px] font-semibold`}
+                  />
+                </TechField>
+
+                <TechField label="Calories" hint="kcal">
+                  <input
+                    type="number" inputMode="numeric" min={0} placeholder="0"
+                    value={manualEntry.calories}
+                    onChange={(e) => setManualEntry((m) => m && { ...m, calories: e.target.value })}
+                    className={`${techInputClass} text-3xl font-black`}
+                  />
+                </TechField>
+
+                <div className="grid grid-cols-3 gap-2.5">
+                  {([
+                    { key: 'protein', label: 'Protein', tone: 'text-red-300' },
+                    { key: 'carbs', label: 'Carbs', tone: 'text-accent' },
+                    { key: 'fat', label: 'Fat', tone: 'text-orange-300' },
+                  ] as const).map(({ key, label, tone }) => (
+                    <TechField key={key} label={label} hint="g">
+                      <input
+                        type="number" inputMode="numeric" min={0} placeholder="0"
+                        value={manualEntry[key]}
+                        onChange={(e) => setManualEntry((m) => m && { ...m, [key]: e.target.value })}
+                        className={`${techInputClass} text-xl font-black ${tone}`}
+                      />
+                    </TechField>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-3.5 py-2.5">
+                  <div>
+                    <p className="text-[10px] font-semibold tracking-[0.24em] text-text-tertiary uppercase">From macros</p>
+                    <p className="text-[10px] text-text-tertiary">4 · 4 · 9 kcal per g</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-black tabular-nums text-white">{fromMacros}<span className="text-[10px] font-bold text-text-secondary ml-1">kcal</span></p>
+                    {kcal > 0 && fromMacros > 0 && Math.abs(kcal - fromMacros) > Math.max(60, kcal * 0.15) && (
+                      <button
+                        type="button"
+                        onClick={() => setManualEntry((m) => m && { ...m, calories: String(fromMacros) })}
+                        className="text-[10px] font-semibold text-accent hover:underline"
+                      >
+                        Use this
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
 
       {/* Goals Modal */}
