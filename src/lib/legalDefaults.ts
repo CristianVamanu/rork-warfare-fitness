@@ -6,7 +6,7 @@
  */
 export const LEGAL_OPERATOR = {
   name: 'Davcris Ltd',
-  number: '',
+  number: '10181333',
   address: '',
   email: '',
 };
