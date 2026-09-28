@@ -34,3 +34,22 @@ export async function GET(req: NextRequest) {
   daily.sort((a, b) => a.day.localeCompare(b.day));
   return NextResponse.json({ days, totals, campaigns, daily });
 }
+
+/** DELETE — wipe every daily tally. For starting clean after test runs
+ *  polluted the counts; there is no undo, the panel asks first. */
+export async function DELETE(req: NextRequest) {
+  const check = await verifyAdmin(req);
+  if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status });
+  const app = getAdminApp();
+  if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
+  const db = getAdminDb(app);
+  const snap = await db.collection('funnel').get();
+  let n = 0;
+  // 400 per batch keeps under Firestore's 500-write limit.
+  for (let i = 0; i < snap.docs.length; i += 400) {
+    const batch = db.batch();
+    for (const d of snap.docs.slice(i, i + 400)) { batch.delete(d.ref); n++; }
+    await batch.commit();
+  }
+  return NextResponse.json({ ok: true, deleted: n });
+}

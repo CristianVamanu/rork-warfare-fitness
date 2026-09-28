@@ -27,6 +27,15 @@ export function normalizeCampaign(v: unknown): string {
 }
 
 const SENT_KEY = 'wf.funnel.sent';
+/** Set on the owner's own devices from Admin → Funnel so test runs never
+ *  count. localStorage, not session, so it survives closing the browser. */
+export const IGNORE_KEY = 'wf.funnel.ignore';
+export function isFunnelIgnored(): boolean {
+  try { return localStorage.getItem(IGNORE_KEY) === '1'; } catch { return false; }
+}
+export function setFunnelIgnored(on: boolean) {
+  try { if (on) localStorage.setItem(IGNORE_KEY, '1'); else localStorage.removeItem(IGNORE_KEY); } catch { /* private mode */ }
+}
 const CAMPAIGN_KEY = 'wf.funnel.campaign';
 
 /** The campaign this session arrived under: remembered from the first URL
@@ -43,6 +52,7 @@ export function sessionCampaign(): string {
 export function funnelHit(step: FunnelStep) {
   try {
     if (typeof window === 'undefined') return;
+    if (isFunnelIgnored()) return;
     let sent: string[] = [];
     try { sent = JSON.parse(sessionStorage.getItem(SENT_KEY) || '[]'); } catch { sent = []; }
     if (sent.includes(step)) return;

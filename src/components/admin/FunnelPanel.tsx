@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { getIdToken } from 'firebase/auth';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, EyeOff, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Modal } from '@/components/ui/Modal';
+import { isFunnelIgnored, setFunnelIgnored } from '@/lib/funnel';
 
 type Tally = Record<string, number>;
 interface FunnelData { days: number; totals: Tally; campaigns: Record<string, Tally>; daily: { day: string; visit: number; q1: number; account: number; paid: number }[] }
@@ -38,6 +40,24 @@ export function FunnelPanel() {
   const [days, setDays] = useState<7 | 30 | 90>(30);
   const [data, setData] = useState<FunnelData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [ignored, setIgnored] = useState(false);
+  useEffect(() => { setIgnored(isFunnelIgnored()); }, []);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  async function resetAll() {
+    if (!user) return;
+    setResetting(true);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/admin/funnel', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `Failed (${res.status})`);
+      toast.success('Funnel counts reset');
+      setConfirmReset(false);
+      await load();
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Reset failed'); }
+    finally { setResetting(false); }
+  }
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -73,6 +93,41 @@ export function FunnelPanel() {
           <Button size="sm" variant="secondary" onClick={load} loading={loading}><RefreshCw className="w-4 h-4" /></Button>
         </div>
       </div>
+
+      {/* Your own test runs otherwise land in these numbers. The toggle is per
+          device (it lives in this browser), so flip it on every phone and
+          laptop you test from; the reset wipes what is already polluted. */}
+      <Card className="p-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <EyeOff className={`w-4 h-4 flex-shrink-0 ${ignored ? 'text-accent' : 'text-text-tertiary'}`} />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white">{ignored ? 'This device is not counted' : 'This device is counted'}</p>
+            <p className="text-[11px] text-text-secondary">Turn it on wherever you test the quiz yourself. Per browser, so do it on each device.</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={ignored}
+            aria-label="Do not count this device"
+            onClick={() => { const next = !ignored; setFunnelIgnored(next); setIgnored(next); toast.success(next ? 'This device will not be counted' : 'This device is counted again'); }}
+            className={`w-11 h-6 rounded-full transition-colors relative ${ignored ? 'bg-accent' : 'bg-surface-elevated'}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${ignored ? 'left-6' : 'left-1'}`} />
+          </button>
+          <Button size="sm" variant="ghost" onClick={() => setConfirmReset(true)}><Trash2 className="w-4 h-4" /> Reset counts</Button>
+        </div>
+      </Card>
+
+      <Modal
+        open={confirmReset}
+        onClose={() => { if (!resetting) setConfirmReset(false); }}
+        title="Reset the funnel?"
+        footer={<div className="flex gap-2 justify-end"><Button variant="ghost" onClick={() => setConfirmReset(false)} disabled={resetting}>Cancel</Button><Button variant="danger" loading={resetting} onClick={resetAll}>Reset everything</Button></div>}
+      >
+        <p className="text-sm text-text-secondary">Deletes every day's counts, all stages and all campaigns. Counting starts again from the next visitor. This cannot be undone.</p>
+      </Modal>
 
       {empty ? (
         <Card className="p-8 text-center">
