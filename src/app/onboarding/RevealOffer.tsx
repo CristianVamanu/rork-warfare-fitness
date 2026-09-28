@@ -54,6 +54,10 @@ export function RevealOffer(p: RevealOfferProps) {
   const [password, setPassword] = useState('');
   const [reveal, setReveal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // The same tick the register page asks for: terms, 18+, fit to train. The
+  // quiz used to create accounts on an implied "by continuing you agree"
+  // line, so nobody who signed up this way had actually accepted anything.
+  const [agreed, setAgreed] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -88,7 +92,7 @@ export function RevealOffer(p: RevealOfferProps) {
   const passwordOk = password.length >= 8;
 
   function start() {
-    if (!passwordOk || p.busy) return;
+    if (!passwordOk || !agreed || p.busy) return;
     p.onStart(password, plan && period ? { id: plan.id, months: period.months } : null, offer);
   }
 
@@ -130,16 +134,25 @@ export function RevealOffer(p: RevealOfferProps) {
           <button
             type="button"
             onClick={start}
-            disabled={!passwordOk || p.busy}
+            disabled={!passwordOk || !agreed || p.busy}
             className="w-full min-h-[52px] rounded-xl bg-gradient-accent text-black text-base font-black flex items-center justify-center gap-2 shadow-glow-sm disabled:opacity-60"
           >
             {p.busy ? <><Loader2 className="w-4 h-4 animate-spin" /> Setting up your program…</> : <>{offer.kind === 'none' ? 'Create account & start' : `Create account · ${offer.button}`} <ChevronRight className="w-4 h-4" /></>}
           </button>
-          <p className="text-[11px] text-text-tertiary text-center leading-relaxed">
-            {p.name.trim() ? `${p.name.trim()} · ` : ''}By continuing you agree to our{' '}
-            <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-accent underline">Terms</a> and{' '}
-            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-accent underline">Privacy Policy</a>.
-          </p>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              id="reveal-agree"
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-[var(--accent)] flex-shrink-0"
+            />
+            <span className="text-[11px] text-text-tertiary leading-relaxed">
+              I am 18 or over, fit to exercise or have checked with a doctor, and I train within my own limits. I agree to the{' '}
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-accent underline">Terms</a> and{' '}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-accent underline">Privacy Policy</a>.
+            </span>
+          </label>
         </div>
       )}
       {offer.line && <p className="wf-readout text-[10px] font-bold text-text-tertiary text-center">{offer.line}</p>}

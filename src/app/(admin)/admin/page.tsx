@@ -6103,8 +6103,15 @@ function AdminPageInner() {
             <p className="text-xs text-text-secondary">
               Edit your Privacy Policy, Terms & Conditions, and B2B Terms (the separate agreement for the white-label trainer offer). Use blank lines between paragraphs and start a line with <code className="bg-black/30 px-1 rounded">## </code> for a section heading.
             </p>
+            {/* The textareas open pre-filled with the built-in text, so one tap
+                of Save stores a copy that then shadows every later improvement
+                to the built-in version. These load the current built-in text
+                back in; Save afterwards stores that. */}
             <div>
-              <label className="text-xs text-text-secondary mb-1 block">Privacy Policy</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-text-secondary block">Privacy Policy</label>
+                <button type="button" onClick={() => setLegalForm(s => ({ ...s, privacyPolicyText: DEFAULT_PRIVACY_POLICY }))} className="text-[11px] font-semibold text-accent hover:underline">Load the built-in text</button>
+              </div>
               <textarea
                 value={legalForm.privacyPolicyText}
                 onChange={e => setLegalForm(s => ({ ...s, privacyPolicyText: e.target.value }))}
@@ -6113,7 +6120,10 @@ function AdminPageInner() {
               />
             </div>
             <div>
-              <label className="text-xs text-text-secondary mb-1 block">Terms & Conditions</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-text-secondary block">Terms & Conditions</label>
+                <button type="button" onClick={() => setLegalForm(s => ({ ...s, termsText: DEFAULT_TERMS }))} className="text-[11px] font-semibold text-accent hover:underline">Load the built-in text</button>
+              </div>
               <textarea
                 value={legalForm.termsText}
                 onChange={e => setLegalForm(s => ({ ...s, termsText: e.target.value }))}
