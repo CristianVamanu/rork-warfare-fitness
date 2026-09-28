@@ -143,9 +143,14 @@ const SECRET_GROUPS: { title: string; service: string; keys: { key: string; labe
     ],
   },
   {
-    title: 'Resend (Transactional Email)', service: 'resend', keys: [
+    title: 'Resend (Email)', service: 'resend', keys: [
       { key: 'RESEND_API_KEY', label: 'API Key', placeholder: 're_...' },
-      { key: 'RESEND_FROM_EMAIL', label: 'From Address', placeholder: 'Warfare Fitness <noreply@yourdomain.com>' },
+      { key: 'RESEND_FROM_EMAIL', label: 'From Address (used by both senders)', placeholder: 'Warfare Fitness <noreply@yourdomain.com>' },
+    ],
+  },
+  {
+    title: 'Brevo (Email)', service: 'brevo', keys: [
+      { key: 'BREVO_API_KEY', label: 'API Key (v3)', placeholder: 'xkeysib-...' },
     ],
   },
 ];
@@ -551,6 +556,8 @@ function AdminPageInner() {
   const [storageProvider, setStorageProvider] = useState<StorageProvider>(DEFAULT_STORAGE_PROVIDER);
   // PR Wall: hold new posts for review (on) or let them go live at once (off, the default).
   const [prWallReview, setPrWallReview] = useState(false);
+  const [emailProvider, setEmailProvider] = useState<'resend' | 'brevo'>('resend');
+  const [savingEmailProvider, setSavingEmailProvider] = useState(false);
   const [savingPrReview, setSavingPrReview] = useState(false);
   const [savingProvider, setSavingProvider] = useState(false);
   const [secretStatuses, setSecretStatuses] = useState<SecretStatusUI[]>([]);
@@ -674,6 +681,7 @@ function AdminPageInner() {
         });
         setStorageProvider(resolveStorageProvider(cfg.storageProvider));
         setPrWallReview((cfg.prWallReview as unknown) === true);
+        setEmailProvider(cfg.emailProvider === 'brevo' ? 'brevo' : 'resend');
         setLegalForm({
           privacyPolicyText: cfg.privacyPolicyText || DEFAULT_PRIVACY_POLICY,
           termsText: cfg.termsText || DEFAULT_TERMS,
@@ -809,6 +817,16 @@ function AdminPageInner() {
       toast.success(next ? 'New PRs now wait for your review' : 'New PRs now go live at once');
     } catch { toast.error('Failed to save'); }
     finally { setSavingPrReview(false); }
+  }
+
+  async function handleSaveEmailProvider(provider: 'resend' | 'brevo') {
+    setSavingEmailProvider(true);
+    try {
+      await setSystemConfig({ emailProvider: provider });
+      setEmailProvider(provider);
+      toast.success(`Emails now send through ${provider === 'brevo' ? 'Brevo' : 'Resend'}`);
+    } catch { toast.error('Failed to save email provider'); }
+    finally { setSavingEmailProvider(false); }
   }
 
   async function handleSaveStorageProvider(provider: StorageProvider) {
@@ -5135,6 +5153,30 @@ function AdminPageInner() {
                 Cloudflare R2 <span className="text-success text-xs">(no egress fees)</span>
               </button>
             </div>
+          </Card>
+
+          <Card className="p-5 space-y-3">
+            <div>
+              <h2 className="text-base font-bold text-white">Email sender</h2>
+              <p className="text-xs text-text-secondary mt-1">
+                Every email, from sign-in codes to broadcasts, goes through the one you pick. The From Address under Resend is used by both. Brevo&apos;s free plan sends 300 a day; a switch takes effect within a minute.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {([['resend', 'Resend'], ['brevo', 'Brevo']] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => handleSaveEmailProvider(id)}
+                  disabled={savingEmailProvider}
+                  className={`flex-1 p-3 rounded-xl border text-sm font-medium transition-colors ${
+                    emailProvider === id ? 'border-accent bg-accent/10 text-white' : 'border-white/10 text-text-secondary hover:bg-white/5'
+                  }`}
+                >
+                  {label}{id === 'brevo' && <span className="text-success text-xs"> (300/day free)</span>}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-text-tertiary">Set the sender&apos;s domain up in the provider first (SPF and DKIM), or mail lands in spam. Use Test Connection on the card below after saving the key.</p>
           </Card>
 
           {secretsLoading ? (

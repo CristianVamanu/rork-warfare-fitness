@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
     const sent = await sendEmail({
+      kind: 'adminAlert',
       to: 'digimetrixuk@gmail.com',
       subject: `New /trainers demo request — ${body.name}`,
       html: trainerLeadEmailHtml({

@@ -43,6 +43,7 @@ export async function issueVerificationCode(
   const brand = { name: appName, logoUrl: (cfgSnap.data()?.logoUrl as string) || null };
 
   const sent = await sendEmail({
+      kind: 'auth',
     to: email,
     subject: `Your ${appName} confirmation code`,
     html: verifyCodeEmailHtml(code, brand),

@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
 
     const sent = await sendEmail({
+      kind: 'welcome',
       to: user.email,
       subject: `Welcome to ${appName} 💪`,
       html: welcomeEmailHtml(user.displayName?.split(' ')[0] || 'there', brand, appUrl),

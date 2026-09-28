@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
     const brand = { name: appName, logoUrl: (cfgSnap.data()?.logoUrl as string) || null };
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
     await sendEmail({
+      kind: 'auth',
       to: user.email,
       subject: `Security setting changed on ${appName}`,
       html: twoFactorSettingsChangedEmailHtml(user.displayName?.split(' ')[0] || 'there', changeDescription, brand, appUrl),

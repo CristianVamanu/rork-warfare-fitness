@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
 
     const sent = await sendEmail({
+      kind: 'achievement',
       to: user.email,
       subject: titles.length > 1 ? `You unlocked ${titles.length} new achievements! 🏆` : `You unlocked "${titles[0]}"! 🏆`,
       html: achievementEmailHtml(user.displayName?.split(' ')[0] || 'there', titles, brand, appUrl),

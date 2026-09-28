@@ -106,6 +106,7 @@ export async function runBroadcasts(opts: {
       await mapWithConcurrency(unique, 5, async (t) => {
         const unsub = unsubscribeUrl(appUrl, unsubSecret, t.to, t.scope);
         const ok = await sendEmail({
+          kind: 'broadcast',
           to: t.to, subject: b.subject, unsubscribeUrl: unsub,
           html: marketingEmailHtml({ brand, appUrl, heading: b.subject, paragraphs, cta: { label: b.ctaLabel, path: b.ctaPath }, unsubscribeUrl: unsub }),
         });

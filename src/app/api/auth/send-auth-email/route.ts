@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, delivered: true });
     }
 
-    const sent = await sendEmail({ to: email, subject, html });
+    const sent = await sendEmail({ kind: 'auth', to: email, subject, html });
     // `sent` is false when RESEND_API_KEY isn't configured. Reported so the
     // client can fall back to Firebase's own sender rather than leaving the
     // member with no email at all on an install that never set Resend up.

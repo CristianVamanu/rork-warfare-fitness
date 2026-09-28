@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
 
     const sent = await sendEmail({
+      kind: 'coachingStatus',
       to: application.userEmail,
       subject: application.status === 'approved' ? "You're approved for 1:1 Coaching!" : '1:1 Coaching Application Update',
       html: coachingApplicationEmailHtml(

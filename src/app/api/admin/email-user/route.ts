@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
     const cfg = cfgSnap.data() ?? {};
     const brand = { name: (cfg.appName as string) || 'Warfare Fitness', logoUrl: (cfg.logoUrl as string) || null };
     const ok = await sendEmail({
+      kind: 'direct',
       to: email,
       subject: s,
       html: directEmailHtml({ brand, paragraphs: b.split(/\n{2,}|\n/).map((p) => p.trim()).filter(Boolean), name: (userSnap.data()?.displayName as string | undefined)?.split(' ')[0] }),

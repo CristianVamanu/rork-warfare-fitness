@@ -412,6 +412,10 @@ export interface SystemConfig {
   communityUploadsDailyLimit?: number;
   /** Hold new PR Wall posts for admin review before they show. Default off: posts go live at once. */
   prWallReview?: boolean;
+  /** Which service sends email. Default resend. Keys live in system/secrets. */
+  emailProvider?: 'resend' | 'brevo';
+  /** The admin's email switches: pause marketing, send hour, one switch per kind. See lib/emailControls. */
+  emailControls?: { pauseMarketing?: boolean; sendHour?: number; kinds?: Record<string, boolean> };
   b2bLandingPage?: B2BLandingConfig;
   /** Admin-editable copy on the onboarding reveal. Defaults in lib/onboardingIntake. */
   onboardingCopy?: { whyPrice?: string; offerStack?: { title: string; body: string }[] };

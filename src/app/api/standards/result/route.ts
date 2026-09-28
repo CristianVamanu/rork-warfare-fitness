@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
     const secret = unsubscribeSecret();
     const unsub = body.marketingOptIn === true && secret ? unsubscribeUrl(appUrl, secret, email, 'lead') : undefined;
     await sendEmail({
+      kind: 'standardsResult',
       to: email,
       subject,
       html: standardsResultEmailHtml({

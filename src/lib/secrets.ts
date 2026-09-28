@@ -30,6 +30,9 @@ export const SECRET_KEYS = [
   'CLOUDFLARE_ZONE_ID',
   'RESEND_API_KEY',
   'RESEND_FROM_EMAIL',
+  // Brevo (formerly Sendinblue), the alternative sender. Which one is used
+  // is system/config.emailProvider; the from address is shared.
+  'BREVO_API_KEY',
 ] as const;
 
 export type SecretKey = typeof SECRET_KEYS[number];

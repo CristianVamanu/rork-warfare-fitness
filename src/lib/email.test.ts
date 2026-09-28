@@ -30,7 +30,7 @@ vi.mock('./firebase-admin', () => ({ getAdminApp: () => ({}), getAdminDb: () => 
 // counter that never counts would pass unnoticed.
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: FV }));
 
-const { sendEmail } = await import('./email');
+const { sendEmail, clearEmailControlsCache } = await import('./email');
 
 const failWith = (status: number | undefined) => {
   const e = new Error(`boom ${status ?? 'network'}`) as Error & { statusCode?: number };
@@ -43,7 +43,31 @@ beforeEach(() => {
   db = makeAdminDb();
   apiKey = 'test-key';
   sendImpl = async () => ({ id: 'ok' });
+  clearEmailControlsCache();
   vi.useRealTimers();
+});
+
+describe('admin email switches', () => {
+  it('skips a kind the admin switched off, quietly', async () => {
+    db.docs.set('system/config', { emailControls: { kinds: { welcome: false } } });
+    let calls = 0; sendImpl = async () => { calls++; return { id: 'ok' }; };
+    expect(await sendEmail({ kind: 'welcome', to: 'a@b.c', subject: 'Welcome', html: '<p/>' })).toBe(false);
+    expect(calls).toBe(0);
+    expect(rows()).toHaveLength(0);
+  });
+  it('pause marketing stops a sequence but not a payment email', async () => {
+    db.docs.set('system/config', { emailControls: { pauseMarketing: true } });
+    expect(await sendEmail({ kind: 'sequence', to: 'a@b.c', subject: 'Hi', html: '<p/>' })).toBe(false);
+    expect(await sendEmail({ kind: 'paymentFailed', to: 'a@b.c', subject: 'Hi', html: '<p/>' })).toBe(true);
+  });
+  it('never blocks sign-in mail', async () => {
+    db.docs.set('system/config', { emailControls: { pauseMarketing: true, kinds: { auth: false } } });
+    expect(await sendEmail({ kind: 'auth', to: 'a@b.c', subject: 'Code', html: '<p/>' })).toBe(true);
+  });
+  it('counts a successful send per kind', async () => {
+    await sendEmail({ kind: 'welcome', to: 'a@b.c', subject: 'Welcome', html: '<p/>' });
+    expect((db.docs.get('system/emailStats')?.kinds as Record<string, number>)?.welcome).toBe(1);
+  });
 });
 
 describe('sendEmail', () => {

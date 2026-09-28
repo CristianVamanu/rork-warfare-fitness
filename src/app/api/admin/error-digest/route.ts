@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
 
     let sent = 0;
     for (const to of recipients) {
-      if (await sendEmail({ to, subject: `${recent.length} unresolved error${recent.length === 1 ? '' : 's'} — ${appName}`, html })) sent++;
+      if (await sendEmail({ kind: 'adminAlert', to, subject: `${recent.length} unresolved error${recent.length === 1 ? '' : 's'} — ${appName}`, html })) sent++;
     }
 
     if (sent === 0) console.error('[error-digest] Digest could not be delivered — check RESEND_API_KEY');

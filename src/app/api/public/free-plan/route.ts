@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
     const brand = { name: (cfg.appName as string) || 'Warfare Fitness', logoUrl: (cfg.logoUrl as string) || null };
     const unsub = unsubscribeUrl(appUrl, secret, email, 'lead');
     const ok = await sendEmail({
+      kind: 'freePlanDrip',
       to: email,
       subject: sessionSubject(program.name, 1, plan.days, first.day),
       unsubscribeUrl: unsub,

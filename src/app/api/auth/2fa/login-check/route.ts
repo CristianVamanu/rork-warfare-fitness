@@ -111,6 +111,7 @@ export async function POST(req: NextRequest) {
     // email header gets the real logo for no extra read.
     const brand = { name: appName, logoUrl: (cfgSnap.data()?.logoUrl as string) || null };
     const delivered = await sendEmail({
+      kind: 'auth',
       to: recipient,
       subject: `Your ${appName} sign-in code`,
       html: twoFactorCodeEmailHtml(code, brand),

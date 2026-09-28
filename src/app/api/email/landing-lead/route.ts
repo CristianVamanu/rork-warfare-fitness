@@ -84,6 +84,7 @@ export async function POST(req: NextRequest) {
     const brand = { name: appName, logoUrl: (cfg?.logoUrl as string) || null };
 
     const sent = await sendEmail({
+      kind: 'landingLead',
       to: body.email,
       subject: `Pick up where you left off on ${appName}`,
       html: landingLeadFollowupEmailHtml(brand, appUrl),

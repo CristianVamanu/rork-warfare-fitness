@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { getSecret } from './secrets';
+import { emailKindAllowed, resolveEmailProvider, parseFromAddress, type EmailKind, type EmailControls, type EmailProvider } from './emailControls';
 
 /** Resolves a Resend client from the admin-configured API key. Returns null
  * (rather than throwing) when unset, so every email call site can just
@@ -8,6 +9,74 @@ async function getResendClient(): Promise<Resend | null> {
   const apiKey = await getSecret('RESEND_API_KEY');
   if (!apiKey) return null;
   return new Resend(apiKey);
+}
+
+/**
+ * The admin's email settings from system/config: which provider sends, and
+ * which kinds may go out. Read once a minute per worker; a null result
+ * (no admin app, read failed) means "no controls", so mail still flows.
+ */
+const CONTROLS_TTL_MS = 60_000;
+let controlsCache: { at: number; value: { provider: EmailProvider; controls: EmailControls | null } } | null = null;
+export function clearEmailControlsCache() { controlsCache = null; }
+async function loadEmailSettings(): Promise<{ provider: EmailProvider; controls: EmailControls | null }> {
+  if (controlsCache && Date.now() - controlsCache.at < CONTROLS_TTL_MS) return controlsCache.value;
+  let value: { provider: EmailProvider; controls: EmailControls | null } = { provider: 'resend', controls: null };
+  try {
+    const { getAdminApp, getAdminDb } = await import('./firebase-admin');
+    const app = getAdminApp();
+    if (app) {
+      const snap = await getAdminDb(app).collection('system').doc('config').get();
+      const data = (snap.exists ? snap.data() : null) as { emailProvider?: unknown; emailControls?: EmailControls } | null;
+      value = { provider: resolveEmailProvider(data?.emailProvider), controls: data?.emailControls ?? null };
+    }
+  } catch (err) {
+    console.error('[email] Could not read email settings, sending with defaults:', err);
+  }
+  controlsCache = { at: Date.now(), value };
+  return value;
+}
+
+/** One log row per successful send and a counter per kind: what the Emails tab shows. Never the body. */
+async function recordSend(kind: EmailKind | undefined, to: string, subject: string, provider: EmailProvider) {
+  try {
+    const { getAdminApp, getAdminDb } = await import('./firebase-admin');
+    const app = getAdminApp();
+    if (!app) return;
+    const { FieldValue } = await import('firebase-admin/firestore');
+    const db = getAdminDb(app);
+    await db.collection('system').doc('emailStats').set({ kinds: { [kind ?? 'other']: FieldValue.increment(1) } }, { merge: true });
+    await db.collection('emailLog').add({ at: FieldValue.serverTimestamp(), kind: kind ?? 'other', to, subject, provider });
+  } catch { /* a missed log line is not a missed email */ }
+}
+
+/**
+ * Brevo's transactional API. Same shape as Resend from the caller's side:
+ * throws with a statusCode on failure so the retry logic below applies.
+ */
+async function sendViaBrevo(apiKey: string, from: string, opts: { to: string; subject: string; html: string; unsubscribeUrl?: string }) {
+  const sender = parseFromAddress(from);
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      sender: sender.name ? { name: sender.name, email: sender.email } : { email: sender.email },
+      to: [{ email: opts.to }],
+      subject: opts.subject,
+      htmlContent: opts.html,
+      ...(opts.unsubscribeUrl ? {
+        headers: {
+          'List-Unsubscribe': `<${opts.unsubscribeUrl}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
+      } : {}),
+    }),
+  });
+  if (!res.ok) {
+    const err = new Error(`Brevo responded ${res.status}: ${(await res.text()).slice(0, 200)}`) as Error & { statusCode: number };
+    err.statusCode = res.status;
+    throw err;
+  }
 }
 
 /**
@@ -86,11 +155,25 @@ export async function sendEmail(opts: {
    * and a spam report. Transactional mail leaves it out.
    */
   unsubscribeUrl?: string;
+  /**
+   * Which of the admin's switches governs this send (lib/emailControls).
+   * A kind the admin has turned off is skipped quietly: false, no failure
+   * row. Untagged sends always go, so nothing old breaks.
+   */
+  kind?: EmailKind;
 }): Promise<boolean> {
   if (!opts.to) return false;
-  const client = await getResendClient();
-  if (!client) {
-    const msg = 'RESEND_API_KEY not configured';
+  const settings = await loadEmailSettings();
+  if (opts.kind && !emailKindAllowed(settings.controls, opts.kind)) {
+    console.info(`[email] "${opts.kind}" is switched off — skipped "${opts.subject}" to ${opts.to}`);
+    return false;
+  }
+
+  const provider = settings.provider;
+  const brevoKey = provider === 'brevo' ? await getSecret('BREVO_API_KEY') : '';
+  const client = provider === 'resend' ? await getResendClient() : null;
+  if (provider === 'brevo' ? !brevoKey : !client) {
+    const msg = provider === 'brevo' ? 'BREVO_API_KEY not configured' : 'RESEND_API_KEY not configured';
     console.warn(`[email] ${msg} — skipped "${opts.subject}" to ${opts.to}`);
     await recordFailure(opts.to, opts.subject, msg);
     return false;
@@ -103,15 +186,20 @@ export async function sendEmail(opts: {
   let lastErr: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      await client.emails.send({
-        from, to: opts.to, subject: opts.subject, html: opts.html,
-        ...(opts.unsubscribeUrl ? {
-          headers: {
-            'List-Unsubscribe': `<${opts.unsubscribeUrl}>`,
-            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-          },
-        } : {}),
-      });
+      if (client) {
+        await client.emails.send({
+          from, to: opts.to, subject: opts.subject, html: opts.html,
+          ...(opts.unsubscribeUrl ? {
+            headers: {
+              'List-Unsubscribe': `<${opts.unsubscribeUrl}>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            },
+          } : {}),
+        });
+      } else {
+        await sendViaBrevo(brevoKey, from, opts);
+      }
+      await recordSend(opts.kind, opts.to, opts.subject, provider);
       return true;
     } catch (err) {
       lastErr = err;

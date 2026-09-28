@@ -17,6 +17,7 @@ import { getAllPrograms, setSystemConfig, getSystemConfig } from '@/lib/firestor
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { freePlanConfig, offerCopy, offerPath, dripDayFor, FREE_PLAN_DAY_OPTIONS, FREE_PLAN_DEFAULTS, type FreePlanConfig, type FreePlanOffer } from '@/lib/freePlan';
 import { BROADCAST_AUDIENCES, AUDIENCE_LABELS, type BroadcastAudience } from '@/lib/broadcast';
+import { EmailControlCard } from './EmailControlCard';
 
 /**
  * Every automated email, editable in place.
@@ -158,6 +159,7 @@ export function EmailsPanel() {
         </p>
       </Card>
 
+      <EmailControlCard />
       <FreePlanCard counts={counts} />
       <BroadcastCard />
 

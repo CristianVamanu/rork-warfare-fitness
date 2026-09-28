@@ -258,6 +258,7 @@ export async function POST(req: NextRequest) {
         // it is set in the Stripe dashboard, not here, and the two must match.
         const statementDescriptor = (cfg.statementDescriptor as string) || 'WARFAREFITNESS.COM';
         await sendEmail({
+          kind: 'trialCharge',
           to: userEmail,
           subject: trialReminderSubject(charge),
           html: trialChargeReminderEmailHtml({
@@ -304,6 +305,7 @@ export async function POST(req: NextRequest) {
                 const brand = { name: appName, logoUrl: (cfgSnap.data()?.logoUrl as string) || null };
                 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
                 await sendEmail({
+                  kind: 'paymentFailed',
                   to: userEmail,
                   subject: 'Payment failed — please update your billing info',
                   html: paymentFailedEmailHtml(userSnap.data()?.displayName?.split(' ')[0] || 'there', brand, appUrl),

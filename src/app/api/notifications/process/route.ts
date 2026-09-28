@@ -18,6 +18,7 @@ import { dripDayFor, dueDripDay, sessionSubject } from '@/lib/freePlan';
 import { runBroadcasts } from '@/lib/broadcastSender';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { sequenceToggles, resolveSequences, dueStep, daysSince, type SequenceOverrides, elapsedDays } from '@/lib/emailSequences';
+import { sendHourOf, type EmailControls } from '@/lib/emailControls';
 import { unsubscribeUrl, unsubscribeSecret } from '@/lib/emailUnsubscribe';
 import { checkoutRecoveryStep, checkoutRecoverySubject } from '@/lib/checkoutRecovery';
 import { checkoutPagePath, parseCheckoutParams } from '@/lib/checkoutMode';
@@ -175,6 +176,7 @@ export async function POST(req: NextRequest) {
       if (!email || !unsubSecret) return;
       const unsub = unsubscribeUrl(appUrl, unsubSecret, email, 'user');
       const ok = await sendEmail({
+        kind: 'sequence',
         to: email, subject: step.subject, unsubscribeUrl: unsub,
         html: marketingEmailHtml({ brand, appUrl, heading: step.heading, paragraphs: step.paragraphs, cta: step.cta, unsubscribeUrl: unsub, name: (u.displayName as string | undefined)?.split(' ')[0] }),
       });
@@ -295,7 +297,8 @@ export async function POST(req: NextRequest) {
     // stored timezone resolve as UTC, i.e. exactly the old behavior.
     // Half-hour timezones (e.g. India, UTC+5:30) still match: the :00 cron
     // nearest their 8am reads hour 8 on their clock.
-    const TARGET_LOCAL_HOUR = 8;
+    // The admin picks the hour in Emails; 8am their time by default.
+    const TARGET_LOCAL_HOUR = sendHourOf((systemCfgSnap.data() as { emailControls?: EmailControls } | undefined)?.emailControls);
     // Admin "Run Now" (admin/run-notifications) passes ?force=1 — a manual
     // trigger means "process everyone right now", not "only users whose
     // clock happens to read 8am at this moment".
@@ -355,6 +358,7 @@ export async function POST(req: NextRequest) {
         try {
           const intent = u.checkoutIntent;
           const ok = await sendEmail({
+            kind: 'checkoutRecovery',
             to: u.email,
             subject: checkoutRecoverySubject(intent.planName, recoveryStep),
             html: checkoutRecoveryEmailHtml({
@@ -583,6 +587,7 @@ export async function POST(req: NextRequest) {
             const sentFlag = 'trialEndingEmailSent';
             if (!u[sentFlag]) {
               const ok = await sendEmail({
+                kind: 'trialEnding',
                 to: u.email,
                 subject: `Your free trial ends in ${daysLeft} days`,
                 html: trialEndingEmailHtml(u.displayName?.split(' ')[0] || 'there', daysLeft, brand, appUrl),
@@ -663,6 +668,7 @@ export async function POST(req: NextRequest) {
           }
           const unsub = unsubscribeUrl(appUrl, unsubSecret, lead.email, 'lead');
           const ok = await sendEmail({
+            kind: 'sequence',
             to: lead.email, subject: step.subject, unsubscribeUrl: unsub,
             html: marketingEmailHtml({ brand, appUrl, heading: step.heading, paragraphs: step.paragraphs, cta: step.cta, unsubscribeUrl: unsub }),
           });
@@ -697,6 +703,7 @@ export async function POST(req: NextRequest) {
           }
           const unsub = unsubscribeUrl(appUrl, unsubSecret, lead.email, 'lead');
           const ok = await sendEmail({
+            kind: 'sequence',
             to: lead.email, subject: step.subject, unsubscribeUrl: unsub,
             html: marketingEmailHtml({ brand, appUrl, heading: step.heading, paragraphs: step.paragraphs, cta: step.cta, unsubscribeUrl: unsub }),
           });
@@ -735,6 +742,7 @@ export async function POST(req: NextRequest) {
           if (!program || !dd) { await d.ref.update({ dripActive: false, dripStoppedReason: 'program-unavailable' }); continue; }
           const unsub = unsubscribeUrl(appUrl, unsubSecret, lead.email, 'lead');
           const ok = await sendEmail({
+            kind: 'freePlanDrip',
             to: lead.email,
             subject: sessionSubject(program.name, dayN, total, dd.day),
             unsubscribeUrl: unsub,
