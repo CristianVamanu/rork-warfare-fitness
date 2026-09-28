@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { OperatorLine } from '@/components/ui/OperatorLine';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -1460,7 +1461,10 @@ export default function LandingPage({
       </section>
 
       <footer className="max-w-5xl mx-auto px-5 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/8">
-        <p className="text-xs text-text-tertiary">&copy; {new Date().getFullYear()} {appName}. All rights reserved.</p>
+        <div>
+          <p className="text-xs text-text-tertiary">&copy; {new Date().getFullYear()} {appName}. All rights reserved.</p>
+          <OperatorLine className="mt-1" />
+        </div>
         <div className="flex items-center gap-4">
           <Link href="/download" className="text-xs text-text-tertiary hover:text-white transition-colors">Download App</Link>
           <Link href="/trainers" className="text-xs text-text-tertiary hover:text-white transition-colors">For Trainers</Link>
