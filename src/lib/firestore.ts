@@ -2975,6 +2975,11 @@ export async function setPRPostModeration(
   }
 }
 
+/** Admin: take the Verified badge off a live post without hiding it. */
+export async function unverifyPRPost(postId: string) {
+  await updateDoc(doc(db, 'prPosts', postId), { verificationLevel: 'unverified' });
+}
+
 export async function deletePRPost(postId: string) {
   await deleteDoc(doc(db, 'prPosts', postId));
 }

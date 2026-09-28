@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { Heart, Upload, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Heart, Upload, MoreHorizontal, Trash2, BadgeCheck, BadgeMinus, EyeOff, Ban } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import { CommunityTabs } from '@/components/community/CommunityTabs';
-import { subscribePRFeed, likePRPost, deletePRPost, getSystemConfig } from '@/lib/firestore';
+import { subscribePRFeed, likePRPost, deletePRPost, getSystemConfig, setPRPostModeration, unverifyPRPost, banUserFromPRWall } from '@/lib/firestore';
 import { PRComposer } from '@/components/community/PRComposer';
 import type { PRPost } from '@/types';
 import { FeedMedia } from '@/components/community/FeedMedia';
@@ -86,6 +86,23 @@ export default function PRWallPage() {
     if (!confirm(`Delete this "${post.exerciseName}" post?`)) return;
     deletePRPost(post.id).catch(() => alert('Failed to delete — try again.'));
   };
+  // Admin moderation straight from the wall, so the review page is optional.
+  const handleVerify = (post: PRPost) => {
+    const p = post.verificationLevel === 'verified'
+      ? unverifyPRPost(post.id).then(() => toast.success('Badge removed'))
+      : setPRPostModeration(post.id, 'approved', post).then(() => toast.success(`${post.displayName}'s lift is now Verified`));
+    p.catch(() => toast.error('Failed. Try again.'));
+  };
+  const handleHide = (post: PRPost) => {
+    if (!confirm(`Hide this "${post.exerciseName}" post from the wall?`)) return;
+    setPRPostModeration(post.id, 'rejected', post).then(() => toast.success('Hidden')).catch(() => toast.error('Failed. Try again.'));
+  };
+  const handleBan = (post: PRPost) => {
+    const raw = prompt(`Ban ${post.displayName} from posting PRs for how many days? (0 = forever)`, '30');
+    if (raw === null) return;
+    const days = Math.max(0, Math.floor(Number(raw) || 0));
+    banUserFromPRWall(post.userId, days === 0 ? null : days).then(() => toast.success(`${post.displayName} banned${days ? ` for ${days} days` : ''}`)).catch(() => toast.error('Failed. Try again.'));
+  };
 
   return (
     <div className="min-h-screen pb-24">
@@ -144,8 +161,12 @@ export default function PRWallPage() {
               index={i}
               liked={liked.has(post.id)}
               canDelete={isAdmin || post.userId === user?.uid}
+              isAdmin={isAdmin}
               onLike={() => handleLike(post.id)}
               onDelete={() => handleDelete(post)}
+              onVerify={() => handleVerify(post)}
+              onHide={() => handleHide(post)}
+              onBan={() => handleBan(post)}
             />
           ))
         )}
@@ -155,14 +176,19 @@ export default function PRWallPage() {
   );
 }
 
-function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
+function PRCard({ post, index, liked, canDelete, isAdmin, onLike, onDelete, onVerify, onHide, onBan }: {
   post: PRPost;
   index: number;
   liked: boolean;
   canDelete: boolean;
+  isAdmin: boolean;
   onLike: () => void;
   onDelete: () => void;
+  onVerify: () => void;
+  onHide: () => void;
+  onBan: () => void;
 }) {
+  const verified = post.verificationLevel === 'verified';
   const [showMenu, setShowMenu] = useState(false);
 
   return (
@@ -176,6 +202,9 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
               <VerificationBadge level={post.verificationLevel} showLabel />
               {post.moderationStatus === 'pending' && (
                 <span className="text-[10px] text-amber-400 font-medium">· Pending review</span>
+              )}
+              {post.moderationStatus === 'rejected' && (
+                <span className="text-[10px] text-danger font-medium">· Hidden</span>
               )}
             </div>
             <p className="text-xs text-text-tertiary">{post.exerciseName}</p>
@@ -198,10 +227,35 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
               {showMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                  <div className="absolute right-0 top-8 z-20 bg-surface-elevated border border-white/10 rounded-xl shadow-xl min-w-[120px]">
+                  <div className="absolute right-0 top-8 z-20 bg-surface-elevated border border-white/10 rounded-xl shadow-xl min-w-[170px] overflow-hidden">
+                    {isAdmin && (
+                      <>
+                        <button
+                          onClick={() => { setShowMenu(false); onVerify(); }}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-white hover:bg-white/5 transition-colors"
+                        >
+                          {verified ? <><BadgeMinus className="w-3.5 h-3.5 text-text-secondary" /> Remove badge</> : <><BadgeCheck className="w-3.5 h-3.5 text-accent" /> Mark Verified</>}
+                        </button>
+                        {post.moderationStatus !== 'rejected' && (
+                          <button
+                            onClick={() => { setShowMenu(false); onHide(); }}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-white hover:bg-white/5 transition-colors"
+                          >
+                            <EyeOff className="w-3.5 h-3.5 text-text-secondary" /> Hide from wall
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { setShowMenu(false); onBan(); }}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-amber-400 hover:bg-white/5 transition-colors"
+                        >
+                          <Ban className="w-3.5 h-3.5" /> Ban poster
+                        </button>
+                        <div className="border-t border-white/10" />
+                      </>
+                    )}
                     <button
                       onClick={() => { setShowMenu(false); onDelete(); }}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors rounded-xl"
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Delete
                     </button>
@@ -225,13 +279,26 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
 
         {post.note && <p className="text-sm text-text-secondary mb-3">{post.note}</p>}
 
-        <button
-          onClick={onLike}
-          className={`flex items-center gap-1.5 text-xs font-medium ${liked ? 'text-danger' : 'text-text-tertiary'}`}
-        >
-          <Heart className={`w-4 h-4 ${liked ? 'fill-danger' : ''}`} />
-          {post.likeCount}
-        </button>
+        <div className="flex items-center justify-between">
+          <button
+            onClick={onLike}
+            className={`flex items-center gap-1.5 text-xs font-medium ${liked ? 'text-danger' : 'text-text-tertiary'}`}
+          >
+            <Heart className={`w-4 h-4 ${liked ? 'fill-danger' : ''}`} />
+            {post.likeCount}
+          </button>
+          {isAdmin && (
+            <button
+              onClick={onVerify}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
+                verified ? 'border-accent/40 bg-accent/10 text-accent' : 'border-white/10 text-text-secondary hover:text-white hover:border-white/25'
+              }`}
+              title={verified ? 'Tap to remove the badge' : 'Tap to give the Verified badge'}
+            >
+              <BadgeCheck className="w-3.5 h-3.5" /> {verified ? 'Verified' : 'Verify'}
+            </button>
+          )}
+        </div>
       </Card>
     </div>
   );

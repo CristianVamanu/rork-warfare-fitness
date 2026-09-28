@@ -7,7 +7,7 @@ import { ChevronLeft, Trash2, Ban, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   subscribeAllPRPosts, setPRPostModeration, deletePRPost,
-  banUserFromPRWall, unbanUserFromPRWall,
+  banUserFromPRWall, unbanUserFromPRWall, getSystemConfig,
 } from '@/lib/firestore';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -29,10 +29,12 @@ export default function PRReviewPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [banMenuFor, setBanMenuFor] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'pending' | 'all'>('pending');
+  const [filter, setFilter] = useState<'pending' | 'all'>('all');
 
   useEffect(() => {
     const unsub = subscribeAllPRPosts((p) => { setPosts(p); setLoading(false); }, 100);
+    // Only open on the queue when the review switch is on; otherwise it is always empty.
+    getSystemConfig().then((cfg) => { if ((cfg as { prWallReview?: boolean } | null)?.prWallReview === true) setFilter('pending'); }).catch(() => {});
     return unsub;
   }, []);
 
