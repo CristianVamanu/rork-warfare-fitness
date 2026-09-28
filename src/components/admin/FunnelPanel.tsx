@@ -126,7 +126,7 @@ export function FunnelPanel() {
         title="Reset the funnel?"
         footer={<div className="flex gap-2 justify-end"><Button variant="ghost" onClick={() => setConfirmReset(false)} disabled={resetting}>Cancel</Button><Button variant="danger" loading={resetting} onClick={resetAll}>Reset everything</Button></div>}
       >
-        <p className="text-sm text-text-secondary">Deletes every day's counts, all stages and all campaigns. Counting starts again from the next visitor. This cannot be undone.</p>
+        <p className="text-sm text-text-secondary">Deletes every day&apos;s counts, all stages and all campaigns. Counting starts again from the next visitor. This cannot be undone.</p>
       </Modal>
 
       {empty ? (
