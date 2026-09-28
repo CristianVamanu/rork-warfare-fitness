@@ -549,6 +549,9 @@ function AdminPageInner() {
 
   // ── Integrations / API keys state ─────────────────────────────────────────
   const [storageProvider, setStorageProvider] = useState<StorageProvider>(DEFAULT_STORAGE_PROVIDER);
+  // PR Wall: hold new posts for review (on) or let them go live at once (off, the default).
+  const [prWallReview, setPrWallReview] = useState(false);
+  const [savingPrReview, setSavingPrReview] = useState(false);
   const [savingProvider, setSavingProvider] = useState(false);
   const [secretStatuses, setSecretStatuses] = useState<SecretStatusUI[]>([]);
   const [secretsLoading, setSecretsLoading] = useState(false);
@@ -670,6 +673,7 @@ function AdminPageInner() {
           })(),
         });
         setStorageProvider(resolveStorageProvider(cfg.storageProvider));
+        setPrWallReview((cfg.prWallReview as unknown) === true);
         setLegalForm({
           privacyPolicyText: cfg.privacyPolicyText || DEFAULT_PRIVACY_POLICY,
           termsText: cfg.termsText || DEFAULT_TERMS,
@@ -794,6 +798,17 @@ function AdminPageInner() {
     } finally {
       setTestingService(null);
     }
+  }
+
+  async function handleTogglePrReview() {
+    const next = !prWallReview;
+    setSavingPrReview(true);
+    try {
+      await setSystemConfig({ prWallReview: next });
+      setPrWallReview(next);
+      toast.success(next ? 'New PRs now wait for your review' : 'New PRs now go live at once');
+    } catch { toast.error('Failed to save'); }
+    finally { setSavingPrReview(false); }
   }
 
   async function handleSaveStorageProvider(provider: StorageProvider) {
@@ -3349,10 +3364,28 @@ function AdminPageInner() {
               <Trophy className="w-5 h-5 text-accent" strokeWidth={1.75} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">PR wall review</p>
-              <p className="text-xs text-text-secondary mt-0.5">Verify submitted lifts and assign trust badges</p>
+              <p className="text-sm font-bold text-white">PR wall</p>
+              <p className="text-xs text-text-secondary mt-0.5">
+                {prWallReview ? 'New posts wait for you before they show' : 'Posts go live at once. Open to remove one or give a Verified badge'}
+              </p>
             </div>
             <ChevronRight className="w-4 h-4 text-text-tertiary" />
+          </Card>
+          <Card className="p-4 lg:p-5 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-white">Review PRs before they show</p>
+              <p className="text-xs text-text-secondary mt-0.5">Off: members post straight to the wall. On: every new PR waits in the review queue.</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={prWallReview}
+              disabled={savingPrReview}
+              onClick={handleTogglePrReview}
+              className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 disabled:opacity-60 ${prWallReview ? 'bg-accent' : 'bg-surface-elevated'}`}
+            >
+              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${prWallReview ? 'left-6' : 'left-1'}`} />
+            </button>
           </Card>
 
           {channels.some((c) => c.kind === 'ideas') && <IdeasPanel channels={channels} />}

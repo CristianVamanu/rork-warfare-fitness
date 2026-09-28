@@ -2886,9 +2886,13 @@ export async function createPRPost(input: {
   // addDoc rejects `undefined` field values outright — strip optional fields
   // the caller left unset (no note, no media) instead of writing undefined.
   const clean = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
+  // Live at once unless the admin has switched review on. The rules enforce
+  // the same switch, so a stale cache here only means a rejected write.
+  const cfg = await getSystemConfig().catch(() => null);
+  const review = (cfg as { prWallReview?: boolean } | null)?.prWallReview === true;
   const ref = await addDoc(collection(db, 'prPosts'), {
     ...clean,
-    moderationStatus: 'pending',
+    moderationStatus: review ? 'pending' : 'approved',
     likeCount: 0,
     createdAt: serverTimestamp(),
   });

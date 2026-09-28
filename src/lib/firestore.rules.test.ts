@@ -546,6 +546,22 @@ describe('prPosts media', () => {
   });
 });
 
+describe('prPosts review switch', () => {
+  const base = { userId: BOB, likedBy: [], likeCount: 0, createdAt: new Date(), verificationLevel: 'unverified' };
+  it('lets a member post straight to the wall while review is off (the default)', async () => {
+    await assertSucceeds(setDoc(doc(asBob(), 'prPosts', 'pr-live'), { ...base, moderationStatus: 'approved' }));
+    await assertSucceeds(setDoc(doc(asBob(), 'prPosts', 'pr-pending'), { ...base, moderationStatus: 'pending' }));
+  });
+  it('forces pending once the admin switches review on', async () => {
+    await seed(async (db) => { await setDoc(doc(db, 'system', 'config'), { prWallReview: true }, { merge: true }); });
+    await assertFails(setDoc(doc(asBob(), 'prPosts', 'pr-live'), { ...base, moderationStatus: 'approved' }));
+    await assertSucceeds(setDoc(doc(asBob(), 'prPosts', 'pr-pending'), { ...base, moderationStatus: 'pending' }));
+  });
+  it('never lets a member self-verify', async () => {
+    await assertFails(setDoc(doc(asBob(), 'prPosts', 'pr-fake'), { ...base, moderationStatus: 'approved', verificationLevel: 'verified' }));
+  });
+});
+
 // ── Anonymous access ────────────────────────────────────────────────────────
 
 describe('unauthenticated access', () => {

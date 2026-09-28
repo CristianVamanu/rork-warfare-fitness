@@ -2,9 +2,8 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { Heart, Upload, X, Video, Image as ImageIcon, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Heart, Upload, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -14,8 +13,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import { CommunityTabs } from '@/components/community/CommunityTabs';
-import { subscribePRFeed, createPRPost, likePRPost, deletePRPost, getSystemConfig } from '@/lib/firestore';
-import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
+import { subscribePRFeed, likePRPost, deletePRPost, getSystemConfig } from '@/lib/firestore';
+import { PRComposer } from '@/components/community/PRComposer';
 import type { PRPost } from '@/types';
 import { FeedMedia } from '@/components/community/FeedMedia';
 
@@ -24,6 +23,7 @@ export default function PRWallPage() {
   const [posts, setPosts] = useState<PRPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [reviewRequired, setReviewRequired] = useState(false);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   // Guards against a rapid double-click firing likePRPost() twice for the
   // same post before the first call's optimistic setLiked() update has been
@@ -34,6 +34,10 @@ export default function PRWallPage() {
   // (not state) so it's read/written synchronously within one click handler
   // call, immune to React's async state batching.
   const likeInFlight = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    getSystemConfig().then((cfg) => setReviewRequired((cfg as { prWallReview?: boolean } | null)?.prWallReview === true)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const unsub = subscribePRFeed((p) => {
@@ -102,9 +106,11 @@ export default function PRWallPage() {
           </Card>
         ) : (
           <Card className="p-4">
-            <p className="text-sm text-white font-bold mb-1">Post a PR, get it verified</p>
+            <p className="text-sm text-white font-bold mb-1">Post a PR</p>
             <p className="text-xs text-text-secondary leading-relaxed mb-3">
-              Upload a video or photo of your lift. New posts are reviewed by an admin before showing to everyone. Verified PRs get a badge on the wall.
+              {reviewRequired
+                ? 'Log the lift with a photo or video. An admin checks it before it shows, and proof earns a Verified badge.'
+                : 'Log the lift and it goes straight on the wall. Add a photo or video and an admin can mark it Verified.'}
             </p>
             <Button size="sm" onClick={() => setShowForm(true)}>
               <Upload className="w-3.5 h-3.5" /> Post a PR
@@ -112,12 +118,14 @@ export default function PRWallPage() {
           </Card>
         )}
 
-        {showForm && user && !isBanned && (
-          <PRForm
-            userId={user.uid}
+        {user && !isBanned && (
+          <PRComposer
+            open={showForm}
+            user={user}
             displayName={profile?.displayName || 'Athlete'}
             photoURL={profile?.photoURL ?? null}
-            onDone={() => setShowForm(false)}
+            reviewRequired={reviewRequired}
+            onClose={() => setShowForm(false)}
           />
         )}
 
@@ -226,109 +234,5 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
         </button>
       </Card>
     </div>
-  );
-}
-
-function PRForm({ userId, displayName, photoURL, onDone }: { userId: string; displayName: string; photoURL: string | null; onDone: () => void }) {
-  const { user } = useAuth();
-  const [exerciseName, setExerciseName] = useState('');
-  const [weightKg, setWeightKg] = useState('');
-  const [reps, setReps] = useState('');
-  const [note, setNote] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const submit = async () => {
-    if (!user || !exerciseName || !weightKg || !reps) return;
-    setUploading(true);
-    try {
-      let mediaUrl: string | undefined;
-      let mediaType: 'image' | 'video' | undefined;
-      if (file) {
-        mediaType = file.type.startsWith('video') ? 'video' : 'image';
-        const cfg = await getSystemConfig().catch(() => null);
-        const provider = resolveStorageProvider(cfg?.storageProvider);
-        mediaUrl = await uploadUserContent(provider, user, file, 'prPosts', setProgress);
-      }
-      await createPRPost({
-        userId,
-        displayName,
-        photoURL,
-        exerciseName,
-        weightKg: Number(weightKg),
-        reps: Number(reps),
-        note: note || undefined,
-        mediaUrl,
-        mediaType,
-        // Uploading a video/photo self-flags for review — actual promotion to
-        // "Video Verified" happens via admin/coach review, not automatically.
-        verificationLevel: 'unverified',
-      });
-      onDone();
-    } catch (err) {
-      console.error('[PRForm] submit failed:', err);
-      toast.error('Failed to post — try again');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <Card className="p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-bold text-white">New PR</p>
-        <button onClick={onDone}><X className="w-4 h-4 text-text-tertiary" /></button>
-      </div>
-      <input
-        value={exerciseName}
-        onChange={(e) => setExerciseName(e.target.value)}
-        placeholder="Exercise (e.g. Deadlift)"
-        className="w-full bg-surface-elevated border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary"
-      />
-      <div className="flex gap-2">
-        <input
-          value={weightKg}
-          onChange={(e) => setWeightKg(e.target.value)}
-          type="number"
-          placeholder="Weight (kg)"
-          className="flex-1 bg-surface-elevated border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary"
-        />
-        <input
-          value={reps}
-          onChange={(e) => setReps(e.target.value)}
-          type="number"
-          placeholder="Reps"
-          className="w-24 bg-surface-elevated border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary"
-        />
-      </div>
-      <textarea
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="Optional note..."
-        rows={2}
-        className="w-full bg-surface-elevated border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary resize-none"
-      />
-
-      <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-      <button
-        onClick={() => fileRef.current?.click()}
-        className="w-full flex items-center justify-center gap-2 border border-dashed border-white/15 rounded-xl py-3 text-xs text-text-secondary"
-      >
-        {file ? (file.type.startsWith('video') ? <Video className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />) : <Upload className="w-4 h-4" />}
-        {file ? file.name : 'Add video/photo proof (recommended)'}
-      </button>
-
-      {uploading && file && (
-        <div className="h-1.5 bg-surface-elevated rounded-full overflow-hidden">
-          <div className="h-full bg-accent transition-all" style={{ width: `${progress}%` }} />
-        </div>
-      )}
-
-      <Button fullWidth onClick={submit} loading={uploading} disabled={!exerciseName || !weightKg || !reps}>
-        Post PR
-      </Button>
-    </Card>
   );
 }

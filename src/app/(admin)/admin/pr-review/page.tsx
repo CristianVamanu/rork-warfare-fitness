@@ -69,9 +69,9 @@ export default function PRReviewPage() {
         <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-text-secondary mb-4">
           <ChevronLeft className="w-4 h-4" /> Back
         </button>
-        <h1 className="text-xl font-black text-white mb-1">PR Wall Review</h1>
+        <h1 className="text-xl font-black text-white mb-1">PR Wall</h1>
         <p className="text-sm text-text-secondary mb-4">
-          Approve a post to make it visible on the PR Wall with a Verified badge on that lift. Reject to hide it. Manage posting bans below.
+          Approve gives a lift the Verified badge. Reject hides it. Posts only wait here when &ldquo;Review PRs before they show&rdquo; is on in Community settings. Posting bans are managed below.
         </p>
 
         <div className="flex gap-1.5 mb-4">

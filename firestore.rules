@@ -1025,11 +1025,22 @@ service cloud.firestore {
       return m != null && (m.until == null || m.until > request.time);
     }
 
+    // Whether a new PR has to wait for an admin before the wall shows it.
+    // Off by default: the admin can't verify a stranger's lift from a
+    // clip anyway, so the gate is opt-in (system/config.prWallReview).
+    function prReviewRequired() {
+      return get(/databases/$(database)/documents/system/config).data.get('prWallReview', false) == true;
+    }
+
     match /prPosts/{postId} {
       allow read:   if isAuthed() && notTfaPending();
+      // A member never creates a post as 'verified' — that badge is only
+      // ever set by an admin through the update clause below.
       allow create: if isAuthed() && notTfaPending()
         && request.resource.data.userId == uid()
-        && request.resource.data.moderationStatus == 'pending'
+        && (request.resource.data.moderationStatus == 'pending'
+            || (request.resource.data.moderationStatus == 'approved' && !prReviewRequired()))
+        && request.resource.data.get('verificationLevel', 'unverified') != 'verified'
         && !prBanActive()
         && mediaSane(request.resource.data);
       // Only admins can touch moderation/verification state (that's the

@@ -410,6 +410,8 @@ export interface SystemConfig {
   mealIdeasDailyLimit?: number; // default 15 if unset
   /** Photos and clips one member may upload to the community per day. Default 20. */
   communityUploadsDailyLimit?: number;
+  /** Hold new PR Wall posts for admin review before they show. Default off: posts go live at once. */
+  prWallReview?: boolean;
   b2bLandingPage?: B2BLandingConfig;
   /** Admin-editable copy on the onboarding reveal. Defaults in lib/onboardingIntake. */
   onboardingCopy?: { whyPrice?: string; offerStack?: { title: string; body: string }[] };
