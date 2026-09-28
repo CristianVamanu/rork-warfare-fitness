@@ -1,13 +1,15 @@
 import Link from 'next/link';
+import { OperatorLine } from '@/components/ui/OperatorLine';
 
 /** Shared footer for the public pages — mirrors the landing page's own. */
 export function PublicFooter({ appName = 'Warfare Fitness' }: { appName?: string }) {
   return (
     <footer className="border-t border-white/8 mt-10">
       <div className="max-w-5xl mx-auto px-5 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-        <p className="text-xs text-text-tertiary">
-          © {new Date().getFullYear()} {appName}
-        </p>
+        <div>
+          <p className="text-xs text-text-tertiary">© {new Date().getFullYear()} {appName}</p>
+          <OperatorLine className="mt-1" />
+        </div>
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
           <Link href="/programs" className="text-xs text-text-tertiary hover:text-white transition-colors">Programs</Link>
           <Link href="/challenges" className="text-xs text-text-tertiary hover:text-white transition-colors">Challenges</Link>

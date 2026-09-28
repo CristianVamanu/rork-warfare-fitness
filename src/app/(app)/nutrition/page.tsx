@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
+import { AiDisclaimer } from '@/components/ui/AiDisclaimer';
 import type { Meal, UserGoals } from '@/types';
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
@@ -652,6 +653,7 @@ function NutritionPageInner() {
           </div>
         </Modal>
       )}
+      <div className="px-5 pb-6"><AiDisclaimer /></div>
       </div>
     </div>
   );

@@ -186,7 +186,7 @@ export default function RegisterPage() {
               <Link href="/terms" target="_blank" className="text-accent hover:underline">Terms & Conditions</Link>
               {' '}and{' '}
               <Link href="/privacy" target="_blank" className="text-accent hover:underline">Privacy Policy</Link>
-              , including the health disclaimer above.
+              , including the health disclaimer above. I confirm I am 18 or over, that I am fit to exercise or have checked with a doctor, and that I train within my own limits.
             </span>
           </label>
           {errors.acceptedTerms && (

@@ -19,6 +19,7 @@ import type { NutritionAnalysis, UserGoals, Meal } from '@/types';
 
 import { defaultMealTypeForNow, type MealType } from '@/lib/mealTypes';
 import { MealTypePicker } from '@/components/nutrition/MealTypePicker';
+import { AiDisclaimer } from '@/components/ui/AiDisclaimer';
 
 const DEFAULT_GOALS: UserGoals = { calories: 2200, protein: 160, carbs: 250, fat: 70, water: 3000 };
 
@@ -352,6 +353,7 @@ function AnalyzeFoodPageInner() {
                 <Button fullWidth size="lg" loading={saving} onClick={addToLog}>
                   Add to {mealType.charAt(0).toUpperCase() + mealType.slice(1)}
                 </Button>
+                <AiDisclaimer />
               </Card>
             </div>
           )}

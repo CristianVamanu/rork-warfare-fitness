@@ -188,6 +188,16 @@ export function CheckoutClient() {
                 <ShieldCheck className="w-3.5 h-3.5 text-accent" /> Payments are handled by Stripe. Your card details never touch our servers.
               </p>
               <p className="text-[11px] text-text-tertiary">Cancel anytime from your profile.</p>
+              {/* The two sentences UK, EU and US auto-renewal rules ask for at
+                  the point of payment: what renews and at what price (the
+                  Stripe form above shows the exact figures), and consent to
+                  the service starting now, which is what lets a digital
+                  subscription begin inside the 14-day cooling-off window. */}
+              <p className="text-[11px] text-text-tertiary max-w-md mx-auto">
+                Your plan renews automatically at the price and interval shown above until you cancel. By paying you ask us to start
+                your access immediately and accept that the 14-day cancellation right does not cover time already used. Full terms in our{' '}
+                <a href="/terms" target="_blank" rel="noreferrer" className="underline hover:text-white">Terms</a>.
+              </p>
             </div>
           </>
         )}

@@ -16,6 +16,7 @@ import { PaywallGate } from '@/components/ui/PaywallGate';
 import { localDateHeader } from '@/lib/utils';
 import { defaultMealTypeForNow, type MealType } from '@/lib/mealTypes';
 import { MealTypePicker } from '@/components/nutrition/MealTypePicker';
+import { AiDisclaimer } from '@/components/ui/AiDisclaimer';
 
 interface MealIdea {
   name: string;
@@ -227,6 +228,7 @@ export default function MealPlannerPage() {
             ))}
           </div>
         )}
+        <AiDisclaimer className="px-1" />
       </div>
     </div>
     </PaywallGate>
