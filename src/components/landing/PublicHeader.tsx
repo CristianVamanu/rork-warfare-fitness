@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { funnelHit } from '@/lib/funnel';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Menu, X as XIcon } from 'lucide-react';
@@ -40,6 +41,8 @@ export function PublicHeader({
   ctaHref?: string;
   ctaLabel?: string;
 }) {
+  // Same as PublicNav: every public page counts as a visit, once per session.
+  useEffect(() => { funnelHit('visit'); }, []);
   const [open, setOpen] = useState(false);
   // A broken/removed logo URL falls back to the initial rather than leaving
   // a dead image frame in the header — same behaviour as the landing nav.

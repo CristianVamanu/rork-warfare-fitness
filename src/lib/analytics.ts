@@ -68,7 +68,17 @@ export function trackEvent(name: AnalyticsEvent, params?: Record<string, unknown
     const fs: FunnelStep | null = name === 'OnboardingStep' && typeof params?.step === 'number' ? `q${params.step}` as FunnelStep
       : name === 'OnboardingRevealViewed' ? 'reveal' : name === 'OnboardingStartPressed' ? 'start'
       : name === 'CompleteRegistration' ? 'account' : name === 'Purchase' ? 'paid' : name === 'Lead' ? 'lead' : null;
-    if (fs) funnelHit(fs);
+    if (fs) {
+      // A quiz resumed from a saved draft opens on the question the person
+      // left, so reaching q11 in this session never passed q7 in it. Count
+      // every earlier question too, so each stage is never larger than the
+      // one before it. funnelHit dedupes, so nothing counts twice.
+      if (name === 'OnboardingStep' && typeof params?.step === 'number') {
+        for (let n = 1; n < params.step && n <= 13; n++) funnelHit(`q${n}` as FunnelStep);
+        funnelHit('visit');
+      }
+      funnelHit(fs);
+    }
     const meta = META_EVENT[name];
     if (meta) window.fbq?.('track', meta, params);
     window.gtag?.('event', GA_EVENT[name], params);

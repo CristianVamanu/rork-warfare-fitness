@@ -17,6 +17,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { ChevronDown, Menu, X as XIcon } from 'lucide-react';
+import { funnelHit } from '@/lib/funnel';
 
 interface Props {
   programs: { name: string; slug: string }[];
@@ -37,6 +38,10 @@ export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness' }: Pr
   // Close on outside click and on Escape — a dropdown that can only be closed
   // by clicking the trigger again is the kind of thing that traps people on
   // touch devices, where there is no hover to fall out of.
+  // Any public page is a visit, not just the home page: people reach the
+  // quiz from Programs, Challenges and the quiz link itself, and counting
+  // only '/' made "started the quiz" larger than "visited". Once per session.
+  useEffect(() => { funnelHit('visit'); }, []);
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {

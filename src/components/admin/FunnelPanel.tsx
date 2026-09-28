@@ -19,7 +19,7 @@ interface FunnelData { days: number; totals: Tally; campaigns: Record<string, Ta
  * want to know which question loses people.
  */
 const STAGES: { id: string; label: string; hint: string }[] = [
-  { id: 'visit', label: 'Landing page', hint: 'Opened the home page' },
+  { id: 'visit', label: 'Visited the site', hint: 'Opened any public page: home, programs, standards, challenges or the quiz' },
   { id: 'q1', label: 'Started the quiz', hint: 'Saw question 1' },
   { id: 'q7', label: 'Halfway', hint: 'Reached question 7' },
   { id: 'q11', label: 'Body stats', hint: 'Reached the height and weight step' },
