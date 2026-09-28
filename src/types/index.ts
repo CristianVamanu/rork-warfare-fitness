@@ -251,6 +251,8 @@ export interface UserProfile {
   /** Program changes spent against PROGRAM_SWITCH_ALLOWANCE. */
   programSwitchesUsed?: number;
   statsCache?: StatsCache;  // derived — computed by events engine
+  // Written only by /api/community/notify (admin SDK); rules block self-writes.
+  communityStats?: { posts?: number; likesReceived?: number };
   // One freeze grants automatically every 7 days and absorbs a single missed
   // day without breaking the streak — spent (available -> false) the moment
   // it actually saves a gap, not just for holding one.
@@ -930,7 +932,8 @@ export interface Post {
 export type NotificationType =
   | 'manual' | 'auto_missed_workout' | 'auto_streak' | 'auto_milestone' | 'ai_motivation'
   | 'coaching_approved' | 'coaching_rejected' | 'pr_approved' | 'pr_rejected' | 'goal_assigned' | 'nutrition_plan' | 'message'
-  | 'challenge_verified' | 'challenge_rejected' | 'challenge_live';
+  | 'challenge_verified' | 'challenge_rejected' | 'challenge_live'
+  | 'community_like' | 'community_reply';
 
 export interface AppNotification {
   id: string;

@@ -18,6 +18,7 @@ const UNIT_LABEL: Record<AchievementDef['category'], [string, string]> = {
   time: ['', ''],
   nutrition: ['meal', 'meals'],
   challenges: ['challenge', 'challenges'],
+  community: ['post', 'posts'],
 };
 
 const CATEGORY_LABELS: Record<AchievementDef['category'], string> = {
@@ -27,6 +28,7 @@ const CATEGORY_LABELS: Record<AchievementDef['category'], string> = {
   time: 'Time of Day',
   nutrition: 'Nutrition',
   challenges: 'Challenges',
+  community: 'Community',
 };
 
 export default function AchievementsPage() {

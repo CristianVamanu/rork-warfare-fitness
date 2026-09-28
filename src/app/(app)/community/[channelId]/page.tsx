@@ -27,6 +27,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import type { Channel, ChannelPost, PostMedia, IdeaStatus } from '@/types';
 import { MAX_MEDIA_PER_POST, IDEA_STATUSES, IDEA_STATUS_LABEL } from '@/types';
+import { notifyCommunity } from '@/lib/communityNotify';
 import { IdeaStatusBadge } from '@/components/community/IdeaStatusBadge';
 
 /**
@@ -763,7 +764,7 @@ export default function ChannelPage() {
     }
     setPosting(true);
     try {
-      await createChannelPost(channelId, {
+      const newPostId = await createChannelPost(channelId, {
         userId: user.uid,
         userDisplayName: profile.displayName || 'Athlete',
         ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
@@ -780,6 +781,7 @@ export default function ChannelPage() {
         ...(pending[0]?.posterURL ? { posterURL: pending[0].posterURL } : {}),
         ...(pending.length > 0 ? { media: pending } : {}),
       });
+      notifyCommunity(user, { kind: 'post', channelId, postId: newPostId });
       setText('');
       setPending([]);
       if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
@@ -808,6 +810,9 @@ export default function ChannelPage() {
       : p
     ));
     await likeChannelPost(channelId, post.id, user.uid, !liked).catch(() => {});
+    // Only a like pings the author; an unlike is silent. The server checks
+    // the like really landed before it writes anything.
+    if (!liked) notifyCommunity(user, { kind: 'like', channelId, postId: post.id });
   }
 
   // Asks first. Deleting is irreversible — the document is gone, not flagged
@@ -879,7 +884,7 @@ export default function ChannelPage() {
     if (!user || !profile || !replyTarget || !replyText.trim()) return;
     setSendingReply(true);
     try {
-      await createReply(channelId, replyTarget.post.id, {
+      const newReplyId = await createReply(channelId, replyTarget.post.id, {
         userId: user.uid,
         userDisplayName: profile.displayName || 'Athlete',
         ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
@@ -887,6 +892,7 @@ export default function ChannelPage() {
         content: replyText.trim(),
         ...(replyTarget.parent ? { parentReplyId: replyTarget.parent.id } : {}),
       });
+      notifyCommunity(user, { kind: 'reply', channelId, postId: replyTarget.post.id, replyId: newReplyId });
       setPosts(prev => prev.map(p => p.id === replyTarget.post.id ? { ...p, replyCount: p.replyCount + 1 } : p));
       setReplyText('');
       setReplyTarget(null);

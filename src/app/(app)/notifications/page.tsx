@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, BellOff, CheckCheck, Zap, Dumbbell, Flame, Trophy, MessageSquare, Crown, XCircle, Trash2, BadgeCheck } from 'lucide-react';
+import { Bell, BellOff, CheckCheck, Zap, Dumbbell, Flame, Trophy, MessageSquare, Crown, XCircle, Trash2, BadgeCheck, Heart, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -27,6 +27,8 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   pr_approved: BadgeCheck,
   pr_rejected: XCircle,
   message: MessageSquare,
+  community_like: Heart,
+  community_reply: MessageCircle,
 };
 
 const TYPE_COLOR: Record<string, string> = {
@@ -40,6 +42,8 @@ const TYPE_COLOR: Record<string, string> = {
   pr_approved: 'text-accent bg-accent-muted',
   pr_rejected: 'text-danger bg-danger/10',
   message: 'text-blue-400 bg-blue-400/10',
+  community_like: 'text-danger bg-danger/10',
+  community_reply: 'text-accent bg-accent-muted',
 };
 
 function timeAgo(ts: unknown): string {

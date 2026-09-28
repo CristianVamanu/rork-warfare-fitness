@@ -6,7 +6,7 @@ export interface AchievementDef {
   icon: string;
   title: string;
   desc: string;
-  category: 'workouts' | 'streak' | 'power' | 'time' | 'nutrition' | 'challenges';
+  category: 'workouts' | 'streak' | 'power' | 'time' | 'nutrition' | 'challenges' | 'community';
 }
 
 export const ACHIEVEMENT_DEFS: AchievementDef[] = [
@@ -50,6 +50,15 @@ export const ACHIEVEMENT_DEFS: AchievementDef[] = [
   { id: 'meals_10',       icon: '🍽️', title: 'Meal Prep Pro',     desc: 'Log 30 meals',                   category: 'nutrition'},
   { id: 'meals_100',      icon: '👨‍🍳', title: 'Nutrition Master',  desc: 'Log 100 meals',                  category: 'nutrition'},
   { id: 'meals_250',      icon: '🍱', title: 'Nutrition Sensei',  desc: 'Log 250 meals',                  category: 'nutrition'},
+
+  // Community — credited by /api/community/notify when a post or reply
+  // lands, or a like on your post arrives. Posts and replies both count.
+  { id: 'community_1',    icon: '🗣️', title: 'First Words',       desc: 'Your first post in the community', category: 'community'},
+  { id: 'community_10',   icon: '📣', title: 'Voice',             desc: '10 posts or replies',            category: 'community'},
+  { id: 'community_50',   icon: '🎙️', title: 'Regular',           desc: '50 posts or replies',            category: 'community'},
+  { id: 'community_150',  icon: '🏛️', title: 'Pillar',            desc: '150 posts or replies',           category: 'community'},
+  { id: 'liked_10',       icon: '🤝', title: 'Respected',         desc: '10 likes on your posts',         category: 'community'},
+  { id: 'liked_100',      icon: '🦁', title: 'Leader',            desc: '100 likes on your posts',        category: 'community'},
 ];
 
 interface CheckParams {
@@ -60,6 +69,8 @@ interface CheckParams {
   isWeekend?: boolean;
   hasLoggedMeal?: boolean;
   totalMealsLogged?: number;
+  communityPosts?: number;
+  likesReceived?: number;
 }
 
 // Numeric-target achievements only — the boolean ones (early_bird, night_owl,
@@ -89,7 +100,21 @@ const ACHIEVEMENT_THRESHOLDS: Record<string, { statKey: keyof CheckParams; targe
   meals_10:       { statKey: 'totalMealsLogged', target: 30 },
   meals_100:      { statKey: 'totalMealsLogged', target: 100 },
   meals_250:      { statKey: 'totalMealsLogged', target: 250 },
+  community_1:    { statKey: 'communityPosts', target: 1 },
+  community_10:   { statKey: 'communityPosts', target: 10 },
+  community_50:   { statKey: 'communityPosts', target: 50 },
+  community_150:  { statKey: 'communityPosts', target: 150 },
+  liked_10:       { statKey: 'likesReceived', target: 10 },
+  liked_100:      { statKey: 'likesReceived', target: 100 },
 };
+
+/** Community badges newly earned for these stats. Pure; the server route
+ *  uses it with the admin SDK, so it must not touch the client db. */
+export function communityBadgesEarned(existing: readonly string[], stats: { communityPosts: number; likesReceived: number }): string[] {
+  return ACHIEVEMENT_DEFS
+    .filter((d) => d.category === 'community' && !existing.includes(d.id) && isEarned(d.id, { totalWorkouts: 0, streak: 0, powerLevel: 0, ...stats }))
+    .map((d) => d.id);
+}
 
 function isEarned(id: string, p: CheckParams): boolean {
   const threshold = ACHIEVEMENT_THRESHOLDS[id];

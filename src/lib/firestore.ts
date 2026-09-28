@@ -2683,9 +2683,9 @@ export async function createReply(channelId: string, postId: string, data: {
   userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean; content: string;
   /** Set to thread this under another reply instead of the post itself. */
   parentReplyId?: string;
-}) {
+}): Promise<string> {
   const { parentReplyId, ...rest } = data;
-  await addDoc(collection(db, 'channels', channelId, 'posts', postId, 'replies'), {
+  const replyRef = await addDoc(collection(db, 'channels', channelId, 'posts', postId, 'replies'), {
     ...rest, channelId, likes: [], replyCount: 0, replyTo: postId,
     // Stored flat in the same subcollection and grouped client-side, so a
     // whole thread is still one read no matter how deep it looks.
@@ -2700,6 +2700,7 @@ export async function createReply(channelId: string, postId: string, data: {
   // saved. Replying to your own post happened to work, which is why this
   // survived: it only breaks for the case that actually matters.
   await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { replyCount: increment(1) }).catch(() => {});
+  return replyRef.id;
 }
 
 /**

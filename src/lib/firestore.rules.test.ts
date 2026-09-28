@@ -77,6 +77,7 @@ describe('users/{uid} — privileged fields', () => {
     ['trainerId', { trainerId: 'someone' }],
     ['banned', { banned: false }],
     ['trialUsedAt', { trialUsedAt: null }],
+    ['communityStats', { communityStats: { posts: 999 } }],
     ['twoFactorEnabled', { twoFactorEnabled: false }],
     ['twoFactorEmail', { twoFactorEmail: 'attacker@evil.com' }],
   ])('refuses a self-write to %s', async (_name, patch) => {
