@@ -96,7 +96,9 @@ export async function POST(req: NextRequest) {
     }
     usageApp = app;
 
-    const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
+    // Same vision model as Scan & Go: portion and food identification from
+    // a photo is where the mini model is least reliable.
+    const model = process.env.OPENAI_VISION_MODEL ?? 'gpt-4.1';
     const openai = new OpenAI({ apiKey, timeout: 60_000, maxRetries: 1 });
 
     const response = await openai.chat.completions.create({
