@@ -24,6 +24,9 @@ const IGNORED = [
   /reportAllChanges/,          // vendored web-vitals inside a third-party widget
   /ResizeObserver loop/,       // benign, fires on any resize-heavy layout
   /Script error\.?$/,          // cross-origin error with no detail to act on
+  /iabjs:\/\//,                // Meta's in-app browser injects its own trackers into the page
+  /Java object is gone/,       // that tracker's Android bridge torn down mid-call
+  /navigation_performance_logger/,
 ];
 
 export function ErrorReporter() {
