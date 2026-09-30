@@ -58,6 +58,7 @@ export function GuidedVideo({ videoId, title, credit }: { videoId: string; title
   const [t, setT] = useState(0);
   const [dur, setDur] = useState(0);
   const [scrubbing, setScrubbing] = useState<number | null>(null);
+  const [stuck, setStuck] = useState(false);
 
   useEffect(() => {
     if (!armed) return;
@@ -80,6 +81,12 @@ export function GuidedVideo({ videoId, title, credit }: { videoId: string; title
     });
     return () => { alive = false; playerRef.current?.destroy(); playerRef.current = null; };
   }, [armed, videoId]);
+
+  useEffect(() => {
+    if (!armed || ready) return;
+    const t = setTimeout(() => setStuck(true), 8000);
+    return () => clearTimeout(t);
+  }, [armed, ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -116,7 +123,7 @@ export function GuidedVideo({ videoId, title, credit }: { videoId: string; title
               </span>
             </span>
             <span className="absolute left-4 right-4 bottom-3">
-              <span className="block text-[10px] font-semibold tracking-[0.28em] uppercase text-accent">Guided · with audio</span>
+              <span className="block text-[10px] font-semibold tracking-[0.28em] uppercase" style={{ color: '#F5A623' }}>Guided · with audio</span>
               <span className="block text-sm font-bold text-white mt-0.5">{title}</span>
             </span>
           </button>
@@ -126,8 +133,13 @@ export function GuidedVideo({ videoId, title, credit }: { videoId: string; title
             {/* Tap layer: play/pause, and it keeps YouTube's hover chrome from appearing. */}
             <button type="button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'} className="absolute inset-0 w-full h-full bg-transparent" />
             {!ready && (
-              <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <Loader2 className="w-7 h-7 text-accent animate-spin" />
+              <span className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                <Loader2 className="w-7 h-7 animate-spin" style={{ color: '#F5A623' }} />
+                {stuck && (
+                  <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold underline" style={{ color: '#F5A623' }}>
+                    Taking a while. Open on YouTube instead
+                  </a>
+                )}
               </span>
             )}
             {ready && !playing && (
@@ -142,7 +154,7 @@ export function GuidedVideo({ videoId, title, credit }: { videoId: string; title
       </div>
 
       {armed && (
-        <div className="relative px-3 pt-2 pb-3 bg-black/60 backdrop-blur-sm border-t border-white/8">
+        <div className="relative px-3 pt-2 pb-3 bg-black border-t border-white/10">
           <input
             type="range"
             min={0}
@@ -158,19 +170,19 @@ export function GuidedVideo({ videoId, title, credit }: { videoId: string; title
           />
           <div className="flex items-center justify-between mt-2">
             <div className="flex items-center gap-1">
-              <button type="button" onClick={toggle} className="w-9 h-9 rounded-lg border border-accent/30 bg-accent/10 text-accent flex items-center justify-center hover:bg-accent/20" aria-label={playing ? 'Pause' : 'Play'}>
+              <button type="button" onClick={toggle} className="w-9 h-9 rounded-lg border flex items-center justify-center" style={{ borderColor: 'rgba(245,166,35,.45)', background: 'rgba(245,166,35,.15)', color: '#F5A623' }} aria-label={playing ? 'Pause' : 'Play'}>
                 {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
               </button>
-              <button type="button" onClick={() => seek(0)} className="w-9 h-9 rounded-lg border border-white/10 text-text-secondary flex items-center justify-center hover:text-white" aria-label="Restart">
+              <button type="button" onClick={() => seek(0)} className="w-9 h-9 rounded-lg border border-white/15 text-white/75 flex items-center justify-center hover:text-white" aria-label="Restart">
                 <RotateCcw className="w-4 h-4" />
               </button>
-              <button type="button" onClick={toggleMute} className="w-9 h-9 rounded-lg border border-white/10 text-text-secondary flex items-center justify-center hover:text-white" aria-label={muted ? 'Unmute' : 'Mute'}>
+              <button type="button" onClick={toggleMute} className="w-9 h-9 rounded-lg border border-white/15 text-white/75 flex items-center justify-center hover:text-white" aria-label={muted ? 'Unmute' : 'Mute'}>
                 {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
               </button>
             </div>
-            <p className="wf-readout text-[11px] font-bold text-white tabular-nums">{fmt(shown)} <span className="text-text-tertiary">/ {fmt(dur)}</span></p>
+            <p className="wf-readout text-[11px] font-bold text-white tabular-nums">{fmt(shown)} <span className="text-white/50">/ {fmt(dur)}</span></p>
           </div>
-          {credit && <p className="text-[10px] text-text-tertiary mt-2">{credit}</p>}
+          {credit && <p className="text-[10px] text-white/45 mt-2">{credit}</p>}
         </div>
       )}
     </div>

@@ -178,6 +178,19 @@ const withPWA = require('next-pwa')({
         plugins: [{ handlerDidError: async () => new Response(null, { status: 204 }) }],
       },
     },
+    // YouTube IFrame API and the guided-video embed: same shape as the
+    // pixel rule. The API script is fetched by the service worker under
+    // connect-src, so its hosts are listed there too (middleware.ts).
+    {
+      urlPattern: ({ url }) =>
+        url.hostname === 'www.youtube.com' ||
+        url.hostname === 'www.youtube-nocookie.com' ||
+        url.hostname === 'i.ytimg.com',
+      handler: 'NetworkOnly',
+      options: {
+        plugins: [{ handlerDidError: async () => new Response(null, { status: 204 }) }],
+      },
+    },
     // Firestore traffic must never be served from cache — without this,
     // next-pwa's bundled cross-origin catch-all (NetworkFirst, 1 hour
     // cache) can serve a stale Firestore read for up to an hour after an
