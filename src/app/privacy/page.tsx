@@ -1,12 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
 import { getSystemConfig } from '@/lib/firestore';
 import { DEFAULT_PRIVACY_POLICY } from '@/lib/legalDefaults';
-import { LegalContent } from '@/components/ui/LegalContent';
-import { OperatorLine } from '@/components/ui/OperatorLine';
+import { LegalPage } from '@/components/ui/LegalPage';
 
 export default function PrivacyPage() {
   const [text, setText] = useState(DEFAULT_PRIVACY_POLICY);
@@ -22,16 +19,12 @@ export default function PrivacyPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background px-4 py-12 max-w-2xl mx-auto">
-      <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-white transition-colors mb-6">
-        <ChevronLeft className="w-4 h-4" /> Back to {appName}
-      </Link>
-      <h1 className="text-2xl font-black text-white mb-6">Privacy Policy</h1>
-      <LegalContent text={text} />
-      <div className="pt-6 border-t border-white/10 mt-6 space-y-1">
-        <OperatorLine />
-        <p className="text-text-tertiary text-xs">Last updated: {new Date().getFullYear()}</p>
-      </div>
-    </div>
+    <LegalPage
+      eyebrow="Legal · Your data"
+      title="Privacy Policy"
+      text={text}
+      backHref="/"
+      backLabel={`Back to ${appName}`}
+    />
   );
 }
