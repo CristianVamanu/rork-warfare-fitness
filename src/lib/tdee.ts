@@ -23,7 +23,9 @@ const GOAL_ADJUSTMENT: Record<FitnessGoal, number> = {
   // Selection prep is work capacity, not a scale target: eat at maintenance
   // and let the running and rucking do the shaping.
   'military-prep':   0,
-  'lose-fat':      -300,
+  // 500 kcal/day is what the "about half a kilo a week" timeline in
+  // estimateWeightGoalTimeline assumes; at 300 the promise ran ~40% fast.
+  'lose-fat':      -500,
   'recomposition':   0,
   'build-muscle':  +300,
   'strength':      +200,

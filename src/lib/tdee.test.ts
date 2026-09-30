@@ -37,9 +37,9 @@ describe('estimateNutritionTargets', () => {
     const muscleGain = estimateNutritionTargets('build-muscle', 'intermediate', 4, biometrics);
     const maintenance = estimateNutritionTargets('recomposition', 'intermediate', 4, biometrics);
 
-    expect(fatLoss.calories).toBe(maintenance.calories - 300);
+    expect(fatLoss.calories).toBe(maintenance.calories - 500);
     expect(muscleGain.calories).toBe(maintenance.calories + 300);
-    expect(fatLoss.calorieAdjustment).toBe(-300);
+    expect(fatLoss.calorieAdjustment).toBe(-500);
     expect(muscleGain.calorieAdjustment).toBe(300);
   });
 
