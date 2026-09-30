@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Flame, Dumbbell, RefreshCw, Zap, Shield,
   ChevronRight, ChevronLeft, Loader2, CheckCircle,
-  User, TrendingDown, TrendingUp, PartyPopper, Check,
+  User, TrendingDown, TrendingUp, PartyPopper, Check, AlertTriangle,
 } from 'lucide-react';
 import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -1330,6 +1330,7 @@ function OnboardingPageInner() {
                 weightUnit={weightUnit} onWeightUnit={setWeightUnit}
                 heightUnit={heightUnit} onHeightUnit={setHeightUnit}
                 sexAgeAnswered={sexAgeAnswered} onEditSexAge={() => { setSex(null); setAge(''); }}
+                goal={goal}
               />
             )}
             {stepId === 'email' && needsAccount && (
@@ -1776,8 +1777,9 @@ const HEALTHY_HIGH = 25;
 
 function StepBiometrics({
   sex, onSex, age, onAge, heightCm, onHeight, weightKg, onWeight, targetWeightKg, onTargetWeight,
-  weightUnit, onWeightUnit, heightUnit, onHeightUnit, sexAgeAnswered, onEditSexAge,
+  weightUnit, onWeightUnit, heightUnit, onHeightUnit, sexAgeAnswered, onEditSexAge, goal,
 }: {
+  goal: FitnessGoal | null;
   sex: BiologicalSex | null; onSex: (v: BiologicalSex) => void;
   age: string; onAge: (v: string) => void;
   heightCm: string; onHeight: (v: string) => void;
@@ -1813,6 +1815,13 @@ function StepBiometrics({
   const bmiHeight = parseFloat(heightCm);
   const bmiWeight = parseFloat(weightKg);
   const bmiTarget = parseFloat(targetWeightKg);
+  const weightsPlausible = bmiWeight >= 30 && bmiWeight <= 300 && bmiTarget >= 30 && bmiTarget <= 300;
+  const goalWeightNudge: string | null = !weightsPlausible || !goal ? null
+    : goal === 'lose-fat' && bmiTarget >= bmiWeight
+      ? 'You picked Lose Fat, but this goal weight is not below your current weight. Your calories will be set to a deficit either way. If you want to hold your weight and change shape, go back and pick Recomposition.'
+    : (goal === 'build-muscle' || goal === 'strength') && bmiTarget < bmiWeight
+      ? `You picked ${goal === 'strength' ? 'Strength' : 'Build Muscle'}, but this goal weight is below your current weight. Your calories will be set to a surplus for muscle. If losing weight matters more, go back and pick Lose Fat.`
+    : null;
   const bmiReading = (bmiHeight >= 100 && bmiHeight <= 250 && bmiWeight >= 30 && bmiWeight <= 300)
     ? (() => {
         const { bmi, healthyWeightRangeKg } = calculateBmi(bmiHeight, bmiWeight);
@@ -2031,6 +2040,17 @@ function StepBiometrics({
         <p className="text-[11px] text-text-tertiary mt-1.5">
           We&apos;ll use this to estimate your timeline and pick a program matched to it — not just your current weight.
         </p>
+        {/* The goal and the goal weight can contradict each other: "Lose
+            fat" with a heavier target, or "Build muscle" with a lighter one.
+            Calories follow the goal and the timeline follows the weight, so
+            the two would quietly disagree all the way through the app. A
+            nudge, not a block: recomposition is a real reason to want both. */}
+        {goalWeightNudge && (
+          <div className="mt-2.5 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-300 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-100/90 leading-snug">{goalWeightNudge}</p>
+          </div>
+        )}
       </div>
 
       {/* What is left of the BMI step. It used to be a screen of its own,
