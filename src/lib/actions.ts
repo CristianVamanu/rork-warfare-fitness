@@ -20,7 +20,7 @@ import { auth, db } from './firebase';
 import { createEvent } from './events';
 import { incrementProgramWorkouts, updateUserGoals, postCommunityActivity, invalidateWorkoutsCache } from './firestore';
 import { calcWorkoutXP, xpToPowerLevel } from './xp';
-import { estimateNutritionTargets } from './tdee';
+import { estimateNutritionTargets, nutritionInputsFromProfile } from './tdee';
 import { checkAndAwardAchievements, ACHIEVEMENT_DEFS } from './achievements';
 import { checkAndAwardQuests, QUEST_DEFS } from './quests';
 import type { EventType, FitnessGoal, ExperienceLevel, OnboardingData } from '@/types';
@@ -408,16 +408,9 @@ export async function recordWeight(userId: string, weightKg: number): Promise<vo
   // no matter how long they keep logging weigh-ins.
   try {
     const snap = await getDoc(doc(db, 'users', userId));
-    const data = snap.data();
-    const goal = data?.fitnessGoal as FitnessGoal | undefined;
-    const experience = data?.experience as ExperienceLevel | undefined;
-    const onboarding = data?.onboarding as OnboardingData | undefined;
-    const trainingDays = onboarding?.trainingDays;
-    if (goal && experience && trainingDays) {
-      const biometrics = onboarding?.sex && onboarding?.age && onboarding?.heightCm
-        ? { sex: onboarding.sex, age: onboarding.age, heightCm: onboarding.heightCm, weightKg }
-        : undefined;
-      const targets = estimateNutritionTargets(goal, experience, trainingDays, biometrics);
+    const inputs = nutritionInputsFromProfile(snap.data(), weightKg);
+    if (inputs) {
+      const targets = estimateNutritionTargets(inputs.goal, inputs.experience, inputs.trainingDays, inputs.biometrics);
       await updateUserGoals(userId, {
         calories: targets.calories,
         protein: targets.protein,

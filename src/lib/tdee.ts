@@ -73,6 +73,35 @@ export interface Biometrics {
   weightKg: number;
 }
 
+/**
+ * Rebuilds the inputs to estimateNutritionTargets from a saved user document.
+ *
+ * Onboarding merges its answers flat onto the user doc (fitnessGoal,
+ * experience, trainingDays, sex, age, heightCm are top-level fields, see
+ * saveOnboardingData). An older reader expected them under a nested
+ * `onboarding` object that nothing ever wrote, so the weigh-in recalculation
+ * silently skipped every member. Both shapes are accepted here.
+ */
+export function nutritionInputsFromProfile(
+  data: Record<string, unknown> | undefined,
+  weightKg: number,
+): { goal: FitnessGoal; experience: ExperienceLevel; trainingDays: number; biometrics?: Biometrics } | null {
+  if (!data) return null;
+  const nested = (data.onboarding ?? {}) as Record<string, unknown>;
+  const pick = <T,>(k: string): T | undefined => (data[k] ?? nested[k]) as T | undefined;
+  const goal = pick<FitnessGoal>('fitnessGoal');
+  const experience = pick<ExperienceLevel>('experience');
+  const trainingDays = Number(pick<number>('trainingDays'));
+  if (!goal || !experience || !Number.isFinite(trainingDays) || trainingDays <= 0) return null;
+  const sex = pick<BiologicalSex>('sex');
+  const age = Number(pick<number>('age'));
+  const heightCm = Number(pick<number>('heightCm'));
+  const biometrics = (sex === 'male' || sex === 'female') && age > 0 && heightCm > 0 && weightKg > 0
+    ? { sex, age, heightCm, weightKg }
+    : undefined;
+  return { goal, experience, trainingDays, biometrics };
+}
+
 export interface NutritionTargets extends UserGoals {
   /** Estimated Basal Metabolic Rate — calories burned at total rest. */
   bmr: number;
