@@ -454,7 +454,7 @@ export default function BreathingPage() {
       )}
 
       {step === 'session' && method && (
-        <div className="fixed inset-0 z-30 bg-background flex flex-col items-center justify-between pt-6 px-4 overflow-hidden" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}>
+        <div className="wf-dark fixed inset-0 z-30 bg-background flex flex-col items-center justify-between pt-6 px-4 overflow-hidden" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}>
           <TechBackdrop className="opacity-40" />
           {/* thin session progress along the very top */}
           <div className="absolute inset-x-0 top-0 h-0.5 bg-white/5">
@@ -581,7 +581,7 @@ export default function BreathingPage() {
       )}
 
       {step === 'complete' && (
-        <div className="relative min-h-screen bg-background flex flex-col items-center justify-center px-4 text-center overflow-hidden">
+        <div className="wf-dark relative min-h-screen bg-background flex flex-col items-center justify-center px-4 text-center overflow-hidden">
           <TechBackdrop className="opacity-40" />
           <div className="relative max-w-sm w-full wf-rise">
             <div className="w-16 h-16 rounded-2xl border border-accent/30 bg-accent/10 shadow-[0_0_30px_rgb(var(--accent-rgb)/0.3)] flex items-center justify-center mx-auto mb-5">

@@ -336,6 +336,42 @@ html.light .focus\:ring-accent\/40:focus { --tw-ring-color: rgba(212,130,10,0.35
 /* Primary button text — stays black on accent bg for contrast in both modes */
 html.light .bg-accent.text-black { color: #ffffff !important; }
 
+/* ── Always-dark scope ──
+   Full-screen focus surfaces (the breathing session) are designed around a
+   glowing orb on black and fall apart on a light background. This pins the
+   dark palette inside the scope regardless of theme and undoes the light
+   overrides above for the raw white/black utilities. */
+.wf-dark {
+  --background: #0A0A0A;
+  --background-rgb: 10 10 10;
+  --surface: #111111;
+  --surface-rgb: 17 17 17;
+  --accent: #F5A623;
+  --accent-rgb: 245 166 35;
+  --foreground: #FFFFFF;
+  --text-secondary: rgba(255, 255, 255, 0.55);
+  --text-tertiary: rgba(255, 255, 255, 0.33);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --card-glass-bg: rgba(255, 255, 255, 0.05);
+  --card-glass-border: rgba(255, 255, 255, 0.10);
+  color: #FFFFFF;
+  color-scheme: dark;
+}
+html.light .wf-dark .text-white,
+html.light .wf-dark .hover\:text-white:hover { color: #FFFFFF !important; }
+html.light .wf-dark .text-black { color: #000000 !important; }
+html.light .wf-dark .bg-accent.text-black { color: #000000 !important; }
+html.light .wf-dark .bg-white\/5  { background-color: rgba(255,255,255,0.05) !important; }
+html.light .wf-dark .bg-white\/8  { background-color: rgba(255,255,255,0.08) !important; }
+html.light .wf-dark .bg-white\/10 { background-color: rgba(255,255,255,0.10) !important; }
+html.light .wf-dark .bg-black\/50 { background-color: rgba(0,0,0,0.50) !important; }
+html.light .wf-dark .bg-black\/70 { background-color: rgba(0,0,0,0.70) !important; }
+html.light .wf-dark .border-white\/8  { border-color: rgba(255,255,255,0.08) !important; }
+html.light .wf-dark .border-white\/10 { border-color: rgba(255,255,255,0.10) !important; }
+html.light .wf-dark .border-white\/20 { border-color: rgba(255,255,255,0.20) !important; }
+html.light .wf-dark .hover\:bg-white\/5:hover  { background-color: rgba(255,255,255,0.05) !important; }
+html.light .wf-dark .hover\:bg-white\/10:hover { background-color: rgba(255,255,255,0.10) !important; }
+
 /* Gradient text (stays white on gradient) */
 html.light .bg-gradient-to-r.text-transparent { -webkit-text-fill-color: transparent !important; }
 
