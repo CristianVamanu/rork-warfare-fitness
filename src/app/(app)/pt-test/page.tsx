@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Dumbbell, Timer, TrendingUp, Target, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
+import { Trophy, Dumbbell, Timer, TrendingUp, Target, CheckCircle2, XCircle, Trash2, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -46,8 +46,10 @@ function EventRow({ icon: Icon, label, hint, target, children }: {
 }) {
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-      <div className="flex items-start gap-2.5 min-w-0">
-        <Icon className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
+      <div className="flex items-center gap-3 min-w-0">
+        <span className="w-8 h-8 rounded-lg border border-accent/25 bg-accent/10 flex items-center justify-center flex-shrink-0">
+          <Icon className="w-4 h-4 text-accent" />
+        </span>
         <div className="min-w-0">
           <p className="text-sm font-bold text-white leading-tight">{label}</p>
           <p className="text-[11px] text-text-tertiary mt-0.5">
@@ -70,7 +72,7 @@ function NumberField({ value, onChange }: { value: string; onChange: (v: string)
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder="0"
-      className="w-20 bg-surface border border-white/10 rounded-lg px-3 py-2 text-white text-lg font-bold text-right tabular-nums focus:outline-none focus:border-accent/50"
+      className="w-24 bg-black/30 border border-white/10 rounded-xl px-3 py-2.5 text-white text-2xl font-black text-right tabular-nums focus:outline-none focus:border-accent/50 focus:shadow-[0_0_0_1px_rgb(var(--accent-rgb)/0.35),0_0_20px_rgb(var(--accent-rgb)/0.12)] transition-all"
     />
   );
 }
@@ -324,7 +326,7 @@ export default function PtTestPage() {
           <div className="flex gap-2 w-max pb-1">
             <button
               onClick={() => { setStandardTouched(true); setStandardId('generic'); }}
-              className={`whitespace-nowrap py-2 px-3.5 rounded-lg text-xs font-bold border transition-colors ${standardId === 'generic' ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
+              className={`whitespace-nowrap py-2 px-3.5 rounded-xl text-xs font-bold border transition-all ${standardId === 'generic' ? 'bg-accent text-black border-accent shadow-[0_0_18px_rgb(var(--accent-rgb)/0.45)]' : 'border-white/10 bg-black/25 text-text-secondary hover:border-white/25'}`}
             >
               Generic
             </button>
@@ -337,7 +339,7 @@ export default function PtTestPage() {
               <button
                 key={s.id}
                 onClick={() => { setStandardTouched(true); setStandardId(s.id); }}
-                className={`whitespace-nowrap py-2 px-3.5 rounded-lg text-xs font-bold border transition-colors ${standardId === s.id ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
+                className={`whitespace-nowrap py-2 px-3.5 rounded-xl text-xs font-bold border transition-all ${standardId === s.id ? 'bg-accent text-black border-accent shadow-[0_0_18px_rgb(var(--accent-rgb)/0.45)]' : 'border-white/10 bg-black/25 text-text-secondary hover:border-white/25'}`}
               >
                 {s.flag} {s.label}
                 {s.id === ownStandard && (
@@ -352,12 +354,14 @@ export default function PtTestPage() {
 
         {/* Standard briefing: what it is, and what it asks of you, above the
             form rather than repeated as placeholder text inside every input. */}
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <span className="w-1 h-3.5 bg-accent rounded-full" />
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">
+        <Card glass className="relative p-4 overflow-hidden">
+          <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/60 to-transparent" />
+          <div className="flex items-center gap-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-accent">
               {active ? 'Standard' : 'Benchmark'}
             </p>
+            <span className="flex-1 h-px bg-gradient-to-r from-white/10 to-transparent" />
+            {active?.flag && <span className="text-sm">{active.flag}</span>}
           </div>
           <p className="text-sm font-bold text-white mt-2">{active ? active.resultTitle : 'Generic 3-event PT test'}</p>
           <p className="text-xs text-text-secondary leading-relaxed mt-1.5">
@@ -388,7 +392,7 @@ export default function PtTestPage() {
             cards each with its own border, padding and shadow gave equal
             visual weight to four inputs and a paragraph, with no sense of
             them belonging to the same test. */}
-        <Card className="p-0 overflow-hidden">
+        <Card glass className="p-0 overflow-hidden border-l-2 border-l-accent/60">
           <div className="divide-y divide-white/8">
             {(active ? active.events.pullups !== undefined : false) && (
               <EventRow
@@ -435,14 +439,14 @@ export default function PtTestPage() {
                     type="number" min="0" inputMode="numeric" value={plankMin} onChange={(e) => setPlankMin(e.target.value)}
                     placeholder="00"
                     aria-label="Plank minutes"
-                    className="w-14 bg-surface border border-white/10 rounded-lg px-2 py-2 text-white text-lg font-bold text-center tabular-nums focus:outline-none focus:border-accent/50"
+                    className="w-16 bg-black/30 border border-white/10 rounded-xl px-2 py-2.5 text-white text-2xl font-black text-center tabular-nums focus:outline-none focus:border-accent/50 focus:shadow-[0_0_0_1px_rgb(var(--accent-rgb)/0.35),0_0_20px_rgb(var(--accent-rgb)/0.12)] transition-all"
                   />
                   <span className="text-text-tertiary font-bold">:</span>
                   <input
                     type="number" min="0" max="59" inputMode="numeric" value={plankSec} onChange={(e) => setPlankSec(e.target.value)}
                     placeholder="00"
                     aria-label="Plank seconds"
-                    className="w-14 bg-surface border border-white/10 rounded-lg px-2 py-2 text-white text-lg font-bold text-center tabular-nums focus:outline-none focus:border-accent/50"
+                    className="w-16 bg-black/30 border border-white/10 rounded-xl px-2 py-2.5 text-white text-2xl font-black text-center tabular-nums focus:outline-none focus:border-accent/50 focus:shadow-[0_0_0_1px_rgb(var(--accent-rgb)/0.35),0_0_20px_rgb(var(--accent-rgb)/0.12)] transition-all"
                   />
                 </div>
               </EventRow>
@@ -471,14 +475,14 @@ export default function PtTestPage() {
                     type="number" min="0" inputMode="numeric" value={runMin} onChange={(e) => setRunMin(e.target.value)}
                     placeholder="00"
                     aria-label="Run minutes"
-                    className="w-14 bg-surface border border-white/10 rounded-lg px-2 py-2 text-white text-lg font-bold text-center tabular-nums focus:outline-none focus:border-accent/50"
+                    className="w-16 bg-black/30 border border-white/10 rounded-xl px-2 py-2.5 text-white text-2xl font-black text-center tabular-nums focus:outline-none focus:border-accent/50 focus:shadow-[0_0_0_1px_rgb(var(--accent-rgb)/0.35),0_0_20px_rgb(var(--accent-rgb)/0.12)] transition-all"
                   />
                   <span className="text-text-tertiary font-bold">:</span>
                   <input
                     type="number" min="0" max="59" inputMode="numeric" value={runSec} onChange={(e) => setRunSec(e.target.value)}
                     placeholder="00"
                     aria-label="Run seconds"
-                    className="w-14 bg-surface border border-white/10 rounded-lg px-2 py-2 text-white text-lg font-bold text-center tabular-nums focus:outline-none focus:border-accent/50"
+                    className="w-16 bg-black/30 border border-white/10 rounded-xl px-2 py-2.5 text-white text-2xl font-black text-center tabular-nums focus:outline-none focus:border-accent/50 focus:shadow-[0_0_0_1px_rgb(var(--accent-rgb)/0.35),0_0_20px_rgb(var(--accent-rgb)/0.12)] transition-all"
                   />
                 </div>
               </EventRow>
@@ -492,7 +496,7 @@ export default function PtTestPage() {
                     <button
                       key={d}
                       onClick={() => setDistance(d)}
-                      className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition-colors tabular-nums ${distance === d ? 'bg-accent text-black border-accent' : 'border-white/10 text-text-secondary'}`}
+                      className={`py-1.5 px-3 rounded-xl text-xs font-bold border transition-all tabular-nums ${distance === d ? 'bg-accent text-black border-accent shadow-[0_0_18px_rgb(var(--accent-rgb)/0.45)]' : 'border-white/10 bg-black/25 text-text-secondary hover:border-white/25'}`}
                     >
                       {d} mi
                     </button>
@@ -503,19 +507,19 @@ export default function PtTestPage() {
           </div>
         </Card>
 
-        <Button fullWidth loading={saving} onClick={handleSubmit}>Submit Test</Button>
+        <Button fullWidth size="lg" loading={saving} onClick={handleSubmit}><Zap className="w-4 h-4" /> Score it</Button>
 
         {!loading && history.length > 0 && (
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="w-1 h-3 bg-accent rounded-full" />
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-tertiary">Past results</h2>
+            <div className="flex items-center gap-3 mb-2">
+              <h2 className="text-[10px] font-semibold uppercase tracking-[0.28em] text-text-tertiary">Past results</h2>
+              <span className="flex-1 h-px bg-gradient-to-r from-white/10 to-transparent" />
             </div>
             <div className="space-y-2">
               {history.map((r) => {
                 const std = r.standard && r.standard !== 'generic' ? standardFor(r.standard) : undefined;
                 return (
-                  <Card key={r.id} className="p-3 flex items-center justify-between gap-3">
+                  <Card glass key={r.id} className="p-3 flex items-center justify-between gap-3">
                     {std ? (
                       <div>
                         <p className={`text-sm font-bold ${r.standardPassed ? 'text-green-400' : 'text-white'}`}>
