@@ -411,6 +411,12 @@ function OnboardingPageInner() {
   // one signal between landing and dashboard (sign_up), so "where does
   // onboarding lose people" was unanswerable.
   useEffect(() => {
+    // Question 1 is not counted on page load: link previews, crawlers and
+    // bounced taps all load this page, and each one read as "started the
+    // quiz" while never answering anything. Question 1 counts once the
+    // person answers it and step 2 renders (the backfill in trackEvent
+    // stamps q1 then). Every later step still counts as it is reached.
+    if (step === 0) return;
     trackEvent('OnboardingStep', { step: step + 1, of: TOTAL_STEPS });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);

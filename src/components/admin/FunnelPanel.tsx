@@ -171,12 +171,17 @@ export function FunnelPanel() {
           <Card className="p-4 lg:p-5">
             <p className="text-sm font-bold text-white">Where the quiz loses people</p>
             <p className="text-xs text-text-secondary mb-3">How many reached each question. A big step down points at the question to shorten or move.</p>
-            <div className="flex items-end gap-1 h-24">
+            {/* Bars are sized in pixels, not percent. A percent height needs a
+                parent with a definite height, and a flex column that only
+                stretches to its content has none: the bars rendered at 0. */}
+            <div className="flex items-end gap-1">
               {QUIZ.map((q, i) => {
                 const n = t[q] ?? 0; const first = t.q1 ?? 0;
+                const h = first > 0 && n > 0 ? Math.max(3, Math.round((n / first) * 80)) : 0;
                 return (
                   <div key={q} className="flex-1 flex flex-col items-center justify-end gap-1" title={`Question ${i + 1}: ${n}`}>
-                    <div className="w-full rounded-t bg-accent/80" style={{ height: `${first > 0 ? Math.max(n > 0 ? 3 : 0, (n / first) * 100) : 0}%` }} />
+                    <span className="text-[10px] text-text-secondary tabular-nums">{n || ''}</span>
+                    <div className="w-full rounded-t bg-accent/80" style={{ height: `${h}px` }} />
                     <span className="text-[10px] text-text-tertiary tabular-nums">{i + 1}</span>
                   </div>
                 );
