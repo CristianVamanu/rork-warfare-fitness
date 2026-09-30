@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/Modal';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import { CornerBrackets } from '@/components/landing/chrome';
 import { TechBackdrop } from '@/components/ui/TechField';
+import { GuidedVideo } from '@/components/ui/GuidedVideo';
 
 // ─── Breathing methods ──────────────────────────────────────────────────────
 // Each phase drives both the visual guide's scale target and its duration —
@@ -50,6 +51,8 @@ interface BreathingMethod {
    * The other five are ordinary paced breathing at a normal rate.
    */
   safety?: string;
+  /** An official guided video, offered next to the app's own timer. */
+  guided?: { videoId: string; title: string; credit: string };
 }
 
 /**
@@ -169,6 +172,7 @@ const METHODS: BreathingMethod[] = [
     safety:
       'Sit or lie down before you start, and stay there for the whole session. Never do this in or near water, in a bath or shower, while driving, or standing up — this pattern can make you light-headed and people do faint doing it. That is the reason for the position, not a formality. Come out of the hold and breathe normally the moment it stops being comfortable; the timer is a ceiling, not a target. Skip this method if you are pregnant, or have epilepsy, a heart condition, or high blood pressure, unless a doctor has told you otherwise.',
     phases: wimHofPhases(),
+    guided: { videoId: 'tybOi4hjZFQ', title: 'Guided Wim Hof breathing, 3 rounds', credit: 'Video by Wim Hof, played from YouTube. Same safety rules apply: sit or lie down, never in water.' },
   },
 ];
 
@@ -423,6 +427,15 @@ export default function BreathingPage() {
               <Button fullWidth size="lg" onClick={() => startSession(method, 0)}>
                 <Zap className="w-4 h-4" /> Start round 1
               </Button>
+              {method.guided && (
+                <div className="pt-2">
+                  <div className="flex items-center gap-3 mb-2">
+                    <p className="text-[10px] font-semibold tracking-[0.28em] uppercase text-text-tertiary">Or follow the guided version</p>
+                    <span className="flex-1 h-px bg-gradient-to-r from-white/10 to-transparent" />
+                  </div>
+                  <GuidedVideo videoId={method.guided.videoId} title={method.guided.title} credit={method.guided.credit} />
+                </div>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
@@ -441,7 +454,7 @@ export default function BreathingPage() {
       )}
 
       {step === 'session' && method && (
-        <div className="relative min-h-screen bg-background flex flex-col items-center justify-between py-6 px-4 overflow-hidden">
+        <div className="fixed inset-0 z-30 bg-background flex flex-col items-center justify-between pt-6 px-4 overflow-hidden" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}>
           <TechBackdrop className="opacity-40" />
           {/* thin session progress along the very top */}
           <div className="absolute inset-x-0 top-0 h-0.5 bg-white/5">
@@ -492,23 +505,34 @@ export default function BreathingPage() {
                   width: 220,
                   height: 220,
                   background: phase?.stage === 'retention'
-                    ? 'radial-gradient(circle at 35% 30%, #9ad6ff 0%, #38bdf8 55%, #0e7490 100%)'
-                    : 'radial-gradient(circle at 35% 30%, #FFD68C 0%, #F5A623 55%, #C97F0F 100%)',
+                    ? 'radial-gradient(circle, rgba(8,12,16,.96) 0 52%, rgba(56,189,248,.22) 60%, rgba(56,189,248,.95) 69%, rgba(56,189,248,0) 80%)'
+                    : 'radial-gradient(circle, rgba(12,10,6,.96) 0 52%, rgba(245,166,35,.22) 60%, rgba(245,166,35,.95) 69%, rgba(245,166,35,0) 80%)',
                   boxShadow: phase?.stage === 'retention'
-                    ? '0 0 90px 20px rgba(56,189,248,0.45), 0 0 30px rgba(56,189,248,0.8)'
-                    : '0 0 90px 20px rgba(245,166,35,0.55), 0 0 30px rgba(245,166,35,0.8)',
+                    ? '0 0 70px 14px rgba(56,189,248,0.28), inset 0 0 40px rgba(56,189,248,0.25)'
+                    : '0 0 70px 14px rgba(245,166,35,0.32), inset 0 0 40px rgba(245,166,35,0.25)',
                 }}
               />
               <AnimatePresence mode="wait">
-                <motion.p
-                  key={`${currentPhase}-${paused}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="relative text-2xl font-black text-black text-center px-4 drop-shadow-sm"
+                <motion.div
+                  key={`${currentPhase}-${paused}-${phase?.stage ?? ''}`}
+                  initial={{ opacity: 0, scale: 0.94 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.04 }}
+                  transition={{ duration: 0.25 }}
+                  className="relative text-center px-4 pointer-events-none"
                 >
-                  {paused ? 'Paused' : phase?.stage === 'retention' ? 'Hold · empty' : phase?.stage === 'recovery' && currentPhase === 'hold-in' ? 'Hold · full' : PHASE_LABEL[currentPhase]}
-                </motion.p>
+                  <p
+                    className={`text-[22px] sm:text-2xl font-black uppercase tracking-[0.18em] ${phase?.stage === 'retention' ? 'text-sky-200' : 'text-white'}`}
+                    style={{ textShadow: phase?.stage === 'retention' ? '0 0 24px rgba(56,189,248,.8)' : '0 0 24px rgba(245,166,35,.8)' }}
+                  >
+                    {paused ? 'Paused' : phase?.stage === 'retention' ? 'Hold · empty' : phase?.stage === 'recovery' && currentPhase === 'hold-in' ? 'Hold · full' : PHASE_LABEL[currentPhase]}
+                  </p>
+                  {!paused && (
+                    <p className="wf-readout text-[11px] font-bold text-text-tertiary mt-1 tabular-nums">
+                      {phase?.stage === 'breathing' ? `${phase.breath} / ${phase.of}` : `${phaseLeft}s`}
+                    </p>
+                  )}
+                </motion.div>
               </AnimatePresence>
             </div>
           </div>
