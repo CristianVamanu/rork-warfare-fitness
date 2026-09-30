@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Check, ChevronRight, Loader2, Eye, EyeOff, Sparkles, Lock } from 'lucide-react';
 import { getMembershipConfig, getMembershipPlans, getSystemConfig } from '@/lib/firestore';
+import { freePlanConfig } from '@/lib/freePlan';
 import { getPlanBillingPeriods, planHasAnyPrice, getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
 import { offerWords, revealCopy, whyThisFits, athleteLabel, firstName, shortProgramName, type OfferWords, type Blocker } from '@/lib/onboardingIntake';
 import type { MatchedProgram } from '@/lib/programMatch';
@@ -58,6 +60,7 @@ export function RevealOffer(p: RevealOfferProps) {
   // quiz used to create accounts on an implied "by continuing you agree"
   // line, so nobody who signed up this way had actually accepted anything.
   const [agreed, setAgreed] = useState(false);
+  const [freePlanOn, setFreePlanOn] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -74,6 +77,8 @@ export function RevealOffer(p: RevealOfferProps) {
         ?? live.find((x) => x.mostPopular) ?? live[0] ?? null,
       );
       setCopy(revealCopy(sys as { onboardingCopy?: { whyPrice?: unknown; offerStack?: unknown } } | null));
+      const fp = freePlanConfig(sys as Parameters<typeof freePlanConfig>[0]);
+      setFreePlanOn(fp.enabled && fp.offers.length > 0);
     }).finally(() => { if (alive) setLoaded(true); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -156,6 +161,15 @@ export function RevealOffer(p: RevealOfferProps) {
         </div>
       )}
       {offer.line && <p className="wf-readout text-[10px] font-bold text-text-tertiary text-center">{offer.line}</p>}
+      {/* The person who balks at the price used to just leave. Now they
+          leave an email and get week one of a program for free, and the
+          follow-up does the selling later. Only shown when the admin has the
+          free plan switched on, since the page 404s otherwise. */}
+      {freePlanOn && !p.busy && (
+        <p className="text-center text-xs text-text-tertiary pt-1">
+          Not ready yet? <Link href="/free-plan/pick" className="text-accent font-semibold hover:underline">Get week one free by email</Link>
+        </p>
+      )}
     </div>
   );
 

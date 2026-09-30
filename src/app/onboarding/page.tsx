@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Flame, Dumbbell, RefreshCw, Zap, Shield,
   ChevronRight, ChevronLeft, Loader2, CheckCircle,
-  User, TrendingDown, TrendingUp, PartyPopper,
+  User, TrendingDown, TrendingUp, PartyPopper, Check,
 } from 'lucide-react';
 import { getIdToken, type User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -60,16 +60,27 @@ const EXPERIENCE: { value: ExperienceLevel; label: string; sub: string }[] = EXP
  * profile and used for the reveal copy only.
  */
 type StepId = 'for' | 'you' | 'goal' | 'occupation' | 'experience' | 'days' | 'equipment' | 'break' | 'blocker' | 'priority' | 'biometrics' | 'analysing' | 'email';
-const STEPS_ANON: StepId[] = ['for', 'you', 'goal', 'occupation', 'experience', 'days', 'equipment', 'break', 'blocker', 'priority', 'biometrics', 'analysing', 'email'];
+// Goal first: it is the thing the visitor came for, and answering it is
+// the first small commitment. Everything the matcher needs is still asked.
+const STEPS_ANON: StepId[] = ['goal', 'for', 'you', 'experience', 'days', 'equipment', 'break', 'occupation', 'blocker', 'priority', 'biometrics', 'analysing', 'email'];
 // Already signed in (resuming an unfinished quiz): no email step, and the
 // program is generated from the last screen exactly as before.
-const STEPS_AUTHED: StepId[] = ['for', 'you', 'goal', 'occupation', 'experience', 'days', 'equipment', 'break', 'blocker', 'priority', 'biometrics'];
+const STEPS_AUTHED: StepId[] = ['goal', 'for', 'you', 'experience', 'days', 'equipment', 'break', 'occupation', 'blocker', 'priority', 'biometrics'];
 
 // 2 (and 1) deliberately excluded — zero programs in the catalog are built
 // for that few days/week, so offering it just set an expectation the
 // matcher could never actually meet exactly. 3 stays: real programs exist
 // for it (Beginner Full Body, Alpha Bulk).
 const DAYS = [3, 4, 5, 6];
+
+/** Age brackets for the one-tap age step; `mid` is what the matcher and calorie targets use. */
+const AGE_BRACKETS = [
+  { label: '18–24', min: 18, max: 24, mid: 21 },
+  { label: '25–34', min: 25, max: 34, mid: 29 },
+  { label: '35–44', min: 35, max: 44, mid: 39 },
+  { label: '45–54', min: 45, max: 54, mid: 49 },
+  { label: '55+', min: 55, max: 100, mid: 58 },
+];
 
 /** Steps that advance on a tap (see selectAndAdvance). */
 const TAP_STEPS = new Set<StepId>(['for', 'goal', 'occupation', 'experience', 'days', 'blocker', 'priority']);
@@ -1173,6 +1184,15 @@ function OnboardingPageInner() {
   }
 
   const percent = intakePercent(step, TOTAL_STEPS);
+  const trail: string[] = [
+    goal ? (GOALS.find((g) => g.value === goal)?.label ?? '') : '',
+    trainingFor ? (TRAINING_FOR.find((c) => c.value === trainingFor)?.label ?? '') : '',
+    sex ? (sex === 'male' ? 'Male' : 'Female') : '',
+    Number.isFinite(ageNum) && ageNum >= 13 ? (AGE_BRACKETS.find((b) => ageNum >= b.min && ageNum <= b.max)?.label ?? `${ageNum}`) : '',
+    experience ? (EXPERIENCE_CHOICES.find((c) => c.value === experience)?.label.split(',')[0] ?? '') : '',
+    trainingDays ? `${trainingDays} days/wk` : '',
+    equipmentItems.length ? `${equipmentItems.length} kit item${equipmentItems.length === 1 ? '' : 's'}` : '',
+  ].filter(Boolean).slice(0, 7);
   const isBreak = stepId === 'break';
 
   return (
@@ -1224,6 +1244,18 @@ function OnboardingPageInner() {
         <div className="h-1 rounded-full bg-white/10 overflow-hidden">
           <div className="h-full rounded-full bg-gradient-accent transition-[width] duration-500" style={{ width: `${percent}%` }} />
         </div>
+        {/* The trail: every answer so far, as a pill. Each tap adds one,
+            so the visitor watches their own program take shape and has
+            something to lose by leaving. Nothing here is asked twice. */}
+        {trail.length > 0 && stepId !== 'analysing' && (
+          <div className="flex flex-wrap gap-1.5 mt-3" aria-label="Your answers so far">
+            {trail.map((t) => (
+              <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-accent/25 bg-accent/10 text-[10px] font-bold text-accent wf-rise">
+                <Check className="w-3 h-3" /> {t}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -1603,17 +1635,38 @@ function StepYou({ sex, onSex, age, onAge, showSexPicker, showAgeInput }: {
       {showAgeInput && (
         <>
           {showSexPicker && <p className="text-xs font-medium text-text-secondary mb-2">Your age</p>}
-          <input
-            type="number"
-            inputMode="numeric"
-            min={13}
-            max={100}
-            value={age}
-            onChange={(e) => onAge(e.target.value)}
-            placeholder="Your age"
-            autoFocus={!showSexPicker}
-            className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3.5 text-white text-lg text-center placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-          />
+          {/* A tap, not a keyboard. The bracket sets the age used for the
+              standards and calorie targets; the exact number underneath is
+              there for anyone who wants it precise. */}
+          <div className="grid grid-cols-5 gap-2">
+            {AGE_BRACKETS.map((b) => {
+              const n = parseInt(age, 10);
+              const on = Number.isFinite(n) && n >= b.min && n <= b.max;
+              return (
+                <button
+                  key={b.label}
+                  type="button"
+                  onClick={() => onAge(String(b.mid))}
+                  className={`py-3 rounded-xl border text-sm font-bold transition-all ${on ? 'border-accent bg-accent/10 text-white' : 'border-white/10 bg-surface-elevated text-text-secondary hover:border-white/20'}`}
+                >
+                  {b.label}
+                </button>
+              );
+            })}
+          </div>
+          <details className="mt-3">
+            <summary className="text-[11px] text-text-tertiary cursor-pointer select-none">Type your exact age instead</summary>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={18}
+              max={100}
+              value={age}
+              onChange={(e) => onAge(e.target.value)}
+              placeholder="Your age"
+              className="mt-2 w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-base text-center placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+            />
+          </details>
         </>
       )}
     </div>

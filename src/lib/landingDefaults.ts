@@ -26,9 +26,9 @@ import type { LandingPageConfig, B2BLandingConfig } from '@/types';
 // schedule. The copy below keeps the measurement, which is the one thing no
 // other app offers, and drops the assumption that you want a career in it.
 export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
-  badgeText: 'Real published standards. Any age. No guesswork.',
-  headlineLine1: 'Most men have never been tested.',
-  headlineLine2: 'Find out where you stand.',
+  badgeText: 'Every session written. Every meal logged.',
+  headlineLine1: 'Stop guessing what to lift.',
+  headlineLine2: 'Show up. It does the rest.',
   // Rewritten to stop implying every plan includes a human coach — 1:1
   // coaching is a separate, application-gated tier (see coachingPlans),
   // not something Conquer/Vanguard members get by default. Claiming it in
@@ -36,8 +36,8 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
   // gets refund requests once someone actually signs up and looks for it.
   // Also shortened from one 43-word sentence to something scannable in the
   // 2-3 seconds most visitors actually give a hero subheadline.
-  subheadline: '{appName} scores you against the real published standards of the Royal Marines, Marine Recon and the SEALs — then builds the program that closes the gap. You do not need to be a soldier, or twenty-five. You need to know where you actually stand. The test is free and takes ninety seconds.',
-  ctaPrimaryLabel: 'Get Matched Free',
+  subheadline: 'Two minutes of questions and {appName} hands you a real program: today\'s session written out, the weight to beat from last time, meals logged from a photo. No plan to make, no spreadsheet, no guessing. Just turn up.',
+  ctaPrimaryLabel: 'Build my program',
   ctaSecondaryLabel: 'Sign In',
   features: [
     { title: 'A Program That Actually Adapts', desc: 'Matched to your goal, experience, and equipment from day one — then it adjusts your next set based on what you actually lifted last time, not a generic script.' },

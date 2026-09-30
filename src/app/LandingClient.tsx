@@ -8,11 +8,12 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { UNIT_STANDARDS, standardFor, formatMinutes } from '@/lib/ptStandards';
 import { DataDivider, SectionEyebrow, CornerBrackets } from '@/components/landing/chrome';
+import { AppShowcase } from '@/components/landing/AppShowcase';
 import { BrandVideo } from '@/components/ui/BrandVideo';
 
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
-  ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown, User,
+  ArrowRight, CheckCircle2, Crown, Check, Flame, Zap, ShieldCheck, XCircle, ChevronDown,
   Menu, X as XIcon, Clock, BarChart3, Anchor, Compass, Shield, Swords, Footprints, Waves, LifeBuoy, Mountain, PlayCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -247,7 +248,6 @@ export default function LandingPage({
   );
   const [stats, setStats] = useState<{ totalUsers: number; totalWorkouts: number } | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [quickSex, setQuickSex] = useState<'male' | 'female' | null>(null);
   const [programs, setPrograms] = useState<PublicProgram[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<PublicProgram | null>(null);
@@ -577,44 +577,18 @@ export default function LandingPage({
           {/* The start card wears the same targeting brackets as the rest of
               the page's panels, so the one thing we want tapped reads as the
               instrument's control rather than as a generic form box. */}
+          {/* One button, no gate. This used to ask for the visitor's sex
+              before the button worked: a question and a price before a
+              single screen of the product. Sex is asked on the quiz's own
+              screen for it, one tap, right where it is needed. */}
           <div className="group relative max-w-md mx-auto mt-8 p-5 rounded-2xl border border-accent/20 bg-surface/60 backdrop-blur-sm">
             <CornerBrackets size="w-3.5 h-3.5" />
-            <p className="wf-readout text-[10px] font-bold text-accent mb-3">Start building your program</p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {(['male', 'female'] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setQuickSex(s)}
-                  className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border transition-colors ${quickSex === s ? 'border-accent bg-accent/10' : 'border-white/10 hover:border-white/20'}`}
-                >
-                  <User className={`w-6 h-6 ${quickSex === s ? 'text-accent' : 'text-text-secondary'}`} />
-                  <span className={`text-xs font-semibold ${quickSex === s ? 'text-white' : 'text-text-secondary'}`}>{s === 'male' ? 'Male' : 'Female'}</span>
-                </button>
-              ))}
-            </div>
-            {/* Mandatory — an unset sex used to just skip straight to
-                asking again in onboarding, making this box pointless
-                busywork instead of an actual head start. Disabled instead
-                of letting a blank value silently pass through as before. */}
-            <Link
-              href={quickSex ? `/onboarding?sex=${quickSex}` : '#'}
-              onClick={(e) => { if (!quickSex) e.preventDefault(); }}
-              className="block"
-              aria-disabled={!quickSex}
-            >
-              <Button size="lg" fullWidth disabled={!quickSex}>
+            <p className="wf-readout text-[10px] font-bold text-accent mb-3">Two minutes. Eight taps. Your program.</p>
+            <Link href="/onboarding" className="block">
+              <Button size="lg" fullWidth>
                 {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
-            {!quickSex && (
-              <p className="text-[11px] text-text-tertiary text-center mt-2">Select your gender to continue.</p>
-            )}
-            {/* Spells out exactly what "$X" turns into after the trial —
-                the button alone ("Start for $1.00") doesn't say how long
-                that lasts or what it becomes, which is exactly the kind of
-                ambiguity that gets a checkout screenshotted and complained
-                about. Priced off the featured (first) membership plan,
-                same one the pricing section itself marks "Most Popular". */}
             {paidTrialDisclosure && (
               <p className="text-[11px] text-text-tertiary text-center mt-2">
                 {paidTrialDisclosure}
@@ -702,104 +676,14 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* The free thing, first under the hero and asking for nothing.
-          It is the only block on this page a stranger can act on without
-          handing over an email or a card, and it is the one thing here no
-          other fitness app offers — so it goes before the feature grid, not
-          after it. Everything below this point asks for something.
-
-          Dressed as an instrument rather than a marketing card: corner
-          brackets, a slow readout sweep, and the numbers in a labelled panel.
-          The point it makes visually is the point the product makes, which is
-          that these are measurements, not motivation. */}
-      <section className="relative max-w-5xl mx-auto px-5 pt-14 pb-14">
-        <Link
-          href="/standards"
-          className="group relative block overflow-hidden rounded-2xl border border-accent/25 bg-[#0B0B0C] p-6 sm:p-8 transition-all duration-300 hover:border-accent/60 hover:shadow-[0_0_60px_-18px_rgba(245,166,35,0.55)]"
-        >
-          {/* Instrument grid, fading toward the readout on the right. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-50"
-            style={{
-              backgroundImage:
-                'linear-gradient(rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px)',
-              backgroundSize: '34px 34px',
-              maskImage: 'radial-gradient(ellipse 75% 85% at 88% 50%, black, transparent 72%)',
-              WebkitMaskImage: 'radial-gradient(ellipse 75% 85% at 88% 50%, black, transparent 72%)',
-            }}
-          />
-          {/* Ember wash from the corner the readout sits in. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{ background: 'radial-gradient(120% 130% at 100% 0%, rgb(var(--accent-rgb) / 0.16) 0%, transparent 58%)' }}
-          />
-          {/* Hairline along the top edge — brightest in the middle. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-px"
-            style={{ background: 'linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 0.65), transparent)' }}
-          />
-          {/* Corner brackets. */}
-          {[
-            'left-3 top-3 border-l-2 border-t-2',
-            'right-3 top-3 border-r-2 border-t-2',
-            'left-3 bottom-3 border-l-2 border-b-2',
-            'right-3 bottom-3 border-r-2 border-b-2',
-          ].map((pos) => (
-            <span
-              key={pos}
-              aria-hidden
-              className={`pointer-events-none absolute w-5 h-5 border-accent/40 group-hover:border-accent/80 transition-colors duration-300 ${pos}`}
-            />
-          ))}
-
-          <div className="relative flex items-start justify-between gap-6">
-            <div className="min-w-0">
-              <p className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.22em] text-accent">
-                <span className="relative flex w-1.5 h-1.5">
-                  <span className="absolute inline-flex w-full h-full rounded-full bg-accent opacity-60 animate-ping motion-reduce:hidden" />
-                  <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-accent" />
-                </span>
-                Free · no account
-              </p>
-              <h2 className="text-2xl sm:text-[34px] font-black text-white tracking-tight mt-3 leading-[1.08]">
-                Could you pass selection?
-              </h2>
-              <p className="text-sm text-text-secondary mt-3 max-w-md leading-relaxed">
-                The real published standards for Marine Recon, the SEALs, the Royal Marines, UKSF and more.
-                Put your numbers in and find out which ones you would clear today.
-              </p>
-              <span className="inline-flex items-center gap-2 mt-5 h-10 px-4 rounded-xl bg-accent text-black text-sm font-extrabold transition-transform group-hover:translate-x-0.5">
-                Test yourself <ArrowRight className="w-4 h-4" />
-              </span>
-            </div>
-
-            {/* A readout, not three pills. Every figure is pulled from the
-                same standards data the test scores against, so the landing
-                page can never quote a number the test disagrees with. */}
-            <div className="hidden sm:block flex-shrink-0 w-[13.5rem] rounded-xl border border-accent/20 bg-black/50 backdrop-blur-sm overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-accent/15 bg-accent/[0.06]">
-                <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-accent">
-                  {RECON_SAMPLE.label}
-                </span>
-                <span className="text-[9px] uppercase tracking-[0.14em] text-text-tertiary">Entry</span>
-              </div>
-              <div className="divide-y divide-white/[0.06]">
-                {RECON_SAMPLE.rows.map((r) => (
-                  <div key={r.label} className="flex items-baseline justify-between px-3 py-2">
-                    <span className="text-[10px] uppercase tracking-[0.12em] text-text-tertiary">{r.label}</span>
-                    <span className="text-[15px] font-bold tabular-nums text-white">{r.value}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="px-3 py-2 border-t border-accent/15 text-[9px] uppercase tracking-[0.14em] text-text-tertiary">
-                + {UNIT_STANDARDS.length - 1} more standards
-              </div>
-            </div>
-          </div>
-        </Link>
+      {/* What's inside. The product, before anything is asked for. */}
+      <section id="inside" className="relative max-w-5xl mx-auto px-5 pt-4 pb-14 scroll-mt-6">
+        <div className="text-center mb-6">
+          <div className="flex justify-center mb-3"><SectionEyebrow live>What&apos;s inside</SectionEyebrow></div>
+          <h2 className="text-2xl sm:text-3xl font-black text-white">You show up. It does the rest.</h2>
+          <p className="text-text-secondary text-sm mt-2 max-w-xl mx-auto">Real screens from the app. Swipe through what a day looks like.</p>
+        </div>
+        <AppShowcase items={landing.screenshotUrls && landing.screenshotUrls.length >= 3 ? landing.screenshotUrls.map((src, i) => ({ src, title: `Screen ${i + 1}`, caption: '' })) : undefined} />
       </section>
 
       {/* Feature grid — uniform equal-size cards. Deliberately NOT a
@@ -1086,6 +970,106 @@ export default function LandingPage({
           </div>
         </section>
       )}
+
+      {/* The free thing, first under the hero and asking for nothing.
+          It is the only block on this page a stranger can act on without
+          handing over an email or a card, and it is the one thing here no
+          other fitness app offers — so it goes before the feature grid, not
+          after it. Everything below this point asks for something.
+
+          Dressed as an instrument rather than a marketing card: corner
+          brackets, a slow readout sweep, and the numbers in a labelled panel.
+          The point it makes visually is the point the product makes, which is
+          that these are measurements, not motivation. */}
+      <section className="relative max-w-5xl mx-auto px-5 pt-14 pb-14">
+        <Link
+          href="/standards"
+          className="group relative block overflow-hidden rounded-2xl border border-accent/25 bg-[#0B0B0C] p-6 sm:p-8 transition-all duration-300 hover:border-accent/60 hover:shadow-[0_0_60px_-18px_rgba(245,166,35,0.55)]"
+        >
+          {/* Instrument grid, fading toward the readout on the right. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-50"
+            style={{
+              backgroundImage:
+                'linear-gradient(rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px)',
+              backgroundSize: '34px 34px',
+              maskImage: 'radial-gradient(ellipse 75% 85% at 88% 50%, black, transparent 72%)',
+              WebkitMaskImage: 'radial-gradient(ellipse 75% 85% at 88% 50%, black, transparent 72%)',
+            }}
+          />
+          {/* Ember wash from the corner the readout sits in. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{ background: 'radial-gradient(120% 130% at 100% 0%, rgb(var(--accent-rgb) / 0.16) 0%, transparent 58%)' }}
+          />
+          {/* Hairline along the top edge — brightest in the middle. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px"
+            style={{ background: 'linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 0.65), transparent)' }}
+          />
+          {/* Corner brackets. */}
+          {[
+            'left-3 top-3 border-l-2 border-t-2',
+            'right-3 top-3 border-r-2 border-t-2',
+            'left-3 bottom-3 border-l-2 border-b-2',
+            'right-3 bottom-3 border-r-2 border-b-2',
+          ].map((pos) => (
+            <span
+              key={pos}
+              aria-hidden
+              className={`pointer-events-none absolute w-5 h-5 border-accent/40 group-hover:border-accent/80 transition-colors duration-300 ${pos}`}
+            />
+          ))}
+
+          <div className="relative flex items-start justify-between gap-6">
+            <div className="min-w-0">
+              <p className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.22em] text-accent">
+                <span className="relative flex w-1.5 h-1.5">
+                  <span className="absolute inline-flex w-full h-full rounded-full bg-accent opacity-60 animate-ping motion-reduce:hidden" />
+                  <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-accent" />
+                </span>
+                Free · no account
+              </p>
+              <h2 className="text-2xl sm:text-[34px] font-black text-white tracking-tight mt-3 leading-[1.08]">
+                Could you pass selection?
+              </h2>
+              <p className="text-sm text-text-secondary mt-3 max-w-md leading-relaxed">
+                The real published standards for Marine Recon, the SEALs, the Royal Marines, UKSF and more.
+                Put your numbers in and find out which ones you would clear today.
+              </p>
+              <span className="inline-flex items-center gap-2 mt-5 h-10 px-4 rounded-xl bg-accent text-black text-sm font-extrabold transition-transform group-hover:translate-x-0.5">
+                Test yourself <ArrowRight className="w-4 h-4" />
+              </span>
+            </div>
+
+            {/* A readout, not three pills. Every figure is pulled from the
+                same standards data the test scores against, so the landing
+                page can never quote a number the test disagrees with. */}
+            <div className="hidden sm:block flex-shrink-0 w-[13.5rem] rounded-xl border border-accent/20 bg-black/50 backdrop-blur-sm overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-accent/15 bg-accent/[0.06]">
+                <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-accent">
+                  {RECON_SAMPLE.label}
+                </span>
+                <span className="text-[9px] uppercase tracking-[0.14em] text-text-tertiary">Entry</span>
+              </div>
+              <div className="divide-y divide-white/[0.06]">
+                {RECON_SAMPLE.rows.map((r) => (
+                  <div key={r.label} className="flex items-baseline justify-between px-3 py-2">
+                    <span className="text-[10px] uppercase tracking-[0.12em] text-text-tertiary">{r.label}</span>
+                    <span className="text-[15px] font-bold tabular-nums text-white">{r.value}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="px-3 py-2 border-t border-accent/15 text-[9px] uppercase tracking-[0.14em] text-text-tertiary">
+                + {UNIT_STANDARDS.length - 1} more standards
+              </div>
+            </div>
+          </div>
+        </Link>
+      </section>
 
       {/* Demo video modal — admin-uploaded product walkthrough, only shown
           once landing.heroDemoVideoUrl is set (Admin → Landing Page). Not
