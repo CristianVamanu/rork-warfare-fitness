@@ -319,6 +319,13 @@ html.light .bg-white\/15        { background-color: rgba(0,0,0,0.09) !important;
 html.light .bg-white\/20        { background-color: rgba(0,0,0,0.11) !important; }
 html.light .bg-black\/70        { background-color: rgba(0,0,0,0.45) !important; }
 html.light .bg-black\/50        { background-color: rgba(0,0,0,0.30) !important; }
+/* Inset panels: a faint dark well inside a card in dark mode. On a light
+   card the same tint reads as a grey slab, so it becomes a faint grey well. */
+html.light .bg-black\/20        { background-color: rgba(0,0,0,0.035) !important; }
+html.light .bg-black\/25        { background-color: rgba(0,0,0,0.04) !important; }
+html.light .bg-white\/6         { background-color: rgba(0,0,0,0.05) !important; }
+html.light .divide-white\/6 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(0,0,0,0.07) !important; }
+html.light .border-white\/6     { border-color: rgba(0,0,0,0.07) !important; }
 
 /* White/opacity borders */
 html.light .border-white\/8     { border-color: rgba(0,0,0,0.08) !important; }
@@ -364,6 +371,9 @@ html.light .wf-dark .bg-accent.text-black { color: #000000 !important; }
 html.light .wf-dark .bg-white\/5  { background-color: rgba(255,255,255,0.05) !important; }
 html.light .wf-dark .bg-white\/8  { background-color: rgba(255,255,255,0.08) !important; }
 html.light .wf-dark .bg-white\/10 { background-color: rgba(255,255,255,0.10) !important; }
+html.light .wf-dark .bg-black\/20 { background-color: rgba(0,0,0,0.20) !important; }
+html.light .wf-dark .bg-black\/25 { background-color: rgba(0,0,0,0.25) !important; }
+html.light .wf-dark .bg-white\/6  { background-color: rgba(255,255,255,0.06) !important; }
 html.light .wf-dark .bg-black\/50 { background-color: rgba(0,0,0,0.50) !important; }
 html.light .wf-dark .bg-black\/70 { background-color: rgba(0,0,0,0.70) !important; }
 html.light .wf-dark .border-white\/8  { border-color: rgba(255,255,255,0.08) !important; }
