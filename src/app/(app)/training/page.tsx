@@ -21,6 +21,9 @@ import { Ring } from '@/components/dashboard/Ring';
 import { ShareProgramButton } from '@/components/training/ShareProgramButton';
 import { SessionPreview } from '@/components/training/SessionPreview';
 import { removeQueryParam } from '@/lib/queryParam';
+import { useNextProgram } from '@/lib/useNextProgram';
+import { currentPlan, planLine } from '@/lib/nextProgram';
+import { NextPhasePanel } from '@/components/training/NextPhasePanel';
 import type { Program } from '@/types';
 
 const GOAL_ICON: Record<string, React.ElementType> = {
@@ -210,6 +213,11 @@ export default function TrainingPage() {
   const dayProgress = activeProgram ? getProgramDayProgress(resolvedActive, activeProgram, nextAbsIdx) : null;
   const pct = dayProgress?.pct ?? 0;
   const programFinished = dayProgress?.finished ?? false;
+  // The chain: once this program is in its last stretch the next one is
+  // decided server-side and shown here, so finishing never lands on a
+  // library. See lib/nextProgram.
+  const nextPlan = currentPlan(profile?.nextProgram, activeProgram?.programId);
+  useNextProgram({ user, activeProgramId: activeProgram?.programId, pct, finished: programFinished, plan: profile?.nextProgram, ready: !!resolvedActive });
   const [skippingRest, setSkippingRest] = useState(false);
   const handleSkipRest = async () => {
     if (!user || !activeProgram?.programId || !nextSession?.isRestToday) return;
@@ -364,6 +372,19 @@ export default function TrainingPage() {
                     </Button>
                   </div>
                   <SessionPreview exercises={todayDay.exercises} />
+                </div>
+              )}
+              {/* Still running, next already chosen: one quiet line. */}
+              {!programFinished && nextPlan && dayProgress && (
+                <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-text-secondary">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_8px_rgb(var(--accent-rgb)/0.9)]" />
+                  {planLine(nextPlan, dayProgress.totalDays)}
+                </p>
+              )}
+              {/* Finished: the next phase takes the session's place. */}
+              {programFinished && (
+                <div className="mt-4">
+                  <NextPhasePanel plan={nextPlan} finishedProgramId={activeProgram.programId} lifetimeSessions={profile?.statsCache?.totalWorkouts} />
                 </div>
               )}
               <div className="mt-4 space-y-2">

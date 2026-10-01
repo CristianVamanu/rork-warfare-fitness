@@ -9,10 +9,10 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
-  getProgram, createProgram, updateProgram, upsertProgram, getAllUsers, enrollInProgram,
+  getProgram, createProgram, updateProgram, upsertProgram, getAllUsers, enrollInProgram, getPrograms,
   matchExercisesToVideos, getExerciseVideos, getSystemConfig, saveExerciseVideo,
 } from '@/lib/firestore';
-import { getMockProgram, absoluteDayNumber, phaseDayOccurrences } from '@/lib/programs';
+import { getMockProgram, absoluteDayNumber, phaseDayOccurrences, MOCK_PROGRAMS } from '@/lib/programs';
 import { parseDistance } from '@/lib/distance';
 import { uploadVideo, resolveStorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
@@ -84,6 +84,8 @@ interface BProg {
   recommendedForGoals: FitnessGoal[];
   ageBrackets: AgeBracket[];
   imageUrl: string;
+  /** The program a member is moved on to after finishing this one. '' = let the matcher decide. */
+  nextProgramId: string;
   schedule: BDay[];
   phases: BPhase[];
 }
@@ -134,7 +136,7 @@ function blankEx(): BEx {
 function emptyProg(): BProg {
   return {
     name: '', description: '', level: 'intermediate', goal: 'hypertrophy',
-    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', suitableEquipment: [], priorityPick: false, recommendedForGoals: [], ageBrackets: [], imageUrl: '',
+    weeks: 8, daysPerWeek: 4, visibility: 'public', targetGender: 'anyone', suitableEquipment: [], priorityPick: false, recommendedForGoals: [], ageBrackets: [], imageUrl: '', nextProgramId: '',
     schedule: [blankDay('Push Day'), blankDay('Pull Day'), blankDay('Legs'), restDay(), blankDay('Upper Body'), restDay(), restDay()],
     phases: [],
   };
@@ -194,6 +196,18 @@ function BuilderInner() {
   const { user, profile } = useAuth();
 
   const [prog, setProg] = useState<BProg>(emptyProg());
+  // Every program that could follow this one: the admin's own plus the seed
+  // library, de-duplicated by id (an edited seed lives under the same id).
+  const [sequelOptions, setSequelOptions] = useState<{ id: string; name: string; level: string; weeks: number }[]>([]);
+  useEffect(() => {
+    getPrograms().then((list) => {
+      const seen = new Map<string, { id: string; name: string; level: string; weeks: number }>();
+      for (const p of [...(list as { id: string; name: string; level: string; weeks: number }[]), ...MOCK_PROGRAMS]) {
+        if (!seen.has(p.id)) seen.set(p.id, { id: p.id, name: p.name, level: p.level, weeks: p.weeks });
+      }
+      setSequelOptions([...seen.values()].sort((a, b) => a.name.localeCompare(b.name)));
+    }).catch(() => setSequelOptions(MOCK_PROGRAMS.map((p) => ({ id: p.id, name: p.name, level: p.level, weeks: p.weeks }))));
+  }, []);
   const [activeDay, setActiveDay] = useState(0);
   const [activePhase, setActivePhase] = useState(0);
   const [expandedEx, setExpandedEx] = useState<string | null>(null);
@@ -347,6 +361,7 @@ function BuilderInner() {
     suitableEquipment?: BProg['suitableEquipment']; priorityPick?: boolean;
     recommendedForGoals?: FitnessGoal[];
     ageBrackets?: AgeBracket[];
+    nextProgramId?: string;
     schedule?: BDay[];
     phases?: { id: string; label: string; startWeek: number; endWeek: number; schedule: BDay[] }[];
   }
@@ -421,6 +436,7 @@ function BuilderInner() {
           recommendedForGoals: program.recommendedForGoals ?? [],
           ageBrackets: program.ageBrackets ?? [],
           imageUrl: program.imageUrl ?? '',
+          nextProgramId: program.nextProgramId ?? '',
           schedule,
           phases,
         });
@@ -599,6 +615,7 @@ function BuilderInner() {
         ageBrackets: [],
         targetGender: (p.targetGender === 'male' || p.targetGender === 'female') ? p.targetGender : 'anyone',
         imageUrl: '',
+        nextProgramId: '',
         schedule: phases.length > 0 ? phases[0].schedule : normalizeSchedule(p.schedule),
         phases,
       });
@@ -670,6 +687,9 @@ function BuilderInner() {
         suitableEquipment: prog.suitableEquipment,
         recommendedForGoals: prog.recommendedForGoals,
         ageBrackets: prog.ageBrackets,
+        // Empty means 'no sequel'. Written as null so it clears an old
+        // value on save (stripUndefinedDeep would drop undefined and keep it).
+        nextProgramId: prog.nextProgramId || null,
         schedule: prog.phases.length > 0 ? prog.phases[0].schedule : prog.schedule,
         isPublic: publish || prog.visibility === 'public',
         exercises: unique.map(e => ({ ...e, reps: e.reps })),
@@ -1133,6 +1153,24 @@ function BuilderInner() {
                 </span>
               </span>
             </label>
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs text-text-secondary mb-1 block">Next in sequence</label>
+            <select
+              value={prog.nextProgramId}
+              onChange={e => setProg(s => ({ ...s, nextProgramId: e.target.value }))}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-accent/50"
+            >
+              <option value="">Let the app decide (one level up, same goal)</option>
+              {sequelOptions.filter(o => o.id !== programId).map(o => (
+                <option key={o.id} value={o.id}>{o.name} · {o.level} · {o.weeks} wks</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-text-tertiary mt-1.5 leading-relaxed">
+              When a member finishes this program, this is the one that is lined up for them before the end
+              and started with one tap from the completion card. Leave it on automatic and the matcher picks
+              the next step up for their goal.
+            </p>
           </div>
           <div>
             <label className="text-xs text-text-secondary mb-1 block">Duration (weeks)</label>

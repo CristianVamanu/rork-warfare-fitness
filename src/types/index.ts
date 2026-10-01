@@ -291,6 +291,8 @@ export interface UserProfile {
    * cannot clobber each other's entry.
    */
   celebratedPrograms?: string[];
+  /** See NextProgramPlan. Server-written; stale once activeProgram moves on. */
+  nextProgram?: NextProgramPlan;
   assignedNutritionPlan?: NutritionPlan;
   achievements?: string[];
   /** Server-written only (api/admin/challenges/review). */
@@ -852,6 +854,32 @@ export interface Program {
    */
   ageBrackets?: AgeBracket[];
   imageUrl?: string; // cover image shown on the landing page & program lists
+  /**
+   * The admin's hand-picked sequel: the program a member is moved on to
+   * when they finish this one. When unset, the matcher chooses the next
+   * step up for the member's goal (see lib/nextProgram).
+   */
+  nextProgramId?: string;
+}
+
+/**
+ * The program already chosen for a member's next phase.
+ *
+ * Decided server-side (api/programs/next) once the active program is in
+ * its last stretch, so the end of a program is never an empty screen with
+ * a library under it. `forProgramId` ties the plan to the program it
+ * follows: a plan made for a program the member has since left is stale
+ * and ignored.
+ */
+export interface NextProgramPlan {
+  programId: string;
+  programName: string;
+  weeks: number;
+  daysPerWeek: number;
+  forProgramId: string;
+  decidedAt: unknown;
+  /** 'sequence' = admin-set sequel · 'matched' = ranked by the matcher · 'repeat' = nothing else fit */
+  reason: 'sequence' | 'matched' | 'repeat';
 }
 
 export interface Exercise {

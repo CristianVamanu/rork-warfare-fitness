@@ -18,6 +18,8 @@ import { getGreeting } from '@/lib/utils';
 import { getLevelTier } from '@/lib/xp';
 import { deriveStreak, streakCaption } from '@/lib/streakFlame';
 import { shouldCelebrate } from '@/lib/programCompletion';
+import { currentPlan } from '@/lib/nextProgram';
+import { useNextProgram } from '@/lib/useNextProgram';
 import { ProgramCompleteCard } from '@/components/training/ProgramCompleteCard';
 import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -334,6 +336,10 @@ export default function DashboardPage() {
     celebrated: profile?.celebratedPrograms,
     sessionsDone: completedWorkouts,
   });
+  // The chain: plan the next program from the last stretch of this one, so
+  // the completion card below can end in Start rather than a library.
+  const nextPlan = currentPlan(profile?.nextProgram, activeProgram?.programId);
+  useNextProgram({ user, activeProgramId: activeProgram?.programId, pct: programPct, finished: programDone, plan: profile?.nextProgram, ready: !!resolvedProgram });
   const caloriesPct = goals.calories > 0 ? (calories ?? 0) / goals.calories : 0;
   const waterPct = goals.water > 0 ? (waterMl ?? 0) / goals.water : 0;
   const glassRow = 'p-3.5 h-full flex items-center gap-3.5 card-float';
@@ -554,6 +560,8 @@ export default function DashboardPage() {
               totalDays={dayProgress?.totalDays ?? completedWorkouts}
               sessionsDone={completedWorkouts}
               onDismiss={() => setCompletionDismissed(true)}
+              next={nextPlan}
+              lifetimeSessions={profile?.statsCache?.totalWorkouts}
             />
           </div>
         ) : (
