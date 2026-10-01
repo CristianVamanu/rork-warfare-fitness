@@ -11,7 +11,7 @@
 
 import {
   doc, collection, addDoc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
-  query, orderBy, limit, onSnapshot, serverTimestamp, increment,
+  query, where, orderBy, limit, onSnapshot, serverTimestamp, increment,
   arrayUnion, arrayRemove, deleteField, type UpdateData, type DocumentData,
 } from 'firebase/firestore';
 import { getIdToken } from 'firebase/auth';
@@ -34,9 +34,26 @@ function cleanMedia(list: PostMedia[] | undefined): PostMedia[] | undefined {
 /** Every challenge, newest first. Members filter out drafts client-side;
  *  the rules already hide drafts from non-admins, so the filter is belt
  *  and braces rather than the control. */
-export async function getChallenges(): Promise<Challenge[]> {
-  const snap = await getDocs(query(collection(db, 'challenges'), orderBy('createdAt', 'desc'), limit(100)));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Challenge);
+/**
+ * The list a member can see.
+ *
+ * Firestore rules are not filters. The old query asked for every challenge
+ * and hid drafts on the client, so the moment a single draft existed the
+ * WHOLE query was refused for anyone who is not an admin, the page caught
+ * the error and showed "No challenges yet". Admins read drafts, so it
+ * worked for the one person who could not notice. Members now ask only for
+ * what they are allowed to read; admins keep the full list. Sorted here
+ * rather than by the query, so no composite index is needed.
+ */
+export async function getChallenges(opts: { includeDrafts?: boolean } = {}): Promise<Challenge[]> {
+  const base = collection(db, 'challenges');
+  const q = opts.includeDrafts
+    ? query(base, orderBy('createdAt', 'desc'), limit(100))
+    : query(base, where('status', 'in', ['live', 'closed']), limit(100));
+  const snap = await getDocs(q);
+  const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Challenge);
+  const ms = (v: unknown) => (v as { toMillis?: () => number })?.toMillis?.() ?? 0;
+  return rows.sort((a, b) => ms(b.createdAt) - ms(a.createdAt));
 }
 
 export function subscribeChallenge(id: string, onUpdate: (c: Challenge | null) => void, onError?: (e: Error) => void) {

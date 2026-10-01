@@ -55,7 +55,7 @@ export default function AdminChallengesPage() {
   const [editing, setEditing] = useState<Challenge | null | 'new'>(null);
   const [reviewing, setReviewing] = useState<Challenge | null>(null);
 
-  const load = () => getChallenges().then(setList).catch(() => toast.error('Failed to load challenges')).finally(() => setLoading(false));
+  const load = () => getChallenges({ includeDrafts: true }).then(setList).catch(() => toast.error('Failed to load challenges')).finally(() => setLoading(false));
   useEffect(() => { load(); }, []);
 
   const remove = async (c: Challenge) => {

@@ -6,7 +6,7 @@ import {
   assertFails,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, writeBatch, serverTimestamp, type Firestore } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, orderBy, writeBatch, serverTimestamp, type Firestore } from 'firebase/firestore';
 
 /**
  * Firestore rules, exercised against the real rules engine in the emulator.
@@ -767,6 +767,16 @@ describe('challenges', () => {
     await assertFails(setDoc(doc(asAlice(), 'challenges', 'ch2'), live));
     await assertFails(updateDoc(doc(asAlice(), 'challenges', 'ch1'), { title: 'Hijacked' }));
     await assertSucceeds(updateDoc(doc(asAdmin(), 'challenges', 'ch1'), { title: 'Renamed' }));
+  });
+
+  it('the member list query works only when it asks for what members may read', async () => {
+    // Rules are not filters: a query that could return a draft is refused
+    // outright for a member, which is how a single forgotten draft blanked
+    // the Challenges tab for everyone. The filtered query is what the app
+    // now sends; the unfiltered one is what it used to send.
+    await assertFails(getDocs(query(collection(asAlice(), 'challenges'), orderBy('createdAt', 'desc'))));
+    await assertSucceeds(getDocs(query(collection(asAlice(), 'challenges'), where('status', 'in', ['live', 'closed']))));
+    await assertSucceeds(getDocs(query(collection(asAdmin(), 'challenges'))));
   });
 
   it('entering: own uid as the doc id, status entered, only while live', async () => {
