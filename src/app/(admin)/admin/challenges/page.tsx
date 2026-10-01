@@ -16,8 +16,7 @@ import { FeedCarousel } from '@/components/community/FeedCarousel';
 import { RESULT_TYPES, DIFFICULTY, bucket, toDate } from '@/components/community/challengeFormat';
 import {
   getChallenges, createChallenge, updateChallenge, deleteChallenge,
-  subscribeEntries, reviewChallengeEntry, reopenEntry, announceChallenge, ensurePosters, type ChallengeInput,
-} from '@/lib/challenges';
+  subscribeEntries, reviewChallengeEntry, reopenEntry, announceChallenge, ensurePosters, type ChallengeInput, countPendingReviews } from '@/lib/challenges';
 import { DEFAULT_CHALLENGE_XP } from '@/types';
 import { Timestamp, collection, getDocs, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -54,8 +53,15 @@ export default function AdminChallengesPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Challenge | null | 'new'>(null);
   const [reviewing, setReviewing] = useState<Challenge | null>(null);
+  const [pendingMap, setPendingMap] = useState<Record<string, number>>({});
 
-  const load = () => getChallenges({ includeDrafts: true }).then(setList).catch(() => toast.error('Failed to load challenges')).finally(() => setLoading(false));
+  const load = () => getChallenges({ includeDrafts: true })
+    .then(async (cs) => {
+      setList(cs);
+      const counts = await Promise.all(cs.map((c) => countPendingReviews(c.id).catch(() => 0)));
+      setPendingMap(Object.fromEntries(cs.map((c, i) => [c.id, counts[i]])));
+    })
+    .catch(() => toast.error('Failed to load challenges')).finally(() => setLoading(false));
   useEffect(() => { load(); }, []);
 
   const remove = async (c: Challenge) => {
@@ -95,7 +101,7 @@ export default function AdminChallengesPage() {
           <div className="space-y-3">
             {list.map((c) => {
               const state = bucket(c);
-              const pending = c.submissionCount - c.verifiedCount;
+              const pending = pendingMap[c.id] ?? 0;
               return (
                 <Card key={c.id} className="p-4 card-float">
                   <div className="flex items-start gap-3">

@@ -154,6 +154,21 @@ export async function submitChallengeResult(
     createdAt: serverTimestamp(),
   }));
   await updateDoc(doc(db, 'challenges', challenge.id), { submissionCount: increment(1) }).catch(() => {});
+  // Tell the admins there is something to review. Server-side, because a
+  // member may not write into an admin's notification feed directly, and
+  // fire-and-forget, because a submission that saved is a submission.
+  adminPost('/api/challenges/submitted', { challengeId: challenge.id }).catch(() => {});
+}
+
+/**
+ * How many submissions are waiting on a decision, counted from the entries
+ * themselves. The card used to show submissionCount minus verifiedCount,
+ * which never went down on a rejection, so a rejected entry sat as "1 to
+ * review" forever.
+ */
+export async function countPendingReviews(challengeId: string): Promise<number> {
+  const snap = await getDocs(query(collection(db, 'challenges', challengeId, 'entries'), where('status', '==', 'submitted')));
+  return snap.size;
 }
 
 export async function createChallengePost(
