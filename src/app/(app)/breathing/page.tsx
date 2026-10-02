@@ -10,6 +10,7 @@ import { Modal } from '@/components/ui/Modal';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import { GuidedVideo } from '@/components/ui/GuidedVideo';
 import { BreathCircle } from '@/components/breathing/BreathCircle';
+import { CosmicBackdrop } from '@/components/breathing/CosmicBackdrop';
 import { useBreathAudio } from '@/lib/useBreathAudio';
 import { getBreathTracks, playableUrl, BUILT_IN_TRACK } from '@/lib/breathTracks';
 import type { BreathTrack } from '@/types';
@@ -442,7 +443,7 @@ export default function BreathingPage() {
 
       {step === 'session' && method && (
         <div className="fixed inset-0 z-[45] bg-[#040302] flex flex-col items-center justify-between overflow-hidden" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
-          <CalmBackdrop breath={size} />
+          <CosmicBackdrop drive={size} />
           <div className="relative w-full max-w-lg px-4 flex items-center justify-between">
             <button onClick={requestQuit} className="p-2 rounded-xl text-white/50 hover:text-white transition-colors" aria-label="End session"><X className="w-5 h-5" /></button>
             <p className="text-[11px] font-medium tracking-[0.5em] pl-[0.5em] text-[#FFE2B4]/70">{method.name.toUpperCase()}</p>
