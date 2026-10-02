@@ -3376,6 +3376,19 @@ function AdminPageInner() {
           </Card>
           <Card
             className="p-4 lg:p-5 flex items-center gap-3.5 hover:border-accent/30 transition-colors cursor-pointer card-float"
+            onClick={() => router.push('/admin/breathing')}
+          >
+            <div className="w-11 h-11 rounded-2xl bg-accent-muted flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5 text-accent" strokeWidth={1.75} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">Breathing soundtracks</p>
+              <p className="text-xs text-text-secondary mt-0.5">Upload songs members can choose for a breathing session</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-text-tertiary" />
+          </Card>
+          <Card
+            className="p-4 lg:p-5 flex items-center gap-3.5 hover:border-accent/30 transition-colors cursor-pointer card-float"
             onClick={() => router.push('/admin/pr-review')}
           >
             <div className="w-11 h-11 rounded-2xl bg-accent-muted flex items-center justify-center flex-shrink-0">

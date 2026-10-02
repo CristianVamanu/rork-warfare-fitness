@@ -11,6 +11,8 @@ import { PaywallGate } from '@/components/ui/PaywallGate';
 import { GuidedVideo } from '@/components/ui/GuidedVideo';
 import { BreathCircle } from '@/components/breathing/BreathCircle';
 import { useBreathAudio } from '@/lib/useBreathAudio';
+import { getBreathTracks, playableUrl, BUILT_IN_TRACK } from '@/lib/breathTracks';
+import type { BreathTrack } from '@/types';
 
 // ─── Breathing methods ──────────────────────────────────────────────────────
 // A session is a timeline of segments. Each segment says how long it lasts
@@ -178,7 +180,7 @@ const METHODS: BreathingMethod[] = [
 const WORD: Record<PhaseType, string> = { 'inhale': 'IN', 'top-up': 'A LITTLE MORE', 'hold-in': 'HOLD', 'exhale': 'OUT', 'hold-out': 'HOLD' };
 const HINT: Record<PhaseType, string> = { 'inhale': 'THROUGH THE NOSE', 'top-up': 'A SMALL SIP ON TOP', 'hold-in': 'LUNGS FULL', 'exhale': 'SLOW · THROUGH THE MOUTH', 'hold-out': 'LUNGS EMPTY' };
 
-const MUSIC_SRC = '/audio/breathwork-meditation.mp3';
+const TRACK_PREF = 'wf-breath-track';
 const DEFAULT_MINUTES = [5, 10];
 const REPEATS = [1, 2, 3];
 
@@ -233,7 +235,15 @@ export default function BreathingPage() {
   const [paused, setPaused] = useState(false);
   const [quitConfirmOpen, setQuitConfirmOpen] = useState(false);
 
-  const music = useBreathAudio(MUSIC_SRC);
+  const music = useBreathAudio();
+  const [tracks, setTracks] = useState<BreathTrack[]>([BUILT_IN_TRACK]);
+  const [trackId, setTrackId] = useState<string>(BUILT_IN_TRACK.id);
+  const track = tracks.find((t) => t.id === trackId) ?? BUILT_IN_TRACK;
+  useEffect(() => {
+    try { const v = localStorage.getItem(TRACK_PREF); if (v) setTrackId(v); } catch { /* ignore */ }
+    getBreathTracks().then(setTracks).catch(() => { /* the built-in track still plays */ });
+  }, []);
+  const pickTrack = (id: string) => { setTrackId(id); try { localStorage.setItem(TRACK_PREF, id); } catch { /* ignore */ } };
   const elapsedRef = useRef(0);
   const pausedRef = useRef(false);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
@@ -266,8 +276,8 @@ export default function BreathingPage() {
     setTimeline(buildTimeline(m, mins, reps));
     elapsedRef.current = 0; setNow(0); setPaused(false);
     setStep('session');
-    void music.start();
-  }, [music]);
+    void music.start(playableUrl(track));
+  }, [music, track]);
 
   function endSession() { music.stop(); setStep('method'); setMethod(null); }
   function requestQuit() { setPaused(true); setQuitConfirmOpen(true); }
@@ -304,7 +314,7 @@ export default function BreathingPage() {
   const planSeconds = method ? (method.kind === 'rounds' ? Math.round(method.phases.reduce((s, p) => s + p.seconds, 0)) : minutes * 60) : 0;
 
   return (
-    <div className="wf-dark relative min-h-screen bg-[#040302] text-white overflow-hidden">
+    <div className="wf-dark relative min-h-screen bg-[#040302] text-white">
       <CalmBackdrop />
       {step !== 'session' && <div className="relative"><Header title="Breathing" showBack /></div>}
       <PaywallGate feature="breathing" noTaste>
@@ -386,14 +396,35 @@ export default function BreathingPage() {
           </div>
           <p className="text-xs text-white/40 mb-6 flex items-center gap-2"><Repeat className="w-3.5 h-3.5" /> {repeats === 1 ? 'One pass.' : `${repeats} passes back to back. The circle keeps going; nothing to tap in between.`}</p>
 
-          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 mb-6">
-            <div>
-              <p className="text-sm text-white/85">Music</p>
-              <p className="text-[11px] text-white/40">Breathwork Meditation · original WF track</p>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 mb-6 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-white/85">Music</p>
+                <p className="text-[11px] text-white/40">{music.enabled ? track.title : 'Off'}</p>
+              </div>
+              <button type="button" onClick={() => music.toggle()} className={`w-11 h-11 rounded-xl border flex items-center justify-center transition-colors ${music.enabled ? 'border-[#F5A623]/50 bg-[#F5A623]/15 text-[#F5A623]' : 'border-white/15 text-white/50'}`} aria-label={music.enabled ? 'Music on' : 'Music off'}>
+                {music.enabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+              </button>
             </div>
-            <button type="button" onClick={music.toggle} className={`w-11 h-11 rounded-xl border flex items-center justify-center transition-colors ${music.enabled ? 'border-[#F5A623]/50 bg-[#F5A623]/15 text-[#F5A623]' : 'border-white/15 text-white/50'}`} aria-label={music.enabled ? 'Music on' : 'Music off'}>
-              {music.enabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
-            </button>
+            {music.enabled && (
+              <>
+                {tracks.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                    {tracks.map((t) => (
+                      <button key={t.id} type="button" onClick={() => pickTrack(t.id)} className={`flex-shrink-0 rounded-xl border px-3 py-2 text-left transition-colors ${t.id === track.id ? 'border-[#F5A623]/60 bg-[#F5A623]/10' : 'border-white/10 bg-white/[0.02]'}`}>
+                        <p className={`text-xs font-semibold ${t.id === track.id ? 'text-[#FFE2B4]' : 'text-white/75'}`}>{t.title}</p>
+                        {t.durationSeconds ? <p className="text-[10px] text-white/35 tabular-nums">{fmt(t.durationSeconds)}</p> : null}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-3">
+                  <VolumeX className="w-4 h-4 text-white/35 flex-shrink-0" />
+                  <input type="range" min={0} max={100} step={1} value={Math.round(music.volume * 100)} onChange={(e) => music.setVolume(Number(e.target.value) / 100)} aria-label="Volume" className="flex-1 h-1.5 appearance-none rounded-full cursor-pointer accent-[#F5A623]" style={{ background: `linear-gradient(90deg, #F5A623 ${music.volume * 100}%, rgba(255,255,255,.12) ${music.volume * 100}%)` }} />
+                  <Volume2 className="w-4 h-4 text-white/35 flex-shrink-0" />
+                </div>
+              </>
+            )}
           </div>
 
           <Button fullWidth size="lg" onClick={() => startSession(method, minutes, repeats)}>
@@ -410,13 +441,13 @@ export default function BreathingPage() {
       )}
 
       {step === 'session' && method && (
-        <div className="fixed inset-0 z-30 bg-[#040302] flex flex-col items-center justify-between overflow-hidden" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+        <div className="fixed inset-0 z-[45] bg-[#040302] flex flex-col items-center justify-between overflow-hidden" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
           <CalmBackdrop breath={size} />
           <div className="relative w-full max-w-lg px-4 flex items-center justify-between">
             <button onClick={requestQuit} className="p-2 rounded-xl text-white/50 hover:text-white transition-colors" aria-label="End session"><X className="w-5 h-5" /></button>
             <p className="text-[11px] font-medium tracking-[0.5em] pl-[0.5em] text-[#FFE2B4]/70">{method.name.toUpperCase()}</p>
             <div className="flex items-center gap-1">
-              <button onClick={music.toggle} className="p-2 rounded-xl text-white/50 hover:text-white transition-colors" aria-label={music.enabled ? 'Mute music' : 'Play music'}>
+              <button onClick={() => music.toggle(playableUrl(track))} className="p-2 rounded-xl text-white/50 hover:text-white transition-colors" aria-label={music.enabled ? 'Mute music' : 'Play music'}>
                 {music.loading ? <Loader2 className="w-5 h-5 animate-spin" /> : music.enabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
               </button>
               <button onClick={() => setPaused((p) => !p)} className="p-2 rounded-xl text-white/50 hover:text-white transition-colors" aria-label={paused ? 'Resume' : 'Pause'}>
@@ -473,13 +504,18 @@ export default function BreathingPage() {
   );
 }
 
-/** Two soft, slowly drifting pools of warm light behind everything. */
+/**
+ * Two soft pools of warm light behind everything, drawn as radial gradients.
+ * No blur filter on purpose: a large blurred layer under a fixed element is
+ * a known way to make iOS mis-place that element, and it put the bottom nav
+ * in the middle of the screen the first time this page shipped.
+ */
 function CalmBackdrop({ breath = 0.4 }: { breath?: number }) {
   const k = Math.max(0, Math.min(1, (breath - 0.3) / 0.7));
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute rounded-full" style={{ width: 900, height: 900, left: '50%', top: '45%', transform: 'translate(-50%,-50%)', filter: 'blur(120px)', background: 'rgba(214,140,50,.20)', opacity: 0.5 + k * 0.5, transition: 'opacity .6s linear' }} />
-      <div className="absolute rounded-full" style={{ width: 700, height: 700, left: '55%', top: '55%', transform: 'translate(-50%,-50%)', filter: 'blur(120px)', background: 'rgba(120,70,30,.22)', opacity: 0.6 + k * 0.2, transition: 'opacity .6s linear' }} />
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 60% 40% at 50% 45%, rgba(214,140,50,.22), rgba(214,140,50,0) 70%)', opacity: 0.5 + k * 0.5, transition: 'opacity .6s linear' }} />
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 45% 32% at 55% 55%, rgba(120,70,30,.26), rgba(120,70,30,0) 70%)', opacity: 0.6 + k * 0.2, transition: 'opacity .6s linear' }} />
       <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 65% at 50% 50%, transparent 40%, rgba(0,0,0,.85) 100%)' }} />
     </div>
   );

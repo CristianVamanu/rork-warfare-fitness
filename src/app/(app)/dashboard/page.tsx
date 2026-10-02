@@ -873,8 +873,8 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Breathing</span>
-                  <p className="text-[15px] font-extrabold text-white leading-tight mt-0.5">Reset in 5 minutes</p>
-                  <p className="text-[11px] text-text-tertiary mt-0.5">5 guided techniques</p>
+                  <p className="text-[15px] font-extrabold text-white leading-tight mt-0.5">The Reset. Follow the circle.</p>
+                  <p className="text-[11px] text-text-tertiary mt-0.5">7 guided techniques · 3 to 10 min</p>
                 </div>
               </Card>
             </Link>

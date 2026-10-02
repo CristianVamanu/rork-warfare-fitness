@@ -18,7 +18,8 @@ import { getSecret } from '@/lib/secrets';
 // into the exerciseLibrary/branding paths of the same public-facing bucket
 // that route deliberately locks down for exactly this reason (an SVG with
 // an embedded <script> served back as active content from a public bucket).
-const ALLOWED_CONTENT_TYPE = /^(image|video)\//;
+// Audio is allowed for the breathing soundtrack library (MP3, M4A, WAV, OGG).
+const ALLOWED_CONTENT_TYPE = /^(image|video|audio)\//;
 const DISALLOWED_CONTENT_TYPE = /^image\/svg\+xml$/i;
 const MAX_SIZE_BYTES = 200 * 1024 * 1024; // 200MB — covers a real exercise-demo video
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'filename is required' }, { status: 400 });
     }
     if (!contentType || typeof contentType !== 'string' || !ALLOWED_CONTENT_TYPE.test(contentType) || DISALLOWED_CONTENT_TYPE.test(contentType)) {
-      return NextResponse.json({ error: 'Only image or video uploads are allowed' }, { status: 400 });
+      return NextResponse.json({ error: 'Only image, video or audio uploads are allowed' }, { status: 400 });
     }
     if (typeof sizeBytes !== 'number' || sizeBytes <= 0 || sizeBytes > MAX_SIZE_BYTES) {
       return NextResponse.json({ error: `File must be under ${MAX_SIZE_BYTES / (1024 * 1024)}MB` }, { status: 400 });

@@ -613,6 +613,17 @@ export const IDEA_STATUS_LABEL: Record<IdeaStatus, string> = {
 export const MAX_MEDIA_PER_POST = 10;
 
 /** One photo or clip in a post's carousel. */
+/** A soundtrack for the breathing screen, uploaded by an admin. */
+export interface BreathTrack {
+  id: string;
+  title: string;
+  /** Public file URL (R2 or Firebase Storage). Played through /api/media/audio. */
+  url: string;
+  durationSeconds?: number;
+  order: number;
+  createdAt?: unknown;
+}
+
 export interface PostMedia {
   url: string;
   type: 'image' | 'video';

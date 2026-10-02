@@ -746,6 +746,21 @@ describe('support tickets', () => {
   });
 });
 
+describe('breathTracks — the breathing soundtrack library', () => {
+  const track = { title: 'Breathwork Meditation', url: 'https://cdn.example.com/a.mp3', durationSeconds: 223, order: 1 };
+  beforeEach(async () => { await seed(async (db) => { await setDoc(doc(db, 'breathTracks', 't1'), track); }); });
+
+  it('members read the list; only admins add, rename or remove', async () => {
+    await assertSucceeds(getDocs(collection(asAlice(), 'breathTracks')));
+    await assertFails(getDocs(collection(asAnon(), 'breathTracks')));
+    await assertFails(setDoc(doc(asAlice(), 'breathTracks', 't2'), track));
+    await assertFails(updateDoc(doc(asAlice(), 'breathTracks', 't1'), { title: 'Mine now' }));
+    await assertFails(deleteDoc(doc(asAlice(), 'breathTracks', 't1')));
+    await assertSucceeds(setDoc(doc(asAdmin(), 'breathTracks', 't2'), track));
+    await assertSucceeds(deleteDoc(doc(asAdmin(), 'breathTracks', 't1')));
+  });
+});
+
 describe('challenges', () => {
   const live = { title: 'The 20 Ladder', brief: 'x', status: 'live', entryCount: 0, submissionCount: 0, verifiedCount: 0, media: [], resultType: 'time', difficulty: 'hard' };
   const entry = (uid: string) => ({ challengeId: 'ch1', userId: uid, displayName: 'Alice', status: 'entered', enteredAt: new Date() });

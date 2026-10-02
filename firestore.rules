@@ -579,6 +579,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── Breathing soundtracks ─────────────────────────────────────────────
+    // Songs an admin uploads for the breathing screen. Members pick one;
+    // only admins add, rename or remove them.
+    match /breathTracks/{trackId} {
+      allow read:  if isAuthed();
+      allow write: if isAdmin();
+    }
+
     // ── Community posts ───────────────────────────────────────────────────
     match /posts/{postId} {
       allow read:   if isAuthed();
