@@ -56,9 +56,18 @@ export async function sendPushToUsers(db: Firestore, userIds: string[] | null, p
     try {
       await webpush.sendNotification(sub, body);
     } catch (err) {
-      const statusCode = (err as { statusCode?: number })?.statusCode;
-      if (statusCode === 404 || statusCode === 410) await d.ref.delete().catch(() => {});
-      throw err;
+      const e = err as { statusCode?: number; body?: string; message?: string };
+      const statusCode = e?.statusCode;
+      // 404/410: the browser dropped the subscription. 401/403: the push
+      // service rejects our VAPID signature for this subscription, which
+      // happens when it was created under a different public key; it will
+      // never work again, so it goes too and the device re-subscribes on
+      // its next visit.
+      const dead = statusCode === 404 || statusCode === 410 || statusCode === 401 || statusCode === 403;
+      if (dead) await d.ref.delete().catch(() => {});
+      let host = '?';
+      try { host = new URL(sub.endpoint).host; } catch { /* leave '?' */ }
+      throw new Error(`${statusCode ?? 'no status'} from ${host}${dead ? ' (subscription removed)' : ''}: ${(e?.body || e?.message || '').toString().slice(0, 160)}`);
     }
   }));
   const sent = results.filter((r) => r.status === 'fulfilled').length;

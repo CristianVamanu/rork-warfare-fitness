@@ -87,14 +87,20 @@ function ChallengeCard({ c, index }: { c: Challenge; index: number }) {
     <div className="wf-rise" style={{ animationDelay: `${index * 0.05}s` }}>
       <Link href={`/community/challenges/${c.id}`}>
         <Card className="overflow-hidden hover:border-accent/30 transition-colors card-float">
-          {/* Cover: the first carousel frame, cropped to a wide band so the
-              list stays a list. The full 4:5 shows on the detail page. */}
-          <div className="relative aspect-[16/9] bg-black">
+          {/* Cover: the first carousel frame, shown whole. The frames are
+              portrait reel covers with the headline running most of their
+              height, so any crop cuts the words in half; instead the frame
+              sits in a 4:5 box, letterboxed over a blurred copy of itself. */}
+          <div className="relative aspect-[4/5] bg-black overflow-hidden">
             {cover ? (
-              cover.type === 'video'
-                ? <video src={cover.url} poster={cover.posterURL} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover" />
-                // eslint-disable-next-line @next/next/no-img-element
-                : <img src={cover.url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={cover.type === 'video' ? (cover.posterURL ?? cover.url) : cover.url} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-60" />
+                {cover.type === 'video'
+                  ? <video src={cover.url} poster={cover.posterURL} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-contain" />
+                  // eslint-disable-next-line @next/next/no-img-element
+                  : <img src={cover.url} alt="" className="absolute inset-0 w-full h-full object-contain" />}
+              </>
             ) : (
               <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 40%, rgba(var(--accent-rgb) / 0.3), rgba(0,0,0,0.6) 100%)' }} />
             )}
