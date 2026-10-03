@@ -1,0 +1,228 @@
+#!/usr/bin/env node
+/**
+ * Finds exercises whose demo clip is of a DIFFERENT movement.
+ *
+ *   node --env-file=.env.production scripts/video-mismatch.mjs
+ *       → report only. Worst first, with the reason and a better clip if the
+ *         library has one.
+ *
+ *   node --env-file=.env.production scripts/video-mismatch.mjs --repoint
+ *       → where the library has a clip that genuinely matches the exercise
+ *         name, point the exercise at it.
+ *
+ *   node --env-file=.env.production scripts/video-mismatch.mjs --clear
+ *       → where nothing in the library matches, remove the wrong videoUrl so
+ *         the exercise shows no video instead of a misleading one.
+ *
+ * Both flags can be given together. Neither touches anything the rules judge
+ * to be a correct match.
+ *
+ * WHY CLEARING IS A FIX, NOT A LOSS. A member with no clip does the exercise
+ * as best they understand it and knows they are guessing. A member shown the
+ * wrong clip does a different exercise confidently, because the app told them
+ * that is what it looks like. "Dumbbell Hip Thrust" currently plays a dumbbell
+ * deadlift — those load completely different tissue, and one of them is a
+ * back injury waiting for someone who trusts the video.
+ *
+ * HOW IT DECIDES, and why you can argue with it: for each exercise it finds
+ * which library entry owns the URL it is pointing at, then applies the same
+ * rules the app now uses when matching a name to a clip (src/lib/
+ * exerciseMatch.ts) — the movement word must agree, and every specifier
+ * (band, overhead, seated, upright, weighted...) must appear on both sides or
+ * neither. Every line prints the reason, so a bad call is visible rather than
+ * silent, and the "fix:" it offers is judged by those same rules rather than
+ * being the closest thing it could find.
+ */
+
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+
+const argv = process.argv.slice(2);
+const doRepoint = argv.includes('--repoint');
+const doClear = argv.includes('--clear');
+
+const { FIREBASE_PROJECT_ID: projectId, FIREBASE_CLIENT_EMAIL: clientEmail } = process.env;
+const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+if (!projectId || !clientEmail || !privateKey) {
+  console.error('Run this from /root/rork-warfare-fitness with:');
+  console.error('  node --env-file=.env.production scripts/video-mismatch.mjs');
+  process.exit(1);
+}
+initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+const db = getFirestore();
+
+// ── Mirror of src/lib/exerciseMatch.ts ─────────────────────────────────────
+// Kept in step by the test suite there; this file cannot import TypeScript.
+const STOPWORDS = new Set(['the','a','an','and','or','with','for','to','on','of','in','degree','exercises','exercise']);
+function stem(w) {
+  if (w.length <= 2) return w;
+  if (w.endsWith('ies')) return w.slice(0, -3) + 'y';
+  if (w.endsWith('sses') || w.endsWith('shes') || w.endsWith('ches')) return w.slice(0, -2);
+  if (w.endsWith('s') && !w.endsWith('ss')) return w.slice(0, -1);
+  return w;
+}
+const COMPOUNDS = { pullup:['pull','up'], pushup:['push','up'], chinup:['chin','up'], situp:['sit','up'], stepup:['step','up'], pulldown:['pull','down'], pressup:['press','up'], signup:['sign','up'] };
+const SYNONYMS = { rise:'raise', flye:'fly', flie:'fly', jog:'run', sprint:'run', pressup:'pushup' };
+function deGerund(w) {
+  if (!w.endsWith('ing') || w.length < 6) return w;
+  const b = w.slice(0, -3);
+  if (/([bdfglmnprt])\1$/.test(b)) return b.slice(0, -1);
+  return b;
+}
+function tokenize(name) {
+  return String(name ?? '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+    .filter((w) => w.length > 0 && !/^\d+$/.test(w))
+    .flatMap((w) => COMPOUNDS[stem(w)] ?? [w])
+    .map((w) => deGerund(stem(w)))
+    .map((w) => SYNONYMS[w] ?? w)
+    .filter((w) => w.length > 0 && !STOPWORDS.has(w));
+}
+const SPECIFIER_WORDS = [
+  // equipment
+  'band', 'cable', 'dumbbell', 'barbell', 'barebell', 'kettlebell', 'machine', 'lever', 'smith', 'sled', 'bodyweight',
+  // where the load is / body position
+  'overhead', 'bench', 'incline', 'decline', 'floor', 'shoulder', 'chest', 'military', 'goblet', 'goodmorning',
+  'seated', 'standing', 'lying', 'kneeling', 'hanging', 'stretching', 'supine', 'prone',
+  // grip and stance
+  'wide', 'close', 'narrow', 'reverse', 'underhand', 'overhand', 'sumo', 'staggered', 'split',
+  // which side / how many limbs
+  'single', 'one', 'alternate', 'alternating', 'unilateral',
+  // named variants that are genuinely different exercises
+  'upright', 'bent', 'inverted', 'renegade', 'pendlay', 'preacher', 'concentration', 'hammer', 'skull',
+  'romanian', 'stiff', 'sissy', 'bulgarian', 'pistol', 'zercher', 'jefferson', 'arnold', 'diamond',
+  'jump', 'jumping', 'plyo', 'explosive', 'isometric', 'eccentric', 'pause', 'tempo',
+  // direction
+  'front', 'back', 'rear', 'side', 'lateral', 'forward', 'backward',
+  // load added or removed — a weighted pull-up is not an assisted one
+  'weighted', 'assisted', 'banded',
+];
+const SPECIFIERS = new Set(SPECIFIER_WORDS.flatMap((w) => tokenize(w)));
+function unmatchedSpecifier(a, b) {
+  const A = new Set(a.filter((w) => SPECIFIERS.has(w)));
+  const B = new Set(b.filter((w) => SPECIFIERS.has(w)));
+  const onlyA = [...A].filter((w) => !B.has(w));
+  const onlyB = [...B].filter((w) => !A.has(w));
+  if (!onlyA.length && !onlyB.length) return null;
+  if (onlyA.length && onlyB.length) return `${onlyA[0]} vs ${onlyB[0]}`;
+  return onlyA.length ? `"${onlyA[0]}" only on one side` : `"${onlyB[0]}" only on one side`;
+}
+function matchExerciseNames(a, b, threshold = 0.5) {
+  const ta = tokenize(a), tb = tokenize(b);
+  if (!ta.length || !tb.length) return { score: 0, ok: false, reason: 'no usable words' };
+  const A = new Set(ta), B = new Set(tb);
+  const shared = [...A].filter((w) => B.has(w));
+  const score = shared.length / new Set([...A, ...B]).size;
+  if (A.size === B.size && shared.length === A.size) return { score: 1, ok: true };
+  const ma = ta[ta.length - 1], mb = tb[tb.length - 1];
+  if (ma && mb && ma !== mb && !B.has(ma) && !A.has(mb)) return { score, ok: false, reason: `different movement (${ma} vs ${mb})` };
+  const clash = unmatchedSpecifier(ta, tb);
+  if (clash) return { score, ok: false, reason: `different exercise: ${clash}` };
+  if (score < threshold) return { score, ok: false, reason: `only ${Math.round(score * 100)}% of the words in common` };
+  return { score, ok: true };
+}
+
+// ── Load ───────────────────────────────────────────────────────────────────
+const libSnap = await db.collection('exerciseLibrary').get();
+const library = libSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((e) => e.videoUrl);
+const ownerOfUrl = new Map();
+for (const e of library) if (!ownerOfUrl.has(e.videoUrl)) ownerOfUrl.set(e.videoUrl, e);
+
+const progSnap = await db.collection('programs').get();
+const docs = new Map();
+const slots = [];
+for (const doc of progSnap.docs) {
+  const data = doc.data();
+  const entry = { ref: doc.ref, data, dirty: false };
+  docs.set(doc.ref.path, entry);
+  const eat = (list) => (list ?? []).forEach((ex) => {
+    if (ex?.name && ex.videoUrl) slots.push({ program: data.name ?? doc.id, ex, entry });
+  });
+  (data.phases ?? []).forEach((ph) => (ph.schedule ?? []).forEach((d) => eat(d.exercises)));
+  (data.schedule ?? []).forEach((d) => eat(d.exercises));
+  eat(data.exercises);
+}
+
+/** Best library entry for a name, under the same rules the app now uses. */
+function bestLibraryMatch(name) {
+  let best = null;
+  for (const e of library) {
+    for (const cand of [e.name, ...(e.aliases ?? [])]) {
+      if (!cand) continue;
+      const m = matchExerciseNames(name, cand);
+      if (m.ok && (!best || m.score > best.score)) best = { entry: e, score: m.score, via: cand };
+    }
+  }
+  return best;
+}
+
+// ── Judge ──────────────────────────────────────────────────────────────────
+const suspects = [];
+const cacheVerdict = new Map();
+const cacheBest = new Map();
+for (const s of slots) {
+  const owner = ownerOfUrl.get(s.ex.videoUrl);
+  if (!owner) continue; // URL not traceable to a library entry — video-check covers dead URLs
+  const key = `${s.ex.name} ${owner.name}`;
+  if (!cacheVerdict.has(key)) cacheVerdict.set(key, matchExerciseNames(s.ex.name, owner.name));
+  const verdict = cacheVerdict.get(key);
+  if (verdict.ok) continue;
+  if (!cacheBest.has(s.ex.name)) cacheBest.set(s.ex.name, bestLibraryMatch(s.ex.name));
+  suspects.push({ ...s, owner, verdict, better: cacheBest.get(s.ex.name) });
+}
+
+if (!suspects.length) {
+  console.log('\nEvery exercise with a clip points at a matching movement.\n');
+  process.exit(0);
+}
+
+// ── Report ─────────────────────────────────────────────────────────────────
+const pad = (s, n) => String(s ?? '').slice(0, n).padEnd(n);
+const groups = new Map();
+for (const s of suspects) {
+  const key = `${s.ex.name} ${s.owner.name}`;
+  if (!groups.has(key)) groups.set(key, { name: s.ex.name, owner: s.owner, verdict: s.verdict, better: s.better, programs: new Set(), slots: [] });
+  groups.get(key).programs.add(s.program);
+  groups.get(key).slots.push(s);
+}
+const ordered = [...groups.values()].sort((a, b) => a.verdict.score - b.verdict.score);
+
+console.log(`\n${suspects.length} exercise slot(s) across ${ordered.length} distinct pairing(s) are showing a clip of a different movement.\n`);
+let repointable = 0, clearable = 0;
+for (const g of ordered) {
+  const fix = g.better && g.better.entry.videoUrl !== g.slots[0].ex.videoUrl;
+  if (fix) repointable += g.slots.length; else clearable += g.slots.length;
+  console.log(`✗ ${g.name}`);
+  console.log(`     plays: "${g.owner.name}"  — ${g.verdict.reason}`);
+  console.log(`     in:    ${[...g.programs].join(', ')}  (${g.slots.length} slot${g.slots.length === 1 ? '' : 's'})`);
+  console.log(fix
+    ? `     fix:   → "${g.better.entry.name}"${g.better.via !== g.better.entry.name ? ` (matched on alias "${g.better.via}")` : ''}   [--repoint]`
+    : `     fix:   nothing in the library matches this name — remove the wrong clip   [--clear]`);
+  console.log('');
+}
+console.log(`${repointable} slot(s) can be repointed at a correct clip   (--repoint)`);
+console.log(`${clearable} slot(s) have no correct clip available         (--clear)`);
+
+if (!doRepoint && !doClear) {
+  console.log(`\nReport only. Re-run with --repoint and/or --clear to change anything.\n`);
+  process.exit(0);
+}
+
+// ── Apply ──────────────────────────────────────────────────────────────────
+let repointed = 0, cleared = 0;
+for (const g of ordered) {
+  const fix = g.better && g.better.entry.videoUrl !== g.slots[0].ex.videoUrl;
+  for (const s of g.slots) {
+    if (fix && doRepoint) { s.ex.videoUrl = g.better.entry.videoUrl; s.entry.dirty = true; repointed++; }
+    else if (!fix && doClear) { delete s.ex.videoUrl; s.entry.dirty = true; cleared++; }
+  }
+}
+const dirty = [...docs.values()].filter((d) => d.dirty);
+for (let i = 0; i < dirty.length; i += 400) {
+  const batch = db.batch();
+  for (const d of dirty.slice(i, i + 400)) batch.set(d.ref, d.data);
+  await batch.commit();
+}
+console.log(`\nRepointed ${repointed}, cleared ${cleared}, across ${dirty.length} program document(s).`);
+console.log(`Members pick this up on their next session load.`);
+console.log(`Cleared exercises now show the info button with their form cue and no video — upload a clip for them when you can.\n`);
+process.exit(0);

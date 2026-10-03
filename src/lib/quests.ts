@@ -18,43 +18,15 @@ export interface QuestDef {
   rewardTitle: string; // e.g. "Legendary Badge"
 }
 
+// Thresholds intentionally form a steep ladder, not a flat one — first_blood
+// is left as an easy, fast first win (an onboarding hook, not a real test),
+// but every tier after that jumps by a wide margin. The old thresholds let
+// a genuinely dedicated user clear every quest in the list within a couple
+// months and then hit a dead end with nothing left to chase — titan and the
+// two new endgame tiers below now require 6+ months of real consistency,
+// and immortal/warlord exist specifically so "I finished all the quests"
+// stops being a real end state.
 export const QUEST_DEFS: QuestDef[] = [
-  {
-    id: 'become_spartan',
-    title: 'Become Spartan',
-    tagline: 'Prove your discipline over weeks, not days.',
-    requirements: [
-      { kind: 'totalWorkouts', target: 30, label: 'Complete 30 workouts' },
-      { kind: 'streak', target: 21, label: 'Reach a 21-day streak' },
-      { kind: 'powerLevel', target: 35, label: 'Reach Power Level 35' },
-    ],
-    rewardIcon: '🏛️',
-    rewardTitle: 'Spartan Badge',
-  },
-  {
-    id: 'iron_warrior',
-    title: 'Iron Warrior',
-    tagline: 'Move serious weight, consistently.',
-    requirements: [
-      { kind: 'totalWeightLifted', target: 25000, label: 'Lift 25,000kg total volume' },
-      { kind: 'totalWorkouts', target: 20, label: 'Complete 20 workouts' },
-      { kind: 'powerLevel', target: 20, label: 'Reach Power Level 20' },
-    ],
-    rewardIcon: '👑',
-    rewardTitle: 'Iron Crown',
-  },
-  {
-    id: 'unstoppable',
-    title: 'Unstoppable',
-    tagline: 'The long game. Not for the faint-hearted.',
-    requirements: [
-      { kind: 'streak', target: 45, label: 'Reach a 45-day streak' },
-      { kind: 'totalWorkouts', target: 75, label: 'Complete 75 workouts' },
-      { kind: 'powerLevel', target: 65, label: 'Reach Power Level 65' },
-    ],
-    rewardIcon: '🔥',
-    rewardTitle: 'Phoenix Badge',
-  },
   {
     id: 'first_blood',
     title: 'First Blood',
@@ -67,28 +39,91 @@ export const QUEST_DEFS: QuestDef[] = [
     rewardTitle: 'First Blood Badge',
   },
   {
+    id: 'iron_warrior',
+    title: 'Iron Warrior',
+    tagline: 'Move serious weight, consistently.',
+    requirements: [
+      { kind: 'totalWeightLifted', target: 40000, label: 'Lift 40,000kg total volume' },
+      { kind: 'totalWorkouts', target: 30, label: 'Complete 30 workouts' },
+      { kind: 'powerLevel', target: 25, label: 'Reach Power Level 25' },
+    ],
+    rewardIcon: '👑',
+    rewardTitle: 'Iron Crown',
+  },
+  {
     id: 'total_warrior',
     title: 'Total Warrior',
     tagline: 'Fuel matches effort. Master both.',
     requirements: [
-      { kind: 'totalWorkouts', target: 25, label: 'Complete 25 workouts' },
-      { kind: 'totalMealsLogged', target: 60, label: 'Log 60 meals' },
-      { kind: 'powerLevel', target: 30, label: 'Reach Power Level 30' },
+      { kind: 'totalWorkouts', target: 40, label: 'Complete 40 workouts' },
+      { kind: 'totalMealsLogged', target: 100, label: 'Log 100 meals' },
+      { kind: 'powerLevel', target: 40, label: 'Reach Power Level 40' },
     ],
     rewardIcon: '⚡',
     rewardTitle: 'Total Warrior Badge',
+  },
+  {
+    id: 'become_spartan',
+    title: 'Become Spartan',
+    tagline: 'Prove your discipline over weeks, not days.',
+    requirements: [
+      { kind: 'totalWorkouts', target: 50, label: 'Complete 50 workouts' },
+      { kind: 'streak', target: 30, label: 'Reach a 30-day streak' },
+      { kind: 'powerLevel', target: 50, label: 'Reach Power Level 50' },
+    ],
+    rewardIcon: '🏛️',
+    rewardTitle: 'Spartan Badge',
+  },
+  {
+    id: 'unstoppable',
+    title: 'Unstoppable',
+    tagline: 'The long game. Not for the faint-hearted.',
+    requirements: [
+      { kind: 'streak', target: 60, label: 'Reach a 60-day streak' },
+      { kind: 'totalWorkouts', target: 120, label: 'Complete 120 workouts' },
+      { kind: 'powerLevel', target: 90, label: 'Reach Power Level 90' },
+    ],
+    rewardIcon: '🔥',
+    rewardTitle: 'Phoenix Badge',
   },
   {
     id: 'titan',
     title: 'Titan',
     tagline: 'The absolute pinnacle. Very few reach this.',
     requirements: [
-      { kind: 'totalWeightLifted', target: 100000, label: 'Lift 100,000kg total volume' },
-      { kind: 'totalWorkouts', target: 150, label: 'Complete 150 workouts' },
-      { kind: 'powerLevel', target: 120, label: 'Reach Power Level 120' },
+      { kind: 'totalWeightLifted', target: 180000, label: 'Lift 180,000kg total volume' },
+      { kind: 'totalWorkouts', target: 220, label: 'Complete 220 workouts' },
+      { kind: 'powerLevel', target: 160, label: 'Reach Power Level 160' },
     ],
     rewardIcon: '🌋',
     rewardTitle: 'Titan Badge',
+  },
+  // ── Endgame tier — for users who clear everything above and want a
+  // reason to keep going. Deliberately no ceiling on this list; add
+  // another tier above warlord if these two ever stop feeling out of reach.
+  {
+    id: 'immortal',
+    title: 'Immortal',
+    tagline: 'A streak this long stops being a habit. It becomes who you are.',
+    requirements: [
+      { kind: 'streak', target: 100, label: 'Reach a 100-day streak' },
+      { kind: 'totalWorkouts', target: 300, label: 'Complete 300 workouts' },
+      { kind: 'powerLevel', target: 220, label: 'Reach Power Level 220' },
+    ],
+    rewardIcon: '⚔️',
+    rewardTitle: 'Immortal Badge',
+  },
+  {
+    id: 'warlord',
+    title: 'Warlord',
+    tagline: 'The final tier. Almost no one gets here.',
+    requirements: [
+      { kind: 'totalWeightLifted', target: 300000, label: 'Lift 300,000kg total volume' },
+      { kind: 'totalWorkouts', target: 400, label: 'Complete 400 workouts' },
+      { kind: 'powerLevel', target: 300, label: 'Reach Power Level 300' },
+    ],
+    rewardIcon: '☠️',
+    rewardTitle: 'Warlord Badge',
   },
 ];
 

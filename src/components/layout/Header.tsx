@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, MessageCircle, ChevronLeft } from 'lucide-react';
+import { Bell, MessageCircle, LifeBuoy, ChevronLeft } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserConversations, getUnreadNotificationCount, getSystemConfig } from '@/lib/firestore';
+import { useHeaderData } from '@/contexts/HeaderDataContext';
 
 interface HeaderProps {
   title?: string;
@@ -17,69 +17,51 @@ interface HeaderProps {
 }
 
 export function Header({ title, showActions = true, rightElement, showBack = false }: HeaderProps) {
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const router = useRouter();
-  const [unreadMessages, setUnreadMessages] = useState(0);
-  const [unreadNotifs, setUnreadNotifs] = useState(0);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [appName, setAppName] = useState<string>('Warfare Fitness');
+  // Shared conversations/notifications/branding data lives in
+  // HeaderDataProvider (mounted once in (app)/layout.tsx) instead of being
+  // fetched here — Header itself is rendered per-page across ~19 screens,
+  // so subscribing here used to tear down and re-open those listeners
+  // (and re-fetch branding config) on every single tab navigation.
+  const { hasConversation, unreadMessages, unreadNotifs, hasSupportTicket, unreadSupport, logoUrl, appName, openChat } = useHeaderData();
 
-  useEffect(() => {
-    // system/config is publicly readable (branding needs to render before
-    // sign-in too), so no need to wait on auth here. It previously read
-    // isAuthed()-gated and this effect fired before Firebase Auth finished
-    // initializing, so the read got permission-denied and silently never
-    // retried, leaving the logo/name stuck on their fallback forever.
-    getSystemConfig().then(cfg => {
-      if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string);
-      if (cfg?.appName) setAppName(cfg.appName as string);
-    }).catch(() => {});
-  }, []);
+  const isAdmin = profile?.role === 'admin';
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-
-    const load = () => {
-      getUserConversations(user.uid)
-        .then(convs => { if (!cancelled) setUnreadMessages(convs.filter(c => c.unreadByUser).length); })
-        .catch(() => {});
-      getUnreadNotificationCount(user.uid)
-        .then(count => { if (!cancelled) setUnreadNotifs(count); })
-        .catch(() => {});
-    };
-
-    load();
-    const interval = setInterval(load, 30_000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, [user]);
+  const [logoErrored, setLogoErrored] = React.useState(false);
+  React.useEffect(() => { setLogoErrored(false); }, [logoUrl]);
 
   return (
     <header
-      style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--border-subtle)' }}
-      className="sticky top-0 z-30 backdrop-blur-xl border-b"
+      // Transparent instead of an opaque --header-bg fill — lets
+      // AppBackground's grid/orbs show through instead of the header
+      // reading as a separate solid block sitting on top of it. Still
+      // sticky + backdrop-blur, so scrolled content underneath stays
+      // legible (frosted-glass, not a hard-edged bar) without a border
+      // to draw a line between "header" and "background."
+      className="sticky top-0 z-30 backdrop-blur-xl"
     >
-      <div className="flex items-center justify-between px-4 py-3 max-w-lg mx-auto">
+      <div className="flex items-center justify-between px-4 py-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
         {title ? (
           <div className="flex items-center gap-1">
             {showBack && (
               <button
                 onClick={() => router.back()}
-                className="p-1.5 -ml-1.5 rounded-xl text-text-secondary hover:text-foreground transition-colors"
+                className="wf-icon-tile -ml-1 mr-1"
                 aria-label="Back"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-[19px] h-[19px]" strokeWidth={1.75} />
               </button>
             )}
             <h1 className="text-lg font-bold text-foreground">{title}</h1>
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center overflow-hidden">
-              {logoUrl ? (
-                <Image src={logoUrl} alt="Logo" width={28} height={28} className="w-full h-full object-cover" />
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden ${logoUrl && !logoErrored ? '' : 'bg-accent'}`}>
+              {logoUrl && !logoErrored ? (
+                <Image src={logoUrl} alt="Logo" width={40} height={40} className="w-full h-full object-cover" onError={() => setLogoErrored(true)} />
               ) : (
-                <span className="text-xs font-black" style={{ color: 'var(--btn-primary-text)' }}>W</span>
+                <span className="text-sm font-black" style={{ color: 'var(--btn-primary-text)' }}>W</span>
               )}
             </div>
             <span className="text-sm font-bold text-foreground whitespace-nowrap">{appName}</span>
@@ -92,27 +74,59 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
             <>
               <Link
                 href="/notifications"
-                className="relative p-2 rounded-xl text-text-secondary transition-colors"
+                aria-label={unreadNotifs > 0 ? `Notifications, ${unreadNotifs} unread` : 'Notifications'}
+                className="wf-icon-tile"
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-[19px] h-[19px]" strokeWidth={1.75} />
                 {unreadNotifs > 0 && (
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
+                  <span className="wf-icon-badge tabular-nums">
                     {unreadNotifs > 9 ? '9+' : unreadNotifs}
                   </span>
                 )}
               </Link>
+              {/* Opens the chat panel over the current screen — no navigation,
+                  for staff or members. The full pages still exist for deep
+                  links and for the drawer's own "Full inbox" link. */}
+              {hasConversation && (
+                <button
+                  type="button"
+                  onClick={openChat}
+                  aria-label={unreadMessages > 0 ? `Messages, ${unreadMessages} unread` : 'Messages'}
+                  className="wf-icon-tile"
+                >
+                  <MessageCircle className="w-[19px] h-[19px]" strokeWidth={1.75} />
+                  {unreadMessages > 0 && (
+                    <span className="wf-icon-badge tabular-nums">
+                      {unreadMessages > 9 ? '9+' : unreadMessages}
+                    </span>
+                  )}
+                </button>
+              )}
+              {/* Appears for a member the moment they open their first
+                  support request, and permanently for staff (who always have
+                  an inbox to check). Separate from the message icon above so
+                  each one goes somewhere unambiguous. */}
+              {hasSupportTicket && (
+                <Link
+                  href={isAdmin ? '/admin?tab=support' : '/support'}
+                  aria-label={unreadSupport > 0 ? `Support, ${unreadSupport} unread` : 'Support'}
+                  className="wf-icon-tile"
+                >
+                  <LifeBuoy className="w-[19px] h-[19px]" strokeWidth={1.75} />
+                  {unreadSupport > 0 && (
+                    <span className="wf-icon-badge tabular-nums">
+                      {unreadSupport > 9 ? '9+' : unreadSupport}
+                    </span>
+                  )}
+                </Link>
+              )}
+              {/* The avatar keeps its photo but sits in the same tile as the
+                  rest of the row, so the four actions read as one set. */}
               <Link
-                href="/messages"
-                className="relative p-2 rounded-xl text-text-secondary transition-colors"
+                href="/settings"
+                aria-label="Settings"
+                className="wf-icon-tile overflow-hidden p-[3px]"
               >
-                <MessageCircle className="w-5 h-5" />
-                {unreadMessages > 0 && (
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
-                    {unreadMessages > 9 ? '9+' : unreadMessages}
-                  </span>
-                )}
-              </Link>
-              <Link href="/settings">
                 <Avatar src={profile?.photoURL} name={profile?.displayName} size="sm" />
               </Link>
             </>

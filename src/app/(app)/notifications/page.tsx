@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, BellOff, CheckCheck, Zap, Dumbbell, Flame, Trophy, MessageSquare, Crown, XCircle, Trash2, BadgeCheck } from 'lucide-react';
+import { Bell, BellOff, CheckCheck, Zap, Dumbbell, Flame, Trophy, MessageSquare, Crown, XCircle, Trash2, BadgeCheck, Heart, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -26,6 +26,9 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   coaching_rejected: XCircle,
   pr_approved: BadgeCheck,
   pr_rejected: XCircle,
+  message: MessageSquare,
+  community_like: Heart,
+  community_reply: MessageCircle,
 };
 
 const TYPE_COLOR: Record<string, string> = {
@@ -38,6 +41,9 @@ const TYPE_COLOR: Record<string, string> = {
   coaching_rejected: 'text-danger bg-danger/10',
   pr_approved: 'text-accent bg-accent-muted',
   pr_rejected: 'text-danger bg-danger/10',
+  message: 'text-blue-400 bg-blue-400/10',
+  community_like: 'text-danger bg-danger/10',
+  community_reply: 'text-accent bg-accent-muted',
 };
 
 function timeAgo(ts: unknown): string {
@@ -146,7 +152,7 @@ export default function NotificationsPage() {
           <div className="flex flex-col items-center justify-center py-20">
             <BellOff className="w-12 h-12 text-text-tertiary mb-4" />
             <p className="text-white font-bold">No notifications yet</p>
-            <p className="text-text-secondary text-sm mt-1">Your coach's updates will appear here.</p>
+            <p className="text-text-secondary text-sm mt-1">Updates will appear here.</p>
           </div>
         ) : visibleNotifs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
@@ -160,12 +166,7 @@ export default function NotificationsPage() {
               const Icon = TYPE_ICON[n.type] ?? Bell;
               const colorClass = TYPE_COLOR[n.type] ?? 'text-text-secondary bg-surface-elevated';
               return (
-                <motion.div
-                  key={n.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                >
+                <div key={n.id} className="wf-rise" style={{ animationDelay: `${i * 0.04}s` }}>
                   <Card
                     className={`p-4 cursor-pointer transition-colors hover:bg-white/5 ${!n.read ? 'border-accent/30' : 'opacity-70'}`}
                     onClick={() => handleMarkRead(n)}
@@ -196,7 +197,7 @@ export default function NotificationsPage() {
                       </div>
                     </div>
                   </Card>
-                </motion.div>
+                </div>
               );
             })}
           </div>

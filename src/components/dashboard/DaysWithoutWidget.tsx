@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Ban, Plus, RotateCcw, Trash2, Flame, Quote } from 'lucide-react';
+import { ShieldOff, Plus, RotateCcw, Trash2, Flame, Quote } from 'lucide-react';
+import { Medallion } from '@/components/dashboard/Medallion';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDaysWithoutGoal, resetDaysWithoutGoal, deleteDaysWithoutGoal } from '@/lib/firestore';
@@ -89,13 +90,14 @@ export function DaysWithoutWidget() {
 
   return (
     <>
-      <Card className="p-4 space-y-3">
+      <Card glass className="p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-danger/10">
-              <Ban className="w-4 h-4 text-danger" />
+          <div className="flex items-center gap-3.5">
+            <Medallion><ShieldOff className="w-6 h-6" strokeWidth={2} /></Medallion>
+            <div>
+              <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Days without</span>
+              <p className="text-[15px] font-extrabold text-white leading-tight">Habits you are quitting</p>
             </div>
-            <p className="text-sm font-bold text-white">Days Without</p>
           </div>
           <button onClick={() => setAddModal(true)} className="p-1.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
             <Plus className="w-4 h-4" />

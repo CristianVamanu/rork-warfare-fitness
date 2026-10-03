@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
  * the app holds about the requesting user as a downloadable JSON file. */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuthed } from '@/lib/verifyAdmin';
+import { verifyAuthedNotTfaPending as verifyAuthed } from '@/lib/verifyAdmin';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { exportUserData } from '@/lib/accountDeletion';
 

@@ -1,139 +1,43 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { X, Download, Share } from 'lucide-react';
-import { getSystemConfig } from '@/lib/firestore';
+import { useEffect } from 'react';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
+import { initInstallCapture, isStandalone } from '@/lib/pwaInstall';
 
-// BeforeInstallPromptEvent is non-standard; define a minimal interface
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
+const INSTALL_RECORDED_KEY = 'pwa_install_recorded';
 
-const SNOOZE_KEY = 'pwa_install_snoozed_until';
-const SNOOZE_DAYS = 30;
-
-// In-memory guard, separate from the localStorage snooze. Covers the case
-// where this component gets remounted within the same page session (e.g. by
-// a parent re-render or a stray key change) before the 30-day snooze would
-// otherwise apply — without this, a dismissed banner could flash back on.
-let dismissedThisSession = false;
-
-function isSnoozed() {
-  const val = localStorage.getItem(SNOOZE_KEY);
-  if (!val) return false;
-  return Date.now() < parseInt(val, 10);
-}
-
-function snooze() {
-  const until = Date.now() + SNOOZE_DAYS * 24 * 60 * 60 * 1000;
-  localStorage.setItem(SNOOZE_KEY, String(until));
-}
-
+/**
+ * Mounted once in the app layout. It no longer draws anything: the ask to
+ * install moved to the strip at the top of the home screen
+ * (components/app/InstallAppStrip), which is always visible in a browser
+ * tab and opens device-specific steps. What stays here is app-wide work:
+ * catching the browser's one-shot install event before the home screen
+ * mounts, and recording the first standalone launch for the admin stats.
+ */
 export function PwaInstallBanner() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isIos, setIsIos] = useState(false);
-  const [show, setShow] = useState(false);
-  const [enabled, setEnabled] = useState<boolean | null>(null); // null = loading
+  const { user, profile } = useAuth();
 
-  // Check admin toggle
+  useEffect(() => { initInstallCapture(); }, []);
+
+  // Record an install once, the first time the app is opened standalone.
+  // iOS gives no install event at all, so the launch itself is the signal
+  // for every platform; the admin analytics can count pwaInstalledAt.
   useEffect(() => {
-    getSystemConfig()
-      .then((cfg) => {
-        // default to enabled if not explicitly set to false
-        const flag = cfg?.pwaInstallBannerEnabled;
-        setEnabled(flag === false ? false : true);
-      })
-      .catch(() => setEnabled(true));
-  }, []);
-
-  useEffect(() => {
-    if (enabled === null || enabled === false) return;
-    if (dismissedThisSession) return;
-
-    // Already installed as PWA
-    if (window.matchMedia('(display-mode: standalone)').matches) return;
-
-    // Already snoozed
-    if (isSnoozed()) return;
-
-    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) && !(window as unknown as { MSStream?: unknown }).MSStream;
-    setIsIos(ios);
-
-    if (ios) {
-      // Show iOS instructions immediately (no install prompt available)
-      const t = setTimeout(() => {
-        if (!dismissedThisSession) setShow(true);
-      }, 3000);
-      return () => clearTimeout(t);
+    if (!user) return;
+    if (!isStandalone()) return;
+    try {
+      if (localStorage.getItem(INSTALL_RECORDED_KEY) === user.uid) return;
+    } catch { /* fall through and write; a duplicate merge is harmless */ }
+    if (profile && (profile as { pwaInstalledAt?: unknown }).pwaInstalledAt) {
+      try { localStorage.setItem(INSTALL_RECORDED_KEY, user.uid); } catch { /* ignore */ }
+      return;
     }
+    setDoc(doc(db, 'users', user.uid), { pwaInstalledAt: serverTimestamp() }, { merge: true })
+      .then(() => { try { localStorage.setItem(INSTALL_RECORDED_KEY, user.uid); } catch { /* ignore */ } })
+      .catch(() => { /* analytics only — never surface */ });
+  }, [user, profile]);
 
-    // Android / desktop Chrome — wait for beforeinstallprompt
-    let showTimer: ReturnType<typeof setTimeout> | null = null;
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-      showTimer = setTimeout(() => {
-        if (!dismissedThisSession) setShow(true);
-      }, 3000);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handler);
-      if (showTimer) clearTimeout(showTimer);
-    };
-  }, [enabled]);
-
-  function dismiss() {
-    dismissedThisSession = true;
-    snooze();
-    setShow(false);
-  }
-
-  async function install() {
-    if (!deferredPrompt) return;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    dismissedThisSession = true;
-    if (outcome === 'accepted') snooze();
-    setShow(false);
-    setDeferredPrompt(null);
-  }
-
-  if (!show) return null;
-
-  return (
-    <div className="fixed bottom-20 left-4 right-4 z-50 max-w-sm mx-auto">
-      <div className="bg-surface-elevated border border-white/10 rounded-2xl p-4 shadow-2xl">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center flex-shrink-0">
-            <span className="text-base font-black text-black">W</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-white">Add to Home Screen</p>
-            {isIos ? (
-              <p className="text-xs text-text-secondary mt-0.5">
-                Tap <Share className="w-3 h-3 inline mx-0.5 text-blue-400" /> then &quot;Add to Home Screen&quot; for the full app experience.
-              </p>
-            ) : (
-              <p className="text-xs text-text-secondary mt-0.5">
-                Install the app for faster access, offline support, and push notifications.
-              </p>
-            )}
-            {!isIos && (
-              <button
-                onClick={install}
-                className="mt-2 flex items-center gap-1.5 bg-accent text-black text-xs font-bold px-3 py-1.5 rounded-lg"
-              >
-                <Download className="w-3.5 h-3.5" /> Install App
-              </button>
-            )}
-          </div>
-          <button onClick={dismiss} className="text-text-tertiary hover:text-white p-0.5 flex-shrink-0">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  return null;
 }

@@ -6,9 +6,10 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   Apple, Smartphone, Monitor, Share, MoreVertical, PlusSquare,
-  ArrowRight, Crown, Menu, X as XIcon, Zap, Download,
+  ArrowRight, Crown, Menu, X as XIcon, Zap, Download, ChevronLeft,
 } from 'lucide-react';
 import { getSystemConfig } from '@/lib/firestore';
+import { useAuth } from '@/contexts/AuthContext';
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
@@ -66,6 +67,10 @@ export default function DownloadClient({
   const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activePlatform, setActivePlatform] = useState<string>('ios');
+  // A signed-in member reaches this page from Profile → "Install the app".
+  // It lives outside the app shell (no bottom nav, no header back button),
+  // so without this they had no way back except the browser's own control.
+  const { user } = useAuth();
 
   useEffect(() => {
     getSystemConfig().then((cfg) => {
@@ -81,6 +86,15 @@ export default function DownloadClient({
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
+      {user && (
+        <div className="sticky top-0 z-30 bg-background/90 backdrop-blur-xl border-b border-white/8">
+          <div className="max-w-6xl mx-auto px-4 h-12 flex items-center">
+            <Link href="/profile" className="inline-flex items-center gap-1 text-sm font-semibold text-accent hover:text-white transition-colors">
+              <ChevronLeft className="w-4 h-4" /> Back to Profile
+            </Link>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="relative z-20 border-b border-white/8">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -234,14 +248,17 @@ export default function DownloadClient({
 
         <div className="grid md:grid-cols-3 gap-5">
           {PLATFORMS.map((platform, pIdx) => (
-            <motion.div
+            // The id is the scroll target for the platform buttons above —
+            // scrollToPlatform does getElementById(`platform-${id}`). It was
+            // dropped when this stopped being a motion.div, so every one of
+            // those buttons had been silently doing nothing. `scroll-mt-24`
+            // surviving alone is the tell: margin for an anchor that was no
+            // longer there.
+            <div
               key={platform.id}
               id={`platform-${platform.id}`}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-40px' }}
-              transition={{ duration: 0.3, delay: pIdx * 0.05 }}
-              className="rounded-2xl border border-white/10 bg-surface p-5 scroll-mt-24"
+              className="rounded-2xl border border-white/10 bg-surface p-5 scroll-mt-24 wf-rise"
+              style={{ animationDelay: `${pIdx * 0.05}s` }}
             >
               <p className="text-[11px] font-bold uppercase tracking-widest text-accent mb-2">{platform.eyebrow}</p>
               <div className="flex items-center gap-2 mb-5">
@@ -267,7 +284,7 @@ export default function DownloadClient({
                   </li>
                 ))}
               </ol>
-            </motion.div>
+            </div>
           ))}
         </div>
       </section>

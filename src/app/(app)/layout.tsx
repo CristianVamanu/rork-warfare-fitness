@@ -1,18 +1,45 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { signOut } from '@/lib/auth';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { getMembershipConfig } from '@/lib/firestore';
+import { HeaderDataProvider } from '@/contexts/HeaderDataContext';
 import { BottomNav } from '@/components/layout/BottomNav';
-import { FullPageSpinner } from '@/components/ui/Spinner';
+import { BrandSplash } from '@/components/ui/BrandSplash';
 import { PwaInstallBanner } from '@/components/ui/PwaInstallBanner';
 import { MembershipGuard } from '@/components/ui/MembershipGuard';
+import { WelcomeVideo } from '@/components/ui/WelcomeVideo';
+import { VerifyEmailNotice } from '@/components/ui/VerifyEmailNotice';
+import { AppThemeScope } from '@/contexts/ThemeContext';
+import { AppBackground } from '@/components/ui/AppBackground';
+import { ChatDrawer } from '@/components/chat/ChatDrawer';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+
+  // Kick the membership config off NOW, in parallel with auth and the
+  // profile, instead of when MembershipGuard mounts — which is only after
+  // both of those have already resolved. Three network round trips were
+  // running one after another before the app drew anything; this makes the
+  // third overlap the first two. getMembershipConfig dedupes in flight and
+  // caches, so the guard's own call gets this same promise.
+  useEffect(() => { void getMembershipConfig().catch(() => {}); }, []);
+
+  // If the profile document never arrives (rules rejected its creation, an
+  // offline first login, a listener stuck on permission-denied), this layout
+  // used to show a spinner forever with no message and no way out short of
+  // clearing site data. After a bounded wait, say so and offer sign-out.
+  const [profileStalled, setProfileStalled] = useState(false);
+  useEffect(() => {
+    if (loading || !user || profile !== null) { setProfileStalled(false); return; }
+    const t = setTimeout(() => setProfileStalled(true), 15_000);
+    return () => clearTimeout(t);
+  }, [loading, user, profile]);
 
   useEffect(() => {
     if (loading) return;
@@ -29,6 +56,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.replace('/banned');
       return;
     }
+    // A code was just issued at login and hasn't been verified yet — block
+    // every other route until it is (or a fresh code is requested and
+    // verified), not just whichever screen initiated the check. Without
+    // this a signed-in-but-unverified session could reach real data just
+    // by navigating directly to another URL instead of following the
+    // redirect the login page already gave it.
+    if (profile?.twoFactorPendingSince && pathname !== '/verify-2fa') {
+      router.replace('/verify-2fa');
+      return;
+    }
     if (
       profile &&
       profile.role !== 'admin' &&
@@ -39,18 +76,75 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, profile, loading, router, pathname]);
 
-  if (loading) return <FullPageSpinner />;
+  // Every hold in this layout is the brand splash, not a bare spinner. A
+  // member refreshing the dashboard sat on an orange ring while auth
+  // restored; the landing already shows them the burning logo with a live
+  // progress line for the same wait, and the two should not look like
+  // different apps.
+  if (loading) return <BrandSplash />;
   if (!user) return null;
 
-  if (profile === null) return <FullPageSpinner />;
+  if (profile === null) {
+    if (!profileStalled) return <BrandSplash />;
+    return (
+      <div className="min-h-screen flex items-center justify-center px-6 text-center">
+        <div className="max-w-sm space-y-3">
+          <p className="text-white font-semibold">We couldn&apos;t load your profile</p>
+          <p className="text-sm text-text-secondary">Check your connection and try again. If it keeps happening, sign out and back in.</p>
+          <div className="flex gap-2 justify-center">
+            <button type="button" onClick={() => window.location.reload()} className="px-4 py-2 rounded-xl bg-accent text-black font-semibold text-sm">Retry</button>
+            <button type="button" onClick={() => { signOut().catch(() => {}); router.replace('/login'); }} className="px-4 py-2 rounded-xl border border-white/10 text-white text-sm">Sign out</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const hideNav = pathname === '/banned';
+  // Mirrors the redirect effect's own conditions above — without this, the
+  // effect only fires AFTER commit, but React already committed `children`
+  // (e.g. the dashboard page) in that same render, and a child's own
+  // effects run BEFORE its parent's. That let a still-pending page's data
+  // fetches (getTodayMeals, getUserWorkouts, etc.) fire and get correctly
+  // denied by firestore.rules' notTfaPending()/banned checks a beat before
+  // the redirect actually happened — a real race, seen live as a burst of
+  // "Missing or insufficient permissions" errors right before landing on
+  // /verify-2fa or /banned. Blocking the render here instead means the
+  // gated page's own effects never mount in the first place.
+  if (profile.banned && pathname !== '/banned') return <BrandSplash />;
+  if (profile.twoFactorPendingSince && pathname !== '/verify-2fa') return <BrandSplash />;
+
+  const hideNav = pathname === '/banned' || pathname === '/verify-2fa';
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="pb-24 max-w-lg mx-auto">
-        <MembershipGuard pathname={pathname}>{children}</MembershipGuard>
-      </main>
+    // No bg-background here — redundant with <body>'s own background-color
+    // (same var(--background) token), which is all that's needed as the
+    // fallback base paint before/around AppBackground's fixed decorative
+    // layer underneath.
+    <div className="min-h-screen">
+      <AppBackground />
+      <HeaderDataProvider>
+        {/* Inside the app shell: the member's theme preference may show.
+            Unmounts on navigation to any public page, which goes dark. */}
+        <AppThemeScope />
+        {!hideNav && <VerifyEmailNotice variant="banner" />}
+        {!hideNav && <ChatDrawer />}
+        <main className="pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
+          {/* The warm wash behind every screen's header. Painted once here
+              rather than per page, so a page cannot forget it or double it. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-[340px]"
+            style={{ background: 'radial-gradient(90% 55% at 50% -8%, rgba(var(--accent-rgb) / 0.26), rgba(var(--accent-rgb) / 0) 70%)' }}
+          />
+          <div className="relative">
+            <MembershipGuard pathname={pathname}>{children}</MembershipGuard>
+          </div>
+        </main>
+      </HeaderDataProvider>
+      {/* Outside MembershipGuard on purpose: it only ever opens for someone
+          who already has access, and mounting it inside would tie it to
+          whichever page happens to be rendered. */}
+      <WelcomeVideo />
       {!hideNav && <BottomNav />}
       {!hideNav && <PwaInstallBanner />}
     </div>
