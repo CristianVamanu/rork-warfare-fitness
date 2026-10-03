@@ -58,13 +58,17 @@ export async function sendPushToUsers(db: Firestore, userIds: string[] | null, p
     } catch (err) {
       const e = err as { statusCode?: number; body?: string; message?: string };
       const statusCode = e?.statusCode;
-      // 404/410: the browser dropped the subscription. 401/403: the push
-      // service rejects our VAPID signature for this subscription, which
-      // happens when it was created under a different public key; it will
-      // never work again, so it goes too and the device re-subscribes on
-      // its next visit.
-      const dead = statusCode === 404 || statusCode === 410 || statusCode === 401 || statusCode === 403;
+      // 404/410: the browser dropped the subscription; it is removed.
+      // 401/403: the push service rejects our VAPID signature. That is
+      // either this one subscription, created under an older public key,
+      // or our own keys being wrong for every subscription at once. The two
+      // cannot be told apart here, and deleting on the second would wipe
+      // every device in one cron run, so the document is kept and the
+      // failure recorded on it; the Settings toggle re-subscribes a device
+      // whose key no longer matches.
+      const dead = statusCode === 404 || statusCode === 410;
       if (dead) await d.ref.delete().catch(() => {});
+      else if (statusCode === 401 || statusCode === 403) await d.ref.set({ lastError: statusCode, lastErrorAt: new Date() }, { merge: true }).catch(() => {});
       let host = '?';
       try { host = new URL(sub.endpoint).host; } catch { /* leave '?' */ }
       throw new Error(`${statusCode ?? 'no status'} from ${host}${dead ? ' (subscription removed)' : ''}: ${(e?.body || e?.message || '').toString().slice(0, 160)}`);

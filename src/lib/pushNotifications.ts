@@ -26,9 +26,19 @@ export async function subscribeToPush(userId: string, vapidPublicKey: string): P
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') return false;
 
+    const key = urlBase64ToUint8Array(vapidPublicKey);
+    // A subscription made under an older VAPID key can never be delivered
+    // to, and subscribe() refuses to replace it. Drop it first so the toggle
+    // repairs the device instead of failing.
+    const existing = await reg.pushManager.getSubscription();
+    if (existing) {
+      const prev = existing.options?.applicationServerKey ? new Uint8Array(existing.options.applicationServerKey) : null;
+      const same = !!prev && prev.length === key.length && prev.every((b, i) => b === key[i]);
+      if (!same) await existing.unsubscribe().catch(() => {});
+    }
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      applicationServerKey: key,
     });
 
     // Store subscription in Firestore so the server can send messages
