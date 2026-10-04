@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { getSystemConfig } from '@/lib/firestore';
 import { uploadVideo, resolveStorageProvider } from '@/lib/uploadVideo';
-import { getBreathTracks, addBreathTrack, removeBreathTrack, renameBreathTrack, readAudioDuration, playableUrl, BUILT_IN_TRACK } from '@/lib/breathTracks';
+import { getBreathTracks, addBreathTrack, removeBreathTrack, renameBreathTrack, readAudioDuration, playableUrl, asAudioFile, AUDIO_ACCEPT } from '@/lib/breathTracks';
 import type { BreathTrack } from '@/types';
 
 const MAX_BYTES = 40 * 1024 * 1024;
@@ -35,25 +35,25 @@ export default function AdminBreathingPage() {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const load = () => getBreathTracks().then(setTracks).catch(() => { setTracks([BUILT_IN_TRACK]); toast.error('Could not load the tracks'); });
+  const load = () => getBreathTracks().then(setTracks);
   useEffect(() => { void load(); }, []);
   useEffect(() => () => { audioRef.current?.pause(); }, []);
 
   async function upload() {
     if (!user || !file) return;
-    if (!file.type.startsWith('audio/')) { toast.error('Pick an audio file (MP3, M4A, WAV)'); return; }
-    if (file.size > MAX_BYTES) { toast.error('Keep it under 40 MB'); return; }
-    const name = title.trim() || file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
+    const audio = asAudioFile(file);
+    if (!audio) { toast.error('Pick an audio file (MP3, M4A, WAV)'); return; }
+    if (audio.size > MAX_BYTES) { toast.error('Keep it under 40 MB'); return; }
+    const name = title.trim() || audio.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
     setPct(0);
     try {
       const cfg = await getSystemConfig().catch(() => null);
       const provider = resolveStorageProvider(cfg?.storageProvider);
       const [url, durationSeconds] = await Promise.all([
-        uploadVideo(provider, user, file, 'breathTracks', setPct),
-        readAudioDuration(file),
+        uploadVideo(provider, user, audio, 'breathTracks', setPct),
+        readAudioDuration(audio),
       ]);
-      const order = (tracks?.length ?? 1);
-      await addBreathTrack({ title: name, url, durationSeconds, order });
+      await addBreathTrack({ title: name, url, durationSeconds });
       toast.success(`${name} added`);
       setTitle(''); setFile(null);
       await load();
@@ -95,7 +95,7 @@ export default function AdminBreathingPage() {
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (optional, taken from the file name if empty)" className="w-full rounded-xl bg-black/25 border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary" />
         <label className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-white/15 px-3 py-3 cursor-pointer hover:border-accent/40">
           <span className="text-sm text-text-secondary truncate">{file ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} MB` : 'Choose an audio file (MP3, M4A, WAV · under 40 MB)'}</span>
-          <input type="file" accept="audio/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          <input type="file" accept={AUDIO_ACCEPT} className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           <Music className="w-4 h-4 text-accent flex-shrink-0" />
         </label>
         {pct !== null && <div className="h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-accent transition-[width]" style={{ width: `${pct}%` }} /></div>}

@@ -746,6 +746,21 @@ describe('support tickets', () => {
   });
 });
 
+describe('system/breathTracks — where the soundtrack list actually lives', () => {
+  // The app reads and writes this document, not the breathTracks
+  // collection: the system documents are covered by rules that are already
+  // published, so the feature works without a separate rules deploy.
+  const list = { tracks: [{ id: 't1', title: 'Breathwork Meditation', url: 'https://cdn.example.com/a.mp3', order: 1 }] };
+  beforeEach(async () => { await seed(async (db) => { await setDoc(doc(db, 'system', 'breathTracks'), list); }); });
+
+  it('signed-in members read it; only admins change it', async () => {
+    await assertSucceeds(getDoc(doc(asAlice(), 'system', 'breathTracks')));
+    await assertFails(getDoc(doc(asAnon(), 'system', 'breathTracks')));
+    await assertFails(setDoc(doc(asAlice(), 'system', 'breathTracks'), { tracks: [] }));
+    await assertSucceeds(setDoc(doc(asAdmin(), 'system', 'breathTracks'), { tracks: [] }, { merge: true }));
+  });
+});
+
 describe('breathTracks — the breathing soundtrack library', () => {
   const track = { title: 'Breathwork Meditation', url: 'https://cdn.example.com/a.mp3', durationSeconds: 223, order: 1 };
   beforeEach(async () => { await seed(async (db) => { await setDoc(doc(db, 'breathTracks', 't1'), track); }); });
