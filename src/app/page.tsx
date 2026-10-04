@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
 
-import { getSystemConfig, getMembershipConfig, getMembershipPlans } from '@/lib/firestore';
+import { getLandingSettings } from '@/lib/serverConfig';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
-import type { LandingPageConfig, MembershipConfig, MembershipPlan } from '@/types';
+import type { LandingPageConfig } from '@/types';
 import LandingPage from './LandingClient';
 
 // Fetched here, server-side, so the first HTML the browser ever sees
@@ -21,11 +21,9 @@ export default async function Page() {
   // off the featured plan, so loading plans client-side left that line
   // missing for the first second of every visit — the one line that states
   // what the visitor is actually agreeing to pay.
-  const [cfg, membershipConfig, membershipPlansRaw] = await Promise.all([
-    getSystemConfig().catch(() => null),
-    getMembershipConfig().catch(() => null),
-    getMembershipPlans().catch(() => [] as MembershipPlan[]),
-  ]);
+  // Read fresh through the Admin SDK (see serverConfig.ts): the first
+  // paint must match the admin's latest trial and pricing settings.
+  const { system: cfg, membership: membershipConfig, plans: membershipPlansRaw } = await getLandingSettings();
   const initialAppName = (cfg?.appName as string) || 'Warfare Fitness';
   const initialLogoUrl = (cfg?.logoUrl as string) || null;
   const initialLanding: LandingPageConfig = cfg?.landingPage
