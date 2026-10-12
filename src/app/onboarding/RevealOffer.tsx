@@ -140,9 +140,12 @@ export function RevealOffer(p: RevealOfferProps) {
             type="button"
             onClick={start}
             disabled={!passwordOk || !agreed || p.busy}
-            className="w-full min-h-[52px] rounded-xl bg-gradient-accent text-black text-base font-black flex items-center justify-center gap-2 shadow-glow-sm disabled:opacity-60"
+            className="w-full min-h-[52px] px-4 rounded-xl bg-gradient-accent text-black text-base font-black flex items-center justify-center gap-2 shadow-glow-sm disabled:opacity-60"
           >
-            {p.busy ? <><Loader2 className="w-4 h-4 animate-spin" /> Setting up your program…</> : <>{offer.kind === 'none' ? 'Create account & start' : `Create account · ${offer.button}`} <ChevronRight className="w-4 h-4" /></>}
+            {/* The card's own heading already says this creates the account;
+                prefixing "Create account ·" made the label wrap or hit the
+                edges on a phone, so the button just names the outcome. */}
+            {p.busy ? <><Loader2 className="w-4 h-4 animate-spin" /> Setting up your program…</> : <>{offer.kind === 'none' ? 'Create account & start' : offer.button} <ChevronRight className="w-4 h-4 flex-shrink-0" /></>}
           </button>
           <label className="flex items-start gap-2.5 cursor-pointer">
             <input

@@ -155,8 +155,13 @@ export async function POST(req: NextRequest) {
     // real farming vector. Requiring verification there was pure friction on
     // the highest-intent click in the funnel — "verify your email to give us
     // a dollar". A returning member paying full price (alreadyUsedTrial) is
-    // never blocked either; nobody farms full price.
-    if (trialDays > 0 && !paidTrialEnabled && !alreadyUsedTrial && !authCheck.emailVerified) {
+    // never blocked either; nobody farms full price. A card-up-front trial
+    // is the same story as the paid one: Stripe verifies a real card before
+    // the trial starts, which a throwaway inbox can't fake, so only the
+    // no-card free trial keeps the verified-email gate. Without this the
+    // "You're one step away" page died on "verify your email" for every new
+    // sign-up the moment card-up-front was switched on.
+    if (trialDays > 0 && !paidTrialEnabled && !cardUpFrontTrial && !alreadyUsedTrial && !authCheck.emailVerified) {
       return NextResponse.json(
         { error: 'Verify your email address to start your trial — check your inbox for the link, then try again.', code: 'EMAIL_NOT_VERIFIED' },
         { status: 403 },
