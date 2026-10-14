@@ -164,6 +164,7 @@ wall POST /api/challenges/remind       "cron challenges/remind"
 wall POST /api/admin/challenges/review "admin challenge review"
 # Billing-changing member routes: must refuse without a token as well.
 wall POST /api/stripe/cancel-subscription   "member cancel-subscription"
+wall POST /api/stripe/resume-subscription   "member resume-subscription"
 wall POST /api/stripe/create-portal-session "member billing portal"
 wall POST /api/auth/2fa/login-check         "2fa login-check"
 wall POST /api/ai/scan-and-go               "ai scan-and-go"

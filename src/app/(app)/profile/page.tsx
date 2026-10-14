@@ -108,6 +108,7 @@ export default function ProfilePage() {
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
   const [subscribingMembershipPlanId, setSubscribingMembershipPlanId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
   const [subscribingPlanId, setSubscribingPlanId] = useState<string | null>(null);
   const [coachingApplication, setCoachingApplication] = useState<CoachingApplication | null>(null);
@@ -279,6 +280,35 @@ export default function ProfilePage() {
       toast.error(`Failed to cancel ${label}`);
     } finally {
       setCancelling(false);
+    }
+  };
+
+  // The mirror of cancel: a period-end cancellation is just a flag on the
+  // live Stripe subscription, so it can be undone until the period runs
+  // out. Without this, the card went from "Cancel Membership" to a dead
+  // notice with no way back.
+  const handleResumeSubscription = async (kind: 'membership' | 'coaching') => {
+    if (!user) return;
+    const label = kind === 'coaching' ? '1:1 coaching' : 'membership';
+    setResuming(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/stripe/resume-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ kind }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (data.ok) {
+        toast.success(`${kind === 'coaching' ? 'Coaching' : 'Membership'} resumed — it renews as before`);
+        await refreshProfile();
+      } else {
+        toast.error(data.error ?? `Failed to resume ${label}`);
+      }
+    } catch {
+      toast.error(`Failed to resume ${label}`);
+    } finally {
+      setResuming(false);
     }
   };
 
@@ -477,9 +507,15 @@ export default function ProfilePage() {
                     <div className="mt-5">
                       {isCurrentPlan ? (
                         profile?.membership?.cancelAtPeriodEnd ? (
-                          <p className="text-xs text-text-tertiary text-center py-2">
-                            Cancelled — access continues until {expiresAt ? expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'the end of your billing period'}.
-                          </p>
+                          <>
+                            <p className="text-xs text-text-tertiary text-center py-2">
+                              Cancelled — access continues until {expiresAt ? expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'the end of your billing period'}.
+                            </p>
+                            <Button fullWidth onClick={() => handleResumeSubscription('membership')} loading={resuming}>
+                              <Crown className="w-4 h-4" /> {resuming ? 'Resuming…' : 'Resume Membership'}
+                            </Button>
+                            <p className="text-[10px] text-text-tertiary text-center mt-2">Same plan, same price, same renewal date. No new checkout.</p>
+                          </>
                         ) : (
                           <>
                             <div className="text-center py-2 mb-2 bg-success/10 border border-success/20 rounded-xl">
@@ -575,9 +611,14 @@ export default function ProfilePage() {
                     <div className="mt-5">
                       {isCurrentPlan ? (
                         profile?.coaching?.cancelAtPeriodEnd ? (
-                          <p className="text-xs text-text-tertiary text-center py-2">
-                            Cancelled — access continues until the end of your billing period.
-                          </p>
+                          <>
+                            <p className="text-xs text-text-tertiary text-center py-2">
+                              Cancelled — access continues until the end of your billing period.
+                            </p>
+                            <Button fullWidth onClick={() => handleResumeSubscription('coaching')} loading={resuming}>
+                              <Crown className="w-4 h-4" /> {resuming ? 'Resuming…' : 'Resume Coaching'}
+                            </Button>
+                          </>
                         ) : (
                           <>
                             <div className="text-center py-2 mb-2 bg-success/10 border border-success/20 rounded-xl">
