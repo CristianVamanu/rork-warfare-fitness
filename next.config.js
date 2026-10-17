@@ -420,6 +420,12 @@ const nextConfig = {
           source: '/.well-known/apple-developer-merchantid-domain-association',
           destination: '/api/stripe/apple-pay-domain',
         },
+        // Android app (Trusted Web Activity) verification. See
+        // api/android/assetlinks/route.ts and android/README.md.
+        {
+          source: '/.well-known/assetlinks.json',
+          destination: '/api/android/assetlinks',
+        },
       ],
     };
   },

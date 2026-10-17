@@ -44,16 +44,20 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     { src: '/icons/icon-128x128.png', sizes: '128x128', type: 'image/png' },
     { src: '/icons/icon-144x144.png', sizes: '144x144', type: 'image/png' },
     { src: '/icons/icon-152x152.png', sizes: '152x152', type: 'image/png' },
-    { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' as const },
     { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' as const },
     { src: '/icons/icon-384x384.png', sizes: '384x384', type: 'image/png' },
     { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+    // Maskable variants keep the logo inside Android's ~80% safe zone so
+    // adaptive-icon shapes (circle, squircle) don't clip the shield. The
+    // Play Store app (android/) is generated from this manifest, so these
+    // are what end up as the launcher icon.
+    { src: '/icons/icon-maskable-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' as const },
+    { src: '/icons/icon-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' as const },
   ];
 
-  // Every bundled icon above is a PLACEHOLDER: a flat #F5A623 circle on
-  // #0A0A0A and literally nothing else (verified — each file contains
-  // exactly two distinct colors). That is the "yellow dot", and it was
-  // never a theme_color fallback; it is a real image being served.
+  // The bundled icons are the real Warfare Fitness logo (they used to be a
+  // flat #F5A623 circle placeholder — the "yellow dot" — which is why the
+  // custom-icon branch below exists and why it still declares every size).
   //
   // This list used to declare the custom icon at 192 and 512 only, then
   // append all nine bundled entries as a supposed safety net. But a

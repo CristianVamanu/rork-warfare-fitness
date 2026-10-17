@@ -83,7 +83,9 @@ public/worker-*.js.map
 .vercel
 
 ios/
-android/
+# `android/` used to be ignored wholesale from the Expo days. The Trusted
+# Web Activity project now lives there on purpose; only its build outputs
+# and keys are ignored (see the Android block at the end of this file).
 .rork
 .env
 rork-eslint.config.js
@@ -101,3 +103,15 @@ ui-debug.log
 # Generated on the server by scripts/generate-cues.mjs for review.
 cues-for-review.txt
 .preview/
+
+# Android (Trusted Web Activity) build outputs and signing keys — never commit
+android/*.keystore
+android/*.jks
+android/app/
+android/build/
+android/gradle/
+android/gradlew*
+android/*.aab
+android/*.apk
+android/*.idsig
+android/store/*.zip
