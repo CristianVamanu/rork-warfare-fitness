@@ -7,11 +7,12 @@ import { ChevronLeft, Trash2, Ban, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   subscribeAllPRPosts, setPRPostModeration, deletePRPost,
-  banUserFromPRWall, unbanUserFromPRWall,
+  banUserFromPRWall, unbanUserFromPRWall, getSystemConfig,
 } from '@/lib/firestore';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
+import { FeedMedia } from '@/components/community/FeedMedia';
 import toast from 'react-hot-toast';
 import type { PRPost } from '@/types';
 
@@ -28,10 +29,12 @@ export default function PRReviewPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [banMenuFor, setBanMenuFor] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'pending' | 'all'>('pending');
+  const [filter, setFilter] = useState<'pending' | 'all'>('all');
 
   useEffect(() => {
     const unsub = subscribeAllPRPosts((p) => { setPosts(p); setLoading(false); }, 100);
+    // Only open on the queue when the review switch is on; otherwise it is always empty.
+    getSystemConfig().then((cfg) => { if ((cfg as { prWallReview?: boolean } | null)?.prWallReview === true) setFilter('pending'); }).catch(() => {});
     return unsub;
   }, []);
 
@@ -68,9 +71,9 @@ export default function PRReviewPage() {
         <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-text-secondary mb-4">
           <ChevronLeft className="w-4 h-4" /> Back
         </button>
-        <h1 className="text-xl font-black text-white mb-1">PR Wall Review</h1>
+        <h1 className="text-xl font-black text-white mb-1">PR Wall</h1>
         <p className="text-sm text-text-secondary mb-4">
-          Approve a post to make it visible on the PR Wall with a Verified badge on that lift. Reject to hide it. Manage posting bans below.
+          Approve gives a lift the Verified badge. Reject hides it. Posts only wait here when &ldquo;Review PRs before they show&rdquo; is on in Community settings. Posting bans are managed below.
         </p>
 
         <div className="flex gap-1.5 mb-4">
@@ -95,7 +98,7 @@ export default function PRReviewPage() {
         ) : (
           <div className="space-y-3">
             {shown.map((post, i) => (
-              <motion.div key={post.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
+              <div key={post.id} className="wf-rise" style={{ animationDelay: `${i * 0.03}s` }}>
                 <Card className="p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0 text-xs font-bold text-accent">
@@ -120,14 +123,10 @@ export default function PRReviewPage() {
                   </div>
 
                   {post.mediaUrl && (
-                    <div className="rounded-xl overflow-hidden mb-3 bg-black">
-                      {post.mediaType === 'video' ? (
-                        <video src={post.mediaUrl} controls className="w-full max-h-72" />
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={post.mediaUrl} alt={post.exerciseName} className="w-full max-h-72 object-cover" />
-                      )}
-                    </div>
+                    // Shown whole, not cropped — the reviewer is verifying the
+                    // number on the bar/screen, which is exactly what a cover
+                    // crop of a tall phone photo cuts off.
+                    <FeedMedia url={post.mediaUrl} kind={post.mediaType === 'video' ? 'video' : 'image'} alt={post.exerciseName} className="mb-3" />
                   )}
                   {!post.mediaUrl && (
                     <p className="text-xs text-text-tertiary italic mb-3">No photo/video attached — verify with care.</p>
@@ -189,7 +188,7 @@ export default function PRReviewPage() {
                     </div>
                   </div>
                 </Card>
-              </motion.div>
+              </div>
             ))}
           </div>
         )}

@@ -12,6 +12,7 @@ import { toggleHabit, getRecentHabitLogs } from '@/lib/firestore';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { PaywallGate } from '@/components/ui/PaywallGate';
 import { HABIT_KEYS, type HabitKey, type HabitLog } from '@/types';
 
 const HABIT_META: Record<HabitKey, { label: string; icon: React.ElementType; color: string }> = {
@@ -77,10 +78,18 @@ export default function HabitsPage() {
     }
   }
 
-  // Consecutive-day streak per habit, counting back from today
+  // Consecutive-day streak per habit, counting back from today.
+  // Starting the scan at today and breaking on the first unlogged day meant
+  // a 6-day streak displayed as 0 every morning until the habit was ticked
+  // off — the exact number that makes it feel worth continuing, zeroed at
+  // the moment of most doubt. Today being unlogged is "not done YET", not a
+  // broken streak, so the count starts at yesterday in that case (the same
+  // one-day grace the dashboard's workout streak already applies).
   function streakFor(habit: HabitKey): number {
+    const todayStr = new Date().toLocaleDateString('sv-SE');
+    const doneToday = !!logs.find((l) => l.date === todayStr)?.habits?.[habit];
     let streak = 0;
-    for (let i = 0; i < HISTORY_DAYS; i++) {
+    for (let i = doneToday ? 0 : 1; i < HISTORY_DAYS; i++) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toLocaleDateString('sv-SE');
@@ -94,9 +103,14 @@ export default function HabitsPage() {
   const doneToday = HABIT_KEYS.filter((h) => todayLog?.habits?.[h]).length;
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen pb-24">
       <Header title="Habits" showBack />
-      <div className="px-4 pt-4 max-w-lg mx-auto space-y-4">
+      {/* Gated by the 'habits' entitlement so a plan can include or exclude
+          it, the same way quests and breathing already are. noTaste: there
+          is no consumeAiTaste callback here, so without it the taste banner
+          would show forever and the gate would never actually close. */}
+      <PaywallGate feature="habits" noTaste>
+      <div className="px-4 pt-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-4">
         <Card className="p-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-white">Today&apos;s Progress</p>
@@ -178,6 +192,7 @@ export default function HabitsPage() {
           </Card>
         )}
       </div>
+      </PaywallGate>
     </div>
   );
 }

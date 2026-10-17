@@ -8,7 +8,17 @@ import { verifyAdmin } from '@/lib/verifyAdmin';
 import { getSecret } from '@/lib/secrets';
 import { getAdminApp } from '@/lib/firebase-admin';
 
-type Service = 'openai' | 'stripe' | 'r2' | 'vapid' | 'firebase-storage' | 'cloudflare-analytics' | 'resend';
+type Service = 'openai' | 'stripe' | 'r2' | 'vapid' | 'firebase-storage' | 'cloudflare-analytics' | 'resend' | 'brevo';
+
+async function testBrevo(): Promise<string> {
+  const key = await getSecret('BREVO_API_KEY');
+  if (!key) throw new Error('BREVO_API_KEY not configured');
+  const res = await fetch('https://api.brevo.com/v3/account', { headers: { 'api-key': key, Accept: 'application/json' } });
+  if (!res.ok) throw new Error(`Brevo responded ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const data = await res.json() as { email?: string; plan?: { type?: string; credits?: number }[] };
+  const plan = data.plan?.find((p) => typeof p.credits === 'number');
+  return `Connected to Brevo as ${data.email ?? 'your account'}${plan ? ` · ${plan.credits} credits left on the ${plan.type} plan` : ''}`;
+}
 
 async function testOpenAI(): Promise<string> {
   const key = await getSecret('OPENAI_API_KEY');
@@ -114,6 +124,7 @@ export async function POST(req: NextRequest) {
       case 'firebase-storage': message = await testFirebaseStorage(); break;
       case 'cloudflare-analytics': message = await testCloudflareAnalytics(); break;
       case 'resend': message = await testResend(); break;
+      case 'brevo': message = await testBrevo(); break;
       default: return NextResponse.json({ error: 'Unknown service' }, { status: 400 });
     }
     return NextResponse.json({ ok: true, message });

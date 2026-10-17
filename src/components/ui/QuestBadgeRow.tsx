@@ -1,6 +1,6 @@
 import { QUEST_DEFS } from '@/lib/quests';
 
-/** Small inline row of quest reward icons for a user — leaderboard rows,
+/** Small inline row of quest reward icons for a user — profile,
  * profile header, anywhere identity needs to show off earned badges. */
 export function QuestBadgeRow({ questIds, max = 3 }: { questIds: string[]; max?: number }) {
   if (!questIds?.length) return null;
