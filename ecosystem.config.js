@@ -16,6 +16,17 @@ module.exports = {
       // `next start` sits at a few hundred MB; 1G is a leak, not a busy day.
       // Cluster mode means the other worker keeps serving through the restart.
       max_memory_restart: '1G',
+      // Crash-loop brake. If a worker dies within 30 s of starting (a bad
+      // env var, a missing build, a port clash) pm2 would otherwise restart
+      // it immediately and forever, which on a 2-core box starves the
+      // healthy worker and nginx. With these, each failed start waits
+      // longer than the last (100 ms, 200 ms, ... capped at 15 s) and pm2
+      // gives up after 15 attempts and marks it errored, where `pm2 ls`
+      // shows it. A worker that has served 30 s counts as a clean start
+      // and resets the counter.
+      min_uptime: '30s',
+      max_restarts: 15,
+      exp_backoff_restart_delay: 100,
       env: {
         NODE_ENV: 'production',
         // Pinned explicitly. next.config.js reads NEXT_DIST_DIR for distDir,
