@@ -24,10 +24,11 @@ describe('codes', () => {
 describe('config', () => {
   it('defaults and clamps', () => {
     expect(cfg).toEqual(DEFAULT_PARTNER_CONFIG);
-    const c = normalizePartnerConfig({ defaultPercent: 150, holdDays: -3, payoutMode: 'manual', freeMembership: false, agreementText: '' });
+    const c = normalizePartnerConfig({ defaultPercent: 150, holdDays: -3, payoutMode: 'connect', freeMembership: false, agreementText: '' });
     expect(c.defaultPercent).toBe(90);
     expect(c.holdDays).toBe(0);
-    expect(c.payoutMode).toBe('manual');
+    expect(c.payoutMode).toBe('connect');
+    expect(normalizePartnerConfig({ payoutMode: 'nope' as never }).payoutMode).toBe('manual');
     expect(c.freeMembership).toBe(false);
     expect(c.agreementText).toBe(DEFAULT_PARTNER_CONFIG.agreementText);
   });

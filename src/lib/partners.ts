@@ -63,7 +63,9 @@ export const DEFAULT_PARTNER_CONFIG: PartnerProgramConfig = {
   cookieDays: 60,
   minPayoutCents: 5000,
   capMonths: 0,
-  payoutMode: 'connect',
+  // Manual by default: Stripe Connect needs a separate platform account,
+  // which this business does not have yet. Switch in admin settings once it does.
+  payoutMode: 'manual',
   freeMembership: true,
   agreementVersion: 1,
   agreementText: `PARTNER AGREEMENT
@@ -91,7 +93,7 @@ export function normalizePartnerConfig(raw: Partial<PartnerProgramConfig> | null
     cookieDays: num(r.cookieDays, DEFAULT_PARTNER_CONFIG.cookieDays, 1, 365),
     minPayoutCents: num(r.minPayoutCents, DEFAULT_PARTNER_CONFIG.minPayoutCents, 0, 10_000_000),
     capMonths: num(r.capMonths, DEFAULT_PARTNER_CONFIG.capMonths, 0, 120),
-    payoutMode: r.payoutMode === 'manual' ? 'manual' : 'connect',
+    payoutMode: r.payoutMode === 'connect' ? 'connect' : 'manual',
     freeMembership: r.freeMembership !== false,
     agreementVersion: num(r.agreementVersion, DEFAULT_PARTNER_CONFIG.agreementVersion, 1, 1_000_000),
     agreementText: typeof r.agreementText === 'string' && r.agreementText.trim() ? r.agreementText : DEFAULT_PARTNER_CONFIG.agreementText,

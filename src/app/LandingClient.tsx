@@ -106,7 +106,7 @@ const RECON_SAMPLE = {
 
 // Terms and Privacy are footer links, not header ones; with them out the
 // row fits on one line at desktop widths.
-const HEADER_LINKS = ['/', '/programs', '/standards', '/challenges', '/download', '/trainers'];
+const HEADER_LINKS = ['/', '/programs', '/standards', '/challenges', '/download', '/trainers', '/partners'];
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
   // Points at the real, indexable pages rather than an anchor on this one.
@@ -119,6 +119,7 @@ const NAV_LINKS = [
   { href: '/challenges', label: 'Challenges' },
   { href: '/download', label: 'Download App' },
   { href: '/trainers', label: 'For Trainers' },
+  { href: '/partners', label: 'Partners' },
   { href: '/terms', label: 'Terms' },
   { href: '/privacy', label: 'Privacy' },
 ];
@@ -1441,6 +1442,26 @@ export default function LandingPage({
               <CheckCircle2 className="w-3.5 h-3.5 text-accent" /> No card required for trial
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Partner program — one bracketed panel for coaches and creators,
+          above the footer so it never competes with the member CTA. */}
+      <section className="max-w-3xl mx-auto px-5 pb-16">
+        <div className="group relative overflow-hidden rounded-2xl border border-accent/20 bg-surface/60 p-6 sm:p-8 backdrop-blur-sm">
+          <CornerBrackets size="w-3.5 h-3.5" />
+          <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
+          <div aria-hidden className="wf-dots pointer-events-none absolute inset-0" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center gap-5">
+            <div className="flex-1">
+              <SectionEyebrow>Partner program</SectionEyebrow>
+              <h2 className="mt-2 text-xl sm:text-2xl font-black text-white">Coach, gym owner or creator? Send people who want to train.</h2>
+              <p className="mt-1.5 text-sm text-text-secondary">Earn a recurring share of every payment from members who join through your link, for as long as they stay. Live dashboard, ready-made content, monthly payouts.</p>
+            </div>
+            <Link href="/partners" className="flex-shrink-0">
+              <Button variant="secondary">Become a partner <ArrowRight className="w-4 h-4" /></Button>
+            </Link>
+          </div>
         </div>
       </section>
 
