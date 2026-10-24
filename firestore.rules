@@ -419,7 +419,10 @@ service cloud.firestore {
             // (stripeCustomers/{id}) as the authority rather than this field,
             // so the attack already fails; this closes it at the write instead
             // of relying on every future reader to re-check ownership.
-            ['role', 'membership', 'coaching', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan', 'channelMute', 'trialUsedAt', 'twoFactorEnabled', 'twoFactorEmail', 'stripeCustomerId', 'communityStats']
+            // attribution: which partner gets paid for this member. Written
+            // only by /api/partner/attach and the Stripe webhook; a member
+            // (or a partner's alt account) must not be able to set it.
+            ['role', 'membership', 'coaching', 'purchasedProgramIds', 'trainerId', 'banned', 'prBan', 'channelMute', 'trialUsedAt', 'twoFactorEnabled', 'twoFactorEmail', 'stripeCustomerId', 'communityStats', 'attribution']
           ) &&
           activeProgramWriteAllowed() &&
           premiumEnrollAllowed() &&

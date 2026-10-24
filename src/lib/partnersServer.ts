@@ -318,7 +318,9 @@ export async function setPartnerMembership(db: Firestore, uid: string, grant: bo
   const m = (snap.data()?.membership ?? {}) as { status?: string; stripeSubscriptionId?: string; source?: string };
   if (grant) {
     if (m.status === 'active') return; // already a paying member or granted
-    await ref.set({ membership: { status: 'active', source: 'partner', grantedAt: FieldValue.serverTimestamp() } }, { merge: true });
+    // A stale expiresAt from an old, lapsed Stripe subscription would end
+    // this grant by itself after the grace period; the grant has no period.
+    await ref.set({ membership: { status: 'active', source: 'partner', grantedAt: FieldValue.serverTimestamp(), expiresAt: FieldValue.delete(), cancelAtPeriodEnd: FieldValue.delete() } }, { merge: true });
     await db.collection('partners').doc(uid).set({ membershipGranted: true }, { merge: true });
   } else {
     if (m.source !== 'partner') return;
