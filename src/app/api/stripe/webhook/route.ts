@@ -9,6 +9,7 @@ import { resolveAccountEmail } from '@/lib/accountEmail';
 import { sendEmail, paymentFailedEmailHtml, trialChargeReminderEmailHtml } from '@/lib/email';
 import { describeUpcomingCharge, trialReminderSubject } from '@/lib/trialReminder';
 import type Stripe from 'stripe';
+import { partnerFromMetadata, lockAttribution, recordInvoiceCommission, recordClawback, chargeDetails } from '@/lib/partnersServer';
 
 function getAdminDb() {
   const app = getAdminApp();
@@ -144,6 +145,16 @@ export async function POST(req: NextRequest) {
               session.metadata?.trialUsed === 'true',
               event.created,
             );
+            // Partner attribution becomes final the moment the member has a
+            // live subscription. Idempotent inside (transaction on the user
+            // doc), so a replayed event cannot count the member twice. Kept
+            // out of the main path's failure modes: a problem here is logged,
+            // never a reason to make Stripe retry a grant that already landed.
+            const partner = partnerFromMetadata(session.metadata);
+            if (partner) {
+              const db = getAdminDb();
+              if (db) await lockAttribution(db, { uid: userId, ...partner }).catch((err) => console.error('[Stripe webhook] partner lock failed:', err));
+            }
           }
         }
         break;
@@ -218,6 +229,31 @@ export async function POST(req: NextRequest) {
           undefined,
           event.created,
         );
+        // Partner commission: one ledger row per paid invoice, keyed by the
+        // invoice id so a redelivery cannot pay twice. Computed from what
+        // Stripe says was paid, minus Stripe's fee — never from anything the
+        // partner or the member sent. A $0 invoice (trial) writes nothing.
+        const partner = partnerFromMetadata(sub.metadata);
+        if (partner && invoice.id && (invoice.amount_paid ?? 0) > 0) {
+          const db = getAdminDb();
+          if (db) {
+            try {
+              // The lock normally happens at checkout.session.completed; if
+              // that event was missed, the first paid invoice locks instead.
+              await lockAttribution(db, { uid: userId, ...partner });
+              const details = await chargeDetails(stripe, invoice);
+              await recordInvoiceCommission(db, {
+                invoiceId: invoice.id, memberUid: userId, partnerId: partner.partnerId, partnerCode: partner.partnerCode,
+                amountPaidCents: invoice.amount_paid ?? 0, currency: invoice.currency ?? 'usd', feeCents: details.feeCents,
+                chargeId: details.chargeId, subscriptionId: sub.id, cardFingerprint: details.fingerprint, planName: sub.metadata?.planName ?? null,
+              });
+            } catch (err) {
+              // Logged, not thrown: a commission row can be rebuilt from the
+              // invoice later; a member's renewal must not be retried over it.
+              console.error('[Stripe webhook] partner commission failed for invoice', invoice.id, err);
+            }
+          }
+        }
         break;
       }
 
@@ -349,6 +385,24 @@ export async function POST(req: NextRequest) {
         // flag, false for partial refunds. Without this gate, a small
         // partial refund issued for a billing dispute on one invoice would
         // fully kill an otherwise-still-paying, still-active membership.
+        // Partner clawback, partial or full: reverses the same share of the
+        // commission that the refunded amount is of the charge. Keyed by the
+        // event id, so a retry cannot reverse twice.
+        {
+          const db = getAdminDb();
+          if (db) {
+            const refundedCents = event.type === 'charge.dispute.created'
+              ? (event.data.object as Stripe.Dispute).amount
+              : (chargeObj.amount_refunded ?? 0);
+            const inv = (chargeObj as { invoice?: string | Stripe.Invoice | null }).invoice;
+            const invId = typeof inv === 'string' ? inv : inv?.id ?? null;
+            await recordClawback(db, {
+              invoiceId: invId, chargeId: chargeObj.id, refundedCents, eventId: event.id,
+              reason: event.type === 'charge.dispute.created' ? 'dispute' : 'refund',
+            }).catch((err) => console.error('[Stripe webhook] partner clawback failed:', err));
+          }
+        }
+
         const isFullSeverity = event.type === 'charge.dispute.created' || chargeObj.refunded === true;
         if (!isFullSeverity) {
           console.log(`[Stripe webhook] Partial refund on charge ${chargeObj.id} — access not revoked`);

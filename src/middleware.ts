@@ -167,6 +167,19 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set('Content-Security-Policy', csp);
+
+  // Partner attribution from any page: /?pref=CODE drops the same httpOnly
+  // cookie /p/CODE does. The code is not validated here (no Firestore at
+  // the edge) — /api/partner/attach checks it against partnerCodes when the
+  // visitor signs up, and the page reports the click to /api/partner/click.
+  // 60 days matches the program default; the real window is re-checked
+  // server-side against config at attach time.
+  const pref = request.nextUrl.searchParams.get('pref');
+  if (pref && /^[A-Za-z0-9]{3,20}$/.test(pref)) {
+    response.cookies.set('wf_ref', pref.toUpperCase(), {
+      httpOnly: true, sameSite: 'lax', secure: request.nextUrl.protocol === 'https:', path: '/', maxAge: 60 * 24 * 3600,
+    });
+  }
   return response;
 }
 

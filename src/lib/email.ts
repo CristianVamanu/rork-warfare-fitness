@@ -924,3 +924,72 @@ export function dripEmailHtml(opts: {
     </p>`;
   return shell(brand, body, `Assessment day ${dayNumber} of ${totalDays}`);
 }
+
+// ── Partner program ─────────────────────────────────────────────────────────
+
+export function partnerApplicationReceivedEmailHtml(name: string, brand: EmailBrand, appUrl: string): string {
+  name = escapeHtml(name);
+  return shell(brand, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Application received</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+      Thanks, ${name}. We review partner applications by hand, usually within two working days. You will get an email either way.
+    </p>
+    ${button('Check status', `${appUrl}/partner`)}
+  `, 'We got your partner application');
+}
+
+export function partnerDecisionEmailHtml(
+  name: string, status: 'active' | 'rejected' | 'suspended', opts: { code: string; percent: number; reason?: string }, brand: EmailBrand, appUrl: string,
+): string {
+  name = escapeHtml(name);
+  const reason = opts.reason ? escapeHtml(opts.reason) : '';
+  if (status === 'active') {
+    return shell(brand, `
+      <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">You're in — welcome, partner</h1>
+      <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#444444;">
+        ${name}, your application is approved. Your link is live and you earn <strong>${opts.percent}%</strong> of every payment from members who join through it, for as long as they stay.
+      </p>
+      ${codeBlock(`${appUrl.replace(/^https?:\/\//, '')}/p/${escapeHtml(opts.code)}`)}
+      <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#444444;">Your dashboard has the link, a QR code, ready-made posts and the videos. Connect your payout account there to get paid.</p>
+      ${button('Open partner dashboard', `${appUrl}/partner`)}
+    `, 'Your partner link is live');
+  }
+  if (status === 'suspended') {
+    return shell(brand, `
+      <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Partner account paused</h1>
+      <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+        ${name}, your partner link has been paused${reason ? `: ${reason}` : '.'} Approved commissions are still paid out. Reply to this email if you think this is a mistake.
+      </p>
+    `);
+  }
+  return shell(brand, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Partner application update</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+      Thanks for applying, ${name}. We are not able to take you on as a partner right now${reason ? `: ${reason}` : '.'} You are welcome to apply again later.
+    </p>
+  `);
+}
+
+export function adminPartnerApplicationEmailHtml(
+  profile: { name: string; email: string; channels: string; audience: string; about: string; website?: string }, code: string, brand: EmailBrand, appUrl: string,
+): string {
+  const row = (k: string, v: string) => `<tr><td style="padding:4px 8px 4px 0;font-size:13px;color:#888;vertical-align:top;white-space:nowrap;">${k}</td><td style="padding:4px 0;font-size:13px;color:#222;">${escapeHtml(v)}</td></tr>`;
+  return shell(brand, `
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#111111;">New partner application</h1>
+    <table style="border-collapse:collapse;">
+      ${row('Name', profile.name)}${row('Email', profile.email)}${row('Code', code)}${row('Channels', profile.channels)}${row('Audience', profile.audience)}${row('Website', profile.website ?? '—')}${row('About', profile.about)}
+    </table>
+    ${button('Review in admin', `${appUrl}/admin/partners`)}
+  `, `Partner application from ${profile.name}`);
+}
+
+export function partnerPayoutEmailHtml(name: string, amountLabel: string, method: 'connect' | 'manual', brand: EmailBrand, appUrl: string): string {
+  name = escapeHtml(name);
+  return shell(brand, `
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Payout sent: ${escapeHtml(amountLabel)}</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+      ${name}, your commission payout of <strong>${escapeHtml(amountLabel)}</strong> is on its way${method === 'connect' ? ' to your connected Stripe account. It usually lands within 2 business days.' : '. We are sending it by bank transfer to the details you gave us.'}
+    </p>
+    ${button('View statement', `${appUrl}/partner?tab=payouts`)}
+  `, `Payout sent: ${amountLabel}`);
+}

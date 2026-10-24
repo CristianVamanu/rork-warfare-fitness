@@ -30,6 +30,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // caches, so the guard's own call gets this same promise.
   useEffect(() => { void getMembershipConfig().catch(() => {}); }, []);
 
+  // Partner attribution safety net: a visitor who arrived through a partner
+  // link but created the account on /register (not onboarding) still has the
+  // httpOnly cookie; the server attaches it here. Once per tab session — the
+  // route is a cheap no-op without a cookie, and refuses anything already
+  // locked, so calling it again is harmless either way.
+  useEffect(() => {
+    if (!user) return;
+    try { if (sessionStorage.getItem('wf:partner-attach') === user.uid) return; } catch { /* private mode */ }
+    (async () => {
+      try {
+        const { getIdToken } = await import('firebase/auth');
+        const token = await getIdToken(user);
+        await fetch('/api/partner/attach', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: '{}' });
+        try { sessionStorage.setItem('wf:partner-attach', user.uid); } catch { /* ignore */ }
+      } catch { /* silent: attribution must never affect the app */ }
+    })();
+  }, [user]);
+
   // If the profile document never arrives (rules rejected its creation, an
   // offline first login, a listener stuck on permission-denied), this layout
   // used to show a spinner forever with no message and no way out short of

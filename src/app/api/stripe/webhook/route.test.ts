@@ -16,6 +16,16 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 interface Write { path: string; data: Record<string, unknown>; merge: boolean }
 
 /** Minimal in-memory stand-in for the Admin Firestore surface this route uses. */
+/** set(merge) merges nested maps the way Firestore does; sentinels are kept as-is. */
+function deepMerge(cur: Record<string, unknown>, data: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...cur };
+  for (const [k, v] of Object.entries(data)) {
+    const plain = v && typeof v === 'object' && !(v instanceof Date) && !Array.isArray(v) && (v as object).constructor === Object;
+    out[k] = plain ? deepMerge((out[k] as Record<string, unknown>) ?? {}, v as Record<string, unknown>) : v;
+  }
+  return out;
+}
+
 function makeDb() {
   const docs = new Map<string, Record<string, unknown>>();
   const writes: Write[] = [];
@@ -26,7 +36,13 @@ function makeDb() {
     }),
     set: async (data: Record<string, unknown>, opts?: { merge?: boolean }) => {
       writes.push({ path, data, merge: !!opts?.merge });
-      docs.set(path, { ...(opts?.merge ? docs.get(path) : {}), ...data });
+      docs.set(path, opts?.merge ? deepMerge(docs.get(path) ?? {}, data) : { ...data });
+    },
+    // create(): the uniqueness primitive the partner ledger relies on.
+    create: async (data: Record<string, unknown>) => {
+      if (docs.has(path)) throw new Error('ALREADY_EXISTS');
+      writes.push({ path, data, merge: false });
+      docs.set(path, { ...data });
     },
     update: async (...args: unknown[]) => {
       if (!docs.has(path)) { const e = new Error('NOT_FOUND'); (e as { code?: number }).code = 5; throw e; }
@@ -44,9 +60,19 @@ function makeDb() {
       docs.set(path, { ...docs.get(path), ...data });
     },
   });
+  // Equality-only query support, enough for the partner ledger lookups.
+  const query = (c: string, filters: { f: string; v: unknown }[]) => ({
+    where: (f: string, _op: string, v: unknown) => query(c, [...filters, { f, v }]),
+    limit: () => query(c, filters),
+    get: async () => {
+      const rows = [...docs.entries()].filter(([p]) => p.startsWith(`${c}/`))
+        .filter(([, d]) => filters.every(({ f, v }) => f.split('.').reduce<unknown>((a, k) => (a && typeof a === 'object' ? (a as Record<string, unknown>)[k] : undefined), d) === v));
+      return { empty: rows.length === 0, size: rows.length, docs: rows.map(([p, d]) => ({ id: p.split('/').pop()!, data: () => d, ref: make(p) })) };
+    },
+  });
   return {
     docs, writes,
-    collection: (c: string) => ({ doc: (d: string) => make(`${c}/${d}`) }),
+    collection: (c: string) => ({ doc: (d: string) => make(`${c}/${d}`), where: (f: string, op: string, v: unknown) => query(c, [{ f, v }]), add: async (d: Record<string, unknown>) => make(`${c}/${Math.random()}`).set(d) }),
     // The ordering guard in setSubscriptionStatus reads-then-writes inside a
     // transaction. Serial here; the real one is atomic.
     runTransaction: async <T,>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn({
@@ -93,6 +119,7 @@ vi.mock('firebase-admin/firestore', () => ({
     delete: () => '__delete__',
     arrayUnion: (...v: unknown[]) => ({ __arrayUnion: v }),
     arrayRemove: (...v: unknown[]) => ({ __arrayRemove: v }),
+    increment: (n: number) => ({ __increment: n }),
   },
   // Single-segment path — the way a field name containing a dot is addressed.
   FieldPath: class { constructor(public path: string) {} },
@@ -562,5 +589,72 @@ describe('subscription record shape', () => {
     expect(m.stripeSubscriptionId).toBe('sub_1');
     expect(m.planId).toBe('p1');
     expect(m.expiresAt).toBeInstanceOf(Date);
+  });
+});
+
+
+// ── Partner program ─────────────────────────────────────────────────────────
+
+describe('partner attribution and commission', () => {
+  const PARTNER = 'partners/p1';
+  beforeEach(() => {
+    db.docs.set(PARTNER, { uid: 'p1', code: 'MIKE', status: 'active', profile: { name: 'Mike', email: 'mike@x.com' } });
+    db.docs.set('partnerCodes/MIKE', { partnerId: 'p1' });
+    db.docs.set('config/partnerProgram', { defaultPercent: 30, holdDays: 30 });
+    stripe.subscriptions = {
+      retrieve: async () => ({ id: 'sub_1', status: 'active', current_period_end: 1893456000, metadata: { userId: 'u1', kind: 'membership', partnerId: 'p1', partnerCode: 'MIKE', planName: 'Pro' } }),
+    };
+    (stripe.charges as { retrieve: unknown }).retrieve = async () => ({ id: 'ch_1', balance_transaction: { fee: 117 }, payment_method_details: { card: { fingerprint: 'fp_a' } } });
+  });
+
+  it('locks the member to the partner when checkout completes', async () => {
+    await POST(req({
+      id: 'evt_pc', type: 'checkout.session.completed',
+      data: { object: { mode: 'subscription', payment_status: 'paid', subscription: 'sub_1', metadata: { userId: 'u1', kind: 'membership', partnerId: 'p1', partnerCode: 'MIKE' } } },
+    }));
+    const a = db.docs.get(USER)?.attribution as { partnerId?: string; lockedAt?: unknown };
+    expect(a.partnerId).toBe('p1');
+    expect(a.lockedAt).toBeInstanceOf(Date);
+    expect(db.sub(USER, 'membership').status).toBe('active');
+  });
+
+  it('writes one commission row per paid invoice, net of the Stripe fee', async () => {
+    const paid = (id: string, evt: string) => ({ id: evt, type: 'invoice.paid', data: { object: { id, subscription: 'sub_1', amount_paid: 2999, currency: 'usd', charge: 'ch_1' } } });
+    expect((await POST(req(paid('in_1', 'evt_i1')))).status).toBe(200);
+    const row = db.docs.get('partnerLedger/in_1') as { commissionCents: number; netCents: number; status: string; percent: number };
+    expect(row).toMatchObject({ percent: 30, netCents: 2882, commissionCents: 865, status: 'pending' });
+    // a redelivery of the same invoice under a new event id is still one row
+    await POST(req(paid('in_1', 'evt_i1_again')));
+    expect([...db.docs.keys()].filter((k) => k.startsWith('partnerLedger/')).length).toBe(1);
+    // a $0 trial invoice earns nothing
+    await POST(req({ id: 'evt_i0', type: 'invoice.paid', data: { object: { id: 'in_0', subscription: 'sub_1', amount_paid: 0, currency: 'usd' } } }));
+    expect(db.docs.has('partnerLedger/in_0')).toBe(false);
+  });
+
+  it('never pays a partner who is no longer active', async () => {
+    db.docs.set(PARTNER, { ...db.docs.get(PARTNER), status: 'suspended' });
+    await POST(req({ id: 'evt_i2', type: 'invoice.paid', data: { object: { id: 'in_2', subscription: 'sub_1', amount_paid: 2999, currency: 'usd', charge: 'ch_1' } } }));
+    expect(db.docs.has('partnerLedger/in_2')).toBe(false);
+  });
+
+  it('claws the commission back on a refund', async () => {
+    await POST(req({ id: 'evt_i3', type: 'invoice.paid', data: { object: { id: 'in_3', subscription: 'sub_1', amount_paid: 2999, currency: 'usd', charge: 'ch_1' } } }));
+    (stripe.charges as { retrieve: unknown }).retrieve = async () => ({
+      id: 'ch_1', refunded: true, amount_refunded: 2999, payment_intent: null, metadata: {}, customer: 'cus_1', invoice: { id: 'in_3', subscription: 'sub_1' },
+    });
+    (stripe.subscriptions as { cancel: unknown }).cancel = async () => ({ status: 'canceled' });
+    await POST(req({ id: 'evt_rf', type: 'charge.refunded', data: { object: { id: 'ch_1' } } }));
+    const cb = db.docs.get('partnerLedger/in_3_rf_evt_rf') as { status: string; commissionCents: number };
+    expect(cb).toMatchObject({ status: 'clawback', commissionCents: -865 });
+    expect((db.docs.get('partnerLedger/in_3') as { status: string }).status).toBe('rejected');
+  });
+
+  it('a commission failure never blocks the member\'s renewal', async () => {
+    (stripe.charges as { retrieve: unknown }).retrieve = async () => { throw new Error('stripe down'); };
+    const res = await POST(req({ id: 'evt_i4', type: 'invoice.paid', data: { object: { id: 'in_4', subscription: 'sub_1', amount_paid: 2999, currency: 'usd', charge: 'ch_1' } } }));
+    expect(res.status).toBe(200);
+    expect(db.sub(USER, 'membership').status).toBe('active');
+    // computed on gross when the fee lookup fails
+    expect((db.docs.get('partnerLedger/in_4') as { commissionCents: number }).commissionCents).toBe(900);
   });
 });

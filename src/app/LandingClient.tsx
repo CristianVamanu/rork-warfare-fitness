@@ -1452,6 +1452,7 @@ export default function LandingPage({
         <div className="flex items-center gap-4">
           <Link href="/download" className="text-xs text-text-tertiary hover:text-white transition-colors">Download App</Link>
           <Link href="/trainers" className="text-xs text-text-tertiary hover:text-white transition-colors">For Trainers</Link>
+          <Link href="/partners" className="text-xs text-text-tertiary hover:text-white transition-colors">Partners</Link>
           <Link href="/privacy" className="text-xs text-text-tertiary hover:text-white transition-colors">Privacy</Link>
           <Link href="/terms" className="text-xs text-text-tertiary hover:text-white transition-colors">Terms</Link>
         </div>

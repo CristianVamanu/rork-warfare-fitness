@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
+import { Suspense } from 'react';
+import { PartnerRefCapture } from '@/components/partner/PartnerRefCapture';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -169,6 +171,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <ErrorReporter />
           <CookieConsent />
           <AppToaster />
+          {/* Counts ?pref=CODE partner landings; renders nothing. */}
+          <Suspense fallback={null}><PartnerRefCapture /></Suspense>
         </ThemeProvider>
         </AuthProvider>
         <ConsentGatedScripts nonce={nonce} />

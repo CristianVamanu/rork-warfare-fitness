@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { getIdToken } from 'firebase/auth';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js';
-import { ChevronLeft, Lock, ShieldCheck, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Lock, ShieldCheck, RefreshCw, Tag, Check } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppBackground } from '@/components/ui/AppBackground';
 import { AuthBrandMark } from '@/components/auth/AuthBrandMark';
@@ -47,6 +47,52 @@ export function CheckoutClient() {
   // The provider asks for the client secret once; a re-render must never
   // create a second Stripe session for the same click.
   const secretRef = useRef<Promise<string> | null>(null);
+  // Bumped when a partner code is applied: the Stripe session already created
+  // does not carry it, so a fresh one is made (old one is simply abandoned).
+  const [sessionKey, setSessionKey] = useState(0);
+
+  // Partner code — whose link or code brought this buyer. Pre-filled from the
+  // cookie attribution the server already holds; a code typed here wins over
+  // the cookie and must be attached BEFORE the Stripe session is created, so
+  // applying one re-creates the session.
+  const [partnerCode, setPartnerCode] = useState('');
+  const [partnerApplied, setPartnerApplied] = useState<string | null>(null);
+  const [partnerLocked, setPartnerLocked] = useState(false);
+  const [partnerBusy, setPartnerBusy] = useState(false);
+  const [partnerMsg, setPartnerMsg] = useState<string | null>(null);
+  const [partnerOpen, setPartnerOpen] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const token = await getIdToken(user);
+        // Attach whatever the cookie holds first (no-op without one), then read back.
+        await fetch('/api/partner/attach', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: '{}' });
+        const res = await fetch('/api/partner/attach', { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json().catch(() => ({})) as { code?: string | null; locked?: boolean };
+        if (data.code) { setPartnerApplied(data.code); setPartnerCode(data.code); setPartnerOpen(true); }
+        if (data.locked) setPartnerLocked(true);
+      } catch { /* the field just starts empty */ }
+    })();
+  }, [user]);
+  const applyPartnerCode = async () => {
+    if (!user || partnerBusy) return;
+    const code = partnerCode.trim().toUpperCase();
+    if (!code) return;
+    setPartnerBusy(true); setPartnerMsg(null);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch('/api/partner/attach', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ code }) });
+      const data = await res.json().catch(() => ({})) as { attached?: boolean; reason?: string; partnerCode?: string };
+      if (data.attached) {
+        setPartnerApplied(data.partnerCode ?? code); setPartnerMsg('Partner code applied.');
+        secretRef.current = null; setSessionKey((k) => k + 1);
+      } else {
+        setPartnerMsg(data.reason === 'unknown_code' ? 'That code was not recognised.' : data.reason === 'locked' ? 'A partner is already linked to this account.' : data.reason === 'self' ? 'You cannot use your own partner code.' : 'That code cannot be applied.');
+      }
+    } catch { setPartnerMsg('Could not apply the code right now.'); }
+    finally { setPartnerBusy(false); }
+  };
 
   useEffect(() => {
     getSystemConfig().then((cfg) => { if (cfg?.appName) setAppName(cfg.appName as string); }).catch(() => {});
@@ -81,7 +127,9 @@ export function CheckoutClient() {
       throw new Error(msg);
     })();
     return secretRef.current;
-  }, [user, planId, months]);
+  // sessionKey is a deliberate dependency: a new key means a new session.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, planId, months, sessionKey]);
 
   // Stripe.js — or fall back to hosted checkout if it cannot be loaded.
   useEffect(() => {
@@ -178,8 +226,42 @@ export function CheckoutClient() {
                 page a buyer must trust on sight, and a card form that looks
                 like every other card form they have used is what earns that.
                 The ember glow and the grid around it are ours. */}
+            {/* Partner code. Folded away unless one is already attached: most
+                buyers have none and a visible empty field would read as a
+                missing discount. It is attribution, not a coupon. */}
+            <div className="mb-3">
+              {!partnerOpen ? (
+                <button type="button" onClick={() => setPartnerOpen(true)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary hover:text-white transition-colors">
+                  <Tag className="w-3.5 h-3.5" /> Have a partner code?
+                </button>
+              ) : (
+                <div className="rounded-2xl border px-3 py-2.5 backdrop-blur-xl" style={{ backgroundColor: 'var(--card-glass-bg)', borderColor: 'var(--card-glass-border)' }}>
+                  <div className="flex items-center gap-2">
+                    <Tag className="w-4 h-4 text-accent flex-shrink-0" />
+                    <input
+                      value={partnerCode}
+                      onChange={(e) => setPartnerCode(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void applyPartnerCode(); } }}
+                      disabled={partnerLocked || partnerBusy}
+                      placeholder="Partner code"
+                      aria-label="Partner code"
+                      className="flex-1 min-w-0 bg-transparent text-sm font-semibold tracking-wider text-white placeholder:text-text-tertiary outline-none disabled:opacity-60"
+                      maxLength={20}
+                    />
+                    {partnerApplied && partnerApplied === partnerCode.trim().toUpperCase() ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-success"><Check className="w-3.5 h-3.5" /> Applied</span>
+                    ) : (
+                      <Button size="sm" variant="secondary" onClick={applyPartnerCode} disabled={partnerLocked || partnerBusy || !partnerCode.trim()}>Apply</Button>
+                    )}
+                  </div>
+                  {partnerMsg && <p className="mt-1.5 text-[11px] text-text-secondary">{partnerMsg}</p>}
+                  {partnerApplied && !partnerMsg && <p className="mt-1.5 text-[11px] text-text-tertiary">Credits the partner who sent you. It does not change your price.</p>}
+                </div>
+              )}
+            </div>
+
             <div ref={panelRef} className="rounded-3xl overflow-hidden bg-white border border-white/10 shadow-[0_30px_80px_-30px_rgba(245,166,35,0.55)] min-h-[480px]">
-              <EmbeddedCheckoutProvider stripe={stripePromise} options={options}>
+              <EmbeddedCheckoutProvider key={sessionKey} stripe={stripePromise} options={options}>
                 <EmbeddedCheckout />
               </EmbeddedCheckoutProvider>
             </div>

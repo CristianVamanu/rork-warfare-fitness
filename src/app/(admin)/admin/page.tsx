@@ -23,7 +23,7 @@ import { FunnelPanel } from '@/components/admin/FunnelPanel';
 import { ErrorsPanel } from '@/components/admin/ErrorsPanel';
 import { downloadCsv } from '@/lib/csv';
 import { AdminShell } from '@/components/admin/AdminShell';
-import { ADMIN_TAB_BY_ID, adminGroups } from '@/components/admin/nav';
+import { ADMIN_TAB_BY_ID, ADMIN_ROUTE_TABS, adminGroups } from '@/components/admin/nav';
 import { StatTile, Panel, Pill, KV, Segmented } from '@/components/admin/ui';
 import { getIdToken } from 'firebase/auth';
 import { DEFAULT_ORG_DAILY_LIMIT } from '@/lib/orgAiLimit';
@@ -2892,7 +2892,7 @@ function AdminPageInner() {
     <AdminShell
       groups={GROUPS}
       active={tab}
-      onSelect={setTab}
+      onSelect={(id) => { const route = ADMIN_ROUTE_TABS[id]; if (route) router.push(route); else setTab(id as Tab); }}
       title={byId[tab].label}
       subtitle={TAB_SUBTITLE[tab]}
       trial={tenant?.stripe?.subscriptionStatus === 'trialing'}

@@ -853,7 +853,16 @@ function OnboardingPageInner() {
         body: JSON.stringify({ code: referralCode, programId: preselectedProgramId ?? undefined }),
       }).catch(() => {});
 
-      const [, , onboardingSaved] = await Promise.all([programTask, nutritionTask, saveTask, weightTask, referralTask]);
+      // Partner attribution (the httpOnly wf_ref cookie from a /p/CODE link
+      // or ?pref=). Same contract as the referral task: never blocks or
+      // fails signup, idempotent, resolves quietly when there is no cookie.
+      const partnerTask = fetch('/api/partner/attach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: '{}',
+      }).catch(() => {});
+
+      const [, , onboardingSaved] = await Promise.all([programTask, nutritionTask, saveTask, weightTask, referralTask, partnerTask]);
 
       // ONLY clear the draft once onboardingComplete actually landed. Both
       // the primary write and its fallback swallow their errors so one

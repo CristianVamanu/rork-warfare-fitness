@@ -20,6 +20,7 @@ import { getOrCreatePlanProduct, getOrCreateTrialFeeProduct } from '@/lib/stripe
 import type { MembershipPlan } from '@/types';
 import { checkoutReturnParams } from '@/lib/checkoutMode';
 import { describeCheckoutOffer } from '@/lib/checkoutRecovery';
+import { pendingPartnerFor } from '@/lib/partnersServer';
 
 function getAdminDb() {
   const app = getAdminApp();
@@ -261,6 +262,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Partner attribution rides on the subscription so every later invoice
+    // (invoice.paid in the webhook) knows whose commission it is without a
+    // lookup — and so it is locked at the moment of payment, never after.
+    // Resolved fresh here: a partner suspended since the cookie was set
+    // must not be attached.
+    const partner = await pendingPartnerFor(db, userSnap.data()).catch(() => null);
+    const partnerMeta: Record<string, string> = partner ? { partnerId: partner.uid, partnerCode: partner.code } : {};
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       // No payment_method_types. Pinning ['card'] switched off Stripe's
@@ -302,10 +311,10 @@ export async function POST(req: NextRequest) {
       payment_method_collection: 'always',
       subscription_data: {
         ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),
-        metadata: { userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership' },
+        metadata: { userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership', ...partnerMeta },
       },
       metadata: {
-        userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership',
+        userId, planId, planName: plan.name, periodMonths: String(months), kind: 'membership', ...partnerMeta,
         ...(trialPeriodDays ? { trialUsed: 'true' } : {}),
       },
       ...checkoutReturnParams({ embedded: !!embedded, appUrl }),
