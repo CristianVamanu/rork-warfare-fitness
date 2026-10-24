@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estimateNutritionTargets, calculateBmi, estimateBmiTimeline, estimateWeightGoalTimeline } from './tdee';
+import { estimateNutritionTargets, calculateBmi, estimateBmiTimeline, estimateWeightGoalTimeline, nutritionInputsFromProfile } from './tdee';
 
 describe('estimateNutritionTargets', () => {
   it('computes a plausible maintenance for a real profile (regression test for the overestimate bug)', () => {
@@ -37,9 +37,9 @@ describe('estimateNutritionTargets', () => {
     const muscleGain = estimateNutritionTargets('build-muscle', 'intermediate', 4, biometrics);
     const maintenance = estimateNutritionTargets('recomposition', 'intermediate', 4, biometrics);
 
-    expect(fatLoss.calories).toBe(maintenance.calories - 300);
+    expect(fatLoss.calories).toBe(maintenance.calories - 500);
     expect(muscleGain.calories).toBe(maintenance.calories + 300);
-    expect(fatLoss.calorieAdjustment).toBe(-300);
+    expect(fatLoss.calorieAdjustment).toBe(-500);
     expect(muscleGain.calorieAdjustment).toBe(300);
   });
 
@@ -53,7 +53,7 @@ describe('estimateNutritionTargets', () => {
   it('falls back to a flat per-experience estimate when biometrics are skipped', () => {
     const result = estimateNutritionTargets('recomposition', 'beginner', 3, undefined);
     expect(result.usedRealBiometrics).toBe(false);
-    expect(result.bmr).toBe(2000); // BASE_CALORIES.beginner
+    expect(result.bmr).toBe(1600); // BASE_BMR.beginner
   });
 
   it('macro grams always sum back to roughly the target calories', () => {
@@ -127,5 +127,25 @@ describe('estimateWeightGoalTimeline', () => {
     const loss = estimateWeightGoalTimeline(90, 85);
     const gain = estimateWeightGoalTimeline(70, 75);
     expect(gain.weeksToGoal).toBeGreaterThan(loss.weeksToGoal);
+  });
+});
+
+describe('nutritionInputsFromProfile', () => {
+  it('reads the flat fields onboarding actually writes', () => {
+    const r = nutritionInputsFromProfile({ fitnessGoal: 'lose-fat', experience: 'beginner', trainingDays: 4, sex: 'male', age: 29, heightCm: 180 }, 85);
+    expect(r).toEqual({ goal: 'lose-fat', experience: 'beginner', trainingDays: 4, biometrics: { sex: 'male', age: 29, heightCm: 180, weightKg: 85 } });
+  });
+  it('still accepts the legacy nested shape', () => {
+    const r = nutritionInputsFromProfile({ fitnessGoal: 'strength', experience: 'advanced', onboarding: { trainingDays: 5, sex: 'female', age: 40, heightCm: 165 } }, 60);
+    expect(r?.trainingDays).toBe(5);
+    expect(r?.biometrics?.sex).toBe('female');
+  });
+  it('drops biometrics but keeps the goal when height or sex is missing', () => {
+    const r = nutritionInputsFromProfile({ fitnessGoal: 'build-muscle', experience: 'beginner', trainingDays: 3 }, 70);
+    expect(r).toEqual({ goal: 'build-muscle', experience: 'beginner', trainingDays: 3, biometrics: undefined });
+  });
+  it('returns null when the quiz answers are not there', () => {
+    expect(nutritionInputsFromProfile({ experience: 'beginner' }, 70)).toBeNull();
+    expect(nutritionInputsFromProfile(undefined, 70)).toBeNull();
   });
 });

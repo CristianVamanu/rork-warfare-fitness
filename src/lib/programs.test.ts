@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getNextSession, countTrainingSlotsThrough, getTotalTrainingDays, pickBestProgram, MOCK_PROGRAMS } from './programs';
+import { getNextSession, getLastTrainingSlotIndex, countTrainingSlotsThrough, getTotalTrainingDays, getProgramDayProgress, pickBestProgram, MOCK_PROGRAMS } from './programs';
 import type { Program, ProgramDay } from '@/types';
 
 const train = (label: string): ProgramDay => ({ label, isRest: false, exercises: [{ id: 'e', name: 'Squat', sets: 3, reps: 10, restSeconds: 60 }] });
@@ -17,52 +17,118 @@ const todayStr = () => new Date().toLocaleDateString('sv-SE');
 const yesterdayStr = () => new Date(Date.now() - 86_400_000).toLocaleDateString('sv-SE');
 const daysAgoStr = (n: number) => new Date(Date.now() - n * 86_400_000).toLocaleDateString('sv-SE');
 
-describe('getNextSession — rest-day deadlock fix', () => {
+describe('getNextSession — rest days are shown, then explicitly skipped', () => {
   it('returns the next training slot directly when it is not a rest day', () => {
     const s = getNextSession(standard, -1, undefined);
     expect(s).toMatchObject({ index: 0, isRestToday: false });
-    expect(s!.day.label).toBe('A');
+    expect(s!.nextTraining).toMatchObject({ index: 0 });
   });
 
-  it('honors a rest day when the user trained yesterday', () => {
-    // completed slot 1 (B) yesterday → slot 2 is rest → today IS the rest day
-    const s = getNextSession(standard, 1, yesterdayStr());
-    expect(s).toMatchObject({ index: 2, isRestToday: true });
-    expect(s!.day.isRest).toBe(true);
+  it('shows the rest day on the day it is due, and the day after the workout', () => {
+    // Trained today → the rest day is still ahead. Trained yesterday → today
+    // IS the rest day. Never trained → nothing has expired.
+    for (const when of [todayStr(), yesterdayStr(), undefined]) {
+      const s = getNextSession(standard, 1, when);
+      expect(s, `lastWorkoutDate=${when}`).toMatchObject({ index: 2, isRestToday: true });
+      expect(s!.day.isRest).toBe(true);
+      expect(s!.nextTraining).toMatchObject({ index: 3 });
+    }
   });
 
-  it('honors a rest day when the user already trained today', () => {
-    const s = getNextSession(standard, 1, todayStr());
-    expect(s).toMatchObject({ index: 2, isRestToday: true });
+  it('is a pure function of the `today` it is given — the page re-renders with a new date, not a new clock read', () => {
+    // Trained on the 14th, rest slot next. Rendered on the 15th the rest day
+    // stands; the same props on the 16th must yield the training slot. This
+    // is what useLocalDate() feeds in when the calendar rolls over under an
+    // app that was left open.
+    expect(getNextSession(standard, 1, '2026-09-14', '2026-09-15')).toMatchObject({ index: 2, isRestToday: true });
+    expect(getNextSession(standard, 1, '2026-09-14', '2026-09-16')).toMatchObject({ index: 3, isRestToday: false });
+    // Two rest slots in a row take two days.
+    const twoRests = prog([train('A'), rest(), rest(), train('B'), rest(), rest(), rest()]);
+    expect(getNextSession(twoRests, 0, '2026-09-14', '2026-09-16')).toMatchObject({ index: 2, isRestToday: true });
+    expect(getNextSession(twoRests, 0, '2026-09-14', '2026-09-17')).toMatchObject({ index: 3, isRestToday: false });
+    // A garbage `today` degrades to "nothing expired", never to a crash.
+    expect(getNextSession(standard, 1, '2026-09-14', 'not-a-date')).toMatchObject({ index: 2, isRestToday: true });
   });
 
-  it('skips a stale rest slot when the last workout was 2+ days ago (the deadlock case)', () => {
+  it('a rest day expires at local midnight — the reported bug', () => {
+    // Trained two days ago with one rest slot next: yesterday was the rest
+    // day, so today the workout is waiting. This is the case that used to
+    // show "Rest day" forever until Skip was pressed.
     const s = getNextSession(standard, 1, daysAgoStr(2));
     expect(s).toMatchObject({ index: 3, isRestToday: false });
-    expect(s!.day.label).toBe('C');
   });
 
-  it('skips consecutive stale rest slots', () => {
-    // completed slot 5 (D) long ago → slot 6 rest, slot 7 wraps to week 2 slot 0 (A)
-    const s = getNextSession(standard, 5, daysAgoStr(5));
-    expect(s).toMatchObject({ index: 7, isRestToday: false });
-    expect(s!.day.label).toBe('A');
+  it('a long absence still lands on the next workout, never past it', () => {
+    // Away a fortnight. The single rest slot is spent; slot 3 is training
+    // and stays put however much budget is left over.
+    const s = getNextSession(standard, 1, daysAgoStr(14));
+    expect(s).toMatchObject({ index: 3, isRestToday: false });
+    expect(s!.day.isRest).toBe(false);
   });
 
-  it('never loops forever on an all-rest schedule; falls back to showing rest', () => {
+  it('consecutive rest slots expire one per day, not all at once', () => {
+    const p = prog([train('A'), rest(), rest(), train('B'), rest(), rest(), rest()]);
+    expect(getNextSession(p, 0, todayStr())).toMatchObject({ index: 1, isRestToday: true });
+    expect(getNextSession(p, 0, yesterdayStr())).toMatchObject({ index: 1, isRestToday: true });
+    expect(getNextSession(p, 0, daysAgoStr(2))).toMatchObject({ index: 2, isRestToday: true });
+    expect(getNextSession(p, 0, daysAgoStr(3))).toMatchObject({ index: 3, isRestToday: false });
+  });
+
+  it('an all-rest schedule cannot run away however long the absence', () => {
     const allRest = prog([rest(), rest(), rest(), rest(), rest(), rest(), rest()]);
-    const s = getNextSession(allRest, 0, daysAgoStr(10));
+    const s = getNextSession(allRest, 0, daysAgoStr(400));
     expect(s!.isRestToday).toBe(true);
+    expect(s!.nextTraining).toBeNull();
   });
 
-  it('never deadlocks on any seed program: from any slot, a stale user always gets a workout', () => {
+  it('after skipping the rest day (pointer on the rest slot) the next workout is offered', () => {
+    const s = getNextSession(standard, 2, todayStr()); // pointer now ON the rest slot
+    expect(s).toMatchObject({ index: 3, isRestToday: false });
+  });
+
+  it('consecutive rest slots are shown one at a time; nextTraining points past all of them', () => {
+    const p = prog([train('A'), rest(), rest(), rest(), train('B'), rest(), rest()]);
+    expect(getNextSession(p, 0)).toMatchObject({ index: 1, isRestToday: true, nextTraining: { index: 4 } });
+    expect(getNextSession(p, 1)).toMatchObject({ index: 2, isRestToday: true, nextTraining: { index: 4 } });
+    expect(getNextSession(p, 3)).toMatchObject({ index: 4, isRestToday: false });
+  });
+
+  it('alternating program: workout → rest shown → skip → workout, never stuck', () => {
+    const alt = prog([train('A'), rest(), train('B'), rest(), train('C'), rest(), rest()]);
+    expect(getNextSession(alt, 0)).toMatchObject({ index: 1, isRestToday: true });   // after A: rest shown
+    expect(getNextSession(alt, 1)).toMatchObject({ index: 2, isRestToday: false });  // skipped: B offered
+    expect(getNextSession(alt, 2)).toMatchObject({ index: 3, isRestToday: true });   // after B: rest shown
+    expect(getNextSession(alt, 6)).toMatchObject({ index: 7, isRestToday: false });  // week wraps to A
+  });
+
+  it('all-rest schedule shows rest with no next training', () => {
+    const allRest = prog([rest(), rest(), rest(), rest(), rest(), rest(), rest()]);
+    const s = getNextSession(allRest, 0);
+    expect(s!.isRestToday).toBe(true);
+    expect(s!.nextTraining).toBeNull();
+  });
+
+  it('every seed program: from any slot there is always a nextTraining', () => {
     for (const p of MOCK_PROGRAMS) {
       for (let last = -1; last < 14; last++) {
-        const s = getNextSession(p, last, daysAgoStr(3));
-        expect(s, `${p.id} stuck after slot ${last}`).not.toBeNull();
-        expect(s!.isRestToday, `${p.id} rest-locked after slot ${last}`).toBe(false);
+        const s = getNextSession(p, last);
+        expect(s, `${p.id} slot ${last}`).not.toBeNull();
+        expect(s!.nextTraining, `${p.id} no training after slot ${last}`).not.toBeNull();
       }
     }
+  });
+});
+
+describe('getLastTrainingSlotIndex — what "Repeat today" should open', () => {
+  it('returns the slot itself when it is a training day', () => {
+    expect(getLastTrainingSlotIndex(standard, 1)).toBe(1);
+  });
+  it('walks back past a skipped rest slot to the last real session', () => {
+    expect(getLastTrainingSlotIndex(standard, 2)).toBe(1); // slot 2 is Rest
+    expect(getLastTrainingSlotIndex(standard, 4)).toBe(3); // slot 4 is Rest
+  });
+  it('is null before anything has been trained', () => {
+    expect(getLastTrainingSlotIndex(standard, -1)).toBeNull();
   });
 });
 
@@ -115,7 +181,7 @@ describe('pickBestProgram — weight-goal timeline scoring', () => {
   });
 
   it('prefers the program whose duration is closest to the estimated timeline', () => {
-    const result = pickBestProgram(pool, 'lose-fat', 'beginner', 4, undefined, undefined, undefined, 24);
+    const result = pickBestProgram(pool, 'lose-fat', 'beginner', 4, undefined, undefined, 24);
     expect(result!.id).toBe('medium');
   });
 
@@ -125,7 +191,97 @@ describe('pickBestProgram — weight-goal timeline scoring', () => {
     // still make a same-goal program a better pick even at a worse duration.
     const wrongGoal: Program = { ...standard, id: 'wrong-goal', weeks: 24, goal: 'strength' };
     const rightGoalOffDuration: Program = { ...standard, id: 'right-goal', weeks: 8, goal: 'weight-loss' };
-    const result = pickBestProgram([wrongGoal, rightGoalOffDuration], 'lose-fat', 'beginner', 4, undefined, undefined, undefined, 24);
+    const result = pickBestProgram([wrongGoal, rightGoalOffDuration], 'lose-fat', 'beginner', 4, undefined, undefined, 24);
     expect(result!.id).toBe('right-goal');
+  });
+});
+
+describe('pickBestProgram — a program written for the other sex is not a candidate', () => {
+  // The live catalogue, reduced to the three programs that decide this case:
+  // the only beginner hypertrophy program is the women's one.
+  const valkyrie: Program = { ...standard, id: 'valkyrie', goal: 'hypertrophy', level: 'beginner', daysPerWeek: 4, targetGender: 'female' };
+  const alphaBulk: Program = { ...standard, id: 'alpha-bulk', goal: 'hypertrophy', level: 'intermediate', daysPerWeek: 3 };
+  const homeFront: Program = { ...standard, id: 'home-front', goal: 'general', level: 'beginner', daysPerWeek: 4 };
+  const pool = [valkyrie, alphaBulk, homeFront];
+
+  it('never hands a man the women\'s program, even when it is the closest fit on paper', () => {
+    // Before: Valkyrie scored 10 (goal) + 6 (level) - 3 (sex) = 13 and won.
+    const result = pickBestProgram(pool, 'build-muscle', 'beginner', 4, 'male');
+    expect(result!.id).not.toBe('valkyrie');
+  });
+
+  it('still gives it to a woman', () => {
+    expect(pickBestProgram(pool, 'build-muscle', 'beginner', 4, 'female')!.id).toBe('valkyrie');
+  });
+
+  it('with no sex given, nothing is excluded', () => {
+    expect(pickBestProgram(pool, 'build-muscle', 'beginner', 4)!.id).toBe('valkyrie');
+  });
+
+  it('falls back to it only when it is the only program there is', () => {
+    expect(pickBestProgram([valkyrie], 'build-muscle', 'beginner', 4, 'male')!.id).toBe('valkyrie');
+  });
+});
+
+describe('pickBestProgram — the selection programs are reachable', () => {
+  const sas: Program = { ...standard, id: 'sas', goal: 'endurance', level: 'intermediate', daysPerWeek: 5 };
+  const legion: Program = { ...standard, id: 'legion', goal: 'endurance', level: 'advanced', daysPerWeek: 6 };
+  const burnOps: Program = { ...standard, id: 'burn-ops', goal: 'weight-loss', level: 'beginner', daysPerWeek: 6 };
+  const forge: Program = { ...standard, id: 'forge', goal: 'strength', level: 'intermediate', daysPerWeek: 3 };
+  const homeFront: Program = { ...standard, id: 'home-front', goal: 'general', level: 'beginner', daysPerWeek: 4 };
+  const pool = [sas, legion, burnOps, forge, homeFront];
+
+  it('"military-prep" routes to an endurance program, not the general fallback', () => {
+    // Before the goal existed, endurance programs were assigned in 0 of 96
+    // simulated onboarding combinations.
+    expect(pickBestProgram(pool, 'military-prep', 'intermediate', 5)!.id).toBe('sas');
+    expect(pickBestProgram(pool, 'military-prep', 'advanced', 6)!.id).toBe('legion');
+  });
+
+  it('a beginner asking for military prep still gets a selection program, at the nearest level', () => {
+    expect(pickBestProgram(pool, 'military-prep', 'beginner', 4)!.goal).toBe('endurance');
+  });
+});
+
+describe('pickBestProgram — days per week is a preference, not a fit', () => {
+  const burnOps: Program = { ...standard, id: 'burn-ops', goal: 'weight-loss', level: 'beginner', daysPerWeek: 6 };
+  const forge: Program = { ...standard, id: 'forge', goal: 'strength', level: 'intermediate', daysPerWeek: 3 };
+  const homeFront: Program = { ...standard, id: 'home-front', goal: 'general', level: 'beginner', daysPerWeek: 3 };
+
+  it('a 3-day fat-loss beginner gets the fat-loss program, even though it is written for 6 days', () => {
+    // Programs advance session by session, so the 6-day program simply takes
+    // longer at 3 a week. At the old -2/day penalty this person was sent to
+    // a strength program instead.
+    expect(pickBestProgram([burnOps, forge, homeFront], 'lose-fat', 'beginner', 3)!.id).toBe('burn-ops');
+  });
+
+  it('days still break ties between programs that match on goal and level', () => {
+    const six: Program = { ...standard, id: 'six', goal: 'weight-loss', level: 'beginner', daysPerWeek: 6 };
+    const three: Program = { ...standard, id: 'three', goal: 'weight-loss', level: 'beginner', daysPerWeek: 3 };
+    expect(pickBestProgram([six, three], 'lose-fat', 'beginner', 3)!.id).toBe('three');
+    expect(pickBestProgram([six, three], 'lose-fat', 'beginner', 6)!.id).toBe('six');
+  });
+});
+
+describe('getProgramDayProgress — progress counted in days, rest days included', () => {
+  const enrollment = { completedWorkouts: 3, totalWorkouts: 16 }; // `standard`: 4 weeks × 4 sessions
+  it('a 4-week, 7-slot program is 28 days; slots behind the next one are done', () => {
+    // Next slot is index 4 → four days behind it (incl. two rest slots).
+    expect(getProgramDayProgress(standard, enrollment, 4)).toMatchObject({ dayNumber: 5, daysDone: 4, totalDays: 28, pct: 14, finished: false });
+  });
+  it('a served rest day moves the number, a training day does not have to happen', () => {
+    const a = getProgramDayProgress(standard, enrollment, 2);
+    const b = getProgramDayProgress(standard, enrollment, 3); // rest slot 2 passed
+    expect(b.daysDone).toBe(a.daysDone + 1);
+  });
+  it('finishes on the last day, or when every session is done — whichever comes first', () => {
+    expect(getProgramDayProgress(standard, enrollment, 28)).toMatchObject({ daysDone: 28, dayNumber: 28, pct: 100, finished: true });
+    expect(getProgramDayProgress(standard, { completedWorkouts: 16, totalWorkouts: 16 }, 26)).toMatchObject({ finished: true, pct: 100 });
+  });
+  it('falls back to session counts when the program has not resolved', () => {
+    expect(getProgramDayProgress(null, { completedWorkouts: 3, totalWorkouts: 39 }, 99)).toMatchObject({ dayNumber: 4, daysDone: 3, totalDays: 39, pct: 8 });
+  });
+  it('never divides by zero on a legacy enrollment with no totals', () => {
+    expect(getProgramDayProgress(null, { completedWorkouts: 0, totalWorkouts: 0 }, 0)).toMatchObject({ pct: 0, totalDays: 0, finished: false });
   });
 });

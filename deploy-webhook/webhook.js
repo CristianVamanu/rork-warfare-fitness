@@ -41,11 +41,33 @@ function runDeploy() {
   }
   deploying = true;
   console.log(`[${new Date().toISOString()}] Deploying...`);
-  exec('bash deploy.sh', { cwd: REPO_DIR, maxBuffer: 1024 * 1024 * 20 }, (err, stdout, stderr) => {
+  // deploy.sh uses DEPLOY_LOCKED / DEPLOY_REEXECED as one-shot guards for its
+  // flock and its self-re-exec. This listener is itself restarted by pm2 from
+  // inside deploy.sh, and `pm2 restart --update-env` stores that shell's
+  // environment — so this process has, in the past, carried both flags and
+  // handed them to every deploy it launched, which made each one skip the
+  // lock and run a stale copy of the script. deploy.sh now unsets them before
+  // touching pm2; this strips them here too, so a listener that was started
+  // in a contaminated environment cannot pass the contamination on.
+  const env = { ...process.env };
+  delete env.DEPLOY_LOCKED;
+  delete env.DEPLOY_REEXECED;
+  exec('bash deploy.sh', { cwd: REPO_DIR, env, maxBuffer: 1024 * 1024 * 20 }, (err, stdout, stderr) => {
     deploying = false;
     if (err) {
       console.error('Deploy failed:', err.message);
       console.error(stderr);
+      // A console line in a pm2 log nobody tails is not a record. Leave a
+      // durable marker /api/health can report, so a failed deploy — which
+      // silently keeps serving the previous build — is visible from outside.
+      try {
+        require('fs').writeFileSync(
+          path.join(REPO_DIR, '.deploy-status.json'),
+          JSON.stringify({ ok: false, at: new Date().toISOString(), error: String(err.message).slice(0, 500), stderr: String(stderr).slice(-2000) }),
+        );
+      } catch (e) {
+        console.error('Could not write .deploy-status.json:', e && e.message);
+      }
     } else {
       console.log(stdout);
       console.log('Deploy finished successfully.');
@@ -68,7 +90,16 @@ const server = http.createServer((req, res) => {
   req.on('end', () => {
     const signature = req.headers['x-hub-signature-256'];
     if (!verifySignature(body, signature)) {
-      console.warn('Rejected webhook: bad signature');
+      // Who and when, not just that it happened. This port is open to the
+      // internet, so a rejection is either GitHub with a stale secret (a real
+      // problem: pushes stop deploying) or a scanner poking at an open port
+      // (noise). The old message could not tell those apart, which left a
+      // security-relevant line in the log that nobody could act on.
+      const who = req.socket.remoteAddress ?? 'unknown';
+      console.warn(
+        `[${new Date().toISOString()}] Rejected webhook: bad signature from ${who}`
+        + `${signature ? '' : ' (no signature header — not GitHub)'}`,
+      );
       res.writeHead(401).end('bad signature');
       return;
     }

@@ -4,17 +4,41 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
+import { resolveTheme, type Theme } from '@/lib/theme';
 
-type Theme = 'dark' | 'light';
+/**
+ * The member's theme preference, and where it is allowed to show.
+ *
+ * Two things were wrong here.
+ *
+ * The preference was applied to the whole site. This provider read
+ * localStorage on mount and put the `light` class on <html> on every page
+ * for anyone, so a member who switched to light and signed out left the
+ * landing page, login and every public page in light mode for good. The
+ * class is now set from resolveTheme (lib/theme): the preference applies
+ * only inside the app shell — the member and admin layouts mount
+ * <AppThemeScope /> to say so — and only while signed in. Sign out, or
+ * step onto a public page, and the site is dark again. The preference is
+ * kept, so it is back the instant they sign in.
+ *
+ * And the Firestore sync was dead. The provider sat OUTSIDE AuthProvider
+ * in the root layout, so its useAuth() only ever saw the context default
+ * (user: null): the "load the saved theme on login" effect never ran and
+ * the toggle never persisted. It now sits inside AuthProvider.
+ */
 
 interface ThemeContextValue {
+  /** The saved preference — what the toggle shows, not what is on screen. */
   theme: Theme;
   toggleTheme: () => void;
+  /** Set by AppThemeScope. Not for pages. */
+  setInAppShell: (v: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: 'dark',
   toggleTheme: () => {},
+  setInAppShell: () => {},
 });
 
 function applyTheme(t: Theme) {
@@ -22,19 +46,21 @@ function applyTheme(t: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark');
-  const { user } = useAuth();
+  // Read synchronously on the client so the first evaluation already knows
+  // the preference, rather than deciding 'dark' and correcting a tick later.
+  // Renders no markup from this value, so there is nothing to mismatch.
+  const [preference, setPreference] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    try {
+      const local = localStorage.getItem('theme');
+      return local === 'light' ? 'light' : 'dark';
+    } catch { return 'dark'; }
+  });
+  const [inAppShell, setInAppShell] = useState(false);
+  const { user, loading } = useAuth();
+  const signedIn = !!user;
 
-  // On mount: local storage first (instant), then Firestore (authoritative)
-  useEffect(() => {
-    const local = localStorage.getItem('theme') as Theme | null;
-    if (local === 'light' || local === 'dark') {
-      setTheme(local);
-      applyTheme(local);
-    }
-  }, []);
-
-  // When user logs in: load their saved theme from Firestore
+  // When the user signs in: their saved theme from Firestore.
   useEffect(() => {
     if (!user) return;
     getDoc(doc(db, 'userPreferences', user.uid))
@@ -42,20 +68,29 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         if (!snap.exists()) return;
         const saved = snap.data()?.theme as Theme | undefined;
         if (saved === 'light' || saved === 'dark') {
-          setTheme(saved);
-          localStorage.setItem('theme', saved);
-          applyTheme(saved);
+          setPreference(saved);
+          try { localStorage.setItem('theme', saved); } catch { /* ignore */ }
         }
       })
       .catch(() => {});
   }, [user]);
 
+  // The one place the class is written. Re-evaluated whenever the
+  // preference, the session or the shell changes — which is what makes
+  // signing out, or navigating to a public page, snap back to dark.
+  // Null while auth is still resolving: the pre-hydration script has
+  // already set the right class for this load, and writing 'dark' here
+  // before the session is known would strip it and flash.
+  useEffect(() => {
+    const t = resolveTheme({ preference, signedIn, inAppShell, authResolved: !loading });
+    if (t) applyTheme(t);
+  }, [preference, signedIn, inAppShell, loading]);
+
   const toggleTheme = useCallback(() => {
-    setTheme((prev) => {
+    setPreference((prev) => {
       const next = prev === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('theme', next);
-      applyTheme(next);
-      // Persist to Firestore so other browsers/devices pick it up
+      try { localStorage.setItem('theme', next); } catch { /* ignore */ }
+      // Persist so other browsers/devices pick it up.
       if (user) {
         setDoc(doc(db, 'userPreferences', user.uid), { theme: next }, { merge: true })
           .catch(() => {});
@@ -65,10 +100,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme: preference, toggleTheme, setInAppShell }}>
       {children}
     </ThemeContext.Provider>
   );
+}
+
+/**
+ * Mounted by the app and admin layouts, nowhere else. While it is mounted
+ * the member's preference may show; when the layout unmounts (a navigation
+ * to a public page) the flag clears and the site goes dark. Scoping by
+ * layout rather than by path means a route can never be misclassified —
+ * whichever layout renders decides.
+ */
+export function AppThemeScope() {
+  const { setInAppShell } = useContext(ThemeContext);
+  useEffect(() => {
+    setInAppShell(true);
+    return () => setInAppShell(false);
+  }, [setInAppShell]);
+  return null;
 }
 
 export function useTheme() {

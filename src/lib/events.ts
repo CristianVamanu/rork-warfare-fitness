@@ -4,9 +4,10 @@
  */
 
 import {
-  addDoc,
   collection,
   doc,
+  getCountFromServer,
+  getDoc,
   getDocs,
   orderBy,
   query,
@@ -17,6 +18,8 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { EventType, StatsCache } from '@/types';
+
+const STREAK_FREEZE_GRANT_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface EventPayload extends Record<string, unknown> {}
 
@@ -29,14 +32,30 @@ export async function createEvent(data: {
   userId: string;
   trainerId: string;
   payload: EventPayload;
+  // Backdates the event for manual entries logged against a past date (e.g.
+  // "log this meal for yesterday") — omit for the normal case of logging
+  // something that just happened, which always uses the server clock.
+  createdAt?: Date;
 }): Promise<string> {
   let lastErr: unknown;
+  const { createdAt: backdatedAt, ...rest } = data;
+
+  // A fixed, client-generated ID (no network round-trip to allocate one) —
+  // written with setDoc instead of addDoc so the retry below is idempotent.
+  // With addDoc, a request that actually reached Firestore but whose
+  // acknowledgment never made it back to the client (a real risk on flaky
+  // gym wifi/cell) would throw here anyway, and the retry then created a
+  // SECOND event doc for the same logical action — e.g. one real workout
+  // completion counted as 2 in recomputeStatsCache's totalWorkouts, which
+  // just counts WORKOUT_COMPLETED docs. Retrying a setDoc to the same ID
+  // just overwrites identical data instead of duplicating it.
+  const ref = doc(collection(db, 'events'));
 
   for (let attempt = 0; attempt <= 1; attempt++) {
     try {
-      const ref = await addDoc(collection(db, 'events'), {
-        ...data,
-        createdAt: serverTimestamp(),
+      await setDoc(ref, {
+        ...rest,
+        createdAt: backdatedAt ? Timestamp.fromDate(backdatedAt) : serverTimestamp(),
       });
       // Non-blocking stats recompute
       recomputeStatsCache(data.userId).catch((err) =>
@@ -104,8 +123,23 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
   }
 
   // Total workouts — all time
-  const workoutSnap = await queryEvents('WORKOUT_COMPLETED');
-  const totalWorkouts = workoutSnap.docs.length;
+  // A count aggregate instead of downloading every workout ever logged.
+  // This runs on EVERY event write (meal, water, weigh-in included), so the
+  // old getDocs() was an O(N)-document read per write, growing with every
+  // day the account was used — the "everything gets slower" complaint.
+  // The aggregate needs the (userId, type) composite index, which exists;
+  // if it is somehow unavailable, fall back to the old full read rather
+  // than lose the stat.
+  let totalWorkouts: number;
+  try {
+    const countSnap = await getCountFromServer(
+      query(collection(db, 'events'), where('userId', '==', userId), where('type', '==', 'WORKOUT_COMPLETED'))
+    );
+    totalWorkouts = countSnap.data().count;
+  } catch {
+    const workoutSnap = await queryEvents('WORKOUT_COMPLETED');
+    totalWorkouts = workoutSnap.docs.length;
+  }
 
   // Calories logged today
   const mealSnap = await queryEvents('MEAL_LOGGED', todayTs);
@@ -137,7 +171,20 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
     }
   });
 
-  const streak = computeStreak(workoutDays);
+  // Streak freeze — one grace day every 7 days that absorbs a single missed
+  // day without breaking the streak. Re-grant is computed here (not on a
+  // cron) so it self-heals on the next event regardless of when the user
+  // comes back.
+  const userSnap = await getDoc(doc(db, 'users', userId));
+  const existingFreeze = userSnap.data()?.streakFreeze as
+    | { available: boolean; lastGrantedAt: Timestamp | null; lastUsedAt?: Timestamp }
+    | undefined;
+  const now = Date.now();
+  const lastGrantedMs = existingFreeze?.lastGrantedAt?.toMillis?.() ?? 0;
+  const dueForRegrant = now - lastGrantedMs >= STREAK_FREEZE_GRANT_INTERVAL_MS;
+  const freezeAvailable = !existingFreeze || existingFreeze.available || dueForRegrant;
+
+  const { streak, freezeConsumed } = computeStreak(workoutDays, freezeAvailable);
 
   const statsCache: StatsCache = {
     totalWorkouts,
@@ -148,11 +195,29 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
     cacheDate: new Date().toLocaleDateString('sv-SE'),
   };
 
-  await setDoc(doc(db, 'users', userId), { statsCache }, { merge: true });
+  await setDoc(doc(db, 'users', userId), {
+    statsCache,
+    streakFreeze: {
+      available: freezeConsumed ? false : freezeAvailable,
+      // Was only bumped when a fresh freeze was granted (dueForRegrant),
+      // never when the CURRENT one was actually consumed — so a freeze used
+      // partway through its 7-day window (e.g. 5 days after being granted)
+      // regranted only 2 days later instead of a full 7 days after actual
+      // use, letting freezes cluster instead of spacing out as intended.
+      // Bumping it on consumption too makes the 7-day cadence measure from
+      // whichever happened more recently: being granted, or being used.
+      lastGrantedAt: (dueForRegrant || freezeConsumed) ? serverTimestamp() : (existingFreeze?.lastGrantedAt ?? serverTimestamp()),
+      ...(freezeConsumed ? { lastUsedAt: serverTimestamp() } : {}),
+    },
+  }, { merge: true });
+
   return statsCache;
 }
 
-function computeStreak(workoutDays: Set<string>): number {
+function computeStreak(
+  workoutDays: Set<string>,
+  freezeAvailable: boolean
+): { streak: number; freezeConsumed: boolean } {
   const checkDate = new Date();
   checkDate.setHours(0, 0, 0, 0);
   const todayKey = `${checkDate.getFullYear()}-${checkDate.getMonth()}-${checkDate.getDate()}`;
@@ -162,14 +227,20 @@ function computeStreak(workoutDays: Set<string>): number {
   }
 
   let streak = 0;
+  let freezeConsumed = false;
   for (let i = 0; i < 60; i++) {
     const key = `${checkDate.getFullYear()}-${checkDate.getMonth()}-${checkDate.getDate()}`;
     if (workoutDays.has(key)) {
       streak++;
       checkDate.setDate(checkDate.getDate() - 1);
+    } else if (freezeAvailable && !freezeConsumed && streak > 0) {
+      // Only spends the freeze mid-streak (streak > 0) — an unused freeze
+      // shouldn't fabricate a streak out of zero consecutive days.
+      freezeConsumed = true;
+      checkDate.setDate(checkDate.getDate() - 1);
     } else {
       break;
     }
   }
-  return streak;
+  return { streak, freezeConsumed };
 }

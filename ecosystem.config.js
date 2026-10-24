@@ -9,14 +9,41 @@ module.exports = {
       args: 'start -p 3000',
       exec_mode: 'cluster',
       instances: 2,
+      // Recycle a worker that grows past this, one at a time, instead of
+      // letting a slow leak run until the kernel OOM-kills whichever process
+      // it picks — which on a small box is as likely to be the other worker,
+      // nginx, or the webhook listener as the one actually leaking. A healthy
+      // `next start` sits at a few hundred MB; 1G is a leak, not a busy day.
+      // Cluster mode means the other worker keeps serving through the restart.
+      max_memory_restart: '1G',
+      // Crash-loop brake. If a worker dies within 30 s of starting (a bad
+      // env var, a missing build, a port clash) pm2 would otherwise restart
+      // it immediately and forever, which on a 2-core box starves the
+      // healthy worker and nginx. With these, each failed start waits
+      // longer than the last (100 ms, 200 ms, ... capped at 15 s) and pm2
+      // gives up after 15 attempts and marks it errored, where `pm2 ls`
+      // shows it. A worker that has served 30 s counts as a clean start
+      // and resets the counter.
+      min_uptime: '30s',
+      max_restarts: 15,
+      exp_backoff_restart_delay: 100,
       env: {
         NODE_ENV: 'production',
+        // Pinned explicitly. next.config.js reads NEXT_DIST_DIR for distDir,
+        // and deploy.sh sets it to .next-staging for the build. pm2 stores
+        // the environment a process was started with, so one start that
+        // inherited that value pins the app to a directory which only exists
+        // mid-deploy — the swap renames it away, and the next restart dies
+        // with "Could not find a production build in .next-staging". Naming
+        // the real value here means the stored env can never be wrong.
+        NEXT_DIST_DIR: '.next',
       },
       // deploy.sh runs `pm2 reload ecosystem.config.js --env production`,
       // which looks for this exact key — without it pm2 warns "Environment
       // [production] is not defined in process file" on every reload.
       env_production: {
         NODE_ENV: 'production',
+        NEXT_DIST_DIR: '.next',
       },
     },
   ],
