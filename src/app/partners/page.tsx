@@ -1,7 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import type { Metadata } from 'next';
-import { getSystemConfig } from '@/lib/firestore';
+import { getPublicPrograms } from '@/lib/publicPrograms';
+import { getPublicBranding } from '@/lib/publicBranding';
 import { PartnersApplyClient } from './PartnersApplyClient';
 
 export const metadata: Metadata = {
@@ -10,11 +11,12 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const cfg = await getSystemConfig().catch(() => null);
+  const [programs, brand] = await Promise.all([getPublicPrograms().catch(() => []), getPublicBranding()]);
   return (
     <PartnersApplyClient
-      initialAppName={(cfg?.appName as string) || 'Warfare Fitness'}
-      initialLogoUrl={(cfg?.logoUrl as string) || null}
+      initialAppName={brand.appName}
+      initialLogoUrl={brand.logoUrl}
+      programs={programs.map((p) => ({ name: p.name, slug: p.slug }))}
     />
   );
 }

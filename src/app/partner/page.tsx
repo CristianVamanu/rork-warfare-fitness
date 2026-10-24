@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppBackground } from '@/components/ui/AppBackground';
+import { CornerBrackets, SectionEyebrow } from '@/components/landing/chrome';
 import { BrandSplash } from '@/components/ui/BrandSplash';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -141,9 +142,11 @@ function PartnerPageInner() {
   const shell = (children: React.ReactNode) => (
     <div className="relative min-h-screen bg-background overflow-x-hidden">
       <AppBackground />
+      {/* The landing's instrument field: one bloom, a faint grid, painted once. */}
+      <div aria-hidden className="wf-field" style={{ height: 420 }} />
       <header className="relative z-10 max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm font-semibold text-text-secondary hover:text-white"><ChevronLeft className="w-4 h-4" /> App</Link>
-        <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-text-tertiary">Partner dashboard</span>
+        <SectionEyebrow live>Partner console</SectionEyebrow>
       </header>
       <main className="relative z-10 max-w-4xl mx-auto px-4 pb-20 pt-2 space-y-4">{children}</main>
     </div>
@@ -201,19 +204,25 @@ function PartnerPageInner() {
       )}
 
       {/* Link + code, always visible */}
-      <Card className="p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+      <div className="group relative overflow-hidden rounded-2xl border border-accent/20 bg-surface/70 p-4 sm:p-5 backdrop-blur-sm">
+        <CornerBrackets size="w-3.5 h-3.5" />
+        <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
+        <div aria-hidden className="wf-dots pointer-events-none absolute inset-0" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex-1 min-w-0 space-y-2">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-text-tertiary">Your link</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="wf-readout text-[10px] font-bold text-accent">Your link</p>
+              <p className="wf-readout text-[10px] text-text-tertiary">{p.profile?.name} · {p.percent}% {p.capMonths ? `· ${p.capMonths} mo` : '· lifetime'}</p>
+            </div>
             <div className="flex items-center gap-2">
               <code className="flex-1 min-w-0 truncate rounded-xl bg-surface-elevated px-3 py-2 text-sm text-white">{me.links!.link}</code>
               <Button size="sm" variant="secondary" onClick={() => copy(me.links!.link, 'Link')}><Copy className="w-4 h-4" /></Button>
             </div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-text-tertiary pt-1">Your code <span className="normal-case font-medium tracking-normal">(say it in videos; typed at checkout)</span></p>
+            <p className="wf-readout text-[10px] font-bold text-accent pt-1">Your code</p>
             <div className="flex items-center gap-2">
-              <code className="rounded-xl bg-surface-elevated px-3 py-2 text-lg font-black tracking-[0.2em] text-accent">{p.code}</code>
+              <code className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xl font-black tracking-[0.28em] text-accent">{p.code}</code>
               <Button size="sm" variant="secondary" onClick={() => copy(p.code, 'Code')}><Copy className="w-4 h-4" /></Button>
-              <span className="text-xs text-text-secondary">You earn <strong className="text-white">{p.percent}%</strong>{p.capMonths ? ` for ${p.capMonths} months` : ' for life'}.</span>
+              <span className="text-[11px] text-text-tertiary">Say it in videos. Typed at checkout.</span>
             </div>
           </div>
           {qr && (
@@ -224,11 +233,11 @@ function PartnerPageInner() {
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
       <nav className="flex gap-1 overflow-x-auto -mx-4 px-4 pb-1" aria-label="Partner sections">
         {TABS.map(({ id, label, icon: Icon }) => (
-          <button key={id} onClick={() => setTab(id)} className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${tab === id ? 'bg-white text-black' : 'bg-surface-elevated text-text-secondary hover:text-white'}`}>
+          <button key={id} onClick={() => setTab(id)} className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-[11px] font-bold uppercase tracking-[0.14em] whitespace-nowrap transition-colors ${tab === id ? 'border-accent/50 bg-accent-muted text-accent shadow-[0_0_18px_-6px_rgb(var(--accent-rgb)/0.6)]' : 'border-white/10 bg-black/25 text-text-secondary hover:text-white hover:border-white/20'}`}>
             <Icon className="w-3.5 h-3.5" /> {label}
           </button>
         ))}
@@ -243,12 +252,12 @@ function PartnerPageInner() {
             <Stat icon={Wallet} label="Lifetime earned" value={formatCents(b.lifetimeCents)} caption="net of reversals" />
           </div>
           <div className="grid sm:grid-cols-3 gap-3">
-            <Card className="p-4"><p className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-tertiary">Pending</p><p className="text-xl font-extrabold text-white">{formatCents(b.pendingCents + b.reviewCents)}</p><p className="text-xs text-text-secondary">clears {me.config.holdDays} days after each payment</p></Card>
-            <Card className="p-4"><p className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-tertiary">Ready to pay</p><p className="text-xl font-extrabold text-success">{formatCents(b.payableCents)}</p><p className="text-xs text-text-secondary">{s.eligible ? `next payout ${fmtDate(s.nextPayoutAt)}` : `minimum ${formatCents(me.config.minPayoutCents)}`}</p></Card>
-            <Card className="p-4"><p className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-tertiary">Paid out</p><p className="text-xl font-extrabold text-white">{formatCents(b.paidCents)}</p><p className="text-xs text-text-secondary">{me.payouts?.length ?? 0} payout{(me.payouts?.length ?? 0) === 1 ? '' : 's'}</p></Card>
+            <Card className="p-4"><p className="wf-readout text-[10px] font-bold text-text-tertiary">Pending</p><p className="text-xl font-extrabold text-white">{formatCents(b.pendingCents + b.reviewCents)}</p><p className="text-xs text-text-secondary">clears {me.config.holdDays} days after each payment</p></Card>
+            <Card className="p-4"><p className="wf-readout text-[10px] font-bold text-accent">Ready to pay</p><p className="text-xl font-extrabold text-success">{formatCents(b.payableCents)}</p><p className="text-xs text-text-secondary">{s.eligible ? `next payout ${fmtDate(s.nextPayoutAt)}` : `minimum ${formatCents(me.config.minPayoutCents)}`}</p></Card>
+            <Card className="p-4"><p className="wf-readout text-[10px] font-bold text-text-tertiary">Paid out</p><p className="text-xl font-extrabold text-white">{formatCents(b.paidCents)}</p><p className="text-xs text-text-secondary">{me.payouts?.length ?? 0} payout{(me.payouts?.length ?? 0) === 1 ? '' : 's'}</p></Card>
           </div>
           <Card className="p-4 sm:p-5">
-            <p className="text-sm font-bold text-white mb-3">Last 12 months</p>
+            <p className="wf-readout text-[10px] font-bold text-accent mb-3">Last 12 months</p>
             {chart.months.length === 0 ? <p className="text-xs text-text-secondary">No activity yet. Share your link to see clicks here.</p> : (
               <div className="flex items-end gap-1.5 h-32">
                 {chart.months.map((m) => (
@@ -265,7 +274,7 @@ function PartnerPageInner() {
             <p className="text-[10px] text-text-tertiary mt-2">Grey: clicks. Orange: paying members (×10).</p>
           </Card>
           <Card className="p-4 sm:p-5">
-            <p className="text-sm font-bold text-white mb-2">Recent commissions</p>
+            <p className="wf-readout text-[10px] font-bold text-accent mb-2">Recent commissions</p>
             {!me.ledger?.length ? <p className="text-xs text-text-secondary">Nothing yet. Commission appears here the moment a referred member pays.</p> : (
               <div className="divide-y divide-white/6">
                 {me.ledger.slice(0, 15).map((r) => (
@@ -418,10 +427,11 @@ function PartnerPageInner() {
 
 function Stat({ icon: Icon, label, value, caption }: { icon: React.ElementType; label: string; value: React.ReactNode; caption?: string }) {
   return (
-    <Card className="p-4 flex flex-col gap-1.5">
-      <div className="flex items-center justify-between"><span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">{label}</span><Icon className="w-4 h-4 text-accent" /></div>
-      <p className="text-2xl font-extrabold text-white tabular-nums leading-none">{value}</p>
-      {caption && <p className="text-[11px] text-text-tertiary">{caption}</p>}
-    </Card>
+    <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-surface/70 p-4 flex flex-col gap-1.5 card-float">
+      <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
+      <div className="relative flex items-center justify-between"><span className="wf-readout text-[10px] font-bold text-accent">{label}</span><span className="w-7 h-7 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center"><Icon className="w-3.5 h-3.5 text-accent" /></span></div>
+      <p className="relative text-[28px] font-black text-white tabular-nums leading-none tracking-tight">{value}</p>
+      {caption && <p className="relative text-[11px] text-text-tertiary">{caption}</p>}
+    </div>
   );
 }
