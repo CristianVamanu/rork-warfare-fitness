@@ -165,7 +165,7 @@ function PartnerPageInner() {
   const p = me.partner;
   if (p.status !== 'active') {
     const copyByStatus: Record<string, { title: string; body: string }> = {
-      applied: { title: 'Application under review', body: 'We review by hand, usually within two working days. You will get an email either way. Your code is reserved.' },
+      applied: { title: 'Application under review', body: 'We review by hand, usually within two working days. You will get an email either way. Your link is reserved.' },
       rejected: { title: 'Application not approved', body: 'Your previous application was not approved. You are welcome to apply again later.' },
       suspended: { title: 'Partner account paused', body: 'Your link is paused. Approved commissions are still paid out. Contact support if you think this is a mistake.' },
     };
@@ -175,7 +175,7 @@ function PartnerPageInner() {
         <Clock className="w-8 h-8 text-accent mx-auto" />
         <p className="text-sm font-bold text-white">{c.title}</p>
         <p className="text-sm text-text-secondary">{c.body}</p>
-        <p className="text-xs text-text-tertiary">Code: <span className="font-mono font-bold text-white">{p.code}</span></p>
+        <p className="text-xs text-text-tertiary">Your link: <span className="font-mono text-white">{me.links?.short}</span></p>
         {p.status === 'rejected' && <Button onClick={() => router.push('/partners')}>Apply again</Button>}
       </Card>,
     );
@@ -203,7 +203,7 @@ function PartnerPageInner() {
         </Card>
       )}
 
-      {/* Link + code, always visible */}
+      {/* Link, always visible */}
       <div className="group relative overflow-hidden rounded-2xl border border-accent/20 bg-surface/70 p-4 sm:p-5 backdrop-blur-sm">
         <CornerBrackets size="w-3.5 h-3.5" />
         <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
@@ -218,12 +218,7 @@ function PartnerPageInner() {
               <code className="flex-1 min-w-0 truncate rounded-xl bg-surface-elevated px-3 py-2 text-sm text-white">{me.links!.link}</code>
               <Button size="sm" variant="secondary" onClick={() => copy(me.links!.link, 'Link')}><Copy className="w-4 h-4" /></Button>
             </div>
-            <p className="wf-readout text-[10px] font-bold text-accent pt-1">Your code</p>
-            <div className="flex items-center gap-2">
-              <code className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xl font-black tracking-[0.28em] text-accent">{p.code}</code>
-              <Button size="sm" variant="secondary" onClick={() => copy(p.code, 'Code')}><Copy className="w-4 h-4" /></Button>
-              <span className="text-[11px] text-text-tertiary">Say it in videos. Typed at checkout.</span>
-            </div>
+            <p className="text-[11px] text-text-tertiary">Put it in your bio, stories and video descriptions. Anyone who signs up through it is yours for the life of their membership.</p>
           </div>
           {qr && (
             <div className="flex flex-col items-center gap-1.5">
@@ -314,11 +309,11 @@ function PartnerPageInner() {
         <div className="space-y-3">
           <Card className="p-4 sm:p-5">
             <p className="text-sm font-bold text-white">Ready-to-post copy</p>
-            <p className="text-xs text-text-secondary mt-1 mb-3">Your link and code are already filled in. Copy and go.</p>
+            <p className="text-xs text-text-secondary mt-1 mb-3">Your link is already filled in. Copy and go.</p>
             <div className="space-y-2">
               {[
                 `I train on ${appName}: programs written from the research, not vibes. 7-day free start with my link → ${me.links!.link}`,
-                `If you are starting a cut, do it with a plan. Mine is on the app. Use code ${p.code} at checkout, it credits me and costs you nothing → ${me.links!.link}`,
+                `If you are starting a cut, do it with a plan. Mine is on the app. Start through my link, it costs you nothing extra → ${me.links!.link}`,
                 `Every program on here cites the study behind it. Try it: ${me.links!.link}`,
               ].map((t) => (
                 <div key={t} className="flex items-start gap-2 rounded-xl bg-surface-elevated px-3 py-2">
@@ -358,10 +353,10 @@ function PartnerPageInner() {
           {[
             ...(me.tips ?? []),
             ...(me.tips?.length ? [] : [
-              { title: 'Say the code, show the link', body: 'In a video, say your code out loud once near the start and once at the end. Put the link in the first comment and your bio. People who hear a code remember it; people who see a link tap it.' },
+              { title: 'Link in bio, link in the first comment', body: 'Put the link in your bio and in the first comment of every post that mentions the app. In a video, say "link in my bio" once near the start and once at the end.' },
               { title: 'Lead with a result, not the app', body: 'Post your own session, a PR, a before/after. Mention the app as the thing that programmed it. An ad for an app gets skipped; a result with a tool behind it gets asked about.' },
               { title: 'Use the study videos', body: 'The research clips in Resources are made to be reposted. Add one line in your voice on top and your link below. They already did 80k+ views on our account.' },
-              { title: 'Do not discount, explain', body: 'Your code is not a coupon and you should not promise one. Explain the free start and that the code credits you. People trust a recommendation more than a deal.' },
+              { title: 'Do not promise a discount', body: 'Your link is not a coupon. Explain the free start and what the program does for you. People trust a recommendation more than a deal.' },
               { title: 'Renewals are where the money is', body: 'You are paid every month a member stays. Check in on the people you sent. A message in week two keeps more members than any post.' },
             ]),
           ].map((t) => (

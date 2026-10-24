@@ -73,7 +73,7 @@ export function PartnersApplyClient({ initialAppName, initialLogoUrl, programs }
   const perks = [
     { icon: Repeat, k: 'RECURRING', title: 'Paid every month they stay', body: 'You earn on every renewal, not a one-off bounty. One good referral pays for months.' },
     { icon: Percent, k: `${cfg.defaultPercent}% SHARE`, title: 'Of the net of every payment', body: 'Far above the 5–10% most software programs pay. Partners who bring volume are moved higher.' },
-    { icon: Link2, k: 'LINK + CODE', title: 'Both tracked, both yours', body: 'A link for bios and stories. A code to say out loud in a video and type at checkout.' },
+    { icon: Link2, k: 'YOUR LINK', title: 'One link, tracked end to end', body: 'For bios, stories, descriptions and QR codes. Every sign-up through it is attributed to you.' },
     { icon: BarChart3, k: 'LIVE', title: 'Dashboard, not a monthly email', body: 'Clicks, sign-ups, paying members, earnings and your next payout, as they happen.' },
     { icon: FolderOpen, k: 'ASSETS', title: 'Ready-made content', body: 'Logos, screenshots, the study videos, captions and a swipe file of hooks that already performed.' },
     { icon: Lightbulb, k: 'PLAYBOOK', title: 'What converts, what does not', body: 'Short, specific tips from what has worked on our own channels.' },
@@ -84,7 +84,7 @@ export function PartnersApplyClient({ initialAppName, initialLogoUrl, programs }
 
   const steps = [
     ['Apply', 'Two minutes. We review by hand, usually within two working days.'],
-    ['Share', 'Your link or your code. Anyone who signs up through it is attributed to you.'],
+    ['Share', 'Your link, anywhere. Anyone who signs up through it is attributed to you.'],
     ['Earn', `${cfg.defaultPercent}% of the net amount of their payment, and of every renewal after it.`],
     ['Clear', `Commission clears ${cfg.holdDays} days after each payment. Refunds reverse it.`],
     ['Get paid', 'Connect Stripe once. Payouts run monthly.'],
@@ -110,7 +110,7 @@ export function PartnersApplyClient({ initialAppName, initialLogoUrl, programs }
                 <p className="mt-2 text-lg font-bold text-white">
                   {existing.status === 'active' ? 'You are an active partner.' : existing.status === 'applied' ? 'Your application is under review.' : existing.status === 'suspended' ? 'Your partner account is paused.' : 'Your previous application was not approved.'}
                 </p>
-                <p className="wf-readout text-[10px] text-text-tertiary mt-1">Code {existing.code}</p>
+                <p className="wf-readout text-[10px] text-text-tertiary mt-1">Link /p/{existing.code}</p>
                 <div className="mt-4">
                   {existing.status === 'rejected' ? <Button onClick={() => setExisting(null)}>Apply again</Button> : <Button onClick={() => router.push('/partner')}>Open partner dashboard <ArrowRight className="w-4 h-4" /></Button>}
                 </div>
@@ -119,7 +119,7 @@ export function PartnersApplyClient({ initialAppName, initialLogoUrl, programs }
               <Panel center>
                 <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
                 <p className="mt-2 text-lg font-bold text-white">Application sent</p>
-                <p className="text-sm text-text-secondary mt-1">Your code <span className="font-mono font-bold text-white">{done.code}</span> is reserved. We will email you when it is reviewed.</p>
+                <p className="text-sm text-text-secondary mt-1">Your link <span className="font-mono font-bold text-white">/p/{done.code}</span> is reserved. We will email you when it is reviewed.</p>
                 <div className="mt-4"><Button variant="secondary" onClick={() => router.push('/partner')}>Check status</Button></div>
               </Panel>
             ) : (
@@ -134,7 +134,7 @@ export function PartnersApplyClient({ initialAppName, initialLogoUrl, programs }
                     <TechField label="About you and your audience" hint={`${form.about.length}/2000`} className="sm:col-span-2">
                       <textarea className={`${techInputClass} resize-none`} value={form.about} onChange={(e) => setForm({ ...form, about: e.target.value })} required minLength={20} maxLength={2000} rows={4} placeholder="Who follows you, what you train, why they would want this." />
                     </TechField>
-                    <TechField label="Preferred code" hint="3–20 letters or numbers" className="sm:col-span-2">
+                    <TechField label="Preferred link handle" hint={`${initialAppName.toLowerCase().replace(/\s+/g, '')}.com/p/…`} className="sm:col-span-2">
                       <input className={`${techInputClass} font-mono tracking-[0.2em] uppercase`} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} placeholder="COACHMIKE" maxLength={20} />
                     </TechField>
                   </div>

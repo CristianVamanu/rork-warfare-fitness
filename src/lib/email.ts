@@ -950,7 +950,7 @@ export function partnerDecisionEmailHtml(
         ${name}, your application is approved. Your link is live and you earn <strong>${opts.percent}%</strong> of every payment from members who join through it, for as long as they stay.
       </p>
       ${codeBlock(`${appUrl.replace(/^https?:\/\//, '')}/p/${escapeHtml(opts.code)}`)}
-      <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#444444;">Your dashboard has the link, a QR code, ready-made posts and the videos. Connect your payout account there to get paid.</p>
+      <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#444444;">Your dashboard has the link, a QR code, ready-made posts and the videos.</p>
       ${button('Open partner dashboard', `${appUrl}/partner`)}
     `, 'Your partner link is live');
   }

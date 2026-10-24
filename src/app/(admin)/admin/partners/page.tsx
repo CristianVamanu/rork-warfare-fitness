@@ -167,9 +167,12 @@ export default function AdminPartnersPage() {
       subtitle={data ? `${data.program.partners} active · ${formatCents(data.program.revenueCents)} attributed revenue` : undefined}
     >
       <div className="space-y-5 max-w-[1180px]">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Segmented value={view} onChange={setView} options={VIEWS} />
-          <Button variant="ghost" size="sm" onClick={load}><RefreshCw className="w-4 h-4" /> Refresh</Button>
+        <div className="flex items-center justify-between gap-3">
+          {/* Scrolls sideways on a phone; seven tabs never fit in 360px. */}
+          <div className="min-w-0 flex-1 overflow-x-auto -mx-1 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <Segmented value={view} onChange={setView} options={VIEWS} className="flex-nowrap" />
+          </div>
+          <Button variant="ghost" size="sm" onClick={load} className="flex-shrink-0"><RefreshCw className="w-4 h-4" /><span className="hidden sm:inline"> Refresh</span></Button>
         </div>
 
         {view === 'overview' && data && (
