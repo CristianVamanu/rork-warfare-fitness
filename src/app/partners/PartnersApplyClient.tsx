@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { TechField, techInputClass } from '@/components/ui/TechField';
 import { PublicNav } from '@/components/public/PublicNav';
 import { PublicFooter } from '@/components/public/PublicFooter';
@@ -32,6 +33,10 @@ export function PartnersApplyClient({ initialAppName, initialLogoUrl, programs }
   const [form, setForm] = useState({ name: '', email: '', channels: '', audience: '', about: '', website: '', code: '', agree: false });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ code: string } | null>(null);
+  // The hero button opens the application in a dialog rather than scrolling
+  // the page; the same content also sits at the bottom for anyone who reads
+  // the whole page first.
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     getDoc(doc(db, 'config', 'partnerProgram')).then((s) => setCfg(normalizePartnerConfig(s.data() as Partial<PartnerProgramConfig> | undefined))).catch(() => {});
@@ -85,6 +90,72 @@ export function PartnersApplyClient({ initialAppName, initialLogoUrl, programs }
     ['Get paid', 'Connect Stripe once. Payouts run monthly.'],
   ];
 
+  const applyBody = (
+    <>
+            {!cfg.enabled ? (
+              <Panel><p className="text-sm text-text-secondary text-center">The partner program is not taking applications right now.</p></Panel>
+            ) : loading ? null : !user ? (
+              <Panel>
+                <p className="wf-readout text-[10px] font-bold text-accent">Step 0</p>
+                <p className="mt-1 text-lg font-bold text-white">Create a free account to apply</p>
+                <p className="text-sm text-text-secondary mt-1">Your partner dashboard lives in your account. It takes a minute and you are brought straight back here.</p>
+                <div className="mt-5 grid grid-cols-2 gap-2 max-w-md">
+                  <Button onClick={() => router.push('/register?next=/partners')}>Create account</Button>
+                  <Button variant="secondary" onClick={() => router.push('/login?next=/partners')}>Sign in</Button>
+                </div>
+              </Panel>
+            ) : existing ? (
+              <Panel center>
+                <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
+                <p className="mt-2 text-lg font-bold text-white">
+                  {existing.status === 'active' ? 'You are an active partner.' : existing.status === 'applied' ? 'Your application is under review.' : existing.status === 'suspended' ? 'Your partner account is paused.' : 'Your previous application was not approved.'}
+                </p>
+                <p className="wf-readout text-[10px] text-text-tertiary mt-1">Code {existing.code}</p>
+                <div className="mt-4">
+                  {existing.status === 'rejected' ? <Button onClick={() => setExisting(null)}>Apply again</Button> : <Button onClick={() => router.push('/partner')}>Open partner dashboard <ArrowRight className="w-4 h-4" /></Button>}
+                </div>
+              </Panel>
+            ) : done ? (
+              <Panel center>
+                <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
+                <p className="mt-2 text-lg font-bold text-white">Application sent</p>
+                <p className="text-sm text-text-secondary mt-1">Your code <span className="font-mono font-bold text-white">{done.code}</span> is reserved. We will email you when it is reviewed.</p>
+                <div className="mt-4"><Button variant="secondary" onClick={() => router.push('/partner')}>Check status</Button></div>
+              </Panel>
+            ) : (
+              <form onSubmit={submit} className={`grid gap-4 items-start ${open ? '' : 'lg:grid-cols-[1fr_340px]'}`}>
+                <Panel>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <TechField label="Name"><input className={techInputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required maxLength={80} autoComplete="name" /></TechField>
+                    <TechField label="Payout email"><input className={techInputClass} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required maxLength={120} autoComplete="email" /></TechField>
+                    <TechField label="Where you will promote" hint="IG · YT · gym · newsletter" className="sm:col-span-2"><input className={techInputClass} value={form.channels} onChange={(e) => setForm({ ...form, channels: e.target.value })} required maxLength={500} placeholder="@handle, channel, club name" /></TechField>
+                    <TechField label="Audience size"><input className={techInputClass} value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })} placeholder="12k followers · 40 clients" maxLength={120} /></TechField>
+                    <TechField label="Website" hint="optional"><input className={techInputClass} value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://" maxLength={200} /></TechField>
+                    <TechField label="About you and your audience" hint={`${form.about.length}/2000`} className="sm:col-span-2">
+                      <textarea className={`${techInputClass} resize-none`} value={form.about} onChange={(e) => setForm({ ...form, about: e.target.value })} required minLength={20} maxLength={2000} rows={4} placeholder="Who follows you, what you train, why they would want this." />
+                    </TechField>
+                    <TechField label="Preferred code" hint="3–20 letters or numbers" className="sm:col-span-2">
+                      <input className={`${techInputClass} font-mono tracking-[0.2em] uppercase`} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} placeholder="COACHMIKE" maxLength={20} />
+                    </TechField>
+                  </div>
+                </Panel>
+                <div className="space-y-3">
+                  <Panel>
+                    <p className="wf-readout text-[10px] font-bold text-accent">Agreement · v{cfg.agreementVersion}</p>
+                    <pre className="mt-2 whitespace-pre-wrap text-[11px] text-text-secondary leading-relaxed max-h-56 overflow-y-auto font-sans pr-1">{cfg.agreementText}</pre>
+                    <label className="mt-3 flex items-start gap-2 text-xs text-text-secondary cursor-pointer">
+                      <input type="checkbox" checked={form.agree} onChange={(e) => setForm({ ...form, agree: e.target.checked })} className="mt-0.5 accent-[#F5A623]" required />
+                      <span>I have read and accept the partner agreement.</span>
+                    </label>
+                  </Panel>
+                  <Button type="submit" fullWidth size="lg" disabled={busy || !form.agree}>{busy ? 'Sending…' : 'Send application'} <ArrowRight className="w-4 h-4" /></Button>
+                  <p className="text-[11px] text-text-tertiary text-center">Reviewed by hand. You will hear back either way.</p>
+                </div>
+              </form>
+            )}
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <div className="relative">
@@ -105,7 +176,7 @@ export function PartnersApplyClient({ initialAppName, initialLogoUrl, programs }
               <div className="group relative max-w-md mx-auto mt-8 p-5 rounded-2xl border border-accent/20 bg-surface/60 backdrop-blur-sm">
                 <CornerBrackets size="w-3.5 h-3.5" />
                 <p className="wf-readout text-[10px] font-bold text-accent mb-3">Recurring · {cfg.defaultPercent}% · lifetime</p>
-                <a href="#apply" className="block"><Button size="lg" fullWidth>Apply to become a partner <ArrowRight className="w-4 h-4" /></Button></a>
+                <Button size="lg" fullWidth onClick={() => setOpen(true)}>Apply to become a partner <ArrowRight className="w-4 h-4" /></Button>
                 <p className="text-[11px] text-text-tertiary text-center mt-2">Free to join. Reviewed by hand.</p>
               </div>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-y-2">
@@ -175,71 +246,14 @@ export function PartnersApplyClient({ initialAppName, initialLogoUrl, programs }
             <h2 className="mt-2 text-2xl sm:text-3xl font-black text-white">Tell us where you will send people.</h2>
           </Reveal>
           <div className="mt-6">
-            {!cfg.enabled ? (
-              <Panel><p className="text-sm text-text-secondary text-center">The partner program is not taking applications right now.</p></Panel>
-            ) : loading ? null : !user ? (
-              <Panel>
-                <p className="wf-readout text-[10px] font-bold text-accent">Step 0</p>
-                <p className="mt-1 text-lg font-bold text-white">Create a free account to apply</p>
-                <p className="text-sm text-text-secondary mt-1">Your partner dashboard lives in your account. It takes a minute and you are brought straight back here.</p>
-                <div className="mt-5 grid grid-cols-2 gap-2 max-w-md">
-                  <Button onClick={() => router.push('/register?next=/partners')}>Create account</Button>
-                  <Button variant="secondary" onClick={() => router.push('/login?next=/partners')}>Sign in</Button>
-                </div>
-              </Panel>
-            ) : existing ? (
-              <Panel center>
-                <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
-                <p className="mt-2 text-lg font-bold text-white">
-                  {existing.status === 'active' ? 'You are an active partner.' : existing.status === 'applied' ? 'Your application is under review.' : existing.status === 'suspended' ? 'Your partner account is paused.' : 'Your previous application was not approved.'}
-                </p>
-                <p className="wf-readout text-[10px] text-text-tertiary mt-1">Code {existing.code}</p>
-                <div className="mt-4">
-                  {existing.status === 'rejected' ? <Button onClick={() => setExisting(null)}>Apply again</Button> : <Button onClick={() => router.push('/partner')}>Open partner dashboard <ArrowRight className="w-4 h-4" /></Button>}
-                </div>
-              </Panel>
-            ) : done ? (
-              <Panel center>
-                <CheckCircle2 className="w-8 h-8 text-accent mx-auto" />
-                <p className="mt-2 text-lg font-bold text-white">Application sent</p>
-                <p className="text-sm text-text-secondary mt-1">Your code <span className="font-mono font-bold text-white">{done.code}</span> is reserved. We will email you when it is reviewed.</p>
-                <div className="mt-4"><Button variant="secondary" onClick={() => router.push('/partner')}>Check status</Button></div>
-              </Panel>
-            ) : (
-              <form onSubmit={submit} className="grid lg:grid-cols-[1fr_340px] gap-4 items-start">
-                <Panel>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <TechField label="Name"><input className={techInputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required maxLength={80} autoComplete="name" /></TechField>
-                    <TechField label="Payout email"><input className={techInputClass} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required maxLength={120} autoComplete="email" /></TechField>
-                    <TechField label="Where you will promote" hint="IG · YT · gym · newsletter" className="sm:col-span-2"><input className={techInputClass} value={form.channels} onChange={(e) => setForm({ ...form, channels: e.target.value })} required maxLength={500} placeholder="@handle, channel, club name" /></TechField>
-                    <TechField label="Audience size"><input className={techInputClass} value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })} placeholder="12k followers · 40 clients" maxLength={120} /></TechField>
-                    <TechField label="Website" hint="optional"><input className={techInputClass} value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://" maxLength={200} /></TechField>
-                    <TechField label="About you and your audience" hint={`${form.about.length}/2000`} className="sm:col-span-2">
-                      <textarea className={`${techInputClass} resize-none`} value={form.about} onChange={(e) => setForm({ ...form, about: e.target.value })} required minLength={20} maxLength={2000} rows={4} placeholder="Who follows you, what you train, why they would want this." />
-                    </TechField>
-                    <TechField label="Preferred code" hint="3–20 letters or numbers" className="sm:col-span-2">
-                      <input className={`${techInputClass} font-mono tracking-[0.2em] uppercase`} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} placeholder="COACHMIKE" maxLength={20} />
-                    </TechField>
-                  </div>
-                </Panel>
-                <div className="space-y-3">
-                  <Panel>
-                    <p className="wf-readout text-[10px] font-bold text-accent">Agreement · v{cfg.agreementVersion}</p>
-                    <pre className="mt-2 whitespace-pre-wrap text-[11px] text-text-secondary leading-relaxed max-h-56 overflow-y-auto font-sans pr-1">{cfg.agreementText}</pre>
-                    <label className="mt-3 flex items-start gap-2 text-xs text-text-secondary cursor-pointer">
-                      <input type="checkbox" checked={form.agree} onChange={(e) => setForm({ ...form, agree: e.target.checked })} className="mt-0.5 accent-[#F5A623]" required />
-                      <span>I have read and accept the partner agreement.</span>
-                    </label>
-                  </Panel>
-                  <Button type="submit" fullWidth size="lg" disabled={busy || !form.agree}>{busy ? 'Sending…' : 'Send application'} <ArrowRight className="w-4 h-4" /></Button>
-                  <p className="text-[11px] text-text-tertiary text-center">Reviewed by hand. You will hear back either way.</p>
-                </div>
-              </form>
-            )}
+            {applyBody}
           </div>
         </section>
       </main>
       <PublicFooter appName={initialAppName} />
+      <Modal open={open} onClose={() => setOpen(false)} title="Become a partner" className="max-w-2xl">
+        {applyBody}
+      </Modal>
     </div>
   );
 }
