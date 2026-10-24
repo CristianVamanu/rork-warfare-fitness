@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff, Download, Trash2, Cookie, ShieldCheck, Smartphone } from 'lucide-react';
+import { LogOut, ChevronRight, Scale, Bell, Shield, Info, LayoutDashboard, BellOff, Download, Trash2, Cookie, ShieldCheck, Smartphone, Handshake } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
@@ -416,7 +416,13 @@ export default function SettingsPage() {
                 if (!user) return;
                 const next = profile?.emailPrefs?.marketing === false;
                 try {
-                  await updateUserDoc(user.uid, { 'emailPrefs.marketing': next, 'emailPrefs.updatedAt': new Date() } as Record<string, unknown>);
+                  // A nested object, not a dotted key. updateUserDoc is a
+                  // merge-set, and set() treats "emailPrefs.marketing" as a
+                  // field literally named that, so the real nested flag
+                  // (which the unsubscribe link and the mailer both use)
+                  // never changed — the switch could only ever go off via
+                  // an unsubscribe link and never back on from here.
+                  await updateUserDoc(user.uid, { emailPrefs: { marketing: next, updatedAt: new Date() } });
                   await refreshProfile();
                   toast.success(next ? 'Email reminders on' : 'Email reminders off');
                 } catch { toast.error('Could not update'); }
@@ -472,6 +478,22 @@ export default function SettingsPage() {
               </div>
             </button>
           </Card>
+        </div>
+
+        {/* Partner program — the dashboard for partners, the apply page for everyone else (/partner redirects). */}
+        <div className="wf-rise">
+          <Link href="/partner">
+            <Card className="flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors">
+              <div className="p-2 bg-surface-elevated rounded-lg">
+                <Handshake className="w-4 h-4 text-accent" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-white">Partner program</p>
+                <p className="text-xs text-text-secondary">Refer members, earn a share of every payment</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-tertiary" />
+            </Card>
+          </Link>
         </div>
 
         {/* Admin Panel link — only visible to admins */}
