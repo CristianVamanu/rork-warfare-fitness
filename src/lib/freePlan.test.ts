@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { freePlanConfig, findOffer, offerCopy, offerPath, dripDayFor, dueDripDay, sessionSubject, completionLine, FREE_PLAN_DEFAULTS } from './freePlan';
+import { freePlanConfig, findOffer, offerCopy, offerPath, dripDayFor, dueDripDay, dripDueNow, sessionSubject, completionLine, FREE_PLAN_DEFAULTS } from './freePlan';
 import type { ProgramDay } from '@/types';
 
 const d = (label: string, isRest = false): ProgramDay => ({ label, isRest, exercises: [] });
@@ -57,6 +57,25 @@ describe('which drip day is due', () => {
     const all = Object.fromEntries(Array.from({ length: 7 }, (_, i) => [`d${i + 1}`, true]));
     expect(dueDripDay(30, all, 7)).toBeNull();
     expect(dueDripDay(30, {}, 7)).toBe(1);
+  });
+});
+
+describe('morning send', () => {
+  const sent = { d1: true };
+  it('sends the next day at the send hour, with the grace for a signup earlier the day before', () => {
+    // 9am signup, 8am next morning: 23 hours.
+    expect(dripDueNow({ elapsedDays: 23 / 24, sent, totalDays: 7, atSendHour: true })).toBe(2);
+    // 11pm signup, 8am next morning: 9 hours is too soon — the morning after.
+    expect(dripDueNow({ elapsedDays: 9 / 24, sent, totalDays: 7, atSendHour: true })).toBeNull();
+    expect(dripDueNow({ elapsedDays: 33 / 24, sent, totalDays: 7, atSendHour: true })).toBe(2);
+  });
+  it('never sends outside the send hour unless a morning was missed', () => {
+    expect(dripDueNow({ elapsedDays: 1.5, sent, totalDays: 7, atSendHour: false })).toBeNull();
+    expect(dripDueNow({ elapsedDays: 2.1, sent, totalDays: 7, atSendHour: false })).toBe(2);
+    expect(dripDueNow({ elapsedDays: 2.1, sent: { d1: true, d2: true }, totalDays: 7, atSendHour: false })).toBeNull();
+  });
+  it('ignores the clock when forced', () => {
+    expect(dripDueNow({ elapsedDays: 1.0, sent, totalDays: 7, atSendHour: false, force: true })).toBe(2);
   });
 });
 

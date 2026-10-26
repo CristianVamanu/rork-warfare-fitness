@@ -67,7 +67,7 @@ describe('days since', () => {
 
 describe('admin toggles', () => {
   it('default to on and honour an explicit off', () => {
-    expect(sequenceToggles(null)).toEqual({ leadTips: true, quizAbandon: true, onboardingAbandon: true, winBack: true });
+    expect(sequenceToggles(null)).toEqual({ leadTips: true, freePlanFollowUp: true, quizAbandon: true, onboardingAbandon: true, winBack: true });
     expect(sequenceToggles({ emailSequences: { winBack: false } }).winBack).toBe(false);
     expect(sequenceToggles({ emailSequences: { winBack: false } }).leadTips).toBe(true);
   });
@@ -138,8 +138,8 @@ describe('admin overrides', () => {
   });
 
   it('a sequence switch in overrides beats the settings toggle', () => {
-    expect(resolveSequences({ winBack: { enabled: false } }, { leadTips: true, quizAbandon: true, onboardingAbandon: true, winBack: true }).winBack.enabled).toBe(false);
-    expect(resolveSequences({}, { leadTips: true, quizAbandon: true, onboardingAbandon: true, winBack: false }).winBack.enabled).toBe(false);
+    expect(resolveSequences({ winBack: { enabled: false } }, { leadTips: true, freePlanFollowUp: true, quizAbandon: true, onboardingAbandon: true, winBack: true }).winBack.enabled).toBe(false);
+    expect(resolveSequences({}, { leadTips: true, freePlanFollowUp: true, quizAbandon: true, onboardingAbandon: true, winBack: false }).winBack.enabled).toBe(false);
   });
 });
 

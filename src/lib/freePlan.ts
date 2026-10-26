@@ -157,17 +157,45 @@ export function dripDayFor(program: Pick<Program, 'schedule' | 'phases'>, n: num
 /**
  * Which drip day is due now, or null.
  *
- * Day 1 goes at signup. Day k goes once k-1 whole days have passed since
- * then. One per run, in order, never past the plan length — so a cron that
- * was down for three days sends day 2 next, not days 2, 3 and 4 at once.
+ * Day 1 goes at signup. Day k goes once k-1 days have passed since then,
+ * less `grace`. One per run, in order, never past the plan length — so a
+ * cron that was down for three days sends day 2 next, not days 2, 3 and 4
+ * at once.
+ *
+ * `grace` exists for the morning send. The page promises "one session in
+ * your inbox every morning", but the hourly cron used to send day k at
+ * whatever hour the signup happened, so an 11pm signup got every email at
+ * 11pm. The cron now sends at the admin's send hour in the lead's own
+ * timezone, and the morning after a 9am signup is only 23 hours later —
+ * without the grace it would be skipped and day 2 would land two mornings
+ * after signup. See dripDueNow for the whole rule.
  */
-export function dueDripDay(daysSinceStart: number, sent: Record<string, unknown> | undefined, totalDays: number): number | null {
+export function dueDripDay(daysSinceStart: number, sent: Record<string, unknown> | undefined, totalDays: number, grace = 0): number | null {
   if (!Number.isFinite(daysSinceStart) || daysSinceStart < 0) return null;
   for (let k = 1; k <= totalDays; k++) {
     if (sent?.[`d${k}`]) continue;
-    return daysSinceStart >= k - 1 ? k : null;
+    return daysSinceStart + grace >= k - 1 ? k : null;
   }
   return null;
+}
+
+/** How much earlier than a full day the morning send may go: a signup up to ~10pm gets day 2 the next morning. */
+export const MORNING_GRACE_DAYS = 0.6;
+
+/**
+ * The drip day to send on this cron run, or null.
+ *
+ * At the send hour in the lead's timezone: the next day, if it is due with
+ * the morning grace. At any other hour: only a day that is already a full
+ * day late (a morning was missed, usually downtime), so the sequence never
+ * stalls but a working cron only ever sends in the morning. `force` is the
+ * admin's "run now" and ignores the clock.
+ */
+export function dripDueNow(opts: { elapsedDays: number; sent: Record<string, unknown> | undefined; totalDays: number; atSendHour: boolean; force?: boolean }): number | null {
+  const { elapsedDays, sent, totalDays, atSendHour, force } = opts;
+  if (force || atSendHour) return dueDripDay(elapsedDays, sent, totalDays, MORNING_GRACE_DAYS);
+  const k = dueDripDay(Math.floor(elapsedDays), sent, totalDays);
+  return k !== null && Math.floor(elapsedDays) >= k ? k : null;
 }
 
 /** A single line a session can be described by, for a subject. */

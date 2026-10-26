@@ -24,6 +24,7 @@ import { rateLimit, clientIp } from '@/lib/rateLimit';
 import { sendEmail, dripEmailHtml } from '@/lib/email';
 import { freePlanConfig, findOffer, dripDayFor, sessionSubject } from '@/lib/freePlan';
 import { unsubscribeUrl, unsubscribeSecret } from '@/lib/emailUnsubscribe';
+import { getPublicTrialTerms } from '@/lib/publicBranding';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import type { Program } from '@/types';
 
@@ -32,8 +33,16 @@ export async function POST(req: NextRequest) {
     const limited = await rateLimit({ scope: 'free-plan', key: clientIp(req), windowMs: 15 * 60 * 1000, max: 5 });
     if (!limited.allowed) return NextResponse.json({ ok: false }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
 
-    const body = await req.json().catch(() => ({})) as { email?: string; marketingOptIn?: boolean; programId?: string };
+    const body = await req.json().catch(() => ({})) as { email?: string; marketingOptIn?: boolean; programId?: string; timezone?: string };
     const email = String(body.email ?? '').trim().toLowerCase();
+    // The browser's IANA zone, so the cron can send each morning in THEIR
+    // morning. Validated by asking Intl to use it; anything else is dropped
+    // and the lead gets UTC mornings, as before.
+    const timezone = (() => {
+      const tz = typeof body.timezone === 'string' ? body.timezone.trim() : '';
+      if (!tz || tz.length > 64) return null;
+      try { new Intl.DateTimeFormat('en-GB', { timeZone: tz }); return tz; } catch { return null; }
+    })();
     if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 320) return NextResponse.json({ ok: false, reason: 'Invalid email' }, { status: 400 });
 
     const app = getAdminApp();
@@ -71,17 +80,20 @@ export async function POST(req: NextRequest) {
       drip: {},
       marketingOptIn: body.marketingOptIn === true,
       ...(body.marketingOptIn === true ? { marketingOptInAt: Timestamp.now() } : {}),
+      ...(timezone ? { timezone } : {}),
     });
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://warfarefitness.com';
     const brand = { name: (cfg.appName as string) || 'Warfare Fitness', logoUrl: (cfg.logoUrl as string) || null };
     const unsub = unsubscribeUrl(appUrl, secret, email, 'lead');
+    // The live trial terms, so the email names the same offer as the site.
+    const trial = await getPublicTrialTerms();
     const ok = await sendEmail({
       kind: 'freePlanDrip',
       to: email,
       subject: sessionSubject(program.name, 1, plan.days, first.day),
       unsubscribeUrl: unsub,
-      html: dripEmailHtml({ brand, appUrl, program, dayNumber: 1, totalDays: plan.days, session: first.day, unsubscribeUrl: unsub }),
+      html: dripEmailHtml({ brand, appUrl, program, dayNumber: 1, totalDays: plan.days, session: first.day, unsubscribeUrl: unsub, offer: trial }),
     });
     if (ok) {
       await leadRef.update({ 'drip.d1': FieldValue.serverTimestamp() });

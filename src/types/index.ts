@@ -391,7 +391,7 @@ export interface SystemConfig {
   logoUrl?: string;
   pwaInstallBannerEnabled?: boolean; // admin can disable the install banner
   /** Marketing email sequences, each switchable by the admin. Missing = on. */
-  emailSequences?: { leadTips?: boolean; onboardingAbandon?: boolean; winBack?: boolean };
+  emailSequences?: { leadTips?: boolean; freePlanFollowUp?: boolean; quizAbandon?: boolean; onboardingAbandon?: boolean; winBack?: boolean };
   /** The free-plan lead magnet: which program drips, for how long, and the page copy. */
   freePlan?: {
     enabled?: boolean;

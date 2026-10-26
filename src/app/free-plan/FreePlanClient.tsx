@@ -45,7 +45,8 @@ export function FreePlanClient({
       const res = await fetch('/api/public/free-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: addr, marketingOptIn: tips, programId: program.id }),
+        // The timezone is so the daily email lands in the morning where they are.
+        body: JSON.stringify({ email: addr, marketingOptIn: tips, programId: program.id, timezone: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } })() }),
       });
       if (res.status === 429) throw new Error('Too many tries — give it a few minutes.');
       const data = await res.json().catch(() => ({}));
@@ -109,7 +110,7 @@ export function FreePlanClient({
           {error && <p className="text-sm text-red-400 text-center">{error}</p>}
           <label className="flex items-start gap-2.5 pt-1 text-[12px] text-text-tertiary leading-relaxed cursor-pointer">
             <input type="checkbox" checked={tips} onChange={(e) => setTips(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[var(--accent)] flex-shrink-0" />
-            <span>Also send me training tips and standards breakdowns after the {days} days. Optional. One click stops them.</span>
+            <span>Also send me training tips and the offer for the rest of the program after the {days} days. Optional. One click stops them.</span>
           </label>
           <p className="text-[11px] text-text-tertiary leading-relaxed text-center pt-1">
             {days} emails, one a day, then nothing unless you tick the box. Unsubscribe in any of them.

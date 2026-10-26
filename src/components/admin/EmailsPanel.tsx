@@ -40,7 +40,7 @@ const STATS_REF = () => doc(db, 'system', 'emailStats');
 
 type Draft = Record<SequenceKey, Record<string, StepOverride>>;
 
-const emptyDraft = (): Draft => ({ leadTips: {}, quizAbandon: {}, onboardingAbandon: {}, winBack: {} });
+const emptyDraft = (): Draft => ({ leadTips: {}, freePlanFollowUp: {}, quizAbandon: {}, onboardingAbandon: {}, winBack: {} });
 
 export function EmailsPanel() {
   const { user } = useAuth();

@@ -784,7 +784,7 @@ export function standardsResultEmailHtml(opts: {
 
     <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#444444;">
       Our 90-day programs are built around these standards, session by session, and adjust from what
-      you actually lifted last time. Seven days for a dollar if you want to see one.
+      you actually lifted last time. Start a trial if you want to see one.
     </p>
 
     ${button(passedAll ? 'See the programs' : 'Close the gap', `${appUrl}/onboarding`)}
@@ -871,8 +871,11 @@ export function dripEmailHtml(opts: {
   totalDays: number;
   session: { label: string; isRest: boolean; exercises: { name: string; sets: number; reps: number | string; restSeconds?: number; notes?: string }[] };
   unsubscribeUrl: string;
+  /** The live trial terms (lib/publicBranding getPublicTrialTerms). Absent: no price is named at all. */
+  offer?: { ctaLabel: string; disclosure: string };
 }): string {
   const { brand, appUrl, program, dayNumber, totalDays, session, unsubscribeUrl } = opts;
+  const offer = opts.offer ?? { ctaLabel: 'Get Started', disclosure: 'Cancel anytime.' };
   const base = appUrl.replace(/\/$/, '');
   const isLast = dayNumber >= totalDays;
   const weeksDone = Math.max(1, Math.round(totalDays / 7));
@@ -913,11 +916,11 @@ export function dripEmailHtml(opts: {
     ${appBlock}
     ${isLast
       ? `<h2 style="margin:26px 0 8px;font-size:18px;line-height:1.3;color:#111111;">Where you stand</h2>
-         <p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">You have finished ${weeksDone === 1 ? 'week one' : `${weeksDone} weeks`} of a ${program.weeks}-week program, on paper, with no one tracking it. That is the hardest way to do it, and you did it. Everything from here changes: the loads move with your numbers, the phases change every four weeks, the PT log shows the gap closing. Entry is a dollar. Your place in the program starts exactly where this week left off.</p>
-         ${button(`Start ${escapeHtml(program.name)} for $1`, joinUrl)}
+         <p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">You have finished ${weeksDone === 1 ? 'week one' : `${weeksDone} weeks`} of a ${program.weeks}-week program, on paper, with no one tracking it. That is the hardest way to do it, and you did it. Everything from here changes: the loads move with your numbers, the phases change every four weeks, the PT log shows the gap closing. Your place in the program starts exactly where this week left off. ${escapeHtml(offer.disclosure)}</p>
+         ${button(escapeHtml(offer.ctaLabel), joinUrl)}
          <p style="margin:14px 0 0;font-size:13px;line-height:1.5;color:#666666;">Not for you? That is fine. This was the last email unless you asked for the tips.</p>`
-      : `<p style="margin:20px 0 0;font-size:13px;line-height:1.5;color:#888888;">Day ${dayNumber + 1} lands tomorrow morning. Want the app doing this instead of your notebook? Entry is a dollar.</p>
-         ${button(`Start ${escapeHtml(program.name)} for $1`, joinUrl)}`}
+      : `<p style="margin:20px 0 0;font-size:13px;line-height:1.5;color:#888888;">Day ${dayNumber + 1} lands tomorrow morning. Want the app doing this instead of your notebook? ${escapeHtml(offer.disclosure)}</p>
+         ${button(escapeHtml(offer.ctaLabel), joinUrl)}`}
     <p style="margin:28px 0 0;font-size:12px;line-height:1.5;color:#888888;">
       You asked for ${totalDays} days of ${escapeHtml(program.name)}. Changed your mind?
       <a href="${escapeHtml(unsubscribeUrl)}" style="color:#888888;">Stop them in one click</a>.

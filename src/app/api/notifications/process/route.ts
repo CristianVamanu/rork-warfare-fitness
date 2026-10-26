@@ -14,7 +14,8 @@ import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import OpenAI from 'openai';
 import { getSecret } from '@/lib/secrets';
 import { sendEmail, trialEndingEmailHtml, checkoutRecoveryEmailHtml, marketingEmailHtml, dripEmailHtml } from '@/lib/email';
-import { dripDayFor, dueDripDay, sessionSubject } from '@/lib/freePlan';
+import { dripDayFor, dripDueNow, sessionSubject } from '@/lib/freePlan';
+import { getPublicTrialTerms } from '@/lib/publicBranding';
 import { runBroadcasts } from '@/lib/broadcastSender';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { sequenceToggles, resolveSequences, dueStep, daysSince, type SequenceOverrides, elapsedDays } from '@/lib/emailSequences';
@@ -718,9 +719,52 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Free-plan follow-up: tips and the offer, after the last session ───
+    // Only to leads who ticked the box — the sessions were the service they
+    // asked for; anything after them is marketing and needs the consent. The
+    // trigger is the end of the drip (dripDoneAt), not the signup, so "after
+    // the 7 days" on the page is what happens.
+    if (SEQ.freePlanFollowUp.enabled && unsubSecret) {
+      try {
+        for await (const d of eachDoc(db.collection('landingLeads').where('marketingOptIn', '==', true))) {
+          const lead = d.data() as { email?: string; source?: string; dripActive?: boolean; dripDoneAt?: unknown; emailSeq?: Record<string, unknown> };
+          if (lead.source !== 'free-plan' || !lead.email || lead.dripActive === true) continue;
+          const doneMs = toMs(lead.dripDoneAt);
+          if (doneMs === null) continue;
+          // A lead whose plan ended weeks before this sequence existed is not
+          // sent three catch-up emails on three consecutive hours.
+          const since = daysSince(doneMs, Date.now());
+          if (since > 21) continue;
+          const step = dueStep(SEQ.freePlanFollowUp, since, lead.emailSeq);
+          if (!step) continue;
+          const asUser = await db.collection('users').where('email', '==', lead.email).limit(1).get();
+          if (!asUser.empty) {
+            await d.ref.update({ emailSeq: Object.fromEntries(SEQ.freePlanFollowUp.steps.map((s) => [s.key, 'converted'])) });
+            continue;
+          }
+          const unsub = unsubscribeUrl(appUrl, unsubSecret, lead.email, 'lead');
+          const ok = await sendEmail({
+            kind: 'sequence',
+            to: lead.email, subject: step.subject, unsubscribeUrl: unsub,
+            html: marketingEmailHtml({ brand, appUrl, heading: step.heading, paragraphs: step.paragraphs, cta: step.cta, unsubscribeUrl: unsub }),
+          });
+          if (ok) {
+            await d.ref.update({ [`emailSeq.${step.key}`]: FieldValue.serverTimestamp() });
+            await recordSend('freePlanFollowUp', step.key, lead.email, { leadId: d.id });
+            sent.push(`freePlanFollowUp:${step.key}:${d.id}`);
+          }
+        }
+      } catch (err) {
+        console.error('[notifications/process] free-plan follow-up failed:', err instanceof Error ? err.message : err);
+      }
+    }
+
     // ── Free-plan drip: one session a day to each running lead ─────────────
     if (unsubSecret) {
       try {
+        // The live trial terms, read once per run: every email in the drip
+        // names the same offer as the site does right now.
+        const offer = await getPublicTrialTerms();
         // Paged, for the same reason as the lead sequence above.
         const programCache = new Map<string, Program | null>();
         const loadProgram = async (id: string): Promise<Program | null> => {
@@ -731,11 +775,13 @@ export async function POST(req: NextRequest) {
           return p;
         };
         for await (const d of eachDoc(db.collection('landingLeads').where('dripActive', '==', true))) {
-          const lead = d.data() as { email?: string; programId?: string; dripDays?: number; createdAt?: unknown; drip?: Record<string, unknown> };
+          const lead = d.data() as { email?: string; programId?: string; dripDays?: number; createdAt?: unknown; drip?: Record<string, unknown>; timezone?: string };
           const createdMs = toMs(lead.createdAt);
           if (!lead.email || !lead.programId || createdMs === null) { await d.ref.update({ dripActive: false }); continue; }
           const total = Number(lead.dripDays) || 7;
-          const dayN = dueDripDay(daysSince(createdMs, Date.now()), lead.drip, total);
+          // In the morning, their morning: the lead's browser timezone from
+          // signup, UTC for leads from before it was stored.
+          const dayN = dripDueNow({ elapsedDays: elapsedDays(createdMs, Date.now()), sent: lead.drip, totalDays: total, atSendHour: localHourFor(lead.timezone) === TARGET_LOCAL_HOUR, force });
           if (!dayN) continue;
           const program = await loadProgram(lead.programId);
           const dd = program ? dripDayFor(program, dayN) : null;
@@ -746,7 +792,7 @@ export async function POST(req: NextRequest) {
             to: lead.email,
             subject: sessionSubject(program.name, dayN, total, dd.day),
             unsubscribeUrl: unsub,
-            html: dripEmailHtml({ brand, appUrl, program, dayNumber: dayN, totalDays: total, session: dd.day, unsubscribeUrl: unsub }),
+            html: dripEmailHtml({ brand, appUrl, program, dayNumber: dayN, totalDays: total, session: dd.day, unsubscribeUrl: unsub, offer }),
           });
           if (ok) {
             const isLast = dayN >= total;

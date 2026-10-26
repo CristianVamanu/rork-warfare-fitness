@@ -20,7 +20,7 @@
  * rule without either.
  */
 
-export type SequenceKey = 'leadTips' | 'quizAbandon' | 'onboardingAbandon' | 'winBack';
+export type SequenceKey = 'leadTips' | 'freePlanFollowUp' | 'quizAbandon' | 'onboardingAbandon' | 'winBack';
 
 export interface SequenceStep {
   key: string;
@@ -84,6 +84,43 @@ export const SEQUENCES: Record<SequenceKey, SequenceDef> = {
       },
     ],
   },
+  freePlanFollowUp: {
+    key: 'freePlanFollowUp',
+    label: 'Free plan follow-up',
+    description: 'For free-plan leads who ticked "send me tips", after their last session email. Three emails over two weeks: two tips, one offer, then silence. Stops the moment they join.',
+    steps: [
+      {
+        key: 'd2', day: 2,
+        subject: 'The week after the free week',
+        heading: 'Week two is where plans fall apart.',
+        paragraphs: [
+          'You have the first week on paper. The usual failure is not effort, it is repetition: doing week one again because nothing told you what changes. The fix is boring and it works: add weight or a rep where last week felt clean, hold where it did not, and write it down.',
+          'That is exactly what the app does for you, from the numbers you log. The trial starts your program from where the free week left off.',
+        ],
+        cta: { label: 'Start the trial', path: '/onboarding' },
+      },
+      {
+        key: 'd7', day: 7,
+        subject: 'Two weeks in. Still training?',
+        heading: 'Consistency beats the perfect plan.',
+        paragraphs: [
+          'Two weeks after a free plan most people have either kept going or quietly stopped. Both are normal. If you stopped, do one short session this week, not a comeback, just one.',
+          'If you kept going, the next phase changes the loads and the exercises every four weeks. That is the part an email cannot do.',
+        ],
+        cta: { label: 'See the full program', path: '/onboarding' },
+      },
+      {
+        key: 'd14', day: 14,
+        subject: 'Last one from us',
+        heading: 'This is the last email about your free plan.',
+        paragraphs: [
+          'You asked for the sessions and the tips, and you have had both. If the program is for you, the trial takes about two minutes to set up and picks up where your free week ended.',
+          'Either way, we will not email you about this again.',
+        ],
+        cta: { label: 'Start the trial', path: '/onboarding' },
+      },
+    ],
+  },
   quizAbandon: {
     key: 'quizAbandon',
     label: 'Quiz finished, no signup',
@@ -95,7 +132,7 @@ export const SEQUENCES: Record<SequenceKey, SequenceDef> = {
         heading: 'You did the hard part.',
         paragraphs: [
           'Thirteen answers, one matched program, day one already written. It is sitting there with your name on it.',
-          'The first week costs a dollar. If it is not for you, cancel in the app and that is all you paid.',
+          'Start the trial and see it for yourself. If it is not for you, cancel in the app and that is the end of it.',
         ],
         cta: { label: 'See my program', path: '/onboarding' },
       },
@@ -105,9 +142,9 @@ export const SEQUENCES: Record<SequenceKey, SequenceDef> = {
         heading: 'Most people stop at the same place.',
         paragraphs: [
           'Right at the price. Which is fair: you have been sold plans before that turned out to be a PDF and a wish.',
-          'This is not that. Every session is written out before you start, the app tells you what to lift, and a human checks challenge results. A dollar for a week to see it for yourself.',
+          'This is not that. Every session is written out before you start, the app tells you what to lift, and a human checks challenge results. The trial terms are on the page; take a week to see it for yourself.',
         ],
-        cta: { label: 'Start for $1', path: '/onboarding' },
+        cta: { label: 'Start the trial', path: '/onboarding' },
       },
       {
         key: 'd3', day: 3,
@@ -192,10 +229,10 @@ export const SEQUENCES: Record<SequenceKey, SequenceDef> = {
   },
 };
 
-export interface SequenceToggles { leadTips: boolean; quizAbandon: boolean; onboardingAbandon: boolean; winBack: boolean }
+export interface SequenceToggles { leadTips: boolean; freePlanFollowUp: boolean; quizAbandon: boolean; onboardingAbandon: boolean; winBack: boolean }
 
 /** All on by default; the admin turns individual sequences off in Settings. */
-export const SEQUENCE_DEFAULTS: SequenceToggles = { leadTips: true, quizAbandon: true, onboardingAbandon: true, winBack: true };
+export const SEQUENCE_DEFAULTS: SequenceToggles = { leadTips: true, freePlanFollowUp: true, quizAbandon: true, onboardingAbandon: true, winBack: true };
 
 /**
  * A path on this site: one leading slash, not two. `//host/x` is a

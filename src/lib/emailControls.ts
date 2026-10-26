@@ -47,7 +47,7 @@ export const EMAIL_KINDS: EmailKindDef[] = [
   { kind: 'achievement', label: 'Badge unlocked', when: 'When a member earns an achievement', group: 'account' },
   { kind: 'coachingStatus', label: 'Coaching application decision', when: 'When you approve or decline a 1:1 coaching application', group: 'account' },
   { kind: 'partnerStatus', label: 'Partner program', when: 'Application received, approved or declined, and payout sent', group: 'account' },
-  { kind: 'trialCharge', label: 'Upcoming charge reminder', when: 'Three days before the $1 trial rolls into the paid plan', group: 'billing', warning: 'UK and EU rules expect a reminder before an auto-renewal. Keep this on.' },
+  { kind: 'trialCharge', label: 'Upcoming charge reminder', when: 'Three days before a paid or card-up-front trial rolls into the paid plan', group: 'billing', warning: 'UK and EU rules expect a reminder before an auto-renewal. Keep this on.' },
   { kind: 'paymentFailed', label: 'Payment failed', when: 'When a renewal charge is declined, once per invoice', group: 'billing', warning: 'Without it, members find out by losing access.' },
   { kind: 'trialEnding', label: 'Free trial ending', when: 'Two days before a free (no-card) trial ends', group: 'marketing' },
   { kind: 'checkoutRecovery', label: 'Abandoned checkout', when: 'A few hours after someone starts checkout and leaves', group: 'marketing' },
