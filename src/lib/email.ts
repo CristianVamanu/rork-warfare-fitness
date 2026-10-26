@@ -252,11 +252,12 @@ function brandOf(brand: EmailBrand): { name: string; logoUrl: string | null } {
  * a bet on each client's transform, and the failure mode is an unreadable
  * password reset.
  *
- * So the brand lives in a dark band at the top — logo, wordmark, gold rule,
- * white text on near-black, which survives being inverted because it is
- * high-contrast either way round — and the content sits on white beneath it.
- * That reads as deliberate in a light client, transforms cleanly in a dark
- * one, and never produces the brown-on-grey button again.
+ * So the whole email is dark — logo, wordmark, gold rule, light text on
+ * near-black, one colour from the band to the footer. The first version had a
+ * dark band over a white body; Gmail on iOS inverts both, which turned the
+ * band white and the body dark, a two-tone mess in exactly the client most
+ * members read on. One colour inverts to one colour, which still reads as
+ * deliberate, and never produces the brown-on-grey button again.
  *
  * WHAT IS DELIBERATELY MISSING. No background image (Outlook needs VML for
  * that), no web font (they do not load), no gradient behind text, no CSS glow.
@@ -284,13 +285,13 @@ function shell(brand: EmailBrand, bodyHtml: string, preheader = ''): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light">
-<meta name="supported-color-schemes" content="light">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
 <title>${safeName}</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f2f2f2;">
+<body style="margin:0;padding:0;background-color:#0a0a0a;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(preheader)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f2f2f2" style="background-color:#f2f2f2;margin:0;padding:0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0a0a0a" style="background-color:#0a0a0a;margin:0;padding:0;">
   <tr>
     <td align="center" style="padding:28px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 
@@ -301,16 +302,16 @@ function shell(brand: EmailBrand, bodyHtml: string, preheader = ''): string {
              against an inverted background because the text on it is white
              on near-black either way round. -->
         <tr>
-          <td align="center" bgcolor="#0a0a0a" style="background-color:#0a0a0a;border-radius:16px 16px 0 0;padding:28px 24px 24px;">
+          <td align="center" bgcolor="#161616" style="background-color:#161616;border-radius:16px 16px 0 0;padding:28px 24px 0;">
             ${logoBlock}
             <div style="margin:${logoUrl ? '16px' : '0'} 0 0;font-size:20px;font-weight:800;letter-spacing:0.06em;color:#ffffff;text-transform:uppercase;">${safeName}</div>
-            <div style="margin:12px auto 0;width:40px;height:3px;background-color:#F5A623;border-radius:2px;font-size:0;line-height:0;">&nbsp;</div>
+            <div style="margin:12px auto 24px;width:40px;height:3px;background-color:#F5A623;border-radius:2px;font-size:0;line-height:0;">&nbsp;</div>
           </td>
         </tr>
 
-        <!-- Body. Light on purpose — see the note above shell(). -->
+        <!-- Body. Dark like the band — see the note above shell(). -->
         <tr>
-          <td bgcolor="#ffffff" style="background-color:#ffffff;border-radius:0 0 16px 16px;padding:32px 28px;">
+          <td bgcolor="#161616" style="background-color:#161616;border-radius:0 0 16px 16px;padding:28px 28px 32px;">
             ${bodyHtml}
           </td>
         </tr>
@@ -343,6 +344,18 @@ function button(label: string, url: string): string {
       <tr>
         <td bgcolor="#F5A623" align="center" style="background-color:#F5A623;border-radius:10px;">
           <a href="${escapeHtml(url)}" style="display:inline-block;padding:13px 26px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:800;color:#000000;text-decoration:none;border-radius:10px;">${escapeHtml(label)}</a>
+        </td>
+      </tr>
+    </table>`;
+}
+
+/** A link shown as a link: readable size, no letter-spacing, an anchor with its own colour so the client does not paint it default blue. */
+function linkBlock(url: string, display: string): string {
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 0;">
+      <tr>
+        <td bgcolor="#0a0a0a" align="center" style="background-color:#0a0a0a;border:1px solid #F5A623;border-radius:12px;padding:14px 12px;">
+          <a href="${escapeHtml(url)}" style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:15px;font-weight:700;color:#F5A623;text-decoration:none;word-break:break-all;">${escapeHtml(display)}</a>
         </td>
       </tr>
     </table>`;
@@ -386,8 +399,8 @@ export function welcomeEmailHtml(name: string, brand: EmailBrand, appUrl: string
   name = escapeHtml(name);
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Welcome, ${name}. 💪</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">Welcome, ${name}. 💪</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       Your account is live. Log your first workout, track a meal, and start your streak.
     </p>
     ${button('Open ' + appName, appUrl)}
@@ -405,16 +418,16 @@ export function verifyEmailHtml(name: string, link: string, brand: EmailBrand): 
   name = escapeHtml(name);
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Confirm your email, ${name}.</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">Confirm your email, ${name}.</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       One tap and your account is ready. This link expires in an hour.
     </p>
     ${button('Confirm Email', link)}
-    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#6b6b6b;">
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#9a9a9a;">
       If the button doesn't work, paste this into your browser:<br>
-      <span style="color:#666666;word-break:break-all;">${escapeHtml(link)}</span>
+      <span style="color:#a3a3a3;word-break:break-all;">${escapeHtml(link)}</span>
     </p>
-    <p style="margin:16px 0 0;font-size:12px;color:#6b6b6b;">
+    <p style="margin:16px 0 0;font-size:12px;color:#9a9a9a;">
       Didn't sign up? Ignore this email and nothing happens.
     </p>
   `, "One tap and your account is ready.");
@@ -427,12 +440,12 @@ export function verifyEmailHtml(name: string, link: string, brand: EmailBrand): 
 export function verifyCodeEmailHtml(code: string, brand: EmailBrand): string {
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Your confirmation code</h1>
-    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">Your confirmation code</h1>
+    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#c9c9c9;">
       Enter this in ${appName} to confirm your email. It expires in 15 minutes.
     </p>
     ${codeBlock(code)}
-    <p style="margin:20px 0 0;font-size:12px;color:#6b6b6b;">
+    <p style="margin:20px 0 0;font-size:12px;color:#9a9a9a;">
       Didn't sign up? Ignore this email and nothing happens.
     </p>
   `, "Your code expires in 15 minutes.");
@@ -441,16 +454,16 @@ export function verifyCodeEmailHtml(code: string, brand: EmailBrand): string {
 export function passwordResetEmailHtml(link: string, brand: EmailBrand): string {
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Reset your password</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">Reset your password</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       Tap below to choose a new password. This link expires in an hour.
     </p>
     ${button('Reset Password', link)}
-    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#6b6b6b;">
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#9a9a9a;">
       If the button doesn't work, paste this into your browser:<br>
-      <span style="color:#666666;word-break:break-all;">${escapeHtml(link)}</span>
+      <span style="color:#a3a3a3;word-break:break-all;">${escapeHtml(link)}</span>
     </p>
-    <p style="margin:16px 0 0;font-size:12px;color:#6b6b6b;">
+    <p style="margin:16px 0 0;font-size:12px;color:#9a9a9a;">
       Didn't ask for this? Ignore this email — your password stays as it is.
     </p>
   `, "Choose a new password — link expires in an hour.");
@@ -467,8 +480,8 @@ export function passwordResetEmailHtml(link: string, brand: EmailBrand): string 
 export function landingLeadFollowupEmailHtml(brand: EmailBrand, appUrl: string): string {
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Ready when you are.</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">Ready when you are.</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       You started building your program on ${appName} — here's your link to pick up right where you left off.
     </p>
     ${button('Continue My Program', `${appUrl}/onboarding`)}
@@ -488,9 +501,9 @@ export function trainerLeadEmailHtml(lead: {
     ['Client count', lead.clientCount],
     ['Message', lead.message],
   ].filter(([, v]) => v) as [string, string][];
-  const rowsHtml = rows.map(([k, v]) => `<p style="margin:0 0 8px;font-size:14px;color:#444444;"><strong style="color:#111111;">${escapeHtml(k)}:</strong> ${escapeHtml(v)}</p>`).join('');
+  const rowsHtml = rows.map(([k, v]) => `<p style="margin:0 0 8px;font-size:14px;color:#c9c9c9;"><strong style="color:#f5f5f5;">${escapeHtml(k)}:</strong> ${escapeHtml(v)}</p>`).join('');
   return shell(brand, `
-    <h1 style="margin:0 0 16px;font-size:20px;font-weight:900;color:#111111;">New Demo Request 🎯</h1>
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:900;color:#f5f5f5;">New Demo Request 🎯</h1>
     ${rowsHtml}
     ${button('View in Admin Panel', `${appUrl}/admin`)}
   `);
@@ -501,8 +514,8 @@ export function achievementEmailHtml(name: string, titles: string[], brand: Emai
   const list = titles.map((t) => `<li style="margin:4px 0;">🏆 ${escapeHtml(t)}</li>`).join('');
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">New achievement${titles.length > 1 ? 's' : ''}, ${name}!</h1>
-    <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.7;color:#444444;">${list}</ul>
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">New achievement${titles.length > 1 ? 's' : ''}, ${name}!</h1>
+    <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.7;color:#c9c9c9;">${list}</ul>
     ${button('View Achievements', `${appUrl}/achievements`)}
   `);
 }
@@ -516,8 +529,8 @@ export function coachingApplicationEmailHtml(
   if (status === 'approved') {
     const { name: appName } = brandOf(brand);
   return shell(brand, `
-      <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">You're approved for 1:1 Coaching!</h1>
-      <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+      <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">You're approved for 1:1 Coaching!</h1>
+      <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
         Great news, ${name} — your application for &quot;${planName}&quot; has been approved. Complete your payment to get started.
       </p>
       ${button('Complete Payment', `${appUrl}/profile`)}
@@ -525,8 +538,8 @@ export function coachingApplicationEmailHtml(
   }
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">1:1 Coaching Application Update</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">1:1 Coaching Application Update</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       Thanks for applying, ${name}. We're not able to take you on for 1:1 coaching right now${reason ? `: ${reason}` : '.'}
       Keep crushing your training — you're welcome to re-apply later.
     </p>
@@ -537,8 +550,8 @@ export function trialEndingEmailHtml(name: string, daysLeft: number, brand: Emai
   name = escapeHtml(name);
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Your trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">Your trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       Hey ${name}, just a heads up — your free trial wraps up soon. Keep your progress, streak, and programs going without interruption.
     </p>
     ${button('Manage Membership', `${appUrl}/profile`)}
@@ -571,27 +584,27 @@ export function trialChargeReminderEmailHtml(opts: {
   const descriptor = escapeHtml(opts.statementDescriptor);
   const { name: appName } = brandOf(opts.brand);
   const money = opts.amountLabel
-    ? `<strong style="color:#111111;">${escapeHtml(opts.amountLabel)}${opts.cadence ? ' ' + escapeHtml(opts.cadence) : ''}</strong>`
+    ? `<strong style="color:#f5f5f5;">${escapeHtml(opts.amountLabel)}${opts.cadence ? ' ' + escapeHtml(opts.cadence) : ''}</strong>`
     : 'the plan price';
   const row = (k: string, v: string) => `
         <tr>
-          <td style="padding:10px 14px;font-size:13px;color:#6b6b6b;border-top:1px solid #ececec;white-space:nowrap;">${k}</td>
-          <td align="right" style="padding:10px 14px;font-size:13px;font-weight:700;color:#111111;border-top:1px solid #ececec;">${v}</td>
+          <td style="padding:10px 14px;font-size:13px;color:#9a9a9a;border-top:1px solid #2a2a2a;white-space:nowrap;">${k}</td>
+          <td align="right" style="padding:10px 14px;font-size:13px;font-weight:700;color:#f5f5f5;border-top:1px solid #2a2a2a;">${v}</td>
         </tr>`;
   return shell(opts.brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Your trial ends on ${date}</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">Your trial ends on ${date}</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       Hey ${name}. Your ${plan} trial ends on ${date}. From then, ${escapeHtml(appName)} bills ${money}
-      to the card you used at checkout. It will show on your statement as <strong style="color:#111111;">${descriptor}</strong>.
+      to the card you used at checkout. It will show on your statement as <strong style="color:#f5f5f5;">${descriptor}</strong>.
     </p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;border:1px solid #ececec;border-radius:12px;border-collapse:separate;overflow:hidden;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;border:1px solid #2a2a2a;border-radius:12px;border-collapse:separate;overflow:hidden;">
       <tr>
-        <td style="padding:10px 14px;font-size:13px;color:#6b6b6b;white-space:nowrap;">Plan</td>
-        <td align="right" style="padding:10px 14px;font-size:13px;font-weight:700;color:#111111;">${plan}</td>
+        <td style="padding:10px 14px;font-size:13px;color:#9a9a9a;white-space:nowrap;">Plan</td>
+        <td align="right" style="padding:10px 14px;font-size:13px;font-weight:700;color:#f5f5f5;">${plan}</td>
       </tr>${row('First charge', date)}${row('Amount', opts.amountLabel ? escapeHtml(opts.amountLabel) + (opts.cadence ? ' ' + escapeHtml(opts.cadence) : '') : 'Plan price')}
     </table>
-    <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#444444;">
-      <strong style="color:#111111;">Nothing to do if you want to keep going.</strong>
+    <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#c9c9c9;">
+      <strong style="color:#f5f5f5;">Nothing to do if you want to keep going.</strong>
       Want to stop before then? Cancel from Manage membership any time before ${date} and you will not be charged.
     </p>
     ${button('Manage membership', `${opts.appUrl}/profile`)}
@@ -621,28 +634,28 @@ export function checkoutRecoveryEmailHtml(opts: {
   const { name: appName } = brandOf(opts.brand);
   const followup = opts.step === 'followup';
   const offer = opts.trialLabel
-    ? `<strong style="color:#111111;">${escapeHtml(opts.trialLabel)}</strong>, then ${escapeHtml(opts.amountLabel)}. Cancel any time.`
-    : `<strong style="color:#111111;">${escapeHtml(opts.amountLabel)}</strong>. Cancel any time.`;
+    ? `<strong style="color:#f5f5f5;">${escapeHtml(opts.trialLabel)}</strong>, then ${escapeHtml(opts.amountLabel)}. Cancel any time.`
+    : `<strong style="color:#f5f5f5;">${escapeHtml(opts.amountLabel)}</strong>. Cancel any time.`;
   const heading = followup ? 'Still thinking about it?' : 'You were one step away';
   const intro = followup
-    ? `Hey ${name}. Two days ago you got as far as the payment step for <strong style="color:#111111;">${plan}</strong> on ${escapeHtml(appName)}.
+    ? `Hey ${name}. Two days ago you got as far as the payment step for <strong style="color:#f5f5f5;">${plan}</strong> on ${escapeHtml(appName)}.
       If you had finished, you&rsquo;d be on day two of your program by now. It only takes a minute, and the first week costs less than a coffee.`
-    : `Hey ${name}. You started signing up for <strong style="color:#111111;">${plan}</strong> on ${escapeHtml(appName)} and didn&rsquo;t finish.
+    : `Hey ${name}. You started signing up for <strong style="color:#f5f5f5;">${plan}</strong> on ${escapeHtml(appName)} and didn&rsquo;t finish.
       Your program, your standards tests and your progress are all set up and waiting on the other side of it.`;
   const closing = followup
     ? 'This is the last note about it. If now isn&rsquo;t the time, no hard feelings, and your account will be here when it is.'
     : 'We&rsquo;ll send one more note in a couple of days, then leave you alone.';
   return shell(opts.brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">${heading}</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">${intro}</p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;border:1px solid #ececec;border-radius:12px;border-collapse:separate;overflow:hidden;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">${heading}</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">${intro}</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;border:1px solid #2a2a2a;border-radius:12px;border-collapse:separate;overflow:hidden;">
       <tr>
-        <td style="padding:10px 14px;font-size:13px;color:#6b6b6b;white-space:nowrap;">Plan</td>
-        <td align="right" style="padding:10px 14px;font-size:13px;font-weight:700;color:#111111;">${plan}</td>
+        <td style="padding:10px 14px;font-size:13px;color:#9a9a9a;white-space:nowrap;">Plan</td>
+        <td align="right" style="padding:10px 14px;font-size:13px;font-weight:700;color:#f5f5f5;">${plan}</td>
       </tr>
       <tr>
-        <td style="padding:10px 14px;font-size:13px;color:#6b6b6b;border-top:1px solid #ececec;white-space:nowrap;">Price</td>
-        <td align="right" style="padding:10px 14px;font-size:13px;color:#111111;border-top:1px solid #ececec;">${offer}</td>
+        <td style="padding:10px 14px;font-size:13px;color:#9a9a9a;border-top:1px solid #2a2a2a;white-space:nowrap;">Price</td>
+        <td align="right" style="padding:10px 14px;font-size:13px;color:#f5f5f5;border-top:1px solid #2a2a2a;">${offer}</td>
       </tr>
     </table>
     ${button('Finish signing up', opts.resumeUrl)}
@@ -656,12 +669,12 @@ export function checkoutRecoveryEmailHtml(opts: {
 export function twoFactorCodeEmailHtml(code: string, brand: EmailBrand): string {
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#111111;">Your sign-in code</h1>
-    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#f5f5f5;">Your sign-in code</h1>
+    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#c9c9c9;">
       Enter this code to finish signing in. It expires in 10 minutes.
     </p>
     ${codeBlock(code)}
-    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#6b6b6b;">
+    <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#9a9a9a;">
       Didn't try to sign in? You can safely ignore this email — your password wasn't shared.
     </p>
   `, 'Your sign-in code expires in 10 minutes.');
@@ -679,11 +692,11 @@ export function twoFactorSettingsChangedEmailHtml(
   change = escapeHtml(change);
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#111111;">Security setting changed</h1>
-    <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#f5f5f5;">Security setting changed</h1>
+    <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#c9c9c9;">
       Hey ${name}, this is a heads up that ${change} on your account.
     </p>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       If this was you, no action needed. If you didn't make this change, secure your account immediately by resetting your password.
     </p>
     ${button('Review Settings', `${appUrl}/settings`)}
@@ -694,8 +707,8 @@ export function paymentFailedEmailHtml(name: string, brand: EmailBrand, appUrl: 
   name = escapeHtml(name);
   const { name: appName } = brandOf(brand);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Your last payment didn't go through</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">Your last payment didn't go through</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       Hey ${name}, we couldn't process your most recent membership payment. Update your billing details to keep your access uninterrupted.
     </p>
     ${button('Update Billing', `${appUrl}/profile`)}
@@ -729,11 +742,11 @@ export function standardsResultEmailHtml(opts: {
 
   const rows = results.map((r) => `
     <tr>
-      <td style="padding:10px 0;border-bottom:1px solid #EEEEEE;font-size:14px;color:#111111;">${escapeHtml(r.label)}</td>
-      <td align="right" style="padding:10px 0;border-bottom:1px solid #EEEEEE;font-size:14px;font-weight:700;color:${r.passed ? '#1B7F3B' : '#B4322E'};">
+      <td style="padding:10px 0;border-bottom:1px solid #2a2a2a;font-size:14px;color:#f5f5f5;">${escapeHtml(r.label)}</td>
+      <td align="right" style="padding:10px 0;border-bottom:1px solid #2a2a2a;font-size:14px;font-weight:700;color:${r.passed ? '#4CC26A' : '#E25B55'};">
         ${escapeHtml(r.yours)}
       </td>
-      <td align="right" style="padding:10px 0 10px 14px;border-bottom:1px solid #EEEEEE;font-size:14px;color:#888888;">
+      <td align="right" style="padding:10px 0 10px 14px;border-bottom:1px solid #2a2a2a;font-size:14px;color:#888888;">
         needs ${escapeHtml(r.target)}
       </td>
     </tr>`).join('');
@@ -763,7 +776,7 @@ export function standardsResultEmailHtml(opts: {
       : 'Your result against the published standard.';
 
   return shell(brand, `
-    <h1 style="margin:0 0 6px;font-size:22px;font-weight:900;color:#111111;line-height:1.25;">${headline}</h1>
+    <h1 style="margin:0 0 6px;font-size:22px;font-weight:900;color:#f5f5f5;line-height:1.25;">${headline}</h1>
     <p style="margin:0 0 18px;font-size:13px;color:#888888;">Measured against ${escapeHtml(standardTitle)}.</p>
 
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
@@ -771,35 +784,35 @@ export function standardsResultEmailHtml(opts: {
     </table>
 
     ${advice ? `
-      <p style="margin:22px 0 6px;font-size:13px;font-weight:800;color:#111111;text-transform:uppercase;letter-spacing:0.06em;">
+      <p style="margin:22px 0 6px;font-size:13px;font-weight:800;color:#f5f5f5;text-transform:uppercase;letter-spacing:0.06em;">
         What closes it
       </p>
-      <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">${escapeHtml(advice)}</p>
+      <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">${escapeHtml(advice)}</p>
     ` : `
-      <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#444444;">
+      <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#c9c9c9;">
         Clearing every event puts you past the fitness filter. Holding it while everything else is
         going wrong is the actual test, and that is a training problem rather than a fitness one.
       </p>
     `}
 
-    <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#444444;">
+    <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       Our 90-day programs are built around these standards, session by session, and adjust from what
       you actually lifted last time. Start a trial if you want to see one.
     </p>
 
     ${button(passedAll ? 'See the programs' : 'Close the gap', `${appUrl}/onboarding`)}
 
-    <p style="margin:26px 0 0;font-size:11px;line-height:1.5;color:#999999;">
+    <p style="margin:26px 0 0;font-size:11px;line-height:1.5;color:#7d7d7d;">
       This test covers what can be measured in a gym. Real selection also involves swimming in boots,
       obstacle and endurance courses, loaded marches and navigation. Passing here means you would not
       be sent home on the fitness test. It does not mean you would pass the course.
     </p>
-    <p style="margin:10px 0 0;font-size:11px;line-height:1.5;color:#999999;">
+    <p style="margin:10px 0 0;font-size:11px;line-height:1.5;color:#7d7d7d;">
       Not affiliated with any armed force. Standards reproduced from published sources.
     </p>
     ${unsubscribeUrl ? `
-      <p style="margin:14px 0 0;font-size:11px;color:#999999;">
-        <a href="${escapeHtml(unsubscribeUrl)}" style="color:#999999;">Stop these emails</a>
+      <p style="margin:14px 0 0;font-size:11px;color:#7d7d7d;">
+        <a href="${escapeHtml(unsubscribeUrl)}" style="color:#7d7d7d;">Stop these emails</a>
       </p>
     ` : ''}
   `, preheader);
@@ -822,9 +835,9 @@ export function marketingEmailHtml(opts: {
 }): string {
   const { brand, appUrl, heading, paragraphs, cta, unsubscribeUrl, name } = opts;
   const body = `
-    <h1 style="margin:0 0 14px;font-size:22px;line-height:1.25;color:#111111;">${escapeHtml(heading)}</h1>
-    ${name ? `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">${escapeHtml(name)},</p>` : ''}
-    ${paragraphs.map((p) => `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">${escapeHtml(p)}</p>`).join('')}
+    <h1 style="margin:0 0 14px;font-size:22px;line-height:1.25;color:#f5f5f5;">${escapeHtml(heading)}</h1>
+    ${name ? `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#d9d9d9;">${escapeHtml(name)},</p>` : ''}
+    ${paragraphs.map((p) => `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#d9d9d9;">${escapeHtml(p)}</p>`).join('')}
     ${button(cta.label, `${appUrl.replace(/\/$/, '')}${cta.path}`)}
     <p style="margin:28px 0 0;font-size:12px;line-height:1.5;color:#888888;">
       You are getting this because you asked for it. Changed your mind?
@@ -837,8 +850,8 @@ export function marketingEmailHtml(opts: {
 export function directEmailHtml(opts: { brand: EmailBrand; paragraphs: string[]; name?: string }): string {
   const { brand, paragraphs, name } = opts;
   const body = `
-    ${name ? `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">${escapeHtml(name)},</p>` : ''}
-    ${paragraphs.map((p) => `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">${escapeHtml(p)}</p>`).join('')}`;
+    ${name ? `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#d9d9d9;">${escapeHtml(name)},</p>` : ''}
+    ${paragraphs.map((p) => `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#d9d9d9;">${escapeHtml(p)}</p>`).join('')}`;
   return shell(brand, body, paragraphs[0] ?? '');
 }
 
@@ -882,11 +895,11 @@ export function dripEmailHtml(opts: {
   const joinUrl = `${base}/onboarding?programId=${encodeURIComponent(program.id)}`;
   const rows = session.isRest ? '' : session.exercises.map((e) => `
     <tr>
-      <td style="padding:10px 0;border-bottom:1px solid #EEEEEE;font-size:14px;color:#111111;">
-        <strong>${escapeHtml(e.name)}</strong>${e.notes ? `<br><span style="font-size:12px;color:#666666;">${escapeHtml(e.notes)}</span>` : ''}
+      <td style="padding:10px 0;border-bottom:1px solid #2a2a2a;font-size:14px;color:#f5f5f5;">
+        <strong>${escapeHtml(e.name)}</strong>${e.notes ? `<br><span style="font-size:12px;color:#a3a3a3;">${escapeHtml(e.notes)}</span>` : ''}
       </td>
-      <td align="right" style="padding:10px 0;border-bottom:1px solid #EEEEEE;font-size:14px;color:#111111;white-space:nowrap;">
-        ${e.sets} × ${escapeHtml(String(e.reps))}${e.restSeconds ? `<br><span style="font-size:12px;color:#666666;">rest ${e.restSeconds}s</span>` : ''}
+      <td align="right" style="padding:10px 0;border-bottom:1px solid #2a2a2a;font-size:14px;color:#f5f5f5;white-space:nowrap;">
+        ${e.sets} × ${escapeHtml(String(e.reps))}${e.restSeconds ? `<br><span style="font-size:12px;color:#a3a3a3;">rest ${e.restSeconds}s</span>` : ''}
       </td>
     </tr>`).join('');
 
@@ -895,30 +908,30 @@ export function dripEmailHtml(opts: {
   const appLine = session.isRest ? DRIP_APP_LINES[1] : trainingLines[(dayNumber - 1) % trainingLines.length];
   const appBlock = `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;">
-      <tr><td style="padding:14px 16px;background:#F5F5F5;border-left:3px solid #F5A623;">
+      <tr><td style="padding:14px 16px;background:#1c1c1c;border-left:3px solid #F5A623;">
         <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#888888;">${escapeHtml(appLine.title)}</p>
-        <p style="margin:0;font-size:14px;line-height:1.5;color:#333333;">${escapeHtml(appLine.text)}</p>
+        <p style="margin:0;font-size:14px;line-height:1.5;color:#d9d9d9;">${escapeHtml(appLine.text)}</p>
       </td></tr>
     </table>`;
 
   const intro = dayNumber === 1
-    ? `<p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#333333;">This is the real week one of ${escapeHtml(program.name)}, not a sample. Do it as written and write your numbers down. On day ${totalDays} you will know where you stand.</p>`
+    ? `<p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#d9d9d9;">This is the real week one of ${escapeHtml(program.name)}, not a sample. Do it as written and write your numbers down. On day ${totalDays} you will know where you stand.</p>`
     : '';
 
   const body = `
     <p style="margin:0 0 6px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#888888;">Assessment · day ${dayNumber} of ${totalDays} · ${escapeHtml(program.name)}</p>
-    <h1 style="margin:0 0 14px;font-size:22px;line-height:1.25;color:#111111;">${escapeHtml(session.isRest ? 'Rest day. It still counts.' : session.label || 'Training day')}</h1>
+    <h1 style="margin:0 0 14px;font-size:22px;line-height:1.25;color:#f5f5f5;">${escapeHtml(session.isRest ? 'Rest day. It still counts.' : session.label || 'Training day')}</h1>
     ${intro}
     ${session.isRest
-      ? `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">Nothing to lift today, on purpose. The program schedules rest because that is when yesterday's work becomes strength. Walk, eat, sleep. Tomorrow is already on its way.</p>`
+      ? `<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#d9d9d9;">Nothing to lift today, on purpose. The program schedules rest because that is when yesterday's work becomes strength. Walk, eat, sleep. Tomorrow is already on its way.</p>`
       : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 4px;">${rows}</table>
-         <p style="margin:12px 0 0;font-size:13px;line-height:1.5;color:#666666;">Warm up for five minutes first. Rest as written. If a weight is not given, pick one that makes the last two reps hard and clean. Write down what you did.</p>`}
+         <p style="margin:12px 0 0;font-size:13px;line-height:1.5;color:#a3a3a3;">Warm up for five minutes first. Rest as written. If a weight is not given, pick one that makes the last two reps hard and clean. Write down what you did.</p>`}
     ${appBlock}
     ${isLast
-      ? `<h2 style="margin:26px 0 8px;font-size:18px;line-height:1.3;color:#111111;">Where you stand</h2>
-         <p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#333333;">You have finished ${weeksDone === 1 ? 'week one' : `${weeksDone} weeks`} of a ${program.weeks}-week program, on paper, with no one tracking it. That is the hardest way to do it, and you did it. Everything from here changes: the loads move with your numbers, the phases change every four weeks, the PT log shows the gap closing. Your place in the program starts exactly where this week left off. ${escapeHtml(offer.disclosure)}</p>
+      ? `<h2 style="margin:26px 0 8px;font-size:18px;line-height:1.3;color:#f5f5f5;">Where you stand</h2>
+         <p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#d9d9d9;">You have finished ${weeksDone === 1 ? 'week one' : `${weeksDone} weeks`} of a ${program.weeks}-week program, on paper, with no one tracking it. That is the hardest way to do it, and you did it. Everything from here changes: the loads move with your numbers, the phases change every four weeks, the PT log shows the gap closing. Your place in the program starts exactly where this week left off. ${escapeHtml(offer.disclosure)}</p>
          ${button(escapeHtml(offer.ctaLabel), joinUrl)}
-         <p style="margin:14px 0 0;font-size:13px;line-height:1.5;color:#666666;">Not for you? That is fine. This was the last email unless you asked for the tips.</p>`
+         <p style="margin:14px 0 0;font-size:13px;line-height:1.5;color:#a3a3a3;">Not for you? That is fine. This was the last email unless you asked for the tips.</p>`
       : `<p style="margin:20px 0 0;font-size:13px;line-height:1.5;color:#888888;">Day ${dayNumber + 1} lands tomorrow morning. Want the app doing this instead of your notebook? ${escapeHtml(offer.disclosure)}</p>
          ${button(escapeHtml(offer.ctaLabel), joinUrl)}`}
     <p style="margin:28px 0 0;font-size:12px;line-height:1.5;color:#888888;">
@@ -933,8 +946,8 @@ export function dripEmailHtml(opts: {
 export function partnerApplicationReceivedEmailHtml(name: string, brand: EmailBrand, appUrl: string): string {
   name = escapeHtml(name);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Application received</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">Application received</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       Thanks, ${name}. We review partner applications by hand, usually within two working days. You will get an email either way.
     </p>
     ${button('Check status', `${appUrl}/partner`)}
@@ -948,26 +961,26 @@ export function partnerDecisionEmailHtml(
   const reason = opts.reason ? escapeHtml(opts.reason) : '';
   if (status === 'active') {
     return shell(brand, `
-      <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">You're in — welcome, partner</h1>
-      <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#444444;">
+      <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">You're in — welcome, partner</h1>
+      <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#c9c9c9;">
         ${name}, your application is approved. Your link is live and you earn <strong>${opts.percent}%</strong> of every payment from members who join through it, for as long as they stay.
       </p>
-      ${codeBlock(`${appUrl.replace(/^https?:\/\//, '')}/p/${escapeHtml(opts.code)}`)}
-      <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#444444;">Your dashboard has the link, a QR code, ready-made posts and the videos.</p>
+      ${linkBlock(`${appUrl}/p/${opts.code}`, `${appUrl.replace(/^https?:\/\//, '')}/p/${opts.code}`)}
+      <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#c9c9c9;">Your dashboard has the link, a QR code, ready-made posts and the videos.</p>
       ${button('Open partner dashboard', `${appUrl}/partner`)}
     `, 'Your partner link is live');
   }
   if (status === 'suspended') {
     return shell(brand, `
-      <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Partner account paused</h1>
-      <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+      <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">Partner account paused</h1>
+      <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
         ${name}, your partner link has been paused${reason ? `: ${reason}` : '.'} Approved commissions are still paid out. Reply to this email if you think this is a mistake.
       </p>
     `);
   }
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Partner application update</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">Partner application update</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       Thanks for applying, ${name}. We are not able to take you on as a partner right now${reason ? `: ${reason}` : '.'} You are welcome to apply again later.
     </p>
   `);
@@ -976,9 +989,9 @@ export function partnerDecisionEmailHtml(
 export function adminPartnerApplicationEmailHtml(
   profile: { name: string; email: string; channels: string; audience: string; about: string; website?: string }, code: string, brand: EmailBrand, appUrl: string,
 ): string {
-  const row = (k: string, v: string) => `<tr><td style="padding:4px 8px 4px 0;font-size:13px;color:#888;vertical-align:top;white-space:nowrap;">${k}</td><td style="padding:4px 0;font-size:13px;color:#222;">${escapeHtml(v)}</td></tr>`;
+  const row = (k: string, v: string) => `<tr><td style="padding:4px 8px 4px 0;font-size:13px;color:#888;vertical-align:top;white-space:nowrap;">${k}</td><td style="padding:4px 0;font-size:13px;color:#e6e6e6;">${escapeHtml(v)}</td></tr>`;
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#111111;">New partner application</h1>
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#f5f5f5;">New partner application</h1>
     <table style="border-collapse:collapse;">
       ${row('Name', profile.name)}${row('Email', profile.email)}${row('Code', code)}${row('Channels', profile.channels)}${row('Audience', profile.audience)}${row('Website', profile.website ?? '—')}${row('About', profile.about)}
     </table>
@@ -989,8 +1002,8 @@ export function adminPartnerApplicationEmailHtml(
 export function partnerPayoutEmailHtml(name: string, amountLabel: string, method: 'connect' | 'manual', brand: EmailBrand, appUrl: string): string {
   name = escapeHtml(name);
   return shell(brand, `
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#111111;">Payout sent: ${escapeHtml(amountLabel)}</h1>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#444444;">
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#f5f5f5;">Payout sent: ${escapeHtml(amountLabel)}</h1>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#c9c9c9;">
       ${name}, your commission payout of <strong>${escapeHtml(amountLabel)}</strong> is on its way${method === 'connect' ? ' to your connected Stripe account. It usually lands within 2 business days.' : '. We are sending it by bank transfer to the details you gave us.'}
     </p>
     ${button('View statement', `${appUrl}/partner?tab=payouts`)}
