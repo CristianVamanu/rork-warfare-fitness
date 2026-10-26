@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Timer, Flame, X, Quote } from 'lucide-react';
+import { Timer, Hourglass, Flame, X, Quote, Lock } from 'lucide-react';
+import { Medallion } from '@/components/dashboard/Medallion';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { startFasting, stopFasting } from '@/lib/firestore';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -46,6 +48,13 @@ function formatDuration(ms: number): string {
 
 export function FastingWidget() {
   const { user, profile } = useAuth();
+  // No `noTaste` equivalent needed here — this widget never calls
+  // consumeAiTaste, so the same one-visit-forever loophole PaywallGate
+  // guards against with its noTaste prop would apply here too if left
+  // unhandled. Checked directly (not `tasteAvailable`) so a locked plan
+  // always renders the compact locked tile below, dashboard-grid-sized
+  // rather than PaywallGate's full-page upsell layout.
+  const { loaded: accessLoaded, isLocked: fastingLocked } = useFeatureAccess('fasting');
   const [now, setNow] = useState(Date.now());
   const [startModal, setStartModal] = useState(false);
   const [detailModal, setDetailModal] = useState(false);
@@ -90,17 +99,28 @@ export function FastingWidget() {
     }
   };
 
+  if (accessLoaded && fastingLocked) {
+    return (
+      <Card glass className="p-4 flex items-center gap-3.5 opacity-70">
+        <Medallion><Lock className="w-6 h-6" strokeWidth={2} /></Medallion>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-white">Fasting</p>
+          <p className="text-xs text-text-secondary">Included on select plans</p>
+        </div>
+      </Card>
+    );
+  }
+
   if (!fasting) {
     return (
       <>
         <button onClick={() => setStartModal(true)} className="w-full text-left">
-          <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
-            <div className="p-2.5 rounded-xl bg-blue-400/10">
-              <Timer className="w-5 h-5 text-blue-400" />
-            </div>
+          <Card glass className="p-4 flex items-center gap-3.5 card-float">
+            <Medallion><Hourglass className="w-6 h-6" strokeWidth={2} /></Medallion>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">Fasting</p>
-              <p className="text-xs text-text-secondary">Tap to start a fast</p>
+              <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Fasting</span>
+              <p className="text-[15px] font-extrabold text-white leading-tight">Start a fast</p>
+              <p className="text-[11px] text-text-tertiary mt-0.5">16:8, 18:6, 20:4 or your own window</p>
             </div>
           </Card>
         </button>
@@ -156,13 +176,13 @@ export function FastingWidget() {
   return (
     <>
       <button onClick={() => setDetailModal(true)} className="w-full text-left">
-        <Card className="p-4 flex items-center gap-4 bg-gradient-to-br from-blue-500/10 via-surface to-surface">
-          <CircularProgress pct={pct} size={72} strokeWidth={7} color="#38bdf8">
-            <Timer className="w-6 h-6 text-blue-400" />
+        <Card glass className="p-4 flex items-center gap-4 card-float">
+          <CircularProgress pct={pct} size={72} strokeWidth={7} color="var(--accent)">
+            <Timer className="w-6 h-6 text-accent" />
           </CircularProgress>
           <div className="flex-1 min-w-0">
             <p className="text-xl font-black text-white leading-tight">{formatDuration(elapsedMs)}</p>
-            <p className="text-xs text-blue-300 font-medium truncate">{goalReached ? 'Goal reached! 🎉' : stage.label}</p>
+            <p className="text-xs text-accent font-medium truncate">{goalReached ? 'Goal reached! 🎉' : stage.label}</p>
             <p className="text-[10px] text-text-tertiary mt-0.5">Tap for details</p>
           </div>
         </Card>

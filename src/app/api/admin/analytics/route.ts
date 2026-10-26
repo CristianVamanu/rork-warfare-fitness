@@ -86,6 +86,7 @@ export async function GET(req: NextRequest) {
 
     const res = await fetch('https://api.cloudflare.com/client/v4/graphql', {
       method: 'POST',
+      signal: AbortSignal.timeout(15_000),
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query,

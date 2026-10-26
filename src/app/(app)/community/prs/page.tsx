@@ -2,25 +2,42 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { Heart, Upload, X, Video, Image as ImageIcon, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Heart, Upload, MoreHorizontal, Trash2, BadgeCheck, BadgeMinus, EyeOff, Ban } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
+import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
-import { subscribePRFeed, createPRPost, likePRPost, deletePRPost, getSystemConfig } from '@/lib/firestore';
-import { uploadUserContent, type StorageProvider } from '@/lib/uploadVideo';
+import { PaywallGate } from '@/components/ui/PaywallGate';
+import { CommunityTabs } from '@/components/community/CommunityTabs';
+import { subscribePRFeed, likePRPost, deletePRPost, getSystemConfig, setPRPostModeration, unverifyPRPost, banUserFromPRWall } from '@/lib/firestore';
+import { PRComposer } from '@/components/community/PRComposer';
 import type { PRPost } from '@/types';
+import { FeedMedia } from '@/components/community/FeedMedia';
 
 export default function PRWallPage() {
   const { user, profile } = useAuth();
   const [posts, setPosts] = useState<PRPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [reviewRequired, setReviewRequired] = useState(false);
   const [liked, setLiked] = useState<Set<string>>(new Set());
+  // Guards against a rapid double-click firing likePRPost() twice for the
+  // same post before the first call's optimistic setLiked() update has been
+  // committed and re-read — both calls would otherwise derive the same
+  // stale wasLiked/nextLiked from the closure and send two +1 increments to
+  // the server for what the UI shows as a single like (likeCount drifts
+  // upward; likedBy stays correct since arrayUnion is idempotent). A ref
+  // (not state) so it's read/written synchronously within one click handler
+  // call, immune to React's async state batching.
+  const likeInFlight = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    getSystemConfig().then((cfg) => setReviewRequired((cfg as { prWallReview?: boolean } | null)?.prWallReview === true)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const unsub = subscribePRFeed((p) => {
@@ -37,9 +54,30 @@ export default function PRWallPage() {
   const isBanned = !!profile?.prBan && (banUntil === null || (banUntil?.toDate?.() ?? new Date(0)) > new Date());
 
   const handleLike = (id: string) => {
-    if (!user || liked.has(id)) return;
-    setLiked((prev) => new Set(prev).add(id));
-    likePRPost(id, user.uid, true).catch(() => {});
+    if (!user || likeInFlight.current.has(id)) return;
+    likeInFlight.current.add(id);
+    // Toggle — was a one-way "add only" that permanently blocked unliking
+    // once liked.has(id) was true, even though likePRPost itself already
+    // supports the reverse direction (likedBy: arrayRemove, likeCount: -1).
+    const wasLiked = liked.has(id);
+    const nextLiked = !wasLiked;
+    setLiked((prev) => {
+      const next = new Set(prev);
+      if (nextLiked) next.add(id); else next.delete(id);
+      return next;
+    });
+    likePRPost(id, user.uid, nextLiked)
+      .catch(() => {
+        // Roll back the optimistic toggle so the UI doesn't keep showing a
+        // state that never actually landed server-side.
+        setLiked((prev) => {
+          const next = new Set(prev);
+          if (wasLiked) next.add(id); else next.delete(id);
+          return next;
+        });
+        toast.error('Failed to update like — try again');
+      })
+      .finally(() => likeInFlight.current.delete(id));
   };
 
   const isAdmin = profile?.role === 'admin' || profile?.role === 'trainer';
@@ -48,11 +86,34 @@ export default function PRWallPage() {
     if (!confirm(`Delete this "${post.exerciseName}" post?`)) return;
     deletePRPost(post.id).catch(() => alert('Failed to delete — try again.'));
   };
+  // Admin moderation straight from the wall, so the review page is optional.
+  const handleVerify = (post: PRPost) => {
+    const p = post.verificationLevel === 'verified'
+      ? unverifyPRPost(post.id).then(() => toast.success('Badge removed'))
+      : setPRPostModeration(post.id, 'approved', post).then(() => toast.success(`${post.displayName}'s lift is now Verified`));
+    p.catch(() => toast.error('Failed. Try again.'));
+  };
+  const handleHide = (post: PRPost) => {
+    if (!confirm(`Hide this "${post.exerciseName}" post from the wall?`)) return;
+    setPRPostModeration(post.id, 'rejected', post).then(() => toast.success('Hidden')).catch(() => toast.error('Failed. Try again.'));
+  };
+  const handleBan = (post: PRPost) => {
+    const raw = prompt(`Ban ${post.displayName} from posting PRs for how many days? (0 = forever)`, '30');
+    if (raw === null) return;
+    const days = Math.max(0, Math.floor(Number(raw) || 0));
+    banUserFromPRWall(post.userId, days === 0 ? null : days).then(() => toast.success(`${post.displayName} banned${days ? ` for ${days} days` : ''}`)).catch(() => toast.error('Failed. Try again.'));
+  };
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <Header title="PR Wall" showBack />
-      <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
+    <div className="min-h-screen pb-24">
+      {/* No back arrow: the PR Wall is one of Community's two views, not a
+          sub-page of it, and the switcher below is what moves between them. */}
+      <Header title="Community" />
+      <div className="px-4 pt-4 max-w-2xl mx-auto w-full">
+        <CommunityTabs active="prs" />
+      </div>
+      <PaywallGate feature="pr-wall" noTaste>
+      <div className="px-4 py-4 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto space-y-4">
         {isBanned ? (
           <Card className="p-4 border-danger/30">
             <p className="text-sm text-danger font-bold mb-1">You can&apos;t post to the PR Wall</p>
@@ -62,9 +123,11 @@ export default function PRWallPage() {
           </Card>
         ) : (
           <Card className="p-4">
-            <p className="text-sm text-white font-bold mb-1">Post a PR, get it verified</p>
+            <p className="text-sm text-white font-bold mb-1">Post a PR</p>
             <p className="text-xs text-text-secondary leading-relaxed mb-3">
-              Upload a video or photo of your lift. New posts are reviewed by an admin before showing to everyone. Verified PRs stand out on the leaderboard.
+              {reviewRequired
+                ? 'Log the lift with a photo or video. An admin checks it before it shows, and proof earns a Verified badge.'
+                : 'Log the lift and it goes straight on the wall. Add a photo or video and an admin can mark it Verified.'}
             </p>
             <Button size="sm" onClick={() => setShowForm(true)}>
               <Upload className="w-3.5 h-3.5" /> Post a PR
@@ -72,12 +135,14 @@ export default function PRWallPage() {
           </Card>
         )}
 
-        {showForm && user && !isBanned && (
-          <PRForm
-            userId={user.uid}
+        {user && !isBanned && (
+          <PRComposer
+            open={showForm}
+            user={user}
             displayName={profile?.displayName || 'Athlete'}
             photoURL={profile?.photoURL ?? null}
-            onDone={() => setShowForm(false)}
+            reviewRequired={reviewRequired}
+            onClose={() => setShowForm(false)}
           />
         )}
 
@@ -96,33 +161,41 @@ export default function PRWallPage() {
               index={i}
               liked={liked.has(post.id)}
               canDelete={isAdmin || post.userId === user?.uid}
+              isAdmin={isAdmin}
               onLike={() => handleLike(post.id)}
               onDelete={() => handleDelete(post)}
+              onVerify={() => handleVerify(post)}
+              onHide={() => handleHide(post)}
+              onBan={() => handleBan(post)}
             />
           ))
         )}
       </div>
+      </PaywallGate>
     </div>
   );
 }
 
-function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
+function PRCard({ post, index, liked, canDelete, isAdmin, onLike, onDelete, onVerify, onHide, onBan }: {
   post: PRPost;
   index: number;
   liked: boolean;
   canDelete: boolean;
+  isAdmin: boolean;
   onLike: () => void;
   onDelete: () => void;
+  onVerify: () => void;
+  onHide: () => void;
+  onBan: () => void;
 }) {
+  const verified = post.verificationLevel === 'verified';
   const [showMenu, setShowMenu] = useState(false);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
-      <Card className="p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0 text-xs font-bold text-accent">
-            {post.displayName.charAt(0).toUpperCase()}
-          </div>
+    <div className="wf-rise" style={{ animationDelay: `${index * 0.04}s` }}>
+      <Card className="p-4 card-float">
+        <div className="flex items-center gap-2.5 mb-3">
+          <Avatar name={post.displayName} src={post.photoURL} size="md" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <p className="text-sm font-bold text-white truncate">{post.displayName}</p>
@@ -130,12 +203,18 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
               {post.moderationStatus === 'pending' && (
                 <span className="text-[10px] text-amber-400 font-medium">· Pending review</span>
               )}
+              {post.moderationStatus === 'rejected' && (
+                <span className="text-[10px] text-danger font-medium">· Hidden</span>
+              )}
             </div>
             <p className="text-xs text-text-tertiary">{post.exerciseName}</p>
           </div>
-          <div className="text-right flex-shrink-0">
-            <p className="text-sm font-black text-accent">{post.weightKg}kg</p>
-            <p className="text-[10px] text-text-tertiary">× {post.reps}</p>
+          <div
+            className="text-right flex-shrink-0 px-2.5 py-1.5 rounded-xl border border-accent/25"
+            style={{ background: 'linear-gradient(135deg, rgba(var(--accent-rgb) / 0.28), rgba(var(--accent-rgb) / 0.06))' }}
+          >
+            <p className="text-[15px] font-black text-white leading-none tabular-nums">{post.weightKg}<span className="text-[10px] font-bold text-text-secondary">kg</span></p>
+            <p className="text-[10px] text-text-tertiary tabular-nums mt-0.5">× {post.reps}</p>
           </div>
           {canDelete && (
             <div className="relative flex-shrink-0">
@@ -148,10 +227,35 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
               {showMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                  <div className="absolute right-0 top-8 z-20 bg-surface-elevated border border-white/10 rounded-xl shadow-xl min-w-[120px]">
+                  <div className="absolute right-0 top-8 z-20 bg-surface-elevated border border-white/10 rounded-xl shadow-xl min-w-[170px] overflow-hidden">
+                    {isAdmin && (
+                      <>
+                        <button
+                          onClick={() => { setShowMenu(false); onVerify(); }}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-white hover:bg-white/5 transition-colors"
+                        >
+                          {verified ? <><BadgeMinus className="w-3.5 h-3.5 text-text-secondary" /> Remove badge</> : <><BadgeCheck className="w-3.5 h-3.5 text-accent" /> Mark Verified</>}
+                        </button>
+                        {post.moderationStatus !== 'rejected' && (
+                          <button
+                            onClick={() => { setShowMenu(false); onHide(); }}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-white hover:bg-white/5 transition-colors"
+                          >
+                            <EyeOff className="w-3.5 h-3.5 text-text-secondary" /> Hide from wall
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { setShowMenu(false); onBan(); }}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-amber-400 hover:bg-white/5 transition-colors"
+                        >
+                          <Ban className="w-3.5 h-3.5" /> Ban poster
+                        </button>
+                        <div className="border-t border-white/10" />
+                      </>
+                    )}
                     <button
                       onClick={() => { setShowMenu(false); onDelete(); }}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors rounded-xl"
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Delete
                     </button>
@@ -165,128 +269,37 @@ function PRCard({ post, index, liked, canDelete, onLike, onDelete }: {
         {post.mediaUrl && (
           <div className="rounded-xl overflow-hidden mb-3 bg-black">
             {post.mediaType === 'video' ? (
-              <video src={post.mediaUrl} controls className="w-full max-h-80" />
+              <FeedMedia url={post.mediaUrl} kind="video" />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={post.mediaUrl} alt={post.exerciseName} className="w-full max-h-80 object-cover" />
+              <FeedMedia url={post.mediaUrl} alt={post.exerciseName} />
             )}
           </div>
         )}
 
         {post.note && <p className="text-sm text-text-secondary mb-3">{post.note}</p>}
 
-        <button
-          onClick={onLike}
-          className={`flex items-center gap-1.5 text-xs font-medium ${liked ? 'text-danger' : 'text-text-tertiary'}`}
-        >
-          <Heart className={`w-4 h-4 ${liked ? 'fill-danger' : ''}`} />
-          {post.likeCount + (liked ? 1 : 0)}
-        </button>
-      </Card>
-    </motion.div>
-  );
-}
-
-function PRForm({ userId, displayName, photoURL, onDone }: { userId: string; displayName: string; photoURL: string | null; onDone: () => void }) {
-  const { user } = useAuth();
-  const [exerciseName, setExerciseName] = useState('');
-  const [weightKg, setWeightKg] = useState('');
-  const [reps, setReps] = useState('');
-  const [note, setNote] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const submit = async () => {
-    if (!user || !exerciseName || !weightKg || !reps) return;
-    setUploading(true);
-    try {
-      let mediaUrl: string | undefined;
-      let mediaType: 'image' | 'video' | undefined;
-      if (file) {
-        mediaType = file.type.startsWith('video') ? 'video' : 'image';
-        const cfg = await getSystemConfig().catch(() => null);
-        const provider = ((cfg?.storageProvider as StorageProvider) || 'firebase');
-        mediaUrl = await uploadUserContent(provider, user, file, 'prPosts', setProgress);
-      }
-      await createPRPost({
-        userId,
-        displayName,
-        photoURL,
-        exerciseName,
-        weightKg: Number(weightKg),
-        reps: Number(reps),
-        note: note || undefined,
-        mediaUrl,
-        mediaType,
-        // Uploading a video/photo self-flags for review — actual promotion to
-        // "Video Verified" happens via admin/coach review, not automatically.
-        verificationLevel: 'unverified',
-      });
-      onDone();
-    } catch (err) {
-      console.error('[PRForm] submit failed:', err);
-      toast.error('Failed to post — try again');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <Card className="p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-bold text-white">New PR</p>
-        <button onClick={onDone}><X className="w-4 h-4 text-text-tertiary" /></button>
-      </div>
-      <input
-        value={exerciseName}
-        onChange={(e) => setExerciseName(e.target.value)}
-        placeholder="Exercise (e.g. Deadlift)"
-        className="w-full bg-surface-elevated border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary"
-      />
-      <div className="flex gap-2">
-        <input
-          value={weightKg}
-          onChange={(e) => setWeightKg(e.target.value)}
-          type="number"
-          placeholder="Weight (kg)"
-          className="flex-1 bg-surface-elevated border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary"
-        />
-        <input
-          value={reps}
-          onChange={(e) => setReps(e.target.value)}
-          type="number"
-          placeholder="Reps"
-          className="w-24 bg-surface-elevated border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary"
-        />
-      </div>
-      <textarea
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="Optional note..."
-        rows={2}
-        className="w-full bg-surface-elevated border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary resize-none"
-      />
-
-      <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-      <button
-        onClick={() => fileRef.current?.click()}
-        className="w-full flex items-center justify-center gap-2 border border-dashed border-white/15 rounded-xl py-3 text-xs text-text-secondary"
-      >
-        {file ? (file.type.startsWith('video') ? <Video className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />) : <Upload className="w-4 h-4" />}
-        {file ? file.name : 'Add video/photo proof (recommended)'}
-      </button>
-
-      {uploading && file && (
-        <div className="h-1.5 bg-surface-elevated rounded-full overflow-hidden">
-          <div className="h-full bg-accent transition-all" style={{ width: `${progress}%` }} />
+        <div className="flex items-center justify-between">
+          <button
+            onClick={onLike}
+            className={`flex items-center gap-1.5 text-xs font-medium ${liked ? 'text-danger' : 'text-text-tertiary'}`}
+          >
+            <Heart className={`w-4 h-4 ${liked ? 'fill-danger' : ''}`} />
+            {post.likeCount}
+          </button>
+          {isAdmin && (
+            <button
+              onClick={onVerify}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
+                verified ? 'border-accent/40 bg-accent/10 text-accent' : 'border-white/10 text-text-secondary hover:text-white hover:border-white/25'
+              }`}
+              title={verified ? 'Tap to remove the badge' : 'Tap to give the Verified badge'}
+            >
+              <BadgeCheck className="w-3.5 h-3.5" /> {verified ? 'Verified' : 'Verify'}
+            </button>
+          )}
         </div>
-      )}
-
-      <Button fullWidth onClick={submit} loading={uploading} disabled={!exerciseName || !weightKg || !reps}>
-        Post PR
-      </Button>
-    </Card>
+      </Card>
+    </div>
   );
 }

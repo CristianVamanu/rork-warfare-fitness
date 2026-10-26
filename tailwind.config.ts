@@ -46,6 +46,7 @@ const config: Config = {
         'slide-up': 'slideUp 0.3s ease-out',
         'spin-slow': 'spin 3s linear infinite',
         'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
+        shimmer: 'shimmer 2.8s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -59,6 +60,11 @@ const config: Config = {
         pulseGlow: {
           '0%, 100%': { boxShadow: '0 0 20px rgba(245,166,35,0.3)' },
           '50%': { boxShadow: '0 0 40px rgba(245,166,35,0.6)' },
+        },
+        // A single light sweep across a card, left to right, then a pause.
+        shimmer: {
+          '0%': { transform: 'translateX(0)' },
+          '60%, 100%': { transform: 'translateX(400%)' },
         },
       },
       boxShadow: {
