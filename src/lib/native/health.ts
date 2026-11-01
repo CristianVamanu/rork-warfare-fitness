@@ -50,9 +50,16 @@ const localDate = (d: Date) => {
 };
 const startOfLocalDay = (d: Date) => { const s = new Date(d); s.setHours(0, 0, 0, 0); return s; };
 
-async function plugin() {
-  const mod = await import('@capgo/capacitor-health');
-  return mod.Health;
+// The plugin object is a Capacitor proxy: any property access, including the
+// `.then` probe JavaScript performs when a promise resolves to an object,
+// becomes a native call. Resolving to the proxy itself therefore threw
+// '"Health.then()" is not implemented on android'. Always hand it back
+// wrapped in a plain object.
+type HealthPlugin = typeof import('@capgo/capacitor-health').Health;
+let cached: { H: HealthPlugin } | null = null;
+async function load(): Promise<{ H: HealthPlugin }> {
+  if (!cached) { const mod = await import('@capgo/capacitor-health'); cached = { H: mod.Health }; }
+  return cached;
 }
 
 export async function isHealthAvailable(): Promise<boolean> {
@@ -62,7 +69,7 @@ export async function isHealthAvailable(): Promise<boolean> {
 /** Availability plus the platform's reason when it is not, for the card to show. */
 export async function healthAvailability(): Promise<{ available: boolean; reason?: string }> {
   if (!isNativeApp()) return { available: false, reason: 'not-native' };
-  try { const r = await (await plugin()).isAvailable(); return { available: !!r.available, reason: r.reason }; }
+  try { const r = await (await load()).H.isAvailable(); return { available: !!r.available, reason: r.reason }; }
   catch (e) { return { available: false, reason: (e as Error)?.message || 'plugin-error' }; }
 }
 
@@ -76,7 +83,7 @@ export type HealthAuthState = 'unavailable' | 'granted' | 'partial' | 'denied';
 export async function checkHealthAuth(): Promise<HealthAuthState> {
   if (!(await isHealthAvailable())) return 'unavailable';
   try {
-    const s = await (await plugin()).checkAuthorization({ read: [...HEALTH_READ_TYPES] });
+    const s = await (await load()).H.checkAuthorization({ read: [...HEALTH_READ_TYPES] });
     if (s.readAuthorized.length === 0) return 'denied';
     return s.readDenied.length === 0 ? 'granted' : 'partial';
   } catch { return 'denied'; }
@@ -86,7 +93,7 @@ export async function checkHealthAuth(): Promise<HealthAuthState> {
 export async function requestHealthAuth(): Promise<HealthAuthState> {
   if (!(await isHealthAvailable())) return 'unavailable';
   try {
-    const s = await (await plugin()).requestAuthorization({ read: [...HEALTH_READ_TYPES], requestHistoryAccess: true });
+    const s = await (await load()).H.requestAuthorization({ read: [...HEALTH_READ_TYPES], requestHistoryAccess: true });
     if (s.readAuthorized.length === 0) return 'denied';
     return s.readDenied.length === 0 ? 'granted' : 'partial';
   } catch { return 'denied'; }
@@ -94,7 +101,7 @@ export async function requestHealthAuth(): Promise<HealthAuthState> {
 
 export async function openHealthSettings(): Promise<void> {
   if (nativePlatform() !== 'android') return;
-  try { await (await plugin()).openHealthConnectSettings(); } catch { /* noop */ }
+  try { await (await load()).H.openHealthConnectSettings(); } catch { /* noop */ }
 }
 
 /**
@@ -104,7 +111,7 @@ export async function openHealthSettings(): Promise<void> {
  * whole sync.
  */
 export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
-  const Health = await plugin();
+  const { H: Health } = await load();
   const source: HealthDaySummary['source'] = nativePlatform() === 'ios' ? 'healthkit' : 'healthconnect';
   const now = new Date();
   const from = startOfLocalDay(new Date(now.getTime() - (days - 1) * 86400_000));
